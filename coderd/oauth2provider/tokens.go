@@ -414,6 +414,17 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
+
+		// Lock order: users before api_keys (deleted and inserted below for
+		// dbCode.UserID). See AcquireUserSoftDeleteGuardLock.
+		// The lock is a system primitive; the surrounding transaction stays
+		// under the end user's own actor.
+		//nolint:gocritic // see above
+		_, err = tx.AcquireUserSoftDeleteGuardLock(dbauthz.AsSystemRestricted(ctx), dbCode.UserID)
+		if err != nil {
+			return xerrors.Errorf("acquire user soft-delete guard lock: %w", err)
+		}
+
 		err = tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
 		if err != nil {
 			return xerrors.Errorf("delete oauth2 app code: %w", err)
@@ -551,6 +562,18 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
+
+		// Lock order: users before api_keys. See AcquireUserSoftDeleteGuardLock.
+		// prevKey.UserID matches the rows deleted and inserted below; every
+		// other statement in this block derives from prevKey.
+		// The lock is a system primitive; the surrounding transaction stays
+		// under the end user's own actor.
+		//nolint:gocritic // see above
+		_, err = tx.AcquireUserSoftDeleteGuardLock(dbauthz.AsSystemRestricted(ctx), prevKey.UserID)
+		if err != nil {
+			return xerrors.Errorf("acquire user soft-delete guard lock: %w", err)
+		}
+
 		err = tx.DeleteAPIKeyByID(ctx, prevKey.ID) // This cascades to the token.
 		if err != nil {
 			return xerrors.Errorf("delete oauth2 app token: %w", err)

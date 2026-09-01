@@ -1815,6 +1815,20 @@ func (q *querier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int
 	return q.db.AcquireStaleChatDiffStatuses(ctx, limitVal)
 }
 
+func (q *querier) AcquireUserSoftDeleteGuardLock(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	// The lock is a deadlock-avoidance primitive, not a user capability: it
+	// orders a transaction's locks (users first, then child rows), granting
+	// nothing the guard triggers do not already do for free on every insert.
+	// Authorizing it on the target user would be role-dependent (owners
+	// pass, members fail) while protecting nothing, so it authorizes as a
+	// system primitive and call sites on user-scoped paths wrap only this
+	// call in dbauthz.AsSystemRestricted.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.AcquireUserSoftDeleteGuardLock(ctx, userID)
+}
+
 func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	fetch := func(ctx context.Context, arg database.ActivityBumpWorkspaceParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
@@ -7201,6 +7215,13 @@ func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (d
 		return database.ChatQueuedMessage{}, err
 	}
 	return q.db.PopNextQueuedMessage(ctx, chatID)
+}
+
+func (q *querier) PurgeSoftDeletedUserResources(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.PurgeSoftDeletedUserResources(ctx)
 }
 
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {

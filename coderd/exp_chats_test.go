@@ -3399,6 +3399,28 @@ func TestUserAIProviderKeys(t *testing.T) {
 		return nil
 	}
 
+	t.Run("DeletedUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		_, member := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		provider := createOpenAIProvider(t, adminClient, "test-deleted-user-"+uuid.NewString(), true, "test-provider-api-key")
+
+		err := adminClient.DeleteUser(ctx, member.ID)
+		require.NoError(t, err)
+
+		// The {user} param resolves deleted users, so the request reaches
+		// the insert; the guard trigger rejects it and the handler maps the
+		// violation to a 409 instead of a raw pq error.
+		_, err = adminClient.UpsertUserAIProviderKey(ctx, member.ID.String(), provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "orphan-key"})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+		require.Equal(t, "Cannot store an AI provider key for a deleted user.", apiErr.Message)
+	})
+
 	t.Run("SelfServiceLifecycle", func(t *testing.T) {
 		t.Parallel()
 

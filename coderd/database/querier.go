@@ -40,6 +40,25 @@ type sqlcQuerier interface {
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]AcquireStaleChatDiffStatusesRow, error)
+	// Acquires the users-row lock that the soft-delete guard triggers take on
+	// child-table inserts and owner reassignments (see check_user_not_deleted in
+	// migration 000591). Any transaction that writes a guarded child row
+	// (INSERT, UPDATE, or DELETE) and later inserts a guarded row for the same
+	// user (for example the OAuth2 token exchange, which replaces api_keys rows)
+	// must call this first so its lock order (users first, then child rows)
+	// matches delete_deleted_user_resources and cannot deadlock with a
+	// concurrent user soft-delete.
+	// Must run inside the transaction that performs the child writes: outside
+	// one, the lock is released at the implicit statement commit and protects
+	// nothing.
+	// The query is dbauthz-authorized as a system primitive: callers must run
+	// it under a system-authorized context (dbauthz.AsSystemRestricted at the
+	// call site when the surrounding request runs as an ordinary user).
+	// Returns sql.ErrNoRows when the user does not exist. It does NOT detect a
+	// wrong id that belongs to some other real user: that row is locked and the
+	// transaction proceeds with the guard defeated, so callers must derive the
+	// id from the same variable the child writes use.
+	AcquireUserSoftDeleteGuardLock(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	// Bumps the workspace deadline by the template's configured "activity_bump"
 	// duration (default 1h). If the workspace bump will cross an autostart
 	// threshold, then the bump is autostart + TTL. This is the deadline behavior if
@@ -1365,6 +1384,19 @@ type sqlcQuerier interface {
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	// Deletes child rows belonging to already-soft-deleted users. The guard
+	// triggers (migration 000591) prevent new rows from being created for
+	// soft-deleted users, and delete_deleted_user_resources cleans rows at
+	// soft-delete time; this reaper removes what predates both (legacy orphans
+	// from before cleanup coverage, and race products from before the guards).
+	// It deletes in the same table order as delete_deleted_user_resources to
+	// minimize deadlock exposure against a concurrent soft-delete; a lost
+	// deadlock surfaces as a failed purge cycle and is retried on the next one.
+	// group_members and user_ai_budget_overrides rows are normally wiped
+	// transitively (BEFORE DELETE triggers on organization_members); the direct
+	// deletes catch rows orphaned after the user's organization_members rows
+	// were already cleaned up.
+	PurgeSoftDeletedUserResources(ctx context.Context) error
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)

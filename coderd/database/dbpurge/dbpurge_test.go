@@ -253,6 +253,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldProvisionerDaemons(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().PurgeSoftDeletedUserResources(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -307,6 +308,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldProvisionerDaemons(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().PurgeSoftDeletedUserResources(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -3550,4 +3552,100 @@ func TestDeleteIdentifiedModuleCacheFiles(t *testing.T) {
 	tick()
 	assertFileExists(late.ID, "archive inserted after the one-off pass")
 	assertCacheRef(lateTV, late.ID, true, "archive inserted after the one-off pass")
+}
+
+// TestPurgeSoftDeletedUserResources verifies the reaper removes child rows
+// orphaned by a user soft-delete that predates the guard triggers and
+// cleanup coverage (migration 000591 deliberately has no backfill), while a
+// live user's rows survive.
+//
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestPurgeSoftDeletedUserResources(t *testing.T) {
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{})
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+	liveUser := dbgen.User(t, db, database.User{})
+	doomedUser := dbgen.User(t, db, database.User{})
+
+	seed := func(userID uuid.UUID) {
+		_, err := sqlDB.ExecContext(ctx, `
+			INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list)
+			VALUES ($1, 'reap-hash'::bytea, $2, now(), now() + interval '1 hour', now(), now(), 'password', '{}'::api_key_scope[], ARRAY['*'])
+		`, uuid.NewString(), userID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx,
+			`INSERT INTO user_links (user_id, login_type, linked_id) VALUES ($1, 'github', $2)`,
+			userID, "reap-link-"+userID.String())
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO user_secrets (id, user_id, name, description, value, env_name)
+			VALUES ($1, $2, 'reap-secret', '', 'value', 'REAP_SECRET')
+		`, uuid.New(), userID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO user_skills (id, user_id, name, description, content)
+			VALUES ($1, $2, 'reap-skill', '', 'content')
+		`, uuid.New(), userID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO user_ai_provider_keys (id, user_id, ai_provider_id, api_key)
+			VALUES ($1, $2, $3, 'reap-key')
+		`, uuid.New(), userID, provider.ID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO organization_members (user_id, organization_id, created_at, updated_at)
+			VALUES ($1, $2, now(), now())
+		`, userID, org.ID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx,
+			`INSERT INTO group_members (user_id, group_id) VALUES ($1, $2)`,
+			userID, group.ID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
+			VALUES ($1, $2, 1000000)
+		`, userID, group.ID)
+		require.NoError(t, err)
+	}
+	seed(liveUser.ID)
+	seed(doomedUser.ID)
+
+	// Reconstruct pre-guard orphans: soft-delete with the cleanup trigger
+	// suppressed, so every child row survives.
+	dbtestutil.SoftDeleteUserKeepingRows(ctx, t, sqlDB, doomedUser.ID)
+
+	guardedTables := []string{"api_keys", "user_links", "user_secrets", "user_skills", "user_ai_provider_keys", "organization_members", "group_members", "user_ai_budget_overrides"}
+	countRows := func(table string, userID uuid.UUID) int {
+		var count int
+		//nolint:gosec // The table name comes from the fixed list above.
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT count(*) FROM `+table+` WHERE user_id = $1`, userID).Scan(&count)
+		require.NoError(t, err)
+		return count
+	}
+	for _, table := range guardedTables {
+		require.Equal(t, 1, countRows(table, doomedUser.ID), "pre-purge: %s orphan must exist", table)
+	}
+
+	// The initial tick runs the purge immediately.
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(quartz.NewReal()))
+	defer closer.Close()
+
+	require.Eventually(t, func() bool {
+		for _, table := range guardedTables {
+			if countRows(table, doomedUser.ID) != 0 {
+				return false
+			}
+		}
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast, "all orphaned child rows of the soft-deleted user must be reaped")
+
+	for _, table := range guardedTables {
+		require.Equal(t, 1, countRows(table, liveUser.ID), "post-purge: %s row for the live user must survive", table)
+	}
 }
