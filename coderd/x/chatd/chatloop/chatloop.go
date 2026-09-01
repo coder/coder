@@ -343,6 +343,10 @@ type GenerateCompactionOptions struct {
 	// Clock measures the summary call duration. Required.
 	Clock quartz.Clock
 
+	// StreamSilenceTimeout bounds how long the summary stream may go
+	// without yielding a part. Defaults to defaultStreamSilenceTimeout.
+	StreamSilenceTimeout time.Duration
+
 	// OnModelStreamStart runs immediately before the summary model call,
 	// at the instant CompactionResult.Runtime starts measuring.
 	OnModelStreamStart func()

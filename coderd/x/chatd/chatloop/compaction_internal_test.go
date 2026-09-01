@@ -16,7 +16,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -249,11 +251,15 @@ func TestGenerateCompactionSummary_UsesCallerContext(t *testing.T) {
 
 	type contextKey string
 	testCtx := context.WithValue(context.Background(), contextKey("key"), "value")
-	var ctxSeen context.Context
+	var (
+		ctxSeen   context.Context
+		errAtCall error
+	)
 	model := &chattest.FakeModel{
 		ProviderName: "fake",
 		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			ctxSeen = ctx
+			errAtCall = ctx.Err()
 			return compactionStream(
 				fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
 				fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
@@ -269,8 +275,12 @@ func TestGenerateCompactionSummary_UsesCallerContext(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, "summary", summary)
-	require.Same(t, testCtx, ctxSeen)
-	require.NoError(t, ctxSeen.Err())
+	// The silence guard wraps the caller context in a cancelable child that
+	// is released after the summary completes, so assert inheritance rather
+	// than identity: values propagate, the context is live at call time, and
+	// no deadline is attached (the guard uses a timer, not a context
+	// deadline).
+	require.NoError(t, errAtCall)
 	_, ok := ctxSeen.Deadline()
 	require.False(t, ok)
 	require.Equal(t, "value", ctxSeen.Value(contextKey("key")))
@@ -320,6 +330,61 @@ func TestGenerateCompactionSummary_Stream(t *testing.T) {
 		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
 		require.Empty(t, summary)
 		require.EqualError(t, err, "compaction summary was truncated at the output token cap")
+	})
+
+	t.Run("rejects stream without finish part", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return compactionStream(
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "partial summary"},
+				), nil
+			},
+		}
+
+		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
+		require.Empty(t, summary)
+		require.EqualError(t, err, "compaction summary stream ended without a finish part")
+	})
+
+	t.Run("classifies stream silence", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t)
+		trap := clock.Trap().AfterFunc(streamSilenceGuardTimerTag)
+		defer trap.Close()
+		model := &chattest.FakeModel{
+			ProviderName: "openai",
+			StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return func(yield func(fantasy.StreamPart) bool) {
+					<-ctx.Done()
+				}, nil
+			},
+		}
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
+				ResolvedProvider:     "openai",
+				Clock:                clock,
+				StreamSilenceTimeout: 5 * time.Millisecond,
+			})
+			done <- err
+		}()
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		_, waiter := clock.AdvanceNext()
+		waiter.MustWait(ctx)
+		err := <-done
+		require.Error(t, err)
+		classified := chaterror.Classify(err)
+		require.Equal(t, codersdk.ChatErrorKindStreamSilenceTimeout, classified.Kind)
+		require.Equal(t, "openai", classified.Provider)
+		require.True(t, classified.Retryable)
 	})
 }
 

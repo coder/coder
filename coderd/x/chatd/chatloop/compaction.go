@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -98,6 +99,12 @@ type CompactionOptions struct {
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
 	SummaryCall      fantasy.Call
+
+	// Clock and StreamSilenceTimeout guard the summary stream against a
+	// provider that opens the stream but stops yielding parts. Zero values
+	// fall back to a real clock and defaultStreamSilenceTimeout.
+	Clock                quartz.Clock
+	StreamSilenceTimeout time.Duration
 
 	// Force skips the threshold gate (including the threshold=100
 	// disable and the zero-usage early return). Set for manual,
@@ -223,23 +230,25 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 
 func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (CompactionOptions, bool) {
 	config := CompactionOptions{
-		ThresholdPercent:    opts.ThresholdPercent,
-		ContextLimit:        opts.ContextLimit,
-		SummaryPrompt:       opts.SummaryPrompt,
-		SummaryHint:         opts.SummaryHint,
-		SystemSummaryPrefix: opts.SystemSummaryPrefix,
-		DebugSvc:            opts.DebugSvc,
-		ChatID:              opts.ChatID,
-		HistoryTipMessageID: opts.HistoryTipMessageID,
-		ResolvedProvider:    opts.ResolvedProvider,
-		ResolvedModel:       opts.ResolvedModel,
-		ModelConfigID:       opts.ModelConfigID,
-		SummaryCall:         opts.SummaryCall,
-		Force:               opts.Force,
-		Source:              opts.Source,
-		ToolCallID:          opts.ToolCallID,
-		ToolName:            opts.ToolName,
-		PublishMessagePart:  opts.PublishMessagePart,
+		ThresholdPercent:     opts.ThresholdPercent,
+		ContextLimit:         opts.ContextLimit,
+		SummaryPrompt:        opts.SummaryPrompt,
+		SummaryHint:          opts.SummaryHint,
+		SystemSummaryPrefix:  opts.SystemSummaryPrefix,
+		DebugSvc:             opts.DebugSvc,
+		ChatID:               opts.ChatID,
+		HistoryTipMessageID:  opts.HistoryTipMessageID,
+		ResolvedProvider:     opts.ResolvedProvider,
+		ResolvedModel:        opts.ResolvedModel,
+		ModelConfigID:        opts.ModelConfigID,
+		SummaryCall:          opts.SummaryCall,
+		Force:                opts.Force,
+		Source:               opts.Source,
+		ToolCallID:           opts.ToolCallID,
+		ToolName:             opts.ToolName,
+		PublishMessagePart:   opts.PublishMessagePart,
+		Clock:                opts.Clock,
+		StreamSilenceTimeout: opts.StreamSilenceTimeout,
 	}
 	if strings.TrimSpace(config.SummaryPrompt) == "" {
 		config.SummaryPrompt = defaultCompactionSummaryPrompt
@@ -457,18 +466,41 @@ func generateCompactionSummary(
 
 	call := options.SummaryCall
 	call.Prompt = summaryPrompt
-	stream, err := model.Stream(summaryCtx, call)
+	clock := options.Clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+	timeout := options.StreamSilenceTimeout
+	if timeout <= 0 {
+		timeout = defaultStreamSilenceTimeout
+	}
+	// NopMetrics: TTFT is an assistant-generation metric, so the summary
+	// stream must not record into it.
+	attempt, err := guardedStream(
+		summaryCtx,
+		options.ResolvedProvider,
+		options.ResolvedModel,
+		clock,
+		timeout,
+		func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
+			return model.Stream(attemptCtx, call)
+		},
+		NopMetrics(),
+	)
 	if err != nil {
 		return "", xerrors.Errorf("stream summary text: %w", err)
 	}
+	defer attempt.release()
 
 	textPartIndexes := make(map[string]int)
 	textParts := make([]string, 0, 1)
 	var (
 		reasoningSeen bool
+		finishSeen    bool
 		finishReason  fantasy.FinishReason
+		streamErr     error
 	)
-	for part := range stream {
+	for part := range attempt.stream {
 		switch part.Type {
 		case fantasy.StreamPartTypeTextStart:
 			if _, ok := textPartIndexes[part.ID]; ok {
@@ -489,13 +521,29 @@ func generateCompactionSummary(
 			fantasy.StreamPartTypeReasoningEnd:
 			reasoningSeen = true
 		case fantasy.StreamPartTypeFinish:
+			finishSeen = true
 			finishReason = part.FinishReason
 		case fantasy.StreamPartTypeError:
-			if part.Error == nil {
-				return "", xerrors.New("stream summary text: model returned an error part")
+			streamErr = part.Error
+			if streamErr == nil {
+				streamErr = xerrors.New("model returned an error part")
 			}
-			return "", xerrors.Errorf("stream summary text: %w", part.Error)
 		}
+		if streamErr != nil {
+			break
+		}
+	}
+	if err := attempt.finish(streamErr); err != nil {
+		return "", xerrors.Errorf("stream summary text: %w", err)
+	}
+	if !finishSeen {
+		// A stream that ends without a finish part was interrupted.
+		// Committing its partial text would compact history against an
+		// incomplete summary.
+		if ctxErr := summaryCtx.Err(); ctxErr != nil {
+			return "", xerrors.Errorf("stream summary text: %w", ctxErr)
+		}
+		return "", xerrors.New("compaction summary stream ended without a finish part")
 	}
 
 	parts := make([]string, 0, len(textParts))
