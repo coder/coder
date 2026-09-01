@@ -56,10 +56,16 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		ws = database.WorkspaceIdentityFromWorkspace(w)
 	}
 
+	a.boundSessionCounts(ctx, req.Stats)
+
+	// The report itself is agent controlled, so log bounded scalars about it
+	// rather than the payload.
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),
 		slog.F("workspace_id", ws.ID),
-		slog.F("payload", req),
+		slog.F("connection_count", req.Stats.GetConnectionCount()),
+		slog.F("session_count_keys", len(req.Stats.GetSessionCounts())),
+		slog.F("connections_by_proto_keys", len(req.Stats.GetConnectionsByProto())),
 	)
 
 	if a.Experiments.Enabled(codersdk.ExperimentWorkspaceUsage) {
@@ -83,4 +89,42 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	}
 
 	return res, nil
+}
+
+// boundSessionCounts truncates an oversized session_counts map in place and
+// sums the counts it drops into AppFamilyUnknown. Agents choose the keys, so
+// this bounds the work the stats pipeline does per report before
+// normalization allocates for it. The rest of the report is still accepted,
+// as with oversized agent metadata.
+//
+// Which names survive is arbitrary because map iteration order is random.
+// The batcher's own cap is what makes the stored result deterministic. The
+// truncated map holds one name past the bound when the unknown bucket was
+// not already among the entries that fit.
+func (a *StatsAPI) boundSessionCounts(ctx context.Context, st *agentproto.Stats) {
+	reported := st.GetSessionCounts()
+	if len(reported) <= workspacestats.MaxReportedSessionCountEntries {
+		return
+	}
+
+	bounded := make(map[string]int64, workspacestats.MaxReportedSessionCountEntries+1)
+	var folded int64
+	for app, count := range reported {
+		if len(bounded) < workspacestats.MaxReportedSessionCountEntries {
+			bounded[app] = count
+			continue
+		}
+		folded += count
+	}
+	if folded > 0 {
+		bounded[string(codersdk.AppFamilyUnknown)] += folded
+	}
+	st.SessionCounts = bounded
+
+	// The batcher warns about the fold on a throttle, so this stays at debug
+	// to avoid one log line per report from the same agent.
+	a.Log.Debug(ctx, "too many session counts reported, overflow counted under unknown",
+		slog.F("reported", len(reported)),
+		slog.F("max", workspacestats.MaxReportedSessionCountEntries),
+	)
 }

@@ -41,6 +41,15 @@ func normalizedSessionCounts(st *agentproto.Stats) map[string]int64 {
 // aggregates under AppFamilyUnknown.
 const maxSessionCountEntries = 64
 
+// MaxReportedSessionCountEntries bounds the raw session_counts map coderd
+// accepts from an agent in a single stats report, before normalization. A
+// workspace process chooses both the keys and how many of them it sends, so
+// the RPC handler folds anything past this bound into AppFamilyUnknown
+// instead of normalizing and allocating for it. It sits above
+// maxSessionCountEntries because normalization merges distinct raw names, so
+// the deterministic cap below still sees every plausible legitimate map.
+const MaxReportedSessionCountEntries = 4 * maxSessionCountEntries
+
 // capSessionCounts keeps the busiest maxSessionCountEntries names, preferring
 // known apps, and sums the rest into AppFamilyUnknown, so the result can hold
 // one name past the cap.

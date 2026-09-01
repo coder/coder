@@ -3,6 +3,8 @@ package agentapi_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"maps"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -665,6 +667,125 @@ func TestUpdateStats(t *testing.T) {
 		case <-notifyDescription:
 		}
 		require.True(t, updateAgentMetricsFnCalled)
+	})
+
+	t.Run("SessionCountsOverBound", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			now     = dbtime.Now()
+			dbM     = dbmock.NewMockStore(gomock.NewController(t))
+			ps      = pubsub.NewInMemory()
+			batcher = &workspacestatstest.StatsBatcher{}
+
+			sessionCounts = make(map[string]int64, workspacestats.MaxReportedSessionCountEntries+10)
+		)
+		for i := range workspacestats.MaxReportedSessionCountEntries + 10 {
+			sessionCounts[fmt.Sprintf("app_%d", i)] = 1
+		}
+		req := &agentproto.UpdateStatsRequest{
+			Stats: &agentproto.Stats{
+				ConnectionsByProto:        map[string]int64{"tcp": 1},
+				ConnectionCount:           0,
+				ConnectionMedianLatencyMs: 23,
+				RxPackets:                 120,
+				RxBytes:                   1000,
+				TxPackets:                 130,
+				TxBytes:                   2000,
+				SessionCounts:             sessionCounts,
+			},
+		}
+
+		api := agentapi.StatsAPI{
+			AgentID:   agent.ID,
+			AgentName: agent.Name,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
+			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+				Database:     dbM,
+				Pubsub:       ps,
+				StatsBatcher: batcher,
+				UsageTracker: workspacestats.NewTracker(dbM),
+			}),
+			AgentStatsRefreshInterval: 10 * time.Second,
+			TimeNowFn: func() time.Time {
+				return now
+			},
+		}
+
+		_, err := api.UpdateStats(context.Background(), req)
+		require.NoError(t, err)
+
+		batcher.Mu.Lock()
+		defer batcher.Mu.Unlock()
+		bounded := batcher.LastStats.GetSessionCounts()
+		// The unknown bucket was not one of the names that fit, so it is the
+		// one name the bounded map holds past the bound.
+		require.Len(t, bounded, workspacestats.MaxReportedSessionCountEntries+1)
+		require.EqualValues(t, 10, bounded[string(codersdk.AppFamilyUnknown)])
+
+		var total int64
+		for _, count := range bounded {
+			total += count
+		}
+		require.EqualValues(t, workspacestats.MaxReportedSessionCountEntries+10, total,
+			"dropped counts should be folded into unknown, not lost")
+
+		// The rest of the report is preserved.
+		require.Equal(t, map[string]int64{"tcp": 1}, batcher.LastStats.GetConnectionsByProto())
+		require.EqualValues(t, 23, batcher.LastStats.GetConnectionMedianLatencyMs())
+		require.EqualValues(t, 120, batcher.LastStats.GetRxPackets())
+		require.EqualValues(t, 1000, batcher.LastStats.GetRxBytes())
+		require.EqualValues(t, 130, batcher.LastStats.GetTxPackets())
+		require.EqualValues(t, 2000, batcher.LastStats.GetTxBytes())
+	})
+
+	t.Run("SessionCountsAtBound", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			now     = dbtime.Now()
+			dbM     = dbmock.NewMockStore(gomock.NewController(t))
+			ps      = pubsub.NewInMemory()
+			batcher = &workspacestatstest.StatsBatcher{}
+
+			sessionCounts = make(map[string]int64, workspacestats.MaxReportedSessionCountEntries)
+		)
+		for i := range workspacestats.MaxReportedSessionCountEntries {
+			sessionCounts[fmt.Sprintf("app_%d", i)] = 1
+		}
+		want := maps.Clone(sessionCounts)
+		req := &agentproto.UpdateStatsRequest{
+			Stats: &agentproto.Stats{
+				ConnectionCount:           0,
+				ConnectionMedianLatencyMs: 23,
+				SessionCounts:             sessionCounts,
+			},
+		}
+
+		api := agentapi.StatsAPI{
+			AgentID:   agent.ID,
+			AgentName: agent.Name,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
+			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+				Database:     dbM,
+				Pubsub:       ps,
+				StatsBatcher: batcher,
+				UsageTracker: workspacestats.NewTracker(dbM),
+			}),
+			AgentStatsRefreshInterval: 10 * time.Second,
+			TimeNowFn: func() time.Time {
+				return now
+			},
+		}
+
+		_, err := api.UpdateStats(context.Background(), req)
+		require.NoError(t, err)
+
+		batcher.Mu.Lock()
+		defer batcher.Mu.Unlock()
+		require.Equal(t, want, batcher.LastStats.GetSessionCounts())
 	})
 }
 
