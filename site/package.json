@@ -85,7 +85,7 @@
 		"monaco-editor": "0.55.1",
 		"motion": "12.43.0",
 		"pretty-bytes": "6.1.1",
-		"radix-ui": "1.4.3",
+		"radix-ui": "1.6.7",
 		"react": "19.2.8",
 		"react-color": "2.19.3",
 		"react-confetti": "6.4.0",
