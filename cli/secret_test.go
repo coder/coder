@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -18,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
@@ -593,6 +596,152 @@ func TestSecretList(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		assert.Contains(t, output.Stderr(), "No secrets found.")
+	})
+
+	t.Run("WarnsWhenFilePathDeliveryDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+			values.DisableUserSecretFilePath = true
+		})
+		db, ps := dbtestutil.NewDB(t)
+		ownerClient := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps, DeploymentValues: dv})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		// The server rejects new paths while the policy is on, so seed the
+		// preserved path the same way an earlier deployment would have.
+		dbgen.UserSecret(t, db, database.UserSecret{UserID: member.ID, Name: "tool-config"},
+			func(p *database.CreateUserSecretParams) {
+				p.EnvName, p.FilePath, p.Enabled = "TOOL_CONFIG", "~/.config/tool/config.json", true
+			})
+
+		for _, args := range [][]string{{"secret", "list"}, {"secret", "list", "tool-config"}} {
+			inv, root := clitest.New(t, args...)
+			output := clitest.Capture(inv)
+			clitest.SetupConfig(t, memberClient, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			require.NoError(t, inv.WithContext(ctx).Run(), args)
+			assert.Contains(t, output.Stdout(), "~/.config/tool/config.json", args)
+			assert.Contains(t, output.Stderr(), "File path delivery is disabled.", args)
+			assert.Contains(t, output.Stderr(), "Stored file paths shown below are not written to workspaces.", args)
+		}
+
+		// The warning goes to stderr, so machine-readable output stays parseable.
+		inv, root := clitest.New(t, "secret", "list", "--output", "json")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, memberClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		var listed []codersdk.UserSecret
+		require.NoError(t, json.Unmarshal([]byte(output.Stdout()), &listed))
+		require.Len(t, listed, 1)
+		assert.Equal(t, "~/.config/tool/config.json", listed[0].FilePath)
+		assert.Contains(t, output.Stderr(), "File path delivery is disabled.")
+	})
+
+	t.Run("NoWarningWhenFilePathDeliveryEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		setupCtx := testutil.Context(t, testutil.WaitMedium)
+		_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:     "tool-config",
+			Value:    "config-value",
+			FilePath: "~/.config/tool/config.json",
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "secret", "list")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		assert.Contains(t, output.Stdout(), "~/.config/tool/config.json")
+		assert.NotContains(t, output.Stderr(), "File path delivery is disabled.")
+	})
+
+	// The capability check is advisory: the CLI never withholds a listing when
+	// the deployment cannot answer it, and never asks when nothing shown has a
+	// stored file path.
+	t.Run("CapabilityCheckIsAdvisory", func(t *testing.T) {
+		t.Parallel()
+
+		upstream := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, upstream)
+
+		setupCtx := testutil.Context(t, testutil.WaitMedium)
+		for _, req := range []codersdk.CreateUserSecretRequest{
+			{Name: "tool-config", Value: "config-value", FilePath: "~/.config/tool/config.json"},
+			{Name: "env-only", Value: "env-value", EnvName: "ENV_ONLY"},
+		} {
+			_, err := upstream.CreateUserSecret(setupCtx, codersdk.Me, req)
+			require.NoError(t, err)
+		}
+
+		for _, tc := range []struct {
+			name           string
+			args           []string
+			capabilityCode int
+			wantRequests   int64
+			wantStdout     string
+			wantStderr     string
+		}{
+			{
+				// Deployments that predate the endpoint answer with a 404.
+				name: "NotFound", args: []string{"secret", "list"},
+				capabilityCode: http.StatusNotFound, wantRequests: 1,
+				wantStdout: "~/.config/tool/config.json",
+			},
+			{
+				name: "ServerError", args: []string{"secret", "list"},
+				capabilityCode: http.StatusInternalServerError, wantRequests: 1,
+				wantStdout: "~/.config/tool/config.json",
+				wantStderr: "Could not check whether file path delivery is enabled.",
+			},
+			{
+				name: "NoStoredFilePath", args: []string{"secret", "list", "env-only"},
+				capabilityCode: http.StatusNotFound, wantRequests: 0,
+				wantStdout: "ENV_ONLY",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var capabilityRequests atomic.Int64
+				proxy := httputil.NewSingleHostReverseProxy(upstream.URL)
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path == "/api/v2/deployment/user-secrets/capabilities" {
+						capabilityRequests.Add(1)
+						w.WriteHeader(tc.capabilityCode)
+						return
+					}
+					proxy.ServeHTTP(w, r)
+				}))
+				defer server.Close()
+
+				client := codersdk.New(must(url.Parse(server.URL)))
+				client.SetSessionToken(upstream.SessionToken())
+
+				inv, root := clitest.New(t, tc.args...)
+				output := clitest.Capture(inv)
+				clitest.SetupConfig(t, client, root)
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				require.NoError(t, inv.WithContext(ctx).Run())
+				assert.Contains(t, output.Stdout(), tc.wantStdout)
+				assert.NotContains(t, output.Stderr(), "File path delivery is disabled.")
+				if tc.wantStderr != "" {
+					assert.Contains(t, output.Stderr(), tc.wantStderr)
+				}
+				assert.EqualValues(t, tc.wantRequests, capabilityRequests.Load())
+			})
+		}
 	})
 }
 
