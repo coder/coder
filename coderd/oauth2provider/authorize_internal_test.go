@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -16,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestNegotiateScope(t *testing.T) {
@@ -513,13 +514,79 @@ func TestAuthorizeResponseZeroValue(t *testing.T) {
 	require.False(t, (&authorizeFailure{}).redirect.canRedirect())
 }
 
-func TestBlamesClient(t *testing.T) {
+// TestCarveOutDelivery pins which failures reach the client's callback and which
+// stay here, the RFC 6749 §4.1.2.1 decision clientIDInDoubt makes.
+func TestCarveOutDelivery(t *testing.T) {
 	t.Parallel()
 
-	require.False(t, blamesClient(nil))
-	require.False(t, blamesClient([]codersdk.ValidationError{{Field: "code_challenge"}}))
-	require.True(t, blamesClient([]codersdk.ValidationError{
-		{Field: "code_challenge"},
-		{Field: "client_id"},
-	}))
+	app := database.OAuth2ProviderApp{ID: uuid.MustParse("6f1a9c30-0d6b-4f8e-9a71-2c4b83f0ab12")}
+	registered, err := url.Parse("https://app.example.com/callback")
+	require.NoError(t, err)
+
+	valid := func() url.Values {
+		return url.Values{
+			"client_id":             {app.ID.String()},
+			"response_type":         {"code"},
+			"redirect_uri":          {"https://app.example.com/callback"},
+			"code_challenge":        {"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"},
+			"code_challenge_method": {"S256"},
+			"state":                 {"xyz"},
+		}
+	}
+
+	cases := []struct {
+		name    string
+		mutate  func(url.Values)
+		deliver bool
+	}{
+		{
+			// Repeated: the callback was matched against one of two candidates.
+			name:    "RepeatedClientID",
+			mutate:  func(v url.Values) { v["client_id"] = []string{app.ID.String(), app.ID.String()} },
+			deliver: false,
+		},
+		{
+			name: "ClientIDIsNotTheResolvedApp",
+			mutate: func(v url.Values) {
+				v.Set("client_id", uuid.NewString())
+				v.Set("code_challenge", "short")
+			},
+			deliver: false,
+		},
+		{
+			// httpmw resolved the app from the POST form body, which this
+			// parser never reads. The identity is not in doubt.
+			name:    "ClientIDAbsentFromTheQuery",
+			mutate:  func(v url.Values) { v.Del("client_id") },
+			deliver: true,
+		},
+		{
+			// uuid.Parse accepts this and httpmw resolved through it.
+			name: "ClientIDInANonCanonicalSpelling",
+			mutate: func(v url.Values) {
+				v.Set("client_id", "{"+strings.ToUpper(app.ID.String())+"}")
+				v.Set("code_challenge", "short")
+			},
+			deliver: true,
+		},
+		{
+			name:    "FailureOutsideTheIdentity",
+			mutate:  func(v url.Values) { v.Set("code_challenge", "short") },
+			deliver: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			vals := valid()
+			tc.mutate(vals)
+			r := httptest.NewRequest(http.MethodGet, "/oauth2/authorize?"+vals.Encode(), nil)
+
+			_, failure := extractAuthorizeParams(r, app, registered)
+			require.NotNil(t, failure)
+			require.Equal(t, tc.deliver, failure.redirect.canRedirect())
+		})
+	}
 }

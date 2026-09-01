@@ -187,7 +187,7 @@ type authorizeFailure struct {
 	corruptCallback error
 }
 
-func extractAuthorizeParams(r *http.Request, registered *url.URL) (authorizeParams, *authorizeFailure) {
+func extractAuthorizeParams(r *http.Request, app database.OAuth2ProviderApp, registered *url.URL) (authorizeParams, *authorizeFailure) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
@@ -246,7 +246,7 @@ func extractAuthorizeParams(r *http.Request, registered *url.URL) (authorizePara
 			validationErrors: p.Errors,
 			message:          "Invalid query params: " + strings.Join(details, ", "),
 		}
-		if !blamesClient(p.Errors) {
+		if !clientIDInDoubt(vals, params.clientID, app.ID) {
 			failure.redirect = response
 		}
 		return authorizeParams{}, failure
@@ -254,19 +254,30 @@ func extractAuthorizeParams(r *http.Request, registered *url.URL) (authorizePara
 	return params, nil
 }
 
-// blamesClient reports whether these errors name the client identifier, the one
-// RFC 6749 §4.1.2.1 carve-out a response can still satisfy: a wrong client_id
-// means the registration the callback was matched against may not belong to
-// whoever is asking. The other carve-out, a redirect URI at fault, needs no test
-// here because the response it produced has nowhere to send.
+// clientIDInDoubt reports whether the client's identity is unsettled, the
+// RFC 6749 §4.1.2.1 carve-out that keeps the answer on this server rather than
+// sending it to a registration that may not be the caller's. The other
+// carve-out, a redirect URI at fault, needs no test here because the response
+// it produced has nowhere to send.
 //
-// Unreachable through the query parameter, since httpmw resolves the app before
-// either handler runs, but reachable through the §2.3.1 Basic credential that
-// may stand in for it.
-func blamesClient(errs []codersdk.ValidationError) bool {
-	return slices.ContainsFunc(errs, func(e codersdk.ValidationError) bool {
-		return e.Field == "client_id"
-	})
+// It reads the raw values because parseSingle collapses a repeated client_id to
+// "", which is indistinguishable from a POST carrying client_id in the form
+// body. httpmw accepts that body, so an absent query parameter still names a
+// client and its failure is deliverable.
+func clientIDInDoubt(vals url.Values, parsed string, appID uuid.UUID) bool {
+	named := vals["client_id"]
+	switch {
+	case len(named) > 1:
+		// The callback was matched against one of several candidates.
+		return true
+	case len(named) == 0:
+		return false
+	default:
+		// Parsed rather than compared as text: httpmw resolves through
+		// uuid.Parse, which accepts spellings the canonical form does not match.
+		id, err := uuid.Parse(parsed)
+		return err != nil || id != appID
+	}
 }
 
 // authorizeResponse names where this request's response goes and what it carries
@@ -434,7 +445,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
-		params, failure := extractAuthorizeParams(r, callbackURL)
+		params, failure := extractAuthorizeParams(r, app, callbackURL)
 		if failure != nil {
 			// 500, not 400: registration rejects these schemes, so a stored one
 			// is bad server state and takes precedence over anything the client
@@ -556,7 +567,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		params, failure := extractAuthorizeParams(r, callbackURL)
+		params, failure := extractAuthorizeParams(r, app, callbackURL)
 		if failure != nil {
 			// As on the GET side: a rejected registered scheme is server state
 			// and outranks the client's own mistakes.

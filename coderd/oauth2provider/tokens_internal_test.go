@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -343,7 +344,7 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			}
 
 			// Extract authorize params
-			params, failure := extractAuthorizeParams(req, callbackURL)
+			params, failure := extractAuthorizeParams(req, database.OAuth2ProviderApp{}, callbackURL)
 
 			require.Nil(t, failure)
 			require.Equal(t, tc.expectedScopes, params.scope)
@@ -406,7 +407,7 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 				URL:    reqURL,
 			}
 
-			_, failure := extractAuthorizeParams(req, callbackURL)
+			_, failure := extractAuthorizeParams(req, database.OAuth2ProviderApp{}, callbackURL)
 			if tc.expectValid {
 				require.Nil(t, failure)
 			} else {
@@ -440,7 +441,7 @@ func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T
 		URL:    reqURL,
 	}
 
-	params, failure := extractAuthorizeParams(req, callbackURL)
+	params, failure := extractAuthorizeParams(req, database.OAuth2ProviderApp{}, callbackURL)
 	require.Nil(t, failure)
 	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
