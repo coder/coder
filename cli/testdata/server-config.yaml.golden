@@ -559,6 +559,13 @@ disableWorkspaceSharing: false
 # their chats.
 # (default: <unset>, type: bool)
 disableChatSharing: false
+# Stop persisting workspace agent context snapshots (instructions, skills, and MCP
+# state used for pinned chat context). When set, coderd rejects agent context
+# pushes as unimplemented and agents stop sending them; chats cannot pin workspace
+# context. Use this to shed the database write load of context sync on large
+# deployments.
+# (default: <unset>, type: bool)
+disableWorkspaceAgentContextSync: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:

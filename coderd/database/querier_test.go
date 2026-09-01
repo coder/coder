@@ -1990,6 +1990,16 @@ func TestProxyByHostname(t *testing.T) {
 			accessURL:        "https://two.coder.com",
 			wildcardHostname: "*--suffix.two.coder.com",
 		},
+		{
+			name:             "three",
+			accessURL:        "https://three.coder.com:8443",
+			wildcardHostname: "*.wildcard.three.coder.com",
+		},
+		{
+			name:             "four",
+			accessURL:        "https://four.coder.com/",
+			wildcardHostname: "*.wildcard.four.coder.com",
+		},
 	}
 	for _, p := range proxies {
 		dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{
@@ -2021,6 +2031,34 @@ func TestProxyByHostname(t *testing.T) {
 			matchProxyName:    "one",
 		},
 		{
+			name:              "MatchAccessURLWithPort",
+			testHostname:      "three.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "three",
+		},
+		{
+			name:              "MatchAccessURLWithTrailingSlash",
+			testHostname:      "four.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "four",
+		},
+		{
+			name:              "RejectAccessURLPrefix",
+			testHostname:      "one.coder",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "",
+		},
+		{
+			name:              "RejectAccessURLTLDPrefix",
+			testHostname:      "one.coder.co",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "",
+		},
+		{
 			name:              "MatchWildcard",
 			testHostname:      "something.wildcard.one.coder.com",
 			allowAccessURL:    true,
@@ -2028,11 +2066,25 @@ func TestProxyByHostname(t *testing.T) {
 			matchProxyName:    "one",
 		},
 		{
+			name:              "RejectWildcardHostnamePrefix",
+			testHostname:      "something.wildcard.one.coder",
+			allowAccessURL:    false,
+			allowWildcardHost: true,
+			matchProxyName:    "",
+		},
+		{
 			name:              "MatchSuffix",
 			testHostname:      "something--suffix.two.coder.com",
 			allowAccessURL:    true,
 			allowWildcardHost: true,
 			matchProxyName:    "two",
+		},
+		{
+			name:              "RejectSuffixHostnamePrefix",
+			testHostname:      "something--suffix.two.coder",
+			allowAccessURL:    false,
+			allowWildcardHost: true,
+			matchProxyName:    "",
 		},
 		{
 			name:              "ValidateHostname/1",

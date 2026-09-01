@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -248,6 +249,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteCachedModuleFilesCreatedBetween(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteCachedModuleFilesCreatedBetweenParams{})).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
@@ -298,6 +300,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteCachedModuleFilesCreatedBetween(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteCachedModuleFilesCreatedBetweenParams{})).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
@@ -2713,4 +2716,177 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			tc.run(t)
 		})
 	}
+}
+
+func awaitDoTicks(ctx context.Context, t *testing.T, clk *quartz.Mock, n int) func() {
+	t.Helper()
+	completed := make(chan struct{})
+	advance := make(chan struct{})
+	trapNow := clk.Trap().Now()
+	trapStop := clk.Trap().TickerStop()
+	trapReset := clk.Trap().TickerReset()
+	go func() {
+		defer close(completed)
+		defer trapReset.Close()
+		defer trapStop.Close()
+		defer trapNow.Close()
+		trapNow.MustWait(ctx).MustRelease(ctx)
+		trapReset.MustWait(ctx).MustRelease(ctx)
+		select {
+		case completed <- struct{}{}:
+		case <-ctx.Done():
+			return
+		}
+		for i := 1; i < n; i++ {
+			select {
+			case <-advance:
+			case <-ctx.Done():
+				return
+			}
+			d, w := clk.AdvanceNext()
+			if !assert.Equal(t, 10*time.Minute, d) {
+				return
+			}
+			w.MustWait(ctx)
+			trapStop.MustWait(ctx).MustRelease(ctx)
+			trapReset.MustWait(ctx).MustRelease(ctx)
+			select {
+			case completed <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	first := true
+	return func() {
+		t.Helper()
+		if !first {
+			testutil.RequireSend(ctx, t, advance, struct{}{})
+		}
+		first = false
+		testutil.TryReceive(ctx, t, completed)
+	}
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestDeleteIdentifiedModuleCacheFiles(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clk := quartz.NewMock(t)
+	clk.Set(dbtime.Now()).MustWait(ctx)
+
+	// The window under test is supplied explicitly rather than copied from the
+	// production constants, so revising the incident timestamps cannot silently
+	// invalidate these boundary assertions.
+	windowStart := time.Date(2026, 8, 31, 8, 0, 0, 0, time.UTC)
+	windowEnd := time.Date(2026, 8, 31, 22, 0, 0, 0, time.UTC)
+	inWindow := windowStart.Add(time.Minute)
+
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	mkFile := func(name string, createdBy uuid.UUID, mimetype string, createdAt time.Time) database.File {
+		file, err := db.InsertFile(ctx, database.InsertFileParams{
+			ID:        uuid.New(),
+			Hash:      fmt.Sprintf("%x", sha256.Sum256([]byte(name))),
+			CreatedBy: createdBy,
+			CreatedAt: createdAt,
+			Mimetype:  mimetype,
+			Data:      []byte{},
+		})
+		require.NoError(t, err, "insert file %q", name)
+		return file
+	}
+
+	// mkVersion creates a template version whose cached module files point at a
+	// file with the given properties. InsertFile is used directly because
+	// dbgen.File treats uuid.Nil as unset and substitutes a random creator,
+	// while uuid.Nil is exactly what identifies a provisionerd module archive.
+	mkVersion := func(name string, createdBy uuid.UUID, mimetype string, createdAt time.Time) (database.File, database.TemplateVersion) {
+		file := mkFile(name, createdBy, mimetype, createdAt)
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			Name:           name,
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		_ = dbgen.TemplateVersionTerraformValues(t, db, database.TemplateVersionTerraformValue{
+			TemplateVersionID: tv.ID,
+			CachedModuleFiles: uuid.NullUUID{UUID: file.ID, Valid: true},
+		})
+		return file, tv
+	}
+
+	// Identified: a provisionerd module archive cached inside the window.
+	identified, identifiedTV := mkVersion("identified", uuid.Nil, "application/x-tar", inWindow)
+	// The lower bound is inclusive.
+	atStart, atStartTV := mkVersion("at-start", uuid.Nil, "application/x-tar", windowStart)
+	// The upper bound is exclusive, so this archive is known good.
+	atEnd, atEndTV := mkVersion("at-end", uuid.Nil, "application/x-tar", windowEnd)
+	// Cached before and after the window.
+	before, beforeTV := mkVersion("before", uuid.Nil, "application/x-tar", windowStart.Add(-time.Hour))
+	after, afterTV := mkVersion("after", uuid.Nil, "application/x-tar", windowEnd.Add(time.Hour))
+	// A user-uploaded template tarball shares the mimetype but has a real
+	// creator, so it must survive even though it is inside the window.
+	userUpload, userUploadTV := mkVersion("user-upload", user.ID, "application/x-tar", inWindow)
+
+	// An unreferenced archive inside the window. Only archives referenced by a
+	// template version are in scope.
+	orphan := mkFile("orphan", uuid.Nil, "application/x-tar", inWindow)
+
+	// when dbpurge runs
+	tick := awaitDoTicks(ctx, t, clk, 2)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+	defer closer.Close()
+	tick() // doTick() has now run.
+
+	assertFileDeleted := func(id uuid.UUID, name string) {
+		t.Helper()
+		_, err := db.GetFileByID(ctx, id)
+		require.ErrorIs(t, err, sql.ErrNoRows, "%s should be deleted", name)
+	}
+	assertFileExists := func(id uuid.UUID, name string) {
+		t.Helper()
+		_, err := db.GetFileByID(ctx, id)
+		require.NoError(t, err, "%s should be retained", name)
+	}
+	// assertCacheRef checks the template version still exists and that its
+	// module cache reference was cleared only when the file was deleted.
+	assertCacheRef := func(tv database.TemplateVersion, wantFile uuid.UUID, wantValid bool, name string) {
+		t.Helper()
+		values, err := db.GetTemplateVersionTerraformValues(ctx, tv.ID)
+		require.NoError(t, err, "%s: terraform values row must be retained", name)
+		require.Equal(t, wantValid, values.CachedModuleFiles.Valid, "%s: cache reference validity", name)
+		if wantValid {
+			require.Equal(t, wantFile, values.CachedModuleFiles.UUID, "%s: cache reference target", name)
+		}
+	}
+
+	// then the identified archives are deleted and their references cleared
+	assertFileDeleted(identified.ID, "archive inside the window")
+	assertCacheRef(identifiedTV, uuid.Nil, false, "archive inside the window")
+	assertFileDeleted(atStart.ID, "archive at the inclusive lower bound")
+	assertCacheRef(atStartTV, uuid.Nil, false, "archive at the inclusive lower bound")
+
+	// and everything else is untouched
+	assertFileExists(atEnd.ID, "archive at the exclusive upper bound")
+	assertCacheRef(atEndTV, atEnd.ID, true, "archive at the exclusive upper bound")
+	assertFileExists(before.ID, "archive cached before the window")
+	assertCacheRef(beforeTV, before.ID, true, "archive cached before the window")
+	assertFileExists(after.ID, "archive cached after the window")
+	assertCacheRef(afterTV, after.ID, true, "archive cached after the window")
+	assertFileExists(userUpload.ID, "user-uploaded tarball")
+	assertCacheRef(userUploadTV, userUpload.ID, true, "user-uploaded tarball")
+	assertFileExists(orphan.ID, "unreferenced archive")
+
+	// The cleanup is one-off, not a recurring purge. A second tick must not
+	// repeat it, so an archive inserted into the window after the first pass
+	// survives. This documents the latch: the window is fixed in the past and
+	// nothing can legitimately land in it again.
+	late, lateTV := mkVersion("late", uuid.Nil, "application/x-tar", inWindow)
+	tick()
+	assertFileExists(late.ID, "archive inserted after the one-off pass")
+	assertCacheRef(lateTV, late.ID, true, "archive inserted after the one-off pass")
 }

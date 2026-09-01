@@ -56,6 +56,13 @@ OPTIONS:
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
 
+      --disable-workspace-agent-context-sync bool, $CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC
+          Stop persisting workspace agent context snapshots (instructions,
+          skills, and MCP state used for pinned chat context). When set, coderd
+          rejects agent context pushes as unimplemented and agents stop sending
+          them; chats cannot pin workspace context. Use this to shed the
+          database write load of context sync on large deployments.
+
       --disable-workspace-sharing bool, $CODER_DISABLE_WORKSPACE_SHARING
           Disable workspace sharing. Workspace ACL checking is disabled and only
           owners can have ssh, apps and terminal access to workspaces. Access

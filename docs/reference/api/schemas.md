@@ -5664,6 +5664,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
+    "disable_workspace_agent_context_sync": true,
     "disable_workspace_sharing": true,
     "docs_url": {
       "forceQuery": true,
@@ -6270,6 +6271,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
+  "disable_workspace_agent_context_sync": true,
   "disable_workspace_sharing": true,
   "docs_url": {
     "forceQuery": true,
@@ -6661,6 +6663,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                    |
 | `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                            | boolean                                                                                              | false    |              |                                                                    |
+| `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                    |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `enable_authz_recording`                       | boolean                                                                                              | false    |              |                                                                    |

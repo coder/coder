@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
@@ -331,7 +330,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			// FE know not to enter the authentication loop again, and instead display an error.
 			redirect = fmt.Sprintf("/external-auth/%s?redirected=true", externalAuthConfig.ID)
 		}
-		redirect = uriFromURL(redirect)
+		redirect = httpapi.SafeRedirectPath(redirect)
 		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}
 }
@@ -428,13 +427,4 @@ func ExternalAuthConfig(cfg *externalauth.Config) codersdk.ExternalAuthLinkProvi
 		SupportsRevocation:            cfg.RevokeURL != "",
 		CodeChallengeMethodsSupported: slice.ToStrings(cfg.CodeChallengeMethodsSupported),
 	}
-}
-
-func uriFromURL(u string) string {
-	uri, err := url.Parse(u)
-	if err != nil {
-		return "/"
-	}
-
-	return uri.RequestURI()
 }

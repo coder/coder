@@ -83,7 +83,10 @@ type Options struct {
 	Pubsub                pubsub.Pubsub
 	// ContextDirtyMarker is the chatd-backed hydrate/dirty fan-out invoked
 	// from PushContextState. Nil when chatd is disabled.
-	ContextDirtyMarker                ContextDirtyMarker
+	ContextDirtyMarker ContextDirtyMarker
+	// ContextSyncDisabled makes PushContextState reject pushes with a dRPC
+	// Unimplemented code so agents stop sending context snapshots.
+	ContextSyncDisabled               bool
 	ConnectionLogger                  *atomic.Pointer[connectionlog.ConnectionLogger]
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
@@ -257,6 +260,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Clock:       opts.Clock,
 		Database:    opts.Database,
 		DirtyMarker: opts.ContextDirtyMarker,
+		Disabled:    opts.ContextSyncDisabled,
 	}
 
 	// Start background cache refresh loop to handle workspace changes
