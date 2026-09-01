@@ -14667,10 +14667,9 @@
 					},
 					{
 						"type": "string",
-						"description": "A random unguessable string",
+						"description": "A random unguessable string, echoed back on the callback",
 						"name": "state",
-						"in": "query",
-						"required": true
+						"in": "query"
 					},
 					{
 						"enum": ["code"],
@@ -14690,6 +14689,26 @@
 						"type": "string",
 						"description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
 						"name": "scope",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)",
+						"name": "code_challenge",
+						"in": "query",
+						"required": true
+					},
+					{
+						"enum": ["S256"],
+						"type": "string",
+						"description": "PKCE challenge method. S256 only; omitting it means S256",
+						"name": "code_challenge_method",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "RFC 8707 resource indicator: an absolute URI without a fragment",
+						"name": "resource",
 						"in": "query"
 					}
 				],
@@ -14721,10 +14740,9 @@
 					},
 					{
 						"type": "string",
-						"description": "A random unguessable string",
+						"description": "A random unguessable string, echoed back on the callback",
 						"name": "state",
-						"in": "query",
-						"required": true
+						"in": "query"
 					},
 					{
 						"enum": ["code"],
@@ -14744,6 +14762,26 @@
 						"type": "string",
 						"description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
 						"name": "scope",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)",
+						"name": "code_challenge",
+						"in": "query",
+						"required": true
+					},
+					{
+						"enum": ["S256"],
+						"type": "string",
+						"description": "PKCE challenge method. S256 only; omitting it means S256",
+						"name": "code_challenge_method",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "RFC 8707 resource indicator: an absolute URI without a fragment",
+						"name": "resource",
 						"in": "query"
 					}
 				],

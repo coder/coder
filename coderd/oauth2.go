@@ -117,10 +117,13 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Security CoderSessionToken
 // @Tags Enterprise
 // @Param client_id query string true "Client ID"
-// @Param state query string true "A random unguessable string"
+// @Param state query string false "A random unguessable string, echoed back on the callback"
 // @Param response_type query string true "Response type" Enums(code)
 // @Param redirect_uri query string false "Redirect here after authorization"
 // @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
+// @Param code_challenge query string true "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)"
+// @Param code_challenge_method query string false "PKCE challenge method. S256 only; omitting it means S256" Enums(S256)
+// @Param resource query string false "RFC 8707 resource indicator: an absolute URI without a fragment"
 // @Success 200 "Returns HTML authorization page"
 // @Success 302 "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
 // @Router /oauth2/authorize [get]
@@ -133,10 +136,13 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Security CoderSessionToken
 // @Tags Enterprise
 // @Param client_id query string true "Client ID"
-// @Param state query string true "A random unguessable string"
+// @Param state query string false "A random unguessable string, echoed back on the callback"
 // @Param response_type query string true "Response type" Enums(code)
 // @Param redirect_uri query string false "Redirect here after authorization"
 // @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
+// @Param code_challenge query string true "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)"
+// @Param code_challenge_method query string false "PKCE challenge method. S256 only; omitting it means S256" Enums(S256)
+// @Param resource query string false "RFC 8707 resource indicator: an absolute URI without a fragment"
 // @Success 302 "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {

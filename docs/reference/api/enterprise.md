@@ -4877,7 +4877,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=string&response_type=code \
+curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&response_type=code&code_challenge=string \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -4885,19 +4885,23 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=str
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
-|-----------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_id`     | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
-| `state`         | query | string | true     | A random unguessable string                                                                                                                                                                                                                                        |
-| `response_type` | query | string | true     | Response type                                                                                                                                                                                                                                                      |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
-| `scope`         | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
+| Name                    | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
+|-------------------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`             | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `state`                 | query | string | false    | A random unguessable string, echoed back on the callback                                                                                                                                                                                                           |
+| `response_type`         | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `redirect_uri`          | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
+| `scope`                 | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
+| `code_challenge`        | query | string | true     | PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)                                                                                                                                                                                          |
+| `code_challenge_method` | query | string | false    | PKCE challenge method. S256 only; omitting it means S256                                                                                                                                                                                                           |
+| `resource`              | query | string | false    | RFC 8707 resource indicator: an absolute URI without a fragment                                                                                                                                                                                                    |
 
 #### Enumerated Values
 
-| Parameter       | Value(s) |
-|-----------------|----------|
-| `response_type` | `code`   |
+| Parameter               | Value(s) |
+|-------------------------|----------|
+| `response_type`         | `code`   |
+| `code_challenge_method` | `S256`   |
 
 ### Responses
 
@@ -4914,7 +4918,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=string&response_type=code \
+curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&response_type=code&code_challenge=string \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -4922,19 +4926,23 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=st
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
-|-----------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_id`     | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
-| `state`         | query | string | true     | A random unguessable string                                                                                                                                                                                                                                        |
-| `response_type` | query | string | true     | Response type                                                                                                                                                                                                                                                      |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
-| `scope`         | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
+| Name                    | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
+|-------------------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`             | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `state`                 | query | string | false    | A random unguessable string, echoed back on the callback                                                                                                                                                                                                           |
+| `response_type`         | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `redirect_uri`          | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
+| `scope`                 | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
+| `code_challenge`        | query | string | true     | PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)                                                                                                                                                                                          |
+| `code_challenge_method` | query | string | false    | PKCE challenge method. S256 only; omitting it means S256                                                                                                                                                                                                           |
+| `resource`              | query | string | false    | RFC 8707 resource indicator: an absolute URI without a fragment                                                                                                                                                                                                    |
 
 #### Enumerated Values
 
-| Parameter       | Value(s) |
-|-----------------|----------|
-| `response_type` | `code`   |
+| Parameter               | Value(s) |
+|-------------------------|----------|
+| `response_type`         | `code`   |
+| `code_challenge_method` | `S256`   |
 
 ### Responses
 
