@@ -144,6 +144,14 @@ func (m queryMetricsStore) AcquireStaleChatDiffStatuses(ctx context.Context, lim
 	return r0, r1
 }
 
+func (m queryMetricsStore) AcquireUserSoftDeleteGuardLock(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireUserSoftDeleteGuardLock(ctx, userID)
+	m.queryLatencies.WithLabelValues("AcquireUserSoftDeleteGuardLock").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireUserSoftDeleteGuardLock").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	start := time.Now()
 	r0 := m.s.ActivityBumpWorkspace(ctx, arg)
@@ -5038,6 +5046,14 @@ func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid
 	m.queryLatencies.WithLabelValues("PopNextQueuedMessage").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PopNextQueuedMessage").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) PurgeSoftDeletedUserResources(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.PurgeSoftDeletedUserResources(ctx)
+	m.queryLatencies.WithLabelValues("PurgeSoftDeletedUserResources").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PurgeSoftDeletedUserResources").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {

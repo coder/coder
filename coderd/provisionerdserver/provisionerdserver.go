@@ -3317,7 +3317,17 @@ func (s *server) regenerateSessionToken(ctx context.Context, user database.User,
 	}
 
 	err = s.Database.InTx(func(tx database.Store) error {
-		err := deleteSessionToken(ctx, tx, workspace)
+		// Lock order: users before api_keys. See AcquireUserSoftDeleteGuardLock.
+		// user.ID is the same variable the inserted key derives from (the
+		// single caller passes the workspace owner), so the lock and the
+		// insert cannot diverge.
+		//nolint:gocritic // Session token rotation runs as the provisioner daemon, not the workspace owner.
+		_, err := tx.AcquireUserSoftDeleteGuardLock(dbauthz.AsSystemRestricted(ctx), user.ID)
+		if err != nil {
+			return xerrors.Errorf("acquire user soft-delete guard lock: %w", err)
+		}
+
+		err = deleteSessionToken(ctx, tx, workspace)
 		if err != nil {
 			return xerrors.Errorf("delete session token: %w", err)
 		}

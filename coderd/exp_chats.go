@@ -6837,6 +6837,14 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	})
+	// 409: the request is well-formed and fails on the target's state, and
+	// the sibling deleted-user guard in userskills.go already uses Conflict.
+	if database.IsCheckViolation(err, database.CheckUserAIProviderKeyUserDeleted) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Cannot store an AI provider key for a deleted user.",
+		})
+		return
+	}
 	if err != nil {
 		api.Logger.Error(ctx, "failed to update user AI provider key", slog.Error(err), slog.F("user_id", targetUser.ID), slog.F("ai_provider_id", providerID))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to update user AI provider key."})

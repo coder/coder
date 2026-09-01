@@ -547,6 +547,109 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 	}
 }
 
+// TestOAuth2ProviderTokenExchangeLockOrder drives the token exchange through
+// its real HTTP entry point as an ordinary member while the test holds the
+// member's users-row lock, pinning two contracts the SQL-replay suite in
+// coderd/database/user_soft_delete_guards_test.go cannot:
+//  1. dbauthz authorizes AcquireUserSoftDeleteGuardLock as a system
+//     primitive, so a member's own token exchange passes authorization.
+//  2. The real exchange transaction takes the users lock first: a backend
+//     blocks inside AcquireUserSoftDeleteGuardLock (identified by the sqlc
+//     query name in pg_stat_activity) before any api_keys or oauth2 code
+//     row is written. Remove the Go lock call, or weaken the query below
+//     FOR NO KEY UPDATE (which no longer conflicts with the held lock),
+//     and no backend ever blocks there: the Eventually times out red.
+//     "Before" is asserted directly: while the exchange is blocked, its
+//     backend must hold zero RowExclusiveLocks on api_keys or
+//     oauth2_provider_app_codes, so moving the lock call after the child
+//     writes (the deadlock-reintroducing inversion) also fails red.
+func TestOAuth2ProviderTokenExchangeLockOrder(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	apps := generateApps(ctx, t, ownerClient, "token-lock-order")
+
+	//nolint:gocritic // OAauth2 app management requires owner permission.
+	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+	require.NoError(t, err)
+
+	userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	cfg := &oauth2.Config{
+		ClientID:     apps.Default.ID.String(),
+		ClientSecret: secret.ClientSecretFull,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:       apps.Default.Endpoints.Authorization,
+			DeviceAuthURL: apps.Default.Endpoints.DeviceAuth,
+			TokenURL:      apps.Default.Endpoints.Token,
+			AuthStyle:     oauth2.AuthStyleInParams,
+		},
+		RedirectURL: apps.Default.CallbackURL,
+		Scopes:      []string{},
+	}
+	code, verifier, err := authorizationFlow(ctx, userClient, cfg)
+	require.NoError(t, err)
+
+	// Hold the same users-row lock a concurrent soft-delete would take.
+	lockTx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = lockTx.Rollback() }()
+	var lockedID uuid.UUID
+	require.NoError(t, lockTx.QueryRowContext(ctx,
+		`SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE`, user.ID,
+	).Scan(&lockedID))
+
+	exchangeDone := make(chan error, 1)
+	var token *oauth2.Token
+	go func() {
+		tok, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+		token = tok
+		exchangeDone <- err
+	}()
+
+	// The exchange must block inside AcquireUserSoftDeleteGuardLock before
+	// writing any child row; sqlc embeds the query name in the SQL text.
+	var blockedPID int
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT pid FROM pg_stat_activity
+			WHERE datname = current_database()
+			  AND wait_event_type = 'Lock'
+			  AND query LIKE '%AcquireUserSoftDeleteGuardLock%'
+		`).Scan(&blockedPID)
+		return err == nil && blockedPID != 0
+	}, testutil.IntervalFast, "the exchange must block on the users lock inside AcquireUserSoftDeleteGuardLock")
+
+	// The lock is taken FIRST: while blocked on the users row, the exchange
+	// transaction must not yet hold a write lock on either child table it
+	// later writes. Reordering the AcquireUserSoftDeleteGuardLock call after
+	// DeleteOAuth2ProviderAppCodeByID / DeleteAPIKeyByID (the CRF-4 lock
+	// inversion) leaves a RowExclusiveLock here and fails this assertion.
+	var childLocks int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FROM pg_locks
+		WHERE pid = $1
+		  AND mode = 'RowExclusiveLock'
+		  AND relation IN ('api_keys'::regclass, 'oauth2_provider_app_codes'::regclass)
+	`, blockedPID).Scan(&childLocks))
+	require.Zero(t, childLocks, "the exchange must take the users lock before writing any api_keys or oauth2_provider_app_codes row")
+
+	require.NoError(t, lockTx.Rollback())
+
+	select {
+	case err := <-exchangeDone:
+		require.NoError(t, err, "a member's token exchange must succeed once the users lock is released")
+		require.NotEmpty(t, token.AccessToken)
+	case <-ctx.Done():
+		t.Fatalf("exchange did not finish: %v", ctx.Err())
+	}
+}
+
 // TestOAuth2ProviderTokenExchangeCodeBelongsToDifferentApp covers
 // authorizationCodeGrant's code-ownership check in isolation. The token
 // endpoint validates redirect_uri against the app resolved from client_id

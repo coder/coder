@@ -118,6 +118,21 @@ func (mr *MockStoreMockRecorder) AcquireStaleChatDiffStatuses(ctx, limitVal any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireStaleChatDiffStatuses", reflect.TypeOf((*MockStore)(nil).AcquireStaleChatDiffStatuses), ctx, limitVal)
 }
 
+// AcquireUserSoftDeleteGuardLock mocks base method.
+func (m *MockStore) AcquireUserSoftDeleteGuardLock(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireUserSoftDeleteGuardLock", ctx, userID)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireUserSoftDeleteGuardLock indicates an expected call of AcquireUserSoftDeleteGuardLock.
+func (mr *MockStoreMockRecorder) AcquireUserSoftDeleteGuardLock(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireUserSoftDeleteGuardLock", reflect.TypeOf((*MockStore)(nil).AcquireUserSoftDeleteGuardLock), ctx, userID)
+}
+
 // ActivityBumpWorkspace mocks base method.
 func (m *MockStore) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	m.ctrl.T.Helper()
@@ -9578,6 +9593,20 @@ func (m *MockStore) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) 
 func (mr *MockStoreMockRecorder) PopNextQueuedMessage(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopNextQueuedMessage", reflect.TypeOf((*MockStore)(nil).PopNextQueuedMessage), ctx, chatID)
+}
+
+// PurgeSoftDeletedUserResources mocks base method.
+func (m *MockStore) PurgeSoftDeletedUserResources(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PurgeSoftDeletedUserResources", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PurgeSoftDeletedUserResources indicates an expected call of PurgeSoftDeletedUserResources.
+func (mr *MockStoreMockRecorder) PurgeSoftDeletedUserResources(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeSoftDeletedUserResources", reflect.TypeOf((*MockStore)(nil).PurgeSoftDeletedUserResources), ctx)
 }
 
 // ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.

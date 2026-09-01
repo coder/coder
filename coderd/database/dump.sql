@@ -885,6 +885,68 @@ $$;
 
 COMMENT ON FUNCTION chat_message_search_text(content jsonb) IS 'Extracts searchable content from chat_messages. Returns NULL for scalar JSON strings (content_version=0). Immutable as it is used in indexes.';
 
+CREATE FUNCTION check_user_not_deleted(target_user_id uuid, take_lock boolean, tg_operation text, display_name text, deleted_constraint text) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	user_deleted boolean;
+BEGIN
+	-- Serialize child-table inserts against a concurrent user soft-delete:
+	-- an unlocked insert can read deleted = false, lose the race to the
+	-- soft-delete UPDATE and its cleanup, then commit a resurrected row.
+	-- FOR NO KEY UPDATE conflicts with the soft-delete UPDATE but not with
+	-- the FOR KEY SHARE locks that foreign-key validation takes on the
+	-- users row for other child tables.
+	--
+	-- The lock is taken only when the row starts belonging to
+	-- target_user_id (INSERT, or UPDATE that reassigns the owner). On
+	-- same-owner UPDATE statements the unlocked read is kept: taking the users lock
+	-- there deadlocks against delete_deleted_user_resources (a multi-row
+	-- UPDATE or ON CONFLICT path can hold one child tuple and wait on
+	-- users while the cleanup holds users and waits on a child tuple), and
+	-- would serialize routine child updates on the hot users row. An
+	-- existing row is cleaned up by the soft-delete either way.
+	--
+	-- The locking path imposes an ordering contract on writers: a
+	-- transaction that writes a guarded child row (INSERT, UPDATE, or
+	-- DELETE) and later inserts a guarded row for the same user must call
+	-- AcquireUserSoftDeleteGuardLock first, so its lock order (users, then
+	-- child rows) matches delete_deleted_user_resources. The same contract
+	-- covers the cap triggers' advisory locks (migration 000590): without
+	-- the users lock first, an update-then-insert writer can cycle with a
+	-- concurrent insert that holds the users lock and waits on the
+	-- advisory lock. coderd/database/user_soft_delete_guards_test.go
+	-- replays each known such path as a deterministic deadlock regression,
+	-- and the OAuth2 token exchange is driven through its real entry point.
+	--
+	-- Isolation: the locking read is correct at READ COMMITTED, which every
+	-- production writer of the guarded tables uses. Under REPEATABLE READ
+	-- or SERIALIZABLE the lock wait fails with a serialization error
+	-- (40001) whenever any transaction committed an update to the users
+	-- row after the snapshot (users is written on ordinary browsing to
+	-- bump last_seen_at), and coderd does not retry 40001; do not wrap
+	-- guarded inserts in database.ReadModifyUpdate or other
+	-- stronger-isolation transactions.
+	IF take_lock THEN
+		SELECT deleted INTO user_deleted
+		FROM users
+		WHERE id = target_user_id
+		FOR NO KEY UPDATE;
+	ELSE
+		SELECT deleted INTO user_deleted
+		FROM users
+		WHERE id = target_user_id;
+	END IF;
+	IF (user_deleted) THEN
+		RAISE EXCEPTION 'Cannot % % for deleted user',
+			CASE WHEN tg_operation = 'INSERT' THEN 'create' ELSE 'modify' END,
+			display_name
+			USING ERRCODE = 'check_violation',
+				  CONSTRAINT = deleted_constraint;
+	END IF;
+END;
+$$;
+
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1146,6 +1208,24 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION fail_if_user_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	reassigned boolean := false;
+BEGIN
+	IF (TG_OP = 'UPDATE') THEN
+		reassigned := NEW.user_id IS DISTINCT FROM OLD.user_id;
+		-- Same-owner updates on the tables using this function are
+		-- filtered out by the triggers' UPDATE OF user_id column list;
+		-- reassigned still guards the no-op UPDATE ... SET user_id = user_id.
+	END IF;
+	PERFORM check_user_not_deleted(
+		NEW.user_id, TG_OP = 'INSERT' OR reassigned, TG_OP, TG_ARGV[0], TG_ARGV[1]);
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1177,14 +1257,14 @@ $$;
 CREATE FUNCTION insert_apikey_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-
 DECLARE
+	reassigned boolean := false;
 BEGIN
-	IF (NEW.user_id IS NOT NULL) THEN
-		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
-			RAISE EXCEPTION 'Cannot create API key for deleted user';
-		END IF;
+	IF (TG_OP = 'UPDATE') THEN
+		reassigned := NEW.user_id IS DISTINCT FROM OLD.user_id;
 	END IF;
+	PERFORM check_user_not_deleted(
+		NEW.user_id, TG_OP = 'INSERT' OR reassigned, TG_OP, 'API key', 'api_key_user_deleted');
 	RETURN NEW;
 END;
 $$;
@@ -1236,14 +1316,14 @@ $$;
 CREATE FUNCTION insert_user_links_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-
 DECLARE
+	reassigned boolean := false;
 BEGIN
-	IF (NEW.user_id IS NOT NULL) THEN
-		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
-			RAISE EXCEPTION 'Cannot create user_link for deleted user';
-		END IF;
+	IF (TG_OP = 'UPDATE') THEN
+		reassigned := NEW.user_id IS DISTINCT FROM OLD.user_id;
 	END IF;
+	PERFORM check_user_not_deleted(
+		NEW.user_id, TG_OP = 'INSERT' OR reassigned, TG_OP, 'user_link', 'user_link_user_deleted');
 	RETURN NEW;
 END;
 $$;
@@ -1251,14 +1331,14 @@ $$;
 CREATE FUNCTION insert_user_secret_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-
 DECLARE
+	reassigned boolean := false;
 BEGIN
-	IF (NEW.user_id IS NOT NULL) THEN
-		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
-			RAISE EXCEPTION 'Cannot create user_secret for deleted user';
-		END IF;
+	IF (TG_OP = 'UPDATE') THEN
+		reassigned := NEW.user_id IS DISTINCT FROM OLD.user_id;
 	END IF;
+	PERFORM check_user_not_deleted(
+		NEW.user_id, TG_OP = 'INSERT' OR reassigned, TG_OP, 'user_secret', 'user_secret_user_deleted');
 	RETURN NEW;
 END;
 $$;
@@ -1266,19 +1346,15 @@ $$;
 CREATE FUNCTION insert_user_skill_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-
+DECLARE
+	reassigned boolean := false;
 BEGIN
-    PERFORM 1
-    FROM users
-    WHERE id = NEW.user_id
-      AND deleted = true
-    LIMIT 1;
-    IF FOUND THEN
-        RAISE EXCEPTION 'Cannot create user_skill for deleted user'
-            USING ERRCODE = 'check_violation',
-                  CONSTRAINT = 'user_skill_user_deleted';
-    END IF;
-    RETURN NEW;
+	IF (TG_OP = 'UPDATE') THEN
+		reassigned := NEW.user_id IS DISTINCT FROM OLD.user_id;
+	END IF;
+	PERFORM check_user_not_deleted(
+		NEW.user_id, TG_OP = 'INSERT' OR reassigned, TG_OP, 'user_skill', 'user_skill_user_deleted');
+	RETURN NEW;
 END;
 $$;
 
@@ -5226,7 +5302,15 @@ CREATE TRIGGER trigger_enforce_user_ai_budget_override_membership BEFORE INSERT 
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
+CREATE TRIGGER trigger_insert_group_members BEFORE INSERT OR UPDATE OF user_id ON group_members FOR EACH ROW EXECUTE FUNCTION fail_if_user_deleted('group_member', 'group_member_user_deleted');
+
+CREATE TRIGGER trigger_insert_organization_members BEFORE INSERT OR UPDATE OF user_id ON organization_members FOR EACH ROW EXECUTE FUNCTION fail_if_user_deleted('organization_member', 'organization_member_user_deleted');
+
 CREATE TRIGGER trigger_insert_organization_system_roles AFTER INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION insert_organization_system_roles();
+
+CREATE TRIGGER trigger_insert_user_ai_budget_overrides BEFORE INSERT OR UPDATE OF user_id ON user_ai_budget_overrides FOR EACH ROW EXECUTE FUNCTION fail_if_user_deleted('user_ai_budget_override', 'user_ai_budget_override_user_deleted');
+
+CREATE TRIGGER trigger_insert_user_ai_provider_keys BEFORE INSERT OR UPDATE OF user_id ON user_ai_provider_keys FOR EACH ROW EXECUTE FUNCTION fail_if_user_deleted('user_ai_provider_key', 'user_ai_provider_key_user_deleted');
 
 CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
 
@@ -5235,6 +5319,8 @@ CREATE TRIGGER trigger_set_chat_message_revision_on_insert BEFORE INSERT ON chat
 CREATE TRIGGER trigger_set_chat_message_revision_on_update BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
 
 CREATE TRIGGER trigger_sync_chat_retry_state BEFORE UPDATE OF retry_state, retry_state_version, generation_attempt ON chats FOR EACH ROW EXECUTE FUNCTION sync_chat_retry_state();
+
+CREATE TRIGGER trigger_update_apikeys_owner BEFORE UPDATE OF user_id ON api_keys FOR EACH ROW WHEN ((new.user_id IS DISTINCT FROM old.user_id)) EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_update_chat_history_after_message_insert AFTER INSERT ON chat_messages REFERENCING NEW TABLE AS chat_message_history_new_rows FOR EACH STATEMENT EXECUTE FUNCTION update_chat_history_after_message_insert();
 

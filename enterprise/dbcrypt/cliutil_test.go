@@ -632,11 +632,13 @@ func TestRotateUserAIProviderKeys(t *testing.T) {
 		// alongside a live user's row purely to confirm Rotate doesn't need
 		// one.
 		liveUser := dbgen.User(t, f.rawDB, database.User{})
-		deletedUser := dbgen.User(t, f.rawDB, database.User{Deleted: true})
+		deletedUser := dbgen.User(t, f.rawDB, database.User{})
 		provider := dbgen.AIProvider(t, f.rawDB, database.AIProvider{})
 
 		liveKey := upsertUserAIProviderKey(f.ctx, t, f.cryptDBA, liveUser.ID, provider.ID, "user-key-live")
 		deletedKey := upsertUserAIProviderKey(f.ctx, t, f.cryptDBA, deletedUser.ID, provider.ID, "user-key-deleted-user")
+		// Rotation and decryption must still handle legacy orphaned rows.
+		dbtestutil.SoftDeleteUserKeepingRows(f.ctx, t, f.sqlDB, deletedUser.ID)
 
 		f.rotate(t)
 
@@ -1223,11 +1225,13 @@ func TestDecryptUserAIProviderKeys(t *testing.T) {
 		f := newDecryptFixture(t)
 
 		liveUser := dbgen.User(t, f.rawDB, database.User{})
-		deletedUser := dbgen.User(t, f.rawDB, database.User{Deleted: true})
+		deletedUser := dbgen.User(t, f.rawDB, database.User{})
 		provider := dbgen.AIProvider(t, f.rawDB, database.AIProvider{})
 
 		liveKey := upsertUserAIProviderKey(f.ctx, t, f.cryptDBA, liveUser.ID, provider.ID, "user-key-live")
 		deletedKey := upsertUserAIProviderKey(f.ctx, t, f.cryptDBA, deletedUser.ID, provider.ID, "user-key-deleted-user")
+		// Rotation and decryption must still handle legacy orphaned rows.
+		dbtestutil.SoftDeleteUserKeepingRows(f.ctx, t, f.sqlDB, deletedUser.ID)
 
 		f.decrypt(t)
 
