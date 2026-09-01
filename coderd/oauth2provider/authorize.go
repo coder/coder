@@ -145,6 +145,17 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	return strings.Join(granted, " "), nil
 }
 
+// scopeFailureResponse maps a negotiateScope rejection to the client's error.
+// errCoverageUndecidable is this server failing to compare, not a bad request,
+// so it answers server_error (RFC 6749 §4.1.2.1) with a fixed description;
+// negotiateScope already logged the detail.
+func scopeFailureResponse(err error) (codersdk.OAuth2ErrorCode, string) {
+	if errors.Is(err, errCoverageUndecidable) {
+		return codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated"
+	}
+	return codersdk.OAuth2ErrorCodeInvalidScope, err.Error()
+}
+
 // consentScopes returns the scope names the consent page lists, and whether the
 // grant is unrestricted. An unrestricted grant lists nothing: the page's
 // full-access wording tells a user more than "coder:all" does.
@@ -430,8 +441,9 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// clicks Allow. The result also decides what the page lists.
 		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
 		if err != nil {
+			code, description := scopeFailureResponse(err)
 			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
-				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+				code, description)
 			return
 		}
 
@@ -509,8 +521,9 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
 		if err != nil {
+			code, description := scopeFailureResponse(err)
 			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
-				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+				code, description)
 			return
 		}
 
