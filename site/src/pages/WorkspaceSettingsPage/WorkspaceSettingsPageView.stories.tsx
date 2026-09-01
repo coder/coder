@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockWorkspace } from "#/testHelpers/entities";
-import { waitForRadixLayerClose } from "#/testHelpers/storybook";
+import { selectRadixOption } from "#/testHelpers/storybook";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 
 const meta: Meta<typeof WorkspaceSettingsPageView> = {
@@ -35,18 +35,8 @@ export const UpdateAutomaticUpdatesPolicy: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		await userEvent.click(
-			canvas.getByRole("combobox", { name: /update policy/i }),
-		);
-		await userEvent.click(
-			await screen.findByRole("option", { name: /always/i }),
-		);
+		await selectRadixOption(canvas, /update policy/i, /always/i);
 
-		// The option click closes the listbox; wait for Radix to restore
-		// pointer events before clicking Save.
-		await waitForRadixLayerClose(() =>
-			canvas.getByRole("button", { name: /save/i }),
-		);
 		await userEvent.click(canvas.getByRole("button", { name: /save/i }));
 
 		await waitFor(() =>

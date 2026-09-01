@@ -17,6 +17,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
+	selectRadixOption,
 	waitForRadixLayerClose,
 	withAuthProvider,
 	withToaster,
@@ -278,18 +279,7 @@ export const SelectTemplateVersion: Story = {
 		});
 
 		await step("Select version", async () => {
-			const body = within(canvasElement.ownerDocument.body);
-			const versionSelect = await canvas.findByLabelText(/template version/i);
-			await userEvent.click(versionSelect);
-			const versionOption = await body.findByRole("option", {
-				name: /v2.0.0/i,
-			});
-			await userEvent.click(versionOption);
-			// The option click closes the listbox; wait for Radix to restore
-			// pointer events before the next step clicks submit.
-			await waitForRadixLayerClose(() =>
-				canvas.getByRole("button", { name: /run task/i }),
-			);
+			await selectRadixOption(canvas, /template version/i, /v2.0.0/i);
 		});
 
 		await step("Submit form", async () => {
@@ -658,8 +648,8 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			expect(options[0]).toContainHTML("Claude Code Dev");
 
 			await userEvent.click(options[0]);
-			// Each option click closes a listbox; wait for Radix to restore
-			// pointer events before the next step opens another select.
+			// Manual open/pick here (the steps assert on the open listbox), so
+			// wait for the closed layer's cleanup before the next step.
 			await waitForRadixLayerClose(() =>
 				canvas.getByRole("combobox", { name: /select template/i }),
 			);

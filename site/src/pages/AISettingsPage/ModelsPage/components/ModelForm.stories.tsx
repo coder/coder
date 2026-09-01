@@ -22,6 +22,7 @@ import {
 	MockOrganizationPermissions,
 } from "#/testHelpers/entities";
 import {
+	selectRadixOption,
 	waitForRadixLayerClose,
 	withDashboardProvider,
 	withToaster,
@@ -538,17 +539,11 @@ export const ReasoningEffortInProviderConfiguration: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Medium" }),
 		);
-
-		// Each option click closes the listbox; wait for Radix to restore
-		// pointer events before the next click.
 		await waitForRadixLayerClose(() =>
 			canvas.getByRole("combobox", { name: /max reasoning effort/i }),
 		);
-		await userEvent.click(maxSelect);
-		await userEvent.click(await screen.findByRole("option", { name: "Max" }));
-		await waitForRadixLayerClose(() =>
-			canvas.getByRole("button", { name: /add model/i }),
-		);
+
+		await selectRadixOption(canvas, /max reasoning effort/i, "Max");
 
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		await expect(args.onCreateModel).toHaveBeenCalledWith(
@@ -567,22 +562,9 @@ export const ReasoningEffortValidationError: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /provider configuration/i }),
 		);
-		const defaultSelect = canvas.getByRole("combobox", {
-			name: /default reasoning effort/i,
-		});
-		const maxSelect = canvas.getByRole("combobox", {
-			name: /max reasoning effort/i,
-		});
 
-		await userEvent.click(defaultSelect);
-		await userEvent.click(await screen.findByRole("option", { name: "High" }));
-		// The option click closes the listbox; wait for Radix to restore
-		// pointer events before opening the next select.
-		await waitForRadixLayerClose(() =>
-			canvas.getByRole("combobox", { name: /max reasoning effort/i }),
-		);
-		await userEvent.click(maxSelect);
-		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
+		await selectRadixOption(canvas, /default reasoning effort/i, "High");
+		await selectRadixOption(canvas, /max reasoning effort/i, "Low");
 
 		// Formik validation runs asynchronously after the value change.
 		await waitFor(() => {
@@ -614,24 +596,16 @@ export const GoogleThinkingLevelBudgetMutualExclusion: Story = {
 		await expect(budget).toBeEnabled();
 		await expect(level).toBeEnabled();
 
-		await userEvent.click(level);
-		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
+		await selectRadixOption(canvas, /thinking config thinking level/i, "Low");
 		await expect(budget).toBeDisabled();
 
-		// Each option click closes the listbox; wait for Radix to restore
-		// pointer events before the next pointer interaction.
-		await waitForRadixLayerClose(() =>
-			canvas.getByRole("combobox", { name: /thinking config thinking level/i }),
-		);
-		await userEvent.click(level);
-		await userEvent.click(
-			await screen.findByRole("option", { name: "Default" }),
+		await selectRadixOption(
+			canvas,
+			/thinking config thinking level/i,
+			"Default",
 		);
 		await expect(budget).toBeEnabled();
 
-		await waitForRadixLayerClose(() =>
-			canvas.getByLabelText(/thinking config thinking budget/i),
-		);
 		await userEvent.type(budget, "2048");
 		await expect(level).toBeDisabled();
 

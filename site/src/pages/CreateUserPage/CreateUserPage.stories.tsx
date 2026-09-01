@@ -117,12 +117,12 @@ async function fillForm(
 		await user.type(canvas.getByLabelText(/email/i), "someone@coder.com");
 	}
 
+	// The login-type trigger has no accessible name (queried by testid), so
+	// this flow cannot use selectRadixOption.
 	await user.click(canvas.getByTestId("login-type-input"));
 	await user.click(
 		await body.findByRole("option", { name: new RegExp(loginType, "i") }),
 	);
-	// The option click closes the login-type listbox; wait for Radix to
-	// make the rest of the page interactive again before continuing.
 	await waitForRadixLayerClose(() =>
 		canvas.getByRole("button", { name: /save/i }),
 	);

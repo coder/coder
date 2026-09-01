@@ -1,7 +1,7 @@
 import type { StoryContext } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
-import { expect, waitFor } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { withDefaultFeatures } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "#/api/queries/users";
@@ -46,6 +46,29 @@ export const waitForRadixLayerClose = async (
 			expect(window.getComputedStyle(target).pointerEvents).not.toBe("none");
 		},
 		{ timeout: 10_000 },
+	);
+};
+
+/**
+ * Open a Radix Select and pick an option, then wait for the closed layer's
+ * cleanup so the caller's next interaction cannot race it. Use this instead
+ * of hand-rolling click-combobox/click-option so the wait cannot be
+ * forgotten; drop to waitForRadixLayerClose only for irregular flows (for
+ * example asserting on the open listbox before picking).
+ */
+export const selectRadixOption = async (
+	canvas: ReturnType<typeof within>,
+	comboboxName: string | RegExp,
+	optionName: string | RegExp,
+): Promise<void> => {
+	const combobox = await canvas.findByRole("combobox", {
+		name: comboboxName,
+	});
+	await userEvent.click(combobox);
+	const body = within(combobox.ownerDocument.body);
+	await userEvent.click(await body.findByRole("option", { name: optionName }));
+	await waitForRadixLayerClose(() =>
+		canvas.getByRole("combobox", { name: comboboxName }),
 	);
 };
 

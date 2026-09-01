@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import { waitForRadixLayerClose } from "#/testHelpers/storybook";
+import { selectRadixOption } from "#/testHelpers/storybook";
 import { DateTimeRangePicker } from "./DateTimeRangePicker";
 import type { DateTimeRangeValue } from "./dateTimeRange";
 
@@ -196,16 +196,8 @@ export const ApplyCustomRange: Story = {
 		);
 
 		// Flip the To meridiem to exercise the select.
-		await userEvent.click(
-			screen.getByRole("combobox", { name: "To AM or PM" }),
-		);
-		await userEvent.click(await screen.findByRole("option", { name: "AM" }));
+		await selectRadixOption(screen, "To AM or PM", "AM");
 
-		// The option click closes the meridiem listbox; wait for Radix to
-		// restore pointer events before clicking Apply.
-		await waitForRadixLayerClose(() =>
-			screen.getByRole("button", { name: "Apply" }),
-		);
 		await waitFor(() => {
 			expect(applyButton).toBeEnabled();
 		});
