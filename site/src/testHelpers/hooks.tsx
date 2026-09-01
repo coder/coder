@@ -94,7 +94,7 @@ export async function renderHookWithAuth<Result, Props>(
 	let currentLocation!: Location;
 	const LocationLeaker: FC<PropsWithChildren> = ({ children }) => {
 		currentLocation = useLocation();
-		return <>{children}</>;
+		return children;
 	};
 
 	let forceUpdateRenderHookChildren!: () => void;
