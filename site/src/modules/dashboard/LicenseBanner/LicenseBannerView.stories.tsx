@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import {
 	type Entitlements,
 	LicenseAgentRuntimeHoursAllocationReachedWarningText,
@@ -66,7 +66,7 @@ export const TwoWarnings: Story = {
 			canvas.getByText("Your license limits have been reached"),
 		).toBeInTheDocument();
 		await expect(
-			canvas.queryByRole("button", { name: "Show more" }),
+			canvas.queryByRole("button", { name: /show more/i }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -90,9 +90,13 @@ export const ThreeWarnings: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const hidden = "Another warning that should be hidden until expanded.";
+		await expect(canvas.queryByText(hidden)).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: /show more/i }));
+		await expect(canvas.getByText(hidden)).toBeVisible();
 		await expect(
-			canvas.getByRole("button", { name: "Show more" }),
-		).toBeInTheDocument();
+			canvas.getByText("You are flying too close to the sun."),
+		).toBeVisible();
 	},
 };
 

@@ -145,6 +145,17 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	return strings.Join(granted, " "), nil
 }
 
+// scopeFailureResponse maps a negotiateScope rejection to the client's error.
+// errCoverageUndecidable is this server failing to compare, not a bad request,
+// so it answers server_error (RFC 6749 §4.1.2.1) with a fixed description;
+// negotiateScope already logged the detail.
+func scopeFailureResponse(err error) (codersdk.OAuth2ErrorCode, string) {
+	if errors.Is(err, errCoverageUndecidable) {
+		return codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated"
+	}
+	return codersdk.OAuth2ErrorCodeInvalidScope, err.Error()
+}
+
 // consentScopes returns the scope names the consent page lists, and whether the
 // grant is unrestricted. An unrestricted grant lists nothing: the page's
 // full-access wording tells a user more than "coder:all" does.
@@ -418,10 +429,6 @@ func (a authorizeResponse) withQuery(set func(url.Values)) *url.URL {
 // sanitizeErrorDescription confines a description to the NQSCHAR set RFC 6749
 // Appendix A permits in error_description. The rule is on the decoded value, so
 // percent-encoding on the wire does not satisfy it.
-//
-// Descriptions quote the client input that was rejected, so the excluded
-// characters are the ones %q emits. Quotes become apostrophes rather than
-// vanishing: they show where the offending value starts and ends.
 func sanitizeErrorDescription(description string) string {
 	return strings.Map(func(r rune) rune {
 		switch {
@@ -452,13 +459,6 @@ func (a authorizeResponse) codeURL(code string) *url.URL {
 	})
 }
 
-// redirectAuthorizeError reports an authorization error through the client's own
-// callback, as RFC 6749 §4.1.2.1 requires once the client is known. Holding a
-// response with a callback is what licenses the redirect.
-//
-// Logged because the failure leaves in a Location header, which loggermw does
-// not record, making it indistinguishable from a successful 302. Info, not
-// Warn: these are client errors.
 func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog.Logger, response authorizeResponse, code codersdk.OAuth2ErrorCode, description string) {
 	// Descriptions echo values the client sent, so their length is the client's
 	// to choose. Cap here, ahead of both the log field and the Location header.
@@ -591,8 +591,8 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// clicks Allow. The result also decides what the page lists.
 		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
 		if err != nil {
-			redirectAuthorizeError(rw, r, logger, params.response,
-				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			code, description := scopeFailureResponse(err)
+			redirectAuthorizeError(rw, r, logger, params.response, code, description)
 			return
 		}
 
@@ -675,8 +675,8 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
 		if err != nil {
-			redirectAuthorizeError(rw, r, logger, params.response,
-				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			code, description := scopeFailureResponse(err)
+			redirectAuthorizeError(rw, r, logger, params.response, code, description)
 			return
 		}
 

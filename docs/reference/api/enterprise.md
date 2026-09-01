@@ -1826,9 +1826,10 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets 
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                          |
-|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OAuth2ProviderAppSecretFull](schemas.md#codersdkoauth2providerappsecretfull) |
+| Status | Meaning                                                          | Description                        | Schema                                                                                          |
+|--------|------------------------------------------------------------------|------------------------------------|-------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK                                 | array of [codersdk.OAuth2ProviderAppSecretFull](schemas.md#codersdkoauth2providerappsecretfull) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Public clients cannot have secrets | [codersdk.Response](schemas.md#codersdkresponse)                                                |
 
 <h3 id="create-oauth2-application-secret.-responseschema">Response Schema</h3>
 
@@ -5279,6 +5280,7 @@ curl -X POST http://coder-server:8080/oauth2/tokens \
 client_id: string
 client_secret: string
 code: string
+code_verifier: string
 refresh_token: string
 grant_type: authorization_code
 
@@ -5286,14 +5288,15 @@ grant_type: authorization_code
 
 ### Parameters
 
-| Name              | In   | Type   | Required | Description                                                   |
-|-------------------|------|--------|----------|---------------------------------------------------------------|
-| `body`            | body | object | false    |                                                               |
-| `» client_id`     | body | string | false    | Client ID, required if grant_type=authorization_code          |
-| `» client_secret` | body | string | false    | Client secret, required if grant_type=authorization_code      |
-| `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code |
-| `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token           |
-| `» grant_type`    | body | string | true     | Grant type                                                    |
+| Name              | In   | Type   | Required | Description                                                                                                                                               |
+|-------------------|------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body`            | body | object | false    |                                                                                                                                                           |
+| `» client_id`     | body | string | false    | Client ID, required if grant_type=authorization_code                                                                                                      |
+| `» client_secret` | body | string | false    | Client secret, required if grant_type=authorization_code and the client is confidential. Public clients (token_endpoint_auth_method=none) send no secret. |
+| `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code                                                                                             |
+| `» code_verifier` | body | string | false    | PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636.                                                            |
+| `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token                                                                                                       |
+| `» grant_type`    | body | string | true     | Grant type                                                                                                                                                |
 
 #### Enumerated Values
 

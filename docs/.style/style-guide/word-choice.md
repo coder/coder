@@ -319,7 +319,8 @@ Not every reader clicks: sighted mouse users click, but keyboard-only users tab 
 Where a more specific verb is clearer, use it instead as long as it doesn't name a device: "open," "expand," "run," and "choose" are all device-agnostic.
 This is one instance of the broader [input-device-agnostic language](./accessibility-and-inclusion.md#input-device-agnostic-language) principle.
 
-Not every instance of "click" is a violation. Reserve it for:
+Not every instance of "click" is a violation.
+Reserve it for:
 
 - Code or configuration that literally fires on a click event, like an `onClick` handler or a DOM `click` event (already exempt: Vale's prose scope skips code spans and fenced code blocks).
 - Explicit mouse-button phrasing: "click," "left-click," "right-click," "middle-click," and "mouse click," with their `-s`/`-ed`/`-ing` forms, describe a literal mouse action and have no device-agnostic equivalent worth writing around.
