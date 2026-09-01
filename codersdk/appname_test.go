@@ -31,6 +31,11 @@ func TestNormalizeAppName(t *testing.T) {
 		{"UnknownLowercased", "Cursor Nightly", "cursor nightly"},
 		{"UnknownPreservesUnicode", "エディタ", "エディタ"},
 		{"StripsNullBytes", "cur\x00sor", "cursor"},
+		{"StripsControlCharacters", "vs\ncode\r\t", "vscode"},
+		// Only the escape byte itself is a control character, so the rest of
+		// an ANSI sequence survives as ordinary text.
+		{"StripsANSIEscape", "\x1b[31mvscode\x1b[0m", "[31mvscode[0m"},
+		{"OnlyControlCharacters", "\n\r\t\x1b", "unknown"},
 		{"TrimsWhitespace", " vscode\t", "vscode"},
 		{"Empty", "", "unknown"},
 		{"OnlyNullBytes", "\x00\x00", "unknown"},

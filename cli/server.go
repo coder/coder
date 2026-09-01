@@ -1113,6 +1113,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
 				workspacestats.BatcherWithLogger(options.Logger.Named("batchstats")),
 				workspacestats.BatcherWithStore(options.Database),
+				workspacestats.BatcherWithRegisterer(options.PrometheusRegistry),
 			)
 			if err != nil {
 				return xerrors.Errorf("failed to create agent stats batcher: %w", err)
