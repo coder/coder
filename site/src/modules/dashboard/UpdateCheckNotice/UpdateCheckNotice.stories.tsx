@@ -1,12 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor } from "storybook/test";
-import { withToaster } from "#/testHelpers/storybook";
+import { Toaster } from "#/components/Toaster/Toaster";
 import { UpdateCheckNotice } from "./UpdateCheckNotice";
 
 const meta: Meta<typeof UpdateCheckNotice> = {
 	title: "modules/dashboard/UpdateCheckNotice",
 	component: UpdateCheckNotice,
-	decorators: [withToaster],
+	// Render the Toaster before the story so it subscribes to sonner before the
+	// notice emits its toast from a mount effect; earlier emits are dropped.
+	decorators: [
+		(Story) => (
+			<>
+				<Toaster />
+				<Story />
+			</>
+		),
+	],
 	args: {
 		version: "v0.12.9",
 		releaseNotesUrl: "https://github.com/coder/coder/releases/tag/v0.12.9",

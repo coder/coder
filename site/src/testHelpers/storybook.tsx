@@ -179,13 +179,10 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	);
 };
 
-// Render the Toaster before the story so it subscribes to sonner's toast
-// stream before any story emits a toast from a mount effect. Toasts emitted
-// before the Toaster subscribes are dropped.
 export const withToaster = (Story: FC) => (
 	<>
-		<Toaster />
 		<Story />
+		<Toaster />
 	</>
 );
 

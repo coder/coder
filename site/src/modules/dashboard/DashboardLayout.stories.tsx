@@ -9,6 +9,7 @@ import { deploymentStatsQueryKey } from "#/api/queries/deployment";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { updateCheckQueryKey } from "#/api/queries/updateCheck";
 import type { UpdateCheckResponse } from "#/api/typesGenerated";
+import { Toaster } from "#/components/Toaster/Toaster";
 import {
 	MockBuildInfo,
 	MockDefaultOrganization,
@@ -25,7 +26,6 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
-	withToaster,
 } from "#/testHelpers/storybook";
 import { DashboardFullPage, DashboardLayout } from "./DashboardLayout";
 
@@ -58,7 +58,14 @@ const meta: Meta<typeof DashboardLayout> = {
 		withAuthProvider,
 		withDashboardProvider,
 		withProxyProvider(),
-		withToaster,
+		// Render the Toaster before the story so it subscribes to sonner before
+		// the update notice emits its toast from a mount effect.
+		(Story) => (
+			<>
+				<Toaster />
+				<Story />
+			</>
+		),
 	],
 	parameters: {
 		layout: "fullscreen",
