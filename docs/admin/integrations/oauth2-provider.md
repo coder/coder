@@ -429,15 +429,16 @@ if it was registered without any.
 The negotiated scope is recorded on the authorization, shown on the consent
 page, and applied to the access token issued when the code is exchanged.
 
-### "invalid_scope" from the token endpoint
+### "invalid_grant" for a scope the deployment cannot mint
 
 `POST /oauth2/tokens` mints the access token with the scope recorded on the
 authorization code, or on the refresh token when refreshing. If that stored
 scope names something this deployment cannot mint, the exchange answers HTTP
-400 with `error=invalid_scope` and an `error_description` naming the value.
+400 with `error=invalid_grant` and an `error_description` naming the value.
 
 The usual cause is a grant made against a scope the deployment has since
-dropped. Authorize again to negotiate a scope it still supports.
+dropped. Authorize again to negotiate a scope it still supports; the stored
+scope is not something the client can change by requesting a different one.
 
 ### "PKCE verification failed"
 

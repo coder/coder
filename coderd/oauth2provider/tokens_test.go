@@ -165,7 +165,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			ErrorDescription string `json:"error_description"`
 		}
 		require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
-		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), oauthErr.Error)
+		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidGrant), oauthErr.Error)
 		require.Contains(t, oauthErr.ErrorDescription, scopeOutOfCatalog,
 			"an operator cannot act on this without knowing which stored name is the problem")
 	})

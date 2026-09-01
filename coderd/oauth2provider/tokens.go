@@ -253,9 +253,11 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			return
 		}
 		if errors.Is(err, errUnmintableScope) {
-			// The grant is well-formed and its stored scope is not mintable, so
-			// a defined OAuth2 failure beats a 500.
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			// Not invalid_scope: RFC 6749 §5.2 scopes that to what the client
+			// requested, and this value is stored state the client cannot
+			// change by asking differently. The grant is what is unusable, and
+			// re-authorizing is the only way out, so invalid_grant.
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
 			return
 		}
 		if err != nil {
