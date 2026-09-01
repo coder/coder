@@ -40,6 +40,13 @@ const selectOption = async (
 		await canvas.findByRole("combobox", { name: comboboxName }),
 	);
 	await userEvent.click(await body.findByRole("option", { name: optionName }));
+	// While the listbox is open, Radix marks the rest of the page
+	// aria-hidden, and it unmarks asynchronously after the option click
+	// closes it. Wait for the combobox to be accessible again so later
+	// role queries in the same play function see real roles.
+	await waitFor(() =>
+		expect(canvas.getByRole("combobox", { name: comboboxName })).toBeVisible(),
+	);
 };
 
 export const Default: Story = {
@@ -247,7 +254,10 @@ export const KeyboardNavigation: Story = {
 			canvas.getByRole("combobox", { name: /^Number of developers/ }),
 			canvas.getByRole("combobox", { name: /^Country/ }),
 			canvas.getByRole("checkbox"),
-			canvas.getByRole("link", { name: "Learn more" }),
+			// The link's accessible name is its aria-label, not its text.
+			canvas.getByRole("link", {
+				name: "Learn more about external PostgreSQL databases",
+			}),
 		];
 
 		for (const element of tabOrder) {
