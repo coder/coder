@@ -1,4 +1,4 @@
-# Reusing template code
+# Reuse template code
 
 To reuse code across different Coder templates, such as common scripts or
 resource definitions, we suggest using
@@ -189,7 +189,7 @@ If you are running Coder on Docker or Kubernetes, `git` is pre-installed in the
 Coder image. However, you still need to mount credentials. This can be done via
 a Docker volume mount or Kubernetes secrets.
 
-#### Passing git credentials in Kubernetes
+#### Pass git credentials in Kubernetes
 
 First, create a `.gitconfig` and `.git-credentials` file on your local machine.
 You might want to do this in a temporary directory to avoid conflicting with

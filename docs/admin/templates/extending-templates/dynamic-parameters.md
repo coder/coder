@@ -812,7 +812,7 @@ Enabling Dynamic Parameters on an existing template requires administrators to p
 This will resolve the necessary template metadata to render the form.
 To publish one without editing the template's Terraform, [refresh the template data](../managing-templates/index.md#refresh-template-data).
 
-### Reverting to classic parameters
+### Revert to classic parameters
 
 The classic parameter flow is deprecated and will be removed in a future release.
 If a template does not work with Dynamic Parameters, you can opt that template out.
