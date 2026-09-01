@@ -118,6 +118,7 @@
 		"no-ex-assign": "error",
 		"no-class-assign": "error",
 		"jsx-no-comment-textnodes": "error",
+		"jsx-no-useless-fragment": "error",
 		"no-compare-neg-zero": "error",
 		"no-labels": "error",
 		"no-const-enum": "error",
@@ -179,7 +180,6 @@
 		// small < medium < large < xl.
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
-		"jsx-no-useless-fragment": "off", // complexity/noUselessFragments (large)
 		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
 		"no-redeclare": "off", // suspicious/noRedeclare (medium: TS declaration merging)
 		"role-has-required-aria-props": "off", // a11y/useAriaPropsForRole (medium)
