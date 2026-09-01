@@ -69,7 +69,7 @@ export const UsageIndicator: FC = () => {
 	const workspacesQuery = useQuery({
 		...workspaces({
 			q: `owner:me organization:${organizationName}`,
-			limit: 0,
+			limit: 1,
 		}),
 		enabled: hasWorkspaceQuotaUsage && organizationName !== "",
 	});

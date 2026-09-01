@@ -99,7 +99,7 @@ const noBudgetStatus = aiSpendStatus({
 
 const userWorkspacesRequest = {
 	q: `owner:me organization:${MockDefaultOrganization.name}`,
-	limit: 0,
+	limit: 1,
 };
 const noWorkspaceQuota = {
 	credits_consumed: 0,
