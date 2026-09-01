@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/imulab/go-scim/pkg/v2/handlerutil"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -717,4 +720,86 @@ func TestLegacyScimError(t *testing.T) {
 	resp = rw.Result()
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+// TestScimRequestBodyTooLarge covers both SCIM implementations. Neither decodes
+// through httpapi.Read, so neither inherits its body limit: the legacy handler
+// decodes r.Body directly, and the SCIM 2.0 library reads the whole body into
+// memory and discards the read error on PUT and PATCH. Both are bounded by the
+// scim route's own middleware, which must report the rejection in SCIM's error
+// shape rather than as a codersdk.Response.
+//
+// The bound buffers, so where it sits in the chain is part of what is asserted:
+// an authenticated caller gets 413, and an unauthenticated one gets 401 without
+// the body being buffered on its behalf.
+//
+//nolint:gocritic // SCIM authenticates via a special header and bypasses internal RBAC.
+func TestScimRequestBodyTooLarge(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		legacy bool
+	}{
+		{name: "SCIM2", legacy: false},
+		{name: "Legacy", legacy: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			scimAPIKey := []byte("hi")
+			client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+				SCIMAPIKey:    scimAPIKey,
+				UseLegacySCIM: tc.legacy,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features:  license.Features{codersdk.FeatureSCIM: 1},
+				},
+			})
+
+			// Only just over the limit. The server stops reading once the limit
+			// trips, so a large unread remainder risks the client observing a
+			// connection reset instead of the response.
+			body := fmt.Sprintf(`{"userName":%q}`, strings.Repeat("a", httpapi.DefaultMaxRequestBodyBytes))
+			require.Greater(t, len(body), httpapi.DefaultMaxRequestBodyBytes)
+
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users",
+				strings.NewReader(body), setScimAuth(scimAPIKey))
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			require.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
+			require.Equal(t, "application/scim+json", res.Header.Get("Content-Type"))
+
+			// RFC 7644 section 3.12 error shape, not a codersdk.Response.
+			var scimErr struct {
+				Schemas []string `json:"schemas"`
+				Detail  string   `json:"detail"`
+				Status  string   `json:"status"`
+			}
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&scimErr))
+			require.Equal(t, []string{"urn:ietf:params:scim:api:messages:2.0:Error"}, scimErr.Schemas)
+			require.Equal(t, "413", scimErr.Status)
+			require.Contains(t, scimErr.Detail, strconv.Itoa(httpapi.DefaultMaxRequestBodyBytes))
+
+			// The same body without the SCIM API key is answered 401. A 413 here
+			// would mean the body was buffered before the key was checked, which
+			// would let an unauthenticated caller spend the limit per request on
+			// a route that carries no rate limit.
+			//
+			// Served through the mounted handler rather than the client, because
+			// rejecting at the key check reads none of the body and a client
+			// still writing an oversized one observes a connection reset rather
+			// than the response.
+			unauthed := httptest.NewRequest(http.MethodPost, "/scim/v2/Users", strings.NewReader(body))
+			unauthed.Header.Set("Content-Type", "application/scim+json")
+			rec := httptest.NewRecorder()
+
+			api.AGPL.RootHandler.ServeHTTP(rec, unauthed)
+
+			require.Equal(t, http.StatusUnauthorized, rec.Code,
+				"response body: %s", rec.Body.String())
+		})
+	}
 }
