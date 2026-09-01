@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { mockApiError } from "#/testHelpers/entities";
+import { selectRadixOption } from "#/testHelpers/storybook";
 import { TrialRequestForm } from "./TrialRequestForm";
 
 const meta: Meta<typeof TrialRequestForm> = {
@@ -27,19 +28,12 @@ const COMPLETE_REQUEST = {
 	developers: "51 - 100",
 };
 
-/** Radix Select portals its listbox into document.body. */
 const selectOption = async (
 	canvasElement: HTMLElement,
 	comboboxName: RegExp,
 	optionName: RegExp,
 ) => {
-	const canvas = within(canvasElement);
-	const body = within(canvasElement.ownerDocument.body);
-
-	await userEvent.click(
-		await canvas.findByRole("combobox", { name: comboboxName }),
-	);
-	await userEvent.click(await body.findByRole("option", { name: optionName }));
+	await selectRadixOption(within(canvasElement), comboboxName, optionName);
 };
 
 export const Default: Story = {

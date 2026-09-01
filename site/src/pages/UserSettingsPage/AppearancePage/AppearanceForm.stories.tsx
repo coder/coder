@@ -6,6 +6,7 @@ import type {
 	UpdateUserAppearanceSettingsRequest,
 	UserAppearanceSettings,
 } from "#/api/typesGenerated";
+import { selectRadixOption } from "#/testHelpers/storybook";
 import { CONCRETE_THEMES } from "#/theme";
 import { AppearanceForm } from "./AppearanceForm";
 
@@ -243,18 +244,12 @@ export const SelectSingleFromSync: Story = {
 		onSubmit: resolvedSubmit(),
 	},
 	play: async ({ canvasElement, args }) => {
-		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const dropdown = await canvas.findByRole("combobox", {
 			name: "Theme mode",
 		});
 
-		await user.click(dropdown);
-		await user.click(
-			await within(document.body).findByRole("option", {
-				name: "Single theme",
-			}),
-		);
+		await selectRadixOption(canvas, "Theme mode", "Single theme");
 
 		await waitFor(() => {
 			expect(args.onSubmit).toHaveBeenCalledWith({

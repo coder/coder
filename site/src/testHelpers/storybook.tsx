@@ -1,6 +1,7 @@
 import type { StoryContext } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { withDefaultFeatures } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "#/api/queries/users";
@@ -25,6 +26,51 @@ import {
 	MockOrganizationPermissions,
 	MockProxyLatencies,
 } from "./entities";
+
+/**
+ * Wait for Radix to finish tearing down a just-closed layer (Select
+ * listbox, Popover, and similar). While the layer is open, Radix marks
+ * the rest of the page `aria-hidden` and disables pointer events on it,
+ * and it undoes both asynchronously after the closing interaction. A
+ * pointer interaction or role query issued before that cleanup lands
+ * flakes under CPU load, so re-query the next interaction target until
+ * it is back in the accessibility tree and accepts pointer input.
+ */
+export const waitForRadixLayerClose = async (
+	getTarget: () => HTMLElement,
+): Promise<void> => {
+	await waitFor(
+		() => {
+			// getTarget must re-query by role so an aria-hidden target throws.
+			const target = getTarget();
+			expect(window.getComputedStyle(target).pointerEvents).not.toBe("none");
+		},
+		{ timeout: 10_000 },
+	);
+};
+
+/**
+ * Open a Radix Select and pick an option, then wait for the closed layer's
+ * cleanup so the caller's next interaction cannot race it. Use this instead
+ * of hand-rolling click-combobox/click-option so the wait cannot be
+ * forgotten; drop to waitForRadixLayerClose only for irregular flows (for
+ * example asserting on the open listbox before picking).
+ */
+export const selectRadixOption = async (
+	canvas: ReturnType<typeof within>,
+	comboboxName: string | RegExp,
+	optionName: string | RegExp,
+): Promise<void> => {
+	const combobox = await canvas.findByRole("combobox", {
+		name: comboboxName,
+	});
+	await userEvent.click(combobox);
+	const body = within(combobox.ownerDocument.body);
+	await userEvent.click(await body.findByRole("option", { name: optionName }));
+	await waitForRadixLayerClose(() =>
+		canvas.getByRole("combobox", { name: comboboxName }),
+	);
+};
 
 export const withDashboardProvider = (
 	Story: FC,

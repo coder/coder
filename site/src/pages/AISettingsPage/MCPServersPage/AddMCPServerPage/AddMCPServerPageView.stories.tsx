@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
+import { selectRadixOption } from "#/testHelpers/storybook";
 import AddMCPServerPageView from "./AddMCPServerPageView";
 
 const meta: Meta<typeof AddMCPServerPageView> = {
@@ -54,11 +55,7 @@ export const Default: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /authentication/i }),
 		);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			canvas.getByRole("combobox", { name: /authentication method/i }),
-		);
-		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
+		await selectRadixOption(canvas, /authentication method/i, "OAuth2");
 		await expect(canvas.getByLabelText(/client id/i)).toBeInTheDocument();
 
 		await userEvent.click(addButton);

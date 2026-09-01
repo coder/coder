@@ -17,6 +17,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
+	selectRadixOption,
 	withAuthProvider,
 	withDashboardProvider,
 	withToaster,
@@ -961,10 +962,7 @@ export const AddFailurePreservesEnteredValues: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /authentication/i }),
 		);
-		await userEvent.click(
-			canvas.getByRole("combobox", { name: /authentication method/i }),
-		);
-		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
+		await selectRadixOption(canvas, /authentication method/i, "OAuth2");
 		await userEvent.type(canvas.getByLabelText(/client id/i), "client-id");
 		await userEvent.type(canvas.getByLabelText(/client secret/i), "secret");
 		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));

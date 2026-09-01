@@ -8,7 +8,11 @@ import {
 	MockUserMember,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
+import {
+	waitForRadixLayerClose,
+	withDashboardProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import CreateUserPage from "./CreateUserPage";
 
 const meta = {
@@ -113,9 +117,14 @@ async function fillForm(
 		await user.type(canvas.getByLabelText(/email/i), "someone@coder.com");
 	}
 
+	// The login-type trigger has no accessible name (queried by testid), so
+	// this flow cannot use selectRadixOption.
 	await user.click(canvas.getByTestId("login-type-input"));
 	await user.click(
 		await body.findByRole("option", { name: new RegExp(loginType, "i") }),
+	);
+	await waitForRadixLayerClose(() =>
+		canvas.getByRole("button", { name: /save/i }),
 	);
 
 	if (isPasswordLogin) {

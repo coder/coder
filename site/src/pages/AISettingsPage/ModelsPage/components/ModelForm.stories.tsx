@@ -21,7 +21,12 @@ import {
 	MockDefaultOrganization,
 	MockOrganizationPermissions,
 } from "#/testHelpers/entities";
-import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
+import {
+	selectRadixOption,
+	waitForRadixLayerClose,
+	withDashboardProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import {
 	modelOrganizationSearchParam,
 	OrganizationModelsContext,
@@ -158,12 +163,32 @@ export const LeaveWithUnsavedChanges: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
+		// The identifier combobox only commits the typed value to the form
+		// on blur, and the navigation blocker only arms once the resulting
+		// dirty state commits a render. Clicking the link relies on its own
+		// pointerdown blur and can navigate away before the blocker arms
+		// under CPU load, so blur explicitly and wait for the prompt's
+		// beforeunload leg (registered in the same commit) to observe the
+		// dirty state before navigating.
+		await userEvent.tab();
+		await waitFor(
+			() => {
+				const probe = new Event("beforeunload", { cancelable: true });
+				window.dispatchEvent(probe);
+				expect(probe.defaultPrevented).toBe(true);
+			},
+			{ timeout: 10_000 },
+		);
 		await userEvent.click(
 			canvas.getByRole("link", { name: /back to models/i }),
 		);
-		const dialog = await screen.findByRole("dialog", {
-			name: /unsaved changes/i,
-		});
+		// The blocker dialog mounts asynchronously; the default 1s timeout
+		// is too tight when the suite runs under full pre-push CPU load.
+		const dialog = await screen.findByRole(
+			"dialog",
+			{ name: /unsaved changes/i },
+			{ timeout: 10_000 },
+		);
 		await expect(dialog).toBeInTheDocument();
 	},
 };
@@ -514,9 +539,11 @@ export const ReasoningEffortInProviderConfiguration: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Medium" }),
 		);
+		await waitForRadixLayerClose(() =>
+			canvas.getByRole("combobox", { name: /max reasoning effort/i }),
+		);
 
-		await userEvent.click(maxSelect);
-		await userEvent.click(await screen.findByRole("option", { name: "Max" }));
+		await selectRadixOption(canvas, /max reasoning effort/i, "Max");
 
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		await expect(args.onCreateModel).toHaveBeenCalledWith(
@@ -535,23 +562,18 @@ export const ReasoningEffortValidationError: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /provider configuration/i }),
 		);
-		const defaultSelect = canvas.getByRole("combobox", {
-			name: /default reasoning effort/i,
-		});
-		const maxSelect = canvas.getByRole("combobox", {
-			name: /max reasoning effort/i,
-		});
 
-		await userEvent.click(defaultSelect);
-		await userEvent.click(await screen.findByRole("option", { name: "High" }));
-		await userEvent.click(maxSelect);
-		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
+		await selectRadixOption(canvas, /default reasoning effort/i, "High");
+		await selectRadixOption(canvas, /max reasoning effort/i, "Low");
 
-		await expect(
-			canvas.getByText(
-				"Default reasoning effort must not exceed the max reasoning effort.",
-			),
-		).toBeVisible();
+		// Formik validation runs asynchronously after the value change.
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					"Default reasoning effort must not exceed the max reasoning effort.",
+				),
+			).toBeVisible();
+		});
 	},
 };
 
@@ -574,13 +596,13 @@ export const GoogleThinkingLevelBudgetMutualExclusion: Story = {
 		await expect(budget).toBeEnabled();
 		await expect(level).toBeEnabled();
 
-		await userEvent.click(level);
-		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
+		await selectRadixOption(canvas, /thinking config thinking level/i, "Low");
 		await expect(budget).toBeDisabled();
 
-		await userEvent.click(level);
-		await userEvent.click(
-			await screen.findByRole("option", { name: "Default" }),
+		await selectRadixOption(
+			canvas,
+			/thinking config thinking level/i,
+			"Default",
 		);
 		await expect(budget).toBeEnabled();
 
