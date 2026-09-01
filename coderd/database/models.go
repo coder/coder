@@ -1873,12 +1873,13 @@ func AllChatReasoningEffortValues() []ChatReasoningEffort {
 	}
 }
 
-// Generation runtime backing a chat: coder chats use the built-in LLM pipeline, claude_code chats delegate turns to a Claude Code agent running inside the bound workspace.
+// Generation runtime backing a chat: coder chats use the built-in LLM pipeline, claude_code and codex chats delegate turns to that agent running inside the bound workspace over ACP.
 type ChatRuntime string
 
 const (
 	ChatRuntimeCoder      ChatRuntime = "coder"
 	ChatRuntimeClaudeCode ChatRuntime = "claude_code"
+	ChatRuntimeCodex      ChatRuntime = "codex"
 )
 
 func (e *ChatRuntime) Scan(src interface{}) error {
@@ -1919,7 +1920,8 @@ func (ns NullChatRuntime) Value() (driver.Value, error) {
 func (e ChatRuntime) Valid() bool {
 	switch e {
 	case ChatRuntimeCoder,
-		ChatRuntimeClaudeCode:
+		ChatRuntimeClaudeCode,
+		ChatRuntimeCodex:
 		return true
 	}
 	return false
@@ -1929,6 +1931,7 @@ func AllChatRuntimeValues() []ChatRuntime {
 	return []ChatRuntime{
 		ChatRuntimeCoder,
 		ChatRuntimeClaudeCode,
+		ChatRuntimeCodex,
 	}
 }
 
@@ -5408,7 +5411,7 @@ type ChatQueuedMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
-// Per-organization admin configuration for external chat runtimes, e.g. which template backs Claude Code chats.
+// Per-organization admin configuration for external chat runtimes, e.g. which template backs Claude Code or Codex chats.
 type ChatRuntimeConfig struct {
 	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
 	Runtime        ChatRuntime `db:"runtime" json:"runtime"`
@@ -5479,7 +5482,7 @@ type ChatTable struct {
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
 	// Generation runtime for this chat. Immutable after creation.
 	Runtime ChatRuntime `db:"runtime" json:"runtime"`
-	// Runtime-specific persistent state, e.g. the ACP session ID and adapter capabilities for claude_code chats.
+	// Runtime-specific persistent state, e.g. the ACP session ID and adapter capabilities for external runtime chats.
 	RuntimeState pqtype.NullRawMessage `db:"runtime_state" json:"runtime_state"`
 }
 

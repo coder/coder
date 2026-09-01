@@ -111,6 +111,7 @@ type ChatRuntime string
 const (
 	ChatRuntimeCoder      ChatRuntime = "coder"
 	ChatRuntimeClaudeCode ChatRuntime = "claude_code"
+	ChatRuntimeCodex      ChatRuntime = "codex"
 )
 
 // ChatRuntimeConfig is the per-organization admin configuration for an
@@ -119,8 +120,8 @@ type ChatRuntimeConfig struct {
 	OrganizationID uuid.UUID   `json:"organization_id" format:"uuid"`
 	Runtime        ChatRuntime `json:"runtime"`
 	// TemplateID is the template chat workspaces are created from. The
-	// template must provide the runtime's agent executable (e.g. the
-	// claude-agent-acp adapter for the claude_code runtime).
+	// template must provide the runtime's ACP adapter executable
+	// (claude-agent-acp for claude_code, codex-acp for codex).
 	TemplateID uuid.UUID `json:"template_id" format:"uuid"`
 	Enabled    bool      `json:"enabled"`
 	// Model optionally pins the default model the runtime agent uses.
@@ -638,7 +639,7 @@ type CreateChatRequest struct {
 	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
 	ClientType         ChatClientType `json:"client_type,omitempty"`
 	// Runtime selects the generation runtime for the chat. Empty means
-	// the built-in coder runtime. External runtimes (claude_code)
+	// the built-in coder runtime. External runtimes (claude_code, codex)
 	// require an enabled org runtime config; the server creates and
 	// binds a workspace from the configured template, and the runtime
 	// cannot be changed after creation.

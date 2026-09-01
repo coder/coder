@@ -21141,11 +21141,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "coder",
-                "claude_code"
+                "claude_code",
+                "codex"
             ],
             "x-enum-varnames": [
                 "ChatRuntimeCoder",
-                "ChatRuntimeClaudeCode"
+                "ChatRuntimeClaudeCode",
+                "ChatRuntimeCodex"
             ]
         },
         "codersdk.ChatRuntimeAvailability": {
@@ -21186,7 +21188,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatRuntime"
                 },
                 "template_id": {
-                    "description": "TemplateID is the template chat workspaces are created from. The\ntemplate must provide the runtime's agent executable (e.g. the\nclaude-agent-acp adapter for the claude_code runtime).",
+                    "description": "TemplateID is the template chat workspaces are created from. The\ntemplate must provide the runtime's ACP adapter executable\n(claude-agent-acp for claude_code, codex-acp for codex).",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -21860,7 +21862,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "runtime": {
-                    "description": "Runtime selects the generation runtime for the chat. Empty means\nthe built-in coder runtime. External runtimes (claude_code)\nrequire an enabled org runtime config; the server creates and\nbinds a workspace from the configured template, and the runtime\ncannot be changed after creation.",
+                    "description": "Runtime selects the generation runtime for the chat. Empty means\nthe built-in coder runtime. External runtimes (claude_code, codex)\nrequire an enabled org runtime config; the server creates and\nbinds a workspace from the configured template, and the runtime\ncannot be changed after creation.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatRuntime"

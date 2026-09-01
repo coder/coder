@@ -3361,7 +3361,7 @@ export type ChatRole = "" | "read";
 export const ChatRoles: ChatRole[] = ["", "read"];
 
 // From codersdk/chats.go
-export type ChatRuntime = "claude_code" | "coder";
+export type ChatRuntime = "claude_code" | "coder" | "codex";
 
 // From codersdk/chats.go
 /**
@@ -3383,8 +3383,8 @@ export interface ChatRuntimeConfig {
 	readonly runtime: ChatRuntime;
 	/**
 	 * TemplateID is the template chat workspaces are created from. The
-	 * template must provide the runtime's agent executable (e.g. the
-	 * claude-agent-acp adapter for the claude_code runtime).
+	 * template must provide the runtime's ACP adapter executable
+	 * (claude-agent-acp for claude_code, codex-acp for codex).
 	 */
 	readonly template_id: string;
 	readonly enabled: boolean;
@@ -3404,7 +3404,7 @@ export interface ChatRuntimeConfig {
 	readonly updated_at: string;
 }
 
-export const ChatRuntimes: ChatRuntime[] = ["claude_code", "coder"];
+export const ChatRuntimes: ChatRuntime[] = ["claude_code", "coder", "codex"];
 
 // From codersdk/chats.go
 export interface ChatSkillPart {
@@ -3999,7 +3999,7 @@ export interface CreateChatRequest {
 	readonly client_type?: ChatClientType;
 	/**
 	 * Runtime selects the generation runtime for the chat. Empty means
-	 * the built-in coder runtime. External runtimes (claude_code)
+	 * the built-in coder runtime. External runtimes (claude_code, codex)
 	 * require an enabled org runtime config; the server creates and
 	 * binds a workspace from the configured template, and the runtime
 	 * cannot be changed after creation.

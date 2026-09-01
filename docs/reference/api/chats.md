@@ -52,23 +52,23 @@ Experimental: this endpoint is subject to change.
 
 Status Code **200**
 
-| Name                | Type                                                   | Required | Restrictions | Description                                                                                                                                                                             |
-|---------------------|--------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`      | array                                                  | false    |              |                                                                                                                                                                                         |
-| `» created_at`      | string(date-time)                                      | false    |              |                                                                                                                                                                                         |
-| `» enabled`         | boolean                                                | false    |              |                                                                                                                                                                                         |
-| `» model`           | string                                                 | false    |              | Model optionally pins the default model the runtime agent uses. A per-message model selection on the chat overrides this pin; empty falls through to the runtime agent's own default.   |
-| `» organization_id` | string(uuid)                                           | false    |              |                                                                                                                                                                                         |
-| `» permission_mode` | string                                                 | false    |              | Permission mode optionally sets the permission mode the runtime agent runs with (e.g. acceptEdits). Empty means the runtime default.                                                    |
-| `» runtime`         | [codersdk.ChatRuntime](schemas.md#codersdkchatruntime) | false    |              |                                                                                                                                                                                         |
-| `» template_id`     | string(uuid)                                           | false    |              | Template ID is the template chat workspaces are created from. The template must provide the runtime's agent executable (e.g. the claude-agent-acp adapter for the claude_code runtime). |
-| `» updated_at`      | string(date-time)                                      | false    |              |                                                                                                                                                                                         |
+| Name                | Type                                                   | Required | Restrictions | Description                                                                                                                                                                           |
+|---------------------|--------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`      | array                                                  | false    |              |                                                                                                                                                                                       |
+| `» created_at`      | string(date-time)                                      | false    |              |                                                                                                                                                                                       |
+| `» enabled`         | boolean                                                | false    |              |                                                                                                                                                                                       |
+| `» model`           | string                                                 | false    |              | Model optionally pins the default model the runtime agent uses. A per-message model selection on the chat overrides this pin; empty falls through to the runtime agent's own default. |
+| `» organization_id` | string(uuid)                                           | false    |              |                                                                                                                                                                                       |
+| `» permission_mode` | string                                                 | false    |              | Permission mode optionally sets the permission mode the runtime agent runs with (e.g. acceptEdits). Empty means the runtime default.                                                  |
+| `» runtime`         | [codersdk.ChatRuntime](schemas.md#codersdkchatruntime) | false    |              |                                                                                                                                                                                       |
+| `» template_id`     | string(uuid)                                           | false    |              | Template ID is the template chat workspaces are created from. The template must provide the runtime's ACP adapter executable (claude-agent-acp for claude_code, codex-acp for codex). |
+| `» updated_at`      | string(date-time)                                      | false    |              |                                                                                                                                                                                       |
 
 #### Enumerated Values
 
-| Property  | Value(s)               |
-|-----------|------------------------|
-| `runtime` | `claude_code`, `coder` |
+| Property  | Value(s)                        |
+|-----------|---------------------------------|
+| `runtime` | `claude_code`, `coder`, `codex` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -207,9 +207,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property  | Value(s)               |
-|-----------|------------------------|
-| `runtime` | `claude_code`, `coder` |
+| Property  | Value(s)                        |
+|-----------|---------------------------------|
+| `runtime` | `claude_code`, `coder`, `codex` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -480,7 +480,7 @@ Status Code **200**
 | `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 | `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
 | `plan_mode`   | `plan`                                                                                                                                                                                                                                                            |
-| `runtime`     | `claude_code`, `coder`                                                                                                                                                                                                                                            |
+| `runtime`     | `claude_code`, `coder`, `codex`                                                                                                                                                                                                                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -384,10 +384,11 @@ CREATE TYPE chat_reasoning_effort AS ENUM (
 
 CREATE TYPE chat_runtime AS ENUM (
     'coder',
-    'claude_code'
+    'claude_code',
+    'codex'
 );
 
-COMMENT ON TYPE chat_runtime IS 'Generation runtime backing a chat: coder chats use the built-in LLM pipeline, claude_code chats delegate turns to a Claude Code agent running inside the bound workspace.';
+COMMENT ON TYPE chat_runtime IS 'Generation runtime backing a chat: coder chats use the built-in LLM pipeline, claude_code and codex chats delegate turns to that agent running inside the bound workspace over ACP.';
 
 CREATE TYPE chat_status AS ENUM (
     'waiting',
@@ -2160,7 +2161,7 @@ CREATE TABLE chat_runtime_configs (
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-COMMENT ON TABLE chat_runtime_configs IS 'Per-organization admin configuration for external chat runtimes, e.g. which template backs Claude Code chats.';
+COMMENT ON TABLE chat_runtime_configs IS 'Per-organization admin configuration for external chat runtimes, e.g. which template backs Claude Code or Codex chats.';
 
 COMMENT ON COLUMN chat_runtime_configs.model IS 'Optional model identifier pinned for the runtime. Empty means the runtime default.';
 
@@ -2276,7 +2277,7 @@ COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manu
 
 COMMENT ON COLUMN chats.runtime IS 'Generation runtime for this chat. Immutable after creation.';
 
-COMMENT ON COLUMN chats.runtime_state IS 'Runtime-specific persistent state, e.g. the ACP session ID and adapter capabilities for claude_code chats.';
+COMMENT ON COLUMN chats.runtime_state IS 'Runtime-specific persistent state, e.g. the ACP session ID and adapter capabilities for external runtime chats.';
 
 CREATE TABLE users (
     id uuid NOT NULL,

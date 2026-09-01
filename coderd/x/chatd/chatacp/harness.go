@@ -1,6 +1,9 @@
 package chatacp
 
 import (
+	"encoding/json"
+	"strings"
+
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -48,6 +51,19 @@ var harnesses = []Harness{
 		DefaultSessionMode: "",
 		Env:                claudeCodeEnv,
 	},
+	{
+		Runtime:     codersdk.ChatRuntimeCodex,
+		DisplayName: "Codex",
+		// Ships in the @agentclientprotocol/codex-acp npm package
+		// (verified against 1.8.0), which bundles @openai/codex.
+		Command:       "codex-acp",
+		ProviderType:  codersdk.AIProviderTypeOpenAI,
+		ProviderLabel: "OpenAI",
+		// Codex's restrictive modes enable its own sandbox, which has no
+		// place inside a workspace that already isolates the agent.
+		DefaultSessionMode: "agent-full-access",
+		Env:                codexEnv,
+	},
 }
 
 // HarnessFor returns the harness for an external runtime. The built-in
@@ -72,4 +88,65 @@ func claudeCodeEnv(creds TurnCredentials) map[string]string {
 		env["ANTHROPIC_BASE_URL"] = creds.BaseURL
 	}
 	return env
+}
+
+// codexModelProviderID names the Codex model_providers entry that routes
+// requests to a configured OpenAI base URL.
+const codexModelProviderID = "coder"
+
+// codexConfig is the subset of Codex's config.toml that chatd passes
+// through codex-acp's CODEX_CONFIG environment variable.
+type codexConfig struct {
+	Model          string                              `json:"model,omitempty"`
+	ModelProvider  string                              `json:"model_provider,omitempty"`
+	ModelProviders map[string]codexModelProviderConfig `json:"model_providers,omitempty"`
+}
+
+type codexModelProviderConfig struct {
+	Name    string `json:"name"`
+	BaseURL string `json:"base_url"`
+	EnvKey  string `json:"env_key"`
+	WireAPI string `json:"wire_api"`
+}
+
+// codexEnv configures codex-acp for non-interactive API-key auth:
+// NO_BROWSER hides the ChatGPT login method and DEFAULT_AUTH_REQUEST
+// makes the adapter log in with OPENAI_API_KEY itself when Codex asks
+// for authentication. Model and gateway routing travel in CODEX_CONFIG,
+// which the adapter merges into the Codex session config.
+func codexEnv(creds TurnCredentials) map[string]string {
+	env := map[string]string{
+		"OPENAI_API_KEY":       creds.APIKey,
+		"NO_BROWSER":           "1",
+		"DEFAULT_AUTH_REQUEST": `{"methodId":"api-key"}`,
+	}
+	config := codexConfig{Model: creds.Model}
+	if creds.BaseURL != "" {
+		env["MODEL_PROVIDER"] = codexModelProviderID
+		config.ModelProvider = codexModelProviderID
+		config.ModelProviders = map[string]codexModelProviderConfig{
+			codexModelProviderID: {
+				Name:    "Coder",
+				BaseURL: codexBaseURL(creds.BaseURL),
+				EnvKey:  "OPENAI_API_KEY",
+				WireAPI: "responses",
+			},
+		}
+	}
+	if creds.Model != "" || creds.BaseURL != "" {
+		// A struct of plain strings cannot fail to marshal.
+		encoded, _ := json.Marshal(config)
+		env["CODEX_CONFIG"] = string(encoded)
+	}
+	return env
+}
+
+// codexBaseURL normalizes a provider base URL to the /v1 root Codex
+// expects for OpenAI-compatible providers.
+func codexBaseURL(baseURL string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if strings.HasSuffix(trimmed, "/v1") {
+		return trimmed
+	}
+	return trimmed + "/v1"
 }
