@@ -129,10 +129,13 @@ type interceptionBase struct {
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
 
-	// smallFast classifies the model the client requested. It is captured at
-	// construction because the Bedrock InvokeModel remap overwrites the model in
-	// the request payload.
-	smallFast bool
+	// isSmallFastModel reports whether the client requested a small/fast model
+	// (Haiku 3.5), which is optimized for tasks like code autocomplete and other
+	// small, quick operations. It is captured at construction because the Bedrock
+	// InvokeModel remap overwrites the model in the request payload.
+	// See `ANTHROPIC_SMALL_FAST_MODEL`: https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables
+	// https://docs.claude.com/en/docs/claude-code/costs#background-token-usage
+	isSmallFastModel bool
 
 	logger slog.Logger
 	tracer trace.Tracer
@@ -218,7 +221,7 @@ func (i *interceptionBase) Model() string {
 	// the body.
 	if i.isBedrockInvokeModel() {
 		model := i.bedrock.ResolvedModel()
-		if i.isSmallFastModel() {
+		if i.isSmallFastModel {
 			model = i.bedrock.ResolvedSmallFastModel()
 		}
 		return model
@@ -233,7 +236,7 @@ func (i *interceptionBase) Model() string {
 // invoked, while everything internal keys off the model behind it.
 func (i *interceptionBase) upstreamModel() string {
 	model := i.bedrock.ConfiguredModel()
-	if i.isSmallFastModel() {
+	if i.isSmallFastModel {
 		model = i.bedrock.ConfiguredSmallFastModel()
 	}
 	return model
@@ -319,14 +322,6 @@ func (*interceptionBase) extractModelThoughts(msg *anthropic.Message) []*recorde
 		})
 	}
 	return thoughtRecords
-}
-
-// IsSmallFastModel checks if the model is a small/fast model (Haiku 3.5).
-// These models are optimized for tasks like code autocomplete and other small, quick operations.
-// See `ANTHROPIC_SMALL_FAST_MODEL`: https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables
-// https://docs.claude.com/en/docs/claude-code/costs#background-token-usage
-func (i *interceptionBase) isSmallFastModel() bool {
-	return i.smallFast
 }
 
 // isSmallFastModel reports whether the client requested a small/fast model.

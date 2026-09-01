@@ -245,10 +245,10 @@ func TestModelForBedrockInvokeModel(t *testing.T) {
 			t.Parallel()
 
 			i := &interceptionBase{
-				reqPayload: mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
-				bedrock:    runtime,
-				smallFast:  tt.smallFast,
-				logger:     slog.Make(),
+				reqPayload:       mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
+				bedrock:          runtime,
+				isSmallFastModel: tt.smallFast,
+				logger:           slog.Make(),
 			}
 
 			require.Equal(t, tt.expectModel, i.Model())
