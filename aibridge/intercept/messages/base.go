@@ -227,6 +227,18 @@ func (i *interceptionBase) Model() string {
 	return i.reqPayload.model()
 }
 
+// upstreamModel returns the identifier sent to Bedrock as the invocation
+// target, which may be an application inference profile ARN. It is the
+// counterpart to [interceptionBase.Model]: AWS bills and attributes what is
+// invoked, while everything internal keys off the model behind it.
+func (i *interceptionBase) upstreamModel() string {
+	model := i.bedrock.ConfiguredModel()
+	if i.isSmallFastModel() {
+		model = i.bedrock.ConfiguredSmallFastModel()
+	}
+	return model
+}
+
 func (i *interceptionBase) baseTraceAttributes(r *http.Request, streaming bool) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.String(tracing.RequestPath, r.URL.Path),
@@ -477,11 +489,7 @@ func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	}
 
 	model := i.Model()
-	configuredModel := i.bedrock.ConfiguredModel()
-	if i.isSmallFastModel() {
-		configuredModel = i.bedrock.ConfiguredSmallFastModel()
-	}
-	updated, err := i.reqPayload.withModel(configuredModel)
+	updated, err := i.reqPayload.withModel(i.upstreamModel())
 	if err != nil {
 		i.logger.Warn(context.Background(), "failed to set model in request payload for Bedrock", slog.Error(err))
 		return
