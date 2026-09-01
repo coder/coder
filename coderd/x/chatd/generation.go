@@ -466,7 +466,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		switch chat.Runtime {
 		case database.ChatRuntimeCoder:
 		case database.ChatRuntimeClaudeCode:
-			return s.startClaudeCodeGeneration(ctx, machine, input, chat, messages)
+			return s.startACPGeneration(ctx, machine, input, chat, messages)
 		default:
 			err := chaterror.WithClassification(
 				xerrors.Errorf("unsupported chat runtime %q", chat.Runtime),

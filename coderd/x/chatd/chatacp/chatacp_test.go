@@ -1,4 +1,4 @@
-package claudecode_test
+package chatacp_test
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	acp "github.com/coder/acp-go-sdk"
-	"github.com/coder/coder/v2/coderd/x/chatd/claudecode"
-	"github.com/coder/coder/v2/coderd/x/chatd/claudecode/claudecodetest"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp/chatacptest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -59,7 +59,7 @@ func TestRunTurnNewSession(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	agent := &claudecodetest.FakeAgent{}
+	agent := &chatacptest.FakeAgent{}
 	agent.OnPrompt = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.PromptRequest) (acp.PromptResponse, error) {
 		sendUpdate(ctx, t, conn, params.SessionId, acp.SessionUpdate{
 			AgentThoughtChunk: &acp.SessionUpdateAgentThoughtChunk{Content: acp.TextBlock("thinking...")},
@@ -78,7 +78,7 @@ func TestRunTurnNewSession(t *testing.T) {
 	}
 
 	recorder := &partRecorder{}
-	outcome, err := claudecode.RunTurn(ctx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	outcome, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:        "/home/coder",
 		PromptText: "hi",
 		Publish:    recorder.publish,
@@ -112,13 +112,13 @@ func TestRunTurnResumeSession(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	agent := &claudecodetest.FakeAgent{
+	agent := &chatacptest.FakeAgent{
 		Capabilities: acp.AgentCapabilities{
 			SessionCapabilities: acp.SessionCapabilities{Resume: &acp.SessionResumeCapabilities{}},
 		},
 	}
 
-	outcome, err := claudecode.RunTurn(ctx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	outcome, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		SessionID:  "session-prior",
 		SessionCwd: "/prior/cwd",
 		Cwd:        "/home/coder",
@@ -139,7 +139,7 @@ func TestRunTurnResumeFallsBackToLoad(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	agent := &claudecodetest.FakeAgent{
+	agent := &chatacptest.FakeAgent{
 		Capabilities: acp.AgentCapabilities{
 			LoadSession: true,
 			SessionCapabilities: acp.SessionCapabilities{
@@ -159,7 +159,7 @@ func TestRunTurnResumeFallsBackToLoad(t *testing.T) {
 	}
 
 	recorder := &partRecorder{}
-	outcome, err := claudecode.RunTurn(ctx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	outcome, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		SessionID:  "session-prior",
 		Cwd:        "/home/coder",
 		PromptText: "continue",
@@ -179,13 +179,13 @@ func TestRunTurnReseedsWhenSessionGone(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	agent := &claudecodetest.FakeAgent{}
+	agent := &chatacptest.FakeAgent{}
 
-	reseed := claudecode.BuildReseedContext([]claudecode.ReseedTurn{
+	reseed := chatacp.BuildReseedContext([]chatacp.ReseedTurn{
 		{Role: "User", Text: "earlier question"},
 		{Role: "Assistant", Text: "earlier answer"},
 	})
-	outcome, err := claudecode.RunTurn(ctx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	outcome, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		SessionID:     "session-prior",
 		Cwd:           "/home/coder",
 		PromptText:    "follow-up",
@@ -207,7 +207,7 @@ func TestRunTurnToolCallMapping(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	agent := &claudecodetest.FakeAgent{}
+	agent := &chatacptest.FakeAgent{}
 	agent.OnPrompt = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.PromptRequest) (acp.PromptResponse, error) {
 		sendUpdate(ctx, t, conn, params.SessionId, acp.SessionUpdate{
 			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock("Let me check.")},
@@ -238,7 +238,7 @@ func TestRunTurnToolCallMapping(t *testing.T) {
 	}
 
 	recorder := &partRecorder{}
-	outcome, err := claudecode.RunTurn(ctx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	outcome, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:        "/home/coder",
 		PromptText: "read main.go",
 		Publish:    recorder.publish,
@@ -271,7 +271,7 @@ func TestRunTurnCancelDuringSetup(t *testing.T) {
 	// A hung setup RPC (session/resume here) must abort when the turn
 	// context is canceled instead of wedging the runner forever.
 	hung := make(chan struct{})
-	agent := &claudecodetest.FakeAgent{
+	agent := &chatacptest.FakeAgent{
 		Capabilities: acp.AgentCapabilities{
 			SessionCapabilities: acp.SessionCapabilities{
 				Resume: &acp.SessionResumeCapabilities{},
@@ -290,7 +290,7 @@ func TestRunTurnCancelDuringSetup(t *testing.T) {
 		cancel()
 	}()
 
-	_, err := claudecode.RunTurn(turnCtx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	_, err := chatacp.RunTurn(turnCtx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:        "/home/coder",
 		SessionID:  "sess-hang",
 		PromptText: "hello",
@@ -311,7 +311,7 @@ func TestRunTurnToolCallInputUpdate(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	agent := &claudecodetest.FakeAgent{}
+	agent := &chatacptest.FakeAgent{}
 	agent.OnPrompt = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.PromptRequest) (acp.PromptResponse, error) {
 		sendUpdate(ctx, t, conn, params.SessionId, acp.SessionUpdate{
 			ToolCall: &acp.SessionUpdateToolCall{
@@ -341,7 +341,7 @@ func TestRunTurnToolCallInputUpdate(t *testing.T) {
 	}
 
 	recorder := &partRecorder{}
-	outcome, err := claudecode.RunTurn(ctx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	outcome, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:        "/home/coder",
 		PromptText: "read main.go",
 		Publish:    recorder.publish,
@@ -368,7 +368,7 @@ func TestRunTurnFailedToolCall(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	agent := &claudecodetest.FakeAgent{}
+	agent := &chatacptest.FakeAgent{}
 	agent.OnPrompt = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.PromptRequest) (acp.PromptResponse, error) {
 		sendUpdate(ctx, t, conn, params.SessionId, acp.SessionUpdate{
 			ToolCall: &acp.SessionUpdateToolCall{
@@ -391,7 +391,7 @@ func TestRunTurnFailedToolCall(t *testing.T) {
 	}
 
 	recorder := &partRecorder{}
-	_, err := claudecode.RunTurn(ctx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	_, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:        "/home/coder",
 		PromptText: "run it",
 		Publish:    recorder.publish,
@@ -410,7 +410,7 @@ func TestRunTurnCancellation(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	promptStarted := make(chan struct{})
-	agent := &claudecodetest.FakeAgent{}
+	agent := &chatacptest.FakeAgent{}
 	agent.OnPrompt = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.PromptRequest) (acp.PromptResponse, error) {
 		sendUpdate(ctx, t, conn, params.SessionId, acp.SessionUpdate{
 			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock("partial")},
@@ -432,7 +432,7 @@ func TestRunTurnCancellation(t *testing.T) {
 	}()
 
 	recorder := &partRecorder{}
-	outcome, err := claudecode.RunTurn(turnCtx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	outcome, err := chatacp.RunTurn(turnCtx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:        "/home/coder",
 		PromptText: "long task",
 		Publish:    recorder.publish,
@@ -450,7 +450,7 @@ func TestRunTurnPermissionAutoDeny(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	var denied acp.RequestPermissionResponse
-	agent := &claudecodetest.FakeAgent{}
+	agent := &chatacptest.FakeAgent{}
 	agent.OnPrompt = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.PromptRequest) (acp.PromptResponse, error) {
 		resp, err := conn.RequestPermission(ctx, acp.RequestPermissionRequest{
 			SessionId: params.SessionId,
@@ -468,7 +468,7 @@ func TestRunTurnPermissionAutoDeny(t *testing.T) {
 	}
 
 	recorder := &partRecorder{}
-	_, err := claudecode.RunTurn(ctx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	_, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:        "/home/coder",
 		PromptText: "do something requiring permission",
 		Publish:    recorder.publish,
@@ -488,8 +488,8 @@ func TestRunTurnSetsPermissionMode(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	agent := &claudecodetest.FakeAgent{}
-	_, err := claudecode.RunTurn(ctx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	agent := &chatacptest.FakeAgent{}
+	_, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:            "/home/coder",
 		PromptText:     "hi",
 		PermissionMode: "acceptEdits",
@@ -504,21 +504,21 @@ func TestRunTurnSetsPermissionMode(t *testing.T) {
 func TestBuildReseedContext(t *testing.T) {
 	t.Parallel()
 
-	require.Empty(t, claudecode.BuildReseedContext(nil))
+	require.Empty(t, chatacp.BuildReseedContext(nil))
 
-	small := claudecode.BuildReseedContext([]claudecode.ReseedTurn{
+	small := chatacp.BuildReseedContext([]chatacp.ReseedTurn{
 		{Role: "User", Text: "question"},
 		{Role: "Assistant", Text: "answer"},
 	})
 	require.Contains(t, small, "User: question")
 	require.Contains(t, small, "Assistant: answer")
 
-	turns := make([]claudecode.ReseedTurn, 0, 100)
+	turns := make([]chatacp.ReseedTurn, 0, 100)
 	for range 100 {
-		turns = append(turns, claudecode.ReseedTurn{Role: "User", Text: strings.Repeat("x", 1024)})
+		turns = append(turns, chatacp.ReseedTurn{Role: "User", Text: strings.Repeat("x", 1024)})
 	}
-	turns = append(turns, claudecode.ReseedTurn{Role: "Assistant", Text: "most recent"})
-	bounded := claudecode.BuildReseedContext(turns)
+	turns = append(turns, chatacp.ReseedTurn{Role: "Assistant", Text: "most recent"})
+	bounded := chatacp.BuildReseedContext(turns)
 	require.Less(t, len(bounded), 40*1024)
 	require.Contains(t, bounded, "most recent")
 }
@@ -529,7 +529,7 @@ func TestRunTurnCancelTimeout(t *testing.T) {
 
 	promptStarted := make(chan struct{})
 	release := make(chan struct{})
-	agent := &claudecodetest.FakeAgent{}
+	agent := &chatacptest.FakeAgent{}
 	agent.OnPrompt = func(context.Context, *acp.AgentSideConnection, acp.PromptRequest) (acp.PromptResponse, error) {
 		close(promptStarted)
 		// Never resolve until released: simulates an adapter that
@@ -549,7 +549,7 @@ func TestRunTurnCancelTimeout(t *testing.T) {
 	}()
 
 	start := time.Now()
-	_, err := claudecode.RunTurn(turnCtx, &claudecodetest.PipeTransport{Agent: agent}, claudecode.TurnInput{
+	_, err := chatacp.RunTurn(turnCtx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:        "/home/coder",
 		PromptText: "hang",
 		Logger:     testLogger(t),

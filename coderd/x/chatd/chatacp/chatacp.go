@@ -1,11 +1,11 @@
-// Package claudecode runs chat generation turns on a Claude Code agent
+// Package chatacp runs chat generation turns on an external coding agent
 // over the Agent Client Protocol (ACP). The adapter process runs inside
 // the chat's workspace; chatd is the ACP client. One adapter process
 // serves one generation turn: conversation continuity between turns
-// comes from Claude Code's on-disk session storage in the workspace
+// comes from the agent's on-disk session storage in the workspace
 // (session/resume, then session/load), with a lossy transcript reseed
 // as the fallback when the session is gone (e.g. after a rebuild).
-package claudecode
+package chatacp
 
 import (
 	"bytes"
@@ -49,7 +49,7 @@ type TurnInput struct {
 	PromptText string
 	// ReseedContext, when non-empty and a brand-new session must be
 	// created for a chat that has history, is prepended to the prompt
-	// so Claude regains conversation context. It is lossy.
+	// so the agent regains conversation context. It is lossy.
 	ReseedContext string
 	// PermissionMode selects the adapter session mode (e.g.
 	// acceptEdits). Empty keeps the adapter default.
@@ -106,7 +106,7 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 	initResp, err := conn.Initialize(ctx, acp.InitializeRequest{
 		ProtocolVersion:    acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
-			// Claude Code executes tools inside the workspace itself;
+			// The agent executes tools inside the workspace itself;
 			// chatd offers no client-side fs or terminal surface.
 		},
 		ClientInfo: &acp.Implementation{
@@ -134,7 +134,7 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 			// Mode support varies by adapter version; a turn without
 			// the requested mode still runs under the auto-deny
 			// permission policy.
-			input.Logger.Warn(ctx, "set claude code session mode failed",
+			input.Logger.Warn(ctx, "set acp session mode failed",
 				slog.F("mode", input.PermissionMode), slog.Error(err))
 		}
 	}
@@ -180,7 +180,7 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 		select {
 		case result = <-resultCh:
 		case <-time.After(cancelResolveTimeout):
-			return TurnOutcome{}, xerrors.Errorf("claude code turn: %w", ctx.Err())
+			return TurnOutcome{}, xerrors.Errorf("acp turn: %w", ctx.Err())
 		}
 	}
 	if result.err != nil {
@@ -224,7 +224,7 @@ func establishSession(
 			if ctx.Err() != nil {
 				return "", false, xerrors.Errorf("resume session: %w", err)
 			}
-			input.Logger.Warn(ctx, "claude code session resume failed, falling back",
+			input.Logger.Warn(ctx, "acp session resume failed, falling back",
 				slog.F("session_id", input.SessionID), slog.Error(err))
 		}
 		if caps.LoadSession {
@@ -244,7 +244,7 @@ func establishSession(
 			if ctx.Err() != nil {
 				return "", false, xerrors.Errorf("load session: %w", err)
 			}
-			input.Logger.Warn(ctx, "claude code session load failed, starting new session",
+			input.Logger.Warn(ctx, "acp session load failed, starting new session",
 				slog.F("session_id", input.SessionID), slog.Error(err))
 		}
 	}
@@ -530,7 +530,7 @@ func marshalRawJSON(v any) json.RawMessage {
 }
 
 // BuildReseedContext renders prior conversation turns into a plain-text
-// context block for seeding a fresh Claude session when the previous
+// context block for seeding a fresh agent session when the previous
 // ACP session is gone. It is lossy by design and bounded in size.
 func BuildReseedContext(turns []ReseedTurn) string {
 	if len(turns) == 0 {
@@ -564,7 +564,7 @@ type ReseedTurn struct {
 }
 
 // RuntimeState is the payload persisted in chats.runtime_state for
-// claude_code chats. It carries what the next turn needs to resume the
+// external runtime chats. It carries what the next turn needs to resume the
 // workspace-side conversation.
 type RuntimeState struct {
 	// SessionID is the ACP session that served the last turn.

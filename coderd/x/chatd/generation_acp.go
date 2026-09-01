@@ -17,40 +17,40 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
-	"github.com/coder/coder/v2/coderd/x/chatd/claudecode"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
 
 const (
-	// claudeCodeWorkspaceReadyTimeout bounds workspace startup, agent
+	// acpWorkspaceReadyTimeout bounds workspace startup, agent
 	// dialing, and adapter readiness for a turn.
-	claudeCodeWorkspaceReadyTimeout = 10 * time.Minute
-	// claudeCodeWorkspacePollInterval paces build and dial polling.
-	claudeCodeWorkspacePollInterval = 3 * time.Second
-	// claudeCodePreflightTimeout bounds the adapter binary check.
-	claudeCodePreflightTimeout = 30 * time.Second
-	// claudeCodePersistStateTimeout bounds the best-effort
+	acpWorkspaceReadyTimeout = 10 * time.Minute
+	// acpWorkspacePollInterval paces build and dial polling.
+	acpWorkspacePollInterval = 3 * time.Second
+	// acpPreflightTimeout bounds the adapter binary check.
+	acpPreflightTimeout = 30 * time.Second
+	// acpPersistStateTimeout bounds the best-effort
 	// runtime_state write after a turn.
-	claudeCodePersistStateTimeout = 15 * time.Second
+	acpPersistStateTimeout = 15 * time.Second
 )
 
-// startClaudeCodeGeneration is re-entrant because the runner redispatches
+// startACPGeneration is re-entrant because the runner redispatches
 // after commits. If output is already committed, it finishes the turn
 // instead of prompting again.
-func (s *taskStarter) startClaudeCodeGeneration(
+func (s *taskStarter) startACPGeneration(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	chat database.Chat,
 	history []database.ChatMessage,
 ) error {
-	turn, err := claudeCodeTurnFromHistory(ctx, s.opts.Logger, history)
+	turn, err := acpTurnFromHistory(ctx, s.opts.Logger, history)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
@@ -61,13 +61,13 @@ func (s *taskStarter) startClaudeCodeGeneration(
 		}, generationAttemptNotRequired)
 	}
 
-	cfg, err := s.server.claudeCodeTurnConfig(ctx, chat, turn.modelConfigID)
+	cfg, err := s.server.acpTurnConfig(ctx, chat, turn.modelConfigID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
 
-	readinessDeadline := s.opts.Clock.Now("chatworker", "claudecode-readiness").Add(claudeCodeWorkspaceReadyTimeout)
-	if err := s.ensureClaudeCodeWorkspaceRunning(ctx, chat, readinessDeadline); err != nil {
+	readinessDeadline := s.opts.Clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
+	if err := s.ensureACPWorkspaceRunning(ctx, chat, readinessDeadline); err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("ensure workspace running: %w", err))
 		}
@@ -86,7 +86,7 @@ func (s *taskStarter) startClaudeCodeGeneration(
 	}
 	defer workspaceCtx.close()
 
-	conn, agent, err := s.dialClaudeCodeAgent(ctx, &workspaceCtx, readinessDeadline)
+	conn, agent, err := s.dialACPAgent(ctx, &workspaceCtx, readinessDeadline)
 	if err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("dial workspace agent: %w", err))
@@ -104,14 +104,14 @@ func (s *taskStarter) startClaudeCodeGeneration(
 		env["ANTHROPIC_BASE_URL"] = cfg.baseURL
 	}
 
-	transportFn := s.server.claudeCodeTransportFn
+	transportFn := s.server.acpTransportFn
 	if transportFn == nil {
-		transportFn = s.sshClaudeCodeTransport
+		transportFn = s.sshACPTransport
 	}
 	transport, closeTransport, err := transportFn(ctx, conn, agent, env, readinessDeadline)
 	if err != nil {
 		if ctx.Err() != nil {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("claude code transport: %w", err))
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("acp transport: %w", err))
 		}
 		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
@@ -131,31 +131,31 @@ func (s *taskStarter) startClaudeCodeGeneration(
 	}
 	defer attempt.closeEpisode()
 
-	state := claudecode.ParseRuntimeState(chat.RuntimeState.RawMessage)
-	startedAt := s.opts.Clock.Now("chatworker", "claudecode")
-	outcome, runErr := claudecode.RunTurn(ctx, transport, claudecode.TurnInput{
+	state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
+	startedAt := s.opts.Clock.Now("chatworker", "chatacp")
+	outcome, runErr := chatacp.RunTurn(ctx, transport, chatacp.TurnInput{
 		SessionID:      state.SessionID,
 		SessionCwd:     state.Cwd,
 		Cwd:            cwd,
 		PromptText:     turn.prompt,
-		ReseedContext:  claudecode.BuildReseedContext(turn.reseed),
+		ReseedContext:  chatacp.BuildReseedContext(turn.reseed),
 		PermissionMode: cfg.permissionMode,
 		Publish:        attempt.publish,
 		Logger:         s.opts.Logger,
 	})
-	elapsed := s.opts.Clock.Now("chatworker", "claudecode").Sub(startedAt)
+	elapsed := s.opts.Clock.Now("chatworker", "chatacp").Sub(startedAt)
 
-	turnUsage, usageTotals := claudeCodeTurnUsage(outcome, state)
+	turnUsage, usageTotals := acpTurnUsage(outcome, state)
 
 	// Record the session even when the turn was interrupted or the
 	// commit below fails: the workspace-side session advanced either
 	// way, and the next turn should resume it.
 	if outcome.SessionID != "" {
-		s.persistClaudeCodeRuntimeState(ctx, chat.ID, outcome, state, cwd, usageTotals)
+		s.persistACPRuntimeState(ctx, chat.ID, outcome, state, cwd, usageTotals)
 	}
 
 	if ctx.Err() != nil {
-		return errors.Join(errTaskExpectedExit, xerrors.Errorf("claude code turn interrupted: %w", ctx.Err()))
+		return errors.Join(errTaskExpectedExit, xerrors.Errorf("acp turn interrupted: %w", ctx.Err()))
 	}
 	if runErr != nil {
 		return s.finishGenerationError(ctx, machine, input, runErr, requireGenerationAttempt(attempt.number))
@@ -186,24 +186,24 @@ func (s *taskStarter) startClaudeCodeGeneration(
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
 }
 
-type claudeCodeTurn struct {
+type acpTurn struct {
 	generate bool
 	prompt   string
-	reseed   []claudecode.ReseedTurn
+	reseed   []chatacp.ReseedTurn
 	// modelConfigID is the explicit model selection carried by the
 	// newest triggering user message. Zero means the runtime default
 	// chain (admin pin, then adapter default).
 	modelConfigID uuid.UUID
 }
 
-// claudeCodeTurnFromHistory derives the ACP prompt for this turn from
+// acpTurnFromHistory derives the ACP prompt for this turn from
 // persisted history. The prompt is the trailing run of user messages
 // (multiple when earlier turns failed before generating a reply);
 // everything before it becomes reseed context for the lossy
 // new-session fallback. generate is false when history ends with
 // assistant or tool output, meaning the turn already generated and
 // only FinishTurn remains.
-func claudeCodeTurnFromHistory(ctx context.Context, logger slog.Logger, history []database.ChatMessage) (claudeCodeTurn, error) {
+func acpTurnFromHistory(ctx context.Context, logger slog.Logger, history []database.ChatMessage) (acpTurn, error) {
 	firstTrailingUser := len(history)
 	for i := len(history) - 1; i >= 0; i-- {
 		if history[i].Role != database.ChatMessageRoleUser {
@@ -212,14 +212,14 @@ func claudeCodeTurnFromHistory(ctx context.Context, logger slog.Logger, history 
 		firstTrailingUser = i
 	}
 	if firstTrailingUser == len(history) {
-		return claudeCodeTurn{}, nil
+		return acpTurn{}, nil
 	}
 
 	var prompt strings.Builder
 	for _, msg := range history[firstTrailingUser:] {
 		text, err := chatMessageText(msg)
 		if err != nil {
-			return claudeCodeTurn{}, xerrors.Errorf("parse user message %d: %w", msg.ID, err)
+			return acpTurn{}, xerrors.Errorf("parse user message %d: %w", msg.ID, err)
 		}
 		if text == "" {
 			continue
@@ -230,7 +230,7 @@ func claudeCodeTurnFromHistory(ctx context.Context, logger slog.Logger, history 
 		_, _ = prompt.WriteString(text)
 	}
 	if strings.TrimSpace(prompt.String()) == "" {
-		return claudeCodeTurn{}, chaterror.WithClassification(
+		return acpTurn{}, chaterror.WithClassification(
 			xerrors.New("user message has no text content"),
 			chaterror.ClassifiedError{
 				Kind:    codersdk.ChatErrorKindGeneric,
@@ -239,7 +239,7 @@ func claudeCodeTurnFromHistory(ctx context.Context, logger slog.Logger, history 
 		)
 	}
 
-	reseed := make([]claudecode.ReseedTurn, 0, firstTrailingUser)
+	reseed := make([]chatacp.ReseedTurn, 0, firstTrailingUser)
 	for _, msg := range history[:firstTrailingUser] {
 		var role string
 		switch msg.Role {
@@ -260,7 +260,7 @@ func claudeCodeTurnFromHistory(ctx context.Context, logger slog.Logger, history 
 		if text == "" {
 			continue
 		}
-		reseed = append(reseed, claudecode.ReseedTurn{Role: role, Text: text})
+		reseed = append(reseed, chatacp.ReseedTurn{Role: role, Text: text})
 	}
 
 	// The newest trailing user message carries the model selection for
@@ -270,7 +270,7 @@ func claudeCodeTurnFromHistory(ctx context.Context, logger slog.Logger, history 
 		modelConfigID = last.ModelConfigID.UUID
 	}
 
-	return claudeCodeTurn{
+	return acpTurn{
 		generate:      true,
 		prompt:        prompt.String(),
 		reseed:        reseed,
@@ -297,7 +297,7 @@ func chatMessageText(msg database.ChatMessage) (string, error) {
 	return sb.String(), nil
 }
 
-type claudeCodeTurnConfig struct {
+type acpTurnConfig struct {
 	model          string
 	permissionMode string
 	apiKey         string
@@ -308,20 +308,20 @@ type claudeCodeTurnConfig struct {
 	modelConfigID uuid.UUID
 }
 
-// claudeCodeTurnConfig loads the organization's runtime config and the
+// acpTurnConfig loads the organization's runtime config and the
 // deployment Anthropic key for one turn. The key is injected into the
 // adapter's process environment and never written to workspace disk.
 // A non-zero selection (the triggering user message's model config)
 // overrides the admin model pin and sources credentials from the
 // selected config's provider.
-func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat, selection uuid.UUID) (claudeCodeTurnConfig, error) {
+func (p *Server) acpTurnConfig(ctx context.Context, chat database.Chat, selection uuid.UUID) (acpTurnConfig, error) {
 	cfg, err := p.db.GetChatRuntimeConfig(ctx, database.GetChatRuntimeConfigParams{
 		OrganizationID: chat.OrganizationID,
 		Runtime:        chat.Runtime,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return claudeCodeTurnConfig{}, chaterror.WithClassification(
+			return acpTurnConfig{}, chaterror.WithClassification(
 				xerrors.New("chat runtime config missing"),
 				chaterror.ClassifiedError{
 					Kind:    codersdk.ChatErrorKindConfig,
@@ -329,10 +329,10 @@ func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat, s
 				},
 			)
 		}
-		return claudeCodeTurnConfig{}, xerrors.Errorf("get chat runtime config: %w", err)
+		return acpTurnConfig{}, xerrors.Errorf("get chat runtime config: %w", err)
 	}
 	if !cfg.Enabled {
-		return claudeCodeTurnConfig{}, chaterror.WithClassification(
+		return acpTurnConfig{}, chaterror.WithClassification(
 			xerrors.New("chat runtime config disabled"),
 			chaterror.ClassifiedError{
 				Kind:    codersdk.ChatErrorKindProviderDisabled,
@@ -341,7 +341,7 @@ func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat, s
 		)
 	}
 
-	out := claudeCodeTurnConfig{
+	out := acpTurnConfig{
 		model:          cfg.Model,
 		permissionMode: cfg.PermissionMode,
 	}
@@ -354,7 +354,7 @@ func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat, s
 			// (config deleted or disabled, provider changed) falls back
 			// to the runtime default chain and leaves the assistant
 			// messages unstamped.
-			p.logger.Warn(ctx, "claude code turn: selected model config unavailable, using runtime default",
+			p.logger.Warn(ctx, "acp turn: selected model config unavailable, using runtime default",
 				slog.F("chat_id", chat.ID), slog.F("model_config_id", selection), slog.Error(err))
 		} else {
 			out.model = modelConfig.Model
@@ -365,7 +365,7 @@ func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat, s
 
 	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 	if err != nil {
-		return claudeCodeTurnConfig{}, xerrors.Errorf("get ai providers: %w", err)
+		return acpTurnConfig{}, xerrors.Errorf("get ai providers: %w", err)
 	}
 	anthropicProviders := make([]database.AIProvider, 0, len(providers))
 	for _, provider := range providers {
@@ -375,7 +375,7 @@ func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat, s
 	}
 	configuredProviders, err := p.aiProviderConfigs(ctx, anthropicProviders)
 	if err != nil {
-		return claudeCodeTurnConfig{}, xerrors.Errorf("configure anthropic providers: %w", err)
+		return acpTurnConfig{}, xerrors.Errorf("configure anthropic providers: %w", err)
 	}
 	var fallbackKey, fallbackBaseURL string
 	for _, configured := range configuredProviders {
@@ -393,7 +393,7 @@ func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat, s
 		}
 	}
 	if fallbackKey == "" {
-		return claudeCodeTurnConfig{}, chaterror.WithClassification(
+		return acpTurnConfig{}, chaterror.WithClassification(
 			xerrors.New("no anthropic provider key configured"),
 			chaterror.ClassifiedError{
 				Kind:    codersdk.ChatErrorKindMissingKey,
@@ -405,7 +405,7 @@ func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat, s
 		// The selected provider yielded no usable key; keep the model
 		// but borrow another Anthropic provider's credentials. A
 		// visible auth failure beats silently ignoring the selection.
-		p.logger.Warn(ctx, "claude code turn: selected model's provider has no usable key, using fallback anthropic credentials",
+		p.logger.Warn(ctx, "acp turn: selected model's provider has no usable key, using fallback provider credentials",
 			slog.F("chat_id", chat.ID), slog.F("model_config_id", selection))
 	}
 	out.apiKey = fallbackKey
@@ -413,14 +413,14 @@ func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat, s
 	return out, nil
 }
 
-// ensureClaudeCodeWorkspaceRunning makes sure the chat's bound
+// ensureACPWorkspaceRunning makes sure the chat's bound
 // workspace has a succeeded start build, creating one as the chat
 // owner when the workspace is stopped. Agent reachability is handled
 // by the dial loop afterwards.
-func (s *taskStarter) ensureClaudeCodeWorkspaceRunning(ctx context.Context, chat database.Chat, deadline time.Time) error {
+func (s *taskStarter) ensureACPWorkspaceRunning(ctx context.Context, chat database.Chat, deadline time.Time) error {
 	if !chat.WorkspaceID.Valid {
 		return chaterror.WithClassification(
-			xerrors.New("claude code chat has no bound workspace"),
+			xerrors.New("runtime chat has no bound workspace"),
 			chaterror.ClassifiedError{
 				Kind:    codersdk.ChatErrorKindConfig,
 				Message: "This chat has no workspace bound to it, so the Claude Code runtime cannot run.",
@@ -473,7 +473,7 @@ func (s *taskStarter) ensureClaudeCodeWorkspaceRunning(ctx context.Context, chat
 			if s.server.startWorkspaceFn == nil {
 				return xerrors.New("workspace starting is not configured")
 			}
-			s.opts.Logger.Info(ctx, "starting stopped workspace for claude code chat",
+			s.opts.Logger.Info(ctx, "starting stopped workspace for acp chat",
 				slog.F("chat_id", chat.ID), slog.F("workspace_id", workspace.ID))
 			if _, err := s.server.startWorkspaceFn(ctx, chat.OwnerID, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
@@ -488,7 +488,7 @@ func (s *taskStarter) ensureClaudeCodeWorkspaceRunning(ctx context.Context, chat
 			}
 			started = true
 		}
-		if !s.opts.Clock.Now("chatworker", "claudecode-workspace").Before(deadline) {
+		if !s.opts.Clock.Now("chatworker", "chatacp-workspace").Before(deadline) {
 			return chaterror.WithClassification(
 				xerrors.New("timed out waiting for workspace to start"),
 				chaterror.ClassifiedError{
@@ -497,7 +497,7 @@ func (s *taskStarter) ensureClaudeCodeWorkspaceRunning(ctx context.Context, chat
 				},
 			)
 		}
-		timer := s.opts.Clock.NewTimer(claudeCodeWorkspacePollInterval, "chatworker", "claudecode-workspace")
+		timer := s.opts.Clock.NewTimer(acpWorkspacePollInterval, "chatworker", "chatacp-workspace")
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
@@ -507,11 +507,11 @@ func (s *taskStarter) ensureClaudeCodeWorkspaceRunning(ctx context.Context, chat
 	}
 }
 
-// dialClaudeCodeAgent dials the chat's workspace agent, retrying while
+// dialACPAgent dials the chat's workspace agent, retrying while
 // the agent connects after a workspace start. The turnWorkspaceContext
 // handles agent selection, chat binding persistence, and lazy
 // validation.
-func (s *taskStarter) dialClaudeCodeAgent(
+func (s *taskStarter) dialACPAgent(
 	ctx context.Context,
 	workspaceCtx *turnWorkspaceContext,
 	deadline time.Time,
@@ -528,7 +528,7 @@ func (s *taskStarter) dialClaudeCodeAgent(
 		if ctx.Err() != nil {
 			return nil, database.WorkspaceAgent{}, xerrors.Errorf("dial workspace agent: %w", errors.Join(dialErr, ctx.Err()))
 		}
-		if !s.opts.Clock.Now("chatworker", "claudecode-dial").Before(deadline) {
+		if !s.opts.Clock.Now("chatworker", "chatacp-dial").Before(deadline) {
 			return nil, database.WorkspaceAgent{}, chaterror.WithClassification(
 				xerrors.Errorf("dial workspace agent: %w", dialErr),
 				chaterror.ClassifiedError{
@@ -537,7 +537,7 @@ func (s *taskStarter) dialClaudeCodeAgent(
 				},
 			)
 		}
-		timer := s.opts.Clock.NewTimer(claudeCodeWorkspacePollInterval, "chatworker", "claudecode-dial")
+		timer := s.opts.Clock.NewTimer(acpWorkspacePollInterval, "chatworker", "chatacp-dial")
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
@@ -547,37 +547,37 @@ func (s *taskStarter) dialClaudeCodeAgent(
 	}
 }
 
-// ClaudeCodeTransportFunc builds the ACP transport for one turn from
+// ACPTransportFunc builds the ACP transport for one turn from
 // an established workspace agent connection. It exists as a seam so
 // tests can substitute an in-memory transport; production uses
-// sshClaudeCodeTransport.
-type ClaudeCodeTransportFunc func(
+// sshACPTransport.
+type ACPTransportFunc func(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	agent database.WorkspaceAgent,
 	env map[string]string,
 	readinessDeadline time.Time,
-) (claudecode.Transport, func(), error)
+) (chatacp.Transport, func(), error)
 
-// sshClaudeCodeTransport opens an SSH client to the workspace agent,
+// sshACPTransport opens an SSH client to the workspace agent,
 // verifies the adapter binary exists, and returns the non-PTY SSH exec
 // transport the ACP session runs over.
-func (s *taskStarter) sshClaudeCodeTransport(
+func (s *taskStarter) sshACPTransport(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	agent database.WorkspaceAgent,
 	env map[string]string,
 	readinessDeadline time.Time,
-) (claudecode.Transport, func(), error) {
+) (chatacp.Transport, func(), error) {
 	sshClient, err := conn.SSHClient(ctx)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("workspace ssh client: %w", err)
 	}
-	if err := s.claudeCodeAdapterPreflight(ctx, sshClient, agent.ID, readinessDeadline); err != nil {
+	if err := s.acpAdapterPreflight(ctx, sshClient, agent.ID, readinessDeadline); err != nil {
 		_ = sshClient.Close()
 		return nil, nil, err
 	}
-	return &claudecode.SSHTransport{
+	return &chatacp.SSHTransport{
 			Client: sshClient,
 			Env:    env,
 		}, func() {
@@ -585,18 +585,18 @@ func (s *taskStarter) sshClaudeCodeTransport(
 		}, nil
 }
 
-// claudeCodeAdapterPreflight verifies the adapter binary exists inside
+// acpAdapterPreflight verifies the adapter binary exists inside
 // the workspace before starting a turn, so a template that does not
 // ship it produces a legible configuration error instead of an opaque
 // protocol failure.
-func (s *taskStarter) claudeCodeAdapterPreflight(
+func (s *taskStarter) acpAdapterPreflight(
 	ctx context.Context,
 	client *gossh.Client,
 	agentID uuid.UUID,
 	readinessDeadline time.Time,
 ) error {
 	probe := func(ctx context.Context) error {
-		return probeClaudeCodeAdapter(ctx, s.opts.Clock, client)
+		return probeACPAdapter(ctx, s.opts.Clock, client)
 	}
 	scriptsSettled := func(ctx context.Context) bool {
 		agent, err := s.server.db.GetWorkspaceAgentByID(ctx, agentID)
@@ -611,17 +611,17 @@ func (s *taskStarter) claudeCodeAdapterPreflight(
 			return true
 		}
 	}
-	return waitForClaudeCodeAdapter(ctx, s.opts.Clock, readinessDeadline, probe, scriptsSettled)
+	return waitForACPAdapter(ctx, s.opts.Clock, readinessDeadline, probe, scriptsSettled)
 }
 
-// waitForClaudeCodeAdapter probes for the adapter binary until it
+// waitForACPAdapter probes for the adapter binary until it
 // appears. Templates commonly install the adapter from a startup
 // script, and a turn dials the agent as soon as it connects, which can
 // be before those scripts finish (always right after an automatic
 // workspace start when the install lives outside a persistent volume).
 // A failed probe is therefore conclusive only once the agent reports
 // its startup scripts settled, or after the ready timeout.
-func waitForClaudeCodeAdapter(
+func waitForACPAdapter(
 	ctx context.Context,
 	clock quartz.Clock,
 	deadline time.Time,
@@ -637,31 +637,31 @@ func waitForClaudeCodeAdapter(
 			return nil
 		}
 		if ctx.Err() != nil {
-			return xerrors.Errorf("claude code adapter preflight: %w", ctx.Err())
+			return xerrors.Errorf("acp adapter preflight: %w", ctx.Err())
 		}
-		if settled || !clock.Now("chatworker", "claudecode-preflight").Before(deadline) {
+		if settled || !clock.Now("chatworker", "chatacp-preflight").Before(deadline) {
 			return chaterror.WithClassification(
-				xerrors.Errorf("claude code adapter preflight: %w", err),
+				xerrors.Errorf("acp adapter preflight: %w", err),
 				chaterror.ClassifiedError{
 					Kind: codersdk.ChatErrorKindConfig,
-					Message: "The workspace does not provide the Claude Code adapter (" + claudecode.DefaultAdapterCommand + "). " +
+					Message: "The workspace does not provide the Claude Code adapter (" + chatacp.DefaultAdapterCommand + "). " +
 						"The template configured for this runtime must preinstall it.",
 				},
 			)
 		}
-		timer := clock.NewTimer(claudeCodeWorkspacePollInterval, "chatworker", "claudecode-preflight")
+		timer := clock.NewTimer(acpWorkspacePollInterval, "chatworker", "chatacp-preflight")
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
 			timer.Stop()
-			return xerrors.Errorf("claude code adapter preflight: %w", ctx.Err())
+			return xerrors.Errorf("acp adapter preflight: %w", ctx.Err())
 		}
 	}
 }
 
-// probeClaudeCodeAdapter checks once whether the adapter binary is on
+// probeACPAdapter checks once whether the adapter binary is on
 // PATH inside the workspace.
-func probeClaudeCodeAdapter(ctx context.Context, clock quartz.Clock, client *gossh.Client) error {
+func probeACPAdapter(ctx context.Context, clock quartz.Clock, client *gossh.Client) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return xerrors.Errorf("new ssh session: %w", err)
@@ -670,65 +670,65 @@ func probeClaudeCodeAdapter(ctx context.Context, clock quartz.Clock, client *gos
 
 	done := make(chan error, 1)
 	go func() {
-		done <- session.Run("command -v " + claudecode.DefaultAdapterCommand)
+		done <- session.Run("command -v " + chatacp.DefaultAdapterCommand)
 	}()
-	timer := clock.NewTimer(claudeCodePreflightTimeout, "chatworker", "claudecode-preflight")
+	timer := clock.NewTimer(acpPreflightTimeout, "chatworker", "chatacp-preflight")
 	defer timer.Stop()
 	select {
 	case err = <-done:
 	case <-timer.C:
-		return xerrors.New("claude code adapter probe timed out")
+		return xerrors.New("acp adapter probe timed out")
 	case <-ctx.Done():
-		return xerrors.Errorf("claude code adapter probe: %w", ctx.Err())
+		return xerrors.Errorf("acp adapter probe: %w", ctx.Err())
 	}
 	return err
 }
 
-// persistClaudeCodeRuntimeState best-effort records the ACP session
+// persistACPRuntimeState best-effort records the ACP session
 // that served the turn so the next turn can resume it. It runs even
 // when the turn was interrupted or the commit fails, because the
 // workspace-side session advanced regardless.
-func (s *taskStarter) persistClaudeCodeRuntimeState(
+func (s *taskStarter) persistACPRuntimeState(
 	ctx context.Context,
 	chatID uuid.UUID,
-	outcome claudecode.TurnOutcome,
-	prior claudecode.RuntimeState,
+	outcome chatacp.TurnOutcome,
+	prior chatacp.RuntimeState,
 	newCwd string,
-	usageTotals *claudecode.UsageTotals,
+	usageTotals *chatacp.UsageTotals,
 ) {
 	cwd := newCwd
 	if outcome.Resumed && prior.Cwd != "" {
 		cwd = prior.Cwd
 	}
-	encoded, err := json.Marshal(claudecode.RuntimeState{
+	encoded, err := json.Marshal(chatacp.RuntimeState{
 		SessionID: outcome.SessionID,
 		Cwd:       cwd,
 		Usage:     usageTotals,
-		UpdatedAt: s.opts.Clock.Now("chatworker", "claudecode").UTC(),
+		UpdatedAt: s.opts.Clock.Now("chatworker", "chatacp").UTC(),
 	})
 	if err != nil {
-		s.opts.Logger.Warn(ctx, "marshal claude code runtime state", slog.F("chat_id", chatID), slog.Error(err))
+		s.opts.Logger.Warn(ctx, "marshal acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
 		return
 	}
-	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), claudeCodePersistStateTimeout)
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), acpPersistStateTimeout)
 	defer cancel()
 	if err := s.opts.Store.UpdateChatRuntimeState(persistCtx, database.UpdateChatRuntimeStateParams{
 		ID:           chatID,
 		RuntimeState: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
 	}); err != nil {
-		s.opts.Logger.Warn(persistCtx, "persist claude code runtime state", slog.F("chat_id", chatID), slog.Error(err))
+		s.opts.Logger.Warn(persistCtx, "persist acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
 	}
 }
 
-// claudeCodeTurnUsage derives per-turn token usage from ACP's
+// acpTurnUsage derives per-turn token usage from ACP's
 // session-cumulative counters: on a resumed session it subtracts the
 // totals persisted after the previous turn, otherwise the session is
 // fresh and the counters already are per-turn. It returns the new
 // cumulative totals to persist alongside the session.
-func claudeCodeTurnUsage(
-	outcome claudecode.TurnOutcome,
-	prior claudecode.RuntimeState,
-) (fantasy.Usage, *claudecode.UsageTotals) {
+func acpTurnUsage(
+	outcome chatacp.TurnOutcome,
+	prior chatacp.RuntimeState,
+) (fantasy.Usage, *chatacp.UsageTotals) {
 	if outcome.Usage == nil {
 		// No usage this turn: carry prior totals forward so a later
 		// turn that does report usage still subtracts them.
@@ -737,7 +737,7 @@ func claudeCodeTurnUsage(
 		}
 		return fantasy.Usage{}, nil
 	}
-	totals := &claudecode.UsageTotals{
+	totals := &chatacp.UsageTotals{
 		InputTokens:  int64(outcome.Usage.InputTokens),
 		OutputTokens: int64(outcome.Usage.OutputTokens),
 		TotalTokens:  int64(outcome.Usage.TotalTokens),
@@ -751,7 +751,7 @@ func claudeCodeTurnUsage(
 	if outcome.Usage.CachedReadTokens != nil {
 		totals.CacheReadTokens = int64(*outcome.Usage.CachedReadTokens)
 	}
-	base := claudecode.UsageTotals{}
+	base := chatacp.UsageTotals{}
 	if outcome.Resumed && outcome.SessionID == prior.SessionID && prior.Usage != nil {
 		base = *prior.Usage
 	}

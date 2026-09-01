@@ -1,6 +1,6 @@
-// Package claudecodetest provides an in-memory fake ACP agent and
-// transport for testing the claudecode runtime without a workspace.
-package claudecodetest
+// Package chatacptest provides an in-memory fake ACP agent and
+// transport for testing the chatacp runtime without a workspace.
+package chatacptest
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	acp "github.com/coder/acp-go-sdk"
-	"github.com/coder/coder/v2/coderd/x/chatd/claudecode"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 )
 
 // FakeAgent implements the agent side of ACP for tests. Behavior is
@@ -187,9 +187,9 @@ type PipeTransport struct {
 	Agent *FakeAgent
 }
 
-var _ claudecode.Transport = (*PipeTransport)(nil)
+var _ chatacp.Transport = (*PipeTransport)(nil)
 
-func (t *PipeTransport) Start(_ context.Context) (claudecode.Process, error) {
+func (t *PipeTransport) Start(_ context.Context) (chatacp.Process, error) {
 	clientReads, agentWrites := io.Pipe()
 	agentReads, clientWrites := io.Pipe()
 	conn := acp.NewAgentSideConnection(t.Agent, agentWrites, agentReads)

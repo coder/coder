@@ -18,10 +18,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp/chatacptest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/chatd/claudecode"
-	"github.com/coder/coder/v2/coderd/x/chatd/claudecode/claudecodetest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -166,26 +166,26 @@ func withInitialModelConfig(id uuid.UUID) func(*chatstate.CreateChatInput) {
 	}
 }
 
-func claudeCodeConfigOverrides(t *testing.T, agent *claudecodetest.FakeAgent) func(*chatd.Config) {
+func claudeCodeConfigOverrides(t *testing.T, agent *chatacptest.FakeAgent) func(*chatd.Config) {
 	t.Helper()
-	return claudeCodeConfigOverridesWithEnv(t, agent, func(env map[string]string) {
+	return acpConfigOverridesWithEnv(t, agent, func(env map[string]string) {
 		require.Equal(t, "test-anthropic-key", env["ANTHROPIC_API_KEY"])
 		require.Equal(t, "claude-test-model", env["ANTHROPIC_MODEL"])
 	})
 }
 
-type claudeCodeEnvRecorder struct {
+type acpEnvRecorder struct {
 	mu   sync.Mutex
 	envs []map[string]string
 }
 
-func (r *claudeCodeEnvRecorder) record(env map[string]string) {
+func (r *acpEnvRecorder) record(env map[string]string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.envs = append(r.envs, env)
 }
 
-func (r *claudeCodeEnvRecorder) last(t *testing.T) map[string]string {
+func (r *acpEnvRecorder) last(t *testing.T) map[string]string {
 	t.Helper()
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -193,12 +193,12 @@ func (r *claudeCodeEnvRecorder) last(t *testing.T) map[string]string {
 	return r.envs[len(r.envs)-1]
 }
 
-func claudeCodeConfigOverridesCaptureEnv(t *testing.T, agent *claudecodetest.FakeAgent, recorder *claudeCodeEnvRecorder) func(*chatd.Config) {
+func acpConfigOverridesCaptureEnv(t *testing.T, agent *chatacptest.FakeAgent, recorder *acpEnvRecorder) func(*chatd.Config) {
 	t.Helper()
-	return claudeCodeConfigOverridesWithEnv(t, agent, recorder.record)
+	return acpConfigOverridesWithEnv(t, agent, recorder.record)
 }
 
-func claudeCodeConfigOverridesWithEnv(t *testing.T, agent *claudecodetest.FakeAgent, inspectEnv func(map[string]string)) func(*chatd.Config) {
+func acpConfigOverridesWithEnv(t *testing.T, agent *chatacptest.FakeAgent, inspectEnv func(map[string]string)) func(*chatd.Config) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -208,15 +208,15 @@ func claudeCodeConfigOverridesWithEnv(t *testing.T, agent *claudecodetest.FakeAg
 		cfg.AgentConn = func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return mockConn, func() {}, nil
 		}
-		cfg.ClaudeCodeTransport = func(_ context.Context, _ workspacesdk.AgentConn, _ database.WorkspaceAgent, env map[string]string, _ time.Time) (claudecode.Transport, func(), error) {
+		cfg.ACPTransport = func(_ context.Context, _ workspacesdk.AgentConn, _ database.WorkspaceAgent, env map[string]string, _ time.Time) (chatacp.Transport, func(), error) {
 			inspectEnv(env)
-			return &claudecodetest.PipeTransport{Agent: agent}, func() {}, nil
+			return &chatacptest.PipeTransport{Agent: agent}, func() {}, nil
 		}
 	}
 }
 
-func replyingFakeAgent(text string) *claudecodetest.FakeAgent {
-	agent := &claudecodetest.FakeAgent{}
+func replyingFakeAgent(text string) *chatacptest.FakeAgent {
+	agent := &chatacptest.FakeAgent{}
 	agent.OnPrompt = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.PromptRequest) (acp.PromptResponse, error) {
 		err := conn.SessionUpdate(ctx, acp.SessionNotification{
 			SessionId: params.SessionId,
@@ -243,7 +243,7 @@ func TestClaudeCodeChatTurn(t *testing.T) {
 
 	setup := seedClaudeCodeChatDependencies(t, db, database.WorkspaceTransitionStart)
 
-	fakeAgent := &claudecodetest.FakeAgent{}
+	fakeAgent := &chatacptest.FakeAgent{}
 	fakeAgent.OnPrompt = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.PromptRequest) (acp.PromptResponse, error) {
 		err := conn.SessionUpdate(ctx, acp.SessionNotification{
 			SessionId: params.SessionId,
@@ -290,7 +290,7 @@ func TestClaudeCodeChatTurn(t *testing.T) {
 	require.Equal(t, int64(11), messages[1].InputTokens.Int64)
 	require.Equal(t, int64(7), messages[1].OutputTokens.Int64)
 
-	state := claudecode.ParseRuntimeState(chat.RuntimeState.RawMessage)
+	state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
 	require.Equal(t, "session-new", state.SessionID)
 	require.Equal(t, "/home/coder/project", state.Cwd)
 }
@@ -303,7 +303,7 @@ func TestClaudeCodeChatResumesSession(t *testing.T) {
 
 	setup := seedClaudeCodeChatDependencies(t, db, database.WorkspaceTransitionStart)
 
-	fakeAgent := &claudecodetest.FakeAgent{
+	fakeAgent := &chatacptest.FakeAgent{
 		Capabilities: acp.AgentCapabilities{
 			SessionCapabilities: acp.SessionCapabilities{Resume: &acp.SessionResumeCapabilities{}},
 		},
@@ -348,7 +348,7 @@ func TestClaudeCodeChatRestartsStoppedWorkspace(t *testing.T) {
 
 	setup := seedClaudeCodeChatDependencies(t, db, database.WorkspaceTransitionStop)
 
-	fakeAgent := &claudecodetest.FakeAgent{}
+	fakeAgent := &chatacptest.FakeAgent{}
 	created := createClaudeCodeChat(ctx, t, db, ps, setup, "wake up")
 
 	overrides := claudeCodeConfigOverrides(t, fakeAgent)
@@ -413,7 +413,7 @@ func TestClaudeCodeChatMissingRuntimeConfigFails(t *testing.T) {
 		Runtime:        database.ChatRuntimeClaudeCode,
 	}))
 
-	fakeAgent := &claudecodetest.FakeAgent{}
+	fakeAgent := &chatacptest.FakeAgent{}
 	created := createClaudeCodeChat(ctx, t, db, ps, setup, "hello")
 	_ = newActiveTestServer(t, db, ps, claudeCodeConfigOverrides(t, fakeAgent))
 
@@ -436,9 +436,9 @@ func TestClaudeCodeChatModelSelection(t *testing.T) {
 		AIProviderID: uuid.NullUUID{UUID: setup.anthropicProviderID, Valid: true},
 	})
 
-	recorder := &claudeCodeEnvRecorder{}
+	recorder := &acpEnvRecorder{}
 	created := createClaudeCodeChat(ctx, t, db, ps, setup, "hello", withInitialModelConfig(selected.ID))
-	_ = newActiveTestServer(t, db, ps, claudeCodeConfigOverridesCaptureEnv(t, replyingFakeAgent("selected reply"), recorder))
+	_ = newActiveTestServer(t, db, ps, acpConfigOverridesCaptureEnv(t, replyingFakeAgent("selected reply"), recorder))
 
 	chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 	require.Equal(t, database.ChatStatusWaiting, chat.Status)
@@ -472,9 +472,9 @@ func TestClaudeCodeChatModelSelectionUnavailableFallsBack(t *testing.T) {
 		p.Enabled = false
 	})
 
-	recorder := &claudeCodeEnvRecorder{}
+	recorder := &acpEnvRecorder{}
 	created := createClaudeCodeChat(ctx, t, db, ps, setup, "hello", withInitialModelConfig(disabled.ID))
-	_ = newActiveTestServer(t, db, ps, claudeCodeConfigOverridesCaptureEnv(t, replyingFakeAgent("fallback reply"), recorder))
+	_ = newActiveTestServer(t, db, ps, acpConfigOverridesCaptureEnv(t, replyingFakeAgent("fallback reply"), recorder))
 
 	chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 	require.Equal(t, database.ChatStatusWaiting, chat.Status)
@@ -506,9 +506,9 @@ func TestClaudeCodeChatNoPinNoSelectionOmitsModelEnv(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	recorder := &claudeCodeEnvRecorder{}
+	recorder := &acpEnvRecorder{}
 	created := createClaudeCodeChat(ctx, t, db, ps, setup, "hello")
-	_ = newActiveTestServer(t, db, ps, claudeCodeConfigOverridesCaptureEnv(t, replyingFakeAgent("default reply"), recorder))
+	_ = newActiveTestServer(t, db, ps, acpConfigOverridesCaptureEnv(t, replyingFakeAgent("default reply"), recorder))
 
 	chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 	require.Equal(t, database.ChatStatusWaiting, chat.Status)
@@ -541,9 +541,9 @@ func TestClaudeCodeChatSelectionCredentials(t *testing.T) {
 			AIProviderID: uuid.NullUUID{UUID: second.ID, Valid: true},
 		})
 
-		recorder := &claudeCodeEnvRecorder{}
+		recorder := &acpEnvRecorder{}
 		created := createClaudeCodeChat(ctx, t, db, ps, setup, "hello", withInitialModelConfig(selected.ID))
-		_ = newActiveTestServer(t, db, ps, claudeCodeConfigOverridesCaptureEnv(t, replyingFakeAgent("second reply"), recorder))
+		_ = newActiveTestServer(t, db, ps, acpConfigOverridesCaptureEnv(t, replyingFakeAgent("second reply"), recorder))
 
 		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 		require.Equal(t, database.ChatStatusWaiting, chat.Status)
@@ -573,9 +573,9 @@ func TestClaudeCodeChatSelectionCredentials(t *testing.T) {
 			AIProviderID: uuid.NullUUID{UUID: keyless.ID, Valid: true},
 		})
 
-		recorder := &claudeCodeEnvRecorder{}
+		recorder := &acpEnvRecorder{}
 		created := createClaudeCodeChat(ctx, t, db, ps, setup, "hello", withInitialModelConfig(selected.ID))
-		_ = newActiveTestServer(t, db, ps, claudeCodeConfigOverridesCaptureEnv(t, replyingFakeAgent("keyless reply"), recorder))
+		_ = newActiveTestServer(t, db, ps, acpConfigOverridesCaptureEnv(t, replyingFakeAgent("keyless reply"), recorder))
 
 		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 		require.Equal(t, database.ChatStatusWaiting, chat.Status)

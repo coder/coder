@@ -182,7 +182,7 @@ type Server struct {
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	stopWorkspaceFn                chattool.StopWorkspaceFn
-	claudeCodeTransportFn          ClaudeCodeTransportFunc
+	acpTransportFn                 ACPTransportFunc
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	hooks                          *chathooks.Trigger
@@ -3185,7 +3185,7 @@ type Config struct {
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	StopWorkspace                  chattool.StopWorkspaceFn
-	ClaudeCodeTransport            ClaudeCodeTransportFunc
+	ACPTransport                   ACPTransportFunc
 	ProviderAPIKeys                chatprovider.ProviderAPIKeys
 	AllowBYOK                      bool
 	AllowBYOKSet                   bool
@@ -3288,7 +3288,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
-		claudeCodeTransportFn:          cfg.ClaudeCodeTransport,
+		acpTransportFn:                 cfg.ACPTransport,
 		stopWorkspaceFn:                cfg.StopWorkspace,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,

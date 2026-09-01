@@ -1,4 +1,4 @@
-package claudecode
+package chatacp
 
 import (
 	"context"
