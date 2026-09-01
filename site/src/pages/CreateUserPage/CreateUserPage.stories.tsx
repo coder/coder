@@ -8,7 +8,11 @@ import {
 	MockUserMember,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
+import {
+	waitForRadixLayerClose,
+	withDashboardProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import CreateUserPage from "./CreateUserPage";
 
 const meta = {
@@ -116,6 +120,11 @@ async function fillForm(
 	await user.click(canvas.getByTestId("login-type-input"));
 	await user.click(
 		await body.findByRole("option", { name: new RegExp(loginType, "i") }),
+	);
+	// The option click closes the login-type listbox; wait for Radix to
+	// make the rest of the page interactive again before continuing.
+	await waitForRadixLayerClose(() =>
+		canvas.getByRole("button", { name: /save/i }),
 	);
 
 	if (isPasswordLogin) {
