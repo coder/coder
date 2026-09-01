@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -162,6 +163,59 @@ func TestScopesCoverGuards(t *testing.T) {
 				require.ErrorContainsf(t, err, side+` scope "test_scope"`, "side %q", side)
 				require.Falsef(t, got, "an undecided comparison must not report coverage, side %q", side)
 			}
+		})
+	}
+}
+
+// TestCoverageModelFields fails when one of the types coverage reads grows a
+// field, so someone decides whether checkCoverable has to account for it.
+func TestCoverageModelFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		typ    reflect.Type
+		fields []string
+	}{
+		{
+			// permissionCovered compares ResourceType and Action; Negate is
+			// why checkCoverable refuses a scope carrying one.
+			name:   "Permission",
+			typ:    reflect.TypeOf(Permission{}),
+			fields: []string{"Negate", "ResourceType", "Action"},
+		},
+		{
+			// Scope embeds Role, so Role is where Site, User, and ByOrgID
+			// reach the guards.
+			name:   "Role",
+			typ:    reflect.TypeOf(Role{}),
+			fields: []string{"Identifier", "DisplayName", "Site", "User", "ByOrgID", "cachedRegoValue"},
+		},
+		{
+			name:   "Scope",
+			typ:    reflect.TypeOf(Scope{}),
+			fields: []string{"Role", "AllowIDList"},
+		},
+		{
+			// allowListContainsAll reads both fields to decide whether the
+			// allow list leaves the Site permissions unconditional.
+			name:   "AllowListElement",
+			typ:    reflect.TypeOf(AllowListElement{}),
+			fields: []string{"ID", "Type"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := make([]string, 0, test.typ.NumField())
+			for i := range test.typ.NumField() {
+				got = append(got, test.typ.Field(i).Name)
+			}
+
+			require.ElementsMatchf(t, test.fields, got,
+				"%s changed shape: decide whether the new field carries authority coverage must model, extend checkCoverable if it does, then update this list", test.name)
 		})
 	}
 }

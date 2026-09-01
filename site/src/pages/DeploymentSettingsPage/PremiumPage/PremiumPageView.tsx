@@ -46,15 +46,17 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 			<div className="grid grid-cols-1 lg:grid-cols-2 min-h-[640px]">
 				<div className="relative isolate overflow-hidden hidden lg:flex flex-col p-12 bg-surface-secondary">
 					<Supergraphic className="bg-position-[20%_20%] bg-size-[110%_125%] -scale-x-100" />
-					<h2 className="self-start m-0 pt-24 max-w-md text-3xl font-semibold text-content-primary text-balance">
-						Start an unlimited 30-day Coder trial
-					</h2>
-					<p className="self-start m-0 max-w-sm pt-6 text-sm text-content-primary">
-						Unlock unlimited Coder Agents usage and enterprise AI governance.
-						Control what agents can access, manage who can use templates and
-						infrastructure, and run your self-hosted development platform with
-						role-based access controls and high availability.
-					</p>
+					<div className="self-center pt-24 max-w-sm">
+						<h2 className="m-0 text-3xl font-semibold text-content-primary text-balance">
+							Start an unlimited 30-day Coder trial
+						</h2>
+						<p className="m-0 pt-6 text-sm text-content-primary">
+							Unlock unlimited Coder Agents usage and enterprise AI governance.
+							Control what agents can access, manage who can use templates and
+							infrastructure, and run your self-hosted development platform with
+							role-based access controls and high availability.
+						</p>
+					</div>
 				</div>
 				<div className="flex flex-col justify-center p-8 lg:p-12 bg-surface-secondary">
 					{canRequestTrial ? (

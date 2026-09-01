@@ -10,6 +10,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // ComposeRequest describes which base template and modules to render.
@@ -53,7 +55,18 @@ type ComposeResult struct {
 // source files. It extracts the coder_agent resource name from the
 // rendered base HCL and wires it into each module block.
 func Compose(req ComposeRequest) (*ComposeResult, error) {
-	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues)
+	// Validated at server start (codersdk.DeploymentValues.Validate). Normalize
+	// here too so a direct caller that bypasses the boot check gets the same
+	// scheme-stripping and rejection; default an unset value.
+	registryBase, err := codersdk.NormalizeTemplateBuilderRegistryURL(req.RegistryURL)
+	if err != nil {
+		return nil, err
+	}
+	if registryBase == "" {
+		registryBase = DefaultRegistryBase
+	}
+
+	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues, registryBase)
 	if err != nil {
 		return nil, err
 	}
@@ -68,10 +81,16 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		}, nil
 	}
 
-	agentName, err := ExtractAgentResourceName(mainTF)
+	agents, err := ExtractAgentResourceNames(mainTF)
 	if err != nil {
-		return nil, xerrors.Errorf("extract agent name: %w", err)
+		return nil, xerrors.Errorf("extract agents: %w", err)
 	}
+	if len(agents) == 0 {
+		return nil, xerrors.New("no coder_agent resource found in rendered template")
+	}
+	// Wire modules to the base's first agent. Multiple agents are supported
+	// here without erroring; per-module agent selection is a follow-up.
+	agentName := agents[0].Reference
 
 	catalog, err := loadCatalogMap()
 	if err != nil {
@@ -84,7 +103,7 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		return nil, err
 	}
 
-	modulesTF, err := renderModules(req.Modules, catalog, req.RegistryURL, agentName)
+	modulesTF, err := renderModules(req.Modules, catalog, registryBase, agentName)
 	if err != nil {
 		return nil, err
 	}
@@ -109,11 +128,12 @@ func formatHCL(src []byte) []byte {
 
 // renderBase renders the base template for the given example ID,
 // merging any user-supplied variable values into the render context.
-func renderBase(baseTemplateID string, baseVars map[string]string) ([]byte, error) {
+func renderBase(baseTemplateID string, baseVars map[string]string, registryBase string) ([]byte, error) {
 	renderCtx := DefaultBaseRenderContext(baseTemplateID)
 	if renderCtx.Variables == nil {
 		renderCtx.Variables = make(map[string]string)
 	}
+	renderCtx.RegistryBase = registryBase
 
 	vars, err := mergeBaseVariables(baseTemplateID, baseVars)
 	if err != nil {

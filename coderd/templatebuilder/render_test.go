@@ -121,7 +121,7 @@ func TestRenderModuleTemplate(t *testing.T) {
 			},
 		}
 		ctx := templatebuilder.ModuleRenderContext{
-			RegistryBase:      "https://registry.coder.com",
+			RegistryBase:      "registry.coder.com",
 			PinnedVersion:     "1.5.0",
 			AgentResourceName: "main",
 			Variables:         map[string]string{"port": "8080"},
@@ -129,7 +129,7 @@ func TestRenderModuleTemplate(t *testing.T) {
 		out, err := templatebuilder.RenderModuleTemplate(fsys, "test.tf.tmpl", ctx)
 		require.NoError(t, err)
 		rendered := string(out)
-		require.Contains(t, rendered, `"https://registry.coder.com/coder/test/coder"`)
+		require.Contains(t, rendered, `"registry.coder.com/coder/test/coder"`)
 		require.Contains(t, rendered, `"1.5.0"`)
 		require.Contains(t, rendered, `coder_agent.main.id`)
 		require.Contains(t, rendered, `port = 8080`)
@@ -146,10 +146,10 @@ func TestRenderModuleTemplate(t *testing.T) {
 			},
 		}
 		out, err := templatebuilder.RenderModuleTemplate(fsys, "test.tf.tmpl", templatebuilder.ModuleRenderContext{
-			RegistryBase: "https://registry.coder.com",
+			RegistryBase: "registry.coder.com",
 		})
 		require.NoError(t, err)
-		require.Contains(t, string(out), "https://registry.coder.com")
+		require.Contains(t, string(out), "registry.coder.com")
 	})
 
 	t.Run("MissingKeyErrors", func(t *testing.T) {
@@ -202,7 +202,7 @@ func TestRenderModuleTemplate(t *testing.T) {
 		}
 
 		ctx := templatebuilder.ModuleRenderContext{
-			RegistryBase:      "https://registry.coder.com",
+			RegistryBase:      "registry.coder.com",
 			PinnedVersion:     csMod.PinnedVersion,
 			AgentResourceName: "main",
 			Variables:         vars,
@@ -294,10 +294,61 @@ resource "coder_agent" "second" {}
 	})
 }
 
-// TestExtractModuleNames covers the regex-based module block extractor on the
+func TestExtractAgentResourceNames(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MultipleInOrder", func(t *testing.T) {
+		t.Parallel()
+		hcl := []byte(`
+resource "coder_agent" "main" {
+  os = "linux"
+}
+resource "coder_agent" "gpu" {
+  os = "linux"
+  metadata {
+    key = "gpu"
+  }
+}
+`)
+		agents, err := templatebuilder.ExtractAgentResourceNames(hcl)
+		require.NoError(t, err)
+		require.Equal(t, []templatebuilder.ExtractedAgent{
+			{Name: "main", Reference: "main"},
+			{Name: "gpu", Reference: "gpu"},
+		}, agents)
+	})
+
+	t.Run("CountAfterNestedBlock", func(t *testing.T) {
+		t.Parallel()
+		// count declared after a nested block: the reference must still be
+		// indexed, which the previous regex missed.
+		hcl := []byte(`resource "coder_agent" "dev" {
+  os = "linux"
+  metadata {
+    key = "cpu"
+  }
+  count = data.coder_workspace.me.start_count
+}`)
+		agents, err := templatebuilder.ExtractAgentResourceNames(hcl)
+		require.NoError(t, err)
+		require.Equal(t, []templatebuilder.ExtractedAgent{
+			{Name: "dev", Reference: "dev[0]"},
+		}, agents)
+	})
+
+	t.Run("NoAgents", func(t *testing.T) {
+		t.Parallel()
+		agents, err := templatebuilder.ExtractAgentResourceNames(
+			[]byte(`resource "docker_container" "workspace" {}`))
+		require.NoError(t, err)
+		require.Empty(t, agents)
+	})
+}
+
+// TestExtractModuleNames covers the module block extractor on the
 // shapes it must handle for our curated templates: real blocks in declaration
-// order, and commented-out blocks (whose line starts with `#`) ignored because
-// matching is anchored to the start of a line.
+// order, and commented-out blocks ignored because the HCL parser does not
+// treat comments as blocks.
 func TestExtractModuleNames(t *testing.T) {
 	t.Parallel()
 
