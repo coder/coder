@@ -74,6 +74,10 @@ import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
+import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "../utils/chatRuntimes";
 import type { ChatSlashCommand } from "../utils/slashCommands";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
@@ -133,10 +137,11 @@ interface AgentChatInputProps {
 	onReasoningEffortChange?: (value: string) => void;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
-	// Claude Code chats can send without model options; the toggle is
-	// available only on the landing composer.
-	claudeCodeEnabled?: boolean;
-	onClaudeCodeToggle?: (enabled: boolean) => void;
+	// External runtime chats can send without model options; the runtime
+	// menu is available only on the landing composer.
+	runtime?: ExternalChatRuntime;
+	onRuntimeChange?: (runtime: ExternalChatRuntime | undefined) => void;
+	availableRuntimes?: readonly ExternalChatRuntime[];
 	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
@@ -384,8 +389,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onReasoningEffortChange,
 	planModeEnabled = false,
 	onPlanModeToggle,
-	claudeCodeEnabled = false,
-	onClaudeCodeToggle,
+	runtime,
+	onRuntimeChange,
+	availableRuntimes = [],
 	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
@@ -430,12 +436,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	slashCommands,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
-	const claudeCodeDescriptionId = useId();
-	// Claude Code chats generate through the runtime agent, so missing
+	const runtimeDescriptionId = useId();
+	const runtimeInfo = runtime ? externalChatRuntimes[runtime] : undefined;
+	const canChooseRuntime =
+		onRuntimeChange !== undefined && availableRuntimes.length > 0;
+	// External runtime chats generate through the runtime agent, so missing
 	// chat models are irrelevant; the AI gateway gate still applies.
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
-		(!claudeCodeEnabled &&
+		(!runtimeInfo &&
 			(canConfigureAgentSetup
 				? providerCount !== undefined &&
 					modelCount !== undefined &&
@@ -654,12 +663,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
 
-	const handleClaudeCodeToggle = () => {
-		onClaudeCodeToggle?.(!claudeCodeEnabled);
+	const handleRuntimeSelect = (nextRuntime: ExternalChatRuntime) => {
+		onRuntimeChange?.(runtime === nextRuntime ? undefined : nextRuntime);
 		setPlusMenuOpen(false);
 	};
 
-	const handleDisableClaudeCode = () => onClaudeCodeToggle?.(false);
+	const handleClearRuntime = () => onRuntimeChange?.(undefined);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
@@ -923,9 +932,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const canSend =
 		!isDisabled &&
 		!isLoading &&
-		// Claude Code chats manage their own model, so the model catalog
-		// is not required to send.
-		(hasModelOptions || claudeCodeEnabled) &&
+		// External runtime chats manage their own model, so the model
+		// catalog is not required to send.
+		(hasModelOptions || runtimeInfo !== undefined) &&
 		hasSendableContent &&
 		!hasActiveUploads;
 	const handleSubmit = () => {
@@ -952,7 +961,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			isDisabled ||
 			isLoading ||
 			hasActiveUploads ||
-			(!hasModelOptions && !claudeCodeEnabled)
+			(!hasModelOptions && !runtimeInfo)
 		) {
 			return;
 		}
@@ -1251,10 +1260,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										isDisabled &&
 										!showAgentSetupNotice &&
 										!canUseWorkspacePicker &&
-										// Claude Code must stay selectable even when the
+										// Runtimes must stay selectable even when the
 										// composer is disabled for missing models or
-										// gateway, since the runtime needs neither.
-										!onClaudeCodeToggle
+										// gateway, since they need neither.
+										!canChooseRuntime
 									}
 									aria-label="More options"
 								>
@@ -1319,34 +1328,39 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												)}
 											</button>
 										)}
-										{onClaudeCodeToggle && (
-											<button
-												type="button"
-												role="menuitemcheckbox"
-												aria-checked={claudeCodeEnabled}
-												aria-label="Run with Claude Code"
-												aria-describedby={claudeCodeDescriptionId}
-												onClick={handleClaudeCodeToggle}
-												disabled={isLoading}
-												className="group flex min-h-8 w-full cursor-pointer items-start gap-1.5 border-none bg-transparent px-1 py-1.5 text-left text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												<BotIcon className="mt-0.5 size-3.5 shrink-0" />
-												<span className="flex min-w-0 flex-col gap-0.5">
-													<span>Run with Claude Code</span>
-													<span
-														id={claudeCodeDescriptionId}
-														className="max-w-72 text-2xs font-normal leading-4 text-content-secondary"
+										{canChooseRuntime &&
+											availableRuntimes.map((runtimeOption) => {
+												const { label, description } =
+													externalChatRuntimes[runtimeOption];
+												const descriptionId = `${runtimeDescriptionId}-${runtimeOption}`;
+												return (
+													<button
+														key={runtimeOption}
+														type="button"
+														role="menuitemcheckbox"
+														aria-checked={runtime === runtimeOption}
+														aria-label={`Run with ${label}`}
+														aria-describedby={descriptionId}
+														onClick={() => handleRuntimeSelect(runtimeOption)}
+														disabled={isLoading}
+														className="group flex min-h-8 w-full cursor-pointer items-start gap-1.5 border-none bg-transparent px-1 py-1.5 text-left text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 													>
-														Delegate turns to Claude Code in a dedicated
-														workspace. Anthropic models only; no attachments,
-														plan mode, or MCP.
-													</span>
-												</span>
-												{claudeCodeEnabled && (
-													<CheckIcon className="ml-auto mt-0.5 size-icon-sm shrink-0" />
-												)}
-											</button>
-										)}
+														<BotIcon className="mt-0.5 size-3.5 shrink-0" />
+														<span className="flex min-w-0 flex-col gap-0.5">
+															<span>Run with {label}</span>
+															<span
+																id={descriptionId}
+																className="max-w-72 text-2xs font-normal leading-4 text-content-secondary"
+															>
+																{description}
+															</span>
+														</span>
+														{runtime === runtimeOption && (
+															<CheckIcon className="ml-auto mt-0.5 size-icon-sm shrink-0" />
+														)}
+													</button>
+												);
+											})}
 										{workspaceOptions &&
 											onWorkspaceChange &&
 											(isBelowMdViewport() ? (
@@ -1482,18 +1496,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</PopoverContent>
 						</Popover>
-						{claudeCodeEnabled ? (
+						{runtimeInfo ? (
 							<>
 								<span
-									data-testid="claude-code-badge"
+									data-testid="chat-runtime-badge"
 									className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary"
 								>
 									<BotIcon className="size-3" />
-									Claude Code
-									{onClaudeCodeToggle && (
+									{runtimeInfo.label}
+									{onRuntimeChange && (
 										<BadgeDismissButton
-											onClick={handleDisableClaudeCode}
-											ariaLabel="Disable Claude Code"
+											onClick={handleClearRuntime}
+											ariaLabel={`Disable ${runtimeInfo.label}`}
 											isDisabled={isDisabled}
 										/>
 									)}
@@ -1506,7 +1520,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										disabled={isDisabled}
 										placeholder="Default"
 										unsetLabel="Default"
-										unsetHint="Uses the model your administrator configured for this runtime. If none is set, Claude Code keeps the model from your previous message until you pick one."
+										unsetHint={`Uses the model your administrator configured for this runtime. If none is set, ${runtimeInfo.label} keeps the model from your previous message until you pick one.`}
 										className="md:shrink"
 										dropdownSide="top"
 										dropdownAlign="start"

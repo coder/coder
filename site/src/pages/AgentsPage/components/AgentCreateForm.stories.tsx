@@ -36,6 +36,10 @@ import {
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "../utils/chatRuntimes";
+import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
@@ -2411,9 +2415,9 @@ export const MemberScopedPermissionsShowOrgPicker: Story = {
 	},
 };
 
-// Claude Code availability comes from the runtime-availability query,
-// gated on the agents-runtime-config experiment.
-const claudeCodeParameters = (
+// Runtime availability comes from the runtime-availability query, gated
+// on the agents-runtime-config experiment.
+const runtimeParameters = (
 	availability: readonly TypesGen.ChatRuntimeAvailability[],
 ) => ({
 	experiments: ["agents-runtime-config"],
@@ -2433,9 +2437,53 @@ const claudeCodeParameters = (
 		{ key: chatRuntimeAvailability().queryKey, data: availability },
 	],
 });
-const claudeCodeAvailableParameters = claudeCodeParameters([
-	{ organization_id: MockDefaultOrganization.id, runtime: "claude_code" },
-]);
+const runtimeAvailableParameters = (runtime: ExternalChatRuntime) =>
+	runtimeParameters([{ organization_id: MockDefaultOrganization.id, runtime }]);
+const claudeCodeAvailableParameters = runtimeAvailableParameters("claude_code");
+
+// The default catalog carries one model per runtime provider family. The
+// coder default (GPT-4o) is carried into Codex because it is an OpenAI
+// model, while Claude Code starts from the runtime default.
+const runtimeModelFixtures = {
+	claude_code: {
+		modelName: "Claude Sonnet 4",
+		modelConfigID: claudeModelConfigID,
+		otherModelName: "GPT-4o",
+		carriedModelName: "Default",
+		carriedModelConfigID: undefined,
+	},
+	codex: {
+		modelName: "GPT-4o",
+		modelConfigID: modelID,
+		otherModelName: "Claude Sonnet 4",
+		carriedModelName: "GPT-4o",
+		carriedModelConfigID: modelID,
+	},
+} satisfies Record<
+	ExternalChatRuntime,
+	{
+		modelName: string;
+		modelConfigID: string;
+		otherModelName: string;
+		carriedModelName: string;
+		carriedModelConfigID: string | undefined;
+	}
+>;
+
+const chooseRuntime = async (
+	canvas: ReturnType<typeof within>,
+	label: string,
+) => {
+	await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	await userEvent.click(
+		await screen.findByRole("menuitemcheckbox", {
+			name: `Run with ${label}`,
+		}),
+	);
+	expect(await canvas.findByTestId("chat-runtime-badge")).toHaveTextContent(
+		label,
+	);
+};
 
 export const ClaudeCodeCarriesCompatibleCoderModel: Story = {
 	args: defaultArgs,
@@ -2449,14 +2497,7 @@ export const ClaudeCodeCarriesCompatibleCoderModel: Story = {
 			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
 		).toBeVisible();
 
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(
-			await screen.findByRole("menuitemcheckbox", {
-				name: /Run with Claude Code/,
-			}),
-		);
-
-		expect(await canvas.findByText("Claude Code")).toBeVisible();
+		await chooseRuntime(canvas, "Claude Code");
 		expect(
 			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
 		).toBeVisible();
@@ -2468,7 +2509,7 @@ export const ClaudeCodeCarriesCompatibleCoderModel: Story = {
 		expect(enabledItem).toHaveAttribute("aria-checked", "true");
 		await userEvent.click(enabledItem);
 
-		expect(canvas.queryByText("Claude Code")).not.toBeInTheDocument();
+		expect(canvas.queryByTestId("chat-runtime-badge")).not.toBeInTheDocument();
 		expect(
 			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
 		).toBeVisible();
@@ -2482,70 +2523,83 @@ export const ClaudeCodeKeepsDefaultForNonAnthropicModel: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
 
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(
-			await screen.findByRole("menuitemcheckbox", {
-				name: /Run with Claude Code/,
-			}),
-		);
-
-		expect(await canvas.findByText("Claude Code")).toBeVisible();
+		await chooseRuntime(canvas, "Claude Code");
 		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
 	},
 };
 
-export const ClaudeCodeRuntimeSubmission: Story = {
+/** Both runtimes are offered; picking the second replaces the first and
+ * re-filters the model picker to the new provider family. */
+export const RuntimeMenuSwitchesBetweenRuntimes: Story = {
+	args: defaultArgs,
+	parameters: runtimeParameters([
+		{ organization_id: MockDefaultOrganization.id, runtime: "claude_code" },
+		{ organization_id: MockDefaultOrganization.id, runtime: "codex" },
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await chooseRuntime(canvas, "Claude Code");
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
+
+		await chooseRuntime(canvas, "Codex");
+		expect(canvas.queryByText("Claude Code")).not.toBeInTheDocument();
+		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
+	},
+};
+
+const runtimeSubmissionStory = (runtime: ExternalChatRuntime): Story => ({
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
-	parameters: claudeCodeAvailableParameters,
+	parameters: runtimeAvailableParameters(runtime),
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		const item = await screen.findByRole("menuitemcheckbox", {
-			name: /Run with Claude Code/,
-		});
-		await userEvent.click(item);
-
-		expect(await canvas.findByText("Claude Code")).toBeVisible();
-		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
+		await chooseRuntime(canvas, externalChatRuntimes[runtime].label);
+		expect(
+			canvas.getByRole("combobox", {
+				name: runtimeModelFixtures[runtime].carriedModelName,
+			}),
+		).toBeVisible();
 
 		await submitMessage(canvasElement, "build me a server");
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
 		const options = getCreateOptions(args.onCreateChat);
-		expect(options.runtime).toBe("claude_code");
-		expect(options.model).toBeUndefined();
+		expect(options.runtime).toBe(runtime);
+		expect(options.model).toBe(
+			runtimeModelFixtures[runtime].carriedModelConfigID,
+		);
 		expect(options.workspaceId).toBeUndefined();
 	},
-};
+});
 
-export const ClaudeCodeRuntimeModelPick: Story = {
+export const ClaudeCodeRuntimeSubmission =
+	runtimeSubmissionStory("claude_code");
+export const CodexRuntimeSubmission = runtimeSubmissionStory("codex");
+
+const runtimeModelPickStory = (runtime: ExternalChatRuntime): Story => ({
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
-	parameters: claudeCodeAvailableParameters,
+	parameters: runtimeAvailableParameters(runtime),
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(
-			await screen.findByRole("menuitemcheckbox", {
-				name: /Run with Claude Code/,
-			}),
-		);
+		const { modelName, modelConfigID, otherModelName, carriedModelName } =
+			runtimeModelFixtures[runtime];
+		await chooseRuntime(canvas, externalChatRuntimes[runtime].label);
 
 		await userEvent.click(
-			await canvas.findByRole("combobox", { name: "Default" }),
+			await canvas.findByRole("combobox", { name: carriedModelName }),
 		);
 		const body = within(document.body);
 		expect(
-			body.queryByRole("option", { name: /GPT-4o/ }),
+			body.queryByRole("option", { name: new RegExp(otherModelName) }),
 		).not.toBeInTheDocument();
 		await userEvent.click(
-			await body.findByRole("option", { name: /Claude Sonnet 4/ }),
+			await body.findByRole("option", { name: new RegExp(modelName) }),
 		);
 
 		await submitMessage(canvasElement, "build me a server");
@@ -2553,10 +2607,13 @@ export const ClaudeCodeRuntimeModelPick: Story = {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
 		const options = getCreateOptions(args.onCreateChat);
-		expect(options.runtime).toBe("claude_code");
-		expect(options.model).toBe(claudeModelConfigID);
+		expect(options.runtime).toBe(runtime);
+		expect(options.model).toBe(modelConfigID);
 	},
-};
+});
+
+export const ClaudeCodeRuntimeModelPick = runtimeModelPickStory("claude_code");
+export const CodexRuntimeModelPick = runtimeModelPickStory("codex");
 
 export const ClaudeCodeStillGatedWithoutGateway: Story = {
 	args: {
@@ -2573,17 +2630,18 @@ export const ClaudeCodeStillGatedWithoutGateway: Story = {
 	},
 };
 
-export const ClaudeCodeHiddenWithoutOrgConfig: Story = {
+export const RuntimesHiddenWithoutOrgConfig: Story = {
 	args: defaultArgs,
-	parameters: claudeCodeParameters([]),
+	parameters: runtimeParameters([
+		// Another organization's runtime must not leak into this composer.
+		{ organization_id: MockOrganization2.id, runtime: "codex" },
+	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await screen.findByRole("menuitemcheckbox", { name: /Plan first/ });
 		expect(
-			screen.queryByRole("menuitemcheckbox", {
-				name: /Run with Claude Code/,
-			}),
+			screen.queryByRole("menuitemcheckbox", { name: /Run with/ }),
 		).not.toBeInTheDocument();
 	},
 };

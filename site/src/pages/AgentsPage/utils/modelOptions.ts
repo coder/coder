@@ -278,14 +278,6 @@ export const getModelOptionsFromModels = (
 	});
 };
 
-// Claude Code injects Anthropic credentials, so runtime chats cannot use
-// other provider types.
-const anthropicProviderType = "anthropic" satisfies TypesGen.AIProviderType;
-export const filterAnthropicModelOptions = (
-	options: readonly ModelSelectorOption[],
-): readonly ModelSelectorOption[] =>
-	options.filter((option) => option.provider === anthropicProviderType);
-
 type SelectorQuery<T> = {
 	readonly data: T | undefined;
 	readonly isLoading: boolean;

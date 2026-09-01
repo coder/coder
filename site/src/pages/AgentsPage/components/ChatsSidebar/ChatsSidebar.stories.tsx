@@ -22,6 +22,10 @@ import {
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
+import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "../../utils/chatRuntimes";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // Probe element used by the archived-filter preservation story to surface the
@@ -224,23 +228,29 @@ export const ChatWithTurnSummary: Story = {
 	},
 };
 
-export const ClaudeCodeRuntimeChat: Story = {
+/** Runtime chats show the runtime label where the model name would be. */
+const runtimeChatStory = (runtime: ExternalChatRuntime): Story => ({
 	args: {
 		chats: [
 			buildChat({
-				id: "chat-claude-code",
+				id: "chat-runtime",
 				title: "Fix flaky integration test",
-				runtime: "claude_code",
+				runtime,
 				last_model_config_id: undefined,
 			}),
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Claude Code")).toBeInTheDocument();
+		await expect(
+			canvas.getByText(externalChatRuntimes[runtime].label),
+		).toBeInTheDocument();
 		expect(canvas.queryByText("Default model")).not.toBeInTheDocument();
 	},
-};
+});
+
+export const ClaudeCodeRuntimeChat = runtimeChatStory("claude_code");
+export const CodexRuntimeChat = runtimeChatStory("codex");
 
 /**
  * While the chat is streaming again the cached last_turn_summary still

@@ -53,6 +53,10 @@ import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "./utils/chatRuntimes";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -969,7 +973,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 export default meta;
 type Story = StoryObj<typeof AgentChatPageLayout>;
 
-const sendClaudeCodeMessage = async (
+const sendRuntimeChatMessage = async (
 	canvasElement: HTMLElement,
 	text: string,
 	modelConfigId?: string,
@@ -1001,15 +1005,17 @@ const sendClaudeCodeMessage = async (
 // Stories
 // ---------------------------------------------------------------------------
 
-export const ClaudeCodeSendsWithoutModel: Story = {
+const runtimeSendsWithoutModelStory = (
+	runtime: ExternalChatRuntime,
+): Story => ({
 	parameters: {
 		queries: buildQueries(
 			{
 				id: CHAT_ID,
 				...baseChatFields,
-				title: "Claude Code runtime default",
+				title: "Runtime default",
 				status: "waiting",
-				runtime: "claude_code",
+				runtime,
 				last_model_config_id: "",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
@@ -1020,8 +1026,12 @@ export const ClaudeCodeSendsWithoutModel: Story = {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTestId("chat-runtime-badge")).toHaveTextContent(
+			externalChatRuntimes[runtime].label,
+		);
 		const text = "Use the runtime default";
-		const sendSpy = await sendClaudeCodeMessage(canvasElement, text);
+		const sendSpy = await sendRuntimeChatMessage(canvasElement, text);
 		expect(sendSpy).toHaveBeenCalledWith(
 			CHAT_ID,
 			expect.objectContaining({
@@ -1030,7 +1040,11 @@ export const ClaudeCodeSendsWithoutModel: Story = {
 			}),
 		);
 	},
-};
+});
+
+export const ClaudeCodeSendsWithoutModel =
+	runtimeSendsWithoutModelStory("claude_code");
+export const CodexSendsWithoutModel = runtimeSendsWithoutModelStory("codex");
 
 export const ClaudeCodeSendsSelectedModel: Story = {
 	parameters: {
@@ -1061,7 +1075,7 @@ export const ClaudeCodeSendsSelectedModel: Story = {
 			}),
 		);
 		const text = "Use Claude Sonnet";
-		const sendSpy = await sendClaudeCodeMessage(
+		const sendSpy = await sendRuntimeChatMessage(
 			canvasElement,
 			text,
 			CLAUDE_MODEL_CONFIG_ID,

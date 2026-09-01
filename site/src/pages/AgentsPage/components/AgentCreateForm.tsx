@@ -17,10 +17,14 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import {
+	availableExternalChatRuntimes,
+	type ExternalChatRuntime,
+	filterModelOptionsForRuntime,
+} from "../utils/chatRuntimes";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
-	filterAnthropicModelOptions,
 	getModelSelectorPlaceholder,
 	getProviderForModelOption,
 	getUnsupportedProviderNames,
@@ -412,28 +416,31 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const runtimeAvailabilityError = runtimeConfigEnabled
 		? runtimeAvailabilityQuery.error
 		: undefined;
-	const [claudeCodeSelectedOrgId, setClaudeCodeSelectedOrgId] = useState<
-		string | null
-	>(null);
-	const claudeCodeAvailable =
-		runtimeConfigEnabled &&
-		organizationId !== "" &&
-		(runtimeAvailabilityQuery.data ?? []).some(
-			(availability) =>
-				availability.runtime === "claude_code" &&
-				availability.organization_id === organizationId,
-		);
-	const claudeCodeEnabled =
-		claudeCodeAvailable && claudeCodeSelectedOrgId === organizationId;
-	const claudeModelOptions = filterAnthropicModelOptions(modelOptions);
-	const activeModelOptions = claudeCodeEnabled
-		? claudeModelOptions
+	// The pick is remembered with its organization so switching organizations
+	// silently drops a runtime the new organization has not enabled.
+	const [runtimePick, setRuntimePick] = useState<{
+		runtime: ExternalChatRuntime;
+		organizationId: string;
+	} | null>(null);
+	const availableRuntimes = runtimeConfigEnabled
+		? availableExternalChatRuntimes(
+				runtimeAvailabilityQuery.data,
+				organizationId,
+			)
+		: [];
+	const runtime =
+		runtimePick &&
+		runtimePick.organizationId === organizationId &&
+		availableRuntimes.includes(runtimePick.runtime)
+			? runtimePick.runtime
+			: undefined;
+	const activeModelOptions = runtime
+		? filterModelOptionsForRuntime(modelOptions, runtime)
 		: modelOptions;
-	const [claudeSelectedModel, setClaudeSelectedModel] = useState("");
-	const effectiveClaudeModel = resolveModelOptionId(
-		claudeSelectedModel,
-		claudeModelOptions,
-	);
+	const [runtimeSelectedModel, setRuntimeSelectedModel] = useState("");
+	const effectiveRuntimeModel = runtime
+		? resolveModelOptionId(runtimeSelectedModel, activeModelOptions)
+		: "";
 	const hasModelOptions = activeModelOptions.length > 0;
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	// Treat the unsettled-organization window as pending so the model selector
@@ -557,12 +564,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {
 		submitDraft();
-		const options: CreateChatOptions = claudeCodeEnabled
+		const options: CreateChatOptions = runtime
 			? {
 					message,
 					organizationId,
-					runtime: "claude_code",
-					model: effectiveClaudeModel || undefined,
+					runtime,
+					model: effectiveRuntimeModel || undefined,
 				}
 			: {
 					message,
@@ -648,7 +655,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{isRuntimeAvailabilityLoading && (
 						<Alert severity="info">
 							<AlertDescription>
-								Checking Claude Code availability...
+								Checking agent runtime availability...
 							</AlertDescription>
 						</Alert>
 					)}
@@ -705,17 +712,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							isMCPSelectionUnresolved ||
 							// Runtime chat creation still requires chatd and the AI gateway.
 							Boolean(aiGatewayDisabled) ||
-							(!claudeCodeEnabled && !hasModelOptions)
+							(!runtime && !hasModelOptions)
 						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}
 						onContentChange={handleContentChange}
-						selectedModel={
-							claudeCodeEnabled ? effectiveClaudeModel : selectedModel
-						}
+						selectedModel={runtime ? effectiveRuntimeModel : selectedModel}
 						onModelChange={
-							claudeCodeEnabled ? setClaudeSelectedModel : handleModelChange
+							runtime ? setRuntimeSelectedModel : handleModelChange
 						}
 						modelOptions={activeModelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
@@ -723,23 +728,32 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						onReasoningEffortChange={handleReasoningEffortChange}
 						isModelCatalogLoading={isModelDataPending}
 						hasModelOptions={hasModelOptions}
-						planModeEnabled={claudeCodeEnabled ? false : planModeEnabled}
-						onPlanModeToggle={
-							claudeCodeEnabled ? undefined : setPlanModeEnabled
-						}
-						claudeCodeEnabled={claudeCodeEnabled}
-						onClaudeCodeToggle={
-							claudeCodeAvailable
-								? (enabled) => {
-										if (enabled) {
-											// The runtime does not accept file
-											// attachments; drop any staged ones.
+						planModeEnabled={runtime ? false : planModeEnabled}
+						onPlanModeToggle={runtime ? undefined : setPlanModeEnabled}
+						runtime={runtime}
+						availableRuntimes={availableRuntimes}
+						onRuntimeChange={
+							availableRuntimes.length > 0
+								? (nextRuntime) => {
+										if (nextRuntime) {
+											// Runtimes do not accept file attachments;
+											// drop any staged ones.
 											resetAttachments();
-											setClaudeSelectedModel(
-												resolveModelOptionId(selectedModel, claudeModelOptions),
+											setRuntimeSelectedModel(
+												resolveModelOptionId(
+													selectedModel,
+													filterModelOptionsForRuntime(
+														modelOptions,
+														nextRuntime,
+													),
+												),
 											);
 										}
-										setClaudeCodeSelectedOrgId(enabled ? organizationId : null);
+										setRuntimePick(
+											nextRuntime
+												? { runtime: nextRuntime, organizationId }
+												: null,
+										);
 									}
 								: undefined
 						}
@@ -747,15 +761,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						// Files attached before org adoption cannot upload and would be discarded
 						// when restoration completes.
 						onAttach={
-							organizationAdopted && !claudeCodeEnabled
-								? handleAttach
-								: undefined
+							organizationAdopted && !runtime ? handleAttach : undefined
 						}
 						onRemoveAttachment={handleRemoveAttachment}
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
 						textContents={textContents}
-						mcpServers={claudeCodeEnabled ? undefined : mcpServers}
+						mcpServers={runtime ? undefined : mcpServers}
 						chatOrganizationId={organizationId}
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
@@ -763,13 +775,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							saveMCPSelection(organizationId, ids);
 						}}
 						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
-						workspaceOptions={
-							claudeCodeEnabled ? undefined : filteredWorkspaces
-						}
+						workspaceOptions={runtime ? undefined : filteredWorkspaces}
 						selectedWorkspaceId={effectiveWorkspaceId}
 						// Do not persist a workspace until its organization is authorized.
 						onWorkspaceChange={
-							orgSelectionSettled && !noPermittedOrgs && !claudeCodeEnabled
+							orgSelectionSettled && !noPermittedOrgs && !runtime
 								? handleWorkspaceChange
 								: undefined
 						}

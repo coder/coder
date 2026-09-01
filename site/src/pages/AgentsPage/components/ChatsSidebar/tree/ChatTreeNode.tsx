@@ -26,6 +26,10 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import {
+	externalChatRuntimes,
+	isExternalChatRuntime,
+} from "../../../utils/chatRuntimes";
+import {
 	ChatActionsMenuItems,
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
@@ -80,14 +84,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 	const hasChildren = childIDs.length > 0;
 	const isDelegated = Boolean(getParentChatID(chat));
 	const isDelegatedExecuting = isDelegated && chat.status === "running";
-	const modelName =
-		chat.runtime === "claude_code"
-			? "Claude Code"
-			: getModelDisplayName(
-					chat.last_model_config_id,
-					modelConfigs,
-					isLoadingModelConfigs,
-				);
+	const modelName = isExternalChatRuntime(chat.runtime)
+		? externalChatRuntimes[chat.runtime].label
+		: getModelDisplayName(
+				chat.last_model_config_id,
+				modelConfigs,
+				isLoadingModelConfigs,
+			);
 	const errorReason =
 		chat.status === "error"
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined

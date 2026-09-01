@@ -56,6 +56,10 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "./utils/chatRuntimes";
 
 const defaultModelID = "model-config-1";
 
@@ -495,34 +499,42 @@ export const OrganizationScopedMCPServers: Story = {
 	},
 };
 
-export const CreatesClaudeCodeChat: Story = {
+// The coder default model (OpenAI) is carried into a runtime only when it
+// belongs to that runtime's provider family.
+const carriedRuntimeModelConfigID: Record<
+	ExternalChatRuntime,
+	string | undefined
+> = {
+	claude_code: undefined,
+	codex: defaultModelID,
+};
+
+const createsRuntimeChatStory = (runtime: ExternalChatRuntime): Story => ({
 	parameters: {
 		experiments: ["agents-runtime-config"],
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatRuntimeAvailability").mockResolvedValue([
-			{
-				organization_id: MockDefaultOrganization.id,
-				runtime: "claude_code",
-			},
+			{ organization_id: MockDefaultOrganization.id, runtime },
 		]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const createSpy = spyOn(API.experimental, "createChat").mockResolvedValue({
 			...MockChat,
-			id: "claude-code-chat",
-			runtime: "claude_code",
+			id: "runtime-chat",
+			runtime,
 			organization_id: MockDefaultOrganization.id,
 		});
+		const { label } = externalChatRuntimes[runtime];
 
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(
 			await screen.findByRole("menuitemcheckbox", {
-				name: /Run with Claude Code/,
+				name: `Run with ${label}`,
 			}),
 		);
-		expect(await canvas.findByText("Claude Code")).toBeVisible();
+		expect(await canvas.findByText(label)).toBeVisible();
 
 		const input = canvas.getByRole("textbox", { name: "Chat message" });
 		await userEvent.click(input);
@@ -534,12 +546,18 @@ export const CreatesClaudeCodeChat: Story = {
 			organization_id: MockDefaultOrganization.id,
 			content: [{ type: "text", text: "Build a server" }],
 			client_type: "ui",
-			runtime: "claude_code",
+			runtime,
+			...(carriedRuntimeModelConfigID[runtime]
+				? { model_config_id: carriedRuntimeModelConfigID[runtime] }
+				: {}),
 		});
 	},
-};
+});
 
-export const ClaudeCodeAvailabilityLoading: Story = {
+export const CreatesClaudeCodeChat = createsRuntimeChatStory("claude_code");
+export const CreatesCodexChat = createsRuntimeChatStory("codex");
+
+export const RuntimeAvailabilityLoading: Story = {
 	parameters: {
 		experiments: ["agents-runtime-config"],
 	},
@@ -551,25 +569,25 @@ export const ClaudeCodeAvailabilityLoading: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByRole("alert")).toHaveTextContent(
-			"Checking Claude Code availability...",
+			"Checking agent runtime availability...",
 		);
 	},
 };
 
-export const ClaudeCodeAvailabilityError: Story = {
+export const RuntimeAvailabilityError: Story = {
 	parameters: {
 		experiments: ["agents-runtime-config"],
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatRuntimeAvailability").mockRejectedValue(
-			new Error("Claude Code availability could not be loaded"),
+			new Error("Runtime availability could not be loaded"),
 		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
 			await canvas.findByRole("alert", {}, { timeout: 5000 }),
-		).toHaveTextContent("Claude Code availability could not be loaded");
+		).toHaveTextContent("Runtime availability could not be loaded");
 	},
 };
 

@@ -12,6 +12,10 @@ import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
 import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "../utils/chatRuntimes";
+import {
 	AgentChatInput,
 	type AgentContextUsage,
 	type UploadState,
@@ -1674,14 +1678,14 @@ const claudeModelOptions = [
 ] as const;
 
 /**
- * Claude Code runtime pinned with no Anthropic model options: the
- * composer shows only the "Claude Code" badge and sending works
- * without model options.
+ * A runtime pinned with no matching model options: the composer shows
+ * only the runtime badge and sending works without model options.
  */
-export const ClaudeCodePinned: Story = {
+const runtimePinnedStory = (runtime: ExternalChatRuntime): Story => ({
 	args: {
-		claudeCodeEnabled: true,
-		onClaudeCodeToggle: fn(),
+		runtime,
+		onRuntimeChange: fn(),
+		availableRuntimes: [runtime],
 		hasModelOptions: false,
 		modelOptions: [],
 		selectedModel: "",
@@ -1689,9 +1693,9 @@ export const ClaudeCodePinned: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const badge = await canvas.findByTestId("claude-code-badge");
+		const badge = await canvas.findByTestId("chat-runtime-badge");
 		expect(badge).toBeVisible();
-		expect(badge).toHaveTextContent("Claude Code");
+		expect(badge).toHaveTextContent(externalChatRuntimes[runtime].label);
 		expect(canvas.queryByText("Select model")).not.toBeInTheDocument();
 		const input = canvas.getByRole("textbox", { name: "Chat message" });
 		await userEvent.click(input);
@@ -1701,16 +1705,20 @@ export const ClaudeCodePinned: Story = {
 			expect(args.onSend).toHaveBeenCalledWith("Use the runtime default");
 		});
 	},
-};
+});
+
+export const ClaudeCodePinned = runtimePinnedStory("claude_code");
+export const CodexPinned = runtimePinnedStory("codex");
 
 /**
- * Claude Code chats need no chat model, so the "set up a model" notice
+ * Runtime chats need no chat model, so the "set up a model" notice
  * stays hidden even when the model catalog is empty.
  */
 export const ClaudeCodeHidesModelSetupNotice: Story = {
 	args: {
-		claudeCodeEnabled: true,
-		onClaudeCodeToggle: fn(),
+		runtime: "claude_code",
+		onRuntimeChange: fn(),
+		availableRuntimes: ["claude_code"],
 		hasModelOptions: false,
 		modelOptions: [],
 		selectedModel: "",
@@ -1719,55 +1727,101 @@ export const ClaudeCodeHidesModelSetupNotice: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(await canvas.findByTestId("claude-code-badge")).toBeVisible();
+		expect(await canvas.findByTestId("chat-runtime-badge")).toBeVisible();
 		expect(
 			canvas.queryByText(/To chat with Coder Agents/),
 		).not.toBeInTheDocument();
 	},
 };
 
-/** The plus menu offers "Run with Claude Code" when a toggle is wired. */
-export const ClaudeCodeMenuItem: Story = {
+/** The plus menu offers "Run with <runtime>" for each available runtime. */
+const runtimeMenuItemStory = (runtime: ExternalChatRuntime): Story => ({
 	args: {
-		onClaudeCodeToggle: fn(),
+		onRuntimeChange: fn(),
+		availableRuntimes: [runtime],
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		const body = within(document.body);
-		const descriptionText =
-			"Delegate turns to Claude Code in a dedicated workspace. Anthropic models only; no attachments, plan mode, or MCP.";
+		const { label, description } = externalChatRuntimes[runtime];
 		const item = await body.findByRole("menuitemcheckbox", {
-			name: "Run with Claude Code",
+			name: `Run with ${label}`,
 		});
-		const description = body.getByText(descriptionText);
-		await waitFor(() => expect(description).toBeVisible());
-		expect(item).toHaveAttribute("aria-describedby", description.id);
-		expect(item).toHaveAccessibleDescription(descriptionText);
+		const descriptionElement = body.getByText(description);
+		await waitFor(() => expect(descriptionElement).toBeVisible());
+		expect(item).toHaveAttribute("aria-describedby", descriptionElement.id);
+		expect(item).toHaveAccessibleDescription(description);
 		expect(item).toHaveAttribute("aria-checked", "false");
 		await userEvent.click(item);
 		await waitFor(() => {
-			expect(args.onClaudeCodeToggle).toHaveBeenCalledWith(true);
+			expect(args.onRuntimeChange).toHaveBeenCalledWith(runtime);
+		});
+	},
+});
+
+export const ClaudeCodeMenuItem = runtimeMenuItemStory("claude_code");
+export const CodexMenuItem = runtimeMenuItemStory("codex");
+
+/**
+ * With several runtimes available, each gets its own menu entry; picking
+ * another runtime replaces the current one and picking the checked one
+ * clears it.
+ */
+export const RuntimeMenuSwitchesRuntime: Story = {
+	args: {
+		runtime: "claude_code",
+		onRuntimeChange: fn(),
+		availableRuntimes: ["claude_code", "codex"],
+		modelOptions: [],
+		selectedModel: "",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		const body = within(document.body);
+		const claudeItem = await body.findByRole("menuitemcheckbox", {
+			name: "Run with Claude Code",
+		});
+		expect(claudeItem).toHaveAttribute("aria-checked", "true");
+		const codexItem = body.getByRole("menuitemcheckbox", {
+			name: "Run with Codex",
+		});
+		expect(codexItem).toHaveAttribute("aria-checked", "false");
+		await userEvent.click(codexItem);
+		await waitFor(() => {
+			expect(args.onRuntimeChange).toHaveBeenCalledWith("codex");
+		});
+
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", {
+				name: "Run with Claude Code",
+			}),
+		);
+		await waitFor(() => {
+			expect(args.onRuntimeChange).toHaveBeenCalledWith(undefined);
 		});
 	},
 };
 
 /**
- * Claude Code chats with Anthropic model options render a picker with
- * an explicit Default row next to the badge; picking a model reports
- * its config id.
+ * Runtime chats with matching model options render a picker with an
+ * explicit Default row next to the badge; picking a model reports its
+ * config id.
  */
 export const ClaudeCodeModelPicker: Story = {
 	args: {
-		claudeCodeEnabled: true,
-		onClaudeCodeToggle: fn(),
+		runtime: "claude_code",
+		onRuntimeChange: fn(),
+		availableRuntimes: ["claude_code"],
 		hasModelOptions: false,
 		modelOptions: [...claudeModelOptions],
 		selectedModel: "",
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		expect(await canvas.findByTestId("claude-code-badge")).toBeVisible();
+		expect(await canvas.findByTestId("chat-runtime-badge")).toBeVisible();
 		const trigger = canvas.getByRole("combobox", { name: "Default" });
 		await userEvent.click(trigger);
 		const body = within(document.body);
@@ -1787,11 +1841,12 @@ export const ClaudeCodeModelPicker: Story = {
 	},
 };
 
-/** Picking the Default row clears an active Claude Code model pick. */
+/** Picking the Default row clears an active runtime model pick. */
 export const ClaudeCodeModelPickerClearsToDefault: Story = {
 	args: {
-		claudeCodeEnabled: true,
-		onClaudeCodeToggle: fn(),
+		runtime: "claude_code",
+		onRuntimeChange: fn(),
+		availableRuntimes: ["claude_code"],
 		hasModelOptions: false,
 		modelOptions: [...claudeModelOptions],
 		selectedModel: "model-config-claude-sonnet",
@@ -1810,25 +1865,31 @@ export const ClaudeCodeModelPickerClearsToDefault: Story = {
 	},
 };
 
-/** Dismissing the pinned badge exits Claude Code mode. */
-export const ClaudeCodeBadgeDismiss: Story = {
+/** Dismissing the pinned badge clears the runtime. */
+const runtimeBadgeDismissStory = (runtime: ExternalChatRuntime): Story => ({
 	args: {
-		claudeCodeEnabled: true,
-		onClaudeCodeToggle: fn(),
+		runtime,
+		onRuntimeChange: fn(),
+		availableRuntimes: [runtime],
 		modelOptions: [],
 		selectedModel: "",
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const badge = await canvas.findByTestId("claude-code-badge");
+		const badge = await canvas.findByTestId("chat-runtime-badge");
 		await userEvent.click(
-			within(badge).getByRole("button", { name: "Disable Claude Code" }),
+			within(badge).getByRole("button", {
+				name: `Disable ${externalChatRuntimes[runtime].label}`,
+			}),
 		);
 		await waitFor(() => {
-			expect(args.onClaudeCodeToggle).toHaveBeenCalledWith(false);
+			expect(args.onRuntimeChange).toHaveBeenCalledWith(undefined);
 		});
 	},
-};
+});
+
+export const ClaudeCodeBadgeDismiss = runtimeBadgeDismissStory("claude_code");
+export const CodexBadgeDismiss = runtimeBadgeDismissStory("codex");
 
 // Pill floor (8ch + fixed chrome) resolved against the pills' font so
 // width assertions do not hardcode metrics.

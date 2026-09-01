@@ -10,6 +10,7 @@ import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
+import type { ExternalChatRuntime } from "../utils/chatRuntimes";
 import { getProviderForModelOption } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
@@ -268,7 +269,7 @@ interface ChatPageInputProps {
 	aiGatewayDisabled?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
-	isClaudeCodeChat?: boolean;
+	chatRuntime?: ExternalChatRuntime;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -337,7 +338,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	aiGatewayDisabled,
 	planModeEnabled,
 	onPlanModeToggle,
-	isClaudeCodeChat,
+	chatRuntime,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -556,7 +557,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			}}
 			sendShortcut={sendShortcut}
 			attachments={attachments}
-			onAttach={isClaudeCodeChat ? undefined : handleAttach}
+			onAttach={chatRuntime ? undefined : handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
@@ -589,7 +590,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onReasoningEffortChange={onReasoningEffortChange}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
-			claudeCodeEnabled={isClaudeCodeChat}
+			runtime={chatRuntime}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={chatOrganizationId}
