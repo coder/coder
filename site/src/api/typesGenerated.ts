@@ -839,11 +839,6 @@ export type APIKeyScope =
 	| "tailnet_coordinator:delete"
 	| "tailnet_coordinator:read"
 	| "tailnet_coordinator:update"
-	| "task:*"
-	| "task:create"
-	| "task:delete"
-	| "task:read"
-	| "task:update"
 	| "template:*"
 	| "template:create"
 	| "template:delete"
@@ -1091,11 +1086,6 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"tailnet_coordinator:delete",
 	"tailnet_coordinator:read",
 	"tailnet_coordinator:update",
-	"task:*",
-	"task:create",
-	"task:delete",
-	"task:read",
-	"task:update",
 	"template:*",
 	"template:create",
 	"template:delete",
@@ -7946,7 +7936,6 @@ export type RBACResource =
 	| "replicas"
 	| "system"
 	| "tailnet_coordinator"
-	| "task"
 	| "template"
 	| "usage_event"
 	| "user"
@@ -8001,7 +7990,6 @@ export const RBACResources: RBACResource[] = [
 	"replicas",
 	"system",
 	"tailnet_coordinator",
-	"task",
 	"template",
 	"usage_event",
 	"user",

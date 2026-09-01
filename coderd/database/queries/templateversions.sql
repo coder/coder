@@ -230,8 +230,7 @@ RETURNING template_versions.id;
 UPDATE
 	template_versions
 SET
-	has_ai_task = $2,
-	has_external_agent = $3,
-	updated_at = $4
+	has_external_agent = $2,
+	updated_at = $3
 WHERE
 	job_id = $1;

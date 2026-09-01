@@ -54,16 +54,6 @@ var (
 	TemplateCustomNotification = uuid.MustParse("39b1e189-c857-4b0c-877a-511144c18516")
 )
 
-// Task-related events.
-var (
-	TemplateTaskWorking   = uuid.MustParse("bd4b7168-d05e-4e19-ad0f-3593b77aa90f")
-	TemplateTaskIdle      = uuid.MustParse("d4a6271c-cced-4ed0-84ad-afd02a9c7799")
-	TemplateTaskCompleted = uuid.MustParse("8c5a4d12-9f7e-4b3a-a1c8-6e4f2d9b5a7c")
-	TemplateTaskFailed    = uuid.MustParse("3b7e8f1a-4c2d-49a6-b5e9-7f3a1c8d6b4e")
-	TemplateTaskPaused    = uuid.MustParse("2a74f3d3-ab09-4123-a4a5-ca238f4f65a1")
-	TemplateTaskResumed   = uuid.MustParse("843ee9c3-a8fb-4846-afa9-977bec578649")
-)
-
 // Chat-related events.
 var (
 	TemplateChatAutoArchiveDigest = uuid.MustParse("764031be-4863-4220-867b-6ce1a1b7a5f5")
