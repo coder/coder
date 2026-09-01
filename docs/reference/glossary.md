@@ -114,8 +114,14 @@ Refer to [Coder Desktop](../user-guides/desktop/index.md).
 
 ### Coder extension for VS Code
 
-The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to Coder workspaces.
+The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to workspaces.
 Refer to [VS Code](../user-guides/workspace-access/vscode.md).
+
+### Coder Workspaces
+
+The self-hosted platform capability for running cloud development environments, defined with Terraform, on infrastructure you control.
+Not to be confused with a [workspace](#workspace), the individual on-demand development environment a developer creates from a template.
+Refer to [About Coder](../README.md#coder-workspaces).
 
 ### `coder_agent`
 
@@ -544,6 +550,7 @@ Refer to [Web terminal](../user-guides/workspace-access/web-terminal.md).
 ### Workspace
 
 A developer's on-demand development environment, such as a virtual machine, container, or Kubernetes pod, provisioned from a template.
+Not to be confused with [Coder Workspaces](#coder-workspaces), the platform capability.
 Refer to [Workspace management](../user-guides/workspace-management.md).
 
 ### Workspace agent
