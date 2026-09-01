@@ -795,5 +795,7 @@ WITH doomed_users AS (
     DELETE FROM user_skills WHERE user_id IN (SELECT id FROM doomed_users)
 ), delete_group_members AS (
     DELETE FROM group_members WHERE user_id IN (SELECT id FROM doomed_users)
+), delete_user_memories AS (
+    DELETE FROM user_memories WHERE user_id IN (SELECT id FROM doomed_users)
 )
 DELETE FROM user_ai_budget_overrides WHERE user_id IN (SELECT id FROM doomed_users);

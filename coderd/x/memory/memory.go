@@ -13,9 +13,8 @@ import "github.com/coder/coder/v2/coderd/database"
 // CONSTRAINT names never appear in pg_constraint, so the generated
 // check_constraint.go cannot own them; each is pinned by a failing write in
 // TestUserMemories or TestChatMemories matching the raised name. The
-// user_memory_user_deleted and user_memory_user_required names are passed
-// as arguments to the shared fail_if_user_deleted guard from migration
-// 000588.
+// user_memory_user_deleted name is passed as an argument to the shared
+// fail_if_user_deleted guard from migration 000591.
 const (
 	// UserMemoryInsertIsolationConstraint rejects inserts at any isolation
 	// level other than READ COMMITTED, where the cap count is race-free.

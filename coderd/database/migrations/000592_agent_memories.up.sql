@@ -51,6 +51,10 @@ CREATE UNIQUE INDEX chat_memories_root_chat_id_path_idx ON chat_memories (root_c
 -- (check_user_not_deleted) and the operation gate. The trigger is
 -- INSERT-only rather than also covering UPDATE OF user_id because the
 -- owner column is immutable below; there is no reassignment path to guard.
+-- INSERT-only also means, unlike the BEFORE INSERT OR UPDATE guards on
+-- user_links/user_secrets/user_skills, it does not reject edits to a
+-- soft-deleted user's surviving rows; unreachable in practice because the
+-- cleanup below and the reaper remove those rows.
 --
 -- There is no fail-closed missing-parent branch: user_memories.user_id has
 -- a hard foreign key to users, so an absent parent is rejected by the RI
@@ -71,10 +75,10 @@ CREATE UNIQUE INDEX chat_memories_root_chat_id_path_idx ON chat_memories (root_c
 --
 -- The lock also imposes the ordering contract documented on
 -- check_user_not_deleted (migration 000591): a transaction that writes any
--- row that delete_deleted_user_resources deletes (api_keys, user_links,
--- user_secrets, user_skills, user_ai_provider_keys, organization_members,
--- group_members, user_ai_budget_overrides, or a user_memories row) and
--- then inserts a memory for the same user must call
+-- row user soft-deletion removes (directly in delete_deleted_user_resources
+-- or by cascade from those deletes, for example group_members,
+-- user_ai_budget_overrides, and oauth2_provider_app_tokens) and then
+-- inserts a memory for the same user must call
 -- AcquireUserSoftDeleteGuardLock first, or it inverts the lock order
 -- against that cleanup and deadlocks with a concurrent soft-delete (40P01,
 -- which coderd does not retry). The query is dbauthz-authorized as a
@@ -85,38 +89,63 @@ CREATE TRIGGER trigger_insert_user_memories
     FOR EACH ROW
 EXECUTE FUNCTION fail_if_user_deleted('user_memory', 'user_memory_user_deleted');
 
--- Isolation gate for the memory caps only. The caps below count committed
--- sibling rows after a parent-row lock wait, which is race-free exactly at
--- READ COMMITTED: a REPEATABLE READ or SERIALIZABLE snapshot survives the
--- wait and can miss concurrently committed rows, silently overshooting the
--- cap. The gate is deliberately scoped to the two brand-new memory tables:
--- rejecting a stronger level here cannot break any existing feature write
--- (the pre-existing cap triggers state this contract in migration 000590
--- instead of enforcing it, because a runtime gate would turn a
--- deployment-level default_transaction_isolation setting into an outage of
--- shipped features). No production writer of the memory tables runs above
--- READ COMMITTED; do not wrap memory inserts in database.ReadModifyUpdate.
+-- Isolation gate for the memory caps only; the reasoning lives inside the
+-- function body so it survives into dump.sql and \sf.
 CREATE FUNCTION require_read_committed(guard_name text, constraint_name text) RETURNS void
-	LANGUAGE plpgsql
-AS $$
+    LANGUAGE plpgsql
+    AS $$
 BEGIN
-	IF current_setting('transaction_isolation') NOT IN ('read committed', 'read uncommitted') THEN
-		RAISE EXCEPTION '% requires READ COMMITTED isolation, ran under %',
-			guard_name, current_setting('transaction_isolation')
-			USING ERRCODE = 'check_violation',
-				  CONSTRAINT = constraint_name,
-				  DETAIL = 'A stronger level''s snapshot can survive a lock wait and miss concurrently committed rows, overshooting the cap. If no caller set this level, check default_transaction_isolation on the server, database, role, or pooler.';
-	END IF;
+    -- The memory caps count committed sibling rows after a parent-row lock
+    -- wait, which is race-free exactly at READ COMMITTED: a REPEATABLE
+    -- READ or SERIALIZABLE snapshot survives the wait and can miss
+    -- concurrently committed rows, silently overshooting the cap. READ
+    -- UNCOMMITTED is accepted because PostgreSQL executes it with READ
+    -- COMMITTED semantics. The gate is deliberately scoped to the two
+    -- brand-new memory tables: rejecting a stronger level here cannot
+    -- break any existing feature write (the pre-existing cap triggers
+    -- state this contract in migration 000590 instead of enforcing it,
+    -- because a runtime gate would turn a deployment-level
+    -- default_transaction_isolation setting into an outage of shipped
+    -- features). No production writer of the memory tables runs above READ
+    -- COMMITTED; do not wrap memory inserts in database.ReadModifyUpdate.
+    IF current_setting('transaction_isolation') NOT IN ('read committed', 'read uncommitted') THEN
+        RAISE EXCEPTION '% requires READ COMMITTED isolation, ran under %',
+            guard_name, current_setting('transaction_isolation')
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = constraint_name,
+                  DETAIL = 'A stronger level''s snapshot can survive a lock wait and miss concurrently committed rows, overshooting the cap. If no caller set this level, check default_transaction_isolation on the server, database, role, or pooler.';
+    END IF;
 END;
 $$;
 
--- The per-user cap. Counting committed rows is only correct under READ
--- COMMITTED (see require_read_committed above; the raised error is
--- check_violation, not a serialization failure, so it surfaces to the
--- caller instead of entering any retry loop). The count runs under the
--- users-row lock the guard trigger above already took: BEFORE triggers
--- fire in name order and the zz_ prefix pins guard-before-cap, so no
--- separate advisory lock is needed.
+-- On user_memories the gate runs from its own trigger, named so BEFORE
+-- trigger name ordering fires it ahead of the shared soft-delete guard.
+-- Gate-before-guard matters: under REPEATABLE READ the guard's locked read
+-- of the users row raises a retryable serialization failure (40001)
+-- whenever the row was updated after the snapshot, and UpdateUserLastSeenAt
+-- updates it roughly once a minute per active session, so with the guard
+-- first the common contended path would hide this gate's diagnostic and
+-- burn database.ReadModifyUpdate retry loops before surfacing "too many
+-- errors". With the gate first, a wrong isolation level is rejected
+-- deterministically before any lock is taken. The chat side needs no
+-- separate trigger: its single trigger function calls the gate before the
+-- chats-row lock. TestUserMemories/NonReadCommittedRejected/
+-- GateBeforeGuardLock pins this ordering.
+CREATE FUNCTION require_read_committed_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    PERFORM require_read_committed(TG_ARGV[0], TG_ARGV[1]);
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trigger_aa_user_memories_require_read_committed
+    BEFORE INSERT ON user_memories
+    FOR EACH ROW
+EXECUTE FUNCTION require_read_committed_trigger('user_memories cap', 'user_memory_insert_isolation');
+
+-- The per-user cap.
 CREATE FUNCTION enforce_user_memories_per_user_limit() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -124,8 +153,15 @@ DECLARE
     memory_count int;
     memory_limit constant int := 100;
 BEGIN
+    -- Counting committed rows is only correct under READ COMMITTED. The
+    -- aa_ gate trigger has already rejected stronger levels before the
+    -- guard's users-row lock; this re-assertion keeps the cap
+    -- self-contained if that trigger is ever dropped.
     PERFORM require_read_committed('user_memories cap', 'user_memory_insert_isolation');
 
+    -- The count runs under the users-row lock the shared guard trigger
+    -- already took: BEFORE triggers fire in name order (aa_ gate, insert
+    -- guard, zz_ cap), so no separate advisory lock is needed.
     SELECT count(*) INTO memory_count
     FROM user_memories
     WHERE user_id = NEW.user_id;
@@ -144,11 +180,11 @@ BEFORE INSERT ON user_memories
 FOR EACH ROW
 EXECUTE PROCEDURE enforce_user_memories_per_user_limit();
 
--- The insert-path triggers (the shared guard and the cap) fire BEFORE
--- INSERT only; an UPDATE that reassigns the owner column would bypass both
--- (the guard's UPDATE branch checks deleted but the cap never recounts).
--- The owner column is immutable instead, with no parent lock so the UPDATE
--- path cannot deadlock against the soft-delete cleanup.
+-- The insert-path triggers (the isolation gate, the shared guard, and the
+-- cap) fire BEFORE INSERT only; an UPDATE that reassigns the owner column
+-- would bypass all of them. The owner column is immutable instead, with no
+-- parent lock so the UPDATE path cannot deadlock against the soft-delete
+-- cleanup.
 CREATE FUNCTION enforce_user_memories_owner_immutable() RETURNS trigger
     LANGUAGE plpgsql
     AS $$

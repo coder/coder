@@ -43,14 +43,16 @@ func waitForBackendBlocked(ctx context.Context, t *testing.T, sqlDB *sql.DB, pid
 // waits for it to block on a lock held by the blocking transaction, executes
 // beforeCommit inside the blocking transaction, commits it, commits the
 // racing transaction when its statement succeeded, and returns the racing
-// side's error. Both transactions run at the default isolation level.
-// beforeCommit lets the soft-delete guard tests flip users.deleted while
-// the racing insert is provably parked on the users-row lock; callers
-// without such a step pass nil.
-func runLockRace(ctx context.Context, t *testing.T, sqlDB *sql.DB, blocking []stmt, racing stmt, beforeCommit []stmt) error {
+// side's error. Both transactions run at the requested isolation level;
+// callers without an isolation requirement pass sql.LevelDefault, which
+// lib/pq sends identically to nil TxOptions. beforeCommit lets the
+// soft-delete guard tests flip users.deleted while the racing insert is
+// provably parked on the users-row lock; callers without such a step pass
+// nil.
+func runLockRace(ctx context.Context, t *testing.T, sqlDB *sql.DB, isolation sql.IsolationLevel, blocking []stmt, racing stmt, beforeCommit []stmt) error {
 	t.Helper()
 
-	blockTx, err := sqlDB.BeginTx(ctx, nil)
+	blockTx, err := sqlDB.BeginTx(ctx, &sql.TxOptions{Isolation: isolation})
 	require.NoError(t, err)
 	committed := false
 	t.Cleanup(func() {
@@ -70,7 +72,7 @@ func runLockRace(ctx context.Context, t *testing.T, sqlDB *sql.DB, blocking []st
 	var racePID int
 	require.NoError(t, raceConn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&racePID))
 
-	raceTx, err := raceConn.BeginTx(ctx, nil)
+	raceTx, err := raceConn.BeginTx(ctx, &sql.TxOptions{Isolation: isolation})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = raceTx.Rollback() })
 

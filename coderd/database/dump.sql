@@ -1211,8 +1211,15 @@ DECLARE
     memory_count int;
     memory_limit constant int := 100;
 BEGIN
+    -- Counting committed rows is only correct under READ COMMITTED. The
+    -- aa_ gate trigger has already rejected stronger levels before the
+    -- guard's users-row lock; this re-assertion keeps the cap
+    -- self-contained if that trigger is ever dropped.
     PERFORM require_read_committed('user_memories cap', 'user_memory_insert_isolation');
 
+    -- The count runs under the users-row lock the shared guard trigger
+    -- already took: BEFORE triggers fire in name order (aa_ gate, insert
+    -- guard, zz_ cap), so no separate advisory lock is needed.
     SELECT count(*) INTO memory_count
     FROM user_memories
     WHERE user_id = NEW.user_id;
@@ -1661,13 +1668,35 @@ CREATE FUNCTION require_read_committed(guard_name text, constraint_name text) RE
     LANGUAGE plpgsql
     AS $$
 BEGIN
-	IF current_setting('transaction_isolation') NOT IN ('read committed', 'read uncommitted') THEN
-		RAISE EXCEPTION '% requires READ COMMITTED isolation, ran under %',
-			guard_name, current_setting('transaction_isolation')
-			USING ERRCODE = 'check_violation',
-				  CONSTRAINT = constraint_name,
-				  DETAIL = 'A stronger level''s snapshot can survive a lock wait and miss concurrently committed rows, overshooting the cap. If no caller set this level, check default_transaction_isolation on the server, database, role, or pooler.';
-	END IF;
+    -- The memory caps count committed sibling rows after a parent-row lock
+    -- wait, which is race-free exactly at READ COMMITTED: a REPEATABLE
+    -- READ or SERIALIZABLE snapshot survives the wait and can miss
+    -- concurrently committed rows, silently overshooting the cap. READ
+    -- UNCOMMITTED is accepted because PostgreSQL executes it with READ
+    -- COMMITTED semantics. The gate is deliberately scoped to the two
+    -- brand-new memory tables: rejecting a stronger level here cannot
+    -- break any existing feature write (the pre-existing cap triggers
+    -- state this contract in migration 000590 instead of enforcing it,
+    -- because a runtime gate would turn a deployment-level
+    -- default_transaction_isolation setting into an outage of shipped
+    -- features). No production writer of the memory tables runs above READ
+    -- COMMITTED; do not wrap memory inserts in database.ReadModifyUpdate.
+    IF current_setting('transaction_isolation') NOT IN ('read committed', 'read uncommitted') THEN
+        RAISE EXCEPTION '% requires READ COMMITTED isolation, ran under %',
+            guard_name, current_setting('transaction_isolation')
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = constraint_name,
+                  DETAIL = 'A stronger level''s snapshot can survive a lock wait and miss concurrently committed rows, overshooting the cap. If no caller set this level, check default_transaction_isolation on the server, database, role, or pooler.';
+    END IF;
+END;
+$$;
+
+CREATE FUNCTION require_read_committed_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    PERFORM require_read_committed(TG_ARGV[0], TG_ARGV[1]);
+    RETURN NEW;
 END;
 $$;
 
@@ -5444,6 +5473,8 @@ COMMENT ON TRIGGER remove_chat_mcp_server_config_id ON mcp_server_configs IS 'Wh
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
+
+CREATE TRIGGER trigger_aa_user_memories_require_read_committed BEFORE INSERT ON user_memories FOR EACH ROW EXECUTE FUNCTION require_read_committed_trigger('user_memories cap', 'user_memory_insert_isolation');
 
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 

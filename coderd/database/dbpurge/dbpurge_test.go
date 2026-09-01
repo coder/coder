@@ -3611,6 +3611,11 @@ func TestPurgeSoftDeletedUserResources(t *testing.T) {
 			VALUES ($1, $2, 1000000)
 		`, userID, group.ID)
 		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO user_memories (id, user_id, path, content)
+			VALUES (gen_random_uuid(), $1, 'orphan.md', 'content')
+		`, userID)
+		require.NoError(t, err)
 	}
 	seed(liveUser.ID)
 	seed(doomedUser.ID)
@@ -3619,7 +3624,7 @@ func TestPurgeSoftDeletedUserResources(t *testing.T) {
 	// suppressed, so every child row survives.
 	dbtestutil.SoftDeleteUserKeepingRows(ctx, t, sqlDB, doomedUser.ID)
 
-	guardedTables := []string{"api_keys", "user_links", "user_secrets", "user_skills", "user_ai_provider_keys", "organization_members", "group_members", "user_ai_budget_overrides"}
+	guardedTables := []string{"api_keys", "user_links", "user_secrets", "user_skills", "user_ai_provider_keys", "organization_members", "group_members", "user_ai_budget_overrides", "user_memories"}
 	countRows := func(table string, userID uuid.UUID) int {
 		var count int
 		//nolint:gosec // The table name comes from the fixed list above.

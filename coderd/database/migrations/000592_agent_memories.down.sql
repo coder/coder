@@ -48,15 +48,13 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trigger_insert_user_memories ON user_memories;
-DROP TRIGGER IF EXISTS trigger_zz_user_memories_per_user_limit ON user_memories;
-DROP FUNCTION IF EXISTS enforce_user_memories_per_user_limit();
-DROP TRIGGER IF EXISTS trigger_user_memories_owner_immutable ON user_memories;
-DROP FUNCTION IF EXISTS enforce_user_memories_owner_immutable();
-DROP TRIGGER IF EXISTS trigger_chat_memories_insert_invariants ON chat_memories;
-DROP FUNCTION IF EXISTS enforce_chat_memories_insert_invariants();
-DROP TRIGGER IF EXISTS trigger_chat_memories_owner_immutable ON chat_memories;
-DROP FUNCTION IF EXISTS enforce_chat_memories_owner_immutable();
-DROP FUNCTION IF EXISTS require_read_committed(text, text);
+-- Dropping the tables removes every trigger on them; only the function
+-- drops need to be explicit, after the dependent triggers are gone.
 DROP TABLE user_memories;
 DROP TABLE chat_memories;
+DROP FUNCTION IF EXISTS enforce_user_memories_per_user_limit();
+DROP FUNCTION IF EXISTS enforce_user_memories_owner_immutable();
+DROP FUNCTION IF EXISTS enforce_chat_memories_insert_invariants();
+DROP FUNCTION IF EXISTS enforce_chat_memories_owner_immutable();
+DROP FUNCTION IF EXISTS require_read_committed_trigger();
+DROP FUNCTION IF EXISTS require_read_committed(text, text);

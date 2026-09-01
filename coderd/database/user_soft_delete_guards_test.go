@@ -157,7 +157,7 @@ func TestSoftDeleteGuardWinsConcurrentInsert(t *testing.T) {
 
 			// Hold the same lock the guard trigger takes so the insert
 			// blocks, then soft-delete before releasing it.
-			err := runLockRace(ctx, t, sqlDB,
+			err := runLockRace(ctx, t, sqlDB, sql.LevelDefault,
 				[]stmt{{`SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE`, []any{user.ID}}},
 				tc.insert(user.ID),
 				[]stmt{{`UPDATE users SET deleted = true WHERE id = $1`, []any{user.ID}}},
@@ -259,7 +259,7 @@ func TestSoftDeleteGuardBlocksOwnerReassignment(t *testing.T) {
 		target := dbgen.User(t, db, database.User{})
 		keyID := insertAPIKey(ctx, t, owner.ID)
 
-		err := runLockRace(ctx, t, sqlDB,
+		err := runLockRace(ctx, t, sqlDB, sql.LevelDefault,
 			[]stmt{{`SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE`, []any{target.ID}}},
 			stmt{`UPDATE api_keys SET user_id = $1 WHERE id = $2`, []any{target.ID, keyID}},
 			[]stmt{{`UPDATE users SET deleted = true WHERE id = $1`, []any{target.ID}}},
@@ -596,7 +596,7 @@ func TestSoftDeleteGuardLockOrderPaths(t *testing.T) {
 		// lock), then INSERT. The concurrent insert blocks on the users
 		// lock instead of interleaving into the advisory cycle, and
 		// succeeds once the writer commits.
-		err = runLockRace(ctx, t, sqlDB,
+		err = runLockRace(ctx, t, sqlDB, sql.LevelDefault,
 			[]stmt{
 				{`SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE`, []any{user.ID}},
 				{`UPDATE user_secrets SET value = 'edited' WHERE id = $1`, []any{secret}},

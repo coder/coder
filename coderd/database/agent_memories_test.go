@@ -18,66 +18,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// runIsolationLockRace is the memory tests' isolation-aware twin of the
-// shared runLockRace harness (lockrace_test.go), which runs at the default
-// isolation level only. The READ UNCOMMITTED cap subtests need both sides of
-// the race pinned to a requested level, so this local copy threads it
-// through BeginTx; keeping it here avoids widening the shared harness for a
-// single consumer.
-func runIsolationLockRace(ctx context.Context, t *testing.T, sqlDB *sql.DB, isolation sql.IsolationLevel, blocking []stmt, racing stmt, beforeCommit []stmt) error {
-	t.Helper()
-
-	blockTx, err := sqlDB.BeginTx(ctx, &sql.TxOptions{Isolation: isolation})
-	require.NoError(t, err)
-	committed := false
-	t.Cleanup(func() {
-		if !committed {
-			_ = blockTx.Rollback()
-		}
-	})
-	for _, s := range blocking {
-		_, err := blockTx.ExecContext(ctx, s.sql, s.args...)
-		require.NoError(t, err)
-	}
-
-	raceConn, err := sqlDB.Conn(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = raceConn.Close() })
-
-	var racePID int
-	require.NoError(t, raceConn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&racePID))
-
-	raceTx, err := raceConn.BeginTx(ctx, &sql.TxOptions{Isolation: isolation})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = raceTx.Rollback() })
-
-	raceResult := make(chan error, 1)
-	go func() {
-		_, err := raceTx.ExecContext(ctx, racing.sql, racing.args...)
-		if err == nil {
-			err = raceTx.Commit()
-		}
-		raceResult <- err
-	}()
-
-	waitForBackendBlocked(ctx, t, sqlDB, racePID)
-
-	for _, s := range beforeCommit {
-		_, err := blockTx.ExecContext(ctx, s.sql, s.args...)
-		require.NoError(t, err)
-	}
-	require.NoError(t, blockTx.Commit())
-	committed = true
-
-	select {
-	case err := <-raceResult:
-		return err
-	case <-ctx.Done():
-		t.Fatalf("racing statement did not finish: %v", ctx.Err())
-		return nil
-	}
-}
-
 var invalidMemoryPaths = []string{
 	"", "no-extension", "dir/", "/absolute.md", "a//b.md",
 	"trailing/.md", "spaces in path.md", "note.txt",
@@ -265,6 +205,41 @@ func TestUserMemories(t *testing.T) {
 			})
 		}
 
+		// The gate must fire before the shared guard's locked read of the
+		// users row (BEFORE triggers fire in name order; the aa_ trigger
+		// sorts ahead). With the order inverted, a REPEATABLE READ writer
+		// whose snapshot predates any committed update of the users row
+		// (UpdateUserLastSeenAt writes it about once a minute per active
+		// session) gets a retryable 40001 from the locked read instead of
+		// this deterministic check violation, hiding the gate's diagnostic
+		// and burning ReadModifyUpdate retries.
+		t.Run("GateBeforeGuardLock", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			user := dbgen.User(t, db, database.User{})
+
+			tx, err := sqlDB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+			require.NoError(t, err)
+			defer func() { _ = tx.Rollback() }()
+			// Pin the transaction snapshot before the contending update.
+			var one int
+			require.NoError(t, tx.QueryRowContext(ctx, `SELECT 1`).Scan(&one))
+
+			// A committed update of the users row after that snapshot makes
+			// the guard's FOR NO KEY UPDATE read raise 40001 if it runs.
+			_, err = sqlDB.ExecContext(ctx,
+				`UPDATE users SET updated_at = now() WHERE id = $1`, user.ID)
+			require.NoError(t, err)
+
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO user_memories (id, user_id, path, content)
+				VALUES ($1, $2, 'contended.md', 'content')
+			`, uuid.New(), user.ID)
+			require.Error(t, err)
+			require.True(t, database.IsCheckViolation(err, memory.UserMemoryInsertIsolationConstraint),
+				"the isolation gate must reject before the guard's locked read; got: %v", err)
+		})
+
 		// READ UNCOMMITTED is accepted: current_setting reports the level
 		// the client asked for, but PostgreSQL executes it with READ
 		// COMMITTED semantics, so rejecting it would lose every memory
@@ -294,12 +269,12 @@ func TestUserMemories(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			user := dbgen.User(t, db, database.User{})
 
-			// Seed to one under the cap of 100 so exactly one racer fits.
+			// Seed to one under the cap so exactly one racer fits.
 			_, err := sqlDB.ExecContext(ctx, `
 				INSERT INTO user_memories (id, user_id, path, content)
 				SELECT gen_random_uuid(), $1, 'seed-' || g || '.md', 'content'
-				FROM generate_series(1, 99) AS g
-			`, user.ID)
+				FROM generate_series(1, $2) AS g
+			`, user.ID, memory.MaxUserMemoriesPerUser-1)
 			require.NoError(t, err)
 
 			insert := func(path string) stmt {
@@ -308,7 +283,7 @@ func TestUserMemories(t *testing.T) {
 					VALUES ($1, $2, $3, 'content')
 				`, []any{uuid.New(), user.ID, path}}
 			}
-			err = runIsolationLockRace(ctx, t, sqlDB, sql.LevelReadUncommitted,
+			err = runLockRace(ctx, t, sqlDB, sql.LevelReadUncommitted,
 				[]stmt{insert("winner.md")},
 				insert("loser.md"),
 				nil,
@@ -320,7 +295,7 @@ func TestUserMemories(t *testing.T) {
 			require.NoError(t, sqlDB.QueryRowContext(ctx,
 				`SELECT count(*) FROM user_memories WHERE user_id = $1`, user.ID,
 			).Scan(&count))
-			require.Equal(t, 100, count, "the cap must hold at exactly 100")
+			require.Equal(t, memory.MaxUserMemoriesPerUser, count, "the cap must hold exactly at the limit")
 		})
 	})
 
@@ -337,6 +312,15 @@ func TestUserMemories(t *testing.T) {
 		// owner is immutable instead.
 		_, err = sqlDB.ExecContext(ctx,
 			`UPDATE user_memories SET user_id = $1 WHERE user_id = $2`, other.ID, owner.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, memory.UserMemoryOwnerImmutableConstraint), "got: %v", err)
+
+		// The trigger's WHEN clause uses IS DISTINCT FROM so a NULL
+		// assignment is caught by the immutability constraint, not by the
+		// generic NOT NULL violation a plain <> comparison would fall
+		// through to.
+		_, err = sqlDB.ExecContext(ctx,
+			`UPDATE user_memories SET user_id = NULL WHERE user_id = $1`, owner.ID)
 		require.Error(t, err)
 		require.True(t, database.IsCheckViolation(err, memory.UserMemoryOwnerImmutableConstraint), "got: %v", err)
 	})
@@ -544,7 +528,7 @@ func TestUserMemories(t *testing.T) {
 
 		// Hold the lock the trigger takes, soft-delete while the insert is
 		// blocked, and expect the insert to observe the deletion.
-		err := runLockRace(ctx, t, sqlDB,
+		err := runLockRace(ctx, t, sqlDB, sql.LevelDefault,
 			[]stmt{{`SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE`, []any{user.ID}}},
 			stmt{`
 				INSERT INTO user_memories (id, user_id, path, content)
@@ -588,6 +572,28 @@ func TestUserMemories(t *testing.T) {
 		require.True(t, database.IsCheckViolation(err, memory.UserMemoriesPerUserLimitConstraint), "got: %v", err)
 	})
 
+	// The cap triggers are INSERT-only by design: a user at exactly the cap
+	// must keep editing and renaming existing memories. Widening the cap
+	// trigger to BEFORE INSERT OR UPDATE (the CRF-75 mutation) fails here.
+	t.Run("UpdateAtCapAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		limited := dbgen.User(t, db, database.User{})
+		for i := range memory.MaxUserMemoriesPerUser {
+			_, err := insertMemory(ctx, limited.ID, fmt.Sprintf("memory-%03d.md", i))
+			require.NoError(t, err)
+		}
+
+		_, err := sqlDB.ExecContext(ctx,
+			`UPDATE user_memories SET content = 'edited' WHERE user_id = $1 AND path = 'memory-000.md'`,
+			limited.ID)
+		require.NoError(t, err, "a content edit at the cap must not trip the cap")
+		_, err = sqlDB.ExecContext(ctx,
+			`UPDATE user_memories SET path = 'renamed.md' WHERE user_id = $1 AND path = 'memory-001.md'`,
+			limited.ID)
+		require.NoError(t, err, "a rename at the cap must not trip the cap")
+	})
+
 	t.Run("ConcurrentInsertPerUserLimit", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -599,7 +605,7 @@ func TestUserMemories(t *testing.T) {
 
 		// The insert filling the cap holds the parent-row lock; the racing
 		// insert must re-count after the commit and hit the cap.
-		err := runLockRace(ctx, t, sqlDB,
+		err := runLockRace(ctx, t, sqlDB, sql.LevelDefault,
 			[]stmt{{`
 				INSERT INTO user_memories (id, user_id, path, content)
 				VALUES ($1, $2, 'memory-099.md', 'content')
@@ -720,8 +726,9 @@ func TestChatMemories(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		// The trigger fails closed on a missing parent row instead of
-		// deferring to the FK check: an uncommitted chat would be invisible
-		// to the trigger's locked read but visible to the FK, which would
+		// deferring to the FK check: the trigger reads at its own snapshot
+		// while the RI check re-reads at end of statement, so a chat
+		// committing between the two is visible only to the FK, which would
 		// let a memory land under an unvalidated, possibly subagent, chat.
 		_, err := insertMemory(ctx, uuid.New(), "orphan.md")
 		require.Error(t, err)
@@ -991,12 +998,12 @@ func TestChatMemories(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			chat := insertTestChat(t, db)
 
-			// Seed to one under the cap of 100 so exactly one racer fits.
+			// Seed to one under the cap so exactly one racer fits.
 			_, err := sqlDB.ExecContext(ctx, `
 				INSERT INTO chat_memories (id, root_chat_id, path, content)
 				SELECT gen_random_uuid(), $1, 'seed-' || g || '.md', 'content'
-				FROM generate_series(1, 99) AS g
-			`, chat.ID)
+				FROM generate_series(1, $2) AS g
+			`, chat.ID, memory.MaxChatMemoriesPerRootChat-1)
 			require.NoError(t, err)
 
 			insert := func(path string) stmt {
@@ -1005,7 +1012,7 @@ func TestChatMemories(t *testing.T) {
 					VALUES ($1, $2, $3, 'content')
 				`, []any{uuid.New(), chat.ID, path}}
 			}
-			err = runIsolationLockRace(ctx, t, sqlDB, sql.LevelReadUncommitted,
+			err = runLockRace(ctx, t, sqlDB, sql.LevelReadUncommitted,
 				[]stmt{insert("winner.md")},
 				insert("loser.md"),
 				nil,
@@ -1017,7 +1024,7 @@ func TestChatMemories(t *testing.T) {
 			require.NoError(t, sqlDB.QueryRowContext(ctx,
 				`SELECT count(*) FROM chat_memories WHERE root_chat_id = $1`, chat.ID,
 			).Scan(&count))
-			require.Equal(t, 100, count, "the cap must hold at exactly 100")
+			require.Equal(t, memory.MaxChatMemoriesPerRootChat, count, "the cap must hold exactly at the limit")
 		})
 	})
 
@@ -1034,6 +1041,14 @@ func TestChatMemories(t *testing.T) {
 		// is immutable instead.
 		_, err = sqlDB.ExecContext(ctx,
 			`UPDATE chat_memories SET root_chat_id = $1 WHERE root_chat_id = $2`, other.ID, owner.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, memory.ChatMemoryOwnerImmutableConstraint), "got: %v", err)
+
+		// As on the user side, the WHEN clause's IS DISTINCT FROM catches a
+		// NULL assignment with the immutability constraint rather than the
+		// generic NOT NULL violation.
+		_, err = sqlDB.ExecContext(ctx,
+			`UPDATE chat_memories SET root_chat_id = NULL WHERE root_chat_id = $1`, owner.ID)
 		require.Error(t, err)
 		require.True(t, database.IsCheckViolation(err, memory.ChatMemoryOwnerImmutableConstraint), "got: %v", err)
 	})
@@ -1089,7 +1104,7 @@ func TestChatMemories(t *testing.T) {
 
 		// The insert filling the cap holds the parent-row lock; the racing
 		// insert must re-count after the commit and hit the cap.
-		err := runLockRace(ctx, t, sqlDB,
+		err := runLockRace(ctx, t, sqlDB, sql.LevelDefault,
 			[]stmt{{`
 				INSERT INTO chat_memories (id, root_chat_id, path, content)
 				VALUES ($1, $2, 'memory-099.md', 'content')

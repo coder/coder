@@ -79,7 +79,7 @@ func TestUserSecretsCapConcurrentUpdates(t *testing.T) {
 	// lock held by the first transaction, then recount against its
 	// committed state and fail the cap.
 	bigValue := strings.Repeat("x", 150000)
-	err := runLockRace(ctx, t, sqlDB,
+	err := runLockRace(ctx, t, sqlDB, sql.LevelDefault,
 		[]stmt{{`UPDATE user_secrets SET value = $1 WHERE id = $2`, []any{bigValue, secretA}}},
 		stmt{`UPDATE user_secrets SET value = $1 WHERE id = $2`, []any{bigValue, secretB}},
 		nil,
@@ -176,7 +176,7 @@ func TestUserSkillsCapConcurrentInserts(t *testing.T) {
 			VALUES ($1, $2, $3, '', 'content')
 		`, []any{uuid.New(), user.ID, name}}
 	}
-	err = runLockRace(ctx, t, sqlDB,
+	err = runLockRace(ctx, t, sqlDB, sql.LevelDefault,
 		[]stmt{insert("winner-skill")},
 		insert("loser-skill"),
 		nil,
@@ -225,7 +225,7 @@ func TestUserSkillsCapConcurrentReassignment(t *testing.T) {
 	// racing reassignment onto the same owner must wait on it (it touches
 	// no row the insert wrote, so only the advisory lock can order them)
 	// and then fail the recount.
-	err = runLockRace(ctx, t, sqlDB,
+	err = runLockRace(ctx, t, sqlDB, sql.LevelDefault,
 		[]stmt{{`
 			INSERT INTO user_skills (id, user_id, name, description, content)
 			VALUES ($1, $2, 'winner-skill', '', 'content')
