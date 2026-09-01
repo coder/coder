@@ -116,12 +116,7 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 			return nil, xerrors.Errorf("resolve bedrock models: %w", err)
 		}
 
-		bedrock = &messages.BedrockRuntime{
-			Cfg:                    runtimeCfg,
-			Creds:                  creds,
-			ResolvedModel:          model,
-			ResolvedSmallFastModel: smallFastModel,
-		}
+		bedrock = messages.NewBedrockRuntime(runtimeCfg, creds, model, smallFastModel)
 	}
 
 	return &Anthropic{

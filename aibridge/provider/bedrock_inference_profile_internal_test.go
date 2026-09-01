@@ -234,10 +234,10 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 
 		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN), withInferenceProfileResolver(resolve))
 		require.NoError(t, err)
-		require.Equal(t, "anthropic.claude-opus-4-8", p.bedrock.ModelID())
-		// The profile stays the invocation target so AWS attributes spend to it.
-		require.Equal(t, profileARN, p.bedrock.InvocationModel())
-		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.SmallFastModelID())
+		require.Equal(t, "anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
+		// The profile stays the configured identifier so AWS attributes spend to it.
+		require.Equal(t, profileARN, p.bedrock.ConfiguredModel())
+		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
 	})
 
 	t.Run("failed resolution fails construction", func(t *testing.T) {
@@ -261,7 +261,7 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 
 		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8"), withInferenceProfileResolver(resolve))
 		require.NoError(t, err)
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ModelID())
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.InvocationModel())
+		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
+		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ConfiguredModel())
 	})
 }

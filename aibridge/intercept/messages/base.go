@@ -72,44 +72,49 @@ var bedrockSupportedBetaFlags = map[string]bool{
 type BedrockRuntime struct {
 	Cfg   aibconfig.AWSBedrock
 	Creds aws.CredentialsProvider
-	// ResolvedModel and ResolvedSmallFastModel are the Bedrock model IDs behind
-	// the configured identifiers. They differ from the configured values only
-	// when those are application inference profile ARNs, which are opaque and
-	// must be resolved through AWS. Empty values fall back to the configured
-	// identifier.
-	ResolvedModel          string
-	ResolvedSmallFastModel string
+
+	resolvedModel          string
+	resolvedSmallFastModel string
 }
 
-// InvocationModel returns the identifier to send upstream as the model. This is
-// the configured value, which may be an application inference profile ARN: AWS
-// attributes spend to the profile only when the profile itself is invoked.
-func (b *BedrockRuntime) InvocationModel() string {
+// NewBedrockRuntime bundles the Bedrock config and credentials with the model
+// IDs behind the configured identifiers. The resolved IDs differ from the
+// configured ones only when those are application inference profile ARNs, which
+// are opaque and must be resolved through AWS; every other identifier resolves
+// to itself. Taking them as arguments keeps the runtime always resolved.
+func NewBedrockRuntime(cfg aibconfig.AWSBedrock, creds aws.CredentialsProvider, resolvedModel, resolvedSmallFastModel string) *BedrockRuntime {
+	return &BedrockRuntime{
+		Cfg:                    cfg,
+		Creds:                  creds,
+		resolvedModel:          resolvedModel,
+		resolvedSmallFastModel: resolvedSmallFastModel,
+	}
+}
+
+// ConfiguredModel returns the identifier the operator configured, which may be
+// an application inference profile ARN. Requests carry it as the model because
+// AWS attributes spend to a profile only when the profile itself is invoked.
+func (b *BedrockRuntime) ConfiguredModel() string {
 	return b.Cfg.Model
 }
 
-// SmallFastInvocationModel is [BedrockRuntime.InvocationModel] for the
+// ConfiguredSmallFastModel is [BedrockRuntime.ConfiguredModel] for the
 // small/fast model.
-func (b *BedrockRuntime) SmallFastInvocationModel() string {
+func (b *BedrockRuntime) ConfiguredSmallFastModel() string {
 	return b.Cfg.SmallFastModel
 }
 
-// ModelID returns the Bedrock model ID behind the configured identifier. Model
-// capabilities, usage records, pricing, and metrics all key off this rather
-// than the invocation target.
-func (b *BedrockRuntime) ModelID() string {
-	if b.ResolvedModel != "" {
-		return b.ResolvedModel
-	}
-	return b.Cfg.Model
+// ResolvedModel returns the Bedrock model ID behind the configured identifier.
+// Model capabilities, usage records, pricing, and metrics all key off this
+// rather than the configured identifier.
+func (b *BedrockRuntime) ResolvedModel() string {
+	return b.resolvedModel
 }
 
-// SmallFastModelID is [BedrockRuntime.ModelID] for the small/fast model.
-func (b *BedrockRuntime) SmallFastModelID() string {
-	if b.ResolvedSmallFastModel != "" {
-		return b.ResolvedSmallFastModel
-	}
-	return b.Cfg.SmallFastModel
+// ResolvedSmallFastModel is [BedrockRuntime.ResolvedModel] for the small/fast
+// model.
+func (b *BedrockRuntime) ResolvedSmallFastModel() string {
+	return b.resolvedSmallFastModel
 }
 
 type interceptionBase struct {
@@ -213,9 +218,9 @@ func (i *interceptionBase) Model() string {
 	// the body.
 	if i.isBedrockInvokeModel() {
 		if i.isSmallFastModel() {
-			return i.bedrock.SmallFastModelID()
+			return i.bedrock.ResolvedSmallFastModel()
 		}
-		return i.bedrock.ModelID()
+		return i.bedrock.ResolvedModel()
 	}
 
 	return i.reqPayload.model()
@@ -463,7 +468,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
 // adaptive.
 //
-// The request carries the invocation target, which may be an application
+// The request carries the configured identifier, which may be an application
 // inference profile ARN, while capability decisions use the model ID behind it.
 func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	if i.bedrock == nil {
@@ -471,11 +476,11 @@ func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	}
 
 	model := i.Model()
-	invocationModel := i.bedrock.InvocationModel()
+	configuredModel := i.bedrock.ConfiguredModel()
 	if i.isSmallFastModel() {
-		invocationModel = i.bedrock.SmallFastInvocationModel()
+		configuredModel = i.bedrock.ConfiguredSmallFastModel()
 	}
-	updated, err := i.reqPayload.withModel(invocationModel)
+	updated, err := i.reqPayload.withModel(configuredModel)
 	if err != nil {
 		i.logger.Warn(context.Background(), "failed to set model in request payload for Bedrock", slog.Error(err))
 		return
