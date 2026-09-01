@@ -477,7 +477,25 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							prominent
 							actions={
 								canUpdateTemplate && (
+									<Button asChild size="sm">
+										<RouterLink
+											to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
+										>
+											Open template settings
+										</RouterLink>
+									</Button>
+								)
+							}
+						>
+							<AlertTitle>
+								This template uses the classic parameter flow
+							</AlertTitle>
+							<AlertDescription>
+								Real-time validation, conditional parameters, and richer input
+								types are unavailable on this form.
+								{canUpdateTemplate ? (
 									<>
+										{" "}
 										<Link
 											href={docs(
 												"/admin/templates/extending-templates/dynamic-parameters",
@@ -488,24 +506,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 											View docs
 											<span className="sr-only"> (opens in new tab)</span>
 										</Link>
-										<Link asChild showExternalIcon={false}>
-											<RouterLink
-												to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
-											>
-												Open template settings
-											</RouterLink>
-										</Link>
 									</>
-								)
-							}
-						>
-							<AlertTitle>
-								This template uses the classic parameter flow
-							</AlertTitle>
-							<AlertDescription>
-								Real-time validation, conditional parameters, and richer input
-								types are unavailable on this form.
-								{!canUpdateTemplate && " Please contact your template admin."}
+								) : (
+									" Please contact your template admin."
+								)}
 							</AlertDescription>
 						</Alert>
 					)}

@@ -61,21 +61,7 @@ const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
 	templateCount,
 }) => {
 	return (
-		<Alert
-			severity="warning"
-			prominent
-			className="mt-6"
-			actions={
-				<Link
-					href={docs("/admin/templates/extending-templates/dynamic-parameters")}
-					target="_blank"
-					rel="noreferrer"
-				>
-					View docs
-					<span className="sr-only"> (opens in new tab)</span>
-				</Link>
-			}
-		>
+		<Alert severity="warning" prominent className="mt-6">
 			<AlertTitle>
 				{templateCount === 1
 					? "1 template still uses the classic parameter flow"
@@ -84,7 +70,15 @@ const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
 			<AlertDescription>
 				The classic parameter flow is deprecated. Move these templates to
 				dynamic parameters to get real-time validation, conditional parameters,
-				and richer input types.
+				and richer input types.{" "}
+				<Link
+					href={docs("/admin/templates/extending-templates/dynamic-parameters")}
+					target="_blank"
+					rel="noreferrer"
+				>
+					View docs
+					<span className="sr-only"> (opens in new tab)</span>
+				</Link>
 			</AlertDescription>
 		</Alert>
 	);
