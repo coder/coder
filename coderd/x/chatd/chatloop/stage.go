@@ -130,18 +130,24 @@ func (m StageModel) attributes() []attribute.KeyValue {
 // StageSpan is an in-flight stage. End must be called exactly once;
 // the duration observation happens there.
 type StageSpan struct {
-	tracer *StageTracer
-	stage  string
-	scope  string
-	model  StageModel
-	span   trace.Span
-	start  time.Time
-	ended  bool
+	tracer   *StageTracer
+	stage    string
+	scope    string
+	chatKind string
+	model    StageModel
+	span     trace.Span
+	start    time.Time
+	ended    bool
 }
 
 // stageScopeKey keys the stage scope carried by a context. It is
 // private so the scope can only be set through ContextWithScope.
 type stageScopeKey struct{}
+
+// stageChatKindKey keys the chat kind carried by a context. It is
+// private so the chat kind can only be set through
+// ContextWithChatKind.
+type stageChatKindKey struct{}
 
 // ContextWithScope returns ctx carrying scope for the stages started
 // on it. The scope is a plain context value rather than a property of
@@ -149,6 +155,14 @@ type stageScopeKey struct{}
 // recorded, such as a no-op tracer provider.
 func ContextWithScope(ctx context.Context, scope string) context.Context {
 	return context.WithValue(ctx, stageScopeKey{}, scope)
+}
+
+// ContextWithChatKind returns ctx carrying kind for the stages started
+// on it. Callers that hold the chat row set it once, on the context a
+// turn runs on or on the context of a single stage recorded outside a
+// turn, and every stage derived from that context carries the value.
+func ContextWithChatKind(ctx context.Context, kind string) context.Context {
+	return context.WithValue(ctx, stageChatKindKey{}, kind)
 }
 
 // scopeFromContext reads the scope ContextWithScope put on ctx.
@@ -161,9 +175,18 @@ func scopeFromContext(ctx context.Context) string {
 	return ScopeBackground
 }
 
+// chatKindFromContext reads the chat kind ContextWithChatKind put on
+// ctx. It is empty when the stage runs without a known chat, which
+// keeps the label present but unset rather than guessing a kind.
+func chatKindFromContext(ctx context.Context) string {
+	kind, _ := ctx.Value(stageChatKindKey{}).(string)
+	return kind
+}
+
 // Start begins a stage span as a child of the span in ctx and returns
-// a context carrying it. The stage takes the scope on ctx, so stages
-// started on a context with no scope are background scoped.
+// a context carrying it. The stage takes the scope and chat kind on
+// ctx, so stages started on a context with no scope are background
+// scoped.
 func (t *StageTracer) Start(
 	ctx context.Context,
 	stage string,
@@ -218,15 +241,28 @@ func (t *StageTracer) startSpan(
 	} else {
 		opts = append(opts, trace.WithTimestamp(start))
 	}
-	opts = append(opts, trace.WithAttributes(attribute.String(AttrScope, scope)))
+	chatKind := chatKindFromContext(ctx)
+	opts = append(opts, trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...))
 	ctx, span := t.otelTracer().Start(ContextWithScope(ctx, scope), stage, opts...)
 	return ctx, &StageSpan{
-		tracer: t,
-		stage:  stage,
-		scope:  scope,
-		span:   span,
-		start:  start,
+		tracer:   t,
+		stage:    stage,
+		scope:    scope,
+		chatKind: chatKind,
+		span:     span,
+		start:    start,
 	}
+}
+
+// stageIdentityAttributes returns the attributes every stage span
+// carries. An unknown chat kind is omitted from the span, where an
+// absent attribute reads better than an empty one.
+func stageIdentityAttributes(scope, chatKind string) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{attribute.String(AttrScope, scope)}
+	if chatKind != "" {
+		attrs = append(attrs, attribute.String(AttrChatKind, chatKind))
+	}
+	return attrs
 }
 
 // SetAttributes adds attributes to the stage span. It is a no-op
@@ -264,7 +300,7 @@ func (s *StageSpan) SpanContext() trace.SpanContext {
 // a deferred End cannot double-count a stage.
 func (s *StageSpan) End(err error) {
 	if elapsed, ok := s.closeSpan(err); ok {
-		s.tracer.observe(s.stage, s.scope, s.model, elapsed)
+		s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
 	}
 }
 
@@ -297,8 +333,8 @@ func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 // Record emits an already-finished stage span with explicit start and
 // end timestamps. It is for stages whose boundaries are only known
 // after the fact, such as durations reconstructed from persisted
-// timestamps. The stage takes the scope on ctx. Non-positive or unset
-// windows are dropped.
+// timestamps. The stage takes the scope and chat kind on ctx.
+// Non-positive or unset windows are dropped.
 func (t *StageTracer) Record(
 	ctx context.Context,
 	stage string,
@@ -326,23 +362,24 @@ func (t *StageTracer) RecordAs(
 	if start.IsZero() || end.IsZero() || end.Before(start) {
 		return
 	}
+	chatKind := chatKindFromContext(ctx)
 	_, span := t.otelTracer().Start(ctx, stage,
 		trace.WithTimestamp(start),
 		trace.WithAttributes(attrs...),
 		trace.WithAttributes(model.attributes()...),
-		trace.WithAttributes(attribute.String(AttrScope, scope)),
+		trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...),
 	)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 	}
 	span.End(trace.WithTimestamp(end))
-	t.observe(stage, scope, model, end.Sub(start))
+	t.observe(stage, scope, chatKind, model, end.Sub(start))
 }
 
-func (t *StageTracer) observe(stage, scope string, model StageModel, elapsed time.Duration) {
+func (t *StageTracer) observe(stage, scope, chatKind string, model StageModel, elapsed time.Duration) {
 	if t == nil || t.metrics == nil {
 		return
 	}
-	t.metrics.RecordStageDuration(stage, scope, model.Model, model.Effort, elapsed)
+	t.metrics.RecordStageDuration(stage, scope, chatKind, model.Model, model.Effort, elapsed)
 }

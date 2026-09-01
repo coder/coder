@@ -101,11 +101,11 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_duration_seconds",
-			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The model and effort labels are empty for stages that run before a model is resolved.",
+			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The chat_kind label is empty for stages recorded without a known chat, and the model and effort labels are empty for stages that run before a model is resolved.",
 			// 10ms .. ~2.9h, log-spaced. The top of the range covers
 			// long-lived stages such as a chat turn.
 			Buckets: prometheus.ExponentialBuckets(0.01, 2, 21),
-		}, []string{"stage", "scope", "model", "effort"}),
+		}, []string{"stage", "scope", "chat_kind", "model", "effort"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -165,13 +165,14 @@ func NopMetrics() *Metrics {
 }
 
 // RecordStageDuration observes one chat lifecycle stage duration.
-// model and effort are empty when the stage ran before a model was
+// chatKind is empty when the stage was recorded without a known chat,
+// and model and effort are empty when the stage ran before a model was
 // resolved. Negative durations are dropped. No-op when m is nil.
-func (m *Metrics) RecordStageDuration(stage, scope, model, effort string, elapsed time.Duration) {
+func (m *Metrics) RecordStageDuration(stage, scope, chatKind, model, effort string, elapsed time.Duration) {
 	if m == nil || elapsed < 0 {
 		return
 	}
-	m.StageDurationSeconds.WithLabelValues(stage, scope, model, effort).Observe(elapsed.Seconds())
+	m.StageDurationSeconds.WithLabelValues(stage, scope, chatKind, model, effort).Observe(elapsed.Seconds())
 }
 
 // RecordCompaction classifies and records a compaction attempt.

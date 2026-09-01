@@ -63,17 +63,18 @@ func (w *chatWorker) noteCapacityRefused(chatID uuid.UUID) {
 // being acquired after at least one capacity refusal, measured from
 // the first refusal this worker saw. Chats admitted on their first
 // attempt record nothing. The acquisition pass runs before the turn
-// span exists, so the turn scope is stated explicitly.
+// span exists, so the turn scope and the chat kind are stated
+// explicitly.
 func (w *chatWorker) recordCapacityWait(ctx context.Context, chat database.Chat) {
 	since, waited := w.capacityWaitSince[chat.ID]
 	if !waited {
 		return
 	}
 	delete(w.capacityWaitSince, chat.ID)
+	ctx = chatloop.ContextWithChatKind(ctx, chatKindAttr(chat))
 	w.server.stages.RecordAs(ctx, chatloop.StageCapacityWait, chatloop.ScopeTurn, chatloop.StageModel{},
 		since, time.Now(), nil,
 		attribute.String(chatloop.AttrChatID, chat.ID.String()),
-		attribute.String(chatloop.AttrChatKind, chatKindAttr(chat)),
 	)
 }
 

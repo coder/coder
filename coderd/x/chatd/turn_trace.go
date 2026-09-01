@@ -22,11 +22,12 @@ import (
 type runnerTurnSpan struct {
 	stages *chatloop.StageTracer
 
-	mu      sync.Mutex
-	span    *chatloop.StageSpan
-	spanCtx trace.SpanContext
-	started bool
-	ended   bool
+	mu       sync.Mutex
+	span     *chatloop.StageSpan
+	spanCtx  trace.SpanContext
+	chatKind string
+	started  bool
+	ended    bool
 }
 
 func newRunnerTurnSpan(stages *chatloop.StageTracer) *runnerTurnSpan {
@@ -58,11 +59,14 @@ func (t *runnerTurnSpan) Ensure(ctx context.Context, chat database.Chat, trigger
 		return t.contextLocked(ctx)
 	}
 	t.started = true
+	t.chatKind = chatKindAttr(chat)
 
 	attrs := []attribute.KeyValue{
 		attribute.String(chatloop.AttrChatID, chat.ID.String()),
-		attribute.String(chatloop.AttrChatKind, chatKindAttr(chat)),
 	}
+	// The chat kind rides on the context so every stage of the turn
+	// carries it, on the span and on the duration observation.
+	ctx = chatloop.ContextWithChatKind(ctx, t.chatKind)
 	turnCtx, span := t.stages.StartRootAt(ctx, chatloop.StageChatTurn, triggerAt, nil, attrs...)
 	t.span = span
 	t.spanCtx = span.SpanContext()
@@ -88,9 +92,11 @@ func (t *runnerTurnSpan) contextLocked(ctx context.Context) context.Context {
 	if !t.started || t.ended {
 		return ctx
 	}
-	// The scope is set independently of the span context so stages run
-	// on this context stay turn scoped when tracing is not recording.
+	// The scope and chat kind are set independently of the span context
+	// so stages run on this context keep them when tracing is not
+	// recording.
 	ctx = chatloop.ContextWithScope(ctx, chatloop.ScopeTurn)
+	ctx = chatloop.ContextWithChatKind(ctx, t.chatKind)
 	if !t.spanCtx.IsValid() {
 		return ctx
 	}

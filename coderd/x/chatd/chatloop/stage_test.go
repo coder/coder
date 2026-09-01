@@ -45,10 +45,11 @@ func newStageFixture(t *testing.T) stageFixture {
 
 // stageKey identifies one stage_duration_seconds series.
 type stageKey struct {
-	stage  string
-	scope  string
-	model  string
-	effort string
+	stage    string
+	scope    string
+	chatKind string
+	model    string
+	effort   string
 }
 
 // stageObservations returns the observation count per stage series
@@ -64,10 +65,11 @@ func (f stageFixture) stageObservations(t *testing.T) map[stageKey]uint64 {
 		}
 		for _, metric := range family.GetMetric() {
 			key := stageKey{
-				stage:  labelValue(metric, "stage"),
-				scope:  labelValue(metric, "scope"),
-				model:  labelValue(metric, "model"),
-				effort: labelValue(metric, "effort"),
+				stage:    labelValue(metric, "stage"),
+				scope:    labelValue(metric, "scope"),
+				chatKind: labelValue(metric, "chat_kind"),
+				model:    labelValue(metric, "model"),
+				effort:   labelValue(metric, "effort"),
 			}
 			counts[key] = metric.GetHistogram().GetSampleCount()
 		}
@@ -288,6 +290,53 @@ func TestStageTracerScope(t *testing.T) {
 	})
 }
 
+func TestStageTracerChatKind(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InheritedByDerivedStages", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageFixture(t)
+
+		ctx := chatloop.ContextWithChatKind(t.Context(), chatloop.ChatKindSubagent)
+		turnCtx, turn := fixture.tracer.StartRoot(ctx, chatloop.StageChatTurn, nil)
+		stepCtx, step := fixture.tracer.Start(turnCtx, chatloop.StageGenerationStep)
+		start := time.Now().Add(-time.Second)
+		fixture.tracer.Record(stepCtx, chatloop.StageToolCall, chatloop.StageModel{}, start, time.Now(), nil)
+		step.End(nil)
+		turn.End(nil)
+
+		require.Equal(t, map[stageKey]uint64{
+			{stage: chatloop.StageChatTurn, scope: chatloop.ScopeTurn, chatKind: chatloop.ChatKindSubagent}:       1,
+			{stage: chatloop.StageGenerationStep, scope: chatloop.ScopeTurn, chatKind: chatloop.ChatKindSubagent}: 1,
+			{stage: chatloop.StageToolCall, scope: chatloop.ScopeTurn, chatKind: chatloop.ChatKindSubagent}:       1,
+		}, fixture.stageObservations(t))
+
+		for _, span := range fixture.spans.Ended() {
+			require.Contains(t, span.Attributes(),
+				attribute.String(chatloop.AttrChatKind, chatloop.ChatKindSubagent))
+		}
+	})
+
+	t.Run("UnknownChatLeavesLabelEmpty", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageFixture(t)
+
+		start := time.Now().Add(-time.Second)
+		fixture.tracer.RecordAs(t.Context(), chatloop.StageCapacityWait, chatloop.ScopeTurn,
+			chatloop.StageModel{}, start, time.Now(), nil)
+
+		require.Equal(t, map[stageKey]uint64{
+			{stage: chatloop.StageCapacityWait, scope: chatloop.ScopeTurn}: 1,
+		}, fixture.stageObservations(t))
+
+		ended := fixture.spans.Ended()
+		require.Len(t, ended, 1)
+		for _, attr := range ended[0].Attributes() {
+			require.NotEqual(t, chatloop.AttrChatKind, string(attr.Key))
+		}
+	})
+}
+
 func TestStageTracerModelLabels(t *testing.T) {
 	t.Parallel()
 
@@ -444,7 +493,7 @@ func TestStageDurationBuckets(t *testing.T) {
 	metrics := chatloop.NewMetrics(registry)
 	// A turn can run for hours, so the top bucket boundary has to sit
 	// above the longest plausible stage.
-	metrics.RecordStageDuration(chatloop.StageChatTurn, chatloop.ScopeTurn, "", "", 2*time.Hour)
+	metrics.RecordStageDuration(chatloop.StageChatTurn, chatloop.ScopeTurn, chatloop.ChatKindRoot, "", "", 2*time.Hour)
 
 	families, err := registry.Gather()
 	require.NoError(t, err)

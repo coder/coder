@@ -252,7 +252,7 @@ func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
 	// not join.
 	requestCtx, requestSpan := tracer.Start(t.Context(), chatloop.StageCommit)
 	queuedAt := time.Now().Add(-30 * time.Second)
-	server.recordQueueWait(requestCtx, uuid.New(), queuedAt, queuedAt.Add(20*time.Second))
+	server.recordQueueWait(requestCtx, uuid.New(), chatloop.ChatKindSubagent, queuedAt, queuedAt.Add(20*time.Second))
 	requestSpan.End(nil)
 
 	var queueWait, request sdktrace.ReadOnlySpan
@@ -270,6 +270,8 @@ func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
 	require.NotEqual(t, request.SpanContext().TraceID(), queueWait.SpanContext().TraceID())
 	require.Contains(t, queueWait.Attributes(),
 		attribute.String(chatloop.AttrScope, chatloop.ScopeTurn))
+	require.Contains(t, queueWait.Attributes(),
+		attribute.String(chatloop.AttrChatKind, chatloop.ChatKindSubagent))
 }
 
 func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
@@ -279,9 +281,10 @@ func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
 	t.Cleanup(serverCancel)
 	server := &Server{ctx: serverCtx, stages: tracer}
 
+	chat := database.Chat{ID: uuid.New()}
 	turn := newRunnerTurnSpan(tracer)
-	turnCtx := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, time.Now().Add(-time.Second))
-	inflightCtx, stop := server.inflightContext(turnCtx)
+	turnCtx := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	inflightCtx, stop := server.inflightChatContext(turnCtx, chat)
 	t.Cleanup(stop)
 
 	_, span := tracer.Start(inflightCtx, chatloop.StageGenerationStep)
@@ -295,5 +298,28 @@ func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
 		require.False(t, ended.Parent().IsValid())
 		require.Contains(t, ended.Attributes(),
 			attribute.String(chatloop.AttrScope, chatloop.ScopeBackground))
+		// Detached work keeps the chat it belongs to, so background
+		// stages stay attributable to a chat kind.
+		require.Contains(t, ended.Attributes(),
+			attribute.String(chatloop.AttrChatKind, chatloop.ChatKindRoot))
+	}
+}
+
+func TestRunnerTurnSpanCarriesChatKind(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New(), ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+
+	turnCtx := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	_, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
+	step.End(nil)
+	turn.End(nil)
+
+	require.NotEmpty(t, recorder.Ended())
+	for _, span := range recorder.Ended() {
+		require.Contains(t, span.Attributes(),
+			attribute.String(chatloop.AttrChatKind, chatloop.ChatKindSubagent),
+			"stage %s must carry the turn's chat kind", span.Name())
 	}
 }

@@ -1,8 +1,9 @@
 # Chatd Chat Lifecycle Grafana Dashboard
 
 A Grafana dashboard for diagnosing where time goes in Coder Agents chat
-sessions. It aggregates the `coderd_chatd_stage_duration_seconds{stage,scope}`
-histogram into a stage-level flame graph with a selectable summary statistic
+sessions. It aggregates the stage histogram
+`coderd_chatd_stage_duration_seconds{stage,scope,chat_kind,model,effort}`
+into a stage-level flame graph with a selectable summary statistic
 (mean, p50, p90, p95, p99), plus summary panels for the whole chat pipeline.
 
 Stage hierarchy:
@@ -30,19 +31,29 @@ decomposition, and quantile statistics are not additive across stages.
 
 ## Dimensions
 
-The stage histogram carries four labels, exposed as dashboard variables
+The stage histogram carries five labels, exposed as dashboard variables
 where noted:
 
-| Label    | Values                                                                                                                                              | Dashboard variable          |
-|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
-| `stage`  | the 14 stage names above                                                                                                                            | none (fixed hierarchy)      |
-| `scope`  | `turn` (part of a chat turn) or `background` (detached async work such as title and summary generation)                                             | none (panels pin one scope) |
-| `model`  | resolved model ID, empty before a model is resolved                                                                                                 | `$model` (multi-select)     |
-| `effort` | effective reasoning effort sent to the provider (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`), empty when the model config sets none | `$effort` (multi-select)    |
+| Label       | Values                                                                                                                                              | Dashboard variable          |
+|-------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
+| `stage`     | the 14 stage names above                                                                                                                            | none (fixed hierarchy)      |
+| `scope`     | `turn` (part of a chat turn) or `background` (detached async work such as title and summary generation)                                             | none (panels pin one scope) |
+| `chat_kind` | `root` (a chat a user drives) or `subagent` (a chat spawned by a parent agent), empty for background work                                           | `$chat_kind` (multi-select) |
+| `model`     | resolved model ID, empty before a model is resolved                                                                                                 | `$model` (multi-select)     |
+| `effort`    | effective reasoning effort sent to the provider (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`), empty when the model config sets none | `$effort` (multi-select)    |
 
 Two more variables apply everywhere: `$datasource` selects the Prometheus
 data source and `$stat` selects the summary statistic (mean, p50, p90,
 p95, p99) for every stat-aware panel.
+
+`chat_kind` separates root chats, which a user drives, from subagent
+chats, which a parent agent spawns and which run as separate chats with
+their own turn trees. It is a property of the turn, so every turn-scoped
+stage carries it, including the stages recorded before a model is
+resolved. `$chat_kind` therefore filters every stage panel in full,
+rather than narrowing part of the hierarchy the way `$model` and
+`$effort` do. Background provider calls run outside a turn and carry an
+empty value, so that panel is never filtered by it.
 
 Stages that run before or outside model resolution (`chat_turn`,
 `queue_wait`, `capacity_wait`, `acquisition`, `mcp_connect`, `commit`)
@@ -60,20 +71,20 @@ populated and narrows only the model-carrying stages (`generation_step`,
 **Stage profile flamegraph ($stat)** - one frame per stage, laid out in
 the fixed hierarchy, frame width = the selected `$stat` of that stage's
 duration over the dashboard time range. Dimensions: filtered to the
-turn scope; `$model`/`$effort` apply to the model-carrying stages
-only, so a concrete selection narrows the generation stages while the
-`chat_turn` root and the pre-model stages keep their full values.
-`$stat` picks the statistic. How to read: the widest frames under
-`generation_step` are where turn time goes; compare `provider_attempt`
-(request to response headers) against `stream` (full stream) to separate
-provider latency from streaming time. The `self` column is the stage's
-own value for leaf stages and 0 for stages with children; true self time
-is not derivable here, because overlapping stages can make a parent
-minus its children negative. Caveats: stages overlap in wall time (tool
-calls and thinking happen inside the stream) and quantiles are not
-additive, so a child frame can read wider than its parent at high
-percentiles; a stage whose series first appears inside the window reads 0
-until its second sample.
+turn scope and `$chat_kind`; `$model`/`$effort` apply to the
+model-carrying stages only, so a concrete selection narrows the
+generation stages while the `chat_turn` root and the pre-model stages
+keep their full values. `$stat` picks the statistic. How to read: the
+widest frames under `generation_step` are where turn time goes; compare
+`provider_attempt` (request to response headers) against `stream` (full
+stream) to separate provider latency from streaming time. The `self`
+column is the stage's own value for leaf stages and 0 for stages with
+children; true self time is not derivable here, because overlapping
+stages can make a parent minus its children negative. Caveats: stages
+overlap in wall time (tool calls and thinking happen inside the stream)
+and quantiles are not additive, so a child frame can read wider than its
+parent at high percentiles; a stage whose series first appears inside the
+window reads 0 until its second sample.
 
 **Stage profile in hierarchy order ($stat)** - the same query as the
 flamegraph drawn as horizontal bars in depth-first order with the tree
@@ -85,22 +96,23 @@ as a numeric check on the flamegraph.
 ### Stage trends
 
 **Stage duration over time ($stat)** - one series per stage, the
-selected `$stat` computed over `$__rate_interval`. Dimensions:
-`scope="turn"`, series split by `stage`; `$model`/`$effort` apply to the
-model-carrying stages only, so the pre-model stages stay plotted under
-any selection. How to read: this is the drill-down for "when did it get
-slow" - a regression visible in the profile shows here as a step or
-trend in the affected stage. Idle stages drop out rather than plotting
-NaN.
+selected `$stat` computed over `$__rate_interval`. Dimensions: the
+turn scope and `$chat_kind`, one series per stage;
+`$model`/`$effort` apply to the model-carrying stages only, so the
+pre-model stages stay plotted under any model selection. How to read:
+this is the drill-down for "when did it get slow" - a regression visible
+in the profile shows here as a step or trend in the affected stage. Idle
+stages drop out rather than plotting NaN.
 
 **Stage time share of chat_turn** - each stage's total time as a
 percentage of total `chat_turn` time, from mean rates of the histogram
 sums. Dimensions: numerator is `scope="turn"` split by `stage`, with
-`$model`/`$effort` applied to the model-carrying stages only; the
-denominator is all `chat_turn` time without model/effort filters,
-because `chat_turn` carries empty model/effort labels. Under a concrete
-model the generation stages therefore read as that model's share of all
-turn time. How to read: this is the "where does the time go" summary -
+`$chat_kind` applied and `$model`/`$effort` applied to the
+model-carrying stages only; the denominator is `chat_turn` time for the
+same `$chat_kind` selection, without model/effort filters, because
+`chat_turn` carries empty model/effort labels. Under a concrete model
+the generation stages therefore read as that model's share of all turn
+time. How to read: this is the "where does the time go" summary -
 stages overlap, so series can sum past 100%, but a single stage rising
 toward 100% of turn time identifies the dominant cost.
 
@@ -108,11 +120,11 @@ toward 100% of turn time identifies the dominant cost.
 pre-generation waits: `queue_wait` (queued message insert to
 promotion), `capacity_wait` (concurrent-agent limiter admission) and
 `acquisition` (trigger message insert to worker pickup). Dimensions:
-`scope="turn"`, fixed to those three stages, split by `stage`; all three
-run before a model is resolved, so `$model`/`$effort` are not applied and
-the panel stays populated under any selection. How to read: these are
-scheduling delays before any model work starts - user-visible latency
-that no provider-side optimization can fix.
+`scope="turn"` and `$chat_kind`, fixed to those three stages, split by
+`stage`; all three run before a model is resolved, so `$model`/`$effort`
+are not applied and the panel stays populated under any model selection.
+How to read: these are scheduling delays before any model work starts -
+user-visible latency that no provider-side optimization can fix.
 
 ### Throughput and TTFT
 
@@ -120,24 +132,25 @@ that no provider-side optimization can fix.
 the pre-existing histogram recorded when the first streamed part
 arrives. Dimensions: none of the stage labels; this histogram is
 labeled by provider/model internally but the panel aggregates across
-them, and `$model`/`$effort` do not apply. The `time_to_first_token`
-stage in the profile measures the same interval and does honor the
-filters. How to read: the primary user-perceived responsiveness metric
-for streaming.
+them, and `$model`, `$effort` and `$chat_kind` do not apply. The
+`time_to_first_token` stage in the profile measures the same interval
+and does honor the filters. How to read: the primary user-perceived
+responsiveness metric for streaming.
 
 **Turn rate and stage sample rate** - completed `chat_turn` per second
-plus one rate series per other stage. Dimensions: `scope="turn"`, split
-by `stage`, with `$model`/`$effort` applied to the model-carrying stages
-only. How to read: throughput and shape - a stage rate above the turn
-rate means the stage repeats within a turn (generation steps, provider
-attempts, tool calls); `provider_attempt` rising faster than `stream`
-indicates retries.
+plus one rate series per other stage. Dimensions: `scope="turn"` and
+`$chat_kind`, split by `stage`, with `$model`/`$effort` applied to the
+model-carrying stages only. How to read: throughput and shape - a stage
+rate above the turn rate means the stage repeats within a turn
+(generation steps, provider attempts, tool calls); `provider_attempt`
+rising faster than `stream` indicates retries.
 
 **Background provider calls ($stat)** - rate and selected `$stat`
 duration of background-scope `provider_attempt` samples: detached
 title/summary/quickgen requests that are excluded from every other
 panel. Dimensions: pinned to the background scope of the
-`provider_attempt` stage; `$model`/`$effort` are not applied. How to read:
+`provider_attempt` stage; `$model`, `$effort` and `$chat_kind` are not
+applied, because background work runs outside a turn. How to read:
 this work costs provider quota and money but no user-facing turn
 latency; a spike here with flat turn panels means background load, not
 a chat regression.

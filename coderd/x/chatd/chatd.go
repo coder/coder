@@ -2190,7 +2190,11 @@ func (p *Server) PromoteQueued(
 		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 	if !promotedQueuedAt.IsZero() {
-		p.recordQueueWait(ctx, opts.ChatID, promotedQueuedAt, time.Now())
+		var chatKind string
+		if refreshedOK {
+			chatKind = chatKindAttr(refreshChat)
+		}
+		p.recordQueueWait(ctx, opts.ChatID, chatKind, promotedQueuedAt, time.Now())
 	}
 	return result, nil
 }
@@ -4615,7 +4619,7 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 	logger slog.Logger,
 	afterFinalize func(context.Context, string),
 ) {
-	finalizeCtx, stopFinalizeCtx := p.inflightContext(ctx)
+	finalizeCtx, stopFinalizeCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopFinalizeCtx()
 		statusLabel := p.generateFinalTurnStatusLabel(finalizeCtx, chat, status, runResult, logger)
@@ -4701,7 +4705,7 @@ func (p *Server) setLastTurnSummaryAsync(
 	if chat.LastTurnSummary.Valid && strings.TrimSpace(chat.LastTurnSummary.String) == summary {
 		return
 	}
-	updateCtx, stopUpdateCtx := p.inflightContext(ctx)
+	updateCtx, stopUpdateCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopUpdateCtx()
 		p.updateLastTurnSummary(updateCtx, chat, chat.HistoryVersion, summary, logger)
@@ -4721,7 +4725,7 @@ func (p *Server) clearLastTurnSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
-	clearCtx, stopClearCtx := p.inflightContext(ctx)
+	clearCtx, stopClearCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopClearCtx()
 		p.updateLastTurnSummary(clearCtx, chat, chat.HistoryVersion, "", logger)
@@ -4816,7 +4820,7 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 	if chat.ParentChatID.Valid {
 		return
 	}
-	ctx, cancel := p.inflightContext(ctx)
+	ctx, cancel := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer cancel()
 		p.generateAndStoreChatSummary(ctx, logger, chat)
@@ -4997,7 +5001,7 @@ func (p *Server) storeSubagentReportSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
-	summaryCtx, stopSummaryCtx := p.inflightContext(ctx)
+	summaryCtx, stopSummaryCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopSummaryCtx()
 		p.storeSubagentReportSummary(summaryCtx, chat, logger)
@@ -5111,14 +5115,25 @@ func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func(
 // queued from queuedAt until promotedAt. The span context is stripped
 // from ctx so the stage is a standalone span rather than a child of the
 // promoting request's span, which ends before the turn the wait belongs
-// to. The scope is set explicitly for the same reason: ctx carries the
-// request, not the turn.
-func (p *Server) recordQueueWait(ctx context.Context, chatID uuid.UUID, queuedAt, promotedAt time.Time) {
+// to. The scope and chat kind are set explicitly for the same reason:
+// ctx carries the request, not the turn. An empty chatKind records the
+// stage without one.
+func (p *Server) recordQueueWait(ctx context.Context, chatID uuid.UUID, chatKind string, queuedAt, promotedAt time.Time) {
 	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
+	standalone = chatloop.ContextWithChatKind(standalone, chatKind)
 	p.stages.RecordAs(standalone, chatloop.StageQueueWait, chatloop.ScopeTurn,
 		chatloop.StageModel{}, queuedAt, promotedAt, nil,
 		attribute.String(chatloop.AttrChatID, chatID.String()),
 	)
+}
+
+// inflightChatContext is inflightContext for work that belongs to a
+// known chat. The chat kind is set on the returned context so the
+// stages of the detached work carry it even when the caller never ran
+// a turn.
+func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
+	ctx, stop := p.inflightContext(reqCtx)
+	return chatloop.ContextWithChatKind(ctx, chatKindAttr(chat)), stop
 }
 
 func (p *Server) goInflight(f func()) error {

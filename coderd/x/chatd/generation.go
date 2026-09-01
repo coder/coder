@@ -471,7 +471,6 @@ func (s *taskStarter) runGenerationStep(
 ) (next chatWorkerTaskStartInput, again bool, err error) {
 	ctx, stepSpan := s.server.stages.Start(ctx, chatloop.StageGenerationStep,
 		attribute.String(chatloop.AttrChatID, input.ChatID.String()),
-		attribute.String(chatloop.AttrChatKind, chatKindAttr(chat)),
 		attribute.Int64(chatloop.AttrGenerationAttempt, input.GenerationAttempt),
 	)
 	defer func() { stepSpan.End(err) }()
