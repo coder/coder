@@ -515,7 +515,8 @@ func TestAuthorizeResponseZeroValue(t *testing.T) {
 }
 
 // TestCarveOutDelivery pins which failures reach the client's callback and which
-// stay here, the RFC 6749 §4.1.2.1 decision clientIDInDoubt makes.
+// stay here, the two RFC 6749 §4.1.2.1 carve-outs: an unsettled client identity
+// and a redirect URI at fault.
 func TestCarveOutDelivery(t *testing.T) {
 	t.Parallel()
 
@@ -573,6 +574,18 @@ func TestCarveOutDelivery(t *testing.T) {
 			name:    "FailureOutsideTheIdentity",
 			mutate:  func(v url.Values) { v.Set("code_challenge", "short") },
 			deliver: true,
+		},
+		{
+			// The state read shares a function with the redirect_uri match, so
+			// this used to be charged to the redirect_uri carve-out.
+			name:    "RepeatedState",
+			mutate:  func(v url.Values) { v["state"] = []string{"xyz", "xyz"} },
+			deliver: true,
+		},
+		{
+			name:    "RedirectURIDoesNotMatchTheRegistration",
+			mutate:  func(v url.Values) { v.Set("redirect_uri", "https://attacker.example.com/callback") },
+			deliver: false,
 		},
 	}
 

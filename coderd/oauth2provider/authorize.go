@@ -309,10 +309,14 @@ func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, register
 		return authorizeResponse{}, err
 	}
 
-	before := len(p.Errors)
 	callback := p.RedirectURL(vals, registered, "redirect_uri")
 	response := authorizeResponse{state: p.String(vals, "", "state")}
-	if len(p.Errors) == before {
+	// The field, not a count of errors across these two lines: reading state
+	// can fail too, and that failure belongs to the client's callback rather
+	// than to the carve-out that withholds one.
+	if !slices.ContainsFunc(p.Errors, func(e codersdk.ValidationError) bool {
+		return e.Field == "redirect_uri"
+	}) {
 		response.callback = callback
 	}
 	return response, nil
