@@ -146,7 +146,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 							</TooltipContent>
 						</Tooltip>
 					)}
-					{link?.validate_error && (
+					{!authenticated && link?.validate_error && (
 						<span>
 							<span className="pl-[1em] text-content-destructive">Error: </span>
 							{link?.validate_error}
