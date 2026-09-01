@@ -143,9 +143,12 @@ const ExpandableLicenseMessageList: React.FC<{
 							<LicenseMessageList messages={hiddenMessages} />
 						</div>
 					</CollapsibleContent>
-					<CollapsibleTrigger className="text-xs mt-0.5">
+					{/* asChild: the trigger must not render its own <button>
+					    around Button, which is invalid HTML and exposes two
+					    identically named buttons to assistive tech. */}
+					<CollapsibleTrigger asChild>
 						<Button
-							className="text-content-primary px-0"
+							className="text-xs mt-0.5 text-content-primary px-0"
 							variant="subtle"
 							size="sm"
 						>

@@ -247,7 +247,10 @@ export const KeyboardNavigation: Story = {
 			canvas.getByRole("combobox", { name: /^Number of developers/ }),
 			canvas.getByRole("combobox", { name: /^Country/ }),
 			canvas.getByRole("checkbox"),
-			canvas.getByRole("link", { name: "Learn more" }),
+			// The link's accessible name is its aria-label, not its text.
+			canvas.getByRole("link", {
+				name: "Learn more about external PostgreSQL databases",
+			}),
 		];
 
 		for (const element of tabOrder) {
