@@ -9,6 +9,7 @@ package chatacp
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	stdslog "log/slog"
@@ -30,9 +31,9 @@ const (
 	// to resolve the in-flight prompt with stopReason=canceled after
 	// session/cancel is sent.
 	cancelResolveTimeout = 10 * time.Second
-	// permissionDeniedNote is streamed when the adapter asks for a
-	// permission the auto-policy rejects.
-	permissionDeniedNote = "Claude Code requested a permission this chat's policy does not grant; the action was declined automatically."
+	// permissionDeniedNote is streamed, prefixed with the agent name,
+	// when the adapter asks for a permission the auto-policy rejects.
+	permissionDeniedNote = " requested a permission this chat's policy does not grant; the action was declined automatically."
 )
 
 // TurnInput configures one generation turn.
@@ -54,6 +55,9 @@ type TurnInput struct {
 	// PermissionMode selects the adapter session mode (e.g.
 	// acceptEdits). Empty keeps the adapter default.
 	PermissionMode string
+	// AgentName names the agent in notes streamed into the chat, such
+	// as the permission-denied note. Defaults to "The agent".
+	AgentName string
 	// Publish streams preview parts into the chat's message part
 	// buffer.
 	Publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
@@ -88,8 +92,9 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 	}()
 
 	collector := &turnCollector{
-		publish: input.Publish,
-		logger:  input.Logger,
+		publish:   input.Publish,
+		logger:    input.Logger,
+		agentName: cmp.Or(input.AgentName, "The agent"),
 	}
 	conn := acp.NewClientSideConnection(collector, process.Stdin(), process.Stdout())
 	// Without an explicit logger the SDK logs through slog.Default(),
@@ -270,8 +275,9 @@ type turnCollector struct {
 	reasoning     strings.Builder
 	openToolCalls map[string]*openToolCall
 
-	publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
-	logger  slog.Logger
+	publish   func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	logger    slog.Logger
+	agentName string
 }
 
 type openToolCall struct {
@@ -451,9 +457,10 @@ func (c *turnCollector) completeToolCallLocked(id string, status acp.ToolCallSta
 // mode that avoids prompts (e.g. acceptEdits); anything that still
 // prompts is declined with a visible note.
 func (c *turnCollector) RequestPermission(_ context.Context, params acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+	note := "\n\n" + c.agentName + permissionDeniedNote + "\n\n"
 	c.mu.Lock()
-	c.emit(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("\n\n"+permissionDeniedNote+"\n\n"))
-	_, _ = c.text.WriteString("\n\n" + permissionDeniedNote + "\n\n")
+	c.emit(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(note))
+	_, _ = c.text.WriteString(note)
 	c.mu.Unlock()
 	for _, option := range params.Options {
 		if option.Kind == acp.PermissionOptionKindRejectOnce {

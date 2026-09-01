@@ -19,6 +19,16 @@ import (
 	"github.com/coder/quartz"
 )
 
+// testHarness is any harness row; the helpers under test only read
+// its copy fields.
+var testHarness = func() chatacp.Harness {
+	harness, ok := chatacp.HarnessFor(codersdk.ChatRuntimeClaudeCode)
+	if !ok {
+		panic("claude_code harness missing")
+	}
+	return harness
+}()
+
 func TestWaitForACPAdapter(t *testing.T) {
 	t.Parallel()
 
@@ -43,7 +53,7 @@ func TestWaitForACPAdapter(t *testing.T) {
 
 		done := make(chan error, 1)
 		go func() {
-			done <- waitForACPAdapter(ctx, clock, deadline, probe,
+			done <- waitForACPAdapter(ctx, clock, testHarness, deadline, probe,
 				func(context.Context) bool { return false })
 		}()
 
@@ -63,7 +73,7 @@ func TestWaitForACPAdapter(t *testing.T) {
 		deadline := clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
 
 		probes := 0
-		err := waitForACPAdapter(ctx, clock, deadline,
+		err := waitForACPAdapter(ctx, clock, testHarness, deadline,
 			func(context.Context) error { probes++; return adapterMissing },
 			func(context.Context) bool { return true })
 		require.Error(t, err)
@@ -82,7 +92,7 @@ func TestWaitForACPAdapter(t *testing.T) {
 
 		done := make(chan error, 1)
 		go func() {
-			done <- waitForACPAdapter(ctx, clock, deadline,
+			done <- waitForACPAdapter(ctx, clock, testHarness, deadline,
 				func(context.Context) error { return adapterMissing },
 				func(context.Context) bool { return false })
 		}()
@@ -124,7 +134,7 @@ func TestWaitForACPAdapter(t *testing.T) {
 
 		done := make(chan error, 1)
 		go func() {
-			done <- waitForACPAdapter(ctx, clock, deadline, probe, settled)
+			done <- waitForACPAdapter(ctx, clock, testHarness, deadline, probe, settled)
 		}()
 
 		call := trap.MustWait(ctx)
@@ -156,7 +166,7 @@ func TestACPTurnFromHistory(t *testing.T) {
 
 	t.Run("SingleUserMessage", func(t *testing.T) {
 		t.Parallel()
-		turn, err := acpTurnFromHistory(ctx, logger, []database.ChatMessage{
+		turn, err := acpTurnFromHistory(ctx, logger, testHarness, []database.ChatMessage{
 			acpTextMessage(t, 1, database.ChatMessageRoleUser, "hello"),
 		})
 		require.NoError(t, err)
@@ -167,7 +177,7 @@ func TestACPTurnFromHistory(t *testing.T) {
 
 	t.Run("TrailingUserRunJoined", func(t *testing.T) {
 		t.Parallel()
-		turn, err := acpTurnFromHistory(ctx, logger, []database.ChatMessage{
+		turn, err := acpTurnFromHistory(ctx, logger, testHarness, []database.ChatMessage{
 			acpTextMessage(t, 1, database.ChatMessageRoleUser, "first"),
 			acpTextMessage(t, 2, database.ChatMessageRoleAssistant, "reply"),
 			acpTextMessage(t, 3, database.ChatMessageRoleUser, "second"),
@@ -185,7 +195,7 @@ func TestACPTurnFromHistory(t *testing.T) {
 
 	t.Run("HistoryEndsWithAssistant", func(t *testing.T) {
 		t.Parallel()
-		turn, err := acpTurnFromHistory(ctx, logger, []database.ChatMessage{
+		turn, err := acpTurnFromHistory(ctx, logger, testHarness, []database.ChatMessage{
 			acpTextMessage(t, 1, database.ChatMessageRoleUser, "hello"),
 			acpTextMessage(t, 2, database.ChatMessageRoleAssistant, "done"),
 		})
@@ -195,7 +205,7 @@ func TestACPTurnFromHistory(t *testing.T) {
 
 	t.Run("EmptyHistory", func(t *testing.T) {
 		t.Parallel()
-		turn, err := acpTurnFromHistory(ctx, logger, nil)
+		turn, err := acpTurnFromHistory(ctx, logger, testHarness, nil)
 		require.NoError(t, err)
 		require.False(t, turn.generate)
 	})
@@ -206,7 +216,7 @@ func TestACPTurnFromHistory(t *testing.T) {
 			{Type: codersdk.ChatMessagePartTypeFile, FileName: "img.png", MediaType: "image/png"},
 		})
 		require.NoError(t, err)
-		_, err = acpTurnFromHistory(ctx, logger, []database.ChatMessage{
+		_, err = acpTurnFromHistory(ctx, logger, testHarness, []database.ChatMessage{
 			{
 				ID:             1,
 				Role:           database.ChatMessageRoleUser,

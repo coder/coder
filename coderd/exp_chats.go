@@ -53,6 +53,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -1087,15 +1088,15 @@ func (api *API) validateExplicitChatModelConfigAvailable(
 	if modelConfigID == uuid.Nil {
 		return 0, nil
 	}
-	if runtime == database.ChatRuntimeClaudeCode {
-		err := api.chatDaemon.ValidateClaudeCodeModelConfigID(ctx, modelConfigID)
+	if harness, ok := chatacp.HarnessFor(codersdk.ChatRuntime(runtime)); ok {
+		err := api.chatDaemon.ValidateACPModelConfigID(ctx, harness, modelConfigID)
 		if err == nil {
 			return 0, nil
 		}
 		if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
 			return http.StatusBadRequest, &codersdk.Response{
 				Message: "Invalid model config ID.",
-				Detail:  "Claude Code chats accept enabled Anthropic model configs only.",
+				Detail:  fmt.Sprintf("%s chats accept enabled %s model configs only.", harness.DisplayName, harness.ProviderLabel),
 			}
 		}
 		return http.StatusInternalServerError, &codersdk.Response{
@@ -6171,7 +6172,7 @@ func (api *API) putChatRuntimeConfig(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if req.Runtime != codersdk.ChatRuntimeClaudeCode {
+	if _, ok := chatacp.HarnessFor(req.Runtime); !ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid runtime.",
 			Detail:  fmt.Sprintf("Only external runtimes can be configured, got %q.", req.Runtime),

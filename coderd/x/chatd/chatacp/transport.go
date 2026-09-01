@@ -9,13 +9,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// DefaultAdapterCommand launches the Claude Code ACP adapter inside the
-// workspace. The template backing the runtime must provide it on PATH.
-// The binary ships in the @agentclientprotocol/claude-agent-acp npm
-// package (the renamed successor of the deprecated
-// @zed-industries/claude-code-acp).
-const DefaultAdapterCommand = "claude-agent-acp"
-
 // Process is a running ACP adapter with stdio attached. Stdout carries
 // newline-delimited JSON-RPC; stderr is logging only.
 type Process interface {
@@ -39,12 +32,11 @@ type Transport interface {
 type SSHTransport struct {
 	// Client is an established SSH client to the workspace agent.
 	Client *gossh.Client
-	// Command is the adapter invocation. Defaults to
-	// DefaultAdapterCommand.
+	// Command is the adapter invocation, normally Harness.Command.
 	Command string
-	// Env is applied to the adapter process (e.g. ANTHROPIC_API_KEY,
-	// ANTHROPIC_MODEL). The agent SSH server forwards client env into
-	// the exec environment.
+	// Env is applied to the adapter process (the harness-built
+	// credentials). The agent SSH server forwards client env into the
+	// exec environment.
 	Env map[string]string
 }
 
@@ -69,6 +61,9 @@ func (t *SSHTransport) Start(_ context.Context) (Process, error) {
 	if t.Client == nil {
 		return nil, xerrors.New("ssh client is required")
 	}
+	if strings.TrimSpace(t.Command) == "" {
+		return nil, xerrors.New("adapter command is required")
+	}
 	session, err := t.Client.NewSession()
 	if err != nil {
 		return nil, xerrors.Errorf("new ssh session: %w", err)
@@ -89,13 +84,9 @@ func (t *SSHTransport) Start(_ context.Context) (Process, error) {
 		_ = session.Close()
 		return nil, xerrors.Errorf("stdout pipe: %w", err)
 	}
-	command := t.Command
-	if strings.TrimSpace(command) == "" {
-		command = DefaultAdapterCommand
-	}
-	if err := session.Start(command); err != nil {
+	if err := session.Start(t.Command); err != nil {
 		_ = session.Close()
-		return nil, xerrors.Errorf("start adapter %q: %w", command, err)
+		return nil, xerrors.Errorf("start adapter %q: %w", t.Command, err)
 	}
 	return &sshProcess{
 		session: session,

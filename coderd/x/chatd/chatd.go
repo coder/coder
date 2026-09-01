@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
@@ -1322,9 +1323,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.Runtime == "" {
 		opts.Runtime = database.ChatRuntimeCoder
 	}
-	switch opts.Runtime {
-	case database.ChatRuntimeCoder, database.ChatRuntimeClaudeCode:
-	default:
+	harness, isExternal := chatacp.HarnessFor(codersdk.ChatRuntime(opts.Runtime))
+	if opts.Runtime != database.ChatRuntimeCoder && !isExternal {
 		return database.Chat{}, xerrors.Errorf("unsupported chat runtime %q", opts.Runtime)
 	}
 	if err := p.requireRuntimeExperiment(opts.Runtime); err != nil {
@@ -1360,11 +1360,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	if opts.ModelConfigID != uuid.Nil {
 		var err error
-		switch opts.Runtime {
-		case database.ChatRuntimeCoder:
+		if isExternal {
+			_, _, err = fetchACPModelConfig(chatdModelConfigLookupContext(ctx), p.db, harness, opts.ModelConfigID)
+		} else {
 			err = requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID)
-		case database.ChatRuntimeClaudeCode:
-			_, _, err = fetchClaudeCodeModelConfig(chatdModelConfigLookupContext(ctx), p.db, opts.ModelConfigID)
 		}
 		if err != nil {
 			return database.Chat{}, err
@@ -1701,15 +1700,16 @@ func resolveSendMessageModelConfigID(
 		if requested == uuid.Nil {
 			return uuid.Nil, nil
 		}
-		if chat.Runtime != database.ChatRuntimeClaudeCode {
+		harness, ok := chatacp.HarnessFor(codersdk.ChatRuntime(chat.Runtime))
+		if !ok {
 			return uuid.Nil, xerrors.Errorf(
 				"%w: model config cannot be set on %s runtime chats",
 				ErrInvalidModelConfigID,
 				chat.Runtime,
 			)
 		}
-		if _, _, err := fetchClaudeCodeModelConfig(
-			chatdModelConfigLookupContext(ctx), store, requested,
+		if _, _, err := fetchACPModelConfig(
+			chatdModelConfigLookupContext(ctx), store, harness, requested,
 		); err != nil {
 			return uuid.Nil, err
 		}
@@ -1776,15 +1776,16 @@ func validateCreateModelConfigID(
 	return xerrors.Errorf("get requested model config %s: %w", modelConfigID, err)
 }
 
-// fetchClaudeCodeModelConfig loads an explicitly selected model config
-// for a claude_code chat together with its provider. Only enabled,
-// non-deleted configs on an enabled Anthropic provider are selectable:
-// the runtime injects Anthropic credentials into the adapter, so other
-// provider types cannot be honored. Failures wrap
+// fetchACPModelConfig loads an explicitly selected model config for an
+// external runtime chat together with its provider. Only enabled,
+// non-deleted configs on an enabled provider of the harness type are
+// selectable: the runtime injects that provider's credentials into the
+// adapter, so other provider types cannot be honored. Failures wrap
 // ErrInvalidModelConfigID unless the lookup itself errored.
-func fetchClaudeCodeModelConfig(
+func fetchACPModelConfig(
 	ctx context.Context,
 	store database.Store,
+	harness chatacp.Harness,
 	id uuid.UUID,
 ) (database.ChatModelConfig, database.AIProvider, error) {
 	config, err := store.GetEnabledChatModelConfigByID(ctx, id)
@@ -1814,29 +1815,29 @@ func fetchClaudeCodeModelConfig(
 			"get ai provider for model config %s: %w", id, err,
 		)
 	}
-	if provider.Type != database.AIProviderTypeAnthropic {
+	if provider.Type != database.AIProviderType(harness.ProviderType) {
 		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
-			"%w: model config %s is not an Anthropic model", ErrInvalidModelConfigID, id,
+			"%w: model config %s is not an %s model", ErrInvalidModelConfigID, id, harness.ProviderLabel,
 		)
 	}
 	return config, provider, nil
 }
 
-// chatdModelConfigLookupContext scopes claude_code model selection
-// lookups to the daemon: fetchClaudeCodeModelConfig reads the AI
-// provider row, which chat owners cannot read themselves.
+// chatdModelConfigLookupContext scopes external runtime model selection
+// lookups to the daemon: fetchACPModelConfig reads the AI provider row,
+// which chat owners cannot read themselves.
 func chatdModelConfigLookupContext(ctx context.Context) context.Context {
-	//nolint:gocritic // Claude Code model validation needs daemon-scoped
-	// provider reads.
+	//nolint:gocritic // External runtime model validation needs
+	// daemon-scoped provider reads.
 	return dbauthz.AsChatd(ctx)
 }
 
-// ValidateClaudeCodeModelConfigID checks that an explicit model
-// selection for a claude_code chat references an enabled Anthropic
-// model config. It returns an error wrapping ErrInvalidModelConfigID
+// ValidateACPModelConfigID checks that an explicit model selection for
+// an external runtime chat references an enabled model config on the
+// harness provider. It returns an error wrapping ErrInvalidModelConfigID
 // when the selection is not usable.
-func (p *Server) ValidateClaudeCodeModelConfigID(ctx context.Context, id uuid.UUID) error {
-	_, _, err := fetchClaudeCodeModelConfig(chatdModelConfigLookupContext(ctx), p.db, id)
+func (p *Server) ValidateACPModelConfigID(ctx context.Context, harness chatacp.Harness, id uuid.UUID) error {
+	_, _, err := fetchACPModelConfig(chatdModelConfigLookupContext(ctx), p.db, harness, id)
 	return err
 }
 

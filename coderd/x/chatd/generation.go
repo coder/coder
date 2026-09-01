@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
@@ -463,11 +464,11 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				continue
 			}
 		}
-		switch chat.Runtime {
-		case database.ChatRuntimeCoder:
-		case database.ChatRuntimeClaudeCode:
-			return s.startACPGeneration(ctx, machine, input, chat, messages)
-		default:
+		if chat.Runtime != database.ChatRuntimeCoder {
+			harness, ok := chatacp.HarnessFor(codersdk.ChatRuntime(chat.Runtime))
+			if ok {
+				return s.startACPGeneration(ctx, machine, input, harness, chat, messages)
+			}
 			err := chaterror.WithClassification(
 				xerrors.Errorf("unsupported chat runtime %q", chat.Runtime),
 				chaterror.ClassifiedError{

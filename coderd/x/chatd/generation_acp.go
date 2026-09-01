@@ -1,10 +1,12 @@
 package chatd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -47,10 +49,11 @@ func (s *taskStarter) startACPGeneration(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
+	harness chatacp.Harness,
 	chat database.Chat,
 	history []database.ChatMessage,
 ) error {
-	turn, err := acpTurnFromHistory(ctx, s.opts.Logger, history)
+	turn, err := acpTurnFromHistory(ctx, s.opts.Logger, harness, history)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
@@ -61,13 +64,13 @@ func (s *taskStarter) startACPGeneration(
 		}, generationAttemptNotRequired)
 	}
 
-	cfg, err := s.server.acpTurnConfig(ctx, chat, turn.modelConfigID)
+	cfg, err := s.server.acpTurnConfig(ctx, harness, chat, turn.modelConfigID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
 
 	readinessDeadline := s.opts.Clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
-	if err := s.ensureACPWorkspaceRunning(ctx, chat, readinessDeadline); err != nil {
+	if err := s.ensureACPWorkspaceRunning(ctx, harness, chat, readinessDeadline); err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("ensure workspace running: %w", err))
 		}
@@ -94,21 +97,17 @@ func (s *taskStarter) startACPGeneration(
 		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
 
-	env := map[string]string{
-		"ANTHROPIC_API_KEY": cfg.apiKey,
-	}
-	if cfg.model != "" {
-		env["ANTHROPIC_MODEL"] = cfg.model
-	}
-	if cfg.baseURL != "" {
-		env["ANTHROPIC_BASE_URL"] = cfg.baseURL
-	}
+	env := harness.Env(chatacp.TurnCredentials{
+		APIKey:  cfg.apiKey,
+		BaseURL: cfg.baseURL,
+		Model:   cfg.model,
+	})
 
 	transportFn := s.server.acpTransportFn
 	if transportFn == nil {
 		transportFn = s.sshACPTransport
 	}
-	transport, closeTransport, err := transportFn(ctx, conn, agent, env, readinessDeadline)
+	transport, closeTransport, err := transportFn(ctx, conn, agent, harness, env, readinessDeadline)
 	if err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("acp transport: %w", err))
@@ -140,6 +139,7 @@ func (s *taskStarter) startACPGeneration(
 		PromptText:     turn.prompt,
 		ReseedContext:  chatacp.BuildReseedContext(turn.reseed),
 		PermissionMode: cfg.permissionMode,
+		AgentName:      harness.DisplayName,
 		Publish:        attempt.publish,
 		Logger:         s.opts.Logger,
 	})
@@ -203,7 +203,7 @@ type acpTurn struct {
 // new-session fallback. generate is false when history ends with
 // assistant or tool output, meaning the turn already generated and
 // only FinishTurn remains.
-func acpTurnFromHistory(ctx context.Context, logger slog.Logger, history []database.ChatMessage) (acpTurn, error) {
+func acpTurnFromHistory(ctx context.Context, logger slog.Logger, harness chatacp.Harness, history []database.ChatMessage) (acpTurn, error) {
 	firstTrailingUser := len(history)
 	for i := len(history) - 1; i >= 0; i-- {
 		if history[i].Role != database.ChatMessageRoleUser {
@@ -234,7 +234,7 @@ func acpTurnFromHistory(ctx context.Context, logger slog.Logger, history []datab
 			xerrors.New("user message has no text content"),
 			chaterror.ClassifiedError{
 				Kind:    codersdk.ChatErrorKindGeneric,
-				Message: "Claude Code chats currently support text messages only.",
+				Message: harness.DisplayName + " chats currently support text messages only.",
 			},
 		)
 	}
@@ -308,13 +308,13 @@ type acpTurnConfig struct {
 	modelConfigID uuid.UUID
 }
 
-// acpTurnConfig loads the organization's runtime config and the
-// deployment Anthropic key for one turn. The key is injected into the
-// adapter's process environment and never written to workspace disk.
-// A non-zero selection (the triggering user message's model config)
-// overrides the admin model pin and sources credentials from the
-// selected config's provider.
-func (p *Server) acpTurnConfig(ctx context.Context, chat database.Chat, selection uuid.UUID) (acpTurnConfig, error) {
+// acpTurnConfig loads the organization's runtime config and a
+// deployment key for the harness provider for one turn. The key is
+// injected into the adapter's process environment and never written to
+// workspace disk. A non-zero selection (the triggering user message's
+// model config) overrides the admin model pin and sources credentials
+// from the selected config's provider.
+func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, chat database.Chat, selection uuid.UUID) (acpTurnConfig, error) {
 	cfg, err := p.db.GetChatRuntimeConfig(ctx, database.GetChatRuntimeConfigParams{
 		OrganizationID: chat.OrganizationID,
 		Runtime:        chat.Runtime,
@@ -325,7 +325,7 @@ func (p *Server) acpTurnConfig(ctx context.Context, chat database.Chat, selectio
 				xerrors.New("chat runtime config missing"),
 				chaterror.ClassifiedError{
 					Kind:    codersdk.ChatErrorKindConfig,
-					Message: "The Claude Code runtime is not configured for this organization.",
+					Message: fmt.Sprintf("The %s runtime is not configured for this organization.", harness.DisplayName),
 				},
 			)
 		}
@@ -336,19 +336,19 @@ func (p *Server) acpTurnConfig(ctx context.Context, chat database.Chat, selectio
 			xerrors.New("chat runtime config disabled"),
 			chaterror.ClassifiedError{
 				Kind:    codersdk.ChatErrorKindProviderDisabled,
-				Message: "The Claude Code runtime is disabled for this organization.",
+				Message: fmt.Sprintf("The %s runtime is disabled for this organization.", harness.DisplayName),
 			},
 		)
 	}
 
 	out := acpTurnConfig{
 		model:          cfg.Model,
-		permissionMode: cfg.PermissionMode,
+		permissionMode: cmp.Or(cfg.PermissionMode, harness.DefaultSessionMode),
 	}
 
 	var selectedProviderID uuid.UUID
 	if selection != uuid.Nil {
-		modelConfig, provider, err := fetchClaudeCodeModelConfig(ctx, p.db, selection)
+		modelConfig, provider, err := fetchACPModelConfig(ctx, p.db, harness, selection)
 		if err != nil {
 			// The selection was valid at send time; losing it mid-flight
 			// (config deleted or disabled, provider changed) falls back
@@ -367,15 +367,15 @@ func (p *Server) acpTurnConfig(ctx context.Context, chat database.Chat, selectio
 	if err != nil {
 		return acpTurnConfig{}, xerrors.Errorf("get ai providers: %w", err)
 	}
-	anthropicProviders := make([]database.AIProvider, 0, len(providers))
+	harnessProviders := make([]database.AIProvider, 0, len(providers))
 	for _, provider := range providers {
-		if provider.Type == database.AIProviderTypeAnthropic {
-			anthropicProviders = append(anthropicProviders, provider)
+		if provider.Type == database.AIProviderType(harness.ProviderType) {
+			harnessProviders = append(harnessProviders, provider)
 		}
 	}
-	configuredProviders, err := p.aiProviderConfigs(ctx, anthropicProviders)
+	configuredProviders, err := p.aiProviderConfigs(ctx, harnessProviders)
 	if err != nil {
-		return acpTurnConfig{}, xerrors.Errorf("configure anthropic providers: %w", err)
+		return acpTurnConfig{}, xerrors.Errorf("configure %s providers: %w", harness.ProviderType, err)
 	}
 	var fallbackKey, fallbackBaseURL string
 	for _, configured := range configuredProviders {
@@ -394,16 +394,17 @@ func (p *Server) acpTurnConfig(ctx context.Context, chat database.Chat, selectio
 	}
 	if fallbackKey == "" {
 		return acpTurnConfig{}, chaterror.WithClassification(
-			xerrors.New("no anthropic provider key configured"),
+			xerrors.Errorf("no %s provider key configured", harness.ProviderType),
 			chaterror.ClassifiedError{
-				Kind:    codersdk.ChatErrorKindMissingKey,
-				Message: "Claude Code requires a deployment Anthropic API key. An administrator must configure the Anthropic AI provider.",
+				Kind: codersdk.ChatErrorKindMissingKey,
+				Message: fmt.Sprintf("%s requires a deployment %s API key. An administrator must configure the %s AI provider.",
+					harness.DisplayName, harness.ProviderLabel, harness.ProviderLabel),
 			},
 		)
 	}
 	if selectedProviderID != uuid.Nil {
 		// The selected provider yielded no usable key; keep the model
-		// but borrow another Anthropic provider's credentials. A
+		// but borrow another same-type provider's credentials. A
 		// visible auth failure beats silently ignoring the selection.
 		p.logger.Warn(ctx, "acp turn: selected model's provider has no usable key, using fallback provider credentials",
 			slog.F("chat_id", chat.ID), slog.F("model_config_id", selection))
@@ -417,13 +418,13 @@ func (p *Server) acpTurnConfig(ctx context.Context, chat database.Chat, selectio
 // workspace has a succeeded start build, creating one as the chat
 // owner when the workspace is stopped. Agent reachability is handled
 // by the dial loop afterwards.
-func (s *taskStarter) ensureACPWorkspaceRunning(ctx context.Context, chat database.Chat, deadline time.Time) error {
+func (s *taskStarter) ensureACPWorkspaceRunning(ctx context.Context, harness chatacp.Harness, chat database.Chat, deadline time.Time) error {
 	if !chat.WorkspaceID.Valid {
 		return chaterror.WithClassification(
 			xerrors.New("runtime chat has no bound workspace"),
 			chaterror.ClassifiedError{
 				Kind:    codersdk.ChatErrorKindConfig,
-				Message: "This chat has no workspace bound to it, so the Claude Code runtime cannot run.",
+				Message: fmt.Sprintf("This chat has no workspace bound to it, so the %s runtime cannot run.", harness.DisplayName),
 			},
 		)
 	}
@@ -555,6 +556,7 @@ type ACPTransportFunc func(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	agent database.WorkspaceAgent,
+	harness chatacp.Harness,
 	env map[string]string,
 	readinessDeadline time.Time,
 ) (chatacp.Transport, func(), error)
@@ -566,6 +568,7 @@ func (s *taskStarter) sshACPTransport(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	agent database.WorkspaceAgent,
+	harness chatacp.Harness,
 	env map[string]string,
 	readinessDeadline time.Time,
 ) (chatacp.Transport, func(), error) {
@@ -573,13 +576,14 @@ func (s *taskStarter) sshACPTransport(
 	if err != nil {
 		return nil, nil, xerrors.Errorf("workspace ssh client: %w", err)
 	}
-	if err := s.acpAdapterPreflight(ctx, sshClient, agent.ID, readinessDeadline); err != nil {
+	if err := s.acpAdapterPreflight(ctx, sshClient, agent.ID, harness, readinessDeadline); err != nil {
 		_ = sshClient.Close()
 		return nil, nil, err
 	}
 	return &chatacp.SSHTransport{
-			Client: sshClient,
-			Env:    env,
+			Client:  sshClient,
+			Command: harness.Command,
+			Env:     env,
 		}, func() {
 			_ = sshClient.Close()
 		}, nil
@@ -593,10 +597,11 @@ func (s *taskStarter) acpAdapterPreflight(
 	ctx context.Context,
 	client *gossh.Client,
 	agentID uuid.UUID,
+	harness chatacp.Harness,
 	readinessDeadline time.Time,
 ) error {
 	probe := func(ctx context.Context) error {
-		return probeACPAdapter(ctx, s.opts.Clock, client)
+		return probeACPAdapter(ctx, s.opts.Clock, client, harness.Command)
 	}
 	scriptsSettled := func(ctx context.Context) bool {
 		agent, err := s.server.db.GetWorkspaceAgentByID(ctx, agentID)
@@ -611,7 +616,7 @@ func (s *taskStarter) acpAdapterPreflight(
 			return true
 		}
 	}
-	return waitForACPAdapter(ctx, s.opts.Clock, readinessDeadline, probe, scriptsSettled)
+	return waitForACPAdapter(ctx, s.opts.Clock, harness, readinessDeadline, probe, scriptsSettled)
 }
 
 // waitForACPAdapter probes for the adapter binary until it
@@ -624,6 +629,7 @@ func (s *taskStarter) acpAdapterPreflight(
 func waitForACPAdapter(
 	ctx context.Context,
 	clock quartz.Clock,
+	harness chatacp.Harness,
 	deadline time.Time,
 	probe func(context.Context) error,
 	scriptsSettled func(context.Context) bool,
@@ -644,8 +650,8 @@ func waitForACPAdapter(
 				xerrors.Errorf("acp adapter preflight: %w", err),
 				chaterror.ClassifiedError{
 					Kind: codersdk.ChatErrorKindConfig,
-					Message: "The workspace does not provide the Claude Code adapter (" + chatacp.DefaultAdapterCommand + "). " +
-						"The template configured for this runtime must preinstall it.",
+					Message: fmt.Sprintf("The workspace does not provide the %s adapter (%s). "+
+						"The template configured for this runtime must preinstall it.", harness.DisplayName, harness.Command),
 				},
 			)
 		}
@@ -661,7 +667,7 @@ func waitForACPAdapter(
 
 // probeACPAdapter checks once whether the adapter binary is on
 // PATH inside the workspace.
-func probeACPAdapter(ctx context.Context, clock quartz.Clock, client *gossh.Client) error {
+func probeACPAdapter(ctx context.Context, clock quartz.Clock, client *gossh.Client, command string) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return xerrors.Errorf("new ssh session: %w", err)
@@ -670,7 +676,7 @@ func probeACPAdapter(ctx context.Context, clock quartz.Clock, client *gossh.Clie
 
 	done := make(chan error, 1)
 	go func() {
-		done <- session.Run("command -v " + chatacp.DefaultAdapterCommand)
+		done <- session.Run("command -v " + command)
 	}()
 	timer := clock.NewTimer(acpPreflightTimeout, "chatworker", "chatacp-preflight")
 	defer timer.Stop()

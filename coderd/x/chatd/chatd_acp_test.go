@@ -208,7 +208,7 @@ func acpConfigOverridesWithEnv(t *testing.T, agent *chatacptest.FakeAgent, inspe
 		cfg.AgentConn = func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return mockConn, func() {}, nil
 		}
-		cfg.ACPTransport = func(_ context.Context, _ workspacesdk.AgentConn, _ database.WorkspaceAgent, env map[string]string, _ time.Time) (chatacp.Transport, func(), error) {
+		cfg.ACPTransport = func(_ context.Context, _ workspacesdk.AgentConn, _ database.WorkspaceAgent, _ chatacp.Harness, env map[string]string, _ time.Time) (chatacp.Transport, func(), error) {
 			inspectEnv(env)
 			return &chatacptest.PipeTransport{Agent: agent}, func() {}, nil
 		}
@@ -688,9 +688,11 @@ func TestClaudeCodeModelSelectionValidation(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		require.NoError(t, replica.ValidateClaudeCodeModelConfigID(ctx, anthropicCfg.ID))
-		require.ErrorIs(t, replica.ValidateClaudeCodeModelConfigID(ctx, openaiCfg.ID), chatd.ErrInvalidModelConfigID)
-		require.ErrorIs(t, replica.ValidateClaudeCodeModelConfigID(ctx, disabledCfg.ID), chatd.ErrInvalidModelConfigID)
-		require.ErrorIs(t, replica.ValidateClaudeCodeModelConfigID(ctx, uuid.New()), chatd.ErrInvalidModelConfigID)
+		harness, ok := chatacp.HarnessFor(codersdk.ChatRuntimeClaudeCode)
+		require.True(t, ok)
+		require.NoError(t, replica.ValidateACPModelConfigID(ctx, harness, anthropicCfg.ID))
+		require.ErrorIs(t, replica.ValidateACPModelConfigID(ctx, harness, openaiCfg.ID), chatd.ErrInvalidModelConfigID)
+		require.ErrorIs(t, replica.ValidateACPModelConfigID(ctx, harness, disabledCfg.ID), chatd.ErrInvalidModelConfigID)
+		require.ErrorIs(t, replica.ValidateACPModelConfigID(ctx, harness, uuid.New()), chatd.ErrInvalidModelConfigID)
 	})
 }
