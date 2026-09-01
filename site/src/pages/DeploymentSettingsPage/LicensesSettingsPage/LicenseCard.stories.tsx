@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { MockLicenseResponse } from "#/testHelpers/entities";
 
 import { LicenseCard } from "./LicenseCard";
@@ -157,13 +158,13 @@ export const Premium: Story = {
 			getIncludedProducts(canvas, "Workspaces + Agents"),
 		).not.toBeInTheDocument();
 		await expect(
-			getMetricValue(canvas, "Max concurrent chats"),
+			getMetricValue(canvas, "Max concurrent agents"),
 		).toHaveTextContent("5");
 		await expect(getMetricValue(canvas, "Agent hours used")).toHaveTextContent(
 			"137.3",
 		);
 		const upgrade = canvas.getByRole("link", { name: "Upgrade" });
-		await expect(upgrade).toHaveAttribute("href", "mailto:sales@coder.com");
+		await expect(upgrade).toHaveAttribute("href", CONTACT_SALES_LINK);
 		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
 		await expect(canvas.queryByText("AI Governance")).not.toBeInTheDocument();
 	},
@@ -226,14 +227,14 @@ export const PremiumWithAgentHours: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"12,264.3 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 		await expect(
-			canvas.getByRole("link", { name: "Manage usage" }),
-		).toBeInTheDocument();
+			canvas.queryByRole("link", { name: "Manage usage" }),
+		).not.toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: "Agent settings" }),
+			canvas.getByRole("link", { name: "View docs" }),
 		).toBeInTheDocument();
 	},
 };
@@ -263,7 +264,7 @@ export const PremiumWithAgentHoursSoftLimitReached: Story = {
 		await expect(canvas.getByRole("status")).toHaveTextContent(
 			"Approaching hours limit",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -289,7 +290,7 @@ export const PremiumWithAgentHoursExceeded: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"21,000.0 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -315,7 +316,7 @@ export const PremiumWithAgentHoursHardLimitExceeded: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"25,000.0 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"5",
 		);
 		await expect(canvas.getByRole("status")).toHaveTextContent("Limit reached");
@@ -392,7 +393,7 @@ export const PremiumWithUnlimitedAgentHours: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"Unlimited",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -449,7 +450,7 @@ export const ReplacedDuplicateAllocationShowsNoUsage: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"\u2014 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -488,7 +489,7 @@ export const SameIssuedAtDifferentTermEndShowsNoUsage: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"\u2014 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -808,6 +809,5 @@ export const EnterpriseDoesNotShowAIGovernanceAddOn: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
-		await expect(canvas.queryByText("AI add-on")).not.toBeInTheDocument();
 	},
 };

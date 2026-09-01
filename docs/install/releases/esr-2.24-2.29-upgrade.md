@@ -1,4 +1,6 @@
-# Upgrading from ESR 2.24 to 2.29
+---
+title: Upgrading from ESR 2.24 to 2.29
+---
 
 ## Guide Overview
 
@@ -22,11 +24,15 @@ templates. Over subsequent releases, Tasks matured significantly through UI
 refinement, improved reliability, and underlying task-status improvements in the
 server and database layers. By 2.29, Tasks were formally promoted to general
 availability, with full CLI support, a task-specific UI, and consistent
-visibility of task states across the dashboard. This transition establishes
-Tasks as a stable automation and job-execution primitive within
-Coder—particularly suited for long-running background operations like bug fixes,
-documentation generation, PR reviews, and testing/QA.For more information, read
-our documentation [here](https://coder.com/docs/ai-coder/tasks).
+visibility of task states across the dashboard. This transition established
+Tasks as a stable automation and job-execution primitive within Coder,
+particularly suited for long-running background operations like bug fixes,
+documentation generation, PR reviews, and testing/QA.
+
+> [!NOTE]
+> Coder Tasks has since been deprecated and is no longer available in current
+> releases. [Coder Agents](../../ai-coder/agents/index.md) is the long-term
+> replacement.
 
 ### AI Gateway
 

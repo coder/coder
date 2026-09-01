@@ -1,4 +1,6 @@
-# Run AI Coding Agents in Coder
+---
+title: Run AI Coding Agents in Coder
+---
 
 Learn how to run & manage coding agents with Coder, both alongside existing
 workspaces and for background task execution.
@@ -48,8 +50,5 @@ Coder deployment. It includes:
 - [Agent Firewall](./agent-firewall/index.md) for process-level network and
   command policies that restrict what agents can reach and do inside a
   workspace.
-- Expanded Agent Workspace Build allowances for teams running AI-driven
-  background work at scale.
-
 [Learn more about AI Governance](./ai-governance.md) for use cases, entitlements,
 and how to enable it in your deployment.

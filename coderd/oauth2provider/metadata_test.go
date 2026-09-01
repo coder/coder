@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -42,6 +41,14 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	require.Contains(t, metadata.GrantTypesSupported, codersdk.OAuth2ProviderGrantTypeAuthorizationCode)
 	require.Contains(t, metadata.GrantTypesSupported, codersdk.OAuth2ProviderGrantTypeRefreshToken)
 	require.Contains(t, metadata.CodeChallengeMethodsSupported, codersdk.OAuth2PKCECodeChallengeMethodS256)
+	// Pinned to a literal, not to the function the handler itself returns, which
+	// would hold for whatever that function said. "none" advertises secretless
+	// registration to public clients (RFC 8414 §2).
+	require.ElementsMatch(t, []codersdk.OAuth2TokenEndpointAuthMethod{
+		codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost,
+		codersdk.OAuth2TokenEndpointAuthMethodNone,
+	}, metadata.TokenEndpointAuthMethodsSupported)
 	// Supported scopes are published from the curated catalog
 	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)
 }
@@ -66,12 +73,12 @@ func TestGetAuthorizationServerMetadata_DCREnabled(t *testing.T) {
 	}{
 		{
 			name:                     "EnabledAdvertisesRegistrationEndpoint",
-			configureDCR:             ptr.Ref(true),
+			configureDCR:             new(true),
 			wantRegistrationEndpoint: true,
 		},
 		{
 			name:                     "DisabledOmitsRegistrationEndpoint",
-			configureDCR:             ptr.Ref(false),
+			configureDCR:             new(false),
 			wantRegistrationEndpoint: false,
 		},
 		{

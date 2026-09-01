@@ -1,15 +1,20 @@
 import type { FC, ReactNode } from "react";
-import { NavLink } from "react-router";
+import { Link, NavLink, useMatch } from "react-router";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
-import type { Permissions } from "#/modules/permissions";
+import {
+	canAccessAnyChatModelConfig,
+	type Permissions,
+} from "#/modules/permissions";
 import { cn } from "#/utils/cn";
 
 interface AISettingsSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
+	canAccessOrganizationModels?: boolean;
+	canShareOrganizationMCPServers?: boolean;
 }
 
 const SubNavItem: FC<{ href: string; children?: ReactNode }> = ({
@@ -31,8 +36,31 @@ const SubNavItem: FC<{ href: string; children?: ReactNode }> = ({
 	</NavLink>
 );
 
+const ModelsSidebarNavItem: FC = () => {
+	const legacyMatch = useMatch("/ai/settings/models/*");
+	const organizationMatch = useMatch(
+		"/ai/settings/organizations/:organization/models/*",
+	);
+	const isActive = legacyMatch !== null || organizationMatch !== null;
+
+	return (
+		<Link
+			to="/ai/settings/models"
+			aria-current={isActive ? "page" : undefined}
+			className={cn(
+				"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
+				isActive && "font-semibold text-content-primary",
+			)}
+		>
+			Models
+		</Link>
+	);
+};
+
 const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 	permissions,
+	canAccessOrganizationModels = false,
+	canShareOrganizationMCPServers = false,
 }) => {
 	return (
 		<BaseSidebar>
@@ -52,25 +80,50 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 						Providers
 					</SidebarNavItem>
 				)}
+				{(canAccessAnyChatModelConfig(permissions) ||
+					canAccessOrganizationModels) && <ModelsSidebarNavItem />}
+				{(permissions.editDeploymentConfig || canAccessOrganizationModels) && (
+					<SidebarNavItem href="/ai/settings/coder-agents">
+						Coder Agents
+					</SidebarNavItem>
+				)}
 				{permissions.editDeploymentConfig && (
-					<>
-						<SidebarNavItem href="/ai/settings/coder-agents">
-							Coder Agents
-						</SidebarNavItem>
+					<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+						<SubNavItem href="/ai/settings/mcp-servers">MCP servers</SubNavItem>
+						{permissions.updateAnyTemplate && (
+							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
+						)}
+						<SubNavItem href="/ai/settings/instructions">
+							Instructions
+						</SubNavItem>
+						<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
+					</div>
+				)}
+				{!permissions.editDeploymentConfig &&
+					(permissions.viewAnyMCPServerConfigs ||
+						permissions.createAnyMCPServerConfig ||
+						permissions.updateAnyMCPServerConfig ||
+						permissions.deleteAnyMCPServerConfig ||
+						canShareOrganizationMCPServers) && (
 						<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
-							<SubNavItem href="/ai/settings/models">Models</SubNavItem>
-							<SubNavItem href="/ai/settings/mcp-servers">
+							<SubNavItem
+								href={
+									permissions.viewAnyMCPServerConfigs ||
+									permissions.updateAnyMCPServerConfig ||
+									permissions.deleteAnyMCPServerConfig ||
+									canShareOrganizationMCPServers
+										? "/ai/settings/mcp-servers"
+										: "/ai/settings/mcp-servers/add"
+								}
+							>
 								MCP servers
 							</SubNavItem>
-							{permissions.updateTemplates && (
-								<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
-							)}
-							<SubNavItem href="/ai/settings/instructions">
-								Instructions
-							</SubNavItem>
-							<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
 						</div>
-					</>
+					)}
+				{!permissions.editDeploymentConfig && permissions.updateAnyTemplate && (
+					<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+						<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
+					</div>
 				)}
 			</div>
 		</BaseSidebar>

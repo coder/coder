@@ -1,6 +1,7 @@
 import { type FormikContextType, getIn } from "formik";
 import { InfoIcon } from "lucide-react";
-import { type FC, Fragment, type ReactNode } from "react";
+import { type FC, Fragment, type ReactNode, useId } from "react";
+import { useQuery } from "react-query";
 import {
 	type FieldSchema,
 	getVisibleGeneralFields,
@@ -9,6 +10,7 @@ import {
 	snakeToCamel,
 	toFormFieldKey,
 } from "#/api/chatModelOptions";
+import { aiModelPrices } from "#/api/queries/aiProviders";
 import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
@@ -23,14 +25,23 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDebouncedValue } from "#/hooks/debounce";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { cn } from "#/utils/cn";
+import { microsToDollars } from "#/utils/currency";
+import {
+	findKnownModelByCanonicalId,
+	findKnownModelByExactAlias,
+	formatPricePerMillionTokens,
+} from "./knownModels";
 import {
 	isFieldConflictDisabled,
 	isVisibleWhenSatisfied,
@@ -314,7 +325,7 @@ const SegmentedField: FC<
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"flex w-full items-center gap-0.75 rounded-lg border border-solid border-border p-2",
+					"flex w-full items-center rounded-lg border border-solid border-border p-2",
 					fieldError && "border-content-destructive",
 				)}
 			>
@@ -328,7 +339,7 @@ const SegmentedField: FC<
 							aria-checked={isActive}
 							disabled={disabled}
 							className={cn(
-								"flex h-6 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+								"flex h-6 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 								isActive
 									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
@@ -641,6 +652,137 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 							fieldKey={fieldKey}
 							errorKey={camelName}
 						/>
+					</div>
+				);
+			})}
+		</>
+	);
+};
+
+type ModelCosts = {
+	inputCost?: number;
+	outputCost?: number;
+	cacheReadCost?: number;
+	cacheWriteCost?: number;
+};
+
+const priceEstimateFields: ReadonlyArray<[string, keyof ModelCosts]> = [
+	["Input", "inputCost"],
+	["Output", "outputCost"],
+	["Cache read", "cacheReadCost"],
+	["Cache write", "cacheWriteCost"],
+];
+
+const priceOrUndefined = (micros: number | null): number | undefined =>
+	micros === null ? undefined : microsToDollars(micros);
+
+export const PricingEstimateFields: FC<{
+	provider: string;
+	model: string;
+}> = ({ provider, model }) => {
+	const fieldIdPrefix = useId();
+	const aibridgeEntitled = Boolean(useFeatureVisibility().aibridge);
+	const normalizedProvider = normalizeProvider(provider);
+	const trimmedModel = model.trim();
+	// Debounce the pair so the lookup never mixes a new provider with the
+	// previous model identifier.
+	const debouncedLookup = useDebouncedValue(
+		{ provider: normalizedProvider, model: trimmedModel },
+		500,
+	);
+	const entitledWithProvider = aibridgeEntitled && normalizedProvider !== "";
+	const livePricesQuery = useQuery({
+		...aiModelPrices(debouncedLookup.provider, debouncedLookup.model),
+		enabled: entitledWithProvider && debouncedLookup.model !== "",
+	});
+	const debouncePending =
+		entitledWithProvider &&
+		(debouncedLookup.provider !== normalizedProvider ||
+			debouncedLookup.model !== trimmedModel);
+	const livePriceLoading =
+		debouncePending ||
+		(livePricesQuery.fetchStatus !== "idle" && !livePricesQuery.isSuccess);
+	const livePrice = debouncePending ? undefined : livePricesQuery.data?.[0];
+
+	const knownModel =
+		findKnownModelByCanonicalId(normalizedProvider, trimmedModel) ??
+		findKnownModelByExactAlias(normalizedProvider, trimmedModel);
+
+	// A price book row is the deployment's own pricing for the model, so it
+	// wins outright. A null field on that row means the category is unpriced
+	// (the cost engine bills it as zero), not that the catalog should fill it
+	// in. The catalog is only the fallback when the model has no row at all.
+	const costs: ModelCosts | undefined = livePrice
+		? {
+				inputCost: priceOrUndefined(livePrice.input_price),
+				outputCost: priceOrUndefined(livePrice.output_price),
+				cacheReadCost: priceOrUndefined(livePrice.cache_read_price),
+				cacheWriteCost: priceOrUndefined(livePrice.cache_write_price),
+			}
+		: knownModel;
+
+	if (!debouncePending && livePricesQuery.isError) {
+		return (
+			<p className="m-0 flex items-center gap-1.5 text-xs text-content-secondary sm:col-span-full">
+				<InfoIcon className="size-3.5 shrink-0" />
+				Couldn't load pricing.
+			</p>
+		);
+	}
+
+	if (
+		!livePriceLoading &&
+		(costs === undefined ||
+			priceEstimateFields.every(([, key]) => costs[key] === undefined))
+	) {
+		return (
+			<p className="m-0 text-xs text-content-secondary sm:col-span-full">
+				No pricing data for this model.
+			</p>
+		);
+	}
+
+	return (
+		<>
+			{priceEstimateFields.map(([label, key]) => {
+				const cost = costs?.[key];
+				const fieldId = `${fieldIdPrefix}-${label.toLowerCase().replace(/\s+/g, "-")}`;
+				const price =
+					cost === undefined ? undefined : formatPricePerMillionTokens(cost);
+				return (
+					<div key={label} className="flex min-w-0 flex-col gap-1.5">
+						<FieldLabel htmlFor={fieldId} label={label} />
+						<InputGroup className="cursor-not-allowed bg-surface-secondary">
+							<InputGroupAddon align="inline-start">
+								{price?.belowThreshold ? "<$" : "$"}
+							</InputGroupAddon>
+							{livePriceLoading ? (
+								<Skeleton
+									aria-label={`${label} price loading`}
+									className="mx-3 h-2 w-2/5 flex-1 rounded-full"
+								/>
+							) : (
+								<InputGroupInput
+									id={fieldId}
+									className="min-w-0 cursor-not-allowed text-content-secondary"
+									value={price?.value ?? ""}
+									aria-describedby={
+										price?.belowThreshold ? `${fieldId}-threshold` : undefined
+									}
+									readOnly
+								/>
+							)}
+							{price?.belowThreshold && !livePriceLoading && (
+								<span id={`${fieldId}-threshold`} className="sr-only">
+									{`less than $${price.value} USD per million tokens`}
+								</span>
+							)}
+							<InputGroupAddon align="inline-end">
+								<span className="text-xs text-content-disabled">
+									USD/1M tokens
+								</span>
+							</InputGroupAddon>
+						</InputGroup>
 					</div>
 				);
 			})}

@@ -1006,10 +1006,10 @@ func buildReplacementLines(matched, searchLines []string, replace, forcedEnding 
 			case prefix > 0 && suffix > 0:
 				prefixRLead := leadOnly(repLines[prefix-1])
 				suffixRLead := leadOnly(repLines[len(repLines)-suffix])
-				switch {
-				case rLeadForI == suffixRLead:
+				switch rLeadForI {
+				case suffixRLead:
 					refIdx = len(searchLines) - suffix
-				case rLeadForI == prefixRLead:
+				case prefixRLead:
 					refIdx = prefix - 1
 				default:
 					refIdx = len(searchLines) - suffix
@@ -1081,19 +1081,43 @@ func buildReplacementLines(matched, searchLines []string, replace, forcedEnding 
 	return b.String()
 }
 
-// fuzzyReplace attempts to find `search` inside `content` and replace it
-// with `replace`. It uses a cascading match strategy inspired by
-// openai/codex's apply_patch:
+// errOldTextAmbiguous is returned when the old_text matches more
+// than one location and replace_all is false. Shared by the
+// byte-level pass and the line-level passes so both spell the
+// remediation identically.
+const errOldTextAmbiguous = "old_text matches %d occurrences " +
+	"(expected exactly 1). Include more surrounding " +
+	"context to make the match unique, or set " +
+	"replace_all to true"
+
+// errOldTextNotFoundPrefix is the shared lead of every not-found
+// message; the per-pass tails below complete it. Rewording the lead
+// touches this one constant.
+const errOldTextNotFoundPrefix = "old_text not found in file. Verify that old_text " +
+	"matches the file content exactly, including whitespace"
+
+// errOldTextNotFound is the leading sentence returned when all match
+// passes miss; diagnostic hints are appended after it.
+const errOldTextNotFound = errOldTextNotFoundPrefix + " and indentation"
+
+// errOldTextNotFoundLineEndings is the ending-rewrite variant, used
+// when the caller signaled intent to change line endings and the
+// exact pass missed.
+const errOldTextNotFoundLineEndings = errOldTextNotFoundPrefix + ", indentation, and line endings"
+
+// fuzzyReplace attempts to find the edit's old_text inside content
+// and replace it with new_text. It uses a cascading match strategy
+// inspired by openai/codex's apply_patch:
 //
 //  1. Exact substring match (byte-for-byte).
 //  2. Line-by-line match ignoring trailing whitespace on each line.
 //  3. Line-by-line match ignoring all leading/trailing whitespace
 //     (indentation-tolerant).
 //
-// When edit.ReplaceAll is false (the default), the search string must
-// match exactly one location. If multiple matches are found, an error
-// is returned asking the caller to include more context or set
-// replace_all.
+// When edit.ReplaceAll is false (the default), the old_text must
+// match exactly one location. If multiple matches are found, an
+// error is returned asking the caller to include more context or
+// set replace_all.
 //
 // When a fuzzy match is found (passes 2 or 3), buildReplacementLines
 // emits the spliced output by per-position substitution at
@@ -1103,8 +1127,8 @@ func buildReplacementLines(matched, searchLines []string, replace, forcedEnding 
 // lines) while letting the caller drive deliberate rewrites of
 // leading whitespace or endings.
 func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
-	search := edit.Search
-	replace := edit.Replace
+	search := edit.OldText
+	replace := edit.NewText
 
 	// An empty search string has no meaningful interpretation: it
 	// matches at every byte position, which means the caller has not
@@ -1112,7 +1136,7 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	// replace_all=true can't silently inject the replacement between
 	// every byte.
 	if search == "" {
-		return "", xerrors.New("search string must not be empty; include the " +
+		return "", xerrors.New("old_text must not be empty; include the " +
 			"text you want to match")
 	}
 
@@ -1159,10 +1183,7 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 		}
 		count := strings.Count(content, search)
 		if count > 1 {
-			return "", xerrors.Errorf("search string matches %d occurrences "+
-				"(expected exactly 1). Include more surrounding "+
-				"context to make the match unique, or set "+
-				"replace_all to true", count)
+			return "", xerrors.Errorf(errOldTextAmbiguous, count)
 		}
 		// Exactly one match.
 		return strings.Replace(content, search, pass1Replace, 1), nil
@@ -1171,9 +1192,7 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	if callerEndingIntent {
 		// Intent signaled but pass 1 missed; reject rather than let
 		// pass 2's CRLF/LF interchange bridge a mismatched search.
-		return "", xerrors.New("search string not found in file. Verify the search " +
-			"string matches the file content exactly, including whitespace, " +
-			"indentation, and line endings")
+		return "", xerrors.New(errOldTextNotFoundLineEndings)
 	}
 
 	trimRight := func(a, b string) bool {
@@ -1201,9 +1220,7 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 		return result, err
 	}
 
-	msg := "search string not found in file. Verify the search " +
-		"string matches the file content exactly, including whitespace " +
-		"and indentation"
+	msg := errOldTextNotFound
 	// miscount takes precedence: a near-match means the search is the
 	// model's typo'd new text, not a swapped field. Emitting both can
 	// trick an agent into following the inversion hint and corrupting
@@ -1222,8 +1239,8 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 // truncation with " and N more".
 const maxHintLines = 5
 
-// inversionHint detects the case where the caller swapped `search`
-// and `replace`: search did not match but replace appears in the file.
+// inversionHint detects the case where the caller swapped `old_text`
+// and `new_text`: old_text did not match but new_text appears in the file.
 func inversionHint(
 	content string,
 	contentLines []string,
@@ -1246,8 +1263,8 @@ func inversionHint(
 		return ""
 	}
 	return fmt.Sprintf(
-		"Did you swap %q and %q? Your replace string appears at line %s",
-		"search", "replace", formatLineList(lines),
+		"Did you swap %q and %q? Your new_text string appears at line %s",
+		"old_text", "new_text", formatLineList(lines),
 	)
 }
 
@@ -1367,7 +1384,7 @@ func miscountHint(contentLines, searchLines []string) string {
 // formatMiscount renders one miscount candidate group.
 func formatMiscount(sCount int, r rune, cands []candidate) string {
 	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "Your search has %d %q (U+%04X); the file has ", sCount, string(r), r)
+	_, _ = fmt.Fprintf(&b, "Your old_text has %d %q (U+%04X); the file has ", sCount, string(r), r)
 	shown := min(len(cands), maxHintLines)
 	for i := 0; i < shown; i++ {
 		if i > 0 {
@@ -1505,10 +1522,7 @@ func fuzzyReplaceLines(
 
 	if !replaceAll {
 		if count := countLineMatches(contentLines, searchLines, eq); count > 1 {
-			return "", true, xerrors.Errorf("search string matches %d occurrences "+
-				"(expected exactly 1). Include more surrounding "+
-				"context to make the match unique, or set "+
-				"replace_all to true", count)
+			return "", true, xerrors.Errorf(errOldTextAmbiguous, count)
 		}
 		var b strings.Builder
 		for _, l := range contentLines[:start] {

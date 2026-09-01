@@ -1,14 +1,29 @@
 import { QueryClient, QueryObserver } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { authorizationKey } from "#/api/queries/authCheck";
+import {
+	organizations,
+	organizationsPermissions,
+} from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatWatchEventKinds } from "#/api/typesGenerated";
 import {
 	ERROR_STATUSES,
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatMessage,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
+import {
+	MockChatModelACL,
+	MockChatModelACLAvailable,
+	MockMCPServerConfigACL,
+	MockMCPServerConfigACLAvailable,
+} from "#/testHelpers/entities";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
@@ -36,11 +51,18 @@ import {
 	chatListFamilyKey,
 	chatListKey,
 	chatMessagesKey,
+	chatModel,
+	chatModelACL,
+	chatModelACLAvailable,
+	chatModelACLAvailableKey,
+	chatModelACLKey,
+	chatModelKey,
 	chatPromptsKey,
 	chatSearch,
 	chatsByWorkspace,
 	createChat,
 	createChatMessage,
+	deleteChatModel,
 	deleteChatQueuedMessage,
 	editChatMessage,
 	getChatListQueryString,
@@ -57,9 +79,16 @@ import {
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	mcpServerConfigACL,
+	mcpServerConfigACLAvailable,
+	mcpServerConfigACLAvailableKey,
+	mcpServerConfigACLKey,
+	mcpServerConfigKey,
+	mcpServerConfigsKey,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	openChat,
+	organizationChatModelsKey,
 	patchChatEntity,
 	patchChatMessages,
 	pinChat,
@@ -80,12 +109,14 @@ import {
 	toChatListParams,
 	unarchiveChat,
 	unpinChat,
-	updateChatAdvisorConfig,
+	updateChatModel,
+	updateChatModelACL,
 	updateChatPlanMode,
 	updateChatTitle,
 	updateChatWorkspace,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
+	updateMCPServerConfigACL,
 	upsertChatMessages,
 } from "./chats";
 
@@ -107,6 +138,15 @@ vi.mock("#/api/api", () => ({
 			updateChatAdvisorConfig: vi.fn(),
 			getChatACL: vi.fn(),
 			updateChatACL: vi.fn(),
+			getChatModel: vi.fn(),
+			getChatModelACL: vi.fn(),
+			getChatModelACLAvailable: vi.fn(),
+			updateChatModelACL: vi.fn(),
+			getMCPServerConfigACL: vi.fn(),
+			getMCPServerConfigACLAvailable: vi.fn(),
+			updateMCPServerConfigACL: vi.fn(),
+			updateChatModel: vi.fn(),
+			deleteChatModel: vi.fn(),
 		},
 	},
 }));
@@ -209,13 +249,244 @@ const observeChatWithDeferredFirstFetch = (
 	};
 };
 
+describe("chat model query factories", () => {
+	const organizationId = "organization-1";
+	const otherOrganizationId = "organization-2";
+	const modelId = MockChatModel.id;
+
+	it("includes the organization in the item key and request", async () => {
+		vi.mocked(API.experimental.getChatModel).mockResolvedValue(MockChatModel);
+
+		const query = chatModel(organizationId, modelId);
+
+		expect(query.queryKey).toEqual(chatModelKey(organizationId, modelId));
+		await expect(query.queryFn()).resolves.toEqual(MockChatModel);
+		expect(API.experimental.getChatModel).toHaveBeenCalledWith(
+			organizationId,
+			modelId,
+		);
+	});
+
+	it("scopes model ACL candidates by organization, model, and options", async () => {
+		const options = { q: "alice@example.com", limit: 25 };
+		const otherOptions = { q: "bob@example.com", limit: 25 };
+		vi.mocked(API.experimental.getChatModelACLAvailable).mockResolvedValue(
+			MockChatModelACLAvailable,
+		);
+
+		const query = chatModelACLAvailable(organizationId, modelId, options);
+
+		expect(query.queryKey).toEqual(
+			chatModelACLAvailableKey(organizationId, modelId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(otherOrganizationId, modelId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(organizationId, "other-model", options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(organizationId, modelId, otherOptions),
+		);
+		await expect(query.queryFn()).resolves.toEqual(MockChatModelACLAvailable);
+		expect(API.experimental.getChatModelACLAvailable).toHaveBeenCalledWith(
+			organizationId,
+			modelId,
+			options,
+		);
+	});
+
+	it("gets and sparsely updates an organization-scoped model ACL", async () => {
+		const req = { user_roles: { "user-1": "read" as const } };
+		vi.mocked(API.experimental.getChatModelACL).mockResolvedValue(
+			MockChatModelACL,
+		);
+		vi.mocked(API.experimental.updateChatModelACL).mockResolvedValue();
+
+		const query = chatModelACL(organizationId, modelId);
+		expect(query.queryKey).toEqual(chatModelACLKey(organizationId, modelId));
+		await expect(query.queryFn()).resolves.toEqual(MockChatModelACL);
+		expect(API.experimental.getChatModelACL).toHaveBeenCalledWith(
+			organizationId,
+			modelId,
+		);
+
+		const queryClient = createTestQueryClient();
+		const keys = [
+			chatModelACLKey(organizationId, modelId),
+			chatModelKey(organizationId, modelId),
+			organizationChatModelsKey(organizationId),
+			["authorization", "models"],
+			["organizations", [organizationId], "permissions"],
+		] as const;
+		const unaffectedKeys = [
+			["organizations"],
+			["organizations", [otherOrganizationId], "permissions"],
+		] as const;
+		for (const key of [...keys, ...unaffectedKeys]) {
+			queryClient.setQueryData(key, {});
+		}
+		const variables = { organizationId, modelId, req };
+		const mutation = updateChatModelACL(queryClient);
+
+		await expect(mutation.mutationFn(variables)).resolves.toBeUndefined();
+		expect(API.experimental.updateChatModelACL).toHaveBeenCalledWith(
+			organizationId,
+			modelId,
+			req,
+		);
+		await mutation.onSuccess(undefined, variables);
+		for (const key of keys) {
+			expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+		}
+		for (const key of unaffectedKeys) {
+			expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+		}
+	});
+
+	it("scopes update variables and invalidation to the organization", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(organizationChatModelsKey(organizationId), {});
+		queryClient.setQueryData(
+			organizationChatModelsKey(otherOrganizationId),
+			{},
+		);
+		vi.mocked(API.experimental.updateChatModel).mockResolvedValue(
+			MockChatModel,
+		);
+		const variables = {
+			organizationId,
+			modelId,
+			req: { enabled: true },
+		};
+		const mutation = updateChatModel(queryClient);
+
+		await expect(mutation.mutationFn(variables)).resolves.toEqual(
+			MockChatModel,
+		);
+		expect(API.experimental.updateChatModel).toHaveBeenCalledWith(
+			organizationId,
+			modelId,
+			variables.req,
+		);
+		await mutation.onSuccess(MockChatModel, variables);
+		expect(
+			queryClient.getQueryState(organizationChatModelsKey(organizationId))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(organizationChatModelsKey(otherOrganizationId))
+				?.isInvalidated,
+		).toBe(false);
+	});
+
+	it("passes organization and model IDs to delete", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.deleteChatModel).mockResolvedValue();
+		const mutation = deleteChatModel(queryClient);
+
+		await mutation.mutationFn({ organizationId, modelId });
+
+		expect(API.experimental.deleteChatModel).toHaveBeenCalledWith(
+			organizationId,
+			modelId,
+		);
+	});
+});
+
+describe("MCP server ACL query factories", () => {
+	const organization = "organization-1";
+	const otherOrganization = "organization-2";
+	const serverId = MockMCPServerConfig.id;
+
+	it("scopes ACL candidates by organization, server, and options", async () => {
+		const options = { q: "alice@example.com", limit: 25 };
+		const otherOptions = { q: "bob@example.com", limit: 25 };
+		vi.mocked(
+			API.experimental.getMCPServerConfigACLAvailable,
+		).mockResolvedValue(MockMCPServerConfigACLAvailable);
+
+		const query = mcpServerConfigACLAvailable(organization, serverId, options);
+
+		expect(query.queryKey).toEqual(
+			mcpServerConfigACLAvailableKey(organization, serverId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			mcpServerConfigACLAvailableKey(otherOrganization, serverId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			mcpServerConfigACLAvailableKey(organization, "other-server", options),
+		);
+		expect(query.queryKey).not.toEqual(
+			mcpServerConfigACLAvailableKey(organization, serverId, otherOptions),
+		);
+		await expect(query.queryFn()).resolves.toEqual(
+			MockMCPServerConfigACLAvailable,
+		);
+		expect(
+			API.experimental.getMCPServerConfigACLAvailable,
+		).toHaveBeenCalledWith(organization, serverId, options);
+	});
+
+	it("gets and sparsely updates an organization-scoped ACL", async () => {
+		const req: TypesGen.UpdateMCPServerConfigACLRequest = {
+			user_roles: { "user-1": "read" },
+		};
+		vi.mocked(API.experimental.getMCPServerConfigACL).mockResolvedValue(
+			MockMCPServerConfigACL,
+		);
+		vi.mocked(API.experimental.updateMCPServerConfigACL).mockResolvedValue();
+
+		const query = mcpServerConfigACL(organization, serverId);
+		expect(query.queryKey).toEqual(
+			mcpServerConfigACLKey(organization, serverId),
+		);
+		await expect(query.queryFn()).resolves.toEqual(MockMCPServerConfigACL);
+		expect(API.experimental.getMCPServerConfigACL).toHaveBeenCalledWith(
+			organization,
+			serverId,
+		);
+
+		const queryClient = createTestQueryClient();
+		const keys = [
+			mcpServerConfigACLKey(organization, serverId),
+			mcpServerConfigKey(organization, serverId),
+			mcpServerConfigsKey(organization),
+			[...authorizationKey, "mcp-servers"],
+			organizationsPermissions([organization]).queryKey,
+		] as const;
+		const unaffectedKeys = [
+			organizations().queryKey,
+			organizationsPermissions([otherOrganization]).queryKey,
+		] as const;
+		for (const key of [...keys, ...unaffectedKeys]) {
+			queryClient.setQueryData(key, {});
+		}
+		const variables = { organization, id: serverId, req };
+		const mutation = updateMCPServerConfigACL(queryClient);
+
+		await expect(mutation.mutationFn(variables)).resolves.toBeUndefined();
+		expect(API.experimental.updateMCPServerConfigACL).toHaveBeenCalledWith(
+			organization,
+			serverId,
+			req,
+		);
+		await mutation.onSuccess(undefined, variables);
+		for (const key of keys) {
+			expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+		}
+		for (const key of unaffectedKeys) {
+			expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+		}
+	});
+});
+
 describe("advisor config query factories", () => {
 	it("builds the advisor config query and delegates to the API", async () => {
 		const advisorConfig: TypesGen.AdvisorConfig = {
 			enabled: true,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			model_config_id: "00000000-0000-0000-0000-000000000000",
 		};
 		vi.mocked(API.experimental.getChatAdvisorConfig).mockResolvedValue(
 			advisorConfig,
@@ -226,33 +497,6 @@ describe("advisor config query factories", () => {
 		expect(query.queryKey).toEqual(chatAdvisorConfigKey);
 		await expect(query.queryFn()).resolves.toEqual(advisorConfig);
 		expect(API.experimental.getChatAdvisorConfig).toHaveBeenCalled();
-	});
-
-	it("sends the update request and invalidates the advisor config cache", async () => {
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatAdvisorConfigKey, {
-			enabled: false,
-			max_uses_per_run: 0,
-			max_output_tokens: 0,
-			model_config_id: "",
-		} as TypesGen.AdvisorConfig);
-
-		const req: TypesGen.UpdateAdvisorConfigRequest = {
-			enabled: true,
-			max_uses_per_run: 5,
-			max_output_tokens: 2048,
-			model_config_id: "00000000-0000-0000-0000-000000000000",
-		};
-		vi.mocked(API.experimental.updateChatAdvisorConfig).mockResolvedValue();
-
-		const mutation = updateChatAdvisorConfig(queryClient);
-		await mutation.mutationFn(req);
-		expect(API.experimental.updateChatAdvisorConfig).toHaveBeenCalledWith(req);
-
-		await mutation.onSuccess?.();
-		expect(queryClient.getQueryState(chatAdvisorConfigKey)?.isInvalidated).toBe(
-			true,
-		);
 	});
 });
 
@@ -4278,25 +4522,25 @@ describe("archive mutation entity retention", () => {
 	it.each([
 		{ name: "archiveChat", factory: archiveChat, archived: true },
 		{ name: "unarchiveChat", factory: unarchiveChat, archived: false },
-	])("$name onSuccess never removes the entity family", ({
-		factory,
-		archived,
-	}) => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		queryClient.setQueryData(
-			chatEntityKey(chatId),
-			makeChat(chatId, { archived: !archived }),
-		);
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
+	])(
+		"$name onSuccess never removes the entity family",
+		({ factory, archived }) => {
+			const queryClient = createTestQueryClient();
+			const chatId = "chat-1";
+			queryClient.setQueryData(
+				chatEntityKey(chatId),
+				makeChat(chatId, { archived: !archived }),
+			);
+			queryClient.setQueryData(chatMessagesKey(chatId), []);
 
-		const mutation = factory(queryClient);
-		mutation.onSuccess(undefined, chatId);
-		mutation.onSettled(undefined, undefined, chatId);
+			const mutation = factory(queryClient);
+			mutation.onSuccess(undefined, chatId);
+			mutation.onSettled(undefined, undefined, chatId);
 
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
-		).toMatchObject({ archived });
-		expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
-	});
+			expect(
+				queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
+			).toMatchObject({ archived });
+			expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
+		},
+	);
 });

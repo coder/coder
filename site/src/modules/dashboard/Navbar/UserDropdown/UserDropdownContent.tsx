@@ -2,8 +2,9 @@ import {
 	CircleUserIcon,
 	CopyIcon,
 	LogOutIcon,
-	MonitorDownIcon,
+	MonitorIcon,
 	SquareArrowOutUpRightIcon,
+	TerminalIcon,
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
@@ -19,7 +20,30 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useClipboard } from "#/hooks/useClipboard";
+import { supportsCoderDesktop } from "#/utils/platform";
 import { SupportIcon } from "../SupportIcon";
+
+const CODER_DESKTOP_DOCS_URL = "https://coder.com/docs/user-guides/desktop";
+
+const CodernautsSVG = () => (
+	<svg
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		strokeWidth="1.5"
+		strokeLinecap="round"
+		strokeLinejoin="round"
+		xmlns="http://www.w3.org/2000/svg"
+	>
+		<path d="M7,10 L5,15 L19,15 L17,10 Z" />
+		<path d="M8,10 L9,7 L11,5 L13,5 L15,7 L16,10" />
+		<line x1="6" y1="15" x2="4" y2="19" />
+		<line x1="2" y1="19" x2="6" y2="19" />
+		<line x1="18" y1="15" x2="20" y2="19" />
+		<line x1="18" y1="19" x2="22" y2="19" />
+		<path d="M10,15 L10.5,18 L13.5,18 L14,15" />
+	</svg>
+);
 
 interface UserDropdownContentProps {
 	user: TypesGen.User;
@@ -29,6 +53,8 @@ interface UserDropdownContentProps {
 	profileExtra?: ReactNode;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
+	/** Premium trial entry, rendered above the build info. */
+	trialCta?: ReactNode;
 }
 
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
@@ -37,6 +63,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	profileExtra,
 	supportLinks,
 	onSignOut,
+	trialCta,
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 
@@ -52,9 +79,17 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			</DropdownMenuItem>
 			{profileExtra}
 			<DropdownMenuSeparator />
+			{supportsCoderDesktop() && (
+				<DropdownMenuItem asChild>
+					<a href={CODER_DESKTOP_DOCS_URL} target="_blank" rel="noreferrer">
+						<MonitorIcon />
+						<span>Install Coder Desktop</span>
+					</a>
+				</DropdownMenuItem>
+			)}
 			<DropdownMenuItem asChild>
 				<Link to="/install">
-					<MonitorDownIcon />
+					<TerminalIcon />
 					<span>Install CLI</span>
 				</Link>
 			</DropdownMenuItem>
@@ -83,26 +118,11 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			)}
 			<DropdownMenuItem asChild>
 				<Link to="/coder-cup">
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						strokeWidth="1.5"
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<path d="M7,10 L5,15 L19,15 L17,10 Z" />
-						<path d="M8,10 L9,7 L11,5 L13,5 L15,7 L16,10" />
-						<line x1="6" y1="15" x2="4" y2="19" />
-						<line x1="2" y1="19" x2="6" y2="19" />
-						<line x1="18" y1="15" x2="20" y2="19" />
-						<line x1="18" y1="19" x2="22" y2="19" />
-						<path d="M10,15 L10.5,18 L13.5,18 L14,15" />
-					</svg>
+					<CodernautsSVG />
 					<span>Codernauts</span>
 				</Link>
-			</DropdownMenuItem>{" "}
+			</DropdownMenuItem>
+			{trialCta}
 			<DropdownMenuSeparator />
 			<Tooltip disableHoverableContent>
 				<TooltipTrigger asChild>
@@ -114,7 +134,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 							rel="noreferrer"
 						>
 							<span className="flex-1">{buildInfo?.version}</span>
-							<SquareArrowOutUpRightIcon className="!size-icon-xs" />
+							<SquareArrowOutUpRightIcon className="size-icon-xs!" />
 						</a>
 					</DropdownMenuItem>
 				</TooltipTrigger>
@@ -132,9 +152,9 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 						>
 							<span className="truncate flex-1">{buildInfo.deployment_id}</span>
 							{showCopiedSuccess ? (
-								<CheckIcon className="!size-icon-xs ml-auto" />
+								<CheckIcon className="size-icon-xs! ml-auto" />
 							) : (
-								<CopyIcon className="!size-icon-xs ml-auto" />
+								<CopyIcon className="size-icon-xs! ml-auto" />
 							)}
 						</DropdownMenuItem>
 					</TooltipTrigger>

@@ -9,7 +9,7 @@ export const AIBridgeClientIcon = ({
 }: {
 	client: string | null;
 } & React.ComponentProps<"svg">) => {
-	const iconClassName = "flex-shrink-0";
+	const iconClassName = "shrink-0";
 	// This should be kept in sync with the client names in
 	// the AI Bridge bridge.go file.
 	// https://github.com/coder/aibridge/blob/main/bridge.go#L31-L32
@@ -49,6 +49,14 @@ export const AIBridgeClientIcon = ({
 					className={cn(iconClassName, className)}
 				/>
 			);
+		case "Xum":
+			return (
+				<ExternalImage
+					src="/icon/xum.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
+		// Legacy label for interceptions recorded before the Mux -> Xum rename.
 		case "Mux":
 			return (
 				<ExternalImage
@@ -81,6 +89,13 @@ export const AIBridgeClientIcon = ({
 			return (
 				<ExternalImage
 					src="/icon/charm-crush.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
+		case "Junie":
+			return (
+				<ExternalImage
+					src="/icon/junie.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);

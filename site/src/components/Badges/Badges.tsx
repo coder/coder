@@ -8,10 +8,6 @@ export const EnabledBadge: React.FC = () => {
 	);
 };
 
-export const EntitledBadge: React.FC = () => {
-	return <Badge variant="green">Entitled</Badge>;
-};
-
 export const DisabledBadge: React.FC<React.ComponentPropsWithRef<"div">> = ({
 	...props
 }) => {
@@ -34,10 +30,6 @@ export const PremiumBadge: React.FC<PremiumBadgeProps> = ({
 	children = "Premium",
 }) => {
 	return <Badge variant="magenta">{children}</Badge>;
-};
-
-export const PreviewBadge: React.FC = () => {
-	return <Badge variant="purple">Preview</Badge>;
 };
 
 export const AlphaBadge: React.FC = () => {

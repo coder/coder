@@ -2,13 +2,13 @@ import { act, renderHook } from "@testing-library/react";
 import type { Region, User } from "#/api/typesGenerated";
 import {
 	MockAIGatewayEnabled,
+	MockAITasksEnabled,
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockEntitlements,
 	MockExperiments,
 	MockOrganization,
 	MockPermissions,
-	MockTasksTabVisible,
 	MockUserAppearanceSettings,
 	MockUserOwner,
 } from "#/testHelpers/entities";
@@ -45,7 +45,7 @@ const mockDataForTags = {
 	user: MockUserOwner,
 	userAppearance: MockUserAppearanceSettings,
 	regions: MockRegions,
-	"tasks-tab-visible": MockTasksTabVisible,
+	"ai-tasks-enabled": MockAITasksEnabled,
 	"ai-gateway-enabled": MockAIGatewayEnabled,
 	permissions: MockPermissions,
 	organizations: [MockOrganization],
@@ -80,7 +80,7 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		available: false,
 		value: undefined,
 	},
-	"tasks-tab-visible": {
+	"ai-tasks-enabled": {
 		available: false,
 		value: undefined,
 	},
@@ -127,9 +127,9 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 		available: true,
 		value: MockUserAppearanceSettings,
 	},
-	"tasks-tab-visible": {
+	"ai-tasks-enabled": {
 		available: true,
-		value: MockTasksTabVisible,
+		value: MockAITasksEnabled,
 	},
 	"ai-gateway-enabled": {
 		available: true,

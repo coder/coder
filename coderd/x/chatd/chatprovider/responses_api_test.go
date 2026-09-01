@@ -9,7 +9,6 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -47,7 +46,7 @@ func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 			var gotPath string
 			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				mu.Lock()
-				gotPath = req.Request.URL.Path
+				gotPath = req.URL.Path
 				mu.Unlock()
 				return chattest.OpenAINonStreamingResponse("ok")
 			})
@@ -135,7 +134,7 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 			var gotPath string
 			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				mu.Lock()
-				gotPath = req.Request.URL.Path
+				gotPath = req.URL.Path
 				mu.Unlock()
 				return chattest.OpenAINonStreamingResponse("ok")
 			})
@@ -177,8 +176,8 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 			// OpenAI options of its own.
 			effortOptions := chatprovider.ProviderOptionsForCall(model, codersdk.ChatModelCallConfig{
 				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-					Default: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
-					Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+					Default: new(codersdk.ChatModelReasoningEffortHigh),
+					Max:     new(codersdk.ChatModelReasoningEffortHigh),
 				},
 			}, nil)
 			require.IsType(t, tc.wantOptions, effortOptions[fantasyopenai.Name])

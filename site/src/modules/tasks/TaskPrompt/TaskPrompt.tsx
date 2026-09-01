@@ -20,7 +20,6 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
-import { Link } from "#/components/Link/Link";
 import {
 	Select,
 	SelectContent,
@@ -36,7 +35,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useExternalAuth } from "#/hooks/useExternalAuth";
-import { docs } from "#/utils/docs";
 import { getOSKey } from "#/utils/platform";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
@@ -124,10 +122,7 @@ const TaskPromptEmpty: FC = () => {
 					No Task templates found
 				</h3>
 				<span className="text-content-secondary text-sm">
-					<Link href={docs("/ai-coder/tasks")} target="_blank" rel="noreferrer">
-						Learn about Tasks
-					</Link>{" "}
-					to get started.
+					Ask a template administrator to add a Task template to get started.
 				</span>
 			</div>
 		</div>
@@ -287,7 +282,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 														<ExternalImage
 															src={template.icon}
 															alt={template.name}
-															className="size-icon-sm flex-shrink-0"
+															className="size-icon-sm shrink-0"
 														/>
 													)}
 													<span className="overflow-hidden text-ellipsis block">
@@ -530,7 +525,7 @@ const PromptTextarea: FC<PromptTextareaProps> = ({
 				name="prompt"
 				placeholder="Prompt your AI agent to start a task..."
 				className={`border-0 px-3 py-2 resize-none w-full h-full bg-transparent rounded-lg
-							outline-none flex min-h-24 text-sm shadow-sm text-content-primary
+							outline-hidden flex min-h-24 text-sm shadow-xs text-content-primary
 							placeholder:text-content-secondary md:text-sm ${props.readOnly || isSubmitting ? "opacity-60 cursor-not-allowed" : ""}`}
 			/>
 			{isSubmitting && (

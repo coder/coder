@@ -1,4 +1,6 @@
-# Dynamic Parameters
+---
+title: Dynamic Parameters
+---
 
 Coder v2.24.0 introduces Dynamic Parameters to extend Coder [parameters](./parameters.md) with conditional form controls,
 enriched input types, and user identity awareness.
@@ -65,6 +67,17 @@ To use the features described on this page in an existing template:
 1. Users should see the updated workspace creation form.
 
 Dynamic Parameters features are backwards compatible, so all existing templates may be upgraded in-place.
+
+## Data sources and cached template data
+
+Coder reads Terraform `data` sources once, when it imports a template version, and stores the results.
+Rendering the form evaluates your parameter expressions against those stored results, so a `data` source whose underlying value changes in your cloud or cluster keeps returning the imported value.
+
+The `coder_workspace_owner` data source is the exception.
+Coder substitutes the identity of the user filling in the form each time it renders, which is what makes [Identity-Aware Parameters](#identity-aware-parameters-premium) work.
+
+To pick up a change to any other `data` source, [refresh the template data](../managing-templates/index.md#refresh-template-data).
+This imports the active version's source files again and publishes the result as a new active version.
 
 ## Features and Capabilities
 
@@ -526,9 +539,6 @@ data "coder_parameter" "git_repo" {
 }
 
 data "coder_parameter" "cpu_cores" {
-  # Only show this parameter if the previous box is selected.
-  count = data.coder_parameter.show_cpu_cores.value ? 1 : 0
-
   name         = "cpu_cores"
   display_name = "CPU Cores"
   type         = "number"
@@ -800,13 +810,15 @@ Ensure that the following version requirements are met:
 
 Enabling Dynamic Parameters on an existing template requires administrators to publish a new template version.
 This will resolve the necessary template metadata to render the form.
+To publish one without editing the template's Terraform, [refresh the template data](../managing-templates/index.md#refresh-template-data).
 
-### Reverting to classic parameters
+### Revert to classic parameters
 
-The classic parameter flow is deprecated and can no longer be enabled from the UI.
-A template can still opt out of Dynamic Parameters by setting the `use_classic_parameter_flow`
-field through the [templates API](../../../reference/api/templates.md#update-template-settings-by-id),
-but this opt-out will be removed in a future release.
+The classic parameter flow is deprecated and will be removed in a future release.
+If a template does not work with Dynamic Parameters, you can opt that template out.
+Select **Settings** > **Parameters** on the template, then select **Use parameter compatibility mode for workspace builds**.
+You can also set the `use_classic_parameter_flow` field through the
+[templates API](../../../reference/api/templates.md#update-template-settings-by-id).
 
 If your template's parameters do not work with Dynamic Parameters, please
 [file an issue](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label.
@@ -839,3 +851,24 @@ You may see warnings in the provisioner logs:
 ```
 
 If encountered, reduce the size of the module by removing unnecessary files.
+
+You can hit the same error for a different reason: if the active template
+version has no cached module archive at all, the workspace creation form
+shows a warning for every module in the template, for example:
+
+```txt
+Module not loaded. Did you run `terraform init`?
+Module 'jetbrains' in file "main.tf:149,1-19" cannot be resolved. This module will be ignored.
+```
+
+This happens for template versions published before Coder started archiving
+modules for Dynamic Parameters. **Workspace builds still succeed**, since
+Terraform fetches modules from their original sources during the build
+regardless of the cache; only the form's ability to evaluate module-backed
+parameter values is affected. To fix it,
+[publish a new template version](../managing-templates/index.md#refresh-template-data),
+which re-runs `terraform init` and populates the archive for that version.
+
+This archive is the same one Coder reuses across workspace builds to avoid
+re-downloading modules. See [module caching](./modules.md#module-caching) for
+how to disable that behavior for a template.

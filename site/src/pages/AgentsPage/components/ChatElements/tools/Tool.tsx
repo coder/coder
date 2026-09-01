@@ -9,6 +9,7 @@ import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
 } from "./AskUserQuestionTool";
+import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
@@ -62,6 +63,7 @@ import {
 import { WriteFileTool } from "./WriteFileTool";
 
 interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
+	organizationId?: string;
 	name: string;
 	status?: ToolStatus;
 	args?: unknown;
@@ -98,6 +100,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 // Props passed to each tool-specific renderer function. Each renderer
 // only computes the expensive values it needs from the raw args/result.
 type ToolRendererProps = {
+	organizationId?: string;
 	name: string;
 	status: ToolStatus;
 	args: unknown;
@@ -247,19 +250,29 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
+	modelIntent,
 	shellToolDisplayMode,
 }) => {
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
+	const command = rec ? asString(rec.command).trim() : "";
 	const exitCode = rec
 		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+	// The process may outlive the poll that produced this result
+	// (wait timeout); the result flags it explicitly. A later
+	// SIGKILL overrides the stale running snapshot; SIGTERM is
+	// catchable, so it does not.
+	const processRunning = rec?.running === true && killedBySignal !== "kill";
 
 	return (
 		<ProcessOutputTool
 			output={output}
-			isRunning={status === "running"}
+			command={command || undefined}
+			modelIntent={modelIntent}
+			status={status}
+			processRunning={processRunning}
 			exitCode={exitCode}
 			isError={isError}
 			errorMessage={errorMessage || undefined}
@@ -417,6 +430,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 };
 
 const SubagentRenderer: FC<ToolRendererProps> = ({
+	organizationId,
 	name,
 	status,
 	args,
@@ -504,6 +518,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 
 	return (
 		<SubagentTool
+			organizationId={organizationId ?? ""}
 			descriptor={descriptor}
 			title={title}
 			chatId={chatId}
@@ -607,6 +622,21 @@ const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ReadTemplateTool
 			templateName={name}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
+const ChatClearedRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	return (
+		<ChatClearedTool
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
@@ -836,6 +866,8 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 			viewportClassName="max-h-64"
+			viewportTabIndex={0}
+			viewportAriaLabel={`Contents of ${file.name}`}
 			orientation="both"
 			scrollBarClassName="w-1.5"
 			horizontalScrollBarClassName="h-1.5"
@@ -1140,6 +1172,7 @@ export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	read_template: ReadTemplateRenderer,
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,
+	chat_cleared: ChatClearedRenderer,
 	chat_summarized: ChatSummarizedRenderer,
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,
@@ -1158,6 +1191,7 @@ export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
 export const Tool = memo(
 	({
 		className,
+		organizationId,
 		name,
 		status = "completed",
 		args,
@@ -1205,6 +1239,7 @@ export const Tool = memo(
 			>
 				<ToolCall.PolicyProvider hookRewritten={hookRewritten}>
 					<Renderer
+						organizationId={organizationId}
 						name={name}
 						status={status}
 						args={args}

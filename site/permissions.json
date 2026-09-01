@@ -27,6 +27,10 @@
 		"object": { "resource_type": "template" },
 		"action": "update"
 	},
+	"updateAnyTemplate": {
+		"object": { "resource_type": "template", "any_org": true },
+		"action": "update"
+	},
 	"deleteTemplates": {
 		"object": { "resource_type": "template" },
 		"action": "delete"
@@ -91,6 +95,22 @@
 		"object": { "resource_type": "idpsync_settings", "any_org": true },
 		"action": "read"
 	},
+	"viewAnyMCPServerConfigs": {
+		"object": { "resource_type": "mcp_server_config", "any_org": true },
+		"action": "read"
+	},
+	"createAnyMCPServerConfig": {
+		"object": { "resource_type": "mcp_server_config", "any_org": true },
+		"action": "create"
+	},
+	"updateAnyMCPServerConfig": {
+		"object": { "resource_type": "mcp_server_config", "any_org": true },
+		"action": "update"
+	},
+	"deleteAnyMCPServerConfig": {
+		"object": { "resource_type": "mcp_server_config", "any_org": true },
+		"action": "delete"
+	},
 	"editAnySettings": {
 		"object": { "resource_type": "organization", "any_org": true },
 		"action": "update"
@@ -138,5 +158,25 @@
 	"createChat": {
 		"object": { "resource_type": "chat", "any_org": true, "owner_id": "me" },
 		"action": "create"
+	},
+	"viewAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "read"
+	},
+	"createAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "create"
+	},
+	"editAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "update"
+	},
+	"deleteAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "delete"
+	},
+	"shareAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "share"
 	}
 }

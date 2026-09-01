@@ -15,7 +15,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -143,7 +142,7 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 				FilePath:    file,
 			}
 			if userSetOption(inv, "enabled") {
-				req.Enabled = ptr.Ref(enabled)
+				req.Enabled = new(enabled)
 			}
 
 			secret, err := client.CreateUserSecret(inv.Context(), codersdk.Me, req)
@@ -234,7 +233,7 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 				req.FilePath = &file
 			}
 			if userSetOption(inv, "enabled") {
-				req.Enabled = ptr.Ref(enabled)
+				req.Enabled = new(enabled)
 			}
 
 			secret, err := client.UpdateUserSecret(inv.Context(), codersdk.Me, inv.Args[0], req)
@@ -561,7 +560,7 @@ func (r *RootCmd) secretEnabledSetter(state secretEnabledState) *serpent.Command
 
 			name := inv.Args[0]
 			secret, err := client.UpdateUserSecret(inv.Context(), codersdk.Me, name, codersdk.UpdateUserSecretRequest{
-				Enabled: ptr.Ref(enabled),
+				Enabled: new(enabled),
 			})
 			if err != nil {
 				return xerrors.Errorf("%s secret %q: %w", verb, name, err)

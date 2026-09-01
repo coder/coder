@@ -13,7 +13,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/fixtures"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func TestNewRequestPayload(t *testing.T) {
@@ -100,12 +99,12 @@ func TestCorrelatingToolCallID(t *testing.T) {
 		{
 			name:     "single function_call_output",
 			payload:  []byte(`{"model":"gpt-4o","input":[{"role":"user","content":"hi"},{"type":"function_call_output","call_id":"call_abc","output":"result"}]}`),
-			wantCall: utils.PtrTo("call_abc"),
+			wantCall: new("call_abc"),
 		},
 		{
 			name:     "multiple function_call_outputs returns last",
 			payload:  []byte(`{"model":"gpt-4o","input":[{"type":"function_call_output","call_id":"call_first","output":"r1"},{"role":"user","content":"hi"},{"type":"function_call_output","call_id":"call_second","output":"r2"}]}`),
-			wantCall: utils.PtrTo("call_second"),
+			wantCall: new("call_second"),
 		},
 		{
 			name:    "last input is not a tool result",

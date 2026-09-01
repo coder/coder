@@ -17,7 +17,7 @@ import {
 } from "react";
 import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
-import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import type { VariableSizeList as List, ListOnScrollProps } from "react-window";
 import type {
 	AgentScriptTiming,
 	Template,
@@ -62,6 +62,7 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import {
 	getAgentConnectivityIssues,
 	getAgentScriptIssues,
@@ -155,6 +156,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	initialMetadata,
 }) => {
 	const { browser_only, workspace_external_agent } = useFeatureVisibility();
+	const aiTasksEnabled = useAITasksEnabled();
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
@@ -208,7 +210,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	]);
 
 	// This is a layout effect to remove flicker when we're scrolling to the bottom.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
 	useLayoutEffect(() => {
 		// If we're currently watching the bottom, we always want to stay at the bottom.
 		if (bottomOfLogs && logListRef.current) {
@@ -475,7 +476,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				{workspace.task_id && (
+				{aiTasksEnabled && workspace.task_id && (
 					<Button asChild size="sm" variant="outline" className="w-fit">
 						<RouterLink
 							to={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
@@ -489,7 +490,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				{shouldShowWildcardWarning && <WildcardHostnameWarning />}
 
 				{shouldDisplayAppsSection && (
-					<section className="flex flex-wrap gap-4 [&:empty]:hidden">
+					<section className="flex flex-wrap gap-4 empty:hidden">
 						{shouldDisplayAgentApps && (
 							<>
 								{showVSCode && (
@@ -523,7 +524,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				)}
 
 				{agent.status === "connecting" && !isExternalAgent && (
-					<section className="flex flex-wrap gap-4 [&:empty]:hidden">
+					<section className="flex flex-wrap gap-4 empty:hidden">
 						<Skeleton width={80} height={32} className="rounded" />
 						<Skeleton width={110} height={32} className="rounded" />
 					</section>
@@ -683,7 +684,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 																	<span className="sr-only">More log tabs</span>
 																</button>
 															</DropdownMenuTrigger>
-															<DropdownMenuContent align="end">
+															<DropdownMenuContent
+																align="end"
+																className="max-h-56 overflow-y-auto"
+															>
 																<DropdownMenuRadioGroup
 																	value={selectedLogTab}
 																	onValueChange={handleSelectedLogTabChange}
@@ -717,7 +721,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 											</div>
 											<div
 												className={cn(
-													"h-12.5 shrink-0 flex items-center gap-2 pl-2 pr-3",
+													"shrink-0 flex items-center gap-2 pl-2 pr-3",
 													"border-solid border-0 border-b border-l",
 												)}
 											>

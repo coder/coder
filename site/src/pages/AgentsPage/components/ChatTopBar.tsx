@@ -52,6 +52,7 @@ type ChatTopBarProps = {
 	hasWorkspace?: boolean;
 	isArchived?: boolean;
 	isArchiving?: boolean;
+	isArchiveBlocked?: boolean;
 	isChildChat?: boolean;
 	isPinned?: boolean;
 	isSidebarCollapsed: boolean;
@@ -107,6 +108,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	hasWorkspace = false,
 	isArchived = false,
 	isArchiving = false,
+	isArchiveBlocked = false,
 	isChildChat = false,
 	isPinned = false,
 	isSidebarCollapsed,
@@ -223,6 +225,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 									isChildChat={isChildChat}
 									hasWorkspace={hasWorkspace}
 									isArchiving={isArchiving}
+									isArchiveBlocked={isArchiveBlocked}
 									onPinAgent={onPinAgent}
 									onUnpinAgent={onUnpinAgent}
 									onArchiveAgent={onArchiveAgent}
@@ -252,7 +255,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					<PrStateIcon
 						state={prState}
 						draft={prDraft}
-						className="!size-3.5 shrink-0"
+						className="size-3.5! shrink-0"
 					/>
 					<span className="truncate max-w-[120px] hidden sm:inline">
 						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}

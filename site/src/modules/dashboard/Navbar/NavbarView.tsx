@@ -12,8 +12,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
-import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
+import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 import { cn } from "#/utils/cn";
 import {
@@ -33,6 +33,7 @@ interface NavbarViewProps {
 	onSignOut: () => void;
 	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
+	canViewLicenses: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
@@ -49,6 +50,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	onSignOut,
 	adminPermissions,
 	canCreateChat,
+	canViewLicenses,
 	proxyContextValue,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
@@ -61,7 +63,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					cn(
 						"[&:before]:content-[''] [&:before]:absolute [&:before]:left-0",
 						"[&:before]:right-0 [&:before]:h-1 [&:before]:top-0",
-						"[&:before]:bg-[repeating-linear-gradient(-45deg,_transparent,_transparent_4px,_hsl(var(--stripe-color)_/_0.5)_4px,_hsl(var(--stripe-color)_/_0.5)_8px)]",
+						"[&:before]:bg-[repeating-linear-gradient(-45deg,transparent,transparent_4px,hsl(var(--stripe-color)/0.5)_4px,hsl(var(--stripe-color)/0.5)_8px)]",
 					),
 			)}
 			style={{
@@ -139,6 +141,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						buildInfo={buildInfo}
 						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
 						onSignOut={onSignOut}
+						canViewLicenses={canViewLicenses}
 					/>
 				</div>
 
@@ -206,12 +209,7 @@ type TasksNavItemProps = {
 };
 
 const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
-	const { metadata } = useEmbeddedMetadata();
-	const canSeeTasks = Boolean(
-		metadata["tasks-tab-visible"].value ||
-			process.env.NODE_ENV === "development" ||
-			process.env.STORYBOOK,
-	);
+	const canSeeTasks = useAITasksEnabled();
 	const filter: TypesGen.TasksFilter = {
 		owner: user.username,
 	};

@@ -20,7 +20,6 @@ import { EmptyState } from "#/components/EmptyState/EmptyState";
 import type { useFilter } from "#/components/Filter/Filter";
 import { GroupsFilter } from "#/components/Filter/GroupsFilter";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
@@ -37,6 +36,7 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { SpendEstimateDocsLink } from "./AICostControl";
 import { StatusIconTooltip } from "./StatusIconTooltip";
@@ -93,9 +93,15 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 }) => {
 	if (!groupsEnabled) {
 		return (
-			<PaywallPremium
+			<PremiumPaywall
+				source="groups"
 				message="Groups"
-				description="Organize users into groups with restricted access to templates."
+				description="Run isolated business units on one deployment, each with its own users, templates, provisioners, and infrastructure."
+				features={[
+					"Isolate provisioners & infrastructure",
+					"Sync org membership from your IdP",
+					"Manage orgs at scale via Terraform",
+				]}
 				canViewPremium={permissions.viewAllLicenses}
 			/>
 		);
@@ -278,7 +284,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 							<Skeleton
 								key={key}
 								variant="circular"
-								className="size-[--avatar-default]"
+								className="size-(--avatar-default)"
 							/>
 						))}
 					</div>
@@ -292,7 +298,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 							/>
 						))}
 						{remainingAvatars > 0 && (
-							<Badge className="h-[--avatar-default]">
+							<Badge className="h-(--avatar-default)">
 								+{remainingAvatars}
 							</Badge>
 						)}

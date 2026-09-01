@@ -1,4 +1,4 @@
-import { ArrowRightIcon, CheckIcon, ExternalLinkIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
 import { type LinkProps, Link as RouterLink } from "react-router";
@@ -14,10 +14,9 @@ export const PREMIUM_FEATURES = [
 ];
 
 export const PREMIUM_PAGE_PATH = "/deployment/premium";
-export const PREMIUM_PRICING_LINK = "https://coder.com/pricing";
 export const PREMIUM_DEFAULT_DESCRIPTION =
 	"You need a Premium license to use this feature.";
-export const PREMIUM_DEFAULT_HERO = "Get Access with Coder Premium";
+export const PREMIUM_DEFAULT_HERO = "Get access with a Coder trial";
 
 export type PaywallProps = React.ComponentProps<"div"> & {
 	message: string;
@@ -25,6 +24,7 @@ export type PaywallProps = React.ComponentProps<"div"> & {
 	compact?: boolean;
 	canViewPremium: boolean;
 	features?: string[];
+	onCTAClick?: () => void;
 };
 
 export const Paywall = ({
@@ -113,25 +113,6 @@ export const PaywallDescription: FC<React.ComponentProps<"p">> = ({
 	);
 };
 
-export const PaywallDocumentationLink: FC<React.ComponentProps<"a">> = ({
-	children = "Read the documentation",
-	className,
-	href,
-	...props
-}) => {
-	return (
-		<a
-			href={href}
-			target="_blank"
-			rel="noreferrer"
-			className={cn("text-content-link font-medium mr-4", className)}
-			{...props}
-		>
-			{children} <ExternalLinkIcon className="size-icon-xs" />
-		</a>
-	);
-};
-
 export const PaywallSupergraphic: FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
@@ -176,33 +157,9 @@ export const PaywallFeature: FC<React.ComponentProps<"li">> = ({
 }) => {
 	return (
 		<li className={cn("flex items-center gap-2 p-[3px]", className)} {...props}>
-			<FeatureIcon className="flex-shrink-0" />
+			<FeatureIcon className="shrink-0" />
 			<span className="flex-1">{children}</span>
 		</li>
-	);
-};
-
-export const PaywallCTA: FC<React.ComponentProps<"a">> = ({
-	children,
-	className,
-	href,
-	target = "_blank",
-	rel = "noreferrer",
-	...props
-}) => {
-	return (
-		<Button asChild>
-			<a
-				href={href}
-				target={target}
-				rel={rel}
-				className={cn("mx-7", className)}
-				{...props}
-			>
-				<ArrowRightIcon aria-hidden="true" />
-				{children}
-			</a>
-		</Button>
 	);
 };
 

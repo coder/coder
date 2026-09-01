@@ -25,10 +25,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/coderd/userpassword"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -374,37 +374,37 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		{
 			name:        "NoCodeScheme",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("1234_4321"),
+			defaultCode: new("1234_4321"),
 			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "InvalidCodeScheme",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("notcoder_1234_4321"),
+			defaultCode: new("notcoder_1234_4321"),
 			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCodeSecret",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("coder_1234"),
+			defaultCode: new("coder_1234"),
 			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCodePrefix",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("coder__1234"),
+			defaultCode: new("coder__1234"),
 			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "InvalidCodePrefix",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("coder_1234_4321"),
+			defaultCode: new("coder_1234_4321"),
 			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCode",
 			app:         apps.Default,
-			defaultCode: ptr.Ref(""),
+			defaultCode: new(""),
 			tokenError:  "invalid_request",
 		},
 		{
@@ -426,7 +426,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		{
 			name:        "ExpiredCode",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("coder_prefix_code"),
+			defaultCode: new("coder_prefix_code"),
 			tokenError:  "The authorization code is invalid or expired",
 			setup: func(ctx context.Context, client *codersdk.Client, user codersdk.User) error {
 				// Insert an expired code.
@@ -617,6 +617,72 @@ func TestOAuth2ProviderTokenExchangeCodeBelongsToDifferentApp(t *testing.T) {
 	require.ErrorContains(t, err, "The authorization code is invalid or expired")
 }
 
+func TestOAuth2ProviderPublicClientTokenExchange(t *testing.T) {
+	t.Parallel()
+
+	ownerClient := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	oauth2providertest.EnableDCR(t, ownerClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Neither app has a secret, so code ownership and PKCE are all that bind an
+	// exchange. A shared redirect URI is the common case for native apps.
+	const sharedCallback = "http://localhost:8080/callback"
+	appA := oauth2providertest.RegisterPublicClient(t, ownerClient, "public-code-owner", sharedCallback)
+	appB := oauth2providertest.RegisterPublicClient(t, ownerClient, "public-code-thief", sharedCallback)
+
+	userClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	authURL := ownerClient.URL.JoinPath("/oauth2/authorize").String()
+	tokenURL := ownerClient.URL.JoinPath("/oauth2/tokens").String()
+
+	cfgA := &oauth2.Config{
+		ClientID: appA.ClientID,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   authURL,
+			TokenURL:  tokenURL,
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+		RedirectURL: sharedCallback,
+		Scopes:      []string{},
+	}
+	code, verifier, err := authorizationFlow(ctx, userClient, cfgA)
+	require.NoError(t, err)
+
+	// Redeem appA's code under appB's client_id: everything except the code's
+	// own app_id lines up.
+	cfgB := &oauth2.Config{
+		ClientID: appB.ClientID,
+		Endpoint: oauth2.Endpoint{
+			TokenURL:  tokenURL,
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+		RedirectURL: sharedCallback,
+		Scopes:      []string{},
+	}
+	_, err = cfgB.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "The authorization code is invalid or expired")
+
+	// An under-length verifier fails the format check before the grant runs, so
+	// it does not consume the code (RFC 6749 §10.5).
+	_, err = cfgA.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", "a"))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "code_verifier")
+
+	// A well-formed verifier reaches the PKCE comparison, which does consume the
+	// code: otherwise a leaked code could be replayed with unlimited guesses.
+	wrongVerifier, _ := oauth2providertest.GeneratePKCE(t)
+	_, err = cfgA.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", wrongVerifier))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "The PKCE code verifier is invalid")
+
+	// Consumed above, so even the matching verifier can no longer redeem it.
+	_, err = cfgA.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "The authorization code is invalid or expired")
+}
+
 func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -652,31 +718,31 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 		{
 			name:         "NoTokenScheme",
 			app:          apps.Default,
-			defaultToken: ptr.Ref("1234_4321"),
+			defaultToken: new("1234_4321"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "InvalidTokenScheme",
 			app:          apps.Default,
-			defaultToken: ptr.Ref("notcoder_1234_4321"),
+			defaultToken: new("notcoder_1234_4321"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "MissingTokenSecret",
 			app:          apps.Default,
-			defaultToken: ptr.Ref("coder_1234"),
+			defaultToken: new("coder_1234"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "MissingTokenPrefix",
 			app:          apps.Default,
-			defaultToken: ptr.Ref("coder__1234"),
+			defaultToken: new("coder__1234"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "InvalidTokenPrefix",
 			app:          apps.Default,
-			defaultToken: ptr.Ref("coder_1234_4321"),
+			defaultToken: new("coder_1234_4321"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
@@ -1048,6 +1114,137 @@ func TestOAuth2ProviderRevokeCrossApp(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, sessionWorks(), "same-app revoke must end the session")
 		})
+	}
+}
+
+func TestOAuth2ProviderPublicClientTokenLifecycle(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// tokenFor covers both revokeRefreshTokenInTx and revokeAPIKeyInTx.
+		tokenFor func(*oauth2.Token) string
+	}{
+		{
+			name:     "AccessToken",
+			tokenFor: func(tok *oauth2.Token) string { return tok.AccessToken },
+		},
+		{
+			name:     "RefreshToken",
+			tokenFor: func(tok *oauth2.Token) string { return tok.RefreshToken },
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			session := refreshedPublicClientSession(ctx, t)
+			tokenUnderTest := test.tokenFor(session.token)
+
+			err := session.userClient.RevokeOAuth2Token(ctx, session.otherAppID, tokenUnderTest)
+			require.NoError(t, err, "cross-app revoke must appear to succeed per RFC 7009")
+			require.True(t, session.works(), "cross-app revoke must not end the session")
+
+			err = session.userClient.RevokeOAuth2Token(ctx, session.appID, tokenUnderTest)
+			require.NoError(t, err)
+			require.False(t, session.works(), "public client must be able to revoke its own token")
+		})
+	}
+}
+
+// publicClientSession is a refreshed public-client token with the app that
+// issued it and an unrelated public app.
+type publicClientSession struct {
+	token      *oauth2.Token
+	appID      uuid.UUID
+	otherAppID uuid.UUID
+	userClient *codersdk.Client
+	// works reports whether token.AccessToken still authenticates a request.
+	works func() bool
+}
+
+// refreshedPublicClientSession registers two public clients and runs one through
+// the code exchange and a refresh, asserting each minted row is secretless.
+func refreshedPublicClientSession(ctx context.Context, t *testing.T) publicClientSession {
+	t.Helper()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	oauth2providertest.EnableDCR(t, ownerClient)
+
+	const callback = "http://localhost:8080/callback"
+	app := oauth2providertest.RegisterPublicClient(t, ownerClient, "public-lifecycle", callback)
+	otherApp := oauth2providertest.RegisterPublicClient(t, ownerClient, "public-lifecycle-other", callback)
+
+	appID, err := uuid.Parse(app.ClientID)
+	require.NoError(t, err)
+	otherAppID, err := uuid.Parse(otherApp.ClientID)
+	require.NoError(t, err)
+
+	userClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	cfg := &oauth2.Config{
+		ClientID: app.ClientID,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   ownerClient.URL.JoinPath("/oauth2/authorize").String(),
+			TokenURL:  ownerClient.URL.JoinPath("/oauth2/tokens").String(),
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+		RedirectURL: callback,
+		Scopes:      []string{},
+	}
+
+	code, verifier, err := authorizationFlow(ctx, userClient, cfg)
+	require.NoError(t, err)
+	token, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+	require.NoError(t, err)
+	require.NotEmpty(t, token.RefreshToken)
+
+	// Locates the row by key ID alone, so it says nothing about whether the
+	// token authenticates; the works closure is what proves that.
+	assertSecretlessToken := func(accessToken string) {
+		t.Helper()
+		keyID, _, err := httpmw.SplitAPIToken(accessToken)
+		require.NoError(t, err)
+		// Raw store handle, not the dbauthz-wrapped one, so no system actor.
+		dbToken, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(ctx, keyID)
+		require.NoError(t, err)
+		require.False(t, dbToken.AppSecretID.Valid, "public client token must have a NULL app_secret_id")
+		require.Equal(t, appID, dbToken.AppID)
+	}
+	assertSecretlessToken(token.AccessToken)
+
+	// Refresh carries AppSecretID forward, so the refreshed row must still be
+	// secretless.
+	refreshCfg := *cfg
+	refreshed, err := refreshCfg.TokenSource(ctx, &oauth2.Token{
+		RefreshToken: token.RefreshToken,
+		Expiry:       time.Now().Add(-time.Hour),
+	}).Token()
+	require.NoError(t, err)
+	require.NotEmpty(t, refreshed.AccessToken)
+	assertSecretlessToken(refreshed.AccessToken)
+
+	works := func() bool {
+		checkClient := codersdk.New(userClient.URL)
+		checkClient.SetSessionToken(refreshed.AccessToken)
+		_, err := checkClient.User(ctx, codersdk.Me)
+		return err == nil
+	}
+	require.True(t, works(), "refreshed public-client session should be valid")
+
+	return publicClientSession{
+		token:      refreshed,
+		appID:      appID,
+		otherAppID: otherAppID,
+		userClient: userClient,
+		works:      works,
 	}
 }
 
@@ -1658,7 +1855,7 @@ func TestOAuth2DynamicClientRegistrationDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: ptr.Ref(false),
+		DynamicClientRegistrationEnabled: new(false),
 	})
 	require.NoError(t, err)
 

@@ -549,6 +549,43 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Report a premium paywall click
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/deployment/premium-funnel-events \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/deployment/premium-funnel-events`
+
+> Body parameter
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "source": "aibridge_session_threads",
+  "variant": "premium"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                               | Required | Description          |
+|--------|------|------------------------------------------------------------------------------------|----------|----------------------|
+| `body` | body | [codersdk.PremiumFunnelEventRequest](schemas.md#codersdkpremiumfunneleventrequest) | true     | Premium funnel event |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get entitlements
 
 ### Code samples
@@ -1179,6 +1216,10 @@ User IDs that are not members of the group, or that the caller has no read acces
 {
   "members": [
     {
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
       "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
       "group_budget": {
         "limit_source": "user_override",
@@ -1333,6 +1374,64 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 | Status | Meaning                                                      | Description | Schema                                           |
 |--------|--------------------------------------------------------------|-------------|--------------------------------------------------|
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Request a trial license
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/licenses/trial \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/licenses/trial`
+
+> Body parameter
+
+```json
+{
+  "attribution_id": "6f882a62-1d45-46e1-b5f4-0abfea127010",
+  "company_name": "Acme Corp",
+  "country": "United States",
+  "developers": "string",
+  "email": "jane.doe@example.com",
+  "first_name": "Jane",
+  "job_title": "Engineering Manager",
+  "last_name": "Doe",
+  "phone_number": "+14155552671",
+  "source": "aibridge_session_threads"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                               | Required | Description           |
+|--------|------|------------------------------------------------------------------------------------|----------|-----------------------|
+| `body` | body | [codersdk.CreateTrialLicenseRequest](schemas.md#codersdkcreatetriallicenserequest) | true     | Trial license request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "claims": {},
+  "id": 0,
+  "uploaded_at": "2019-08-24T14:15:22Z",
+  "uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                         |
+|--------|--------------------------------------------------------------|-------------|------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.License](schemas.md#codersdklicense) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2263,6 +2362,10 @@ User IDs that are not members of the group, or that the caller has no read acces
 {
   "members": [
     {
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
       "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
       "group_budget": {
         "limit_source": "user_override",
@@ -4782,13 +4885,13 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=str
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                       |
-|-----------------|-------|--------|----------|-----------------------------------|
-| `client_id`     | query | string | true     | Client ID                         |
-| `state`         | query | string | true     | A random unguessable string       |
-| `response_type` | query | string | true     | Response type                     |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization |
-| `scope`         | query | string | false    | Token scopes (currently ignored)  |
+| Name            | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
+|-----------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`     | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `state`         | query | string | true     | A random unguessable string                                                                                                                                                                                                                                        |
+| `response_type` | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
+| `scope`         | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
 
 #### Enumerated Values
 
@@ -4818,13 +4921,13 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=st
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                       |
-|-----------------|-------|--------|----------|-----------------------------------|
-| `client_id`     | query | string | true     | Client ID                         |
-| `state`         | query | string | true     | A random unguessable string       |
-| `response_type` | query | string | true     | Response type                     |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization |
-| `scope`         | query | string | false    | Token scopes (currently ignored)  |
+| Name            | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
+|-----------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`     | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `state`         | query | string | true     | A random unguessable string                                                                                                                                                                                                                                        |
+| `response_type` | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
+| `scope`         | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
 
 #### Enumerated Values
 
@@ -5174,6 +5277,7 @@ curl -X POST http://coder-server:8080/oauth2/tokens \
 client_id: string
 client_secret: string
 code: string
+code_verifier: string
 refresh_token: string
 grant_type: authorization_code
 
@@ -5181,14 +5285,15 @@ grant_type: authorization_code
 
 ### Parameters
 
-| Name              | In   | Type   | Required | Description                                                   |
-|-------------------|------|--------|----------|---------------------------------------------------------------|
-| `body`            | body | object | false    |                                                               |
-| `» client_id`     | body | string | false    | Client ID, required if grant_type=authorization_code          |
-| `» client_secret` | body | string | false    | Client secret, required if grant_type=authorization_code      |
-| `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code |
-| `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token           |
-| `» grant_type`    | body | string | true     | Grant type                                                    |
+| Name              | In   | Type   | Required | Description                                                                                                                                               |
+|-------------------|------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body`            | body | object | false    |                                                                                                                                                           |
+| `» client_id`     | body | string | false    | Client ID, required if grant_type=authorization_code                                                                                                      |
+| `» client_secret` | body | string | false    | Client secret, required if grant_type=authorization_code and the client is confidential. Public clients (token_endpoint_auth_method=none) send no secret. |
+| `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code                                                                                             |
+| `» code_verifier` | body | string | false    | PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636.                                                            |
+| `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token                                                                                                       |
+| `» grant_type`    | body | string | true     | Grant type                                                                                                                                                |
 
 #### Enumerated Values
 

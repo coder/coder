@@ -1,4 +1,5 @@
 import {
+	ActivityIcon,
 	BadgeQuestionMarkIcon,
 	BotIcon,
 	CompassIcon,
@@ -26,7 +27,7 @@ import { cn } from "#/utils/cn";
 
 export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	execute: TerminalIcon,
-	process_output: TerminalIcon,
+	process_output: ActivityIcon,
 	process_list: TerminalIcon,
 	process_signal: TerminalIcon,
 	read_file: FileTextIcon,
@@ -37,6 +38,7 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	read_template: ServerIcon,
 	create_workspace: ServerIcon,
 	start_workspace: PowerIcon,
+	chat_cleared: BotIcon,
 	chat_summarized: BotIcon,
 	list_agents: BotIcon,
 	list_subagent_models: BotIcon,

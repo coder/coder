@@ -1,14 +1,10 @@
 package messages
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -21,7 +17,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/shared"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -32,6 +27,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -69,24 +65,10 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-examples-2025-10-29": true,
 }
 
-// BedrockPRMUserAgent is Coder's AWS Partner Revenue Measurement (PRM)
-// attribution marker for outbound Bedrock requests.
-//
-// It is appended to Bedrock User-Agent headers so AWS can recognize the
-// traffic as Coder-associated Bedrock usage.
-const BedrockPRMUserAgent = "sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24"
-
-// bedrockMantleSigningService is the AWS SigV4 service name for mantle.
-const bedrockMantleSigningService = "bedrock-mantle"
-
-func appendBedrockPRMUserAgent(req *http.Request) {
-	if ua := req.Header.Get("User-Agent"); ua != "" {
-		req.Header.Set("User-Agent", ua+" "+BedrockPRMUserAgent)
-	}
-}
-
 // BedrockRuntime carries everything a Bedrock-backed interception needs: the
-// static Bedrock config plus the AWS credentials provider.
+// static Bedrock config plus the AWS credentials provider. The messages
+// interceptor reads the full config (Model and SmallFastModel for the
+// InvokeModel remap, BaseURL, Region).
 type BedrockRuntime struct {
 	Cfg   aibconfig.AWSBedrock
 	Creds aws.CredentialsProvider
@@ -124,6 +106,41 @@ func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpP
 	i.logger = logger
 	i.recorder = rec
 	i.mcpProxy = mcpProxy
+}
+
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage anthropic.Usage) {
+	var metadata recorder.Metadata
+	if usage.ServiceTier != "" {
+		metadata = recorder.Metadata{
+			recorder.MetadataKeyServiceTier: string(usage.ServiceTier),
+		}
+	}
+
+	extraTokenTypes := make(map[string]int64)
+	if usage.ServerToolUse.WebSearchRequests != 0 {
+		extraTokenTypes["web_search_requests"] = usage.ServerToolUse.WebSearchRequests
+	}
+	if usage.CacheCreation.Ephemeral1hInputTokens != 0 {
+		extraTokenTypes["cache_ephemeral_1h_input"] = usage.CacheCreation.Ephemeral1hInputTokens
+	}
+	if usage.CacheCreation.Ephemeral5mInputTokens != 0 {
+		extraTokenTypes["cache_ephemeral_5m_input"] = usage.CacheCreation.Ephemeral5mInputTokens
+	}
+
+	usageRecord := recorder.TokenUsageRecord{
+		InterceptionID:        i.ID().String(),
+		MsgID:                 msgID,
+		Input:                 usage.InputTokens,
+		Output:                usage.OutputTokens,
+		CacheReadInputTokens:  usage.CacheReadInputTokens,
+		CacheWriteInputTokens: usage.CacheCreationInputTokens,
+		Metadata:              metadata,
+	}
+	if len(extraTokenTypes) > 0 {
+		usageRecord.ExtraTokenTypes = extraTokenTypes
+	}
+
+	_ = i.recorder.RecordTokenUsage(ctx, &usageRecord)
 }
 
 func (i *interceptionBase) CorrelatingToolCallID() *string {
@@ -350,7 +367,7 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 
 	var out []option.RequestOption
 	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-		appendBedrockPRMUserAgent(req)
+		bedrocksig.AppendPRMUserAgent(req)
 		return next(req)
 	}))
 	out = append(out, bedrock.WithConfig(awsCfg))
@@ -384,39 +401,12 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
 	}
 
-	signer := v4.NewSigner()
 	var out []option.RequestOption
 	out = append(out, option.WithBaseURL(cfg.BaseURL))
 	// Appended last so it runs innermost (right before the HTTP send) and signs
 	// the request after all other headers are set.
-	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-		appendBedrockPRMUserAgent(req)
-
-		creds, err := i.bedrock.Creds.Retrieve(req.Context())
-		if err != nil {
-			return nil, xerrors.Errorf("mantle SigV4: resolve AWS credentials: %w", err)
-		}
-
-		// SigV4 requires a payload hash, so read the body to hash it and then
-		// restore it for the downstream HTTP client to send.
-		var body []byte
-		if req.Body != nil {
-			var err error
-			body, err = io.ReadAll(req.Body)
-			if err != nil {
-				return nil, xerrors.Errorf("mantle SigV4: read request body: %w", err)
-			}
-			_ = req.Body.Close()
-			req.Body = io.NopCloser(bytes.NewReader(body))
-			req.ContentLength = int64(len(body))
-		}
-
-		hash := sha256.Sum256(body)
-		if err := signer.SignHTTP(req.Context(), creds, req, hex.EncodeToString(hash[:]), bedrockMantleSigningService, cfg.Region, time.Now()); err != nil {
-			return nil, xerrors.Errorf("mantle SigV4: sign request: %w", err)
-		}
-		return next(req)
-	}))
+	//nolint:bodyclose // bedrocksig.SignMiddleware reads and closes the request body in order to sign it.
+	out = append(out, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrock.Creds, cfg.Region)))
 
 	return out, nil
 }
@@ -579,14 +569,14 @@ func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, antErr *Res
 		i.logger.Warn(context.Background(), "failed to marshal upstream error", slog.Error(err), slog.F("error_payload", fmt.Sprintf("%+v", antErr)))
 		// Response has to match expected format.
 		// See https://docs.claude.com/en/api/errors#error-shapes.
-		_, _ = w.Write([]byte(fmt.Sprintf(`{
+		_, _ = fmt.Fprintf(w, `{
 	"type":"error",
 	"error": {
 		"type": "error",
 		"message":"error marshaling upstream error"
 	},
 	"request_id": "%s"
-}`, i.ID().String())))
+}`, i.ID().String())
 	} else {
 		_, _ = w.Write(out)
 	}

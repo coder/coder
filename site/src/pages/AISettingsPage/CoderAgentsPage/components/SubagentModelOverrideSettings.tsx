@@ -17,7 +17,6 @@ export interface MutationCallbacks {
 interface ModelOverrideData {
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
-	readonly is_malformed: boolean;
 }
 
 interface UpdateModelOverrideRequest {
@@ -29,9 +28,9 @@ interface SubagentModelOverrideSettingsProps {
 	title: string;
 	description?: ReactNode;
 	modelOverrideData: ModelOverrideData | undefined;
-	enabledModelConfigs: readonly TypesGen.ChatModelConfig[];
+	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
-	modelConfigsError: unknown;
+	modelsError: unknown;
 	isLoading: boolean;
 	onSaveModelOverride: (
 		req: UpdateModelOverrideRequest,
@@ -51,9 +50,9 @@ export const SubagentModelOverrideSettings: FC<
 	title,
 	description,
 	modelOverrideData,
-	enabledModelConfigs,
+	enabledModels,
 	providerInfoByID,
-	modelConfigsError,
+	modelsError,
 	isLoading,
 	onSaveModelOverride,
 	isSaving,
@@ -65,8 +64,7 @@ export const SubagentModelOverrideSettings: FC<
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedModelOverride = modelOverrideData !== undefined;
-	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
-	const enabledModelOptions = enabledModelConfigs.map((modelConfig) => {
+	const enabledModelOptions = enabledModels.map((modelConfig) => {
 		const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
 		const reasoningEffort = modelConfig.model_config?.reasoning_effort;
 		const reasoningEfforts = modelConfig.reasoning_efforts ?? [];
@@ -111,8 +109,7 @@ export const SubagentModelOverrideSettings: FC<
 	});
 	const isFormDisabled =
 		disabled || isSaving || isLoading || !hasLoadedModelOverride;
-	const canSave =
-		hasLoadedModelOverride && !disabled && (form.dirty || isMalformedOverride);
+	const canSave = hasLoadedModelOverride && !disabled && form.dirty;
 
 	const selectedModelOption = enabledModelOptions.find(
 		(option) => option.id === form.values.model_config_id,
@@ -140,7 +137,7 @@ export const SubagentModelOverrideSettings: FC<
 				isSaveError ? <p className="m-0">{saveErrorMessage}</p> : undefined
 			}
 		>
-			<div className="flex w-[22rem] max-w-full flex-col gap-2">
+			<div className="flex w-88 max-w-full flex-col gap-2">
 				<ModelSelector
 					options={enabledModelOptions}
 					value={form.values.model_config_id}
@@ -175,9 +172,7 @@ export const SubagentModelOverrideSettings: FC<
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage={unavailableModelWarning}
-					isMalformedOverride={isMalformedOverride}
-					malformedMessage="The saved override is malformed and is being treated as unset. Click Save to clear it."
-					modelConfigsError={modelConfigsError}
+					modelsError={modelsError}
 				/>
 			</div>
 			<Button

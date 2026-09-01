@@ -14,12 +14,14 @@ import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { useGroupsSettings } from "./GroupsPageProvider";
 import { GroupsPageView, joinGroupsSpend } from "./GroupsPageView";
@@ -108,18 +110,17 @@ const GroupsPage: FC = () => {
 	}
 
 	return (
-		<div className="w-full max-w-screen-2xl pb-10">
+		<div className="w-full max-w-(--breakpoint-2xl) pb-10">
 			{title}
 
-			<div className="flex max-w-full flex-row items-baseline justify-between gap-4">
-				<SettingsHeader>
-					<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
-					<SettingsHeaderDescription>
-						Manage groups for this{" "}
-						{showOrganizations ? "organization" : "deployment"}.
-					</SettingsHeaderDescription>
-				</SettingsHeader>
-			</div>
+			<SettingsHeader>
+				<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Manage groups for this{" "}
+					{showOrganizations ? "organization" : "deployment"}.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<GroupsPageView
 				groups={groupsWithSpend}

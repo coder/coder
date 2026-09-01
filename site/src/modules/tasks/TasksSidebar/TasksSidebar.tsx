@@ -40,16 +40,22 @@ import { cn } from "#/utils/cn";
 import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
 import { taskStatusToStatusIndicatorVariant } from "../TaskStatus/TaskStatus";
 import { canPauseTask, canResumeTask, isPauseDisabled } from "../taskActions";
+import { useAITasksEnabled } from "../useAITasksEnabled";
 import { UserCombobox } from "./UserCombobox";
 
 export const TasksSidebar: FC = () => {
 	const { user, permissions } = useAuthenticated();
+	const aiTasksEnabled = useAITasksEnabled();
 	const ownerParam = useSearchParamsKey({
 		key: "owner",
 		defaultValue: user.username,
 	});
 
 	const [isCollapsed, setIsCollapsed] = useState(false);
+
+	if (!aiTasksEnabled) {
+		return null;
+	}
 
 	return (
 		<div
@@ -219,9 +225,9 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 				variant="subtle"
 				className={cn(
 					"overflow-visible group w-full justify-start text-content-secondary",
-					"transition-none hover:bg-surface-tertiary gap-2 has-[[data-state=open]]:bg-surface-tertiary",
+					"transition-none hover:bg-surface-tertiary gap-2 has-data-[state=open]:bg-surface-tertiary",
 					{
-						"text-content-primary bg-surface-quaternary hover:bg-surface-quaternary has-[[data-state=open]]:bg-surface-quaternary":
+						"text-content-primary bg-surface-quaternary hover:bg-surface-quaternary has-data-[state=open]:bg-surface-quaternary":
 							isActive,
 					},
 				)}

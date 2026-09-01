@@ -1,4 +1,6 @@
-# User secrets
+---
+title: User secrets
+---
 
 User secrets let you store secret values in Coder and make them available in
 every workspace you own.
@@ -139,7 +141,7 @@ stored bytes exceed the raw value.
 
 You can create, edit, and delete user secrets from the Coder dashboard:
 
-1. Click your avatar in the top right.
+1. Select your avatar in the top right.
 1. Select **Account**.
 1. Select **Secrets**.
 
