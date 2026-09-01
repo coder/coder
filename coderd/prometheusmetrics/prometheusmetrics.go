@@ -567,13 +567,19 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			)
 			if usage {
 				var agentUsageStats []database.GetWorkspaceAgentUsageStatsAndLabelsRow
-				agentUsageStats, err = db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAfter)
+				agentUsageStats, err = db.GetWorkspaceAgentUsageStatsAndLabels(ctx, database.GetWorkspaceAgentUsageStatsAndLabelsParams{
+					CreatedAt:   createdAfter,
+					AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+				})
 				stats = make([]database.GetWorkspaceAgentStatsAndLabelsRow, 0, len(agentUsageStats))
 				for _, agentUsageStat := range agentUsageStats {
 					stats = append(stats, database.GetWorkspaceAgentStatsAndLabelsRow(agentUsageStat))
 				}
 			} else {
-				stats, err = db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+				stats, err = db.GetWorkspaceAgentStatsAndLabels(ctx, database.GetWorkspaceAgentStatsAndLabelsParams{
+					CreatedAt:   createdAfter,
+					AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+				})
 			}
 			if err != nil {
 				logger.Error(ctx, "can't get agent stats", slog.Error(err))
