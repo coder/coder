@@ -527,6 +527,28 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch user secret", slog.Error(err))
 		}
 		return false
+	case database.ResourceTypeUserMemory:
+		_, err := api.Database.GetUserMemoryByID(ctx, alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		// User memory reads are owner-scoped, so an auditor can lack read access.
+		// An authorization error occurs after lookup, which proves it is not deleted.
+		if err != nil && !dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "unable to fetch user memory", slog.Error(err))
+		}
+		return false
+	case database.ResourceTypeChatMemory:
+		_, err := api.Database.GetChatMemoryByID(ctx, alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		// Chat memory reads use the root chat ACL, so an auditor can lack access.
+		// An authorization error occurs after lookup, which proves it is not deleted.
+		if err != nil && !dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "unable to fetch chat memory", slog.Error(err))
+		}
+		return false
 	default:
 		return false
 	}

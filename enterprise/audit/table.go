@@ -39,6 +39,8 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"UserMemory":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatMemory":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
 	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
 }
@@ -579,6 +581,22 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"computer_use_provider":            ActionTrack,
 		"debug_logging_allow_users":        ActionTrack,
 		"personal_model_overrides_enabled": ActionTrack,
+	},
+	&database.UserMemory{}: {
+		"id":         ActionTrack,
+		"user_id":    ActionTrack,
+		"path":       ActionTrack,
+		"content":    ActionSecret,
+		"created_at": ActionIgnore,
+		"updated_at": ActionIgnore,
+	},
+	&database.ChatMemory{}: {
+		"id":           ActionTrack,
+		"root_chat_id": ActionTrack,
+		"path":         ActionTrack,
+		"content":      ActionSecret,
+		"created_at":   ActionIgnore,
+		"updated_at":   ActionIgnore,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,

@@ -57,6 +57,8 @@ const (
 	ResourceTypeChatModelConfig         ResourceType = "chat_model_config"
 	ResourceTypeUserSecret              ResourceType = "user_secret"
 	ResourceTypeUserSkill               ResourceType = "user_skill"
+	ResourceTypeUserMemory              ResourceType = "user_memory"
+	ResourceTypeChatMemory              ResourceType = "chat_memory"
 	ResourceTypeChatInstructionSettings ResourceType = "chat_instruction_settings"
 	ResourceTypeChatOperationalSettings ResourceType = "chat_operational_settings"
 )
@@ -141,6 +143,10 @@ func (r ResourceType) FriendlyString() string {
 		return "user secret"
 	case ResourceTypeUserSkill:
 		return "user skill"
+	case ResourceTypeUserMemory:
+		return "user memory"
+	case ResourceTypeChatMemory:
+		return "chat memory"
 	case ResourceTypeChatInstructionSettings:
 		return "chat instruction settings"
 	case ResourceTypeChatOperationalSettings:

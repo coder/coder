@@ -417,14 +417,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: append(
 			// Workspace dormancy and workspace are omitted.
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
-			// Owners can inspect and delete personal skills for operability and
-			// abuse handling, but cannot create or edit user-authored instructions.
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceUserMemory, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
-				ResourceUserSkill.Type:        {policy.ActionRead, policy.ActionDelete},
+				// Owners can inspect and delete personal skills and memories
+				// for operability and abuse handling, but cannot create or
+				// edit user-authored content.
+				ResourceUserSkill.Type:  {policy.ActionRead, policy.ActionDelete},
+				ResourceUserMemory.Type: {policy.ActionRead, policy.ActionDelete},
 				// Owners manage AI Gateway keys but cannot update them. The
 				// update action records last-used liveness and is reserved
 				// for the system actor authenticating Gateway replicas.

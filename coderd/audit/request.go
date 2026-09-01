@@ -165,6 +165,10 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.UserSkill:
 		return typed.Name
+	case database.UserMemory:
+		return typed.Path
+	case database.ChatMemory:
+		return typed.Path
 	case database.ChatInstructionSettings:
 		return typed.Name
 	case database.ChatOperationalSettings:
@@ -274,6 +278,10 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.UserSkill:
 		return typed.ID
+	case database.UserMemory:
+		return typed.ID
+	case database.ChatMemory:
+		return typed.ID
 	case database.ChatInstructionSettings:
 		// Fixed ID per setting; see ChatInstructionSettings IDs.
 		return typed.ID
@@ -358,6 +366,10 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserSecret
 	case database.UserSkill:
 		return database.ResourceTypeUserSkill
+	case database.UserMemory:
+		return database.ResourceTypeUserMemory
+	case database.ChatMemory:
+		return database.ResourceTypeChatMemory
 	case database.ChatInstructionSettings:
 		return database.ResourceTypeChatInstructionSettings
 	case database.ChatOperationalSettings:
@@ -457,6 +469,15 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.UserSkill:
 		// User skills are global to the user across organizations.
 		return false
+	case database.UserMemory:
+		// User memories are global to the user across organizations.
+		return false
+	case database.ChatMemory:
+		// Chat memories inherit their root chat's organization. The row has
+		// no organization column, so audit callsites must resolve the root
+		// chat and pass its OrganizationID in RequestParams; requireOrgID
+		// panics under tests when they forget.
+		return true
 	case database.ChatInstructionSettings:
 		// Deployment settings, not scoped to any organization.
 		return false

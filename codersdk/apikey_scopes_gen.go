@@ -198,6 +198,11 @@ const (
 	APIKeyScopeUserReadPersonal                    APIKeyScope = "user:read_personal"
 	APIKeyScopeUserUpdate                          APIKeyScope = "user:update"
 	APIKeyScopeUserUpdatePersonal                  APIKeyScope = "user:update_personal"
+	APIKeyScopeUserMemoryAll                       APIKeyScope = "user_memory:*"
+	APIKeyScopeUserMemoryCreate                    APIKeyScope = "user_memory:create"
+	APIKeyScopeUserMemoryDelete                    APIKeyScope = "user_memory:delete"
+	APIKeyScopeUserMemoryRead                      APIKeyScope = "user_memory:read"
+	APIKeyScopeUserMemoryUpdate                    APIKeyScope = "user_memory:update"
 	APIKeyScopeUserSecretAll                       APIKeyScope = "user_secret:*"
 	APIKeyScopeUserSecretCreate                    APIKeyScope = "user_secret:create"
 	APIKeyScopeUserSecretDelete                    APIKeyScope = "user_secret:delete"
@@ -296,6 +301,11 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeUserRead,
 	APIKeyScopeUserReadPersonal,
 	APIKeyScopeUserUpdatePersonal,
+	APIKeyScopeUserMemoryAll,
+	APIKeyScopeUserMemoryCreate,
+	APIKeyScopeUserMemoryDelete,
+	APIKeyScopeUserMemoryRead,
+	APIKeyScopeUserMemoryUpdate,
 	APIKeyScopeUserSecretAll,
 	APIKeyScopeUserSecretCreate,
 	APIKeyScopeUserSecretDelete,

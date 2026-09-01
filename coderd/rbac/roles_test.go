@@ -1227,6 +1227,32 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "UserMemoriesReadDelete",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionDelete},
+			Resource: rbac.ResourceUserMemory.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, memberMe, orgWorkspaceAccessUser},
+				false: {
+					orgAdmin,
+					otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "UserMemoriesCreateUpdate",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Resource: rbac.ResourceUserMemory.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {memberMe, orgWorkspaceAccessUser},
+				false: {
+					owner, orgAdmin,
+					otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
 			Name:     "UsageEvents",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceUsageEvent,

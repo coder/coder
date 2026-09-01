@@ -22,6 +22,9 @@ const (
 	CheckAibridgeTokenUsagesOutputPriceMicrosCheck           CheckConstraint = "aibridge_token_usages_output_price_micros_check"           // aibridge_token_usages
 	CheckAPIKeysAllowListNotEmpty                            CheckConstraint = "api_keys_allow_list_not_empty"                             // api_keys
 	CheckBoundaryLogsSequenceNumberCheck                     CheckConstraint = "boundary_logs_sequence_number_check"                       // boundary_logs
+	CheckChatMemoriesContentSize                             CheckConstraint = "chat_memories_content_size"                                // chat_memories
+	CheckChatMemoriesPathFormat                              CheckConstraint = "chat_memories_path_format"                                 // chat_memories
+	CheckChatMemoriesPathSize                                CheckConstraint = "chat_memories_path_size"                                   // chat_memories
 	CheckChatModelConfigsAIProviderRequiredWhenActive        CheckConstraint = "chat_model_configs_ai_provider_required_when_active"       // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck           CheckConstraint = "chat_model_configs_compression_threshold_check"            // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck                   CheckConstraint = "chat_model_configs_context_limit_check"                    // chat_model_configs
@@ -68,6 +71,9 @@ const (
 	CheckUsageEventsAgentRuntimeHourAligned                  CheckConstraint = "usage_events_agent_runtime_hour_aligned"                   // usage_events
 	CheckUserAIBudgetOverridesSpendLimitMicrosCheck          CheckConstraint = "user_ai_budget_overrides_spend_limit_micros_check"         // user_ai_budget_overrides
 	CheckUserAIProviderKeysAPIKeyCheck                       CheckConstraint = "user_ai_provider_keys_api_key_check"                       // user_ai_provider_keys
+	CheckUserMemoriesContentSize                             CheckConstraint = "user_memories_content_size"                                // user_memories
+	CheckUserMemoriesPathFormat                              CheckConstraint = "user_memories_path_format"                                 // user_memories
+	CheckUserMemoriesPathSize                                CheckConstraint = "user_memories_path_size"                                   // user_memories
 	CheckUserSecretsEnabledRequiresTarget                    CheckConstraint = "user_secrets_enabled_requires_target"                      // user_secrets
 	CheckUserSkillsContentSize                               CheckConstraint = "user_skills_content_size"                                  // user_skills
 	CheckUserSkillsDescriptionSize                           CheckConstraint = "user_skills_description_size"                              // user_skills
