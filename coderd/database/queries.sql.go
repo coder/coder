@@ -14824,6 +14824,58 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 	return i, err
 }
 
+const deleteCachedModuleFilesCreatedBetween = `-- name: DeleteCachedModuleFilesCreatedBetween :execrows
+WITH doomed AS (
+	SELECT
+		files.id
+	FROM
+		files
+	INNER JOIN
+		template_version_terraform_values
+		ON template_version_terraform_values.cached_module_files = files.id
+	WHERE
+		files.created_by = '00000000-0000-0000-0000-000000000000'
+		AND files.mimetype = 'application/x-tar'
+		AND files.created_at >= $1
+		AND files.created_at < $2
+), cleared AS (
+	-- The foreign key is NO ACTION, so references must be cleared before the
+	-- files rows can be deleted. Data-modifying CTEs always run to completion,
+	-- and the constraint is checked at the end of the statement.
+	UPDATE
+		template_version_terraform_values
+	SET
+		cached_module_files = NULL
+	WHERE
+		cached_module_files IN (SELECT id FROM doomed)
+	RETURNING 1
+)
+DELETE FROM
+	files
+USING
+	doomed
+WHERE
+	files.id = doomed.id
+`
+
+type DeleteCachedModuleFilesCreatedBetweenParams struct {
+	CreatedAtAfter  time.Time `db:"created_at_after" json:"created_at_after"`
+	CreatedAtBefore time.Time `db:"created_at_before" json:"created_at_before"`
+}
+
+// Deletes cached Terraform module archives ingested in the given time range and
+// clears the template version references to them. created_by and mimetype
+// identify a provisionerd-written module archive, matching the checks in
+// provisionerdserver, so user-uploaded template tarballs are never removed.
+// Only archives referenced by a template version are considered.
+func (q *sqlQuerier) DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg DeleteCachedModuleFilesCreatedBetweenParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCachedModuleFilesCreatedBetween, arg.CreatedAtAfter, arg.CreatedAtBefore)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
 SELECT
 	hash, created_at, created_by, mimetype, data, id

@@ -336,7 +336,7 @@ const CreateWorkspacePage: FC = () => {
 
 	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
 	if (
-		Boolean(realizedVersionId) &&
+		realizedVersionId &&
 		mode === "auto" &&
 		!isLoadingExternalAuth &&
 		!hasAllRequiredExternalAuth
