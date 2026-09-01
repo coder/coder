@@ -259,7 +259,7 @@ const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
 }) => {
 	const { active } = useToolCallContext();
 	if (children) {
-		return <>{children}</>;
+		return children;
 	}
 	if (!name) {
 		return null;
@@ -444,7 +444,7 @@ const Content: FC<ToolCallContentProps> = ({ children }) => {
 	if (!collapsible || !expanded) {
 		return null;
 	}
-	return <>{children}</>;
+	return children;
 };
 
 export const ToolCall = {

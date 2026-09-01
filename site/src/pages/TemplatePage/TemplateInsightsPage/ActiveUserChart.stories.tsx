@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ActiveUserChart } from "./ActiveUserChart";
 
 const meta: Meta<typeof ActiveUserChart> = {
-	title: "components/ActiveUserChart",
+	title: "pages/TemplatePage/TemplateInsightsPage/ActiveUserChart",
 	component: ActiveUserChart,
 	args: {
 		data: [

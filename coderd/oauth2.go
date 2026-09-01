@@ -95,6 +95,7 @@ func (api *API) oAuth2ProviderAppSecrets() http.HandlerFunc {
 // @Tags Enterprise
 // @Param app path string true "App ID"
 // @Success 200 {array} codersdk.OAuth2ProviderAppSecretFull
+// @Failure 400 {object} codersdk.Response "Public clients cannot have secrets"
 // @Router /api/v2/oauth2-provider/apps/{app}/secrets [post]
 func (api *API) postOAuth2ProviderAppSecret() http.HandlerFunc {
 	return oauth2provider.CreateAppSecret(api.Database, api.Auditor.Load(), api.Logger)

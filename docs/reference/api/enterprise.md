@@ -1826,9 +1826,10 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets 
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                          |
-|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OAuth2ProviderAppSecretFull](schemas.md#codersdkoauth2providerappsecretfull) |
+| Status | Meaning                                                          | Description                        | Schema                                                                                          |
+|--------|------------------------------------------------------------------|------------------------------------|-------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK                                 | array of [codersdk.OAuth2ProviderAppSecretFull](schemas.md#codersdkoauth2providerappsecretfull) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Public clients cannot have secrets | [codersdk.Response](schemas.md#codersdkresponse)                                                |
 
 <h3 id="create-oauth2-application-secret.-responseschema">Response Schema</h3>
 
