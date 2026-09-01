@@ -192,14 +192,13 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 }
 
 // compactionSummaryCall follows the resolved call template, except summaries
-// must not call tools and must not carry the default output cap: the summary
-// request is non-streaming, and the Anthropic SDK rejects non-streaming
-// requests whose max_tokens implies a completion longer than ten minutes.
+// must not call tools. Streaming avoids the Anthropic SDK's non-streaming
+// duration limit, while the explicit cap prevents adaptive thinking from
+// exhausting fantasy's smaller provider default before producing summary text.
 func compactionSummaryCall(resolved resolvedModelCall) fantasy.Call {
 	call := resolved.newCall()
 	toolChoiceNone := fantasy.ToolChoiceNone
 	call.ToolChoice = &toolChoiceNone
-	call.MaxOutputTokens = nil
 	return call
 }
 
