@@ -1,14 +1,15 @@
 {
 	"name": "coder-docs-generator",
 	"private": true,
+	"type": "module",
 	"scripts": {
-		"dev": "pnpm copy-images && next dev",
-		"build": "next build",
-		"start": "next start",
-		"export": "pnpm copy-images && next build",
+		"dev": "pnpm copy-images && react-router dev",
+		"build": "pnpm copy-images && react-router build && rm -rf out && mv build/client out && rm -rf build",
+		"start": "vite preview --outDir out",
+		"export": "pnpm build",
 		"copy-images": "sh ./scripts/copyImages.sh",
 		"lint": "pnpm run lint:types",
-		"lint:types": "tsc --noEmit",
+		"lint:types": "react-router typegen && tsc --noEmit",
 		"format": "biome format --write .",
 		"format:check": "biome format ."
 	},
@@ -16,45 +17,33 @@
 		"@chakra-ui/react": "2.10.10",
 		"@emotion/react": "11.14.0",
 		"@emotion/styled": "11.14.1",
-		"archiver": "8.0.0",
+		"@react-router/node": "7.18.2",
 		"framer-motion": "^10.18.0",
 		"front-matter": "4.0.2",
+		"isbot": "5.1.36",
 		"lodash": "4.18.1",
-		"next": "15.5.23",
 		"react": "18.3.1",
 		"react-dom": "18.3.1",
 		"react-icons": "5.7.0",
 		"react-markdown": "10.1.0",
+		"react-router": "7.18.2",
 		"rehype-raw": "7.0.0",
 		"remark-gfm": "4.0.1",
 		"sanitize-html": "2.17.6"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.10",
+		"@react-router/dev": "7.18.2",
 		"@types/lodash": "4.17.25",
 		"@types/node": "22.20.1",
 		"@types/react": "18.3.12",
 		"@types/react-dom": "18.3.1",
 		"@types/sanitize-html": "2.16.1",
-		"eslint": "8.57.1",
-		"eslint-config-next": "14.2.35",
-		"typescript": "6.0.3"
+		"typescript": "6.0.3",
+		"vite": "8.2.1"
 	},
 	"engines": {
 		"npm": ">=9.0.0 <10.0.0",
 		"node": ">=22.0.0 <25.0.0"
-	},
-	"pnpm": {
-		"overrides": {
-			"@babel/runtime": "7.26.10",
-			"brace-expansion": "1.1.13",
-			"minimatch": "5.1.8",
-			"glob@>=10": "10.5.0",
-			"postcss": "8.5.10",
-			"js-yaml": "3.14.2",
-			"yaml": "1.10.3",
-			"flatted": "3.4.2",
-			"mdast-util-to-hast": "13.2.1"
-		}
 	}
 }

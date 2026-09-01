@@ -1,3 +1,6 @@
 #!/bin/bash
 
-cp -r ../docs/images/ public/images
+set -euo pipefail
+
+rm -rf public/images
+cp -r ../docs/images public/images
