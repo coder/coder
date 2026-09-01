@@ -61,6 +61,7 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 ## Repository guardrails
 
 - **Database changes:** edit `coderd/database/queries/*.sql`, run `make gen`, update `enterprise/audit/table.go` for audit errors, then run `make gen` again.
+- **New resources:** scope every new resource to an organization (`organization_id` column, organization-scoped RBAC and routes), never deployment-wide.
 - **OAuth2:** return RFC-compliant errors such as `writeOAuth2Error(...)`. Public endpoints that need system access use `dbauthz.AsSystemRestricted`.
 - **Chatd:** when a change affects the documented architecture, do not edit the architecture document yourself. Leave TODO items in the affected sections; the human PR author writes the actual updates.
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.
