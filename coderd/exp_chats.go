@@ -3543,6 +3543,23 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, diff)
 }
 
+// chatOwnerContext resolves the chat owner's RBAC subject and returns
+// it with a context authorized as that owner. Reachable for deleted
+// owners (see httpmw.ErrUserDeleted); the chat tools unwrap the 403
+// responder into a structured tool response.
+func (api *API) chatOwnerContext(ctx context.Context, ownerID uuid.UUID) (context.Context, rbac.Subject, error) {
+	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	if err != nil {
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return ctx, rbac.Subject{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+				Message: "Chat owner has been deleted.",
+			})
+		}
+		return ctx, rbac.Subject{}, xerrors.Errorf("load user authorization: %w", err)
+	}
+	return dbauthz.As(ctx, actor), actor, nil
+}
+
 // chatCreateWorkspace provides workspace creation for the chat
 // processor. RBAC authorization uses context-based checks via
 // dbauthz.As rather than fake *http.Request objects.
@@ -3551,19 +3568,10 @@ func (api *API) chatCreateWorkspace(
 	ownerID uuid.UUID,
 	req codersdk.CreateWorkspaceRequest,
 ) (codersdk.Workspace, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	ctx, _, err := api.chatOwnerContext(ctx, ownerID)
 	if err != nil {
-		// Chats are not purged when their owner is soft-deleted, so a
-		// chat tool call can still act for a deleted owner. Surface a
-		// structured response instead of an opaque wrapped error.
-		if errors.Is(err, httpmw.ErrUserDeleted) {
-			return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-				Message: "Chat owner has been deleted.",
-			})
-		}
-		return codersdk.Workspace{}, xerrors.Errorf("load user authorization: %w", err)
+		return codersdk.Workspace{}, err
 	}
-	ctx = dbauthz.As(ctx, actor)
 
 	ownerUser, err := api.Database.GetUserByID(ctx, ownerID)
 	if err != nil {
@@ -3636,19 +3644,10 @@ func (api *API) chatStartWorkspace(
 	workspaceID uuid.UUID,
 	req codersdk.CreateWorkspaceBuildRequest,
 ) (codersdk.WorkspaceBuild, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	ctx, actor, err := api.chatOwnerContext(ctx, ownerID)
 	if err != nil {
-		// Chats are not purged when their owner is soft-deleted, so a
-		// chat tool call can still act for a deleted owner. Surface a
-		// structured response instead of an opaque wrapped error.
-		if errors.Is(err, httpmw.ErrUserDeleted) {
-			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-				Message: "Chat owner has been deleted.",
-			})
-		}
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
+		return codersdk.WorkspaceBuild{}, err
 	}
-	ctx = dbauthz.As(ctx, actor)
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
@@ -3720,19 +3719,10 @@ func (api *API) chatStopWorkspace(
 	workspaceID uuid.UUID,
 	req codersdk.CreateWorkspaceBuildRequest,
 ) (codersdk.WorkspaceBuild, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	ctx, actor, err := api.chatOwnerContext(ctx, ownerID)
 	if err != nil {
-		// Chats are not purged when their owner is soft-deleted, so a
-		// chat tool call can still act for a deleted owner. Surface a
-		// structured response instead of an opaque wrapped error.
-		if errors.Is(err, httpmw.ErrUserDeleted) {
-			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-				Message: "Chat owner has been deleted.",
-			})
-		}
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
+		return codersdk.WorkspaceBuild{}, err
 	}
-	ctx = dbauthz.As(ctx, actor)
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
@@ -5139,6 +5129,23 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 	organization := httpmw.OrganizationParam(r)
 	member := httpmw.OrganizationMemberParam(r)
 
+	// A membership row can outlive its user only in the orphan state
+	// (a normal soft-delete purges organization_members first), but a
+	// deleted target must still read as absent. The member middleware
+	// resolves {user} as system because the caller may lack permission
+	// to read the User object; recheck only the deleted flag the same
+	// way. 404 avoids disclosing the target's deleted state.
+	//nolint:gocritic // See above: mirrors ExtractOrganizationMember's own resolution.
+	memberUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), member.UserID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if memberUser.Deleted {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	enabled, err := api.Database.GetChatPersonalModelOverridesEnabled(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -5211,14 +5218,6 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 		if apiKey.UserID != member.UserID {
 			memberSubject, _, err := httpmw.UserRBACSubject(ctx, api.Database, member.UserID, rbac.ScopeAll)
 			if err != nil {
-				// A deleted member is a bad request target, not a server
-				// error.
-				if errors.Is(err, httpmw.ErrUserDeleted) {
-					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-						Message: "Cannot set a model override for a deleted user.",
-					})
-					return
-				}
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error validating model config override.",
 					Detail:  err.Error(),

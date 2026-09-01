@@ -617,6 +617,99 @@ func TestOAuth2ProviderTokenExchangeCodeBelongsToDifferentApp(t *testing.T) {
 	require.ErrorContains(t, err, "The authorization code is invalid or expired")
 }
 
+// TestOAuth2ProviderTokenExchangeDeletedUser pins the RFC 6749 section
+// 5.2 invalid_grant contract for soft-deleted users: their grants are
+// revoked credentials, not server errors.
+func TestOAuth2ProviderTokenExchangeDeletedUser(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AuthorizationCodeGrant", func(t *testing.T) {
+		t.Parallel()
+
+		// oauth2_provider_app_codes rows survive a soft-delete (the
+		// cleanup trigger does not purge them), so consent, then
+		// delete, then exchange reaches the grant with no orphan race.
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		apps := generateApps(ctx, t, ownerClient, "token-exchange-deleted")
+		//nolint:gocritic // OAauth2 app management requires owner permission.
+		secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+		require.NoError(t, err)
+
+		userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		cfg := &oauth2.Config{
+			ClientID:     apps.Default.ID.String(),
+			ClientSecret: secret.ClientSecretFull,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:   apps.Default.Endpoints.Authorization,
+				TokenURL:  apps.Default.Endpoints.Token,
+				AuthStyle: oauth2.AuthStyleInParams,
+			},
+			RedirectURL: apps.Default.CallbackURL,
+			Scopes:      []string{},
+		}
+		code, verifier, err := authorizationFlow(ctx, userClient, cfg)
+		require.NoError(t, err)
+
+		//nolint:gocritic // User deletion requires owner permission.
+		err = ownerClient.DeleteUser(ctx, user.ID)
+		require.NoError(t, err)
+
+		_, err = cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "The authorization code is invalid or expired")
+	})
+
+	t.Run("RefreshTokenGrant", func(t *testing.T) {
+		t.Parallel()
+
+		// An ordinary soft-delete purges the api_keys row, which kills
+		// a refresh earlier with the same invalid_grant; the deleted
+		// check in the grant itself is reached in the orphan state,
+		// where the token rows survived the cleanup trigger.
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		apps := generateApps(ctx, t, ownerClient, "refresh-deleted")
+		//nolint:gocritic // OAauth2 app management requires owner permission.
+		secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+		require.NoError(t, err)
+
+		userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		cfg := &oauth2.Config{
+			ClientID:     apps.Default.ID.String(),
+			ClientSecret: secret.ClientSecretFull,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:   apps.Default.Endpoints.Authorization,
+				TokenURL:  apps.Default.Endpoints.Token,
+				AuthStyle: oauth2.AuthStyleInParams,
+			},
+			RedirectURL: apps.Default.CallbackURL,
+			Scopes:      []string{},
+		}
+		code, verifier, err := authorizationFlow(ctx, userClient, cfg)
+		require.NoError(t, err)
+		token, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+		require.NoError(t, err)
+		require.NotEmpty(t, token.RefreshToken)
+
+		dbtestutil.SoftDeleteUserKeepRows(t, sqlDB, user.ID)
+
+		_, err = cfg.TokenSource(ctx, &oauth2.Token{
+			RefreshToken: token.RefreshToken,
+		}).Token()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "The refresh token is invalid or expired")
+	})
+}
+
 func TestOAuth2ProviderPublicClientTokenExchange(t *testing.T) {
 	t.Parallel()
 

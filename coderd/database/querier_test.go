@@ -3440,26 +3440,29 @@ func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
 }
 
 // TestGetAuthorizationUserRolesDeletedUser pins the query's contract for
-// soft-deleted users: the row is still returned, with Deleted set and the
-// site-level roles (including the implied member role) still resolving.
-// Org-scoped roles are gone by then: the cleanup trigger deletes the user's
-// organization_members rows during the soft-delete. Non-authentication
-// callers (provisioner builds resolving a soft-deleted owner's roles to run
-// the delete build, prebuilds, dynamic parameter rendering) depend on the
-// row being returned; the authentication path rejects the subject in
-// httpmw.UserRBACSubject based on the Deleted column instead of a WHERE
-// filter here.
+// soft-deleted users (see the comment on GetAuthorizationUserRoles in
+// queries/users.sql for who depends on it): the row is still returned,
+// with Deleted set and the site-level roles (including the implied
+// member role) still resolving, while org-scoped roles disappear with
+// the organization_members rows the cleanup trigger deletes.
 func TestGetAuthorizationUserRolesDeletedUser(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
 	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
+	orgMemberRole := "organization-member:" + org.ID.String()
 	roles, err := db.GetAuthorizationUserRoles(ctx, user.ID)
 	require.NoError(t, err)
 	require.False(t, roles.Deleted)
+	require.Contains(t, roles.Roles, orgMemberRole)
 
 	err = db.UpdateUserDeletedByID(ctx, user.ID)
 	require.NoError(t, err)
@@ -3468,6 +3471,8 @@ func TestGetAuthorizationUserRolesDeletedUser(t *testing.T) {
 	require.NoError(t, err, "deleted users must still resolve roles")
 	require.True(t, roles.Deleted)
 	require.Contains(t, roles.Roles, "member")
+	require.NotContains(t, roles.Roles, orgMemberRole,
+		"soft-delete removes org memberships, so org roles must be gone")
 }
 
 // TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles verifies the

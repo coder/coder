@@ -46,26 +46,11 @@ func randomAPIKeyParts() (id string, secret string, hashedSecret []byte) {
 	return id, secret, hashedSecret
 }
 
-// softDeleteUserKeepRows soft-deletes a user while keeping their
-// dependent rows (api_keys, user_links): delete_deleted_user_resources
-// would purge them, so suppress triggers for this transaction with
-// session_replication_role = replica, which is a plain per-transaction
-// GUC (no DDL, no ACCESS EXCLUSIVE lock on users that could stall other
-// parallel tests when CODER_PG_CONNECTION_URL points every test at one
-// shared database). This reconstructs the orphaned credentials the
-// middleware must reject (rows that survived cleanup past a race, a
-// restored backup, an insert that bypassed trigger_insert_apikeys).
+// softDeleteUserKeepRows reconstructs the orphaned-credential state
+// this middleware must reject; see dbtestutil.SoftDeleteUserKeepRows.
 func softDeleteUserKeepRows(t *testing.T, sqlDB *sql.DB, userID uuid.UUID) {
 	t.Helper()
-	ctx := context.Background()
-	tx, err := sqlDB.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	defer tx.Rollback() //nolint:errcheck // no-op after commit
-	_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
-	require.NoError(t, err)
-	_, err = tx.ExecContext(ctx, `UPDATE users SET deleted = true WHERE id = $1`, userID)
-	require.NoError(t, err)
-	require.NoError(t, tx.Commit())
+	dbtestutil.SoftDeleteUserKeepRows(t, sqlDB, userID)
 }
 
 func TestAPIKey(t *testing.T) {
@@ -339,9 +324,9 @@ func TestAPIKey(t *testing.T) {
 			rw           = httptest.NewRecorder()
 			user         = dbgen.User(t, db, database.User{})
 			// The API key itself is valid, but the OAuth link is
-			// expired: pre-fix, the middleware would call the IdP with
-			// the deleted user's refresh token and rewrite user_links
-			// before rejecting the subject.
+			// expired, so an accepted request would refresh against the
+			// IdP and rewrite user_links; the deleted owner must be
+			// rejected before either happens.
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				LastUsed:  dbtime.Now().AddDate(0, 0, -1),
@@ -397,6 +382,62 @@ func TestAPIKey(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
+	t.Run("DeletedDuringOAuthRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
+			user  = dbgen.User(t, db, database.User{})
+			// Valid API key, expired OAuth link: the middleware passes
+			// the deleted check, then the owner is soft-deleted while
+			// the IdP refresh round trip is in flight. The cleanup
+			// trigger removes the user_links row, so the refresh
+			// result has nowhere to land.
+			_, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LoginType: database.LoginTypeOIDC,
+			})
+			_ = dbgen.UserLink(t, db, database.UserLink{
+				UserID:      user.ID,
+				LoginType:   database.LoginTypeOIDC,
+				OAuthExpiry: dbtime.Now().AddDate(0, 0, -1),
+			})
+		)
+
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB: db,
+			OAuth2Configs: &httpmw.OAuth2Configs{
+				OIDC: &testutil.OAuth2Config{
+					TokenSourceFunc: func() (*oauth2.Token, error) {
+						// Ordinary soft-delete, triggers enabled: the
+						// cleanup trigger deletes the user's user_links
+						// row while the "IdP call" is in flight.
+						err := db.UpdateUserDeletedByID(context.Background(), user.ID)
+						if err != nil {
+							return nil, err
+						}
+						return &oauth2.Token{
+							AccessToken:  "wow",
+							RefreshToken: "moo",
+							Expiry:       dbtime.Now().AddDate(0, 0, 1),
+						}, nil
+					},
+				},
+			},
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		// A credential revoked mid-request is a rejected credential,
+		// not a server error.
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, httpmw.SignedOutErrorMessage, resp.Message)
 	})
 
 	t.Run("InvalidSecret", func(t *testing.T) {

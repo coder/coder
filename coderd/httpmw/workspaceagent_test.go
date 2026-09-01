@@ -108,8 +108,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		)
 
 		// Soft-delete the owner while keeping their rows so the agent's
-		// auth token still resolves; a soft-deleted owner must yield a
-		// terminal 401 for the agent, not a retryable 500.
+		// auth token still resolves; a soft-deleted owner is a client
+		// condition (401), not a server error (500).
 		softDeleteUserKeepRows(t, sqlDB, workspace.OwnerID)
 
 		rw := httptest.NewRecorder()
@@ -124,6 +124,25 @@ func TestWorkspaceAgent(t *testing.T) {
 		var response codersdk.Response
 		require.NoError(t, json.Unmarshal(body, &response))
 		require.Equal(t, "Workspace owner has been deleted.", response.Message)
+
+		// The failure is soft: an Optional mount degrades to anonymous
+		// instead of hard-failing, like the apikey path (CRF-1).
+		optionalReq := httptest.NewRequest("GET", "/", nil)
+		optionalReq.Header.Set(codersdk.SessionTokenHeader, authToken.String())
+		optionalRtr := chi.NewRouter()
+		optionalRtr.Use(httpmw.ExtractWorkspaceAgentAndLatestBuild(
+			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+				DB:       db,
+				Optional: true,
+			}))
+		optionalRtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+		optionalRW := httptest.NewRecorder()
+		optionalRtr.ServeHTTP(optionalRW, optionalReq)
+		optionalRes := optionalRW.Result()
+		defer optionalRes.Body.Close()
+		require.Equal(t, http.StatusOK, optionalRes.StatusCode)
 	})
 
 	t.Run("Latest", func(t *testing.T) {

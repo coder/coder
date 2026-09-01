@@ -59,7 +59,12 @@ type ValidateAPIKeyResult struct {
 // ErrUserDeleted is returned by UserRBACSubject when the user exists but is
 // soft-deleted. A soft-deleted user must never authorize as a subject, even
 // when a credential row (for example an orphaned api_keys row) still
-// references them.
+// references them. Not all rows referencing a user are purged on
+// soft-delete (chats, OAuth2 app codes, and workspaces survive), so
+// callers can hold a user ID whose subject can no longer be built in
+// ordinary operation; every call site must route this sentinel to a
+// disposition appropriate for its surface instead of surfacing it as a
+// server error.
 var ErrUserDeleted = xerrors.New("user is deleted")
 
 // ValidateAPIKeyError represents a validation failure with enough
@@ -282,11 +287,13 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	// is a correctly rejected credential, not a server error. An api_keys
 	// row can outlive its user (a row that survived or was resurrected past
 	// delete_deleted_user_resources, a restored backup, an insert that
-	// bypassed trigger_insert_apikeys) and must be inert: rejecting before
-	// the OIDC/GitHub token refresh and the LastUsed/expiry writes keeps
-	// the stale token from calling the IdP with the deleted user's refresh
-	// token, rewriting user_links, bumping the deleted user's last_seen_at,
-	// or re-firing the cleanup trigger.
+	// bypassed trigger_insert_apikeys) and must be inert: for a delete
+	// committed before this read, rejecting here keeps the stale token
+	// from calling the IdP with the deleted user's refresh token,
+	// rewriting user_links, bumping the deleted user's last_seen_at, or
+	// re-firing the cleanup trigger. A delete that commits after this
+	// read is caught downstream instead (see the UpdateUserLink ErrNoRows
+	// mapping below).
 	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
 	if err != nil {
 		if errors.Is(err, ErrUserDeleted) {
@@ -431,6 +438,20 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 				Claims: link.Claims,
 			})
 			if err != nil {
+				// A soft-delete that commits between the deleted check
+				// above and this write removes the user_links row (the
+				// cleanup trigger cascades), so ErrNoRows here means the
+				// credential was revoked under us: a soft 401, matching
+				// the deleted check, not a server error.
+				if errors.Is(err, sql.ErrNoRows) {
+					return nil, &ValidateAPIKeyError{
+						Code: http.StatusUnauthorized,
+						Response: codersdk.Response{
+							Message: SignedOutErrorMessage,
+							Detail:  "You must re-authenticate with the login provider.",
+						},
+					}
+				}
 				return nil, &ValidateAPIKeyError{
 					Code: http.StatusInternalServerError,
 					Response: codersdk.Response{

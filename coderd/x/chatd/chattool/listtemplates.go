@@ -438,11 +438,10 @@ func compactTemplateSearch(value string) string {
 func asOwner(ctx context.Context, db database.Store, ownerID uuid.UUID) (context.Context, error) {
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, ownerID, rbac.ScopeAll)
 	if err != nil {
-		// Chats are not purged when their owner is soft-deleted, so this
-		// path stays reachable. Fail closed with an explicit message
-		// instead of an opaque authorization error.
+		// Reachable for deleted owners; see httpmw.ErrUserDeleted. The
+		// message reaches the model as tool output, so keep it plain.
 		if errors.Is(err, httpmw.ErrUserDeleted) {
-			return ctx, xerrors.New("chat owner has been deleted")
+			return ctx, xerrors.Errorf("chat owner has been deleted: %w", err)
 		}
 		return ctx, xerrors.Errorf("load user authorization: %w", err)
 	}

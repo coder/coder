@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -321,6 +322,32 @@ func normalizeDump(schema []byte) []byte {
 	schema = regexp.MustCompile(`(?im)\n{3,}`).ReplaceAll(schema, []byte("\n\n"))
 
 	return schema
+}
+
+// SoftDeleteUserKeepRows soft-deletes a user while keeping their
+// dependent rows (api_keys, user_links, oauth2 tokens):
+// delete_deleted_user_resources would purge them, so triggers are
+// suppressed for this transaction with session_replication_role =
+// replica, a plain per-transaction GUC (no DDL, no ACCESS EXCLUSIVE
+// lock on users that could stall other parallel tests when
+// CODER_PG_CONNECTION_URL points every test at one shared database).
+// Setting the GUC requires a superuser role (the dockerized/CI test
+// databases run as one); a least-privilege CODER_PG_CONNECTION_URL
+// role fails here with "permission denied to set parameter". This
+// reconstructs the orphaned credentials the authentication path must
+// reject (rows that survived cleanup past a race, a restored backup,
+// an insert that bypassed trigger_insert_apikeys).
+func SoftDeleteUserKeepRows(t testing.TB, sqlDB *sql.DB, userID uuid.UUID) {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck // no-op after commit
+	_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `UPDATE users SET deleted = true WHERE id = $1`, userID)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
 }
 
 // Deprecated: disable foreign keys was created to aid in migrating off

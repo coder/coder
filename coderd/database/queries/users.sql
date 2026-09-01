@@ -588,9 +588,11 @@ SELECT
 	-- deleted is returned so the authentication path can reject credentials
 	-- of soft-deleted users (see httpmw.UserRBACSubject). Deleted users are
 	-- intentionally NOT filtered out here: non-authentication consumers must
-	-- keep resolving roles for a soft-deleted owner. Known dependents:
-	-- coderd/provisionerdserver/provisionerdserver.go (role resolution for
-	-- builds, e.g. the delete build for a deleted owner's workspaces) and
+	-- keep resolving roles for an owner who is soft-deleted while their
+	-- workspaces still exist (deletion normally requires releasing
+	-- workspaces first, but orphaned rows and in-flight jobs survive).
+	-- Known dependents: coderd/provisionerdserver/provisionerdserver.go
+	-- (owner role resolution during job acquisition) and
 	-- coderd/dynamicparameters/render.go (owner context for rendering).
 	-- Do not add a WHERE deleted = false filter without migrating those
 	-- consumers first.
