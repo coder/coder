@@ -404,9 +404,40 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 			"POST: a dangerous scheme must never reach a Location header")
 		postBody := readBody(t, postResp)
 		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
-		// The callback-parse branch also answers server_error.
-		require.Contains(t, postBody, "invalid scheme",
-			"POST: the failure must name the scheme, not just the error class")
+		require.Contains(t, postBody, "callback URL is not usable",
+			"POST: the failure must name the callback, not just the error class")
+	})
+
+	// The other half of the same class: a stored callback that does not even
+	// parse. Registration rejects it, so reaching this needs a row that bypassed
+	// registration, which is exactly what the scheme case above also assumes.
+	t.Run("UnparsableCallbackNotRedirected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const unparsable = "http://a b"
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: unparsable,
+			Scope:       sql.NullString{String: scopeInCatalog, Valid: true},
+		})
+
+		getResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog)
+		defer getResp.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, getResp.StatusCode)
+		getBody := readBody(t, getResp)
+		require.Contains(t, getBody, "Invalid Callback URL",
+			"GET: the failure must name the callback URL")
+		require.NotContains(t, getBody, unparsable,
+			"GET: the Go parse error carries the stored URL, which must not reach the page")
+
+		postResp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeInCatalog)
+		defer postResp.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, postResp.StatusCode)
+		postBody := readBody(t, postResp)
+		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
+		require.Contains(t, postBody, "callback URL is not usable",
+			"POST: nothing was validated, so the description must not blame the query")
 	})
 
 	// The trap the constructor exists to close: a request that both fails the

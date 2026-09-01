@@ -479,21 +479,14 @@ func TestNewAuthorizeResponse(t *testing.T) {
 
 	const registered = "https://app.example.com/callback"
 
-	newParser := func() (*httpapi.QueryParamParser, *url.URL) {
-		t.Helper()
-		callback, err := url.Parse(registered)
-		require.NoError(t, err)
-		return httpapi.NewQueryParamParser(), callback
-	}
-
 	t.Run("MatchingRedirectURI", func(t *testing.T) {
 		t.Parallel()
 
-		p, callback := newParser()
+		p := httpapi.NewQueryParamParser()
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {registered},
 			"state":        {"abc123"},
-		}, callback)
+		}, registered)
 
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
@@ -505,8 +498,8 @@ func TestNewAuthorizeResponse(t *testing.T) {
 	t.Run("OmittedRedirectURIDefaultsToRegistered", func(t *testing.T) {
 		t.Parallel()
 
-		p, callback := newParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, callback)
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{}, registered)
 
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
@@ -517,10 +510,10 @@ func TestNewAuthorizeResponse(t *testing.T) {
 	t.Run("MismatchedRedirectURIHasNoDestination", func(t *testing.T) {
 		t.Parallel()
 
-		p, callback := newParser()
+		p := httpapi.NewQueryParamParser()
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {"https://elsewhere.example/cb"},
-		}, callback)
+		}, registered)
 
 		// The client's mistake, so it joins the parser's other errors rather
 		// than becoming a server fault.
@@ -534,10 +527,10 @@ func TestNewAuthorizeResponse(t *testing.T) {
 	t.Run("DangerousClientSchemeIsNotTheServersFault", func(t *testing.T) {
 		t.Parallel()
 
-		p, callback := newParser()
+		p := httpapi.NewQueryParamParser()
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {"javascript:alert(1)"},
-		}, callback)
+		}, registered)
 
 		require.NoError(t, err, "the app registered a usable callback; the client did not send one")
 		require.NotEmpty(t, p.Errors)
@@ -547,14 +540,22 @@ func TestNewAuthorizeResponse(t *testing.T) {
 	t.Run("DangerousRegisteredSchemeIsServerState", func(t *testing.T) {
 		t.Parallel()
 
-		callback, parseErr := url.Parse("javascript:alert(1)")
-		require.NoError(t, parseErr)
-
 		p := httpapi.NewQueryParamParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, callback)
+		response, err := newAuthorizeResponse(p, url.Values{}, "javascript:alert(1)")
 
 		require.Error(t, err)
 		require.Empty(t, p.Errors, "the registration is rejected before any parameter is read")
+		require.False(t, response.canRedirect())
+	})
+
+	t.Run("UnparsableRegisteredCallbackIsServerState", func(t *testing.T) {
+		t.Parallel()
+
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{}, "http://a b")
+
+		require.Error(t, err, "a registration that does not parse is the same class as one this server rejects")
+		require.Empty(t, p.Errors)
 		require.False(t, response.canRedirect())
 	})
 }
@@ -568,15 +569,32 @@ func TestAuthorizeResponseZeroValue(t *testing.T) {
 	require.False(t, (&authorizeFailure{}).redirect.canRedirect())
 }
 
+// TestFailureKind pins the precedence both handlers dispatch on, in the one
+// place it is now written.
+func TestFailureKind(t *testing.T) {
+	t.Parallel()
+
+	deliverable := authorizeResponse{callback: &url.URL{Scheme: "https", Host: "app.example.com"}}
+	unusable := xerrors.New("registered callback is not usable")
+
+	require.Equal(t, failureAnswerHere, authorizeFailure{}.kind())
+	require.Equal(t, failureDeliverToClient, authorizeFailure{redirect: deliverable}.kind())
+	require.Equal(t, failureCorruptRegistration, authorizeFailure{corruptCallback: unusable}.kind())
+	require.Equal(t, failureCorruptRegistration,
+		authorizeFailure{corruptCallback: unusable, redirect: deliverable}.kind(),
+		"the registration is what a Location header would be trusting, so its failure outranks a usable callback")
+}
+
 // TestCarveOutDelivery pins which failures reach the client's callback and which
 // stay here, the two RFC 6749 §4.1.2.1 carve-outs: an unsettled client identity
 // and a redirect URI at fault.
 func TestCarveOutDelivery(t *testing.T) {
 	t.Parallel()
 
-	app := database.OAuth2ProviderApp{ID: uuid.MustParse("6f1a9c30-0d6b-4f8e-9a71-2c4b83f0ab12")}
-	registered, err := url.Parse("https://app.example.com/callback")
-	require.NoError(t, err)
+	app := database.OAuth2ProviderApp{
+		ID:          uuid.MustParse("6f1a9c30-0d6b-4f8e-9a71-2c4b83f0ab12"),
+		CallbackURL: "https://app.example.com/callback",
+	}
 
 	valid := func() url.Values {
 		return url.Values{
@@ -651,7 +669,7 @@ func TestCarveOutDelivery(t *testing.T) {
 			tc.mutate(vals)
 			r := httptest.NewRequest(http.MethodGet, "/oauth2/authorize?"+vals.Encode(), nil)
 
-			_, failure := extractAuthorizeParams(r, slogtest.Make(t, nil), app, registered)
+			_, failure := extractAuthorizeParams(r, slogtest.Make(t, nil), app)
 			require.NotNil(t, failure)
 			require.Equal(t, tc.deliver, failure.redirect.canRedirect())
 		})

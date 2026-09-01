@@ -326,9 +326,6 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			callbackURL, err := url.Parse("http://localhost:3000/callback")
-			require.NoError(t, err)
-
 			// Build query parameters for GET request
 			query := url.Values{}
 			query.Set("response_type", "code")
@@ -352,7 +349,7 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			}
 
 			// Extract authorize params
-			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{}, callbackURL)
+			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
 
 			require.Nil(t, failure)
 			require.Equal(t, tc.expectedScopes, params.scope)
@@ -398,9 +395,6 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			callbackURL, err := url.Parse("http://localhost:3000/callback")
-			require.NoError(t, err)
-
 			query := url.Values{}
 			query.Set("response_type", "code")
 			query.Set("client_id", "test-client")
@@ -415,7 +409,7 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 				URL:    reqURL,
 			}
 
-			_, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{}, callbackURL)
+			_, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
 			if tc.expectValid {
 				require.Nil(t, failure)
 			} else {
@@ -439,9 +433,6 @@ func TestExtractAuthorizeParams_NonCodeResponseTypeDoesNotRequirePKCE(t *testing
 		t.Run(responseType, func(t *testing.T) {
 			t.Parallel()
 
-			callbackURL, err := url.Parse("http://localhost:3000/callback")
-			require.NoError(t, err)
-
 			query := url.Values{}
 			query.Set("response_type", responseType)
 			query.Set("client_id", "test-client")
@@ -455,7 +446,7 @@ func TestExtractAuthorizeParams_NonCodeResponseTypeDoesNotRequirePKCE(t *testing
 				URL:    reqURL,
 			}
 
-			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{}, callbackURL)
+			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
 			require.Nil(t, failure)
 			require.Equal(t, responseType, params.responseType)
 		})

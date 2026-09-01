@@ -218,14 +218,42 @@ func (f authorizeFailure) errorCode() codersdk.OAuth2ErrorCode {
 	return f.code
 }
 
-func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OAuth2ProviderApp, registered *url.URL) (authorizeParams, *authorizeFailure) {
+// failureKind is where a failure is answered. The three are mutually exclusive
+// by construction here rather than by the shape of authorizeFailure, so both
+// handlers dispatch on this instead of re-deriving the precedence from fields.
+type failureKind int
+
+const (
+	// failureCorruptRegistration outranks the rest: with the registration
+	// unusable there is nothing to redirect to, whatever else the client also
+	// got wrong.
+	failureCorruptRegistration failureKind = iota
+	// failureDeliverToClient is the RFC 6749 §4.1.2.1 default.
+	failureDeliverToClient
+	// failureAnswerHere is a §4.1.2.1 carve-out: no callback this server will
+	// send the answer to.
+	failureAnswerHere
+)
+
+func (f authorizeFailure) kind() failureKind {
+	switch {
+	case f.corruptCallback != nil:
+		return failureCorruptRegistration
+	case f.redirect.canRedirect():
+		return failureDeliverToClient
+	default:
+		return failureAnswerHere
+	}
+}
+
+func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OAuth2ProviderApp) (authorizeParams, *authorizeFailure) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
 	// response_type and client_id are always required.
 	p.RequiredNotEmpty("response_type", "client_id")
 
-	response, err := newAuthorizeResponse(p, vals, registered)
+	response, err := newAuthorizeResponse(p, vals, app.CallbackURL)
 	if err != nil {
 		return authorizeParams{}, &authorizeFailure{corruptCallback: err}
 	}
@@ -359,8 +387,9 @@ type authorizeResponse struct {
 	state    string
 }
 
-// newAuthorizeResponse checks the app's registered callback, exact-matches any
-// redirect_uri the client sent against it, and reads the state to echo back.
+// newAuthorizeResponse parses the app's registered callback, checks it,
+// exact-matches any redirect_uri the client sent against it, and reads the
+// state to echo back.
 //
 // The scheme is checked on the registered URL rather than on the match's result,
 // because p.RedirectURL returns the client's URI when the match fails, and
@@ -371,12 +400,16 @@ type authorizeResponse struct {
 // A returned error means the registration itself is unusable, which is server
 // state. A mismatch is the client's mistake and joins the other parameter
 // failures in p.Errors.
-func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, registered *url.URL) (authorizeResponse, error) {
-	if err := codersdk.ValidateRedirectURIScheme(registered); err != nil {
+func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, registered string) (authorizeResponse, error) {
+	registeredURL, err := url.Parse(registered)
+	if err != nil {
+		return authorizeResponse{}, err
+	}
+	if err := codersdk.ValidateRedirectURIScheme(registeredURL); err != nil {
 		return authorizeResponse{}, err
 	}
 
-	callback := p.RedirectURL(vals, registered, "redirect_uri")
+	callback := p.RedirectURL(vals, registeredURL, "redirect_uri")
 	response := authorizeResponse{state: p.String(vals, "", "state")}
 	// The field, not a count of errors across these two lines: reading state
 	// can fail too, and that failure belongs to the client's callback rather
@@ -493,14 +526,13 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		app := httpmw.OAuth2ProviderApp(r)
 		ua := httpmw.UserAuthorization(r.Context())
 
-		callbackURL, err := url.Parse(app.CallbackURL)
-		if err != nil {
-			logCorruptCallback(r.Context(), logger, app, err)
+		errorPage := func(status int, title, description string, warnings []string) {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusInternalServerError,
+				Status:      status,
 				HideStatus:  false,
-				Title:       "Internal Server Error",
-				Description: err.Error(),
+				Title:       title,
+				Description: description,
+				Warnings:    warnings,
 				Actions: []site.Action{
 					{
 						URL:  accessURL.String(),
@@ -508,59 +540,39 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 					},
 				},
 			})
-			return
 		}
 
-		params, failure := extractAuthorizeParams(r, logger, app, callbackURL)
+		params, failure := extractAuthorizeParams(r, logger, app)
 		if failure != nil {
-			// 500, not 400: registration rejects these schemes, so a stored one
-			// is bad server state and takes precedence over anything the client
-			// got wrong in the same request.
-			if failure.corruptCallback != nil {
+			switch failure.kind() {
+			case failureCorruptRegistration:
 				logCorruptCallback(r.Context(), logger, app, failure.corruptCallback)
-				site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-					Status:      http.StatusInternalServerError,
-					HideStatus:  false,
-					Title:       "Invalid Callback URL",
-					Description: "The application's registered callback URL has an invalid scheme.",
-					Actions: []site.Action{
-						{
-							URL:  accessURL.String(),
-							Text: "Back to site",
-						},
-					},
-				})
-				return
-			}
+				errorPage(http.StatusInternalServerError, "Invalid Callback URL",
+					"The application's registered callback URL is not usable.", nil)
 
-			// §4.1.2.1: once the callback has been matched against the app's
-			// registration, a parameter failure is a response to the client
-			// rather than a page for the user. Without it the app never learns
-			// its request failed and waits on an authorization that will not
-			// arrive.
-			if failure.redirect.canRedirect() {
+			case failureDeliverToClient:
+				// §4.1.2.1: once the callback has been matched against the app's
+				// registration, a parameter failure is a response to the client
+				// rather than a page for the user. Without it the app never
+				// learns its request failed and waits on an authorization that
+				// will not arrive.
 				redirectAuthorizeError(rw, r, logger, failure.redirect,
 					failure.errorCode(), failure.message)
-				return
-			}
 
-			errStr := make([]string, len(failure.validationErrors))
-			for i, err := range failure.validationErrors {
-				errStr[i] = err.Detail
+			case failureAnswerHere:
+				warnings := make([]string, len(failure.validationErrors))
+				for i, err := range failure.validationErrors {
+					warnings[i] = err.Detail
+				}
+				errorPage(http.StatusBadRequest, "Invalid Query Parameters",
+					"One or more query parameters are missing or invalid.", warnings)
+
+			default:
+				logger.Error(r.Context(), "unhandled authorize failure kind",
+					slog.F("kind", int(failure.kind())))
+				errorPage(http.StatusInternalServerError, "Internal Server Error",
+					"The request could not be answered.", nil)
 			}
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				HideStatus:  false,
-				Title:       "Invalid Query Parameters",
-				Description: "One or more query parameters are missing or invalid.",
-				Warnings:    errStr,
-				Actions: []site.Action{
-					{
-						URL:  accessURL.String(),
-						Text: "Back to site",
-					},
-				},
-			})
 			return
 		}
 
@@ -626,31 +638,28 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		apiKey := httpmw.APIKey(r)
 		app := httpmw.OAuth2ProviderApp(r)
 
-		callbackURL, err := url.Parse(app.CallbackURL)
-		if err != nil {
-			logCorruptCallback(ctx, logger, app, err)
-			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Failed to validate query parameters")
-			return
-		}
-
-		params, failure := extractAuthorizeParams(r, logger, app, callbackURL)
+		params, failure := extractAuthorizeParams(r, logger, app)
 		if failure != nil {
-			// As on the GET side: a rejected registered scheme is server state
-			// and outranks the client's own mistakes.
-			if failure.corruptCallback != nil {
+			switch failure.kind() {
+			case failureCorruptRegistration:
 				logCorruptCallback(ctx, logger, app, failure.corruptCallback)
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
 					codersdk.OAuth2ErrorCodeServerError,
-					"The application's registered callback URL has an invalid scheme")
-				return
-			}
-			// As on the GET side: §4.1.2.1 delivers this to the client.
-			if failure.redirect.canRedirect() {
+					"The application's registered callback URL is not usable")
+
+			case failureDeliverToClient:
 				redirectAuthorizeError(rw, r, logger, failure.redirect,
 					failure.errorCode(), failure.message)
-				return
+
+			case failureAnswerHere:
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, failure.errorCode(), failure.message)
+
+			default:
+				logger.Error(ctx, "unhandled authorize failure kind",
+					slog.F("kind", int(failure.kind())))
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
+					codersdk.OAuth2ErrorCodeServerError, "The request could not be answered")
 			}
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, failure.errorCode(), failure.message)
 			return
 		}
 
