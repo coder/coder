@@ -47,7 +47,6 @@ var (
 	lastBuildJobID    = uuid.MustParse("12341234-0000-0000-000c-000000000000")
 	otherUserID       = uuid.MustParse("12341234-0000-0000-000d-000000000000")
 	presetID          = uuid.MustParse("12341234-0000-0000-000e-000000000000")
-	taskID            = uuid.MustParse("12341234-0000-0000-000f-000000000000")
 )
 
 func TestBuilder_NoOptions(t *testing.T) {
@@ -96,7 +95,6 @@ func TestBuilder_NoOptions(t *testing.T) {
 			asrt.Equal(buildID, bld.ID)
 		}),
 		withBuild,
-		withNoTask,
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 			asrt.Equal(buildID, params.WorkspaceBuildID)
 			asrt.Empty(params.Name)
@@ -144,7 +142,6 @@ func TestBuilder_Initiator(t *testing.T) {
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 		}),
 		withBuild,
-		withNoTask,
 	)
 	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
@@ -194,7 +191,6 @@ func TestBuilder_Baggage(t *testing.T) {
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 		}),
 		withBuild,
-		withNoTask,
 	)
 	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
@@ -237,7 +233,6 @@ func TestBuilder_Reason(t *testing.T) {
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 		}),
 		withBuild,
-		withNoTask,
 	)
 	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
@@ -284,7 +279,6 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 		}),
 		withBuild,
-		withNoTask,
 	)
 	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
@@ -402,7 +396,6 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		expectBuildParameters(func(_ database.InsertWorkspaceBuildParametersParams) {
 		}),
 		withBuild,
-		withNoTask,
 		expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 	)
 	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -489,7 +482,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 				}
 			}),
 			withBuild,
-			withNoTask,
 			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -541,7 +533,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 				}
 			}),
 			withBuild,
-			withNoTask,
 			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -577,7 +568,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		mDB := expectDB(t,
 			// Inputs
 			withTemplate,
-			withNoTask,
 			withInactiveVersionNoParams(),
 			withLastBuildFound,
 			withTemplateVersionVariables(inactiveVersionID, nil),
@@ -613,7 +603,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withNoTask,
 			withTemplateVersionVariables(inactiveVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
@@ -688,7 +677,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 				}
 			}),
 			withBuild,
-			withNoTask,
 			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -756,7 +744,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 				}
 			}),
 			withBuild,
-			withNoTask,
 		)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
@@ -821,7 +808,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 				}
 			}),
 			withBuild,
-			withNoTask,
 		)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
@@ -884,7 +870,6 @@ func TestWorkspaceBuildWithPreset(t *testing.T) {
 			asrt.Equal(presetID, bld.TemplateVersionPresetID.UUID)
 		}),
 		withBuild,
-		withNoTask,
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 			asrt.Equal(buildID, params.WorkspaceBuildID)
 			asrt.Empty(params.Name)
@@ -954,7 +939,6 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 				asrt.Equal(buildID, bld.ID)
 			}),
 			withBuild,
-			withNoTask,
 			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 				asrt.Equal(buildID, params.WorkspaceBuildID)
 				asrt.Empty(params.Name)
@@ -1018,7 +1002,6 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 				asrt.Equal(buildID, bld.ID)
 			}),
 			withBuild,
-			withNoTask,
 			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 				asrt.Equal(buildID, params.WorkspaceBuildID)
 				asrt.Empty(params.Name)
@@ -1061,7 +1044,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 
 		var calls atomic.Int64
 		fakeUsageChecker := &fakeUsageChecker{
-			checkBuildUsageFunc: func(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+			checkBuildUsageFunc: func(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 				calls.Add(1)
 				return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 			},
@@ -1085,7 +1068,6 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
 			withBuild,
-			withNoTask,
 			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {}),
 		)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -1139,7 +1121,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 
 			var calls atomic.Int64
 			fakeUsageChecker := &fakeUsageChecker{
-				checkBuildUsageFunc: func(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+				checkBuildUsageFunc: func(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 					calls.Add(1)
 					return c.response, c.responseErr
 				},
@@ -1147,7 +1129,6 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 
 			mDB := expectDB(t,
 				withTemplate,
-				withNoTask,
 				withInactiveVersionNoParams(),
 			)
 			fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -1161,60 +1142,6 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 			require.EqualValues(t, 1, calls.Load())
 		})
 	}
-}
-
-func TestWorkspaceBuildWithTask(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-	asrt := assert.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	testTask := database.Task{
-		ID:                taskID,
-		OrganizationID:    orgID,
-		OwnerID:           userID,
-		Name:              "test-task",
-		WorkspaceID:       uuid.NullUUID{UUID: workspaceID, Valid: true},
-		TemplateVersionID: activeVersionID,
-		CreatedAt:         dbtime.Now(),
-	}
-
-	mDB := expectDB(t,
-		// Inputs
-		withTemplate,
-		withInactiveVersion(nil),
-		withLastBuildFound,
-		withLastBuildState,
-		withTemplateVersionVariables(inactiveVersionID, nil),
-		withRichParameters(nil),
-		withParameterSchemas(inactiveJobID, nil),
-		withWorkspaceTags(inactiveVersionID, nil),
-		withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
-
-		// Outputs
-		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
-		withInTx,
-		expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
-		expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
-		withBuild,
-		withTask(testTask),
-		expectUpsertTaskWorkspaceApp(func(params database.UpsertTaskWorkspaceAppParams) {
-			asrt.Equal(taskID, params.TaskID)
-			asrt.Equal(int32(2), params.WorkspaceBuildNumber)
-			asrt.False(params.WorkspaceAgentID.Valid, "workspace_agent_id should be NULL initially")
-			asrt.False(params.WorkspaceAppID.Valid, "workspace_app_id should be NULL initially")
-		}),
-		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {}),
-	)
-	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-
-	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{})
-	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
-	req.NoError(err)
 }
 
 func TestWsbuildError(t *testing.T) {
@@ -1604,45 +1531,9 @@ func expectFindMatchingPresetID(id uuid.UUID, err error) func(mTx *dbmock.MockSt
 }
 
 type fakeUsageChecker struct {
-	checkBuildUsageFunc func(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error)
+	checkBuildUsageFunc func(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error)
 }
 
-func (f *fakeUsageChecker) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
-	return f.checkBuildUsageFunc(ctx, store, templateVersion, task, transition)
-}
-
-func withNoTask(mTx *dbmock.MockStore) {
-	mTx.EXPECT().GetTaskByWorkspaceID(gomock.Any(), gomock.Any()).Times(1).
-		DoAndReturn(func(ctx context.Context, id uuid.UUID) (database.Task, error) {
-			return database.Task{}, sql.ErrNoRows
-		})
-}
-
-func withTask(task database.Task) func(mTx *dbmock.MockStore) {
-	return func(mTx *dbmock.MockStore) {
-		mTx.EXPECT().GetTaskByWorkspaceID(gomock.Any(), gomock.Any()).Times(1).
-			DoAndReturn(func(ctx context.Context, id uuid.UUID) (database.Task, error) {
-				return task, nil
-			})
-	}
-}
-
-func expectUpsertTaskWorkspaceApp(
-	assertions func(database.UpsertTaskWorkspaceAppParams),
-) func(mTx *dbmock.MockStore) {
-	return func(mTx *dbmock.MockStore) {
-		mTx.EXPECT().UpsertTaskWorkspaceApp(gomock.Any(), gomock.Any()).
-			Times(1).
-			DoAndReturn(
-				func(ctx context.Context, params database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
-					assertions(params)
-					return database.TaskWorkspaceApp{
-						TaskID:               params.TaskID,
-						WorkspaceBuildNumber: params.WorkspaceBuildNumber,
-						WorkspaceAgentID:     params.WorkspaceAgentID,
-						WorkspaceAppID:       params.WorkspaceAppID,
-					}, nil
-				},
-			)
-	}
+func (f *fakeUsageChecker) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+	return f.checkBuildUsageFunc(ctx, store, templateVersion, transition)
 }

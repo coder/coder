@@ -20,11 +20,6 @@ func ReasonAIBridge(description string) Reason {
 	return Reason{EventType: database.AISeatUsageReasonAibridge, Description: description}
 }
 
-// ReasonTask constructs a reason for usage originating from tasks.
-func ReasonTask(description string) Reason {
-	return Reason{EventType: database.AISeatUsageReasonTask, Description: description}
-}
-
 // SeatTracker records AI seat consumption state.
 type SeatTracker interface {
 	// RecordUsage does not return an error to prevent blocking the user from using

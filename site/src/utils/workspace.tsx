@@ -31,28 +31,24 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 		case "ssh_connection":
 		case "vscode_connection":
 		case "jetbrains_connection":
-		case "task_manual_pause":
-		case "task_resume":
 			return build.initiator_name;
 		case "autostart":
 		case "autostop":
 		case "dormancy":
-		case "task_auto_pause":
 			return "Coder";
+	}
+	if (legacySystemBuildReasons.includes(build.reason)) {
+		return "Coder";
+	}
+	if (legacyUserBuildReasons.includes(build.reason)) {
+		return build.initiator_name;
 	}
 	return undefined;
 };
 
-export const systemBuildReasons = [
-	"autostart",
-	"autostop",
-	"dormancy",
-	"task_auto_pause",
-	"task_manual_pause",
-	"task_resume",
-];
+export const systemBuildReasons = ["autostart", "autostop", "dormancy"];
 
-export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
+const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	// User build reasons
 	initiator: "API",
 	dashboard: "Dashboard",
@@ -65,9 +61,32 @@ export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	autostart: "Autostart",
 	autostop: "Autostop",
 	dormancy: "Dormancy",
-	task_auto_pause: "Task Auto-Pause",
-	task_manual_pause: "Task Manual Pause",
+};
+
+// Build reasons removed from the API that can still appear on retained
+// workspace builds and their audit logs. Reason labels render only for start
+// builds, and the removed pause reasons were carried by stop builds, so
+// task_resume is the only legacy reason the label paths can surface.
+const legacyBuildReasonLabels: Record<string, string> = {
 	task_resume: "Task Resume",
+};
+
+// Retained audit rows and workspace builds for automatic task pauses were
+// system-initiated; manual pauses and resumes were authenticated user
+// requests.
+export const legacySystemBuildReasons = ["task_auto_pause"];
+const legacyUserBuildReasons = ["task_manual_pause", "task_resume"];
+
+const isKnownBuildReason = (reason: string): reason is TypesGen.BuildReason =>
+	Object.hasOwn(buildReasonLabels, reason);
+
+export const getBuildReasonLabel = (reason: string): string | undefined => {
+	if (isKnownBuildReason(reason)) {
+		return buildReasonLabels[reason];
+	}
+	return Object.hasOwn(legacyBuildReasonLabels, reason)
+		? legacyBuildReasonLabels[reason]
+		: undefined;
 };
 
 const getWorkspaceBuildDurationInSeconds = (

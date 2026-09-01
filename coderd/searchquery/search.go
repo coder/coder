@@ -296,7 +296,6 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		// which will return all workspaces.
 		Valid: values.Has("outdated"),
 	}
-	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	// include_agent_metadata expands the response with the named agent
 	// metadata keys; it does not filter the returned workspaces.
@@ -375,7 +374,6 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 		FuzzyDisplayName: parser.String(values, "", "display_name"),
 		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
-		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
 		AgentsAllowed:    parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
 		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
 		AuthorUsername:   parser.String(values, "", "author"),
@@ -487,43 +485,6 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 
 	parser := httpapi.NewQueryParamParser()
 	filter.Client = parser.String(values, "", "client")
-
-	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
-}
-
-// Tasks parses a search query for tasks.
-//
-// Supported query parameters:
-//   - owner: string (username, UUID, or 'me' for current user)
-//   - organization: string (organization UUID or name)
-//   - status: string (pending, initializing, active, paused, error, unknown)
-func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UUID) (database.ListTasksParams, []codersdk.ValidationError) {
-	filter := database.ListTasksParams{
-		OwnerID:        uuid.Nil,
-		OrganizationID: uuid.Nil,
-		Status:         "",
-	}
-
-	if query == "" {
-		return filter, nil
-	}
-
-	// Always lowercase for all searches.
-	query = strings.ToLower(query)
-	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default unqualified terms to owner
-		values.Add("owner", term)
-		return nil
-	})
-	if len(errors) > 0 {
-		return filter, errors
-	}
-
-	parser := httpapi.NewQueryParamParser()
-	filter.OwnerID = parseUser(ctx, db, parser, values, "owner", actorID)
-	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
-	filter.Status = parser.String(values, "", "status")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

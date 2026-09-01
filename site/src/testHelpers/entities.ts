@@ -2714,10 +2714,6 @@ export const MockEntitlements: TypesGen.Entitlements = {
 			enabled: true,
 			entitlement: "entitled",
 		},
-		task_batch_actions: {
-			enabled: true,
-			entitlement: "entitled",
-		},
 	}),
 	require_telemetry: false,
 	trial: false,

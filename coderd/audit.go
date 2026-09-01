@@ -405,6 +405,10 @@ func chatAuditLogDescription(alog database.GetAuditLogsOffsetRow) (string, bool)
 
 func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.GetAuditLogsOffsetRow) bool {
 	switch alog.AuditLog.ResourceType {
+	case database.ResourceTypeTask:
+		// Task audit history is retained, but the Tasks feature and its
+		// tables were removed, so the resource is always gone.
+		return true
 	case database.ResourceTypeTemplate:
 		template, err := api.Database.GetTemplateByID(ctx, alog.AuditLog.ResourceID)
 		if err != nil {
@@ -485,14 +489,6 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch oauth2 app secret", slog.Error(err))
 		}
 		return false
-	case database.ResourceTypeTask:
-		task, err := api.Database.GetTaskByID(ctx, alog.AuditLog.ResourceID)
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return true
-		} else if err != nil {
-			api.Logger.Error(ctx, "unable to fetch task", slog.Error(err))
-		}
-		return task.DeletedAt.Valid && task.DeletedAt.Time.Before(time.Now())
 	case database.ResourceTypeChat:
 		// Chats are hard-deleted, so a 404 means deleted.
 		_, err := api.Database.GetChatByID(ctx, alog.AuditLog.ResourceID)
@@ -602,17 +598,6 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 			return ""
 		}
 		return fmt.Sprintf("/deployment/oauth2-provider/apps/%s", secret.AppID)
-
-	case database.ResourceTypeTask:
-		task, err := api.Database.GetTaskByID(ctx, alog.AuditLog.ResourceID)
-		if err != nil {
-			return ""
-		}
-		user, err := api.Database.GetUserByID(ctx, task.OwnerID)
-		if err != nil {
-			return ""
-		}
-		return fmt.Sprintf("/tasks/%s/%s", user.Username, task.ID)
 
 	case database.ResourceTypeChat:
 		// Chats are surfaced at /agents/{id}. They are owner-scoped but

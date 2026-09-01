@@ -2630,7 +2630,6 @@ export const ToolDisplayModesFromPreferences: Story = {
 			{
 				key: ["me", "preferences"],
 				data: {
-					task_notification_alert_dismissed: false,
 					thinking_display_mode: "auto" as const,
 					shell_tool_display_mode: "always_collapsed" as const,
 					code_diff_display_mode: "always_collapsed" as const,
@@ -2730,7 +2729,6 @@ export const ThinkingBlockAlwaysExpanded: Story = {
 			{
 				key: ["me", "preferences"],
 				data: {
-					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_expanded" as const,
 					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,
@@ -2791,7 +2789,6 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 			{
 				key: ["me", "preferences"],
 				data: {
-					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_collapsed" as const,
 					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,
@@ -3082,7 +3079,6 @@ export const ThinkingBlockWithToolCall: Story = {
 			{
 				key: ["me", "preferences"],
 				data: {
-					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_collapsed" as const,
 					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,
@@ -3159,7 +3155,6 @@ export const ThinkingBlockWithShellTools: Story = {
 			{
 				key: ["me", "preferences"],
 				data: {
-					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_collapsed" as const,
 					shell_tool_display_mode: "always_collapsed" as const,
 					code_diff_display_mode: "auto" as const,
@@ -3270,7 +3265,6 @@ export const ThinkingBlockAutoMode: Story = {
 			{
 				key: ["me", "preferences"],
 				data: {
-					task_notification_alert_dismissed: false,
 					thinking_display_mode: "auto" as const,
 					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,
@@ -3324,7 +3318,6 @@ export const ThinkingBlockPreviewMode: Story = {
 			{
 				key: ["me", "preferences"],
 				data: {
-					task_notification_alert_dismissed: false,
 					thinking_display_mode: "preview" as const,
 					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,

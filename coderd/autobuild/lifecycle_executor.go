@@ -231,7 +231,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					job                   *database.ProvisionerJob
 					auditLog              *auditParams
 					shouldNotifyDormancy  bool
-					shouldNotifyTaskPause bool
 					shouldRemind          bool
 					reminderDeadline      time.Time
 					reminderBuildID       uuid.UUID
@@ -336,10 +335,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							shouldRemind = true
 						}
 						return nil
-					}
-
-					if reason == database.BuildReasonTaskAutoPause {
-						shouldNotifyTaskPause = true
 					}
 
 					// Get the template version job to access tags
@@ -462,7 +457,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					// resets, downstream code would send duplicate or
 					// incorrect notifications.
 					didAutoUpdate = false
-					shouldNotifyTaskPause = false
 				}
 				if auditLog != nil {
 					// If the transition didn't succeed then updating the workspace
@@ -533,28 +527,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					)
 					if err != nil {
 						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", ws.ID))
-					}
-				}
-				if shouldNotifyTaskPause {
-					task, err := e.db.GetTaskByID(e.ctx, ws.TaskID.UUID)
-					if err != nil {
-						log.Warn(e.ctx, "failed to get task for pause notification", slog.Error(err), slog.F("task_id", ws.TaskID.UUID), slog.F("workspace_id", ws.ID))
-					} else {
-						if _, err := e.notificationsEnqueuer.Enqueue(
-							e.ctx,
-							ws.OwnerID,
-							notifications.TemplateTaskPaused,
-							map[string]string{
-								"task":         task.Name,
-								"task_id":      task.ID.String(),
-								"workspace":    ws.Name,
-								"pause_reason": "idle timeout",
-							},
-							"lifecycle_executor",
-							ws.ID, ws.OwnerID, ws.OrganizationID,
-						); err != nil {
-							log.Warn(e.ctx, "failed to notify of task paused", slog.Error(err), slog.F("task_id", ws.TaskID.UUID), slog.F("workspace_id", ws.ID))
-						}
 					}
 				}
 				if shouldRemind {
@@ -683,18 +655,10 @@ func getNextTransition(
 ) {
 	switch {
 	case isEligibleForAutostop(user, ws, latestBuild, latestJob, currentTick):
-		// Use task-specific reason for AI task workspaces.
-		if ws.TaskID.Valid {
-			return database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil
-		}
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
 	case isEligibleForFailedCleanup(latestBuild, latestJob, templateSchedule, currentTick):
-		// Use task-specific reason for AI task workspaces.
-		if ws.TaskID.Valid {
-			return database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil
-		}
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForDormantStop(ws, templateSchedule, currentTick):
 		// Only stop started workspaces.

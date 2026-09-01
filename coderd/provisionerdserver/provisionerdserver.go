@@ -44,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/usage"
-	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -798,11 +797,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
-		task, err := s.Database.GetTaskByWorkspaceID(ctx, workspaceBuild.WorkspaceID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get task by workspace id: %w", err)
-		}
-
 		dbExternalAuthProviders := []database.ExternalAuthProvider{}
 		err = json.Unmarshal(templateVersion.ExternalAuthProviders, &dbExternalAuthProviders)
 		if err != nil {
@@ -933,8 +927,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
-					TaskId:                        task.ID.String(),
-					TaskPrompt:                    task.Prompt,
 					TemplateVersionModulesFile:    versionModulesFile,
 				},
 				LogLevel: input.LogLevel,
@@ -2046,10 +2038,9 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		}
 		err = db.UpdateTemplateVersionFlagsByJobID(ctx, database.UpdateTemplateVersionFlagsByJobIDParams{
 			JobID: jobID,
-			HasAITask: sql.NullBool{
-				Bool:  jobType.TemplateImport.HasAiTasks,
-				Valid: true,
-			},
+			// Tasks are removed; the has_ai_task column is dropped in a
+			// follow-up migration.
+			HasAITask: sql.NullBool{Bool: false, Valid: true},
 			HasExternalAgent: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasExternalAgents,
 				Valid: true,
@@ -2057,7 +2048,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 			UpdatedAt: now,
 		})
 		if err != nil {
-			return xerrors.Errorf("update template version ai task and external agent: %w", err)
+			return xerrors.Errorf("update template version external agent: %w", err)
 		}
 
 		// Process terraform values
@@ -2262,8 +2253,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update workspace build deadline: %w", err)
 		}
 
-		appIDs := make([]string, 0)
-		agentIDByAppID := make(map[string]uuid.UUID)
 		agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
 		// This could be a bulk insert to improve performance.
 		for _, protoResource := range jobType.WorkspaceBuild.Resources {
@@ -2272,34 +2261,20 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 					continue
 				}
 				// By default InsertWorkspaceResource ignores the protoAgent.Id
-				// and generates a new one, but we will insert these using the
-				// InsertWorkspaceResourceWithAgentIDsFromProto option so that
-				// we can properly map agent IDs to app IDs. This is needed for
-				// task linking.
+				// and generates a new one, but we insert these using the
+				// InsertWorkspaceResourceWithAgentIDsFromProto option so the
+				// inserted agents keep the IDs assigned here.
 				agentID := uuid.New()
 				protoAgent.Id = agentID.String()
 
 				dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 				agentTimeouts[dur] = true
-				for _, app := range protoAgent.GetApps() {
-					appIDs = append(appIDs, app.GetId())
-					agentIDByAppID[app.GetId()] = agentID
-				}
 
-				// Subagents in devcontainers can also have apps that need
-				// tracking for task linking, just like the parent agent's
-				// apps above.
 				for _, dc := range protoAgent.GetDevcontainers() {
 					dc.Id = uuid.New().String()
 
 					if dc.GetSubagentId() != "" {
-						subAgentID := uuid.New()
-						dc.SubagentId = subAgentID.String()
-
-						for _, app := range dc.GetApps() {
-							appIDs = append(appIDs, app.GetId())
-							agentIDByAppID[app.GetId()] = subAgentID
-						}
+						dc.SubagentId = uuid.New().String()
 					}
 				}
 			}
@@ -2340,130 +2315,21 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
-		var (
-			unknownAppID string
-			taskAppID    uuid.NullUUID
-			taskAgentID  uuid.NullUUID
-		)
-		// Agents and their apps are only inserted when the workspace is running.
-		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 && workspaceBuild.Transition == database.WorkspaceTransitionStart {
-			task := tasks[0]
-			if task == nil {
-				return xerrors.Errorf("update ai task: task is nil")
-			}
-
-			appID := task.GetAppId()
-			if appID == "" && task.GetSidebarApp() != nil {
-				appID = task.GetSidebarApp().GetId()
-			}
-			if appID == "" {
-				return xerrors.Errorf("update ai task: app id is empty")
-			}
-
-			if !slices.Contains(appIDs, appID) {
-				unknownAppID = appID
-			} else {
-				// Only parse for valid app and agent to avoid fk violation.
-				id, err := uuid.Parse(appID)
-				if err != nil {
-					return xerrors.Errorf("parse app id: %w", err)
-				}
-				taskAppID = uuid.NullUUID{UUID: id, Valid: true}
-
-				agentID, ok := agentIDByAppID[appID]
-				taskAgentID = uuid.NullUUID{UUID: agentID, Valid: ok}
-			}
-		}
-
-		if unknownAppID != "" && workspaceBuild.Transition == database.WorkspaceTransitionStart {
-			// Ref: https://github.com/coder/coder/issues/18776
-			// This can happen for a number of reasons:
-			// 1. Misconfigured template
-			// 2. Count=0 on the agent due to stop transition, meaning the associated coder_app was not inserted.
-			// Failing the build at this point is not ideal, so log a warning instead.
-			s.Logger.Warn(ctx, "unknown ai_task_app_id",
-				slog.F("ai_task_app_id", unknownAppID),
-				slog.F("job_id", job.ID.String()),
-				slog.F("workspace_id", workspace.ID),
-				slog.F("workspace_build_id", workspaceBuild.ID),
-				slog.F("transition", string(workspaceBuild.Transition)),
-			)
-			// In order to surface this to the user, we will also insert a warning into the build logs.
-			if _, err := db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
-				JobID:     jobID,
-				CreatedAt: []time.Time{now, now, now, now},
-				Source:    []database.LogSource{database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon},
-				Level:     []database.LogLevel{database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn},
-				Stage:     []string{"Cleaning Up", "Cleaning Up", "Cleaning Up", "Cleaning Up"},
-				Output: []string{
-					fmt.Sprintf("Unknown ai_task_app_id %q. This workspace will be unable to run AI tasks. This may be due to a template configuration issue, please check with the template author.", unknownAppID),
-					"Template author: double-check the following:",
-					"  - You have associated the coder_ai_task with a valid coder_app in your template (ref: https://registry.terraform.io/providers/coder/coder/latest/docs/resources/ai_task).",
-					"  - You have associated the coder_agent with at least one other compute resource. Agents with no other associated resources are not inserted into the database.",
-				},
-			}); err != nil {
-				s.Logger.Error(ctx, "insert provisioner job log for ai task app id warning",
-					slog.F("job_id", jobID),
-					slog.F("workspace_id", workspace.ID),
-					slog.F("workspace_build_id", workspaceBuild.ID),
-					slog.F("transition", string(workspaceBuild.Transition)),
-				)
-			}
-		}
-
-		var hasAITask bool
-		if task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID); err == nil {
-			hasAITask = true
-			if workspaceBuild.Transition == database.WorkspaceTransitionStart {
-				// Insert usage event for managed agents.
-				usageInserter := s.UsageInserter.Load()
-				if usageInserter != nil {
-					event := usagetypes.DCManagedAgentsV1{
-						Count: 1,
-					}
-					err = (*usageInserter).InsertDiscreteUsageEvent(ctx, db, event)
-					if err != nil {
-						return xerrors.Errorf("insert %q event: %w", event.EventType(), err)
-					}
-				}
-			}
-
-			// Irrespective of whether the agent or sidebar app is present,
-			// perform the upsert to ensure a link between the task and
-			// workspace build. Linking the task to the build is typically
-			// already established by wsbuilder.
-			_, err = db.UpsertTaskWorkspaceApp(
-				ctx,
-				database.UpsertTaskWorkspaceAppParams{
-					TaskID:               task.ID,
-					WorkspaceBuildNumber: workspaceBuild.BuildNumber,
-					WorkspaceAgentID:     taskAgentID,
-					WorkspaceAppID:       taskAppID,
-				},
-			)
-			if err != nil {
-				return xerrors.Errorf("upsert task workspace app: %w", err)
-			}
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get task by workspace id: %w", err)
-		}
-
 		_, hasExternalAgent := slice.Find(jobType.WorkspaceBuild.Resources, func(resource *sdkproto.Resource) bool {
 			return resource.Type == "coder_external_agent"
 		})
 		if err := db.UpdateWorkspaceBuildFlagsByID(ctx, database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID: workspaceBuild.ID,
-			HasAITask: sql.NullBool{
-				Bool:  hasAITask,
-				Valid: true,
-			},
+			// Tasks are removed; the has_ai_task column is dropped in a
+			// follow-up migration.
+			HasAITask: sql.NullBool{Bool: false, Valid: true},
 			HasExternalAgent: sql.NullBool{
 				Bool:  hasExternalAgent,
 				Valid: true,
 			},
 			UpdatedAt: now,
 		}); err != nil {
-			return xerrors.Errorf("update workspace build ai tasks and external agent flag: %w", err)
+			return xerrors.Errorf("update workspace build external agent flag: %w", err)
 		}
 
 		// Insert timings inside the transaction now
@@ -2591,21 +2457,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("soft delete workspace agents: %w", err)
 		}
 
-		// A user might delete their task workspace directly, instead of
-		// deleting the task. To avoid leaving the Task in a scenario where
-		// it has no workspace, we also attempt to delete the task.
-		//
-		// Deleting the task may fail if it has already been deleted as part
-		// of the typical task deletion workflow, so we explicitly allow that.
-		if workspace.TaskID.Valid {
-			if _, err := db.DeleteTask(ctx, database.DeleteTaskParams{
-				ID:        workspace.TaskID.UUID,
-				DeletedAt: dbtime.Now(),
-			}); err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return xerrors.Errorf("delete task related to workspace: %w", err)
-			}
-		}
-
 		return nil
 	}, nil)
 	if err != nil {
@@ -2663,12 +2514,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			Status:           http.StatusOK,
 			AdditionalFields: wriBytes,
 		})
-	}
-
-	// Record AI seat usage for successful task workspace builds.
-	if workspaceBuild.Transition == database.WorkspaceTransitionStart && workspace.TaskID.Valid {
-		s.AISeatTracker.RecordUsage(ctx, workspace.OwnerID,
-			aiseats.ReasonTask("task workspace build succeeded"))
 	}
 
 	if s.PrebuildsOrchestrator != nil && input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {

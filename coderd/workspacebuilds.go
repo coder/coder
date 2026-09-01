@@ -1510,10 +1510,6 @@ func (api *API) convertWorkspaceBuild(
 	if build.TemplateVersionPresetID.Valid {
 		presetID = &build.TemplateVersionPresetID.UUID
 	}
-	var hasAITask *bool
-	if build.HasAITask.Valid {
-		hasAITask = &build.HasAITask.Bool
-	}
 	var hasExternalAgent *bool
 	if build.HasExternalAgent.Valid {
 		hasExternalAgent = &build.HasExternalAgent.Bool
@@ -1545,7 +1541,6 @@ func (api *API) convertWorkspaceBuild(
 		DailyCost:               build.DailyCost,
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
-		HasAITask:               hasAITask,
 		HasExternalAgent:        hasExternalAgent,
 	}, nil
 }

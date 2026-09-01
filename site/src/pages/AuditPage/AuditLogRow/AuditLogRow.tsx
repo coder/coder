@@ -2,7 +2,7 @@ import { InfoIcon, NetworkIcon } from "lucide-react";
 import { type FC, type KeyboardEvent, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
-import type { AuditLog, BuildReason } from "#/api/typesGenerated";
+import type { AuditLog } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
@@ -19,7 +19,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import { buildReasonLabels } from "#/utils/workspace";
+import { getBuildReasonLabel } from "#/utils/workspace";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
@@ -177,12 +177,9 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 																		Reason:
 																	</h4>
 																	<div>
-																		{
-																			buildReasonLabels[
-																				auditLog.additional_fields
-																					.build_reason as BuildReason
-																			]
-																		}
+																		{getBuildReasonLabel(
+																			auditLog.additional_fields.build_reason,
+																		)}
 																	</div>
 																</div>
 															)}
@@ -217,12 +214,9 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 														<span className="text-xs text-content-secondary block">
 															<span>Reason: </span>
 															<strong>
-																{
-																	buildReasonLabels[
-																		auditLog.additional_fields
-																			.build_reason as BuildReason
-																	]
-																}
+																{getBuildReasonLabel(
+																	auditLog.additional_fields.build_reason,
+																)}
 															</strong>
 														</span>
 													)}

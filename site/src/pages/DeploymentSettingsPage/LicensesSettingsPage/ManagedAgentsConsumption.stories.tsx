@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 
 const meta: Meta<typeof ManagedAgentsConsumption> = {
@@ -23,7 +24,16 @@ const meta: Meta<typeof ManagedAgentsConsumption> = {
 export default meta;
 type Story = StoryObj<typeof ManagedAgentsConsumption>;
 
-export const Default: Story = {};
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Learn more" }));
+		const explanation = await canvas.findByText(
+			/were recorded by the legacy Coder Tasks feature/,
+		);
+		await expect(explanation).toHaveTextContent(/no new usage accrues/);
+	},
+};
 
 export const ZeroUsage: Story = {
 	args: {
@@ -98,6 +108,13 @@ export const Disabled: Story = {
 			usage_period: undefined,
 			entitlement: "not_entitled",
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const explanation = await canvas.findByText(
+			/were recorded by the legacy Coder Tasks feature/,
+		);
+		await expect(explanation).toHaveTextContent(/no new usage can accrue/);
 	},
 };
 

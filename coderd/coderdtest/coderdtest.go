@@ -1863,10 +1863,6 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 	opts := cfg.Options()
 	err := opts.SetDefaults()
 	require.NoError(t, err)
-	// Tasks ship disabled. Tests exercise the enabled behavior by default so
-	// the Tasks suite keeps running; tests for the disabled path opt out
-	// explicitly via the mutators.
-	cfg.EnableAITasks = true
 	for _, fn := range mut {
 		fn(cfg)
 	}
