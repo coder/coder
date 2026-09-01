@@ -2,11 +2,11 @@ import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { groupById } from "#/api/queries/groups";
 import type { Group, GroupMemberAISpend } from "#/api/typesGenerated";
-import { AIBudgetAmount } from "#/components/AIBudgetAmount/AIBudgetAmount";
-import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Badge } from "#/components/Badge/Badge";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { TableCell } from "#/components/Table/Table";
+import { AIBudgetAmount } from "#/modules/groups/AIBudgetAmount";
+import { AIBudgetUsage } from "#/modules/groups/AIBudgetUsage";
 import { formatBudgetUSD } from "#/utils/currency";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
