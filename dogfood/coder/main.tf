@@ -969,7 +969,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
-  version           = "5.4.0"
+  version           = "5.4.1"
   enable_ai_gateway = true
   anthropic_api_key = ""
   agent_id          = coder_agent.dev.id
