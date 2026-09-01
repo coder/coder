@@ -75,7 +75,7 @@ func TestRollup_TwoInstancesUseLocking(t *testing.T) {
 		CreatedAt:                 refTime.Add(-time.Minute),
 		ConnectionMedianLatencyMS: 1,
 		ConnectionCount:           1,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	closeRolluper := func(rolluper *dbrollup.Rolluper, resume chan struct{}) {
@@ -163,7 +163,7 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 		CreatedAt:                 anHourAndSixMonthsAgo.AddDate(0, 0, -1),
 		ConnectionMedianLatencyMS: 1,
 		ConnectionCount:           1,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 	_ = dbgen.WorkspaceAppStat(t, db, database.WorkspaceAppStat{
 		UserID:           user.ID,
@@ -176,24 +176,24 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 
 	// Stats inserted 6 months - 1 day ago, should be rolled up.
 	wags1 := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		TemplateID:                  tpl.ID,
-		WorkspaceID:                 ws.ID,
-		AgentID:                     agent.ID,
-		UserID:                      user.ID,
-		CreatedAt:                   anHourAndSixMonthsAgo.AddDate(0, 0, 1),
-		ConnectionMedianLatencyMS:   1,
-		ConnectionCount:             1,
-		SessionCountReconnectingPTY: 1,
+		TemplateID:                tpl.ID,
+		WorkspaceID:               ws.ID,
+		AgentID:                   agent.ID,
+		UserID:                    user.ID,
+		CreatedAt:                 anHourAndSixMonthsAgo.AddDate(0, 0, 1),
+		ConnectionMedianLatencyMS: 1,
+		ConnectionCount:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"reconnecting_pty": 1}),
 	})
 	wags2 := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		TemplateID:                  tpl.ID,
-		WorkspaceID:                 ws.ID,
-		AgentID:                     agent.ID,
-		UserID:                      user.ID,
-		CreatedAt:                   wags1.CreatedAt.Add(time.Minute),
-		ConnectionMedianLatencyMS:   1,
-		ConnectionCount:             1,
-		SessionCountReconnectingPTY: 1,
+		TemplateID:                tpl.ID,
+		WorkspaceID:               ws.ID,
+		AgentID:                   agent.ID,
+		UserID:                    user.ID,
+		CreatedAt:                 wags1.CreatedAt.Add(time.Minute),
+		ConnectionMedianLatencyMS: 1,
+		ConnectionCount:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"reconnecting_pty": 1}),
 	})
 	// wags2 and waps1 overlap, so total usage is 4 - 1.
 	waps1 := dbgen.WorkspaceAppStat(t, db, database.WorkspaceAppStat{
