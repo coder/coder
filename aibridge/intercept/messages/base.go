@@ -217,10 +217,11 @@ func (i *interceptionBase) Model() string {
 	// passthrough, non-Bedrock providers) returns the model the client sent in
 	// the body.
 	if i.isBedrockInvokeModel() {
+		model := i.bedrock.ResolvedModel()
 		if i.isSmallFastModel() {
-			return i.bedrock.ResolvedSmallFastModel()
+			model = i.bedrock.ResolvedSmallFastModel()
 		}
-		return i.bedrock.ResolvedModel()
+		return model
 	}
 
 	return i.reqPayload.model()
