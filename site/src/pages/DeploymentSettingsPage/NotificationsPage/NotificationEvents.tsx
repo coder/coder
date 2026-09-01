@@ -69,7 +69,6 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 						<Link
 							href={docs("/admin/monitoring/notifications#webhook")}
 							target="_blank"
-							rel="noreferrer"
 						>
 							View docs
 							<span className="sr-only"> (opens in new tab)</span>
@@ -88,7 +87,6 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 						<Link
 							href={docs("/admin/monitoring/notifications#smtp-email")}
 							target="_blank"
-							rel="noreferrer"
 						>
 							View docs
 							<span className="sr-only"> (opens in new tab)</span>

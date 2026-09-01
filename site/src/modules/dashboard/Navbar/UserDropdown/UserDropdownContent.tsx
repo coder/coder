@@ -81,7 +81,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<DropdownMenuSeparator />
 			{supportsCoderDesktop() && (
 				<DropdownMenuItem asChild>
-					<a href={CODER_DESKTOP_DOCS_URL} target="_blank" rel="noreferrer">
+					<a href={CODER_DESKTOP_DOCS_URL} target="_blank">
 						<MonitorIcon />
 						<span>Install Coder Desktop</span>
 					</a>
@@ -108,7 +108,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					<DropdownMenuSeparator />
 					{supportLinks.map((link) => (
 						<DropdownMenuItem key={link.name} asChild>
-							<a href={link.target} target="_blank" rel="noreferrer">
+							<a href={link.target} target="_blank">
 								{link.icon && <SupportIcon icon={link.icon} />}
 								<span>{link.name}</span>
 							</a>
@@ -131,7 +131,6 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 							href={buildInfo?.external_url}
 							className="flex items-center gap-2"
 							target="_blank"
-							rel="noreferrer"
 						>
 							<span className="flex-1">{buildInfo?.version}</span>
 							<SquareArrowOutUpRightIcon className="size-icon-xs!" />

@@ -58,7 +58,6 @@ const StartupWarningButtonBase: FC<StartupWarningButtonBaseProps> = ({
 								"/admin/templates/troubleshooting#startup-script-exited-with-an-error",
 							)}
 							target="_blank"
-							rel="noreferrer"
 						>
 							{errorMessage}
 						</Link>
@@ -68,7 +67,6 @@ const StartupWarningButtonBase: FC<StartupWarningButtonBaseProps> = ({
 								"/admin/templates/troubleshooting#startup-script-issues",
 							)}
 							target="_blank"
-							rel="noreferrer"
 						>
 							debugging the startup script
 						</Link>{" "}
@@ -78,7 +76,6 @@ const StartupWarningButtonBase: FC<StartupWarningButtonBaseProps> = ({
 								"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
 							)}
 							target="_blank"
-							rel="noreferrer"
 						>
 							your workspace may be incomplete
 						</Link>

@@ -167,12 +167,7 @@ const ExternalAppMenuItem: FC<{
 	// render a plain anchor (not a RouterLink) and let the hook handle opening.
 	return (
 		<DropdownMenuItem asChild>
-			<a
-				href={link.href}
-				onClick={link.onClick}
-				target="_blank"
-				rel="noreferrer"
-			>
+			<a href={link.href} onClick={link.onClick} target="_blank">
 				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
 				{link.label}
 			</a>

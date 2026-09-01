@@ -41,7 +41,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 				actions={
 					<>
 						<Button asChild variant="outline" size="sm">
-							<a target="_blank" href={starterTemplate.url} rel="noreferrer">
+							<a target="_blank" href={starterTemplate.url}>
 								<ExternalLinkIcon />
 								View source code
 							</a>

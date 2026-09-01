@@ -104,7 +104,6 @@ const WorkspaceSchedulePage: FC = () => {
 								"/admin/templates/extending-templates/prebuilt-workspaces#scheduling",
 							)}
 							target="_blank"
-							rel="noreferrer"
 						>
 							Prebuilt Workspaces Scheduling
 						</Link>{" "}

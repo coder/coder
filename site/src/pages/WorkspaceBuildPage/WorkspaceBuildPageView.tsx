@@ -204,7 +204,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 										<a
 											href={`/api/v2/workspacebuilds/${build.id}/logs?format=text`}
 											target="_blank"
-											rel="noopener noreferrer"
 										>
 											View raw logs
 											<ExternalLinkIcon className="size-3" />
@@ -247,7 +246,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 											<a
 												href={`/api/v2/workspaceagents/${agent.id}/logs?format=text`}
 												target="_blank"
-												rel="noopener noreferrer"
 											>
 												View raw logs
 												<ExternalLinkIcon className="size-3" />

@@ -363,7 +363,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
-										rel="noreferrer"
 									>
 										<RadioIcon className="size-icon-sm" />
 										{port.port}
@@ -372,7 +371,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
-										rel="noreferrer"
 									>
 										{label}
 									</a>
@@ -436,7 +434,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
-										rel="noreferrer"
 									>
 										{share.share_level === "public" ? (
 											<LockOpenIcon className="size-icon-sm" />

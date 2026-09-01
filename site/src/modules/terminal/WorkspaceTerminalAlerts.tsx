@@ -74,7 +74,6 @@ const ErrorScriptAlert: FC = () => {
 					"/admin/templates/troubleshooting#startup-script-exited-with-an-error",
 				)}
 				target="_blank"
-				rel="noreferrer"
 				className="mx-0"
 			>
 				startup script has exited with an error
@@ -84,7 +83,6 @@ const ErrorScriptAlert: FC = () => {
 				title=" debugging the startup script"
 				href={docs("/admin/templates/troubleshooting#startup-script-issues")}
 				target="_blank"
-				rel="noreferrer"
 			>
 				debugging the startup script
 			</Link>{" "}
@@ -95,7 +93,6 @@ const ErrorScriptAlert: FC = () => {
 					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
 				target="_blank"
-				rel="noreferrer"
 			>
 				your workspace may be incomplete.
 			</Link>{" "}
@@ -118,7 +115,6 @@ const LoadingScriptsAlert: FC = () => {
 					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
 				target="_blank"
-				rel="noreferrer"
 			>
 				{" "}
 				your workspace may be incomplete.
@@ -142,7 +138,6 @@ const LoadedScriptsAlert: FC = () => {
 					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
 				target="_blank"
-				rel="noreferrer"
 			>
 				session was started before the startup script finished.
 			</Link>{" "}

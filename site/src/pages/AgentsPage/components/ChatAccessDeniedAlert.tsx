@@ -20,7 +20,7 @@ export const ChatAccessDeniedAlert: FC = () => {
 			<AlertDescription>
 				You don't have permission to use Coder Agents. Contact your Coder
 				administrator, then refresh this page.{" "}
-				<Link href={docsLink} target="_blank" rel="noreferrer">
+				<Link href={docsLink} target="_blank">
 					View Docs
 				</Link>
 			</AlertDescription>

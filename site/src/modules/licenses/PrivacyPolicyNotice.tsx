@@ -7,7 +7,6 @@ export const PrivacyPolicyNotice: FC = () => {
 			<a
 				href="https://coder.com/legal/privacy-policy"
 				target="_blank"
-				rel="noreferrer"
 				className="text-content-link hover:underline"
 			>
 				Coder Privacy Policy

@@ -118,7 +118,6 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 								<Link
 									href={`${versionLink}/versions/${activeVersion.name}`}
 									target="_blank"
-									rel="noreferrer"
 									size="sm"
 									className="p-0"
 									showExternalIcon={false}

@@ -116,11 +116,7 @@ export const LicenseSeatConsumptionChart: FC<
 									</Link>
 								</li>
 								<li>
-									<Link
-										href={docs("/admin/users#user-status")}
-										target="_blank"
-										rel="noreferrer"
-									>
+									<Link href={docs("/admin/users#user-status")} target="_blank">
 										More details on user account statuses
 									</Link>
 								</li>

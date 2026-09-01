@@ -44,18 +44,13 @@ export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
 						<p className="leading-6 m-0 text-content-secondary text-sm">
 							Please try reloading the page. If reloading does not work, you can
 							ask for help in the{" "}
-							<Link
-								href="https://discord.gg/coder"
-								target="_blank"
-								rel="noreferrer"
-							>
+							<Link href="https://discord.gg/coder" target="_blank">
 								Coder Discord community
 								<span className="sr-only"> (link opens in a new tab)</span>
 							</Link>{" "}
 							or{" "}
 							<Link
 								target="_blank"
-								rel="noreferrer"
 								href={publicGithubIssueLink(
 									coderVersion,
 									location.pathname,

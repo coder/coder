@@ -55,7 +55,6 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 			<Link
 				href={externalAuth.app_install_url}
 				target="_blank"
-				rel="noreferrer"
 				showExternalIcon={false}
 				className="p-0 text-sm font-medium"
 			>
@@ -89,7 +88,6 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 									<Link
 										href={install.account.profile_url}
 										target="_blank"
-										rel="noreferrer"
 										showExternalIcon={false}
 										className="p-0 hover:after:content-none"
 									>
@@ -125,7 +123,6 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 						<Link
 							href={externalAuth.app_install_url}
 							target="_blank"
-							rel="noreferrer"
 							showExternalIcon={false}
 							className="inline-flex items-center gap-2 p-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
 						>

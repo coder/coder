@@ -260,7 +260,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 
 							{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
 							<DropdownMenuItem asChild>
-								<Link to={route} target="_blank" rel="noreferrer">
+								<Link to={route} target="_blank">
 									<MonitorIcon className="size-3.5" />
 									View Workspace
 								</Link>
@@ -359,7 +359,6 @@ const AppMenuItem: FC<{
 				href={isRunning ? link.href : undefined}
 				onClick={link.onClick}
 				target="_blank"
-				rel="noreferrer"
 			>
 				{app.icon ? (
 					<ExternalImage

@@ -136,7 +136,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 					)}
 				</div>
 				<Button asChild className="mt-4 w-full">
-					<a href={CONTACT_SALES_LINK} target="_blank" rel="noreferrer">
+					<a href={CONTACT_SALES_LINK} target="_blank">
 						Upgrade
 					</a>
 				</Button>

@@ -62,7 +62,6 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 						<Link
 							href={docs("/reference/cli/server#--experiments")}
 							target="_blank"
-							rel="noreferrer"
 						>
 							the documentation
 						</Link>{" "}

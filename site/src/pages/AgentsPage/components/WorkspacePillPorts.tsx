@@ -209,7 +209,7 @@ const PortsList: FC<{
 
 			<DropdownMenuSeparator className="my-1" />
 			<DropdownMenuItem asChild>
-				<Link to={route} target="_blank" rel="noreferrer">
+				<Link to={route} target="_blank">
 					<ExternalLinkIcon className="size-3.5" />
 					Manage sharing
 				</Link>
@@ -267,7 +267,7 @@ const ListeningPortItem: FC<{
 	);
 	return (
 		<DropdownMenuItem asChild>
-			<a href={url} target="_blank" rel="noreferrer">
+			<a href={url} target="_blank">
 				<RadioIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{port.port}</span>
 				{port.process_name !== "" && (
@@ -325,7 +325,7 @@ const SharedPortItem: FC<{
 	);
 	return (
 		<DropdownMenuItem asChild>
-			<a href={url} target="_blank" rel="noreferrer">
+			<a href={url} target="_blank">
 				<ShareIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{share.port}</span>
 				<span className="truncate capitalize text-content-tertiary">

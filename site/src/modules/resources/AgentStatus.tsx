@@ -77,7 +77,6 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 							{" "}
 							<Link
 								target="_blank"
-								rel="noreferrer"
 								href={troubleshootingURL}
 								className="p-0 mt-2"
 								showExternalIcon={false}

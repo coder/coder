@@ -63,7 +63,7 @@ export const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
 
 	return (
 		<Button asChild variant="outline" size="sm" className="min-w-0">
-			<a href={uri} target="_blank" rel="noreferrer">
+			<a href={uri} target="_blank">
 				{icon}
 				<span className="truncate">{label}</span>
 			</a>

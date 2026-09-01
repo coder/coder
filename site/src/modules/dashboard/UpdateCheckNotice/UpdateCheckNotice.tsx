@@ -35,7 +35,6 @@ export const UpdateCheckNotice: FC<UpdateCheckNoticeProps> = ({
 					<a
 						href={releaseNotesUrl}
 						target="_blank"
-						rel="noreferrer"
 						className="text-content-link underline hover:no-underline"
 					>
 						release notes
@@ -44,7 +43,6 @@ export const UpdateCheckNotice: FC<UpdateCheckNoticeProps> = ({
 					<a
 						href={docs("/install/upgrade")}
 						target="_blank"
-						rel="noreferrer"
 						className="text-content-link underline hover:no-underline"
 					>
 						upgrade instructions

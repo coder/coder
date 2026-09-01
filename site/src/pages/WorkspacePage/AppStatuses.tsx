@@ -100,7 +100,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							</Tooltip>
 						) : (
 							<Button asChild variant="outline" size="sm">
-								<a href={latestStatus.uri} target="_blank" rel="noreferrer">
+								<a href={latestStatus.uri} target="_blank">
 									<ExternalLinkIcon />
 									{truncateURI(latestStatus.uri)}
 								</a>
@@ -174,12 +174,7 @@ const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
 
 	return (
 		<Button asChild variant="outline" size="sm">
-			<a
-				href={link.href}
-				onClick={link.onClick}
-				target="_blank"
-				rel="noreferrer"
-			>
+			<a href={link.href} onClick={link.onClick} target="_blank">
 				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
 				{link.label}
 			</a>
