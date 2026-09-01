@@ -9,6 +9,7 @@ import (
 	htmltemplate "html/template"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,30 +30,20 @@ import (
 
 // Rejection reasons from negotiateScope.
 var (
-	// errUnknownScope covers a requested name outside the external scope
-	// catalog, whether unrecognized entirely or recognized but internal-only.
+	// The name is not in the external scope catalog: unknown, or internal-only.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
-	// errNoGrantableScope covers an allowlist whose every entry falls outside
-	// the catalog.
+	// Every entry in the app's allowlist falls outside the catalog.
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
-	// errScopeNotAllowed checks whether the scope's expanded permissions are
-	// covered by the allowlist. For example, "coder:workspaces.create" expands
-	// to several workspace permissions.
+	// The scope expands to permissions the allowlist does not cover.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
-	// errCoverageUndecidable covers a comparison that failed outright. The
-	// underlying error names RBAC internals, so it is logged rather than
-	// rendered into error_description.
+	// A comparison that failed outright. The underlying error names RBAC
+	// internals, so it is logged rather than rendered.
 	errCoverageUndecidable = xerrors.New("scope coverage against this app's allowed scopes could not be determined")
 )
 
-// canonicalScopes rewrites each name to the spelling the api_key_scope enum
-// stores and drops repeats, preserving the order of first appearance. It
-// neither validates nor filters: callers check rbac.IsExternalScope separately.
-//
-// Canonicalization matters because rbac.IsExternalScope accepts the aliases
-// `all` and `application_connect`, which are not enum members, so persisting a
-// validated name verbatim can write a value the column's vocabulary does not
-// contain.
+// canonicalScopes rewrites each name to its api_key_scope enum spelling and
+// drops duplicates. The aliases `all` and `application_connect` pass validation
+// but are not enum members, so they must be rewritten before being stored.
 func canonicalScopes(names []string) []string {
 	canonical := make([]string, 0, len(names))
 	for _, name := range names {
@@ -61,51 +52,35 @@ func canonicalScopes(names []string) []string {
 	return slice.Unique(canonical)
 }
 
-// noScopeAllowlist reports whether an app has no scope allowlist configured.
-// NULL and "" are one state: admin-created apps store sql.NullString{}
-// (apps.go), while DCR-registered apps store Valid: true carrying a
-// possibly-empty req.Scope (registration.go).
-//
-// A whitespace-only allowlist is deliberately not this state. It is a
-// configured value that grants nothing, so it falls through to
-// negotiateScope's filtered-to-empty rejection instead of the unrestricted
-// fallback.
+// noScopeAllowlist reports whether an app has no scope allowlist. NULL and ""
+// are the same state: admin-created apps store NULL, DCR-registered apps store
+// a possibly empty req.Scope. Whitespace-only is a configured allowlist that
+// grants nothing, so it is not this state.
 func noScopeAllowlist(appScope sql.NullString) bool {
 	return !appScope.Valid || appScope.String == ""
 }
 
 // negotiateScope decides the scope the authorization code will carry. Every
-// requested name must be in the external scope catalog, and the request must
-// be covered by the app's configured allowlist. A rejection is an RFC 6749
-// §4.1.2.1 invalid_scope.
-//
-// What each branch returns:
+// requested name must be in the external scope catalog and covered by the app's
+// allowlist. A rejection is an RFC 6749 §4.1.2.1 invalid_scope.
 //
 //	allowlist  request  result
 //	absent     absent   ApiKeyScopeCoderAll, the pre-enforcement grant
-//	absent     present  the request, which is narrower than unrestricted
+//	absent     present  the request
 //	present    absent   the allowlist, catalog-filtered (RFC 6749 §3.3 default)
 //	present    present  the request, once shown to be within the allowlist
 //
-// An allowlist whose every entry falls outside the catalog is rejected rather
-// than read as absent, since falling back there would grant strictly more than
-// the allowlist ever permitted.
-//
-// The result is written directly to a NOT NULL column whose CHECK also rejects
-// the empty string, so it is never empty alongside a nil error, and its names
-// are canonical api_key_scope spellings carrying no duplicates.
+// The result is canonical, deduplicated, and never empty when the error is nil,
+// since it is written to a NOT NULL column whose CHECK also rejects "".
 func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, requested []string) (string, error) {
-	// Canonicalized before the catalog check so that check, the coverage
-	// comparison, and the persisted value all read one vocabulary. Rewriting
-	// ahead of validation loses nothing: CanonicalScopeName only touches the
-	// `all` and `application_connect` aliases, and the catalog holds both
-	// spellings of each.
+	// Canonicalized first so the catalog check, the coverage comparison, and
+	// the stored value all use one spelling. The catalog holds both spellings
+	// of the two aliases, so checking after the rewrite accepts the same names.
 	granted := canonicalScopes(requested)
 
-	// The catalog is a curation, not a validity check: RBAC can expand
-	// internal-only names such as debug_info:read, and the api_key_scope enum
-	// would store them. Only catalog names are client-requestable, whether or
-	// not the app has an allowlist to check them against.
+	// The catalog is a curation, not a validity check: RBAC also expands
+	// internal-only names such as debug_info:read, but clients may not request
+	// them.
 	for _, s := range granted {
 		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
 			return "", xerrors.Errorf("%q: %w", s, errUnknownScope)
@@ -114,17 +89,14 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 
 	if noScopeAllowlist(app.Scope) {
 		if len(granted) == 0 {
-			// Unrestricted, the same grant this app got before scope
-			// enforcement existed, stated explicitly because an empty string
-			// would violate the column's CHECK.
+			// Spelled out because "" would violate the column's CHECK.
 			return string(database.ApiKeyScopeCoderAll), nil
 		}
 		return strings.Join(granted, " "), nil
 	}
 
-	// The allowlist was stored at registration time and may name a scope since
-	// removed from the catalog, or never in it. Filtering only ever narrows
-	// what is granted.
+	// The stored allowlist may name a scope since removed from the catalog, or
+	// never in it. Filtering only ever narrows what is granted.
 	//
 	// Canonicalized in the same pass so both sides expand: rbac.ExpandScope
 	// knows `coder:all` and not the `all` alias that IsExternalScope accepts.
@@ -137,12 +109,9 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	}
 	filtered = slice.Unique(filtered)
 	if len(filtered) == 0 {
-		// Falling through to the no-allowlist branch would grant strictly more
-		// than this allowlist ever permitted.
-		//
-		// The message names the stored value verbatim rather than rejoining
-		// the filter's input, which would render a whitespace-only allowlist
-		// as "" for the one configuration that most needs naming.
+		// Rejected rather than read as absent, which would grant more than the
+		// allowlist ever permitted. The error echoes the stored value so a
+		// whitespace-only allowlist does not render as "".
 		return "", xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
 	}
 
@@ -155,15 +124,13 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	}
 
 	// The allowlist is a ceiling on authority, not a menu of spellings, so the
-	// check is permission coverage rather than name membership: an app allowed
-	// `coder:workspaces.access` can approve a client asking only for
-	// `workspace:read`, which that composite already grants.
+	// check is coverage rather than membership: an app allowed
+	// `coder:workspaces.access` can approve a request for `workspace:read`.
 	for _, s := range granted {
 		covered, err := rbac.ScopesCover(filtered, rbac.ScopeName(s))
 		if err != nil {
 			// Refuse rather than grant on an incomplete comparison. The
-			// underlying error names RBAC internals the client can do nothing
-			// with, so it goes to the log alongside the app that provoked it.
+			// underlying error names RBAC internals, so it goes to the log.
 			logger.Warn(ctx, "oauth2 scope coverage could not be determined",
 				slog.Error(err),
 				slog.F("app_id", app.ID.String()),
@@ -176,6 +143,30 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		}
 	}
 	return strings.Join(granted, " "), nil
+}
+
+// scopeFailureResponse maps a negotiateScope rejection to the client's error.
+// errCoverageUndecidable is this server failing to compare, not a bad request,
+// so it answers server_error (RFC 6749 §4.1.2.1) with a fixed description;
+// negotiateScope already logged the detail.
+func scopeFailureResponse(err error) (codersdk.OAuth2ErrorCode, string) {
+	if errors.Is(err, errCoverageUndecidable) {
+		return codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated"
+	}
+	return codersdk.OAuth2ErrorCodeInvalidScope, err.Error()
+}
+
+// consentScopes returns the scope names the consent page lists, and whether the
+// grant is unrestricted. An unrestricted grant lists nothing: the page's
+// full-access wording tells a user more than "coder:all" does.
+func consentScopes(granted string) (names []string, unrestricted bool) {
+	names = strings.Fields(granted)
+	// Presence, not sole occupancy: an allowlist of
+	// `coder:all coder:workspaces.access` defaults to both names.
+	if slices.Contains(names, string(database.ApiKeyScopeCoderAll)) {
+		return nil, true
+	}
+	return names, false
 }
 
 type authorizeParams struct {
@@ -209,11 +200,9 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 		codeChallengeMethod: p.String(vals, "", "code_challenge_method"),
 	}
 
-	// PKCE is required for authorization code flow requests. Reject a
-	// malformed code_challenge here (RFC 7636 §4.4.1) rather than storing it
-	// verbatim and failing later at token exchange, where the error would
-	// point at the code_verifier instead of the parameter that was actually
-	// invalid.
+	// PKCE is required for the authorization code flow. A malformed
+	// code_challenge is rejected here (RFC 7636 §4.4.1) rather than at token
+	// exchange, where the error would point at the code_verifier instead.
 	if params.responseType == codersdk.OAuth2ProviderResponseTypeCode {
 		switch {
 		case params.codeChallenge == "":
@@ -250,6 +239,39 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	return params, nil, nil
 }
 
+// redirectAuthorizeError reports an authorization error through the client's
+// own callback, as RFC 6749 §4.1.2.1 requires once the client is known. Only
+// callers after extractAuthorizeParams may use it: before that point the
+// redirect URI is whatever the request supplied, not the app's registered
+// callback.
+func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, redirectURL *url.URL, state string, code codersdk.OAuth2ErrorCode, description string) {
+	// Copied because the caller's URL is also the consent page's cancel link
+	// and, on the POST side, the success redirect.
+	errorURL := *redirectURL
+	query := errorURL.Query()
+	query.Set("error", string(code))
+	query.Set("error_description", description)
+	// §4.1.2.1 returns state only when the client sent one.
+	if state != "" {
+		query.Set("state", state)
+	}
+	errorURL.RawQuery = query.Encode()
+
+	// 302 rather than 307, matching the success redirect below: some external
+	// OAuth2 apps and browsers do not handle 307.
+	http.Redirect(rw, r, errorURL.String(), http.StatusFound)
+}
+
+// logCorruptCallback reports a registered callback URL this server should never
+// have stored: unparsable, or using a scheme registration rejects. The response
+// only says the callback is bad, so operators need the log to identify the app.
+func logCorruptCallback(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, err error) {
+	logger.Error(ctx, "oauth2 app has an unusable registered callback URL",
+		slog.Error(err),
+		slog.F("app_id", app.ID.String()),
+		slog.F("callback_url", app.CallbackURL))
+}
+
 // ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.
 func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -258,6 +280,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 
 		callbackURL, err := url.Parse(app.CallbackURL)
 		if err != nil {
+			logCorruptCallback(r.Context(), logger, app, err)
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusInternalServerError,
 				HideStatus:  false,
@@ -295,6 +318,27 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
+		// Checked once here, right after the URI has been matched against the
+		// registered callback, because later code writes it into a Location
+		// header and into the cancel link. 500, not 400: registration rejects
+		// these schemes, so a stored one is bad server state.
+		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
+			logCorruptCallback(r.Context(), logger, app, err)
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusInternalServerError,
+				HideStatus:  false,
+				Title:       "Invalid Callback URL",
+				Description: "The application's registered callback URL has an invalid scheme.",
+				Actions: []site.Action{
+					{
+						URL:  accessURL.String(),
+						Text: "Back to site",
+					},
+				},
+			})
+			return
+		}
+
 		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusBadRequest,
@@ -311,61 +355,39 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
-		// Negotiate here as well as on POST, so a request that cannot succeed
+		// Negotiated here as well as on POST, so a request that cannot succeed
 		// fails before the consent page renders rather than after the user
-		// clicks Allow. The consent form posts back to this URL, so both
-		// handlers see the same query string and reach the same decision.
-		if _, err := negotiateScope(r.Context(), logger, app, params.scope); err != nil {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				HideStatus:  false,
-				Title:       "Invalid Scope",
-				Description: err.Error(),
-				Actions: []site.Action{
-					{
-						URL:  accessURL.String(),
-						Text: "Back to site",
-					},
-				},
-			})
+		// clicks Allow. The result also decides what the page lists.
+		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
+		if err != nil {
+			code, description := scopeFailureResponse(err)
+			redirectAuthorizeError(rw, r, params.redirectURL, params.state, code, description)
 			return
 		}
 
 		cancel := params.redirectURL
 		cancelQuery := params.redirectURL.Query()
-		cancelQuery.Add("error", "access_denied")
-		cancelQuery.Add("error_description", "The resource owner or authorization server denied the request")
+		// Set, not Add: a registered callback carrying its own state= would
+		// otherwise hand the client two values.
+		cancelQuery.Set("error", "access_denied")
+		cancelQuery.Set("error_description", "The resource owner or authorization server denied the request")
 		if params.state != "" {
-			cancelQuery.Add("state", params.state)
+			cancelQuery.Set("state", params.state)
 		}
 		cancel.RawQuery = cancelQuery.Encode()
 
-		cancelURI := cancel.String()
-		if err := codersdk.ValidateRedirectURIScheme(cancel); err != nil {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				HideStatus:  false,
-				Title:       "Invalid Callback URL",
-				Description: "The application's registered callback URL has an invalid scheme.",
-				Actions: []site.Action{
-					{
-						URL:  accessURL.String(),
-						Text: "Back to site",
-					},
-				},
-			})
-			return
-		}
-
+		scopes, unrestricted := consentScopes(grantedScope)
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
 			AppIcon: app.Icon,
 			AppName: app.Name,
 			// #nosec G203 -- The scheme is validated by
-			// codersdk.ValidateRedirectURIScheme above.
-			CancelURI:    htmltemplate.URL(cancelURI),
+			// codersdk.ValidateRedirectURIScheme after extractAuthorizeParams.
+			CancelURI:    htmltemplate.URL(cancel.String()),
 			DashboardURL: accessURL.String(),
 			CSRFToken:    nosurf.Token(r),
 			Username:     ua.FriendlyName,
+			Scopes:       scopes,
+			Unrestricted: unrestricted,
 		})
 	}
 }
@@ -380,6 +402,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		callbackURL, err := url.Parse(app.CallbackURL)
 		if err != nil {
+			logCorruptCallback(ctx, logger, app, err)
 			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Failed to validate query parameters")
 			return
 		}
@@ -387,6 +410,16 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		params, _, err := extractAuthorizeParams(r, callbackURL)
 		if err != nil {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
+			return
+		}
+
+		// As on the GET side: the scope rejection below and the success redirect
+		// at the end both write this URL into a Location header.
+		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
+			logCorruptCallback(ctx, logger, app, err)
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
+				codersdk.OAuth2ErrorCodeServerError,
+				"The application's registered callback URL has an invalid scheme")
 			return
 		}
 
@@ -411,8 +444,8 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
 		if err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest,
-				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			code, description := scopeFailureResponse(err)
+			redirectAuthorizeError(rw, r, params.redirectURL, params.state, code, description)
 			return
 		}
 
@@ -453,9 +486,8 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 				StateHash:           hashOAuth2State(params.state),
 				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: params.redirectURIProvided},
 				// The negotiated scope, not the requested one. The exchange
-				// copies it onto the token row but does not yet put it on the
-				// API key it mints, so this records what was agreed, not yet
-				// what is enforced.
+				// copies it onto the token row but not yet onto the API key it
+				// mints, so this records what was agreed, not what is enforced.
 				Scope: grantedScope,
 			})
 			if err != nil {
@@ -470,9 +502,10 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		}
 
 		newQuery := params.redirectURL.Query()
-		newQuery.Add("code", code.Formatted)
+		// Set, not Add, for the reason the cancel URI uses it.
+		newQuery.Set("code", code.Formatted)
 		if params.state != "" {
-			newQuery.Add("state", params.state)
+			newQuery.Set("state", params.state)
 		}
 		params.redirectURL.RawQuery = newQuery.Encode()
 

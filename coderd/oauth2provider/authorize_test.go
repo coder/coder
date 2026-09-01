@@ -3,7 +3,6 @@ package oauth2provider_test
 import (
 	"context"
 	"database/sql"
-	"html"
 	htmltemplate "html/template"
 	"io"
 	"net/http"
@@ -38,6 +37,8 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 		DashboardURL: "https://coder.com/",
 		CSRFToken:    csrfFieldValue,
 		Username:     "test-user",
+		// The page refuses to render a grant carrying no permission.
+		Scopes: []string{"workspace:ssh"},
 	})
 
 	require.Equal(t, http.StatusOK, rec.Result().StatusCode)
@@ -46,6 +47,84 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 	assert.Contains(t, body, `value="`+csrfFieldValue+`"`)
 	assert.Contains(t, body, `id="allow-form"`)
 	assert.Contains(t, body, `id="cancel-link"`)
+}
+
+func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
+	t.Parallel()
+
+	record := func(t *testing.T, scopes []string, unrestricted bool) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "https://coder.com/oauth2/authorize", nil)
+		rec := httptest.NewRecorder()
+		site.RenderOAuthAllowPage(rec, req, site.RenderOAuthAllowData{
+			AppName:      "Test OAuth App",
+			CancelURI:    htmltemplate.URL("https://coder.com/cancel"),
+			DashboardURL: "https://coder.com/",
+			CSRFToken:    "csrf-field-value",
+			Username:     "test-user",
+			Scopes:       scopes,
+			Unrestricted: unrestricted,
+		})
+		return rec
+	}
+
+	render := func(t *testing.T, scopes []string, unrestricted bool) string {
+		t.Helper()
+		rec := record(t, scopes, unrestricted)
+		require.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		return rec.Body.String()
+	}
+
+	t.Run("NarrowScopeListed", func(t *testing.T) {
+		t.Parallel()
+
+		body := render(t, []string{"workspace:ssh", "template:read"}, false)
+		assert.Contains(t, body, "workspace:ssh")
+		assert.Contains(t, body, "template:read")
+		assert.NotContains(t, body, "full access",
+			"a scoped grant must not be described as full access")
+		// Both roles read as redundant markup, but WebKit drops implicit list
+		// semantics under `list-style: none`.
+		assert.Contains(t, body, `role="list"`)
+		assert.Contains(t, body, `role="listitem"`)
+		// The submit and cancel handlers hide the list by this id.
+		assert.Contains(t, body, `id="scope-list"`)
+		assert.Contains(t, body, `id="scope-disclaimer"`)
+		assert.Contains(t, body, `id="allow-form"`)
+		assert.Contains(t, body, `id="cancel-link"`)
+	})
+
+	t.Run("UnrestrictedStaysFullAccess", func(t *testing.T) {
+		t.Parallel()
+
+		body := render(t, nil, true)
+		assert.Contains(t, body, "full access")
+		assert.NotContains(t, body, `id="scope-list"`)
+		assert.NotContains(t, body, `id="scope-disclaimer"`)
+	})
+
+	// Unreachable today; the guard is for a future caller computing the grant
+	// itself. An empty grant is the opposite of an unrestricted one, so falling
+	// back to the length of Scopes would describe it as full access.
+	t.Run("EmptyScopesAreRefused", func(t *testing.T) {
+		t.Parallel()
+
+		rec := record(t, []string{}, false)
+		require.Equal(t, http.StatusInternalServerError, rec.Result().StatusCode)
+		body := rec.Body.String()
+		assert.NotContains(t, body, "full access")
+		assert.NotContains(t, body, `id="allow-form"`)
+		assert.NotContains(t, body, `id="scope-list"`)
+	})
+
+	// A guard written against one spelling would let the other through.
+	t.Run("NilScopesAreRefused", func(t *testing.T) {
+		t.Parallel()
+
+		rec := record(t, nil, false)
+		require.Equal(t, http.StatusInternalServerError, rec.Result().StatusCode)
+		assert.NotContains(t, rec.Body.String(), `id="allow-form"`)
+	})
 }
 
 const (
@@ -189,6 +268,182 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
+
+	t.Run("ConsentPageNotRenderedForInvalidScope", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog+" "+scopeOutOfAllowlist)
+		defer resp.Body.Close()
+		requireInvalidScope(t, resp, reasonScopeNotAllowed)
+	})
+
+	t.Run("ConsentPageStatesNegotiatedScope", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), "workspace:ssh")
+		defer resp.Body.Close()
+
+		body := readBody(t, resp)
+		require.Contains(t, body, `id="allow-form"`, "the consent page must render")
+		require.Contains(t, body, "workspace:ssh")
+		require.NotContains(t, body, "full access",
+			"a scoped grant must not be described as full access")
+		// The allowlist covers workspace:ssh and more, so listing it would
+		// satisfy every assertion above while overstating the grant.
+		require.NotContains(t, body, scopeInCatalog,
+			"the consent page must state the negotiated scope, not the app's allowlist")
+	})
+
+	t.Run("ConsentPageStatesFullAccessWhenUnrestricted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{})
+
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), "")
+		defer resp.Body.Close()
+
+		body := readBody(t, resp)
+		require.Contains(t, body, `id="allow-form"`, "the consent page must render")
+		require.Contains(t, body, "full access")
+		require.NotContains(t, body, string(database.ApiKeyScopeCoderAll),
+			"an unrestricted grant must not be stated to a user as a scope name")
+	})
+
+	// RFC 6749 §4.1.2.1 returns state only if the request carried one, and an
+	// empty state is not the same as no state.
+	t.Run("OmittedStateNotEchoed", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+		query := authorizeQuery(t, app.ID.String(), "not_a_real_scope")
+		query.Del("state")
+
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+		location, err := url.Parse(resp.Header.Get("Location"))
+		require.NoError(t, err)
+		// So the case cannot pass on a redirect that failed earlier.
+		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), location.Query().Get("error"))
+		require.False(t, location.Query().Has("state"),
+			"a client that sent no state must not receive an empty one")
+	})
+
+	// redirect_uri validation running first is what keeps the rejection
+	// redirect above from being reachable with a request-supplied URI.
+	t.Run("MismatchedRedirectURINotRedirected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			query := authorizeQuery(t, app.ID.String(), "not_a_real_scope")
+			query.Set("redirect_uri", "https://not-the-registered-callback.example/cb")
+
+			resp := sendAuthorizeRequest(ctx, t, client, method, query)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+				"%s: an unregistered redirect_uri must fail on Coder", method)
+			require.Empty(t, resp.Header.Get("Location"),
+				"%s: the user must not be redirected to a URI the app did not register", method)
+			// The request also carries an invalid scope, so this pins which
+			// guard rejected it first.
+			require.Contains(t, readBody(t, resp), "must exactly match",
+				"%s: the rejection must come from redirect_uri validation", method)
+		}
+
+		// Positive control: the same handler still renders the consent page.
+		okResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog)
+		defer okResp.Body.Close()
+		require.Equal(t, http.StatusOK, okResp.StatusCode)
+		require.Contains(t, readBody(t, okResp), `id="allow-form"`)
+	})
+
+	// The request also carries a scope the app cannot be granted, so the
+	// rejection redirect is the write that would otherwise fire. This is a test
+	// of ordering, not of the scheme check alone.
+	t.Run("DangerousCallbackSchemeNotRedirected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: "javascript:alert(1)",
+			Scope:       sql.NullString{String: scopeInCatalog, Valid: true},
+		})
+
+		getResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeOutOfAllowlist)
+		defer getResp.Body.Close()
+		// 500, not 400: the request is well formed, the stored row is not.
+		require.Equal(t, http.StatusInternalServerError, getResp.StatusCode)
+		require.Empty(t, getResp.Header.Get("Location"),
+			"GET: a dangerous scheme must never reach a Location header")
+		getBody := readBody(t, getResp)
+		require.Contains(t, getBody, "Invalid Callback URL",
+			"GET: the failure must name the callback URL, not the scope")
+		require.NotContains(t, getBody, "javascript:",
+			"GET: the scheme must not reach the page as a link either")
+
+		postResp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeOutOfAllowlist)
+		defer postResp.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, postResp.StatusCode)
+		require.Empty(t, postResp.Header.Get("Location"),
+			"POST: a dangerous scheme must never reach a Location header")
+		postBody := readBody(t, postResp)
+		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
+		// The callback-parse branch also answers server_error.
+		require.Contains(t, postBody, "invalid scheme",
+			"POST: the failure must name the scheme, not just the error class")
+	})
+
+	// A registered callback may carry its own state=, and the cancel link, the
+	// success redirect, and the error redirect write onto it separately.
+	t.Run("CallbackQueryParamsReplacedNotAppended", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const presetState = "callback-preset-state"
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: appCallbackURL + "?state=" + presetState,
+			Scope:       sql.NullString{String: scopeInCatalog, Valid: true},
+		})
+
+		getResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), "")
+		defer getResp.Body.Close()
+		require.Equal(t, http.StatusOK, getResp.StatusCode)
+		require.NotContains(t, readBody(t, getResp), presetState,
+			"the cancel link must carry the request's state, not the registered one as well")
+
+		postResp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
+		defer postResp.Body.Close()
+		require.Equal(t, http.StatusFound, postResp.StatusCode)
+		location, err := url.Parse(postResp.Header.Get("Location"))
+		require.NoError(t, err)
+		require.Equal(t, []string{authorizeState}, location.Query()["state"],
+			"the success redirect must carry exactly one state")
+
+		errResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeOutOfAllowlist)
+		defer errResp.Body.Close()
+		require.Equal(t, http.StatusFound, errResp.StatusCode)
+		errLocation, err := url.Parse(errResp.Header.Get("Location"))
+		require.NoError(t, err)
+		// So the arm cannot pass on a redirect that failed earlier.
+		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), errLocation.Query().Get("error"))
+		require.Equal(t, []string{authorizeState}, errLocation.Query()["state"],
+			"the error redirect must carry exactly one state")
+	})
 }
 
 // Registration performs no catalog validation, so an app can register an
@@ -235,9 +490,11 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 
 		resp := authorizeRequest(ctx, t, client, http.MethodGet, registration.ClientID, "")
 		defer resp.Body.Close()
-		body := requireInvalidScope(t, resp, reasonNoGrantableScope)
+		requireInvalidScope(t, resp, reasonNoGrantableScope)
 
-		require.Contains(t, body, "openid profile email",
+		location, err := url.Parse(resp.Header.Get("Location"))
+		require.NoError(t, err)
+		require.Contains(t, location.Query().Get("error_description"), "openid profile email",
 			"the rejection must name the registered scopes the owner has to change")
 	})
 }
@@ -317,20 +574,26 @@ var (
 	reasonScopeNotAllowed  = oauth2provider.ReasonScopeNotAllowed
 )
 
-// requireInvalidScope asserts the request was refused by the named branch
-// rather than issued a code. GET answers with an error page and POST with an
-// OAuth2 error body, so the returned body is unescaped for either.
-func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) string {
+// requireInvalidScope asserts the RFC 6749 §4.1.2.1 rejection: a redirect to
+// the registered callback carrying the error and the request's state, but no
+// code.
+func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
 	t.Helper()
 
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	require.Empty(t, resp.Header.Get("Location"),
-		"a rejected request must not be redirected, least of all with a code")
+	require.Equal(t, http.StatusFound, resp.StatusCode)
 
-	body := html.UnescapeString(readBody(t, resp))
-	require.Contains(t, body, wantReason,
+	location, err := url.Parse(resp.Header.Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, appCallbackURL, location.Scheme+"://"+location.Host+location.Path,
+		"the error must go to the app's registered callback and nowhere else")
+
+	query := location.Query()
+	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), query.Get("error"))
+	require.Contains(t, query.Get("error_description"), wantReason,
 		"the rejection must come from the branch this case covers")
-	return body
+	require.Equal(t, authorizeState, query.Get("state"),
+		"the client cannot correlate the failure with its request without its state")
+	require.Empty(t, query.Get("code"), "a rejected request must not issue a code")
 }
 
 func readBody(t *testing.T, resp *http.Response) string {
