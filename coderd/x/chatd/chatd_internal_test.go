@@ -1872,7 +1872,26 @@ func requireUserSkillContextActor(ctx context.Context, t *testing.T, userID uuid
 	require.True(t, ok)
 	require.Equal(t, rbac.SubjectTypeUser, actor.Type)
 	require.Equal(t, userID.String(), actor.ID)
-	require.Equal(t, rbac.RoleIdentifiers{rbac.RoleMember()}, actor.Roles)
+	// The actor is resolved through httpmw.UserRBACSubject, so Roles
+	// holds expanded role objects; assert the member role by name.
+	expanded, err := actor.Roles.Expand()
+	require.NoError(t, err)
+	names := make([]string, 0, len(expanded))
+	for _, role := range expanded {
+		names = append(names, role.Identifier.Name)
+	}
+	require.Contains(t, names, rbac.RoleMember().Name)
+}
+
+// expectSkillOwnerRoles stubs the owner-subject resolution that
+// userSkillContext performs through httpmw.UserRBACSubject.
+func expectSkillOwnerRoles(db *dbmock.MockStore, userID uuid.UUID) {
+	db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), userID).Return(database.GetAuthorizationUserRolesRow{
+		ID:       userID,
+		Username: "skill-owner",
+		Status:   database.UserStatusActive,
+		Roles:    []string{"member"},
+	}, nil)
 }
 
 func TestFetchPersonalSkillMetadata(t *testing.T) {
@@ -1886,6 +1905,7 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		server := &Server{db: db}
 		userID := uuid.New()
+		expectSkillOwnerRoles(db, userID)
 
 		db.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), userID).DoAndReturn(
 			func(ctx context.Context, gotUserID uuid.UUID) ([]database.ListUserSkillMetadataByUserIDRow, error) {
@@ -1916,6 +1936,7 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 		logger := sink.Logger().Leveled(slog.LevelDebug)
 		server := &Server{db: db}
 		userID := uuid.New()
+		expectSkillOwnerRoles(db, userID)
 
 		db.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), userID).Return(nil, xerrors.New("boom"))
 
@@ -1938,6 +1959,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		server := &Server{db: db}
 		userID := uuid.New()
+		expectSkillOwnerRoles(db, userID)
 		params := database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
 			Name:   "personal-review",
@@ -1970,6 +1992,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		server := &Server{db: db}
 		userID := uuid.New()
+		expectSkillOwnerRoles(db, userID)
 		params := database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
 			Name:   "missing-skill",
@@ -1995,6 +2018,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		sink := testutil.NewFakeSink(t)
 		server := &Server{db: db, logger: sink.Logger()}
 		userID := uuid.New()
+		expectSkillOwnerRoles(db, userID)
 		params := database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
 			Name:   "error-skill",
@@ -2028,6 +2052,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		sink := testutil.NewFakeSink(t)
 		server := &Server{db: db, logger: sink.Logger()}
 		userID := uuid.New()
+		expectSkillOwnerRoles(db, userID)
 		params := database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
 			Name:   "broken-skill",
