@@ -5143,6 +5143,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().DeleteOldWorkspaceAgentLogs(gomock.Any(), t).Return(int64(0), nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("DeleteCachedModuleFilesCreatedBetween", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.DeleteCachedModuleFilesCreatedBetweenParams{}
+		dbm.EXPECT().DeleteCachedModuleFilesCreatedBetween(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 	s.Run("InsertWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertWorkspaceAgentStatsParams{}
 		dbm.EXPECT().InsertWorkspaceAgentStats(gomock.Any(), arg).Return(xerrors.New("any error")).AnyTimes()
