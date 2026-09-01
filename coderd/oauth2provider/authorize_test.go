@@ -588,24 +588,28 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		})
 	}
 
+	// Every response type but code is unsupported, whether or not the SDK has a
+	// constant for it, so the client gets one answer for one mistake.
 	t.Run("UnsupportedResponseTypeRedirected", func(t *testing.T) {
 		t.Parallel()
 
 		app := seedAppInCatalog(t)
-		for _, method := range []string{http.MethodGet, http.MethodPost} {
-			t.Run(method, func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitLong)
+		for _, responseType := range []string{"token", "id_token", "code id_token", "not_a_response_type"} {
+			for _, method := range []string{http.MethodGet, http.MethodPost} {
+				t.Run(responseType+"/"+method, func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitLong)
 
-				query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
-				query.Set("response_type", "token")
+					query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+					query.Set("response_type", responseType)
 
-				resp := sendAuthorizeRequest(ctx, t, client, method, query)
-				defer resp.Body.Close()
+					resp := sendAuthorizeRequest(ctx, t, client, method, query)
+					defer resp.Body.Close()
 
-				requireAuthorizeErrorRedirect(t, resp,
-					codersdk.OAuth2ErrorCodeUnsupportedResponseType, "Only response_type=code is supported")
-			})
+					requireAuthorizeErrorRedirect(t, resp,
+						codersdk.OAuth2ErrorCodeUnsupportedResponseType, "Only response_type=code is supported")
+				})
+			}
 		}
 	})
 
@@ -622,11 +626,6 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 			mutate      func(url.Values)
 			description string
 		}{
-			{
-				name:        "UnparseableResponseType",
-				mutate:      func(q url.Values) { q.Set("response_type", "not_a_response_type") },
-				description: "response_type",
-			},
 			{
 				name:        "MalformedCodeChallenge",
 				mutate:      func(q url.Values) { q.Set("code_challenge", "tooshort") },

@@ -420,31 +420,39 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 	}
 }
 
-// TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE ensures
-// response_type=token is parsed without requiring PKCE fields so callers can
-// return unsupported_response_type instead of invalid_request.
-func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T) {
+// TestExtractAuthorizeParams_NonCodeResponseTypeDoesNotRequirePKCE ensures a
+// response type other than code is parsed without requiring PKCE fields so
+// callers can answer unsupported_response_type instead of invalid_request.
+func TestExtractAuthorizeParams_NonCodeResponseTypeDoesNotRequirePKCE(t *testing.T) {
 	t.Parallel()
 
-	callbackURL, err := url.Parse("http://localhost:3000/callback")
-	require.NoError(t, err)
+	// id_token has no SDK constant, so it also pins that the value is read as
+	// plain text.
+	for _, responseType := range []string{string(codersdk.OAuth2ProviderResponseTypeToken), "id_token"} {
+		t.Run(responseType, func(t *testing.T) {
+			t.Parallel()
 
-	query := url.Values{}
-	query.Set("response_type", string(codersdk.OAuth2ProviderResponseTypeToken))
-	query.Set("client_id", "test-client")
-	query.Set("redirect_uri", "http://localhost:3000/callback")
+			callbackURL, err := url.Parse("http://localhost:3000/callback")
+			require.NoError(t, err)
 
-	reqURL, err := url.Parse("http://localhost:8080/oauth2/authorize?" + query.Encode())
-	require.NoError(t, err)
+			query := url.Values{}
+			query.Set("response_type", responseType)
+			query.Set("client_id", "test-client")
+			query.Set("redirect_uri", "http://localhost:3000/callback")
 
-	req := &http.Request{
-		Method: http.MethodGet,
-		URL:    reqURL,
+			reqURL, err := url.Parse("http://localhost:8080/oauth2/authorize?" + query.Encode())
+			require.NoError(t, err)
+
+			req := &http.Request{
+				Method: http.MethodGet,
+				URL:    reqURL,
+			}
+
+			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{}, callbackURL)
+			require.Nil(t, failure)
+			require.Equal(t, responseType, params.responseType)
+		})
 	}
-
-	params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{}, callbackURL)
-	require.Nil(t, failure)
-	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
 
 // TestRefreshTokenGrant_Scopes tests that scopes can be requested during refresh

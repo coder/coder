@@ -158,11 +158,17 @@ func consentScopes(granted string) (names []string, unrestricted bool) {
 	return names, false
 }
 
+// responseTypeCode is the only response type this server supports. response_type
+// is read as text rather than through the SDK enum so every unsupported value
+// takes one path, instead of splitting on whether a Go constant happens to
+// exist for it.
+const responseTypeCode = string(codersdk.OAuth2ProviderResponseTypeCode)
+
 type authorizeParams struct {
 	clientID            string
 	response            authorizeResponse
 	redirectURIProvided bool
-	responseType        codersdk.OAuth2ProviderResponseType
+	responseType        string
 	scope               []string
 	resource            string // RFC 8707 resource indicator
 	codeChallenge       string // PKCE code challenge
@@ -203,7 +209,7 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 		clientID:            p.String(vals, "", "client_id"),
 		response:            response,
 		redirectURIProvided: vals.Get("redirect_uri") != "",
-		responseType:        httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
+		responseType:        p.String(vals, "", "response_type"),
 		scope:               strings.Fields(strings.TrimSpace(p.String(vals, "", "scope"))),
 		resource:            p.String(vals, "", "resource"),
 		codeChallenge:       p.String(vals, "", "code_challenge"),
@@ -213,7 +219,11 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 	// PKCE is required for the authorization code flow. A malformed
 	// code_challenge is rejected here (RFC 7636 §4.4.1) rather than at token
 	// exchange, where the error would point at the code_verifier instead.
-	if params.responseType == codersdk.OAuth2ProviderResponseTypeCode {
+	//
+	// Only for the code flow: an unsupported response type must reach the
+	// handlers as unsupported_response_type rather than be recast here as a
+	// missing code_challenge.
+	if params.responseType == responseTypeCode {
 		switch {
 		case params.codeChallenge == "":
 			p.Errors = append(p.Errors, codersdk.ValidationError{
@@ -529,7 +539,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// In the query, not the fragment §4.2.2.1 would use: Coder advertises
 		// code alone in response_types_supported, so a client asking for token
 		// is misconfigured rather than mid-implicit-flow.
-		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
+		if params.responseType != responseTypeCode {
 			redirectAuthorizeError(rw, r, logger, params.response,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
 				"Only response_type=code is supported")
@@ -614,7 +624,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		}
 
 		// As on the GET side: OAuth 2.1 removes the implicit grant.
-		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
+		if params.responseType != responseTypeCode {
 			redirectAuthorizeError(rw, r, logger, params.response,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
 				"Only response_type=code is supported")
