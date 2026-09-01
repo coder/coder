@@ -94,7 +94,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 															</CopyableValue>
 														);
 													}
-													return <>{children}</>;
+													return children;
 												},
 											}}
 										>
