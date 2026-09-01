@@ -74,6 +74,7 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 - Assert observable behavior with semantic queries. Do not assert Tailwind classes or implementation details.
 - Use `data-testid` only when an element has no suitable role or accessible name.
 - Do not depend on smooth scrolling in tests. Use instant behavior or control the scroll position directly.
+- After an interaction closes a modal Radix layer (Select listbox, modal popover), use `selectRadixOption` or `waitForRadixLayerClose` from `testHelpers/storybook` before the next interaction or ByRole assertion. Do not silence the resulting `pointer-events: none` error with `pointerEventsCheck: 0`; that option is only for hovering elements that are intentionally `pointer-events: none` (for example a disabled button with a tooltip, as in `AppLink.stories.tsx`).
 - Keep stories current when components change.
 
 ## Performance

@@ -18,6 +18,7 @@ import {
 } from "#/testHelpers/entities";
 import {
 	selectRadixOption,
+	waitForRadixLayerClose,
 	withAuthProvider,
 	withDashboardProvider,
 	withToaster,
@@ -1339,6 +1340,11 @@ export const UpdateOnlyOrgAdminCanUpdateMCPServer: Story = {
 		expect(
 			body.queryByRole("option", { name: "User OIDC identity" }),
 		).not.toBeInTheDocument();
+		// Close the listbox and wait out the layer cleanup; while the page
+		// is aria-hidden the negative ByRole assertions below would pass
+		// vacuously.
+		await userEvent.keyboard("{Escape}");
+		await waitForRadixLayerClose(canvas, "button", "Update server");
 		expect(
 			canvas.queryByRole("button", { name: "Delete" }),
 		).not.toBeInTheDocument();

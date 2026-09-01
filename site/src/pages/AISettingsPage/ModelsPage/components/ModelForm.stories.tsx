@@ -171,13 +171,16 @@ export const LeaveWithUnsavedChanges: Story = {
 		// beforeunload leg (registered in the same commit) to observe the
 		// dirty state before navigating.
 		await userEvent.tab();
+		// 4s, not 10s: this and the dialog wait below must fit the 15s test
+		// timeout together, and the probe settles in milliseconds once the
+		// dirty render commits.
 		await waitFor(
 			() => {
 				const probe = new Event("beforeunload", { cancelable: true });
 				window.dispatchEvent(probe);
 				expect(probe.defaultPrevented).toBe(true);
 			},
-			{ timeout: 10_000 },
+			{ timeout: 4_000 },
 		);
 		await userEvent.click(
 			canvas.getByRole("link", { name: /back to models/i }),
@@ -539,9 +542,7 @@ export const ReasoningEffortInProviderConfiguration: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Medium" }),
 		);
-		await waitForRadixLayerClose(() =>
-			canvas.getByRole("combobox", { name: /max reasoning effort/i }),
-		);
+		await waitForRadixLayerClose(canvas, "combobox", /max reasoning effort/i);
 
 		await selectRadixOption(canvas, /max reasoning effort/i, "Max");
 

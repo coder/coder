@@ -9,7 +9,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
-	waitForRadixLayerClose,
+	selectRadixOption,
 	withDashboardProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
@@ -110,22 +110,13 @@ async function fillForm(
 	loginType: "password" | "service account" = "password",
 ) {
 	const isPasswordLogin = loginType === "password";
-	const body = within(document.body);
 
 	await user.type(await canvas.findByLabelText("Username"), "someuser");
 	if (isPasswordLogin) {
 		await user.type(canvas.getByLabelText(/email/i), "someone@coder.com");
 	}
 
-	// The login-type trigger has no accessible name (queried by testid), so
-	// this flow cannot use selectRadixOption.
-	await user.click(canvas.getByTestId("login-type-input"));
-	await user.click(
-		await body.findByRole("option", { name: new RegExp(loginType, "i") }),
-	);
-	await waitForRadixLayerClose(() =>
-		canvas.getByRole("button", { name: /save/i }),
-	);
+	await selectRadixOption(canvas, /login type/i, new RegExp(loginType, "i"));
 
 	if (isPasswordLogin) {
 		await user.type(

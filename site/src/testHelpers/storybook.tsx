@@ -28,21 +28,26 @@ import {
 } from "./entities";
 
 /**
- * Wait for Radix to finish tearing down a just-closed layer (Select
- * listbox, Popover, and similar). While the layer is open, Radix marks
- * the rest of the page `aria-hidden` and disables pointer events on it,
- * and it undoes both asynchronously after the closing interaction. A
- * pointer interaction or role query issued before that cleanup lands
- * flakes under CPU load, so re-query the next interaction target until
- * it is back in the accessibility tree and accepts pointer input.
+ * Wait for Radix to finish tearing down a just-closed modal layer (Select
+ * listbox, modal Popover, and similar). While the layer is open, Radix
+ * marks the rest of the page `aria-hidden` and disables pointer events on
+ * it, and it undoes both asynchronously after the closing interaction. A
+ * pointer interaction, or any ByRole query (positive or negative), issued
+ * before that cleanup lands is racy, so re-query the next interaction
+ * target by role until it is back in the accessibility tree and accepts
+ * pointer input. The role query is built internally so the aria-hidden
+ * half of the check cannot be bypassed with a non-role getter.
  */
 export const waitForRadixLayerClose = async (
-	getTarget: () => HTMLElement,
+	canvas: ReturnType<typeof within>,
+	role: string,
+	name: string | RegExp,
 ): Promise<void> => {
 	await waitFor(
 		() => {
-			// getTarget must re-query by role so an aria-hidden target throws.
-			const target = getTarget();
+			// getByRole excludes aria-hidden subtrees, so this throws until
+			// the page is unmarked.
+			const target = canvas.getByRole(role, { name });
 			expect(window.getComputedStyle(target).pointerEvents).not.toBe("none");
 		},
 		{ timeout: 10_000 },
@@ -67,9 +72,7 @@ export const selectRadixOption = async (
 	await userEvent.click(combobox);
 	const body = within(combobox.ownerDocument.body);
 	await userEvent.click(await body.findByRole("option", { name: optionName }));
-	await waitForRadixLayerClose(() =>
-		canvas.getByRole("combobox", { name: comboboxName }),
-	);
+	await waitForRadixLayerClose(canvas, "combobox", comboboxName);
 };
 
 export const withDashboardProvider = (
