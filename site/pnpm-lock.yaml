@@ -162,8 +162,8 @@ importers:
         specifier: 4.18.1
         version: 4.18.1
       lucide-react:
-        specifier: 0.555.0
-        version: 0.555.0(react@19.2.8)
+        specifier: 0.577.0
+        version: 0.577.0(react@19.2.8)
       monaco-editor:
         specifier: 0.55.1
         version: 0.55.1
@@ -4555,8 +4555,8 @@ packages:
   lru_map@0.4.1:
     resolution: {integrity: sha512-I+lBvqMMFfqaV8CJCISjI3wbjmwVu/VyOoU7+qtu9d7ioW5klMgsTTiUOUp+DJvfTTzKXoPbyC6YfgkNcyPSOg==, tarball: https://registry.npmjs.org/lru_map/-/lru_map-0.4.1.tgz}
 
-  lucide-react@0.555.0:
-    resolution: {integrity: sha512-D8FvHUGbxWBRQM90NZeIyhAvkFfsh3u9ekrMvJ30Z6gnpBHS6HC6ldLg7tL45hwiIz/u66eKDtdA23gwwGsAHA==, tarball: https://registry.npmjs.org/lucide-react/-/lucide-react-0.555.0.tgz}
+  lucide-react@0.577.0:
+    resolution: {integrity: sha512-4LjoFv2eEPwYDPg/CUdBJQSDfPyzXCRrVW1X7jrx/trgxnxkHFjnVZINbzvzxjN70dxychOfg+FTYwBiS3pQ5A==, tarball: https://registry.npmjs.org/lucide-react/-/lucide-react-0.577.0.tgz}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -10530,7 +10530,7 @@ snapshots:
 
   lru_map@0.4.1: {}
 
-  lucide-react@0.555.0(react@19.2.8):
+  lucide-react@0.577.0(react@19.2.8):
     dependencies:
       react: 19.2.8
 
