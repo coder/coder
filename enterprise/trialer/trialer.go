@@ -23,8 +23,9 @@ import (
 const LicenseRequestURL = "https://v2-licensor.coder.com/trial"
 
 const (
-	// licenseRequestSource tells the licensor where a trial request originated.
-	licenseRequestSource = "Product"
+	// defaultLicenseRequestSource tells the licensor where a trial request
+	// originated when the caller does not specify a source.
+	defaultLicenseRequestSource = codersdk.LicensorTrialSourceProduct
 	// licenseRequestTimeout bounds a single request to the licensor.
 	licenseRequestTimeout = 30 * time.Second
 )
@@ -56,7 +57,9 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) *Tria
 
 // Request returns the raw signed license without storing it.
 func (t *Trialer) Request(ctx context.Context, body codersdk.LicensorTrialRequest) (string, error) {
-	body.Source = licenseRequestSource
+	if body.Source == "" {
+		body.Source = defaultLicenseRequestSource
+	}
 	data, err := json.Marshal(body)
 	if err != nil {
 		return "", xerrors.Errorf("marshal: %w", err)

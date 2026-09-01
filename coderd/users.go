@@ -223,6 +223,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			CompanyName: createUser.TrialInfo.CompanyName,
 			Country:     createUser.TrialInfo.Country,
 			Developers:  createUser.TrialInfo.Developers,
+			Source:      codersdk.LicensorTrialSourceNewUser,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

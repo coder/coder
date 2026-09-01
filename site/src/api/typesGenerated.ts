@@ -5926,6 +5926,20 @@ export const LicenseManagedAgentLimitExceededWarningText =
 export const LicenseTelemetryRequiredErrorText =
 	"License requires telemetry but telemetry is disabled";
 
+// From codersdk/users.go
+/**
+ * Trial request source origination reported to the licensor.
+ * LicensorTrialSourceNewUser is the first user setup flow.
+ */
+export const LicensorTrialSourceNewUser = "NewUser";
+
+// From codersdk/users.go
+/**
+ * Trial request source origination reported to the licensor.
+ * LicensorTrialSourceProduct is a request from within the product in-app trial request
+ */
+export const LicensorTrialSourceProduct = "Product";
+
 // From codersdk/deployment.go
 export interface LinkConfig {
 	readonly name: string;
