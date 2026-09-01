@@ -472,33 +472,40 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					{Boolean(error) && <ErrorAlert error={error} />}
 
 					{template.use_classic_parameter_flow && (
-						<Alert severity="warning" prominent>
-							<AlertTitle>
-								This template uses the classic parameter flow
-							</AlertTitle>
-							<AlertDescription>
-								Real-time validation, conditional parameters, and richer input
-								types are unavailable on this form.{" "}
-								{canUpdateTemplate ? (
+						<Alert
+							severity="warning"
+							prominent
+							actions={
+								canUpdateTemplate && (
 									<>
 										<Link
 											href={docs(
 												"/admin/templates/extending-templates/dynamic-parameters",
 											)}
+											target="_blank"
+											rel="noreferrer"
 										>
-											Read the dynamic parameters docs
-										</Link>{" "}
+											View docs
+											<span className="sr-only"> (opens in new tab)</span>
+										</Link>
 										<Link asChild showExternalIcon={false}>
 											<RouterLink
 												to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
 											>
-												or open template settings
+												Open template settings
 											</RouterLink>
 										</Link>
 									</>
-								) : (
-									"Please contact your template admin."
-								)}
+								)
+							}
+						>
+							<AlertTitle>
+								This template uses the classic parameter flow
+							</AlertTitle>
+							<AlertDescription>
+								Real-time validation, conditional parameters, and richer input
+								types are unavailable on this form.
+								{!canUpdateTemplate && " Please contact your template admin."}
 							</AlertDescription>
 						</Alert>
 					)}

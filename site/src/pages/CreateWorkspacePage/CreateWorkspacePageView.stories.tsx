@@ -520,11 +520,7 @@ export const ClassicParameterFlowTemplate: Story = {
 			within(alert).getByText("This template uses the classic parameter flow"),
 		).toBeVisible();
 		expect(alert).toHaveTextContent("Please contact your template admin.");
-		expect(
-			within(alert).queryByRole("link", {
-				name: /dynamic parameters docs|template settings/i,
-			}),
-		).not.toBeInTheDocument();
+		expect(within(alert).queryByRole("link")).not.toBeInTheDocument();
 	},
 };
 
@@ -536,18 +532,19 @@ export const ClassicParameterFlowTemplateWithUpdatePermission: Story = {
 	play: async ({ canvasElement }) => {
 		const alert = within(canvasElement).getByRole("alert");
 
-		expect(
-			within(alert).getByRole("link", {
-				name: /read the dynamic parameters docs/i,
-			}),
-		).toHaveAttribute(
+		const docsLink = within(alert).getByRole("link", {
+			name: /view docs \(opens in new tab\)/i,
+		});
+		expect(docsLink).toHaveAttribute(
 			"href",
 			expect.stringContaining(
 				"/admin/templates/extending-templates/dynamic-parameters",
 			),
 		);
+		expect(docsLink).toHaveAttribute("target", "_blank");
+		expect(docsLink).toHaveAttribute("rel", "noreferrer");
 		expect(
-			within(alert).getByRole("link", { name: /open template settings/i }),
+			within(alert).getByRole("link", { name: "Open template settings" }),
 		).toHaveAttribute(
 			"href",
 			"/templates/default/docker-template/settings/parameters",

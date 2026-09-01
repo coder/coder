@@ -269,11 +269,17 @@ export const ClassicParameterFlowWarning: Story = {
 				"2 templates still use the classic parameter flow",
 			),
 		).toBeVisible();
-		expect(
-			within(alert)
-				.getByRole("link", { name: /dynamic parameters docs/i })
-				.getAttribute("href"),
-		).toContain("/admin/templates/extending-templates/dynamic-parameters");
+		const docsLink = within(alert).getByRole("link", {
+			name: /view docs \(opens in new tab\)/i,
+		});
+		expect(docsLink).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/admin/templates/extending-templates/dynamic-parameters",
+			),
+		);
+		expect(docsLink).toHaveAttribute("target", "_blank");
+		expect(docsLink).toHaveAttribute("rel", "noreferrer");
 
 		const classicCell = canvas.getByRole("cell", { name: /Classic One/ });
 		expect(within(classicCell).getByText("Classic parameters")).toBeVisible();
