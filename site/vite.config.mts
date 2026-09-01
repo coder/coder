@@ -7,6 +7,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
+import { buildManifest } from "./scripts/update-emojis.mjs";
 
 // We enable profiling and source maps for internal deployments (e.g. dogfood).
 // The profiling build uses react-dom/profiling, which keeps optimizations but
@@ -22,7 +23,27 @@ compilerPreset.rolldown.filter = {
 	},
 };
 
+const EMOJI_MANIFEST_ID = "virtual:emoji-manifest";
+const RESOLVED_EMOJI_MANIFEST_ID = `\0${EMOJI_MANIFEST_ID}`;
+
+const emojiManifestPlugin = (): PluginOption => {
+	return {
+		name: "emoji-manifest",
+		resolveId(id) {
+			if (id === EMOJI_MANIFEST_ID) {
+				return RESOLVED_EMOJI_MANIFEST_ID;
+			}
+		},
+		load(id) {
+			if (id === RESOLVED_EMOJI_MANIFEST_ID) {
+				return `export default ${JSON.stringify(buildManifest())};`;
+			}
+		},
+	};
+};
+
 const plugins: PluginOption[] = [
+	emojiManifestPlugin(),
 	react(),
 	babel({ presets: [compilerPreset] }),
 	checker({

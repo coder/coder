@@ -3,8 +3,9 @@
  *
  * `static/emojis/*.png` are public URLs (`/emojis/1f4bb.png`) referenced by
  * templates, proxies and agent log sources, so the file set is an API surface.
- * They are synchronized from the pinned `emoji-datasource-apple` devDependency
- * together with a normalized runtime manifest.
+ * They are synchronized from the pinned `emoji-datasource-apple` devDependency.
+ * The picker manifest is derived from the same package at bundle time instead
+ * of being stored in the repository.
  *
  * `static/emojis/spritesheet.png` is legacy and unmanaged. Nothing in the app
  * reads it now that the picker renders individual images, but
@@ -20,12 +21,11 @@
  * datasource and those packages, so it is not emitted.
  *
  * Usage:
- *   node scripts/update-emojis.mjs           # sync images and manifest
- *   node scripts/update-emojis.mjs --check   # verify committed artifacts
+ *   node scripts/update-emojis.mjs           # sync images
+ *   node scripts/update-emojis.mjs --check   # verify committed images and metadata
  */
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,13 +36,8 @@ const scriptPath = fileURLToPath(import.meta.url);
 const siteDir = dirname(dirname(scriptPath));
 
 const require = createRequire(scriptPath);
-const PACKAGE_DIR = dirname(require.resolve("emoji-datasource-apple"));
-const SOURCE_IMAGES_DIR = join(PACKAGE_DIR, "img/apple/64");
 export const IMAGES_DIR = join(siteDir, "static/emojis");
 const LEGACY_SPRITESHEET = "spritesheet.png";
-const MANIFEST_NAME = "emojiDataGenerated.json";
-const MANIFEST_RELATIVE = `src/components/IconField/${MANIFEST_NAME}`;
-const MANIFEST_PATH = join(siteDir, MANIFEST_RELATIVE);
 
 // Skin tone modifiers are not selectable emoji.
 const EXCLUDED_CATEGORY = "Component";
@@ -50,8 +45,18 @@ const EXCLUDED_CATEGORY = "Component";
 // Metadata packages, both keyed by the rendered emoji glyph.
 const NAMES_PACKAGE = "unicode-emoji-json";
 const KEYWORDS_PACKAGE = "emojilib";
-const CANONICAL_NAMES = require("unicode-emoji-json/data-by-emoji.json");
-const SEARCH_KEYWORDS = require("emojilib");
+let canonicalNames;
+let searchKeywords;
+
+function getCanonicalNames() {
+	canonicalNames ??= require("unicode-emoji-json/data-by-emoji.json");
+	return canonicalNames;
+}
+
+function getSearchKeywords() {
+	searchKeywords ??= require("emojilib");
+	return searchKeywords;
+}
 
 // Codepoints are hyphen-separated hex, and Unicode tops out at U+10FFFF.
 const CODEPOINT_PATTERN = /^[0-9a-f]{1,6}$/i;
@@ -134,8 +139,8 @@ export function emojiGlyph(unified, label) {
 export function emojiMetadata(
 	glyph,
 	label,
-	names = CANONICAL_NAMES,
-	keywords = SEARCH_KEYWORDS,
+	names = getCanonicalNames(),
+	keywords = getSearchKeywords(),
 ) {
 	if (!Object.hasOwn(names, glyph)) {
 		throw new Error(
@@ -261,36 +266,19 @@ export function normalizeEmojiData(records, version) {
 	return { version, categories, emojis };
 }
 
-/**
- * Serialize the manifest through the installed Biome so the artifact stays
- * covered by `pnpm check`. Biome preserves the caller's object expansion, so
- * the indented input keeps the output stable between runs.
- */
-function renderManifest(manifest) {
-	return execFileSync(
-		process.execPath,
-		[
-			require.resolve("@biomejs/biome/bin/biome"),
-			"format",
-			`--stdin-file-path=${MANIFEST_RELATIVE}`,
-		],
-		{
-			cwd: siteDir,
-			input: JSON.stringify(manifest, null, "\t"),
-			maxBuffer: 64 * 1024 * 1024,
-			encoding: "utf8",
-		},
-	);
-}
-
-/** Build the manifest from the installed package. */
-function buildManifest() {
+/** Build the runtime manifest from the installed packages. */
+export function buildManifest() {
 	const { version } = require("emoji-datasource-apple/package.json");
 	return normalizeEmojiData(require("emoji-datasource-apple"), version);
 }
 
 function errorMessage(error) {
 	return error instanceof Error ? error.message : String(error);
+}
+
+function sourceImagesDir() {
+	const packageDir = dirname(require.resolve("emoji-datasource-apple"));
+	return join(packageDir, "img/apple/64");
 }
 
 function hashDirectory(dir) {
@@ -308,14 +296,15 @@ function hashDirectory(dir) {
 	return hashes;
 }
 
-/** Sync images from the installed package and regenerate the manifest. */
+/** Sync images from the installed package and validate the runtime metadata. */
 export function update() {
-	const source = hashDirectory(SOURCE_IMAGES_DIR);
+	const sourceImages = sourceImagesDir();
+	const source = hashDirectory(sourceImages);
 	const committed = hashDirectory(IMAGES_DIR);
 
 	for (const name of source.keys()) {
 		if (committed.get(name) !== source.get(name)) {
-			copyFileSync(join(SOURCE_IMAGES_DIR, name), join(IMAGES_DIR, name));
+			copyFileSync(join(sourceImages, name), join(IMAGES_DIR, name));
 		}
 	}
 
@@ -332,18 +321,17 @@ export function update() {
 	}
 
 	const manifest = buildManifest();
-	writeFileSync(MANIFEST_PATH, renderManifest(manifest));
 	console.log(
-		`Synced ${source.size} images and wrote ${manifest.emojis.length} emoji to ` +
-			`${MANIFEST_RELATIVE} (emoji-datasource-apple@${manifest.version}).`,
+		`Synced ${source.size} images and validated ${manifest.emojis.length} emoji ` +
+			`(emoji-datasource-apple@${manifest.version}).`,
 	);
 }
 
-/** Verify the committed artifacts against the installed package. */
+/** Verify committed images and runtime metadata against installed packages. */
 export function check() {
 	const problems = [];
 
-	const source = hashDirectory(SOURCE_IMAGES_DIR);
+	const source = hashDirectory(sourceImagesDir());
 	const committed = hashDirectory(IMAGES_DIR);
 	const report = (names, message) => {
 		if (names.length > 0) {
@@ -368,8 +356,11 @@ export function check() {
 		"absent from the datasource; `pnpm emojis` will not delete them, so review and remove them by hand",
 	);
 
-	if (readFileSync(MANIFEST_PATH, "utf8") !== renderManifest(buildManifest())) {
-		problems.push(`${MANIFEST_RELATIVE} is stale, run \`pnpm emojis\``);
+	let manifest;
+	try {
+		manifest = buildManifest();
+	} catch (error) {
+		problems.push(`runtime metadata is invalid: ${errorMessage(error)}`);
 	}
 
 	if (problems.length > 0) {
@@ -380,8 +371,13 @@ export function check() {
 		return false;
 	}
 
+	if (manifest === undefined) {
+		return false;
+	}
+
 	console.log(
-		`Emoji artifacts match emoji-datasource-apple: ${source.size} images.`,
+		`Emoji artifacts match emoji-datasource-apple: ${source.size} images and ` +
+			`${manifest.emojis.length} emoji.`,
 	);
 	return true;
 }

@@ -46,6 +46,9 @@ site/e2e/.auth.json
 site/playwright-report/*
 site/.swc
 
+# Emoji picker data is built virtually and must not be stored in the repository.
+site/src/components/IconField/emojiDataGenerated.json
+
 # Make target for updating generated/golden files (any dir).
 .gen
 /_gen/

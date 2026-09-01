@@ -1,9 +1,9 @@
 import { readdirSync } from "node:fs";
 import canonicalNames from "unicode-emoji-json/data-by-emoji.json";
 import { describe, expect, it } from "vitest";
-import manifest from "#/components/IconField/emojiDataGenerated.json";
 import {
 	IMAGES_DIR,
+	buildManifest,
 	check,
 	emojiGlyph,
 	emojiMetadata,
@@ -311,7 +311,9 @@ describe("normalizeEmojiData validation", () => {
 	});
 });
 
-describe("committed emoji artifacts", () => {
+describe("emoji artifacts", () => {
+	const manifest = buildManifest();
+
 	it("match the installed datasource", () => {
 		expect(check()).toBe(true);
 	});

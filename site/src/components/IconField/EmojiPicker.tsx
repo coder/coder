@@ -1,3 +1,4 @@
+import emojiData, { type SkinVariation } from "virtual:emoji-manifest";
 import {
 	type CSSProperties,
 	type FC,
@@ -23,33 +24,6 @@ import {
 } from "#/components/Select/Select";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
 import icons from "#/theme/icons.json";
-import emojiDataGenerated from "./emojiDataGenerated.json";
-
-type SkinVariation = {
-	tone: string;
-	unified: string;
-	image: string;
-};
-
-type Emoji = {
-	id: string;
-	name: string;
-	category: string;
-	subcategory: string;
-	unified: string;
-	image: string;
-	keywords: string[];
-	aliases?: string[];
-	textAliases?: string[];
-	skins?: SkinVariation[];
-};
-
-type EmojiManifest = {
-	categories: string[];
-	emojis: Emoji[];
-};
-
-const emojiData: EmojiManifest = emojiDataGenerated;
 
 const ICON_CATEGORY = "Coder icons";
 const DEFAULT_TONE = "default";
