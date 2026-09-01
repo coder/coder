@@ -441,7 +441,7 @@ func generateCompactionSummary(
 
 	summaryCtx, finishDebugRun := startCompactionDebugRun(ctx, options)
 	defer func() {
-		// If model.Generate (or anything else below) panics, the
+		// If model.Stream (or anything else below) panics, the
 		// named err return is still nil at this point. Without the
 		// recover hook we would finalize the debug run as Completed
 		// in the exact crash path operators rely on to diagnose
@@ -457,22 +457,57 @@ func generateCompactionSummary(
 
 	call := options.SummaryCall
 	call.Prompt = summaryPrompt
-	response, err := model.Generate(summaryCtx, call)
+	stream, err := model.Stream(summaryCtx, call)
 	if err != nil {
-		return "", xerrors.Errorf("generate summary text: %w", err)
+		return "", xerrors.Errorf("stream summary text: %w", err)
 	}
 
-	parts := make([]string, 0, len(response.Content))
-	for _, block := range response.Content {
-		textBlock, ok := fantasy.AsContentType[fantasy.TextContent](block)
-		if !ok {
-			continue
+	textPartIndexes := make(map[string]int)
+	textParts := make([]string, 0, 1)
+	var (
+		reasoningSeen bool
+		finishReason  fantasy.FinishReason
+	)
+	for part := range stream {
+		switch part.Type {
+		case fantasy.StreamPartTypeTextStart:
+			if _, ok := textPartIndexes[part.ID]; ok {
+				continue
+			}
+			textPartIndexes[part.ID] = len(textParts)
+			textParts = append(textParts, part.Delta)
+		case fantasy.StreamPartTypeTextDelta:
+			index, ok := textPartIndexes[part.ID]
+			if !ok {
+				index = len(textParts)
+				textPartIndexes[part.ID] = index
+				textParts = append(textParts, "")
+			}
+			textParts[index] += part.Delta
+		case fantasy.StreamPartTypeReasoningStart,
+			fantasy.StreamPartTypeReasoningDelta,
+			fantasy.StreamPartTypeReasoningEnd:
+			reasoningSeen = true
+		case fantasy.StreamPartTypeFinish:
+			finishReason = part.FinishReason
+		case fantasy.StreamPartTypeError:
+			if part.Error == nil {
+				return "", xerrors.New("stream summary text: model returned an error part")
+			}
+			return "", xerrors.Errorf("stream summary text: %w", part.Error)
 		}
-		text := strings.TrimSpace(textBlock.Text)
-		if text == "" {
-			continue
-		}
-		parts = append(parts, text)
 	}
-	return strings.TrimSpace(strings.Join(parts, " ")), nil
+
+	parts := make([]string, 0, len(textParts))
+	for _, text := range textParts {
+		text = strings.TrimSpace(text)
+		if text != "" {
+			parts = append(parts, text)
+		}
+	}
+	summary = strings.TrimSpace(strings.Join(parts, " "))
+	if summary == "" && (finishReason == fantasy.FinishReasonLength || reasoningSeen) {
+		return "", xerrors.New("compaction summary was truncated at the output token cap")
+	}
+	return summary, nil
 }
