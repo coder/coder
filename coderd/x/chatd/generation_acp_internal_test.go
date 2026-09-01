@@ -19,15 +19,22 @@ import (
 	"github.com/coder/quartz"
 )
 
-// testHarness is any harness row; the helpers under test only read
-// its copy fields.
-var testHarness = func() chatacp.Harness {
-	harness, ok := chatacp.HarnessFor(codersdk.ChatRuntimeClaudeCode)
+// testHarness is any harness row for helpers whose behavior does not
+// depend on the runtime; harness-specific copy is checked per harness.
+var testHarness = mustHarness(codersdk.ChatRuntimeClaudeCode)
+
+func mustHarness(runtime codersdk.ChatRuntime) chatacp.Harness {
+	harness, ok := chatacp.HarnessFor(runtime)
 	if !ok {
-		panic("claude_code harness missing")
+		panic("no harness for runtime " + string(runtime))
 	}
 	return harness
-}()
+}
+
+var testHarnesses = []chatacp.Harness{
+	mustHarness(codersdk.ChatRuntimeClaudeCode),
+	mustHarness(codersdk.ChatRuntimeCodex),
+}
 
 func TestWaitForACPAdapter(t *testing.T) {
 	t.Parallel()
@@ -68,18 +75,24 @@ func TestWaitForACPAdapter(t *testing.T) {
 
 	t.Run("SettledScriptsFailImmediately", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		clock := quartz.NewMock(t)
-		deadline := clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
+		for _, harness := range testHarnesses {
+			t.Run(string(harness.Runtime), func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+				clock := quartz.NewMock(t)
+				deadline := clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
 
-		probes := 0
-		err := waitForACPAdapter(ctx, clock, testHarness, deadline,
-			func(context.Context) error { probes++; return adapterMissing },
-			func(context.Context) bool { return true })
-		require.Error(t, err)
-		require.Equal(t, 1, probes)
-		classified := chaterror.Classify(err)
-		require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+				probes := 0
+				err := waitForACPAdapter(ctx, clock, harness, deadline,
+					func(context.Context) error { probes++; return adapterMissing },
+					func(context.Context) bool { return true })
+				require.Error(t, err)
+				require.Equal(t, 1, probes)
+				classified := chaterror.Classify(err)
+				require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+				require.Contains(t, classified.Message, "the "+harness.DisplayName+" adapter ("+harness.Command+")")
+			})
+		}
 	})
 
 	t.Run("DeadlineBoundsUnsettledScripts", func(t *testing.T) {
@@ -216,16 +229,19 @@ func TestACPTurnFromHistory(t *testing.T) {
 			{Type: codersdk.ChatMessagePartTypeFile, FileName: "img.png", MediaType: "image/png"},
 		})
 		require.NoError(t, err)
-		_, err = acpTurnFromHistory(ctx, logger, testHarness, []database.ChatMessage{
-			{
-				ID:             1,
-				Role:           database.ChatMessageRoleUser,
-				Content:        content,
-				ContentVersion: chatprompt.CurrentContentVersion,
-			},
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "no text content")
+		for _, harness := range testHarnesses {
+			_, err = acpTurnFromHistory(ctx, logger, harness, []database.ChatMessage{
+				{
+					ID:             1,
+					Role:           database.ChatMessageRoleUser,
+					Content:        content,
+					ContentVersion: chatprompt.CurrentContentVersion,
+				},
+			})
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "no text content")
+			require.Equal(t, harness.DisplayName+" chats currently support text messages only.", chaterror.Classify(err).Message)
+		}
 	})
 }
 

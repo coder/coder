@@ -471,6 +471,7 @@ func TestRunTurnPermissionAutoDeny(t *testing.T) {
 	_, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:        "/home/coder",
 		PromptText: "do something requiring permission",
+		AgentName:  "Test Agent",
 		Publish:    recorder.publish,
 		Logger:     testLogger(t),
 	})
@@ -481,6 +482,7 @@ func TestRunTurnPermissionAutoDeny(t *testing.T) {
 
 	parts := recorder.snapshot()
 	require.NotEmpty(t, parts)
+	require.Contains(t, parts[0].part.Text, "Test Agent requested a permission")
 	require.Contains(t, parts[0].part.Text, "declined automatically")
 }
 
