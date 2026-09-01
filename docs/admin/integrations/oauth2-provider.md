@@ -378,10 +378,14 @@ Ensure the redirect URI in your request exactly matches the one registered for y
 
 ### "Invalid Callback URL" on the consent page
 
-If you see this error when authorizing, the registered callback URL uses a
-blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). Update the
-application's callback URL to a valid scheme (see
-[Callback URL schemes](#callback-url-schemes)).
+If you see this error when authorizing, the application's registered callback
+URL is not usable: either it does not parse as a URL, or it uses a blocked
+scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause answers
+`server_error` on `POST /oauth2/authorize`. Update the application's callback
+URL (see [Callback URL schemes](#callback-url-schemes)).
+
+The server log records the application ID and the stored value. The response
+does not, so a bad URL is never echoed back to a browser.
 
 ### "invalid_scope" returned to your callback
 
