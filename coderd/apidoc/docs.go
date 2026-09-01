@@ -5782,6 +5782,12 @@ const docTemplate = `{
                                 "$ref": "#/definitions/codersdk.OAuth2ProviderAppSecretFull"
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Public clients cannot have secrets",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
