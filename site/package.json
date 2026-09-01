@@ -166,7 +166,7 @@
 		"rollup-plugin-visualizer": "7.1.1",
 		"rxjs": "7.8.2",
 		"ssh2": "1.17.0",
-		"storybook": "10.3.3",
+		"storybook": "10.5.10",
 		"storybook-addon-remix-react-router": "6.0.0",
 		"tailwindcss": "4.3.3",
 		"ts-proto": "1.181.2",
