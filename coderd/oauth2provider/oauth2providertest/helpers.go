@@ -373,10 +373,14 @@ func CleanupOAuth2App(t *testing.T, client *codersdk.Client, appID uuid.UUID) {
 	}
 }
 
-// AuthorizeOAuth2AppExpectingError performs the OAuth2 authorization flow
-// expecting a rejection, which RFC 6749 §4.1.2.1 delivers to the redirect URI
-// the app registered rather than as a status code on this server.
-func AuthorizeOAuth2AppExpectingError(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams, expectedError codersdk.OAuth2ErrorCode) {
+// AuthorizeOAuth2AppExpectingRedirectError performs the OAuth2 authorization
+// flow expecting a rejection, which RFC 6749 §4.1.2.1 delivers to the redirect
+// URI the app registered rather than as a status code on this server.
+//
+// wantDescription is asserted as a substring of error_description. Without it
+// every caller reduces to the same four assertions, and one blanket
+// invalid_request would satisfy all of them.
+func AuthorizeOAuth2AppExpectingRedirectError(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams, expectedError codersdk.OAuth2ErrorCode, wantDescription string) {
 	t.Helper()
 
 	resp := doAuthorizeRequest(t, client, baseURL, params)
@@ -391,6 +395,8 @@ func AuthorizeOAuth2AppExpectingError(t *testing.T, client *codersdk.Client, bas
 
 	query := location.Query()
 	require.Equal(t, string(expectedError), query.Get("error"))
+	require.Contains(t, query.Get("error_description"), wantDescription,
+		"the description must name the defect, not just its error class")
 	require.Equal(t, params.State, query.Get("state"),
 		"the client cannot correlate the failure with its request without its state")
 	require.Empty(t, query.Get("code"), "a rejected request must not issue a code")

@@ -291,8 +291,9 @@ func TestOAuth2WithoutPKCEIsRejected(t *testing.T) {
 		State:        state,
 	}
 
-	oauth2providertest.AuthorizeOAuth2AppExpectingError(
+	oauth2providertest.AuthorizeOAuth2AppExpectingRedirectError(
 		t, client, client.URL.String(), authParams, codersdk.OAuth2ErrorCodeInvalidRequest,
+		"is required and cannot be empty",
 	)
 }
 
@@ -324,8 +325,9 @@ func TestOAuth2MalformedCodeChallengeIsRejected(t *testing.T) {
 		CodeChallengeMethod: "S256",
 	}
 
-	oauth2providertest.AuthorizeOAuth2AppExpectingError(
+	oauth2providertest.AuthorizeOAuth2AppExpectingRedirectError(
 		t, client, client.URL.String(), authParams, codersdk.OAuth2ErrorCodeInvalidRequest,
+		"must be 43 to 128 characters",
 	)
 }
 
