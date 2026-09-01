@@ -158,6 +158,10 @@ func consentScopes(granted string) (names []string, unrestricted bool) {
 	return names, false
 }
 
+// maxErrorDescription bounds error_description: long enough for a human reason,
+// short enough for a Location header to survive the proxies in front of it.
+const maxErrorDescription = 2048
+
 // responseTypeCode is the only response type this server supports. response_type
 // is read as text rather than through the SDK enum so every unsupported value
 // takes one path, instead of splitting on whether a Go constant happens to
@@ -265,13 +269,16 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 	}
 
 	if len(p.Errors) > 0 {
+		// Not err.Error(): its "field: x detail: y" shape is a Coder debug
+		// formatter, and details contain commas, so a comma join cannot be split
+		// back into per-field diagnostics by the client reading it.
 		details := make([]string, len(p.Errors))
 		for i, err := range p.Errors {
-			details[i] = err.Error()
+			details[i] = err.Field + ": " + err.Detail
 		}
 		failure := &authorizeFailure{
 			validationErrors: p.Errors,
-			message:          "Invalid query params: " + strings.Join(details, ", "),
+			message:          "Invalid query params: " + strings.Join(details, "; "),
 		}
 		// RFC 8707 §2 gives resource its own code, but only when nothing else
 		// failed. A client that retries on invalid_target would otherwise resend
@@ -453,6 +460,12 @@ func (a authorizeResponse) codeURL(code string) *url.URL {
 // not record, making it indistinguishable from a successful 302. Info, not
 // Warn: these are client errors.
 func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog.Logger, response authorizeResponse, code codersdk.OAuth2ErrorCode, description string) {
+	// Descriptions echo values the client sent, so their length is the client's
+	// to choose. Cap here, ahead of both the log field and the Location header.
+	if len(description) > maxErrorDescription {
+		description = description[:maxErrorDescription] + " (truncated)"
+	}
+
 	app := httpmw.OAuth2ProviderApp(r)
 	logger.Info(r.Context(), "oauth2 authorization rejected",
 		slog.F("app_id", app.ID.String()),

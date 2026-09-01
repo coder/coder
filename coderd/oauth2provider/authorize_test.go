@@ -701,6 +701,52 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		}
 	})
 
+	// The client developer reads this string, so each failing field has to be
+	// separable from the next.
+	t.Run("DescriptionNamesEachFailingField", func(t *testing.T) {
+		t.Parallel()
+
+		app := seedAppInCatalog(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+		query.Add("scope", scopeInCatalog)
+		query.Set("resource", "https://api.example.com/#section")
+
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+		defer resp.Body.Close()
+
+		requireAuthorizeErrorRedirect(t, resp, codersdk.OAuth2ErrorCodeInvalidRequest, "; ")
+
+		location, err := url.Parse(resp.Header.Get("Location"))
+		require.NoError(t, err)
+		description := location.Query().Get("error_description")
+		require.Contains(t, description, "scope: Query param")
+		require.Contains(t, description, "resource: must be an absolute URI without fragment")
+		require.NotContains(t, description, "field:",
+			"field and detail are Coder's own parser labels, meaningless to the client")
+	})
+
+	// The description echoes what the client sent, so its length is the
+	// client's to choose and a Location header would carry all of it.
+	t.Run("LongDescriptionTruncated", func(t *testing.T) {
+		t.Parallel()
+
+		app := seedAppInCatalog(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		query := authorizeQuery(t, app.ID.String(), "coder:"+strings.Repeat("a", 20000))
+
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+		defer resp.Body.Close()
+
+		requireAuthorizeErrorRedirect(t, resp, codersdk.OAuth2ErrorCodeInvalidScope, "(truncated)")
+
+		location, err := url.Parse(resp.Header.Get("Location"))
+		require.NoError(t, err)
+		require.Less(t, len(location.Query().Get("error_description")), 4096)
+	})
+
 	// OAuth 2.1 §3.1 requires unrecognized parameters to be ignored, so the
 	// nonce and prompt an OIDC client sends must not fail the request.
 	t.Run("UnrecognizedParametersIgnored", func(t *testing.T) {
