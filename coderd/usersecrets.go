@@ -19,15 +19,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const (
-	// These names are raised by the enforce_user_secrets_per_user_limits
-	// trigger with USING CONSTRAINT. They are not table CHECK
-	// constraints, so dbgen does not emit them in check_constraint.go.
-	userSecretsCountLimitConstraint      database.CheckConstraint = "user_secrets_per_user_count_limit"
-	userSecretsTotalBytesLimitConstraint database.CheckConstraint = "user_secrets_per_user_total_bytes_limit"
-	userSecretsEnvBytesLimitConstraint   database.CheckConstraint = "user_secrets_per_user_env_bytes_limit"
-)
-
 // errUserSecretInjectionTargetRequired signals that a PATCH would leave an
 // enabled secret with both env_name and file_path empty. It is returned
 // from the patchUserSecret transaction so the handler can map it to a 400.
@@ -554,7 +545,7 @@ func appendUserSecretValidationError(validations []codersdk.ValidationError, fie
 // codersdk.MaxUserSecretsPerUserCount for the rationale behind the caps.
 func userSecretLimitResponse(err error) (codersdk.Response, bool) {
 	switch {
-	case database.IsCheckViolation(err, userSecretsCountLimitConstraint):
+	case database.IsCheckViolation(err, database.CheckUserSecretsPerUserCountLimit):
 		return codersdk.Response{
 			Message: "User secrets limit reached.",
 			Detail: fmt.Sprintf(
@@ -562,7 +553,7 @@ func userSecretLimitResponse(err error) (codersdk.Response, bool) {
 				codersdk.MaxUserSecretsPerUserCount,
 			),
 		}, true
-	case database.IsCheckViolation(err, userSecretsTotalBytesLimitConstraint):
+	case database.IsCheckViolation(err, database.CheckUserSecretsPerUserTotalBytesLimit):
 		return codersdk.Response{
 			Message: "User secrets value-bytes limit reached.",
 			Detail: fmt.Sprintf(
@@ -572,7 +563,7 @@ func userSecretLimitResponse(err error) (codersdk.Response, bool) {
 				codersdk.MaxUserSecretsTotalValueBytes,
 			),
 		}, true
-	case database.IsCheckViolation(err, userSecretsEnvBytesLimitConstraint):
+	case database.IsCheckViolation(err, database.CheckUserSecretsPerUserEnvBytesLimit):
 		return codersdk.Response{
 			Message: "Environment-injected user secrets bytes limit reached.",
 			Detail: fmt.Sprintf(
