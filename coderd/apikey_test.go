@@ -70,6 +70,52 @@ func TestTokenCRUD(t *testing.T) {
 	require.Equal(t, database.AuditActionDelete, auditor.AuditLogs()[numLogs-1].Action)
 }
 
+// TestAPIKeysDeletedUser verifies both key-creation handlers map the
+// api_keys soft-delete guard to a 409: the {user} parameter resolves
+// deleted users by ID, so a stale ID reaches the insert and the guard
+// trigger (migration 000591) rejects it instead of surfacing a 500.
+func TestAPIKeysDeletedUser(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	deleteUser := func(ctx context.Context, t *testing.T) codersdk.User {
+		t.Helper()
+		_, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		// nolint:gocritic // deleting a user requires owner permission.
+		err := client.DeleteUser(ctx, user.ID)
+		require.NoError(t, err)
+		return user
+	}
+
+	t.Run("Token", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		deletedUser := deleteUser(ctx, t)
+
+		_, err := client.CreateToken(ctx, deletedUser.ID.String(), codersdk.CreateTokenRequest{})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+		require.Equal(t, "Cannot create a token for a deleted user.", apiErr.Message)
+		require.Contains(t, apiErr.Detail, "has been deleted")
+	})
+
+	t.Run("SessionKey", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		deletedUser := deleteUser(ctx, t)
+
+		_, err := client.CreateAPIKey(ctx, deletedUser.ID.String())
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+		require.Equal(t, "Cannot create an API key for a deleted user.", apiErr.Message)
+		require.Contains(t, apiErr.Detail, "has been deleted")
+	})
+}
+
 func TestTokensFilterExpired(t *testing.T) {
 	t.Parallel()
 

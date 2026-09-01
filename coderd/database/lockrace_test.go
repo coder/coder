@@ -40,11 +40,14 @@ func waitForBackendBlocked(ctx context.Context, t *testing.T, sqlDB *sql.DB, pid
 
 // runLockRace executes the blocking statements in one transaction, launches
 // racing in its own transaction on a dedicated connection, deterministically
-// waits for it to block on a lock held by the blocking transaction, commits
-// the blocking transaction, commits the racing transaction when its
-// statement succeeded, and returns the racing side's error. Both
-// transactions run at the default isolation level.
-func runLockRace(ctx context.Context, t *testing.T, sqlDB *sql.DB, blocking []stmt, racing stmt) error {
+// waits for it to block on a lock held by the blocking transaction, executes
+// beforeCommit inside the blocking transaction, commits it, commits the
+// racing transaction when its statement succeeded, and returns the racing
+// side's error. Both transactions run at the default isolation level.
+// beforeCommit lets the soft-delete guard tests flip users.deleted while
+// the racing insert is provably parked on the users-row lock; callers
+// without such a step pass nil.
+func runLockRace(ctx context.Context, t *testing.T, sqlDB *sql.DB, blocking []stmt, racing stmt, beforeCommit []stmt) error {
 	t.Helper()
 
 	blockTx, err := sqlDB.BeginTx(ctx, nil)
@@ -82,6 +85,10 @@ func runLockRace(ctx context.Context, t *testing.T, sqlDB *sql.DB, blocking []st
 
 	waitForBackendBlocked(ctx, t, sqlDB, racePID)
 
+	for _, s := range beforeCommit {
+		_, err := blockTx.ExecContext(ctx, s.sql, s.args...)
+		require.NoError(t, err)
+	}
 	require.NoError(t, blockTx.Commit())
 	committed = true
 

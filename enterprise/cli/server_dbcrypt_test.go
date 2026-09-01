@@ -260,7 +260,9 @@ func genData(t *testing.T, db database.Store, sqlDB *sql.DB) []database.User {
 				})
 				require.NoError(t, err)
 
-				// Deleted users cannot have user_links or user_secrets.
+				// The soft-delete guards reject inserting user_links or
+				// user_secrets for a deleted user, so seed them only for
+				// live users.
 				if !deleted {
 					// Fun fact: our schema allows _all_ login types to have
 					// a user_link. Even though I'm not sure how it could occur

@@ -176,6 +176,16 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		// The soft-delete guard rejects API keys for a user deleted after
+		// the middleware fetched them. 409: the request is well-formed and
+		// fails on the target's state, matching members.go.
+		if database.IsCheckViolation(err, database.CheckAPIKeyUserDeleted) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot create a token for a deleted user.",
+				Detail:  fmt.Sprintf("%s has been deleted.", user.Username),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",
 			Detail:  err.Error(),
@@ -226,6 +236,16 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		RemoteAddr:      r.RemoteAddr,
 	})
 	if err != nil {
+		// The soft-delete guard rejects API keys for a user deleted after
+		// the middleware fetched them. 409: the request is well-formed and
+		// fails on the target's state, matching members.go.
+		if database.IsCheckViolation(err, database.CheckAPIKeyUserDeleted) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot create an API key for a deleted user.",
+				Detail:  fmt.Sprintf("%s has been deleted.", user.Username),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",
 			Detail:  err.Error(),
