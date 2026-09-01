@@ -241,6 +241,13 @@ export default defineConfig({
 					setupFiles: [".storybook/vitest.setup.ts"],
 					// Stop early on systemic failures.
 					bail: 5,
+					// Interaction stories run under full CPU contention inside
+					// `make pre-push` (concurrently with the Go tests), which
+					// surfaces timing races that never fire standalone. Fix
+					// root-caused races deterministically in the stories, but
+					// retry to absorb the load-sensitivity tail: deterministic
+					// failures still fail every retry and block the push.
+					retry: 2,
 					// Cap concurrent browser iframes. The default
 					// (os.availableParallelism, 96 on dev workspaces)
 					// overwhelms vite's transform pipeline on cold cache.

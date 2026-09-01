@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -154,6 +155,14 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	if createToken.Lifetime != 0 {
 		err := api.validateAPIKeyLifetime(ctx, user.ID, createToken.Lifetime)
 		if err != nil {
+			// The {user} param can resolve a soft-deleted user; creating
+			// a token for one is a bad request, not a server error.
+			if errors.Is(err, httpmw.ErrUserDeleted) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Cannot create a token for a deleted user.",
+				})
+				return
+			}
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Failed to validate create API key request.",
 				Detail:  err.Error(),
@@ -507,6 +516,12 @@ func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	maxLifetime, err := api.getMaxTokenLifetime(r.Context(), user.ID)
 	if err != nil {
+		// The {user} param can resolve a soft-deleted user; their token
+		// configuration is gone with them, not a server error.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get token configuration.",
 			Detail:  err.Error(),

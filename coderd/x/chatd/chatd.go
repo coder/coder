@@ -1225,6 +1225,12 @@ type PromoteQueuedResult struct {
 func forcedMCPServerConfigsForOwner(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID) ([]database.MCPServerConfig, error) {
 	owner, _, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
 	if err != nil {
+		// Chats are not purged when their owner is soft-deleted, so this
+		// path stays reachable. Fail closed with an explicit message
+		// instead of an opaque authorization error.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return nil, xerrors.New("chat owner has been deleted")
+		}
 		return nil, xerrors.Errorf("load chat owner authorization: %w", err)
 	}
 	forced, err := store.GetForcedMCPServerConfigsByOrganization(dbauthz.As(ctx, owner), organizationID)
@@ -1642,6 +1648,12 @@ func callerModelConfigContext(
 	}
 	actor, _, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
 	if err != nil {
+		// Chats are not purged when their owner is soft-deleted, so this
+		// path stays reachable. Fail closed with an explicit message
+		// instead of an opaque authorization error.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return nil, xerrors.New("chat owner has been deleted")
+		}
 		return nil, xerrors.Errorf("load model config authorization: %w", err)
 	}
 	//nolint:gocritic // Background Chatd work must use the chat owner's model ACLs.

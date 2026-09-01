@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { mockApiError } from "#/testHelpers/entities";
+import { waitForRadixLayerClose } from "#/testHelpers/storybook";
 import { TrialRequestForm } from "./TrialRequestForm";
 
 const meta: Meta<typeof TrialRequestForm> = {
@@ -40,6 +41,11 @@ const selectOption = async (
 		await canvas.findByRole("combobox", { name: comboboxName }),
 	);
 	await userEvent.click(await body.findByRole("option", { name: optionName }));
+	// The option click closes the listbox; wait for Radix to make the rest
+	// of the page interactive again before the caller's next step.
+	await waitForRadixLayerClose(() =>
+		canvas.getByRole("combobox", { name: comboboxName }),
+	);
 };
 
 export const Default: Story = {

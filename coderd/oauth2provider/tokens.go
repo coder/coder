@@ -401,6 +401,11 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// Grab the user roles so we can perform the exchange as the user.
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbCode.UserID, rbac.ScopeAll)
 	if err != nil {
+		// A soft-deleted user's authorization code is a revoked grant, not
+		// a server error: RFC 6749 section 5.2 maps it to invalid_grant.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return codersdk.OAuth2TokenResponse{}, errBadCode
+		}
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
 
@@ -518,6 +523,11 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.UserID, rbac.ScopeAll)
 	if err != nil {
+		// A soft-deleted user's refresh token is a revoked grant, not a
+		// server error: RFC 6749 section 5.2 maps it to invalid_grant.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return codersdk.OAuth2TokenResponse{}, errBadToken
+		}
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
 

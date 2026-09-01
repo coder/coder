@@ -3553,6 +3553,14 @@ func (api *API) chatCreateWorkspace(
 ) (codersdk.Workspace, error) {
 	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
 	if err != nil {
+		// Chats are not purged when their owner is soft-deleted, so a
+		// chat tool call can still act for a deleted owner. Surface a
+		// structured response instead of an opaque wrapped error.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+				Message: "Chat owner has been deleted.",
+			})
+		}
 		return codersdk.Workspace{}, xerrors.Errorf("load user authorization: %w", err)
 	}
 	ctx = dbauthz.As(ctx, actor)
@@ -3630,6 +3638,14 @@ func (api *API) chatStartWorkspace(
 ) (codersdk.WorkspaceBuild, error) {
 	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
 	if err != nil {
+		// Chats are not purged when their owner is soft-deleted, so a
+		// chat tool call can still act for a deleted owner. Surface a
+		// structured response instead of an opaque wrapped error.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+				Message: "Chat owner has been deleted.",
+			})
+		}
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
 	}
 	ctx = dbauthz.As(ctx, actor)
@@ -3706,6 +3722,14 @@ func (api *API) chatStopWorkspace(
 ) (codersdk.WorkspaceBuild, error) {
 	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
 	if err != nil {
+		// Chats are not purged when their owner is soft-deleted, so a
+		// chat tool call can still act for a deleted owner. Surface a
+		// structured response instead of an opaque wrapped error.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+				Message: "Chat owner has been deleted.",
+			})
+		}
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
 	}
 	ctx = dbauthz.As(ctx, actor)
@@ -5187,6 +5211,14 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 		if apiKey.UserID != member.UserID {
 			memberSubject, _, err := httpmw.UserRBACSubject(ctx, api.Database, member.UserID, rbac.ScopeAll)
 			if err != nil {
+				// A deleted member is a bad request target, not a server
+				// error.
+				if errors.Is(err, httpmw.ErrUserDeleted) {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "Cannot set a model override for a deleted user.",
+					})
+					return
+				}
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error validating model config override.",
 					Detail:  err.Error(),
@@ -6403,6 +6435,9 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fails closed for every error, including ErrUserDeleted: a signed
+	// download URL minted for a since-deleted user must stop working, and
+	// this unauthenticated endpoint intentionally leaks nothing beyond 404.
 	subject, status, err := httpmw.UserRBACSubject(ctx, api.Database, claims.UserID, rbac.ScopeAll)
 	if err != nil || status != database.UserStatusActive {
 		httpapi.ResourceNotFound(rw)
