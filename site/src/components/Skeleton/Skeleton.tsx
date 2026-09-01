@@ -1,7 +1,3 @@
-/**
- * Copied from shadcn/ui on 06/20/2025.
- * @see {@link https://ui.shadcn.com/docs/components/skeleton}
- */
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "#/utils/cn";
 

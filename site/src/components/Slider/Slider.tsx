@@ -1,7 +1,3 @@
-/**
- * Copied from shadc/ui on 04/16/2025
- * @see {@link https://ui.shadcn.com/docs/components/slider}
- */
 import { Slider as SliderPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";
 

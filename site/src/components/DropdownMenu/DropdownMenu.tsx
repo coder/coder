@@ -1,7 +1,4 @@
 /**
- * Copied from shadc/ui on 12/19/2024
- * @see {@link https://ui.shadcn.com/docs/components/dropdown-menu}
- *
  * This component was updated to match the styles from the Figma design:
  * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=656-2354&t=CiGt5le3yJEwMH4M-0}
  */

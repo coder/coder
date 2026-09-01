@@ -1,7 +1,3 @@
-/**
- * Copied from shadcn/ui and modified on 12/13/2024
- * @see {@link https://ui.shadcn.com/docs/components/popover}
- */
 import { Popover as PopoverPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";
 

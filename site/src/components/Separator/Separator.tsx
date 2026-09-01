@@ -1,7 +1,3 @@
-/**
- * Copied from shadc/ui on 06/20/2025
- * @see {@link https://ui.shadcn.com/docs/components/separator}
- */
 import { Separator as SeparatorPrimitive } from "radix-ui";
 import type * as React from "react";
 import { cn } from "#/utils/cn";

@@ -1,7 +1,3 @@
-/**
- * Copied from shadc/ui on 03/05/2025
- * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
- */
 import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";
 

@@ -1,7 +1,4 @@
 /**
- * Copied from shadc/ui on 12/16/2024
- * @see {@link https://ui.shadcn.com/docs/components/avatar}
- *
  * This component was updated to support the variants and match the styles from
  * the Figma design:
  * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=711-383&t=xqxOSUk48GvDsjGK-0}
