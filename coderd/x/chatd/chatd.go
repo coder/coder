@@ -2190,10 +2190,7 @@ func (p *Server) PromoteQueued(
 		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 	if !promotedQueuedAt.IsZero() {
-		p.stages.Record(ctx, chatloop.StageQueueWait, chatloop.StageModel{},
-			promotedQueuedAt, time.Now(), nil,
-			attribute.String(chatloop.AttrChatID, opts.ChatID.String()),
-		)
+		p.recordQueueWait(ctx, opts.ChatID, promotedQueuedAt, time.Now())
 	}
 	return result, nil
 }
@@ -5096,16 +5093,32 @@ func (p *Server) Close() error {
 // must be called once the work completes to release the shutdown hook.
 // The caller is responsible for providing their own timeout.
 func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func()) {
-	// Inflight work outlives the caller, so the caller's span is
-	// stripped from the context: spans started on this context become
-	// their own roots instead of children that end after their parent.
+	// Inflight work outlives the caller, so the caller's span and stage
+	// scope are stripped from the context: spans started on this context
+	// become their own roots instead of children that end after their
+	// parent, and their stages are recorded as background work.
 	detached := trace.ContextWithSpanContext(context.WithoutCancel(reqCtx), trace.SpanContext{})
+	detached = chatloop.ContextWithScope(detached, chatloop.ScopeBackground)
 	ctx, cancel := context.WithCancel(detached)
 	stop := context.AfterFunc(p.ctx, cancel)
 	return ctx, func() {
 		stop()
 		cancel()
 	}
+}
+
+// recordQueueWait emits the queue_wait stage for a message that sat
+// queued from queuedAt until promotedAt. The span context is stripped
+// from ctx so the stage is a standalone span rather than a child of the
+// promoting request's span, which ends before the turn the wait belongs
+// to. The scope is set explicitly for the same reason: ctx carries the
+// request, not the turn.
+func (p *Server) recordQueueWait(ctx context.Context, chatID uuid.UUID, queuedAt, promotedAt time.Time) {
+	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
+	p.stages.RecordAs(standalone, chatloop.StageQueueWait, chatloop.ScopeTurn,
+		chatloop.StageModel{}, queuedAt, promotedAt, nil,
+		attribute.String(chatloop.AttrChatID, chatID.String()),
+	)
 }
 
 func (p *Server) goInflight(f func()) error {

@@ -245,9 +245,12 @@ func TestStageTracerScope(t *testing.T) {
 		fixture := newStageFixture(t)
 
 		turnCtx, turn := fixture.tracer.StartRoot(t.Context(), chatloop.StageChatTurn, nil)
-		// Background work strips the span from its context, which is
-		// what detaches its stages from the turn profile.
-		detachedCtx := trace.ContextWithSpanContext(turnCtx, trace.SpanContext{})
+		// Background work detaches from the turn by stripping the span
+		// and marking the context background scoped.
+		detachedCtx := chatloop.ContextWithScope(
+			trace.ContextWithSpanContext(turnCtx, trace.SpanContext{}),
+			chatloop.ScopeBackground,
+		)
 		_, attempt := fixture.tracer.Start(detachedCtx, chatloop.StageProviderAttempt)
 		attempt.End(nil)
 		turn.End(nil)
@@ -418,6 +421,48 @@ func TestStageTracerRecord(t *testing.T) {
 	})
 }
 
+func TestStageSpanEndWithoutObservation(t *testing.T) {
+	t.Parallel()
+	fixture := newStageFixture(t)
+
+	_, span := fixture.tracer.Start(t.Context(), chatloop.StageTimeToFirstToken)
+	span.EndWithoutObservation(xerrors.New("stream ended before the first token"))
+	// The first end wins, so a later End cannot revive the
+	// observation.
+	span.End(nil)
+
+	ended := fixture.spans.Ended()
+	require.Len(t, ended, 1)
+	require.Equal(t, chatloop.StageTimeToFirstToken, ended[0].Name())
+	require.Equal(t, codes.Error, ended[0].Status().Code)
+	require.Empty(t, fixture.stageObservations(t))
+}
+
+func TestStageDurationBuckets(t *testing.T) {
+	t.Parallel()
+	registry := prometheus.NewRegistry()
+	metrics := chatloop.NewMetrics(registry)
+	// A turn can run for hours, so the top bucket boundary has to sit
+	// above the longest plausible stage.
+	metrics.RecordStageDuration(chatloop.StageChatTurn, chatloop.ScopeTurn, "", "", 2*time.Hour)
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	var buckets []*dto.Bucket
+	for _, family := range families {
+		if family.GetName() != "coderd_chatd_stage_duration_seconds" {
+			continue
+		}
+		require.Len(t, family.GetMetric(), 1)
+		buckets = family.GetMetric()[0].GetHistogram().GetBucket()
+	}
+	require.Len(t, buckets, 21)
+	top := buckets[len(buckets)-1]
+	require.Greater(t, top.GetUpperBound(), (3*time.Hour).Seconds()*0.9)
+	require.Equal(t, uint64(1), top.GetCumulativeCount(),
+		"a two hour stage must fall inside the buckets")
+}
+
 func TestStageTracerWithoutProvider(t *testing.T) {
 	t.Parallel()
 
@@ -437,4 +482,29 @@ func TestStageTracerWithoutProvider(t *testing.T) {
 	_, nilSpan := nilTracer.Start(t.Context(), chatloop.StageToolCall)
 	nilSpan.End(nil)
 	nilTracer.Record(t.Context(), chatloop.StageThinking, chatloop.StageModel{}, time.Now().Add(-time.Second), time.Now(), nil)
+}
+
+// TestStageTracerScopeWithoutProvider covers a metrics-only
+// deployment: a no-op tracer produces invalid span contexts, and the
+// scope must still follow the turn.
+func TestStageTracerScopeWithoutProvider(t *testing.T) {
+	t.Parallel()
+
+	registry := prometheus.NewRegistry()
+	tracer := chatloop.NewStageTracer(nil, chatloop.NewMetrics(registry))
+
+	turnCtx, turn := tracer.StartRoot(t.Context(), chatloop.StageChatTurn, nil)
+	require.False(t, turn.SpanContext().IsValid())
+	stepCtx, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
+	start := time.Now().Add(-time.Second)
+	tracer.Record(stepCtx, chatloop.StageThinking, chatloop.StageModel{}, start, time.Now(), nil)
+	step.End(nil)
+	turn.End(nil)
+
+	fixture := stageFixture{registry: registry}
+	require.Equal(t, map[stageKey]uint64{
+		{stage: chatloop.StageChatTurn, scope: chatloop.ScopeTurn}:       1,
+		{stage: chatloop.StageGenerationStep, scope: chatloop.ScopeTurn}: 1,
+		{stage: chatloop.StageThinking, scope: chatloop.ScopeTurn}:       1,
+	}, fixture.stageObservations(t))
 }

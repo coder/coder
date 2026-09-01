@@ -139,19 +139,31 @@ type StageSpan struct {
 	ended  bool
 }
 
-// scopeFromContext classifies work by whether ctx still carries the
-// turn's trace. Detached background work has no span in its context,
-// so its stages are kept out of the turn profile.
+// stageScopeKey keys the stage scope carried by a context. It is
+// private so the scope can only be set through ContextWithScope.
+type stageScopeKey struct{}
+
+// ContextWithScope returns ctx carrying scope for the stages started
+// on it. The scope is a plain context value rather than a property of
+// the span in ctx, so it survives configurations where spans are not
+// recorded, such as a no-op tracer provider.
+func ContextWithScope(ctx context.Context, scope string) context.Context {
+	return context.WithValue(ctx, stageScopeKey{}, scope)
+}
+
+// scopeFromContext reads the scope ContextWithScope put on ctx.
+// Contexts with no scope are background scoped, so work detached from
+// a turn is kept out of the turn profile.
 func scopeFromContext(ctx context.Context) string {
-	if trace.SpanContextFromContext(ctx).IsValid() {
-		return ScopeTurn
+	if scope, ok := ctx.Value(stageScopeKey{}).(string); ok && scope != "" {
+		return scope
 	}
 	return ScopeBackground
 }
 
 // Start begins a stage span as a child of the span in ctx and returns
-// a context carrying it. The stage is scoped by the span already in
-// ctx, so stages started on a detached context are background scoped.
+// a context carrying it. The stage takes the scope on ctx, so stages
+// started on a context with no scope are background scoped.
 func (t *StageTracer) Start(
 	ctx context.Context,
 	stage string,
@@ -207,7 +219,7 @@ func (t *StageTracer) startSpan(
 		opts = append(opts, trace.WithTimestamp(start))
 	}
 	opts = append(opts, trace.WithAttributes(attribute.String(AttrScope, scope)))
-	ctx, span := t.otelTracer().Start(ctx, stage, opts...)
+	ctx, span := t.otelTracer().Start(ContextWithScope(ctx, scope), stage, opts...)
 	return ctx, &StageSpan{
 		tracer: t,
 		stage:  stage,
@@ -251,24 +263,42 @@ func (s *StageSpan) SpanContext() trace.SpanContext {
 // as errored when err is non-nil. Calls after the first are ignored so
 // a deferred End cannot double-count a stage.
 func (s *StageSpan) End(err error) {
+	if elapsed, ok := s.closeSpan(err); ok {
+		s.tracer.observe(s.stage, s.scope, s.model, elapsed)
+	}
+}
+
+// EndWithoutObservation closes the stage span exactly as End does but
+// makes no duration observation. It is for stages whose window is only
+// comparable across runs when it completed, so a truncated window
+// would skew the histogram while the span still needs to report the
+// failure.
+func (s *StageSpan) EndWithoutObservation(err error) {
+	s.closeSpan(err)
+}
+
+// closeSpan ends the span and returns the window it covered. ok is
+// false for a nil span and for calls after the first, so a deferred
+// end cannot double-count a stage.
+func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 	if s == nil || s.ended {
-		return
+		return 0, false
 	}
 	s.ended = true
-	elapsed := time.Since(s.start)
+	elapsed = time.Since(s.start)
 	if err != nil {
 		s.span.RecordError(err)
 		s.span.SetStatus(codes.Error, err.Error())
 	}
 	s.span.End()
-	s.tracer.observe(s.stage, s.scope, s.model, elapsed)
+	return elapsed, true
 }
 
 // Record emits an already-finished stage span with explicit start and
 // end timestamps. It is for stages whose boundaries are only known
 // after the fact, such as durations reconstructed from persisted
-// timestamps. The stage is scoped by the span in ctx. Non-positive or
-// unset windows are dropped.
+// timestamps. The stage takes the scope on ctx. Non-positive or unset
+// windows are dropped.
 func (t *StageTracer) Record(
 	ctx context.Context,
 	stage string,

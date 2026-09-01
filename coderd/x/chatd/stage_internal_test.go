@@ -135,9 +135,12 @@ func TestStageSpanRoundTripperScope(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, turnResp.Body.Close())
 
-	// Background work runs on a context whose span was stripped, the
-	// same way inflight chatd tasks detach from the turn.
-	backgroundCtx := trace.ContextWithSpanContext(turnCtx, trace.SpanContext{})
+	// Background work runs on a context detached from the turn, the same
+	// way inflight chatd tasks are.
+	backgroundCtx := chatloop.ContextWithScope(
+		trace.ContextWithSpanContext(turnCtx, trace.SpanContext{}),
+		chatloop.ScopeBackground,
+	)
 	backgroundReq, err := http.NewRequestWithContext(backgroundCtx, http.MethodPost, "https://provider.example/v1/messages", nil)
 	require.NoError(t, err)
 	backgroundResp, err := transport.RoundTrip(backgroundReq)
@@ -238,4 +241,59 @@ func TestRunnerTurnSpanParentsRecordedStages(t *testing.T) {
 	require.NotNil(t, generationStep)
 	require.Equal(t, chatTurn.SpanContext().SpanID(), queueWait.Parent().SpanID())
 	require.NotEqual(t, generationStep.SpanContext().SpanID(), queueWait.Parent().SpanID())
+}
+
+func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	server := &Server{stages: tracer}
+
+	// The promoting request has its own span, which the queue wait must
+	// not join.
+	requestCtx, requestSpan := tracer.Start(t.Context(), chatloop.StageCommit)
+	queuedAt := time.Now().Add(-30 * time.Second)
+	server.recordQueueWait(requestCtx, uuid.New(), queuedAt, queuedAt.Add(20*time.Second))
+	requestSpan.End(nil)
+
+	var queueWait, request sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		switch span.Name() {
+		case chatloop.StageQueueWait:
+			queueWait = span
+		case chatloop.StageCommit:
+			request = span
+		}
+	}
+	require.NotNil(t, queueWait)
+	require.NotNil(t, request)
+	require.False(t, queueWait.Parent().IsValid())
+	require.NotEqual(t, request.SpanContext().TraceID(), queueWait.SpanContext().TraceID())
+	require.Contains(t, queueWait.Attributes(),
+		attribute.String(chatloop.AttrScope, chatloop.ScopeTurn))
+}
+
+func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	t.Cleanup(serverCancel)
+	server := &Server{ctx: serverCtx, stages: tracer}
+
+	turn := newRunnerTurnSpan(tracer)
+	turnCtx := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, time.Now().Add(-time.Second))
+	inflightCtx, stop := server.inflightContext(turnCtx)
+	t.Cleanup(stop)
+
+	_, span := tracer.Start(inflightCtx, chatloop.StageGenerationStep)
+	span.End(nil)
+	turn.End(nil)
+
+	for _, ended := range recorder.Ended() {
+		if ended.Name() != chatloop.StageGenerationStep {
+			continue
+		}
+		require.False(t, ended.Parent().IsValid())
+		require.Contains(t, ended.Attributes(),
+			attribute.String(chatloop.AttrScope, chatloop.ScopeBackground))
+	}
 }

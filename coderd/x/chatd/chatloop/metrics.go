@@ -102,8 +102,9 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Subsystem: metricsSubsystem,
 			Name:      "stage_duration_seconds",
 			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The model and effort labels are empty for stages that run before a model is resolved.",
-			// 10ms .. ~11m, log-spaced.
-			Buckets: prometheus.ExponentialBuckets(0.01, 2, 17),
+			// 10ms .. ~2.9h, log-spaced. The top of the range covers
+			// long-lived stages such as a chat turn.
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 21),
 		}, []string{"stage", "scope", "model", "effort"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,

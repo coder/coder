@@ -85,7 +85,13 @@ func (t *runnerTurnSpan) Context(ctx context.Context) context.Context {
 }
 
 func (t *runnerTurnSpan) contextLocked(ctx context.Context) context.Context {
-	if !t.started || t.ended || !t.spanCtx.IsValid() {
+	if !t.started || t.ended {
+		return ctx
+	}
+	// The scope is set independently of the span context so stages run
+	// on this context stay turn scoped when tracing is not recording.
+	ctx = chatloop.ContextWithScope(ctx, chatloop.ScopeTurn)
+	if !t.spanCtx.IsValid() {
 		return ctx
 	}
 	return trace.ContextWithSpanContext(ctx, t.spanCtx)

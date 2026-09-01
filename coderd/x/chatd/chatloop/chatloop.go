@@ -914,16 +914,19 @@ func guardedStream(
 	var ttftOnce sync.Once
 	// finishTTFT closes the time_to_first_token window exactly once,
 	// either on the first streamed part or when the attempt is released
-	// without one. The TTFT histogram only counts windows that a part
-	// actually closed.
+	// without one. The TTFT histogram and the stage histogram only count
+	// windows that a part actually closed; a window cut short by a
+	// failure measures the failure, not the model's latency.
 	finishTTFT := func(err error) {
 		ttftOnce.Do(func() {
 			if err == nil {
 				metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(
 					clock.Since(streamStart).Seconds(),
 				)
+				ttftSpan.End(nil)
+				return
 			}
-			ttftSpan.End(err)
+			ttftSpan.EndWithoutObservation(err)
 		})
 	}
 	var releaseOnce sync.Once
