@@ -238,7 +238,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 								>
 									<ToolBadge label={tool.name} />
 									{tool.description ? (
-										<p className="mt-1 break-words text-2xs leading-4 text-content-secondary">
+										<p className="mt-1 wrap-break-word text-2xs leading-4 text-content-secondary">
 											{tool.description}
 										</p>
 									) : null}
@@ -321,7 +321,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 								<div className="space-y-2">
 									{/* Primary response content: visually prominent. */}
 									{response.content ? (
-										<p className="max-h-[28rem] overflow-auto whitespace-pre-wrap text-sm font-medium leading-6 text-content-primary">
+										<p className="max-h-112 overflow-auto whitespace-pre-wrap text-sm font-medium leading-6 text-content-primary">
 											{response.content}
 										</p>
 									) : null}

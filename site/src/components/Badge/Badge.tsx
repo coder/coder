@@ -16,24 +16,24 @@ const badgeVariants = cva(
 		variants: {
 			variant: {
 				default:
-					"border-surface-secondary bg-surface-secondary text-content-secondary shadow",
+					"border-surface-secondary bg-surface-secondary text-content-secondary shadow-sm",
 				outline:
 					"border-border bg-transparent text-content-primary shadow-none",
 				warning:
-					"border-highlight-orange bg-surface-orange text-highlight-orange shadow",
+					"border-highlight-orange bg-surface-orange text-highlight-orange shadow-sm",
 				destructive:
-					"border-border-destructive bg-surface-red text-highlight-red shadow",
+					"border-border-destructive bg-surface-red text-highlight-red shadow-sm",
 				green:
-					"border-border-green bg-surface-green text-highlight-green shadow",
+					"border-border-green bg-surface-green text-highlight-green shadow-sm",
 				purple:
-					"border-border-purple bg-surface-purple text-highlight-purple shadow",
+					"border-border-purple bg-surface-purple text-highlight-purple shadow-sm",
 				magenta:
-					"border-border-magenta bg-surface-magenta text-highlight-magenta shadow",
-				info: "border-border-pending bg-surface-sky text-highlight-sky shadow",
+					"border-border-magenta bg-surface-magenta text-highlight-magenta shadow-sm",
+				info: "border-border-pending bg-surface-sky text-highlight-sky shadow-sm",
 			},
 			size: {
 				xs: "border-0 text-2xs font-normal h-[18px] rounded",
-				sm: "text-2xs font-normal h-5.5 py-1",
+				sm: "text-2xs font-normal py-1",
 				md: "text-xs font-normal py-1",
 			},
 			svgSize: {
@@ -43,7 +43,7 @@ const badgeVariants = cva(
 			},
 			hover: {
 				false: null,
-				true: "no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+				true: "no-underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 			},
 		},
 		compoundVariants: [

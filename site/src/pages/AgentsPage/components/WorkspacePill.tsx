@@ -173,7 +173,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				align="start"
 				// Above the composer on mobile so the opening press cannot
 				// release onto a menu item.
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!"
 			>
 				{/* Scrolls within the capped above-composer height on mobile;
 				 * no-op on desktop. overflow-x-hidden avoids a horizontal

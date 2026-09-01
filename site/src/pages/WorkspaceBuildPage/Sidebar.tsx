@@ -8,7 +8,7 @@ export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
 	return (
 		<nav
 			className={cn(
-				"w-64 flex-shrink-0 border-solid border-0 border-r",
+				"w-64 shrink-0 border-solid border-0 border-r",
 				"h-full py-2 overflow-y-auto",
 			)}
 			{...attrs}

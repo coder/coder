@@ -29,10 +29,10 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 	<SelectPrimitive.Trigger
 		className={cn(
 			`flex h-10 w-full font-medium items-center justify-between whitespace-nowrap rounded-md
-			border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-sm
+			border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-xs
 			ring-offset-background text-content-secondary placeholder:text-content-secondary
 			disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1
-			focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group`,
+			focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link group`,
 			className,
 		)}
 		{...props}
@@ -80,15 +80,15 @@ export const SelectContent: React.FC<
 	<SelectPrimitive.Portal>
 		<SelectPrimitive.Content
 			className={cn(
-				"relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border ",
+				"relative z-50 max-h-96 min-w-32 overflow-hidden rounded-md border ",
 				"border-border border-solid bg-surface-primary text-content-primary shadow-md ",
 				"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 ",
 				"data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 ",
-				"data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 ",
-				"data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+				"data-[state=open]:data-[side=bottom]:slide-in-from-top-2 data-[state=open]:data-[side=left]:slide-in-from-right-2 ",
+				"data-[state=open]:data-[side=right]:slide-in-from-left-2 data-[state=open]:data-[side=top]:slide-in-from-bottom-2",
+				// Keep the popper offset in transform so enter animations replace it like Tailwind v3.
 				position === "popper" &&
-					"data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 ",
-				"data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+					"data-[side=bottom]:[transform:translateY(var(--spacing))] data-[side=left]:[transform:translateX(calc(var(--spacing)*-1))] data-[side=right]:[transform:translateX(var(--spacing))] data-[side=top]:[transform:translateY(calc(var(--spacing)*-1))]",
 				className,
 			)}
 			position={position}
@@ -99,7 +99,7 @@ export const SelectContent: React.FC<
 				className={cn(
 					"p-1",
 					position === "popper" &&
-						"h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+						"h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width)",
 				)}
 			>
 				{children}
@@ -126,8 +126,8 @@ export const SelectItem: React.FC<
 	<SelectPrimitive.Item
 		className={cn(
 			"relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 ",
-			"pl-2 pr-8 text-sm text-content-secondary outline-none focus:bg-surface-secondary ",
-			"focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+			"pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary ",
+			"focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50",
 			className,
 		)}
 		{...props}

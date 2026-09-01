@@ -37,7 +37,7 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 	canUpdatePermissions,
 }) => {
 	return (
-		<header className="flex flex-shrink-0 items-center gap-2 p-3 border-solid border-border border-0 border-b">
+		<header className="flex shrink-0 items-center gap-2 p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -82,7 +82,7 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 							Prompt
 						</div>
 						<div className="m-0 mb-2 select-all leading-snug p-4 border border-solid rounded-lg font-mono">
-							<pre className="m-0 whitespace-pre-wrap break-words">
+							<pre className="m-0 whitespace-pre-wrap wrap-break-word">
 								{task.initial_prompt}
 							</pre>
 						</div>

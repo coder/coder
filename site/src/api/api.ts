@@ -3149,15 +3149,6 @@ class ApiMethods {
 		} satisfies TypesGen.TaskSendRequest);
 	};
 
-	createTaskFeedback = async (
-		_taskId: string,
-		_req: CreateTaskFeedbackRequest,
-	) => {
-		return new Promise<void>((res) => {
-			setTimeout(() => res(), 500);
-		});
-	};
-
 	getAIBridgeModels = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams(`${aiGatewayPath}/models`, options);
 
@@ -3254,13 +3245,6 @@ class ApiMethods {
 		await this.axios.delete(`${aiGatewayPath}/keys/${encodeURIComponent(id)}`);
 	};
 }
-
-export type TaskFeedbackRating = "good" | "okay" | "bad";
-
-export type CreateTaskFeedbackRequest = {
-	rate: TaskFeedbackRating;
-	comment?: string;
-};
 
 export type ChatPlanModeOrClear = TypesGen.ChatPlanMode | "";
 

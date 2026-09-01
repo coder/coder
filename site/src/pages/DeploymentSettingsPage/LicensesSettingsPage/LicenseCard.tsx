@@ -317,7 +317,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				}
 				confirmLoading={isRemoving}
 			/>
-			<div className="license-card group overflow-hidden rounded-md border border-solid border-border bg-surface-secondary text-sm shadow-sm">
+			<div className="license-card group overflow-hidden rounded-md border border-solid border-border bg-surface-secondary text-sm shadow-xs">
 				<div className="flex items-center gap-6 p-3">
 					<CollapsibleTrigger
 						asChild

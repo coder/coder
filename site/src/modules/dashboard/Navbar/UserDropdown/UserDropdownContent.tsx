@@ -134,7 +134,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 							rel="noreferrer"
 						>
 							<span className="flex-1">{buildInfo?.version}</span>
-							<SquareArrowOutUpRightIcon className="!size-icon-xs" />
+							<SquareArrowOutUpRightIcon className="size-icon-xs!" />
 						</a>
 					</DropdownMenuItem>
 				</TooltipTrigger>
@@ -152,9 +152,9 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 						>
 							<span className="truncate flex-1">{buildInfo.deployment_id}</span>
 							{showCopiedSuccess ? (
-								<CheckIcon className="!size-icon-xs ml-auto" />
+								<CheckIcon className="size-icon-xs! ml-auto" />
 							) : (
-								<CopyIcon className="!size-icon-xs ml-auto" />
+								<CopyIcon className="size-icon-xs! ml-auto" />
 							)}
 						</DropdownMenuItem>
 					</TooltipTrigger>

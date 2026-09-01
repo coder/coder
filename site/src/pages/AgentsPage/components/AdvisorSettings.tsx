@@ -145,7 +145,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				onBlur={form.handleBlur}
 				error={Boolean(form.errors.max_uses_per_run)}
 				disabled={isFormDisabled}
-				className="w-[7.5rem]"
+				className="w-30"
 			/>
 			<CompactIntegerField
 				id={maxOutputTokensId}
@@ -224,7 +224,7 @@ const CompactIntegerField: FC<CompactIntegerFieldProps> = ({
 				onBlur={onBlur}
 				aria-invalid={error}
 				disabled={disabled}
-				className="min-w-0 w-full border-none bg-transparent p-0 text-sm font-medium leading-6 text-content-placeholder outline-none disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
+				className="min-w-0 w-full border-none bg-transparent p-0 text-sm font-medium leading-6 text-content-placeholder outline-hidden disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
 			/>
 			<span className="shrink-0 text-xs font-normal leading-[18px] text-content-secondary">
 				{label}
