@@ -3,7 +3,6 @@ import { userEvent, within } from "storybook/test";
 import type { WorkspaceAppStatus } from "#/api/typesGenerated";
 import {
 	createTimestamp,
-	MockTaskWorkspace,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
@@ -19,7 +18,7 @@ const meta: Meta<typeof AppStatuses> = {
 	args: {
 		referenceDate: new Date("2024-03-26T15:15:00Z"),
 		agent: mockAgent(MockWorkspaceAppStatuses),
-		workspace: MockTaskWorkspace,
+		workspace: MockWorkspace,
 	},
 	decorators: [withProxyProvider()],
 };
@@ -146,24 +145,6 @@ export const MultipleStatuses: Story = {
 		const submitButton = canvas.getByRole("button");
 		await userEvent.click(submitButton);
 		await canvas.findByText(/working/i);
-	},
-};
-
-export const NoTaskWorkspace: Story = {
-	args: {
-		agent: mockAgent([
-			{
-				...MockWorkspaceAppStatus,
-				id: "status-9",
-				icon: "",
-				message: "status updated via curl",
-				created_at: createTimestamp(5, 15),
-				uri: "",
-				state: "complete" as const,
-			},
-			...MockWorkspaceAppStatuses,
-		]),
-		workspace: MockWorkspace,
 	},
 };
 
