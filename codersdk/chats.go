@@ -206,12 +206,27 @@ type Chat struct {
 	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
 	Warnings          []string       `json:"warnings,omitempty"`
 	ClientType        ChatClientType `json:"client_type"`
+	// RuntimeCommands lists the slash commands an external runtime
+	// advertised for this chat. Omitted for chats on the built-in runtime
+	// and stripped from watch event payloads; read it from the chat
+	// endpoints.
+	RuntimeCommands []ChatRuntimeCommand `json:"runtime_commands,omitempty"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
 	// subagents, so nesting depth is capped at 1 and this slice is
 	// always empty for child chats.
 	Children []Chat `json:"children"`
+}
+
+// ChatRuntimeCommand is a slash command an external runtime accepts. A
+// client invokes it by sending the message "/name args".
+type ChatRuntimeCommand struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	// InputHint is placeholder text for the arguments after the command
+	// name; empty when the command takes no input.
+	InputHint string `json:"input_hint,omitempty"`
 }
 
 // ChatContext reports a chat's pinned workspace context and whether it has

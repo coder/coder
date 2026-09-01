@@ -992,6 +992,8 @@ The abandon chat goroutine is responsible for abandoning the chat. It is spawned
 
 TODO(PR author): Document the experiment-gated external runtime dispatch, ACP turn lifecycle, runtime state persistence, model selection, and shared completion behavior introduced by this change.
 
+TODO(PR author): Document how ACP available_commands updates are captured per turn, persisted in runtime_state, exposed as Chat.runtime_commands, and omitted from watch event payloads.
+
 ## Runner cleanup
 
 When the manager cleans up a runner, the runner must cancel all goroutines it has spawned and unsubscribe from pubsub.

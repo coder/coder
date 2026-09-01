@@ -3464,6 +3464,7 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.Ch
 func chatWatchEventSDKChat(chat database.Chat, diffStatus *codersdk.ChatDiffStatus) codersdk.Chat {
 	sdkChat := db2sdk.Chat(chat, nil, nil)
 	sdkChat.Files = nil
+	sdkChat.RuntimeCommands = nil
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}

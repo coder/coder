@@ -79,6 +79,9 @@ type TurnOutcome struct {
 	Content []fantasy.Content
 	// Usage is per-turn token usage when the adapter reports it.
 	Usage *acp.Usage
+	// AvailableCommands is the slash-command list the adapter last
+	// advertised during the turn. Nil means it advertised none.
+	AvailableCommands []RuntimeCommand
 }
 
 // RunTurn executes a full prompt turn against a fresh adapter process.
@@ -193,11 +196,12 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 	}
 
 	return TurnOutcome{
-		SessionID:  string(session),
-		Resumed:    resumed,
-		StopReason: result.resp.StopReason,
-		Content:    collector.finalize(),
-		Usage:      result.resp.Usage,
+		SessionID:         string(session),
+		Resumed:           resumed,
+		StopReason:        result.resp.StopReason,
+		Content:           collector.finalize(),
+		Usage:             result.resp.Usage,
+		AvailableCommands: collector.availableCommands(),
 	}, nil
 }
 
@@ -274,6 +278,7 @@ type turnCollector struct {
 	text          strings.Builder
 	reasoning     strings.Builder
 	openToolCalls map[string]*openToolCall
+	commands      []RuntimeCommand
 
 	publish   func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	logger    slog.Logger
@@ -321,13 +326,25 @@ func (c *turnCollector) finalize() []fantasy.Content {
 	return c.content
 }
 
+func (c *turnCollector) availableCommands() []RuntimeCommand {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.commands
+}
+
 func (c *turnCollector) SessionUpdate(_ context.Context, params acp.SessionNotification) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	update := params.Update
+	if update.AvailableCommandsUpdate != nil {
+		// Command lists are session state rather than transcript content,
+		// so a suppressed session/load replay still refreshes them.
+		c.commands = runtimeCommands(update.AvailableCommandsUpdate.AvailableCommands)
+		return nil
+	}
 	if c.suppressed {
 		return nil
 	}
-	update := params.Update
 	switch {
 	case update.AgentMessageChunk != nil:
 		if text := contentBlockText(update.AgentMessageChunk.Content); text != "" {
@@ -344,8 +361,8 @@ func (c *turnCollector) SessionUpdate(_ context.Context, params acp.SessionNotif
 	case update.ToolCallUpdate != nil:
 		c.handleToolCallUpdateLocked(update.ToolCallUpdate)
 	default:
-		// Plan, mode, command, config, session info, and usage updates
-		// have no chat part mapping yet.
+		// Plan, mode, config, session info, and usage updates have no
+		// chat part mapping yet.
 	}
 	return nil
 }
@@ -525,6 +542,27 @@ func toolDisplayName(kind, title string) string {
 	return "tool"
 }
 
+// runtimeCommands flattens the ACP command list into the persisted
+// shape. An update with no usable commands yields an empty, non-nil
+// slice so callers can tell "advertised none" from "never advertised".
+func runtimeCommands(commands []acp.AvailableCommand) []RuntimeCommand {
+	out := make([]RuntimeCommand, 0, len(commands))
+	for _, command := range commands {
+		if strings.TrimSpace(command.Name) == "" {
+			continue
+		}
+		converted := RuntimeCommand{
+			Name:        command.Name,
+			Description: command.Description,
+		}
+		if command.Input != nil && command.Input.Unstructured != nil {
+			converted.InputHint = command.Input.Unstructured.Hint
+		}
+		out = append(out, converted)
+	}
+	return out
+}
+
 func marshalRawJSON(v any) json.RawMessage {
 	if v == nil {
 		return nil
@@ -582,8 +620,21 @@ type RuntimeState struct {
 	// turn; the next resumed turn subtracts them to derive per-turn
 	// usage.
 	Usage *UsageTotals `json:"usage,omitempty"`
+	// AvailableCommands is the slash-command list the adapter last
+	// advertised, so clients can offer commands the session accepts.
+	AvailableCommands []RuntimeCommand `json:"available_commands,omitempty"`
 	// UpdatedAt records when the state was last written.
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// RuntimeCommand is one slash command the external agent accepts as a
+// prompt of the form "/name args".
+type RuntimeCommand struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// InputHint is the adapter's placeholder for the text after the
+	// command name; empty when the command takes no input.
+	InputHint string `json:"input_hint,omitempty"`
 }
 
 // UsageTotals mirrors the ACP usage counters, which report

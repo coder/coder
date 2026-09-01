@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -1817,6 +1818,23 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	return &payload
 }
 
+// chatRuntimeCommands maps the persisted runtime state's command list to
+// the API shape, returning nil when the runtime advertised none.
+func chatRuntimeCommands(state chatacp.RuntimeState) []codersdk.ChatRuntimeCommand {
+	if len(state.AvailableCommands) == 0 {
+		return nil
+	}
+	commands := make([]codersdk.ChatRuntimeCommand, 0, len(state.AvailableCommands))
+	for _, command := range state.AvailableCommands {
+		commands = append(commands, codersdk.ChatRuntimeCommand{
+			Name:        command.Name,
+			Description: command.Description,
+			InputHint:   command.InputHint,
+		})
+	}
+	return commands
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1851,6 +1869,9 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		Labels:         labels,
 		ClientType:     codersdk.ChatClientType(c.ClientType),
 		LastError:      lastError,
+	}
+	if c.RuntimeState.Valid {
+		chat.RuntimeCommands = chatRuntimeCommands(chatacp.ParseRuntimeState(c.RuntimeState.RawMessage))
 	}
 	if c.LastModelConfigID.Valid {
 		lastModelConfigID := c.LastModelConfigID.UUID

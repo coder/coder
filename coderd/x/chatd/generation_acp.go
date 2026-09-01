@@ -707,10 +707,11 @@ func (s *taskStarter) persistACPRuntimeState(
 		cwd = prior.Cwd
 	}
 	encoded, err := json.Marshal(chatacp.RuntimeState{
-		SessionID: outcome.SessionID,
-		Cwd:       cwd,
-		Usage:     usageTotals,
-		UpdatedAt: s.opts.Clock.Now("chatworker", "chatacp").UTC(),
+		SessionID:         outcome.SessionID,
+		Cwd:               cwd,
+		Usage:             usageTotals,
+		AvailableCommands: acpAvailableCommands(outcome, prior),
+		UpdatedAt:         s.opts.Clock.Now("chatworker", "chatacp").UTC(),
 	})
 	if err != nil {
 		s.opts.Logger.Warn(ctx, "marshal acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
@@ -724,6 +725,19 @@ func (s *taskStarter) persistACPRuntimeState(
 	}); err != nil {
 		s.opts.Logger.Warn(persistCtx, "persist acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
 	}
+}
+
+// acpAvailableCommands picks the command list to persist: the turn's
+// own list when the adapter advertised one, else the prior list when the
+// same session continued and its commands are still current, else none.
+func acpAvailableCommands(outcome chatacp.TurnOutcome, prior chatacp.RuntimeState) []chatacp.RuntimeCommand {
+	if outcome.AvailableCommands != nil {
+		return outcome.AvailableCommands
+	}
+	if outcome.Resumed && outcome.SessionID == prior.SessionID {
+		return prior.AvailableCommands
+	}
+	return nil
 }
 
 // acpTurnUsage derives per-turn token usage from ACP's

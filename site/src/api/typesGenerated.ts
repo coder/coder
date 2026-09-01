@@ -2018,6 +2018,13 @@ export interface Chat {
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
+	 * RuntimeCommands lists the slash commands an external runtime
+	 * advertised for this chat. Omitted for chats on the built-in runtime
+	 * and stripped from watch event payloads; read it from the chat
+	 * endpoints.
+	 */
+	readonly runtime_commands?: readonly ChatRuntimeCommand[];
+	/**
 	 * Children holds child (subagent) chats nested under this root
 	 * chat. Always initialized to an empty slice so the JSON field
 	 * is present as []. Child chats cannot create their own
@@ -3371,6 +3378,21 @@ export type ChatRuntime = "claude_code" | "coder" | "codex";
 export interface ChatRuntimeAvailability {
 	readonly organization_id: string;
 	readonly runtime: ChatRuntime;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatRuntimeCommand is a slash command an external runtime accepts. A
+ * client invokes it by sending the message "/name args".
+ */
+export interface ChatRuntimeCommand {
+	readonly name: string;
+	readonly description: string;
+	/**
+	 * InputHint is placeholder text for the arguments after the command
+	 * name; empty when the command takes no input.
+	 */
+	readonly input_hint?: string;
 }
 
 // From codersdk/chats.go

@@ -2,6 +2,7 @@ package chatacp_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -173,6 +174,180 @@ func TestRunTurnResumeFallsBackToLoad(t *testing.T) {
 	require.Empty(t, agent.NewSessions())
 	require.Empty(t, recorder.snapshot())
 	require.Empty(t, outcome.Content)
+}
+
+func TestRunTurnAvailableCommands(t *testing.T) {
+	t.Parallel()
+
+	unstructured := func(hint string) *acp.AvailableCommandInput {
+		return &acp.AvailableCommandInput{Unstructured: &acp.UnstructuredCommandInput{Hint: hint}}
+	}
+	tests := []struct {
+		name    string
+		updates [][]acp.AvailableCommand
+		want    []chatacp.RuntimeCommand
+	}{
+		{
+			name:    "NoUpdate",
+			updates: nil,
+			want:    nil,
+		},
+		{
+			name: "SingleUpdate",
+			updates: [][]acp.AvailableCommand{{
+				{Name: "review", Description: "Review the diff", Input: unstructured("pr number")},
+				{Name: "init", Description: "Create a guide"},
+				{Name: "  ", Description: "dropped: blank name"},
+			}},
+			want: []chatacp.RuntimeCommand{
+				{Name: "review", Description: "Review the diff", InputHint: "pr number"},
+				{Name: "init", Description: "Create a guide"},
+			},
+		},
+		{
+			name: "LatestUpdateWins",
+			updates: [][]acp.AvailableCommand{
+				{{Name: "review", Description: "Review the diff"}},
+				{{Name: "compact", Description: "Compact history"}},
+			},
+			want: []chatacp.RuntimeCommand{{Name: "compact", Description: "Compact history"}},
+		},
+		{
+			name: "EmptyUpdateClearsList",
+			updates: [][]acp.AvailableCommand{
+				{{Name: "review", Description: "Review the diff"}},
+				{},
+			},
+			want: []chatacp.RuntimeCommand{},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			agent := &chatacptest.FakeAgent{}
+			agent.OnPrompt = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.PromptRequest) (acp.PromptResponse, error) {
+				for _, commands := range tc.updates {
+					sendUpdate(ctx, t, conn, params.SessionId, acp.SessionUpdate{
+						AvailableCommandsUpdate: &acp.SessionAvailableCommandsUpdate{AvailableCommands: commands},
+					})
+				}
+				sendUpdate(ctx, t, conn, params.SessionId, acp.SessionUpdate{
+					AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock("done")},
+				})
+				return acp.PromptResponse{StopReason: acp.StopReasonEndTurn}, nil
+			}
+
+			recorder := &partRecorder{}
+			outcome, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
+				Cwd:        "/home/coder",
+				PromptText: "hi",
+				Publish:    recorder.publish,
+				Logger:     testLogger(t),
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, outcome.AvailableCommands)
+			// Command updates are session metadata, not transcript.
+			require.Len(t, recorder.snapshot(), 1)
+			require.Len(t, outcome.Content, 1)
+		})
+	}
+}
+
+func TestRunTurnAvailableCommandsDuringLoad(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	agent := &chatacptest.FakeAgent{
+		Capabilities: acp.AgentCapabilities{LoadSession: true},
+	}
+	// Replayed history is suppressed, but the command list the agent
+	// advertises alongside it describes the live session.
+	agent.OnLoadSession = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.LoadSessionRequest) error {
+		sendUpdate(ctx, t, conn, params.SessionId, acp.SessionUpdate{
+			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock("replayed history")},
+		})
+		sendUpdate(ctx, t, conn, params.SessionId, acp.SessionUpdate{
+			AvailableCommandsUpdate: &acp.SessionAvailableCommandsUpdate{
+				AvailableCommands: []acp.AvailableCommand{{Name: "review", Description: "Review the diff"}},
+			},
+		})
+		return nil
+	}
+
+	recorder := &partRecorder{}
+	outcome, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
+		SessionID:  "session-prior",
+		Cwd:        "/home/coder",
+		PromptText: "continue",
+		Publish:    recorder.publish,
+		Logger:     testLogger(t),
+	})
+	require.NoError(t, err)
+	require.True(t, outcome.Resumed)
+	require.Empty(t, recorder.snapshot())
+	require.Equal(t, []chatacp.RuntimeCommand{{Name: "review", Description: "Review the diff"}}, outcome.AvailableCommands)
+}
+
+func TestRuntimeStateRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  func(t *testing.T) []byte
+		want chatacp.RuntimeState
+	}{
+		{
+			name: "Absent",
+			raw:  func(*testing.T) []byte { return nil },
+			want: chatacp.RuntimeState{},
+		},
+		{
+			name: "Malformed",
+			raw:  func(*testing.T) []byte { return []byte("{not json") },
+			want: chatacp.RuntimeState{},
+		},
+		{
+			name: "WithoutCommands",
+			raw: func(t *testing.T) []byte {
+				raw, err := json.Marshal(chatacp.RuntimeState{SessionID: "s1", Cwd: "/home/coder"})
+				require.NoError(t, err)
+				require.NotContains(t, string(raw), "available_commands")
+				return raw
+			},
+			want: chatacp.RuntimeState{SessionID: "s1", Cwd: "/home/coder"},
+		},
+		{
+			name: "WithCommands",
+			raw: func(t *testing.T) []byte {
+				raw, err := json.Marshal(chatacp.RuntimeState{
+					SessionID: "s1",
+					AvailableCommands: []chatacp.RuntimeCommand{
+						{Name: "review", Description: "Review the diff", InputHint: "pr number"},
+						{Name: "init"},
+					},
+				})
+				require.NoError(t, err)
+				require.Contains(t, string(raw), `"available_commands":[{"name":"review","description":"Review the diff","input_hint":"pr number"},{"name":"init"}]`)
+				return raw
+			},
+			want: chatacp.RuntimeState{
+				SessionID: "s1",
+				AvailableCommands: []chatacp.RuntimeCommand{
+					{Name: "review", Description: "Review the diff", InputHint: "pr number"},
+					{Name: "init"},
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := chatacp.ParseRuntimeState(tc.raw(t))
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestRunTurnReseedsWhenSessionGone(t *testing.T) {

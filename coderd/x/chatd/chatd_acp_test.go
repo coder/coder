@@ -13,6 +13,7 @@ import (
 
 	acp "github.com/coder/acp-go-sdk"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -270,10 +271,30 @@ func acpConfigOverridesWithEnv(t *testing.T, setup acpTestSetup, agent *chatacpt
 	}
 }
 
+// acpTestCommands is the slash-command list replyingFakeAgent advertises
+// on every prompt.
+var acpTestCommands = []acp.AvailableCommand{
+	{
+		Name:        "review",
+		Description: "Review the current diff",
+		Input:       &acp.AvailableCommandInput{Unstructured: &acp.UnstructuredCommandInput{Hint: "pr number"}},
+	},
+	{Name: "init", Description: "Create a project guide"},
+}
+
 func replyingFakeAgent(text string) *chatacptest.FakeAgent {
 	agent := &chatacptest.FakeAgent{}
 	agent.OnPrompt = func(ctx context.Context, conn *acp.AgentSideConnection, params acp.PromptRequest) (acp.PromptResponse, error) {
 		err := conn.SessionUpdate(ctx, acp.SessionNotification{
+			SessionId: params.SessionId,
+			Update: acp.SessionUpdate{
+				AvailableCommandsUpdate: &acp.SessionAvailableCommandsUpdate{AvailableCommands: acpTestCommands},
+			},
+		})
+		if err != nil {
+			return acp.PromptResponse{}, err
+		}
+		err = conn.SessionUpdate(ctx, acp.SessionNotification{
 			SessionId: params.SessionId,
 			Update: acp.SessionUpdate{
 				AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock(text)},
@@ -333,6 +354,14 @@ func TestACPChatTurn(t *testing.T) {
 		state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
 		require.Equal(t, "session-new", state.SessionID)
 		require.Equal(t, "/home/coder/project", state.Cwd)
+		require.Equal(t, []chatacp.RuntimeCommand{
+			{Name: "review", Description: "Review the current diff", InputHint: "pr number"},
+			{Name: "init", Description: "Create a project guide"},
+		}, state.AvailableCommands)
+		require.Equal(t, []codersdk.ChatRuntimeCommand{
+			{Name: "review", Description: "Review the current diff", InputHint: "pr number"},
+			{Name: "init", Description: "Create a project guide"},
+		}, db2sdk.Chat(chat, nil, nil).RuntimeCommands)
 	})
 }
 

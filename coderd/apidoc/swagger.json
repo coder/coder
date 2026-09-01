@@ -17609,6 +17609,13 @@
 				"runtime": {
 					"$ref": "#/definitions/codersdk.ChatRuntime"
 				},
+				"runtime_commands": {
+					"description": "RuntimeCommands lists the slash commands an external runtime\nadvertised for this chat. Omitted for chats on the built-in runtime\nand stripped from watch event payloads; read it from the chat\nendpoints.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatRuntimeCommand"
+					}
+				},
 				"shared": {
 					"description": "Shared is true when this chat's root chat has explicit user or group ACL entries.",
 					"type": "boolean"
@@ -19127,6 +19134,21 @@
 				},
 				"runtime": {
 					"$ref": "#/definitions/codersdk.ChatRuntime"
+				}
+			}
+		},
+		"codersdk.ChatRuntimeCommand": {
+			"type": "object",
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"input_hint": {
+					"description": "InputHint is placeholder text for the arguments after the command\nname; empty when the command takes no input.",
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
 				}
 			}
 		},

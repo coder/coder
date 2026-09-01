@@ -364,6 +364,13 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "runtime": "coder",
+    "runtime_commands": [
+      {
+        "description": "string",
+        "input_hint": "string",
+        "name": "string"
+      }
+    ],
     "shared": true,
     "status": "waiting",
     "summary": "string",
@@ -464,6 +471,10 @@ Status Code **200**
 | `» queued_for_capacity`   | boolean                                                                            | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
 | `» root_chat_id`          | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» runtime`               | [codersdk.ChatRuntime](schemas.md#codersdkchatruntime)                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» runtime_commands`      | array                                                                              | false    |              | Runtime commands lists the slash commands an external runtime advertised for this chat. Omitted for chats on the built-in runtime and stripped from watch event payloads; read it from the chat endpoints.                                                                 |
+| `»» description`          | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» input_hint`           | string                                                                             | false    |              | Input hint is placeholder text for the arguments after the command name; empty when the command takes no input.                                                                                                                                                            |
+| `»» name`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» shared`                | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `» status`                | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
 | `» summary`               | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
@@ -647,6 +658,13 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "runtime": "coder",
+      "runtime_commands": [
+        {
+          "description": "string",
+          "input_hint": "string",
+          "name": "string"
+        }
+      ],
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -744,6 +762,13 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "runtime": "coder",
+  "runtime_commands": [
+    {
+      "description": "string",
+      "input_hint": "string",
+      "name": "string"
+    }
+  ],
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -1595,6 +1620,13 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "runtime": "coder",
+    "runtime_commands": [
+      {
+        "description": "string",
+        "input_hint": "string",
+        "name": "string"
+      }
+    ],
     "shared": true,
     "status": "waiting",
     "summary": "string",
@@ -1744,6 +1776,13 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "runtime": "coder",
+      "runtime_commands": [
+        {
+          "description": "string",
+          "input_hint": "string",
+          "name": "string"
+        }
+      ],
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -1841,6 +1880,13 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "runtime": "coder",
+  "runtime_commands": [
+    {
+      "description": "string",
+      "input_hint": "string",
+      "name": "string"
+    }
+  ],
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -2025,6 +2071,13 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "runtime": "coder",
+      "runtime_commands": [
+        {
+          "description": "string",
+          "input_hint": "string",
+          "name": "string"
+        }
+      ],
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -2122,6 +2175,13 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "runtime": "coder",
+  "runtime_commands": [
+    {
+      "description": "string",
+      "input_hint": "string",
+      "name": "string"
+    }
+  ],
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -2354,6 +2414,13 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "runtime": "coder",
+      "runtime_commands": [
+        {
+          "description": "string",
+          "input_hint": "string",
+          "name": "string"
+        }
+      ],
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -2451,6 +2518,13 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "runtime": "coder",
+  "runtime_commands": [
+    {
+      "description": "string",
+      "input_hint": "string",
+      "name": "string"
+    }
+  ],
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -3377,6 +3451,13 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "runtime": "coder",
+      "runtime_commands": [
+        {
+          "description": "string",
+          "input_hint": "string",
+          "name": "string"
+        }
+      ],
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -3474,6 +3555,13 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "runtime": "coder",
+  "runtime_commands": [
+    {
+      "description": "string",
+      "input_hint": "string",
+      "name": "string"
+    }
+  ],
   "shared": true,
   "status": "waiting",
   "summary": "string",
