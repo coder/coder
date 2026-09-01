@@ -169,15 +169,9 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-// The stroke is centered on its radius, so the ring's inner radius is
-// (RING_SIZE - 2 * RING_STROKE) / 2. Keep that value at 8.5 when adjusting
-// thickness so the ring grows outward and the glyph keeps the same room.
 const RING_SIZE = 21.5;
 const RING_STROKE = 2.25;
 
-// Exclamation glyph geometry, in ring coordinates. The glyph is a
-// round-capped bar over a dot, spanning GLYPH_HEIGHT vertically and
-// centered in the ring.
 const GLYPH_HEIGHT = 11;
 const GLYPH_STROKE = 1.75;
 const GLYPH_BAR_LENGTH = 8.1;
