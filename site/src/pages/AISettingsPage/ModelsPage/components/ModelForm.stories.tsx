@@ -21,7 +21,11 @@ import {
 	MockDefaultOrganization,
 	MockOrganizationPermissions,
 } from "#/testHelpers/entities";
-import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
+import {
+	waitForRadixLayerClose,
+	withDashboardProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import {
 	modelOrganizationSearchParam,
 	OrganizationModelsContext,
@@ -158,12 +162,32 @@ export const LeaveWithUnsavedChanges: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
+		// The identifier combobox only commits the typed value to the form
+		// on blur, and the navigation blocker only arms once the resulting
+		// dirty state commits a render. Clicking the link relies on its own
+		// pointerdown blur and can navigate away before the blocker arms
+		// under CPU load, so blur explicitly and wait for the prompt's
+		// beforeunload leg (registered in the same commit) to observe the
+		// dirty state before navigating.
+		await userEvent.tab();
+		await waitFor(
+			() => {
+				const probe = new Event("beforeunload", { cancelable: true });
+				window.dispatchEvent(probe);
+				expect(probe.defaultPrevented).toBe(true);
+			},
+			{ timeout: 10_000 },
+		);
 		await userEvent.click(
 			canvas.getByRole("link", { name: /back to models/i }),
 		);
-		const dialog = await screen.findByRole("dialog", {
-			name: /unsaved changes/i,
-		});
+		// The blocker dialog mounts asynchronously; the default 1s timeout
+		// is too tight when the suite runs under full pre-push CPU load.
+		const dialog = await screen.findByRole(
+			"dialog",
+			{ name: /unsaved changes/i },
+			{ timeout: 10_000 },
+		);
 		await expect(dialog).toBeInTheDocument();
 	},
 };
@@ -515,8 +539,16 @@ export const ReasoningEffortInProviderConfiguration: Story = {
 			await screen.findByRole("option", { name: "Medium" }),
 		);
 
+		// Each option click closes the listbox; wait for Radix to restore
+		// pointer events before the next click.
+		await waitForRadixLayerClose(() =>
+			canvas.getByRole("combobox", { name: /max reasoning effort/i }),
+		);
 		await userEvent.click(maxSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "Max" }));
+		await waitForRadixLayerClose(() =>
+			canvas.getByRole("button", { name: /add model/i }),
+		);
 
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		await expect(args.onCreateModel).toHaveBeenCalledWith(
@@ -544,14 +576,22 @@ export const ReasoningEffortValidationError: Story = {
 
 		await userEvent.click(defaultSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "High" }));
+		// The option click closes the listbox; wait for Radix to restore
+		// pointer events before opening the next select.
+		await waitForRadixLayerClose(() =>
+			canvas.getByRole("combobox", { name: /max reasoning effort/i }),
+		);
 		await userEvent.click(maxSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
 
-		await expect(
-			canvas.getByText(
-				"Default reasoning effort must not exceed the max reasoning effort.",
-			),
-		).toBeVisible();
+		// Formik validation runs asynchronously after the value change.
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					"Default reasoning effort must not exceed the max reasoning effort.",
+				),
+			).toBeVisible();
+		});
 	},
 };
 
@@ -578,12 +618,20 @@ export const GoogleThinkingLevelBudgetMutualExclusion: Story = {
 		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
 		await expect(budget).toBeDisabled();
 
+		// Each option click closes the listbox; wait for Radix to restore
+		// pointer events before the next pointer interaction.
+		await waitForRadixLayerClose(() =>
+			canvas.getByRole("combobox", { name: /thinking config thinking level/i }),
+		);
 		await userEvent.click(level);
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Default" }),
 		);
 		await expect(budget).toBeEnabled();
 
+		await waitForRadixLayerClose(() =>
+			canvas.getByLabelText(/thinking config thinking budget/i),
+		);
 		await userEvent.type(budget, "2048");
 		await expect(level).toBeDisabled();
 

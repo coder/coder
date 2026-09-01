@@ -1068,9 +1068,14 @@ DECLARE
     total_bytes_limit constant bigint := 204800;   -- 200 KiB
     env_bytes_limit   constant bigint := 24576;    -- 24 KiB
 BEGIN
-    -- Serialize cap checks per user so concurrent inserts cannot all
-    -- observe the same pre-insert aggregates and exceed the cap.
-    PERFORM 1 FROM users WHERE id = NEW.user_id FOR UPDATE;
+    -- Serialize cap checks per user so concurrent inserts or updates cannot
+    -- all observe the same pre-statement aggregates and exceed the caps.
+    -- The advisory lock avoids the users row entirely: no writer of other
+    -- tables referencing users is affected, and no lock cycle through the
+    -- users row is possible. The key derivation is registered for
+    -- discoverability in coderd/database/lock.go and pinned by
+    -- TestUserCapAdvisoryLocks.
+    PERFORM pg_advisory_xact_lock(hashtextextended('user_secrets_cap:' || NEW.user_id::text, 0));
 
     -- Sum existing rows excluding the row being updated (so UPDATE statements
     -- don't double-count NEW). On INSERT, no row matches NEW.id, so
@@ -1120,13 +1125,15 @@ DECLARE
     skill_count int;
     skill_limit constant int := 100;
 BEGIN
-    -- Serialize skill-cap checks per user so concurrent inserts cannot all
-    -- observe the same pre-insert count and exceed the hard limit.
-    PERFORM 1
-    FROM users
-    WHERE id = NEW.user_id
-    FOR UPDATE;
+    -- Serialize skill-cap checks per user so concurrent inserts (or owner
+    -- reassignments targeting the same user) cannot all observe the same
+    -- pre-statement count and exceed the hard limit. See
+    -- enforce_user_secrets_per_user_limits for why this is an advisory
+    -- lock; the key registry is coderd/database/lock.go.
+    PERFORM pg_advisory_xact_lock(hashtextextended('user_skills_cap:' || NEW.user_id::text, 0));
 
+    -- On an owner reassignment the moving row still belongs to
+    -- OLD.user_id, so counting NEW.user_id's rows excludes it naturally.
     SELECT count(*) INTO skill_count
     FROM user_skills
     WHERE user_id = NEW.user_id;
@@ -5241,9 +5248,11 @@ CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secre
 
 CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills FOR EACH ROW EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
 
-CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
+CREATE TRIGGER trigger_zz_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
 
-CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
+CREATE TRIGGER trigger_zz_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
+
+CREATE TRIGGER trigger_zz_user_skills_per_user_limit_update BEFORE UPDATE ON user_skills FOR EACH ROW WHEN ((new.user_id IS DISTINCT FROM old.user_id)) EXECUTE FUNCTION enforce_user_skills_per_user_limit();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 

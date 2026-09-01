@@ -16,7 +16,11 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { withAuthProvider, withToaster } from "#/testHelpers/storybook";
+import {
+	waitForRadixLayerClose,
+	withAuthProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import type TasksPage from "../../../pages/TasksPage/TasksPage";
 import { TaskPrompt } from "./TaskPrompt";
 
@@ -281,6 +285,11 @@ export const SelectTemplateVersion: Story = {
 				name: /v2.0.0/i,
 			});
 			await userEvent.click(versionOption);
+			// The option click closes the listbox; wait for Radix to restore
+			// pointer events before the next step clicks submit.
+			await waitForRadixLayerClose(() =>
+				canvas.getByRole("button", { name: /run task/i }),
+			);
 		});
 
 		await step("Submit form", async () => {
@@ -649,6 +658,11 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			expect(options[0]).toContainHTML("Claude Code Dev");
 
 			await userEvent.click(options[0]);
+			// Each option click closes a listbox; wait for Radix to restore
+			// pointer events before the next step opens another select.
+			await waitForRadixLayerClose(() =>
+				canvas.getByRole("combobox", { name: /select template/i }),
+			);
 		});
 
 		await step("Switch template", async () => {
@@ -659,6 +673,9 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 				name: /codex/i,
 			});
 			await userEvent.click(codexTemplateOption);
+			await waitForRadixLayerClose(() =>
+				canvas.getByRole("combobox", { name: /preset/i }),
+			);
 		});
 
 		await step("Presets are present in new template", async () => {
@@ -670,6 +687,9 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			expect(options[0]).toContainHTML("Codex Dev");
 
 			await userEvent.click(options[0]);
+			await waitForRadixLayerClose(() =>
+				canvas.getByRole("combobox", { name: /select template/i }),
+			);
 		});
 
 		await step("Switch template back", async () => {
@@ -680,6 +700,9 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 				name: /claude code/i,
 			});
 			await userEvent.click(codexTemplateOption);
+			await waitForRadixLayerClose(() =>
+				canvas.getByRole("combobox", { name: /preset/i }),
+			);
 		});
 
 		await step("Presets are present in original template", async () => {

@@ -28,11 +28,11 @@ const (
 	// otherwise valid raw skill content.
 	maxPersonalSkillRequestBytes = skills.MaxPersonalSkillSizeBytes*personalSkillJSONEscapeExpansion + personalSkillRequestEnvelopeBytes
 
-	// These names are raised by trigger functions with USING CONSTRAINT.
-	// They are not table CHECK constraints, so dbgen does not emit them in
-	// check_constraint.go.
-	userSkillsPerUserLimitConstraint database.CheckConstraint = "user_skills_per_user_limit"
-	userSkillUserDeletedConstraint   database.CheckConstraint = "user_skill_user_deleted"
+	// Raised by the insert_user_skill_fail_if_user_deleted trigger with
+	// USING CONSTRAINT. Not a table CHECK constraint, so dbgen does not
+	// emit it in check_constraint.go. The cap constraint lives in
+	// database.CheckUserSkillsPerUserLimit.
+	userSkillUserDeletedConstraint database.CheckConstraint = "user_skill_user_deleted"
 )
 
 // @Summary Create a user skill
@@ -92,7 +92,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		if database.IsCheckViolation(err, userSkillsPerUserLimitConstraint) {
+		if database.IsCheckViolation(err, database.CheckUserSkillsPerUserLimit) {
 			writeUserSkillLimitReached(ctx, rw)
 			return
 		}
