@@ -53,6 +53,18 @@ func CreateAppSecret(db database.Store, auditor *audit.Auditor, logger slog.Logg
 			})
 		)
 		defer commitAudit()
+
+		// A secret here would do nothing. The token endpoint does not check
+		// it, and deleting it revokes no tokens, because a public client's
+		// tokens have a NULL app_secret_id.
+		if app.IsPublic() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot create a client secret for a public OAuth2 app.",
+				Detail:  "Public clients authenticate with PKCE and have no client secret. The client type is fixed at registration, so register a new confidential client instead.",
+			})
+			return
+		}
+
 		secret, err := GenerateSecret()
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

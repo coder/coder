@@ -284,11 +284,20 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
-		// The grant is well-formed and its stored scope cannot be honored, so a
-		// defined OAuth2 failure beats a 500.
+		// Not invalid_scope: RFC 6749 §5.2 scopes that to what the client
+		// requested, and these are stored state the client cannot change by
+		// asking differently. The grant is what is unusable, and re-authorizing
+		// is the only way out, so invalid_grant.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
-			errors.Is(err, errNoGrantableScope) || errors.Is(err, errCoverageUndecidable) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			errors.Is(err, errNoGrantableScope) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
+			return
+		}
+		// This server failing to compare, not a defect in the grant, so it
+		// answers server_error with a fixed description as the authorization
+		// endpoint does; the comparison already logged the detail.
+		if errors.Is(err, errCoverageUndecidable) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated")
 			return
 		}
 		if err != nil {
@@ -433,18 +442,22 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		return codersdk.OAuth2TokenResponse{}, errInvalidResource
 	}
 
+	// Mintability is decided before coverage. A stored name outside the enum is
+	// not something RBAC can expand, so the coverage comparison would report it
+	// as undecidable instead of naming the value an operator has to fix.
+	//
+	// Without this the key defaults to coder:all, discarding the negotiation.
+	scopes, err := scopeStringToAPIKeyScopes(dbCode.Scope)
+	if err != nil {
+		return codersdk.OAuth2TokenResponse{}, err
+	}
+
 	if err := scopeStillCoveredByAllowlist(ctx, logger, app, dbCode.Scope); err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
 	// Generate a refresh token.
 	refreshToken, err := GenerateSecret()
-	if err != nil {
-		return codersdk.OAuth2TokenResponse{}, err
-	}
-
-	// Without this the key defaults to coder:all, discarding the negotiation.
-	scopes, err := scopeStringToAPIKeyScopes(dbCode.Scope)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}

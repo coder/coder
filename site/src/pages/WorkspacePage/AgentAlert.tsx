@@ -24,7 +24,7 @@ export const AgentAlert: FC<AgentAlertProps> = ({
 				<div className="mb-2">{detail}</div>
 				{troubleshootingURL && (
 					<Button size="sm" asChild>
-						<a href={troubleshootingURL} target="_blank" rel="noopener">
+						<a href={troubleshootingURL} target="_blank" rel="noreferrer">
 							View docs to troubleshoot
 						</a>
 					</Button>

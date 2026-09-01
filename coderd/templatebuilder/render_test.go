@@ -294,10 +294,61 @@ resource "coder_agent" "second" {}
 	})
 }
 
-// TestExtractModuleNames covers the regex-based module block extractor on the
+func TestExtractAgentResourceNames(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MultipleInOrder", func(t *testing.T) {
+		t.Parallel()
+		hcl := []byte(`
+resource "coder_agent" "main" {
+  os = "linux"
+}
+resource "coder_agent" "gpu" {
+  os = "linux"
+  metadata {
+    key = "gpu"
+  }
+}
+`)
+		agents, err := templatebuilder.ExtractAgentResourceNames(hcl)
+		require.NoError(t, err)
+		require.Equal(t, []templatebuilder.ExtractedAgent{
+			{Name: "main", Reference: "main"},
+			{Name: "gpu", Reference: "gpu"},
+		}, agents)
+	})
+
+	t.Run("CountAfterNestedBlock", func(t *testing.T) {
+		t.Parallel()
+		// count declared after a nested block: the reference must still be
+		// indexed, which the previous regex missed.
+		hcl := []byte(`resource "coder_agent" "dev" {
+  os = "linux"
+  metadata {
+    key = "cpu"
+  }
+  count = data.coder_workspace.me.start_count
+}`)
+		agents, err := templatebuilder.ExtractAgentResourceNames(hcl)
+		require.NoError(t, err)
+		require.Equal(t, []templatebuilder.ExtractedAgent{
+			{Name: "dev", Reference: "dev[0]"},
+		}, agents)
+	})
+
+	t.Run("NoAgents", func(t *testing.T) {
+		t.Parallel()
+		agents, err := templatebuilder.ExtractAgentResourceNames(
+			[]byte(`resource "docker_container" "workspace" {}`))
+		require.NoError(t, err)
+		require.Empty(t, agents)
+	})
+}
+
+// TestExtractModuleNames covers the module block extractor on the
 // shapes it must handle for our curated templates: real blocks in declaration
-// order, and commented-out blocks (whose line starts with `#`) ignored because
-// matching is anchored to the start of a line.
+// order, and commented-out blocks ignored because the HCL parser does not
+// treat comments as blocks.
 func TestExtractModuleNames(t *testing.T) {
 	t.Parallel()
 

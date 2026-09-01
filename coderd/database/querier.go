@@ -132,6 +132,12 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	// Deletes cached Terraform module archives ingested in the given time range and
+	// clears the template version references to them. created_by and mimetype
+	// identify a provisionerd-written module archive, matching the checks in
+	// provisionerdserver, so user-uploaded template tarballs are never removed.
+	// Only archives referenced by a template version are considered.
+	DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg DeleteCachedModuleFilesCreatedBetweenParams) (int64, error)
 	// Clears a chat's pinned context resources. Used as the first half of a
 	// clear-then-copy re-pin, and on its own when the chat's current agent
 	// has no snapshot.

@@ -7,7 +7,10 @@ import { ResourceCard } from "./ResourceCard";
 describe("Resource Card", () => {
 	it("renders daily cost and metadata tiles", async () => {
 		render(
-			<ResourceCard resource={MockWorkspaceResource} agentRow={() => <></>} />,
+			<ResourceCard
+				resource={MockWorkspaceResource}
+				agentRow={() => <div />}
+			/>,
 		);
 		expect(
 			screen.getByText(MockWorkspaceResource.daily_cost),
@@ -45,7 +48,7 @@ describe("Resource Card", () => {
 			],
 		};
 
-		render(<ResourceCard resource={mockResource} agentRow={() => <></>} />);
+		render(<ResourceCard resource={mockResource} agentRow={() => <div />} />);
 		expect(screen.getByText(mockResource.daily_cost)).toBeInTheDocument();
 		expect(
 			screen.getByText(mockResource.metadata?.[0].value),
@@ -90,7 +93,7 @@ describe("Resource Card", () => {
 			],
 		};
 
-		render(<ResourceCard resource={mockResource} agentRow={() => <></>} />);
+		render(<ResourceCard resource={mockResource} agentRow={() => <div />} />);
 		expect(screen.queryByText(mockResource.daily_cost)).not.toBeInTheDocument();
 		expect(
 			screen.getByText(mockResource.metadata?.[0].value),

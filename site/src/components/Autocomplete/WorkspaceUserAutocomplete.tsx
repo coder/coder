@@ -1,13 +1,8 @@
 import { type FC, useId, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import { organizationMembers } from "#/api/queries/organizations";
-import { users, workspaceAvailableUsers } from "#/api/queries/users";
-import type {
-	MinimalUser,
-	OrganizationMemberWithUserData,
-	User,
-} from "#/api/typesGenerated";
+import { workspaceAvailableUsers } from "#/api/queries/users";
+import type { MinimalUser } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -40,59 +35,6 @@ type CommonAutocompleteProps<T extends SelectedUser> = {
 	label?: string;
 	onChange: (user: T | null) => void;
 	value: T | null;
-};
-
-type UserAutocompleteProps = CommonAutocompleteProps<User>;
-
-export const UserAutocomplete: FC<UserAutocompleteProps> = (props) => {
-	const [filter, setFilter] = useState<string>();
-
-	const usersQuery = useQuery({
-		...users({
-			q: prepareQuery(encodeURI(filter ?? "")),
-			limit: 25,
-		}),
-		enabled: filter !== undefined,
-		placeholderData: keepPreviousData,
-	});
-	return (
-		<InnerAutocomplete<User>
-			error={usersQuery.error}
-			isFetching={usersQuery.isFetching}
-			shouldFilter={false}
-			setFilter={setFilter}
-			users={usersQuery.data?.users}
-			{...props}
-		/>
-	);
-};
-
-type MemberAutocompleteProps =
-	CommonAutocompleteProps<OrganizationMemberWithUserData> & {
-		organizationId: string;
-	};
-
-export const MemberAutocomplete: FC<MemberAutocompleteProps> = ({
-	organizationId,
-	...props
-}) => {
-	const [filter, setFilter] = useState<string>();
-
-	const membersQuery = useQuery({
-		...organizationMembers(organizationId, { limit: 0 }),
-		enabled: filter !== undefined,
-		placeholderData: keepPreviousData,
-	});
-	return (
-		<InnerAutocomplete<OrganizationMemberWithUserData>
-			error={membersQuery.error}
-			isFetching={membersQuery.isFetching}
-			shouldFilter
-			setFilter={setFilter}
-			users={membersQuery.data?.members}
-			{...props}
-		/>
-	);
 };
 
 type WorkspaceUserAutocompleteProps = CommonAutocompleteProps<MinimalUser> & {
