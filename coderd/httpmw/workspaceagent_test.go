@@ -96,6 +96,36 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.Contains(t, response.Message, `User is not active (status = "suspended")`)
 	})
 
+	t.Run("DeletedOwner", func(t *testing.T) {
+		t.Parallel()
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		authToken := uuid.New()
+		req, rtr, workspace, _ := setup(t, db, authToken, httpmw.ExtractWorkspaceAgentAndLatestBuild(
+			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+				DB:       db,
+				Optional: false,
+			}),
+		)
+
+		// Soft-delete the owner while keeping their rows so the agent's
+		// auth token still resolves; a soft-deleted owner must yield a
+		// terminal 401 for the agent, not a retryable 500.
+		softDeleteUserKeepRows(t, sqlDB, workspace.OwnerID)
+
+		rw := httptest.NewRecorder()
+		req.Header.Set(codersdk.SessionTokenHeader, authToken.String())
+		rtr.ServeHTTP(rw, req)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		var response codersdk.Response
+		require.NoError(t, json.Unmarshal(body, &response))
+		require.Equal(t, "Workspace owner has been deleted.", response.Message)
+	})
+
 	t.Run("Latest", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

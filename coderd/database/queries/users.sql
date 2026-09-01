@@ -587,9 +587,13 @@ SELECT
 	--	when suspended.
 	-- deleted is returned so the authentication path can reject credentials
 	-- of soft-deleted users (see httpmw.UserRBACSubject). Deleted users are
-	-- intentionally NOT filtered out here: non-authentication callers such as
-	-- provisioner builds must keep resolving roles for a soft-deleted owner
-	-- (for example to run the delete build for their workspaces).
+	-- intentionally NOT filtered out here: non-authentication consumers must
+	-- keep resolving roles for a soft-deleted owner. Known dependents:
+	-- coderd/provisionerdserver/provisionerdserver.go (role resolution for
+	-- builds, e.g. the delete build for a deleted owner's workspaces) and
+	-- coderd/dynamicparameters/render.go (owner context for rendering).
+	-- Do not add a WHERE deleted = false filter without migrating those
+	-- consumers first.
 	id, username, status, email, deleted,
 	-- All user roles, including their org roles.
 	array_cat(

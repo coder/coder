@@ -620,6 +620,8 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		return user, rbac.Subject{}, false
 	}
 
+	// ErrUserDeleted is unreachable here: GetUserByEmailOrUsername above
+	// filters deleted users, so a soft-deleted user never gets this far.
 	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
 	if err != nil {
 		logger.Error(ctx, "unable to fetch authorization user roles", slog.Error(err))
