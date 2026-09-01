@@ -28,8 +28,7 @@ const openPicker = async (canvasElement: HTMLElement) => {
 	return dialog;
 };
 
-const grid = (dialog: HTMLElement) =>
-	within(dialog).getByRole("listbox", { name: "Emojis and icons" });
+const grid = (dialog: HTMLElement) => within(dialog).getByRole("listbox");
 
 const search = async (dialog: HTMLElement, query: string) => {
 	const input = within(dialog).getByRole("combobox", {
@@ -40,11 +39,20 @@ const search = async (dialog: HTMLElement, query: string) => {
 	return input;
 };
 
+const categoryNavigation = (dialog: HTMLElement) =>
+	within(dialog).getByRole("toolbar", { name: "Emoji and icon categories" });
+
 const chooseCategory = async (dialog: HTMLElement, name: string) => {
-	await userEvent.click(
-		within(dialog).getByRole("combobox", { name: /^Category:/ }),
-	);
-	await userEvent.click(await screen.findByRole("option", { name }));
+	const button = within(categoryNavigation(dialog)).getByRole("button", {
+		name,
+	});
+	await userEvent.click(button);
+	await expect(
+		within(categoryNavigation(dialog)).getByRole("button", {
+			name,
+			current: true,
+		}),
+	).toBeVisible();
 };
 
 const chooseTone = async (dialog: HTMLElement, label: string) => {
@@ -99,6 +107,16 @@ export const OpenPicker: Story = {
 		});
 		await expect(grinning).toBeVisible();
 		await expect(within(grinning).getByTestId("emoji-sprite")).toBeVisible();
+		await expect(categoryNavigation(dialog)).toBeVisible();
+		await expect(
+			within(categoryNavigation(dialog)).getByRole("button", {
+				name: "Smileys & Emotion",
+				current: true,
+			}),
+		).toBeVisible();
+		await expect(list).toHaveAccessibleName(
+			"Smileys & Emotion emojis and icons",
+		);
 		await expect(
 			within(list).queryByRole("option", { name: "fedora" }),
 		).not.toBeInTheDocument();
@@ -108,7 +126,12 @@ export const OpenPicker: Story = {
 export const BrowseCategory: Story = {
 	play: async ({ canvasElement }) => {
 		const dialog = await openPicker(canvasElement);
+		const input = within(dialog).getByRole("combobox", {
+			name: "Search emojis and icons",
+		});
+		await expect(input).toHaveFocus();
 		await chooseCategory(dialog, "Coder icons");
+		await expect(input).toHaveFocus();
 
 		const list = grid(dialog);
 		const fedora = within(list).getByRole("option", { name: "fedora" });
@@ -124,6 +147,30 @@ export const BrowseCategory: Story = {
 	},
 };
 
+export const ChangingViewResetsScroll: Story = {
+	parameters: { viewport: { defaultViewport: "desktopZoom200" } },
+	play: async ({ canvasElement }) => {
+		const dialog = await openPicker(canvasElement);
+		await chooseCategory(dialog, "People & Body");
+		const list = grid(dialog);
+		list.scrollTop = list.scrollHeight;
+		await expect(list.scrollTop).toBeGreaterThan(0);
+
+		await chooseCategory(dialog, "Animals & Nature");
+		await expect(list.scrollTop).toBe(0);
+		await expect(
+			within(list).getByRole("option", { name: "Monkey face" }),
+		).toBeVisible();
+
+		list.scrollTop = list.scrollHeight;
+		await expect(list.scrollTop).toBeGreaterThan(0);
+		await search(dialog, "a");
+		await expect(within(list).getAllByRole("option")).toHaveLength(64);
+		await expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+		await expect(list.scrollTop).toBe(0);
+	},
+};
+
 export const ReselectingCategoryClearsSearch: Story = {
 	play: async ({ canvasElement }) => {
 		const dialog = await openPicker(canvasElement);
@@ -132,19 +179,9 @@ export const ReselectingCategoryClearsSearch: Story = {
 			await within(dialog).findByRole("option", { name: "fedora" }),
 		).toBeVisible();
 
-		await expect(
-			within(dialog).getByRole("combobox", {
-				name: "Category: Search results",
-			}),
-		).toBeVisible();
 		await chooseCategory(dialog, "Smileys & Emotion");
 
 		await expect(input).toHaveValue("");
-		await expect(
-			within(dialog).getByRole("combobox", {
-				name: "Category: Smileys & Emotion",
-			}),
-		).toBeVisible();
 		await expect(
 			within(grid(dialog)).getByRole("option", { name: "Grinning face" }),
 		).toBeVisible();
@@ -154,24 +191,81 @@ export const ReselectingCategoryClearsSearch: Story = {
 	},
 };
 
-export const CancellingCategoryPreservesSearch: Story = {
+export const NavigateCategoriesWithKeyboard: Story = {
 	play: async ({ canvasElement }) => {
 		const dialog = await openPicker(canvasElement);
 		const input = await search(dialog, "fedora");
-		await userEvent.click(
-			within(dialog).getByRole("combobox", { name: /^Category:/ }),
-		);
-		await userEvent.keyboard("{Escape}");
+		const navigation = within(categoryNavigation(dialog));
+		const smileys = navigation.getByRole("button", {
+			name: "Smileys & Emotion",
+		});
+		const people = navigation.getByRole("button", { name: "People & Body" });
+		const coderIcons = navigation.getByRole("button", { name: "Coder icons" });
 
-		await expect(input).toHaveValue("fedora");
 		await expect(
-			within(dialog).getByRole("combobox", {
-				name: "Category: Search results",
-			}),
-		).toBeVisible();
+			navigation.queryAllByRole("button", { current: true }),
+		).toHaveLength(0);
+		await expect(grid(dialog)).toHaveAccessibleName(
+			"Emoji and icon search results",
+		);
+		await expect(announcements(dialog)).toContain(
+			"Showing emoji and icon search results.",
+		);
+		await userEvent.tab({ shift: true });
+		await expect(smileys).toHaveFocus();
+		await userEvent.keyboard("{ArrowRight}");
+		await expect(people).toHaveFocus();
+		await expect(input).toHaveValue("fedora");
 		await expect(
 			within(grid(dialog)).getByRole("option", { name: "fedora" }),
 		).toBeVisible();
+
+		await userEvent.keyboard("{Enter}");
+		await expect(input).toHaveValue("");
+		await expect(
+			navigation.getByRole("button", {
+				name: "People & Body",
+				current: true,
+			}),
+		).toHaveFocus();
+		await expect(
+			within(grid(dialog)).getByRole("option", { name: "Waving hand" }),
+		).toBeVisible();
+		await expect(
+			within(dialog).queryByRole("option", { name: "Grinning face" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.keyboard("{ArrowRight}");
+		await expect(
+			navigation.getByRole("button", { name: "Animals & Nature" }),
+		).toHaveFocus();
+		await expect(
+			navigation.getByRole("button", {
+				name: "People & Body",
+				current: true,
+			}),
+		).toBeVisible();
+		await expect(
+			within(grid(dialog)).getByRole("option", { name: "Waving hand" }),
+		).toBeVisible();
+
+		await userEvent.keyboard("{End}");
+		await expect(coderIcons).toHaveFocus();
+		await userEvent.keyboard("{Home}{ArrowLeft}");
+		await expect(coderIcons).toHaveFocus();
+		await userEvent.keyboard(" ");
+		await expect(
+			navigation.getByRole("button", {
+				name: "Coder icons",
+				current: true,
+			}),
+		).toHaveFocus();
+		await expect(
+			within(grid(dialog)).getByRole("option", { name: "fedora" }),
+		).toBeVisible();
+		await expect(
+			within(dialog).queryByRole("option", { name: "Waving hand" }),
+		).not.toBeInTheDocument();
 	},
 };
 

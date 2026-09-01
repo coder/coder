@@ -3,9 +3,24 @@ import emojiData, {
 	type SkinVariation,
 } from "virtual:emoji-manifest";
 import {
+	AppleIcon,
+	CircleEllipsisIcon,
+	CodeIcon,
+	FlagIcon,
+	HandIcon,
+	LightbulbIcon,
+	type LucideIcon,
+	PawPrintIcon,
+	PlaneIcon,
+	ShapesIcon,
+	SmileIcon,
+	TrophyIcon,
+} from "lucide-react";
+import {
 	type CSSProperties,
 	type FC,
 	type KeyboardEvent,
+	type RefObject,
 	useEffect,
 	useMemo,
 	useRef,
@@ -28,9 +43,23 @@ import {
 } from "#/components/Select/Select";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
 import icons from "#/theme/icons.json";
+import { cn } from "#/utils/cn";
 
 const ICON_CATEGORY = "Coder icons";
 const DEFAULT_TONE = "default";
+
+const CATEGORY_ICONS = new Map<string, LucideIcon>([
+	["Smileys & Emotion", SmileIcon],
+	["People & Body", HandIcon],
+	["Animals & Nature", PawPrintIcon],
+	["Food & Drink", AppleIcon],
+	["Travel & Places", PlaneIcon],
+	["Activities", TrophyIcon],
+	["Objects", LightbulbIcon],
+	["Symbols", ShapesIcon],
+	["Flags", FlagIcon],
+	[ICON_CATEGORY, CodeIcon],
+]);
 const SPRITESHEET_URL = `/emojis/${emojiData.sheet.file}?v=${emojiData.sheet.hash}`;
 const SPRITESHEET_SIZE = `${emojiData.sheet.columns * 100}% ${emojiData.sheet.rows * 100}%`;
 
@@ -212,7 +241,11 @@ for (const option of allOptions) {
 		optionsByCategory.set(option.category, [option]);
 	}
 }
-const categories = [...emojiData.categories, ICON_CATEGORY];
+const categories = [...emojiData.categories, ICON_CATEGORY].map((label) => ({
+	label,
+	icon: CATEGORY_ICONS.get(label) ?? CircleEllipsisIcon,
+}));
+const DEFAULT_CATEGORY = categories[0].label;
 
 /**
  * Every query term has to match somewhere, in any order, and the tier decides
@@ -286,6 +319,98 @@ const resolveSheet = (
 	tone: string,
 ): SheetPosition | undefined => resolveSkin(option, tone) ?? option.sheet;
 
+type CategoryNavigationProps = {
+	currentCategory: string;
+	inputRef: RefObject<HTMLInputElement | null>;
+	searching: boolean;
+	onSelect: (category: string) => void;
+};
+
+const CategoryNavigation: FC<CategoryNavigationProps> = ({
+	currentCategory,
+	inputRef,
+	searching,
+	onSelect,
+}) => {
+	const [focusedCategory, setFocusedCategory] = useState(currentCategory);
+	const handleKeys = (event: KeyboardEvent<HTMLDivElement>) => {
+		if (!(event.target instanceof HTMLButtonElement)) {
+			return;
+		}
+		const buttons = Array.from(
+			event.currentTarget.querySelectorAll<HTMLButtonElement>(
+				"[data-emoji-category]",
+			),
+		);
+		const current = buttons.indexOf(event.target);
+		if (current === -1) {
+			return;
+		}
+		let target: number | undefined;
+		switch (event.key) {
+			case "ArrowLeft":
+				target = (current + buttons.length - 1) % buttons.length;
+				break;
+			case "ArrowRight":
+				target = (current + 1) % buttons.length;
+				break;
+			case "Home":
+				target = 0;
+				break;
+			case "End":
+				target = buttons.length - 1;
+				break;
+		}
+		if (target === undefined) {
+			return;
+		}
+		event.preventDefault();
+		buttons[target]?.focus();
+	};
+
+	return (
+		<div
+			role="toolbar"
+			aria-label="Emoji and icon categories"
+			onKeyDown={handleKeys}
+			className="flex w-full border-0 border-b border-border border-solid"
+		>
+			{categories.map(({ label, icon: CategoryIcon }) => {
+				const selected = !searching && currentCategory === label;
+				return (
+					<button
+						key={label}
+						type="button"
+						data-emoji-category
+						aria-current={selected ? "true" : undefined}
+						aria-label={label}
+						title={label}
+						tabIndex={focusedCategory === label ? 0 : -1}
+						onMouseDown={(event) => {
+							// Keep mouse category selection from moving focus out of search.
+							if (document.activeElement === inputRef.current) {
+								event.preventDefault();
+							}
+						}}
+						onFocus={() => setFocusedCategory(label)}
+						onClick={() => {
+							setFocusedCategory(label);
+							onSelect(label);
+						}}
+						className={cn(
+							"-mb-px flex min-w-0 flex-1 cursor-pointer justify-center border-0 border-b border-solid border-b-transparent bg-transparent py-2 text-content-secondary transition-colors",
+							"hover:text-content-primary focus-visible:z-10 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset",
+							selected && "border-b-content-primary text-content-primary",
+						)}
+					>
+						<CategoryIcon aria-hidden="true" className="size-4" />
+					</button>
+				);
+			})}
+		</div>
+	);
+};
+
 type EmojiPickerProps = {
 	/**
 	 * Receives the selection URL, either `/emojis/<image>.png` for an emoji or
@@ -295,11 +420,12 @@ type EmojiPickerProps = {
 };
 
 const EmojiPicker: FC<EmojiPickerProps> = ({ onSelect }) => {
-	const [category, setCategory] = useState(categories[0]);
+	const [category, setCategory] = useState(DEFAULT_CATEGORY);
 	const [tone, setTone] = useState(DEFAULT_TONE);
 	const [search, setSearch] = useState("");
 	const [selectedId, setSelectedId] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
+	const listRef = useRef<HTMLDivElement>(null);
 	const itemNodes = useRef(new Map<string, HTMLElement>());
 
 	const query = normalize(search);
@@ -319,12 +445,32 @@ const EmojiPicker: FC<EmojiPickerProps> = ({ onSelect }) => {
 		statusMessage = `Showing the first ${SEARCH_RESULT_LIMIT} matches. Keep typing to narrow the search.`;
 		statusClassName = "m-0 px-3 pt-2 text-content-secondary text-xs";
 	} else if (visible.length === 0) {
-		statusMessage = "No emojis or icons match your search.";
+		statusMessage = query
+			? "No emojis or icons match your search."
+			: `No emojis or icons in ${category}.`;
 		statusClassName =
 			"m-0 px-3 py-6 text-center text-content-secondary text-sm";
+	} else if (query) {
+		statusMessage = "Showing emoji and icon search results.";
+	} else {
+		statusMessage = `Browsing ${category}.`;
 	}
 	const toneLabel =
 		SKIN_TONES.find((skinTone) => skinTone.value === tone)?.label ?? "Default";
+	const resetListScroll = () => {
+		if (listRef.current) {
+			listRef.current.scrollTop = 0;
+		}
+	};
+	const updateSearch = (nextSearch: string) => {
+		resetListScroll();
+		setSearch(nextSearch);
+	};
+	const selectCategory = (nextCategory: string) => {
+		resetListScroll();
+		setCategory(nextCategory);
+		setSearch("");
+	};
 
 	// cmdk does not update aria-activedescendant when its value is controlled.
 	// Synchronize it after cmdk has applied its own input state.
@@ -406,6 +552,13 @@ const EmojiPicker: FC<EmojiPickerProps> = ({ onSelect }) => {
 
 	return (
 		<div className="flex max-h-[var(--radix-popper-available-height)] w-80 flex-col overflow-hidden">
+			<CategoryNavigation
+				currentCategory={category}
+				inputRef={inputRef}
+				searching={Boolean(query)}
+				onSelect={selectCategory}
+			/>
+
 			<Command
 				className="min-h-0"
 				shouldFilter={false}
@@ -419,7 +572,7 @@ const EmojiPicker: FC<EmojiPickerProps> = ({ onSelect }) => {
 					ref={inputRef}
 					autoFocus
 					value={search}
-					onValueChange={setSearch}
+					onValueChange={updateSearch}
 					placeholder="Search emojis and icons"
 				/>
 
@@ -428,7 +581,12 @@ const EmojiPicker: FC<EmojiPickerProps> = ({ onSelect }) => {
 				</p>
 
 				<CommandList
-					label="Emojis and icons"
+					ref={listRef}
+					label={
+						query
+							? "Emoji and icon search results"
+							: `${category} emojis and icons`
+					}
 					style={gridStyle}
 					className="min-h-0 [&_[cmdk-list-sizer]]:grid [&_[cmdk-list-sizer]]:grid-cols-[repeat(var(--emoji-picker-columns),minmax(0,1fr))] [&_[cmdk-list-sizer]]:gap-1 [&_[cmdk-list-sizer]]:p-2"
 				>
@@ -466,29 +624,7 @@ const EmojiPicker: FC<EmojiPickerProps> = ({ onSelect }) => {
 				</CommandList>
 			</Command>
 
-			<div className="flex gap-2 border-0 border-border border-t border-solid p-2">
-				<Select
-					value={query ? "" : category}
-					onValueChange={(nextCategory) => {
-						setCategory(nextCategory);
-						setSearch("");
-					}}
-				>
-					<SelectTrigger
-						aria-label={`Category: ${query ? "Search results" : category}`}
-						className="h-8 min-w-0 flex-1 text-xs"
-					>
-						<SelectValue placeholder="Search results" />
-					</SelectTrigger>
-					<SelectContent>
-						{categories.map((name) => (
-							<SelectItem key={name} value={name}>
-								{name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-
+			<div className="flex justify-end border-0 border-border border-t border-solid p-2">
 				<Select value={tone} onValueChange={setTone}>
 					<SelectTrigger
 						aria-label={`Skin tone: ${toneLabel}`}
