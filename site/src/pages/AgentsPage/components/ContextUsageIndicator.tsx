@@ -169,8 +169,11 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-const RING_SIZE = 20;
-const RING_STROKE = 1.5;
+// The stroke is centered on its radius, so the ring's inner radius is
+// (RING_SIZE - 2 * RING_STROKE) / 2. Keep that value at 8.5 when adjusting
+// thickness so the ring grows outward and the glyph keeps the same room.
+const RING_SIZE = 22;
+const RING_STROKE = 2.5;
 
 const GLYPH_HEIGHT = 11;
 const GLYPH_PATH_WIDTH = 1.79427;
