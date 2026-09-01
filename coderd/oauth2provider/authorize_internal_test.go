@@ -10,10 +10,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestNegotiateScope(t *testing.T) {
@@ -264,6 +266,58 @@ func TestNoScopeAllowlist(t *testing.T) {
 	assert.True(t, noScopeAllowlist(sql.NullString{String: "", Valid: true}))
 	assert.False(t, noScopeAllowlist(sql.NullString{String: "coder:workspaces.access", Valid: true}))
 	assert.False(t, noScopeAllowlist(sql.NullString{String: "   ", Valid: true}))
+}
+
+func TestScopeFailureResponse(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		err             error
+		wantCode        codersdk.OAuth2ErrorCode
+		wantDescription string
+	}{
+		{
+			name:            "UnknownScope",
+			err:             errUnknownScope,
+			wantCode:        codersdk.OAuth2ErrorCodeInvalidScope,
+			wantDescription: errUnknownScope.Error(),
+		},
+		{
+			name:            "NoGrantableScope",
+			err:             errNoGrantableScope,
+			wantCode:        codersdk.OAuth2ErrorCodeInvalidScope,
+			wantDescription: errNoGrantableScope.Error(),
+		},
+		{
+			name:            "ScopeNotAllowed",
+			err:             errScopeNotAllowed,
+			wantCode:        codersdk.OAuth2ErrorCodeInvalidScope,
+			wantDescription: errScopeNotAllowed.Error(),
+		},
+		{
+			name:            "CoverageUndecidable",
+			err:             errCoverageUndecidable,
+			wantCode:        codersdk.OAuth2ErrorCodeServerError,
+			wantDescription: "The requested scope could not be evaluated",
+		},
+		{
+			// The sentinel still decides the response once wrapped.
+			name:            "WrappedCoverageUndecidable",
+			err:             xerrors.Errorf("negotiate: %w", errCoverageUndecidable),
+			wantCode:        codersdk.OAuth2ErrorCodeServerError,
+			wantDescription: "The requested scope could not be evaluated",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			code, description := scopeFailureResponse(test.err)
+			require.Equal(t, test.wantCode, code)
+			require.Equal(t, test.wantDescription, description)
+		})
+	}
 }
 
 func TestHashOAuth2State(t *testing.T) {
