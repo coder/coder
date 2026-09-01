@@ -43,7 +43,7 @@ func TestServerDBCrypt(t *testing.T) {
 
 	// Populate the database with some unencrypted data.
 	t.Log("Generating unencrypted data")
-	users := genData(t, db)
+	users := genData(t, db, sqlDB)
 
 	// Setup an initial cipher A
 	keyA := testutil.MustRandString(t, 32)
@@ -56,7 +56,7 @@ func TestServerDBCrypt(t *testing.T) {
 
 	// Populate the database with some encrypted data using cipher A.
 	t.Log("Generating data encrypted with cipher A")
-	newUsers := genData(t, cryptdb)
+	newUsers := genData(t, cryptdb, sqlDB)
 
 	// Validate that newly created users were encrypted with cipher A
 	for _, usr := range newUsers {
@@ -205,7 +205,7 @@ func TestServerDBCrypt(t *testing.T) {
 	}
 }
 
-func genData(t *testing.T, db database.Store) []database.User {
+func genData(t *testing.T, db database.Store, sqlDB *sql.DB) []database.User {
 	t.Helper()
 	var users []database.User
 	// Make some users
@@ -213,12 +213,17 @@ func genData(t *testing.T, db database.Store) []database.User {
 		for _, loginType := range database.AllLoginTypeValues() {
 			for _, deleted := range []bool{false, true} {
 				randName := testutil.MustRandString(t, 32)
+				// Users in the deleted lane are created live, seeded, and
+				// soft-deleted below with the cleanup trigger suppressed:
+				// the guard triggers (migration 000591) reject inserting
+				// child rows for already-deleted users, and the point of
+				// the deleted lane is encrypting the orphaned rows that
+				// predate them.
 				usr := dbgen.User(t, db, database.User{
 					Username:  randName,
 					Email:     randName + "@notcoder.com",
 					LoginType: loginType,
 					Status:    status,
-					Deleted:   deleted,
 				})
 				_ = dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 					UserID:            usr.ID,
@@ -241,6 +246,9 @@ func genData(t *testing.T, db database.Store) []database.User {
 					PrivateKey: "private-" + usr.ID.String(),
 					PublicKey:  "public-" + usr.ID.String(),
 				})
+				// Seeded for every user; the deleted lane keeps this row as
+				// an orphan via the trigger-suppressed soft-delete below,
+				// preserving deleted-user encryption coverage.
 				now := time.Now()
 				_, err := db.UpsertUserAIProviderKey(context.Background(), database.UpsertUserAIProviderKeyParams{
 					ID:           uuid.New(),
@@ -271,6 +279,12 @@ func genData(t *testing.T, db database.Store) []database.User {
 						EnvName:  "",
 						FilePath: "",
 					})
+				}
+				if deleted {
+					// Reconstructs orphaned child rows that predate the
+					// migration 000591 guards; rotation must handle them.
+					dbtestutil.SoftDeleteUserKeepingRows(context.Background(), t, sqlDB, usr.ID)
+					usr.Deleted = true
 				}
 				users = append(users, usr)
 			}
