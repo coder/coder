@@ -647,7 +647,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	})
 	eg.Go(func() error {
 		if r.options.DeploymentConfig != nil && slices.Contains(r.options.DeploymentConfig.Experiments, string(codersdk.ExperimentWorkspaceUsage)) {
-			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, createdAfter)
+			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, database.GetWorkspaceAgentUsageStatsParams{
+				CreatedAt:   createdAfter,
+				AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+			})
 			if err != nil {
 				return xerrors.Errorf("get workspace agent stats: %w", err)
 			}
@@ -656,7 +659,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat)))
 			}
 		} else {
-			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
+			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+				CreatedAt:   createdAfter,
+				AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+			})
 			if err != nil {
 				return xerrors.Errorf("get workspace agent stats: %w", err)
 			}

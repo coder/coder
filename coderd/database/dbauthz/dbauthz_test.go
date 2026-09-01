@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"reflect"
 	"strconv"
@@ -2995,7 +2996,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTemplateInsightsByTemplate", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetTemplateInsightsByTemplateParams{}
+		arg := database.GetTemplateInsightsByTemplateParams{AppFamilies: codersdk.SessionCountAppFamiliesJSON()}
 		dbm.EXPECT().GetTemplateInsightsByTemplate(gomock.Any(), arg).Return([]database.GetTemplateInsightsByTemplateRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
@@ -3020,8 +3021,9 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).Returns([]database.TemplateUsageStat{})
 	}))
 	s.Run("UpsertTemplateUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any()).Return(nil).AnyTimes()
-		check.Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+		arg := codersdk.SessionCountAppFamiliesJSON()
+		dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("UpdatePresetsLastInvalidatedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
@@ -5512,14 +5514,20 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args("foo").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetDeploymentWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Time{}
-		dbm.EXPECT().GetDeploymentWorkspaceAgentStats(gomock.Any(), t).Return(database.GetDeploymentWorkspaceAgentStatsRow{}, nil).AnyTimes()
-		check.Args(t).Asserts()
+		arg := database.GetDeploymentWorkspaceAgentStatsParams{
+			CreatedAt:   time.Time{},
+			AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+		}
+		dbm.EXPECT().GetDeploymentWorkspaceAgentStats(gomock.Any(), arg).Return(database.GetDeploymentWorkspaceAgentStatsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts()
 	}))
 	s.Run("GetDeploymentWorkspaceAgentUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Time{}
-		dbm.EXPECT().GetDeploymentWorkspaceAgentUsageStats(gomock.Any(), t).Return(database.GetDeploymentWorkspaceAgentUsageStatsRow{}, nil).AnyTimes()
-		check.Args(t).Asserts()
+		arg := database.GetDeploymentWorkspaceAgentUsageStatsParams{
+			CreatedAt:   time.Time{},
+			AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+		}
+		dbm.EXPECT().GetDeploymentWorkspaceAgentUsageStats(gomock.Any(), arg).Return(database.GetDeploymentWorkspaceAgentUsageStatsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts()
 	}))
 	s.Run("GetDeploymentWorkspaceStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetDeploymentWorkspaceStats(gomock.Any()).Return(database.GetDeploymentWorkspaceStatsRow{}, nil).AnyTimes()
@@ -5547,24 +5555,36 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("GetWorkspaceAgentStatsAndLabels", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Time{}
-		dbm.EXPECT().GetWorkspaceAgentStatsAndLabels(gomock.Any(), t).Return([]database.GetWorkspaceAgentStatsAndLabelsRow{}, nil).AnyTimes()
-		check.Args(t).Asserts()
+		arg := database.GetWorkspaceAgentStatsAndLabelsParams{
+			CreatedAt:   time.Time{},
+			AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+		}
+		dbm.EXPECT().GetWorkspaceAgentStatsAndLabels(gomock.Any(), arg).Return([]database.GetWorkspaceAgentStatsAndLabelsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts()
 	}))
 	s.Run("GetWorkspaceAgentUsageStatsAndLabels", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Time{}
-		dbm.EXPECT().GetWorkspaceAgentUsageStatsAndLabels(gomock.Any(), t).Return([]database.GetWorkspaceAgentUsageStatsAndLabelsRow{}, nil).AnyTimes()
-		check.Args(t).Asserts()
+		arg := database.GetWorkspaceAgentUsageStatsAndLabelsParams{
+			CreatedAt:   time.Time{},
+			AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+		}
+		dbm.EXPECT().GetWorkspaceAgentUsageStatsAndLabels(gomock.Any(), arg).Return([]database.GetWorkspaceAgentUsageStatsAndLabelsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts()
 	}))
 	s.Run("GetWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Time{}
-		dbm.EXPECT().GetWorkspaceAgentStats(gomock.Any(), t).Return([]database.GetWorkspaceAgentStatsRow{}, nil).AnyTimes()
-		check.Args(t).Asserts()
+		arg := database.GetWorkspaceAgentStatsParams{
+			CreatedAt:   time.Time{},
+			AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+		}
+		dbm.EXPECT().GetWorkspaceAgentStats(gomock.Any(), arg).Return([]database.GetWorkspaceAgentStatsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts()
 	}))
 	s.Run("GetWorkspaceAgentUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Time{}
-		dbm.EXPECT().GetWorkspaceAgentUsageStats(gomock.Any(), t).Return([]database.GetWorkspaceAgentUsageStatsRow{}, nil).AnyTimes()
-		check.Args(t).Asserts()
+		arg := database.GetWorkspaceAgentUsageStatsParams{
+			CreatedAt:   time.Time{},
+			AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+		}
+		dbm.EXPECT().GetWorkspaceAgentUsageStats(gomock.Any(), arg).Return([]database.GetWorkspaceAgentUsageStatsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts()
 	}))
 	s.Run("GetWorkspaceProxyByHostname", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		p := testutil.Fake(s.T(), faker, database.WorkspaceProxy{WildcardHostname: "*.example.com"})
@@ -7915,4 +7935,101 @@ func TestAsExternalAuthChecker(t *testing.T) {
 			require.Error(t, err, "%s read should be denied", res.Type)
 		}
 	})
+}
+
+// TestSessionCountAppFamiliesRequired ensures the session count queries fail
+// loudly when the app family registry is empty, so a forgotten parameter
+// surfaces as an error instead of silently dropping every family's sessions
+// from usage reporting.
+func TestSessionCountAppFamiliesRequired(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	dbm := dbmock.NewMockStore(ctrl)
+	dbm.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	q := dbauthz.New(dbm, &coderdtest.RecordingAuthorizer{Wrapped: &coderdtest.FakeAuthorizer{}}, slog.Make(), coderdtest.AccessControlStorePointer())
+	ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
+
+	_, err := q.GetDeploymentWorkspaceAgentStats(ctx, database.GetDeploymentWorkspaceAgentStatsParams{})
+	require.ErrorContains(t, err, "developer error")
+	_, err = q.GetDeploymentWorkspaceAgentUsageStats(ctx, database.GetDeploymentWorkspaceAgentUsageStatsParams{})
+	require.ErrorContains(t, err, "developer error")
+	_, err = q.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{})
+	require.ErrorContains(t, err, "developer error")
+	_, err = q.GetWorkspaceAgentStatsAndLabels(ctx, database.GetWorkspaceAgentStatsAndLabelsParams{})
+	require.ErrorContains(t, err, "developer error")
+	_, err = q.GetWorkspaceAgentUsageStats(ctx, database.GetWorkspaceAgentUsageStatsParams{})
+	require.ErrorContains(t, err, "developer error")
+	_, err = q.GetWorkspaceAgentUsageStatsAndLabels(ctx, database.GetWorkspaceAgentUsageStatsAndLabelsParams{})
+	require.ErrorContains(t, err, "developer error")
+	_, err = q.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{})
+	require.ErrorContains(t, err, "developer error")
+	err = q.UpsertTemplateUsageStats(ctx, nil)
+	require.ErrorContains(t, err, "developer error")
+}
+
+// TestSessionCountAppFamiliesMustMatchQueries covers registries that are
+// present but wrong. Each query hardcodes one probe per family, so a registry
+// whose keys drifted from codersdk.AttributedAppFamilies would report zero
+// for the affected family instead of failing.
+func TestSessionCountAppFamiliesMustMatchQueries(t *testing.T) {
+	t.Parallel()
+
+	valid := map[codersdk.AppFamilyName][]string{}
+	for _, family := range codersdk.AttributedAppFamilies() {
+		valid[family] = []string{string(family)}
+	}
+	without := func(drop codersdk.AppFamilyName) json.RawMessage {
+		families := maps.Clone(valid)
+		delete(families, drop)
+		return mustMarshalAppFamilies(t, families)
+	}
+
+	for _, tc := range []struct {
+		name        string
+		appFamilies json.RawMessage
+		errContains string
+	}{
+		{"EmptyObject", json.RawMessage(`{}`), `missing family "vscode"`},
+		{"JSONNull", json.RawMessage(`null`), `missing family "vscode"`},
+		{"NotAnObject", json.RawMessage(`["vscode"]`), "must be a JSON object"},
+		{"MissingFamily", without(codersdk.AppFamilySSH), `missing family "ssh"`},
+		{"EmptyAppNames", mustMarshalAppFamilies(t, map[codersdk.AppFamilyName][]string{
+			codersdk.AppFamilyVSCode:          {"vscode"},
+			codersdk.AppFamilyJetBrains:       {"jetbrains"},
+			codersdk.AppFamilySSH:             {},
+			codersdk.AppFamilyReconnectingPTY: {"reconnecting_pty"},
+		}), `no app names for family "ssh"`},
+		{"UnknownFamily", mustMarshalAppFamilies(t, map[codersdk.AppFamilyName][]string{
+			codersdk.AppFamilyVSCode:          {"vscode"},
+			codersdk.AppFamilyJetBrains:       {"jetbrains"},
+			codersdk.AppFamilySSH:             {"ssh"},
+			codersdk.AppFamilyReconnectingPTY: {"reconnecting_pty"},
+			"emacs":                           {"emacs"},
+		}), `has family "emacs"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			dbm := dbmock.NewMockStore(ctrl)
+			dbm.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+			q := dbauthz.New(dbm, &coderdtest.RecordingAuthorizer{Wrapped: &coderdtest.FakeAuthorizer{}}, slog.Make(), coderdtest.AccessControlStorePointer())
+			ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
+
+			_, err := q.GetDeploymentWorkspaceAgentStats(ctx, database.GetDeploymentWorkspaceAgentStatsParams{AppFamilies: tc.appFamilies})
+			require.ErrorContains(t, err, tc.errContains)
+			err = q.UpsertTemplateUsageStats(ctx, tc.appFamilies)
+			require.ErrorContains(t, err, tc.errContains)
+		})
+	}
+}
+
+func mustMarshalAppFamilies(t *testing.T, families map[codersdk.AppFamilyName][]string) json.RawMessage {
+	t.Helper()
+	raw, err := json.Marshal(families)
+	require.NoError(t, err)
+	return raw
 }

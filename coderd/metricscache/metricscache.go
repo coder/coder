@@ -138,13 +138,19 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	)
 
 	if c.usage {
-		agentUsageStats, err := c.database.GetDeploymentWorkspaceAgentUsageStats(ctx, from)
+		agentUsageStats, err := c.database.GetDeploymentWorkspaceAgentUsageStats(ctx, database.GetDeploymentWorkspaceAgentUsageStatsParams{
+			CreatedAt:   from,
+			AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+		})
 		if err != nil {
 			return err
 		}
 		agentStats = database.GetDeploymentWorkspaceAgentStatsRow(agentUsageStats)
 	} else {
-		agentStats, err = c.database.GetDeploymentWorkspaceAgentStats(ctx, from)
+		agentStats, err = c.database.GetDeploymentWorkspaceAgentStats(ctx, database.GetDeploymentWorkspaceAgentStatsParams{
+			CreatedAt:   from,
+			AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
+		})
 		if err != nil {
 			return err
 		}
