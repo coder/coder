@@ -209,6 +209,84 @@ func TestAWSBedrockOptionsRequireRuntime(t *testing.T) {
 	require.Contains(t, err.Error(), "nil bedrock runtime")
 }
 
+// TestModelForBedrockInvokeModel covers the split between the invocation target
+// and the model identity used for capabilities, usage records, and metrics.
+func TestModelForBedrockInvokeModel(t *testing.T) {
+	t.Parallel()
+
+	const (
+		profileARN          = "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/46u2vhiyo6z5"
+		smallFastProfileARN = "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/8x1qk20fzp3r"
+	)
+
+	runtime := &BedrockRuntime{
+		Cfg: config.AWSBedrock{
+			Model:          profileARN,
+			SmallFastModel: smallFastProfileARN,
+		},
+		ResolvedModel:          "anthropic.claude-opus-4-8",
+		ResolvedSmallFastModel: "anthropic.claude-haiku-4-5",
+	}
+
+	tests := []struct {
+		name               string
+		smallFast          bool
+		expectModel        string
+		expectInvocationID string
+	}{
+		{
+			name:               "primary model",
+			expectModel:        "anthropic.claude-opus-4-8",
+			expectInvocationID: profileARN,
+		},
+		{
+			name:               "small fast model",
+			smallFast:          true,
+			expectModel:        "anthropic.claude-haiku-4-5",
+			expectInvocationID: smallFastProfileARN,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			i := &interceptionBase{
+				reqPayload: mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
+				bedrock:    runtime,
+				smallFast:  tt.smallFast,
+				logger:     slog.Make(),
+			}
+
+			require.Equal(t, tt.expectModel, i.Model())
+
+			i.augmentRequestForBedrockInvokeModel()
+			require.Equal(t, tt.expectInvocationID, gjson.GetBytes(i.reqPayload, "model").String())
+			// The remap must not change how the interception identifies itself.
+			require.Equal(t, tt.expectModel, i.Model())
+		})
+	}
+}
+
+// TestModelFallsBackToConfiguredIdentifier covers Bedrock providers configured
+// with plain model IDs, which are never resolved.
+func TestModelFallsBackToConfiguredIdentifier(t *testing.T) {
+	t.Parallel()
+
+	i := &interceptionBase{
+		reqPayload: mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
+		bedrock: &BedrockRuntime{
+			Cfg: config.AWSBedrock{
+				Model:          "eu.anthropic.claude-opus-4-8",
+				SmallFastModel: "anthropic.claude-haiku-4-5",
+			},
+		},
+		logger: slog.Make(),
+	}
+
+	require.Equal(t, "eu.anthropic.claude-opus-4-8", i.Model())
+}
+
 func TestAccumulateUsage(t *testing.T) {
 	t.Parallel()
 
@@ -608,6 +686,7 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 		name string
 
 		bedrockModel    string
+		resolvedModel   string // underlying model ID when bedrockModel is an application inference profile ARN
 		requestBody     string
 		clientBetaFlags string
 
@@ -761,6 +840,24 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectThinkingType: "adaptive",
 		},
 		{
+			// Application inference profile ARNs are opaque, so capability
+			// detection runs against the model resolved through AWS.
+			name:               "opaque_application_inference_profile_uses_resolved_model_for_enabled_thinking",
+			bedrockModel:       "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/46u2vhiyo6z5",
+			resolvedModel:      "anthropic.claude-opus-4-8",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":8000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "opaque_application_inference_profile_keeps_adaptive_thinking_and_output_config",
+			bedrockModel:       "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/46u2vhiyo6z5",
+			resolvedModel:      "anthropic.claude-opus-4-8",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "high",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
 			name:               "opus_4_8_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
 			bedrockModel:       "eu.anthropic.claude-opus-4-8",
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
@@ -811,6 +908,7 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 						Model:          tc.bedrockModel,
 						SmallFastModel: "anthropic.claude-haiku-3-5",
 					},
+					ResolvedModel: tc.resolvedModel,
 				},
 				clientHeaders: clientHeaders,
 				logger:        slog.Make(),
@@ -832,7 +930,8 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 				require.Equal(t, tc.expectBudgetTokens, budgetTokens.Int())
 			}
 
-			// Model should always be set to the bedrock model.
+			// The request always targets the configured identifier, which may be
+			// an application inference profile ARN.
 			require.Equal(t, tc.bedrockModel, gjson.GetBytes(i.reqPayload, "model").String())
 
 			// Verify expected fields are removed.

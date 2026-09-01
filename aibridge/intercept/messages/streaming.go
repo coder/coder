@@ -53,6 +53,7 @@ func NewStreamingInterceptor(
 		bedrock:       bedrock,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
+		smallFast:     isSmallFastModel(reqPayload.model()),
 	}}
 }
 
