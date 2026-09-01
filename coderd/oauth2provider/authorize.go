@@ -281,10 +281,6 @@ func (c validatedCallbackURL) withQuery(state string, set func(url.Values)) *url
 // sanitizeErrorDescription confines a description to the NQSCHAR set RFC 6749
 // Appendix A permits in error_description. The rule is on the decoded value, so
 // percent-encoding on the wire does not satisfy it.
-//
-// Descriptions quote the client input that was rejected, so the excluded
-// characters are the ones %q emits. Quotes become apostrophes rather than
-// vanishing: they show where the offending value starts and ends.
 func sanitizeErrorDescription(description string) string {
 	return strings.Map(func(r rune) rune {
 		switch {
@@ -315,16 +311,6 @@ func (c validatedCallbackURL) codeURL(state, code string) *url.URL {
 	})
 }
 
-// redirectAuthorizeError reports an authorization error through the client's own
-// callback, as RFC 6749 §4.1.2.1 requires once the client is known. Holding a
-// validatedCallbackURL is what licenses the redirect. extractAuthorizeParams
-// failures answer on this server instead, even when the callback was already
-// trustworthy: the parser reports one verdict for every field at once, so the
-// caller cannot tell which field failed.
-//
-// Logged because the failure leaves in a Location header, which loggermw does
-// not record, making it indistinguishable from a successful 302. Info, not
-// Warn: these are client errors.
 func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog.Logger, callback validatedCallbackURL, state string, code codersdk.OAuth2ErrorCode, description string) {
 	app := httpmw.OAuth2ProviderApp(r)
 	logger.Info(r.Context(), "oauth2 authorization rejected",
