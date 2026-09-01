@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
+import { waitForRadixLayerClose } from "#/testHelpers/storybook";
 import AddMCPServerPageView from "./AddMCPServerPageView";
 
 const meta: Meta<typeof AddMCPServerPageView> = {
@@ -61,6 +62,11 @@ export const Default: Story = {
 		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
 		await expect(canvas.getByLabelText(/client id/i)).toBeInTheDocument();
 
+		// The option click closes the listbox; wait for Radix to restore
+		// pointer events before clicking Add server.
+		await waitForRadixLayerClose(() =>
+			canvas.getByRole("button", { name: "Add server" }),
+		);
 		await userEvent.click(addButton);
 		await waitFor(() => {
 			expect(args.onCreateServer).toHaveBeenCalledWith(
