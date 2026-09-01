@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -574,6 +575,47 @@ func (r *RootCmd) secretEnabledSetter(state secretEnabledState) *serpent.Command
 	return cmd
 }
 
+// warnBlockedFilePathDelivery reports that the file paths about to be listed
+// are stored but not written to workspaces. The check is advisory, so a
+// deployment that cannot answer it never withholds the listing: servers that
+// predate the capabilities endpoint answer with a 404 and are treated as
+// allowing file paths, and any other failure is reported without an opinion
+// on the policy.
+func warnBlockedFilePathDelivery(inv *serpent.Invocation, client *codersdk.Client, secrets []codersdk.UserSecret) {
+	hasFilePath := false
+	for _, secret := range secrets {
+		if secret.FilePath != "" {
+			hasFilePath = true
+			break
+		}
+	}
+	if !hasFilePath {
+		return
+	}
+
+	capabilities, err := client.UserSecretsCapabilities(inv.Context())
+	if err != nil {
+		var sdkErr *codersdk.Error
+		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+			return
+		}
+		cliui.Warn(inv.Stderr,
+			"Could not check whether file path delivery is enabled.",
+			"The file paths shown below may not be written to workspaces.",
+			err.Error(),
+		)
+		return
+	}
+	if capabilities.FilePathDeliveryEnabled {
+		return
+	}
+
+	cliui.Warn(inv.Stderr,
+		"File path delivery is disabled.",
+		"Stored file paths shown below are not written to workspaces.",
+	)
+}
+
 func (r *RootCmd) secretList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
@@ -623,25 +665,32 @@ func (r *RootCmd) secretList() *serpent.Command {
 				return err
 			}
 
-			var data any
+			var (
+				data    any
+				secrets []codersdk.UserSecret
+			)
 			if len(inv.Args) == 1 {
 				secret, err := client.UserSecretByName(inv.Context(), codersdk.Me, inv.Args[0])
 				if err != nil {
 					return xerrors.Errorf("get secret %q: %w", inv.Args[0], err)
 				}
 				data = secretListRowFromSecret(secret)
+				secrets = []codersdk.UserSecret{secret}
 			} else {
-				secrets, err := client.UserSecrets(inv.Context(), codersdk.Me)
+				listed, err := client.UserSecrets(inv.Context(), codersdk.Me)
 				if err != nil {
 					return xerrors.Errorf("list secrets: %w", err)
 				}
 
-				rows := make([]secretListRow, len(secrets))
-				for i := range secrets {
-					rows[i] = secretListRowFromSecret(secrets[i])
+				rows := make([]secretListRow, len(listed))
+				for i := range listed {
+					rows[i] = secretListRowFromSecret(listed[i])
 				}
 				data = rows
+				secrets = listed
 			}
+
+			warnBlockedFilePathDelivery(inv, client, secrets)
 
 			out, err := formatter.Format(inv.Context(), data)
 			if err != nil {
