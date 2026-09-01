@@ -290,7 +290,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_model_config:read',
     'chat_model_config:update',
     'chat_model_config:delete',
-    'chat_model_config:share'
+    'chat_model_config:share',
+    'user_memory:create',
+    'user_memory:read',
+    'user_memory:update',
+    'user_memory:delete',
+    'user_memory:*'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -624,7 +629,9 @@ CREATE TYPE resource_type AS ENUM (
     'chat_instruction_settings',
     'mcp_server_config',
     'chat_model_config',
-    'chat_operational_settings'
+    'chat_operational_settings',
+    'user_memory',
+    'chat_memory'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1054,6 +1061,12 @@ BEGIN
         -- does not remove the users row so the FK cascade never fires.
         DELETE FROM user_skills
         WHERE user_id = OLD.id;
+
+        -- Remove their user_memories.
+        -- user_memories.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM user_memories
+        WHERE user_id = OLD.id;
     END IF;
     RETURN NEW;
 END;
@@ -1098,6 +1111,73 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION enforce_chat_memories_insert_invariants() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    referenced_parent_chat_id uuid;
+    referenced_root_chat_id uuid;
+    memory_count int;
+    memory_limit constant int := 100;
+BEGIN
+    PERFORM require_read_committed('chat_memories cap', 'chat_memory_insert_isolation');
+
+    SELECT parent_chat_id, root_chat_id
+    INTO referenced_parent_chat_id, referenced_root_chat_id
+    FROM chats
+    WHERE id = NEW.root_chat_id
+    FOR NO KEY UPDATE;
+
+    -- Fail closed: this trigger reads at its own snapshot while the RI
+    -- check re-reads with a fresh snapshot at end of statement, so a chat
+    -- committing between the two reads is visible only to the FK check.
+    -- Returning NEW here would let a memory land under an unvalidated,
+    -- possibly subagent, chat.
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'chat % does not exist', NEW.root_chat_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'chat_memory_root_chat_required';
+    END IF;
+
+    -- chats.parent_chat_id / chats.root_chat_id are immutable through the
+    -- Store, but their ON DELETE SET NULL FKs can flip them to NULL when an
+    -- ancestor chat is hard-deleted by retention purges. Chat memories under
+    -- a purged root are cascade-deleted with it, so no memory row survives
+    -- into a promoted subagent namespace; a subagent chat that outlives its
+    -- purged root does get both columns nulled and passes this check from
+    -- then on, becoming a root chat with a fresh, initially empty namespace.
+    -- Both columns are checked because they can be nulled independently:
+    -- purging an intermediate subagent chat leaves its children with
+    -- parent_chat_id NULL while root_chat_id still points at the real root.
+    IF referenced_parent_chat_id IS NOT NULL OR referenced_root_chat_id IS NOT NULL THEN
+        RAISE EXCEPTION 'chat % is not a root chat', NEW.root_chat_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'chat_memory_root_chat_required';
+    END IF;
+
+    SELECT count(*) INTO memory_count
+    FROM chat_memories
+    WHERE root_chat_id = NEW.root_chat_id;
+    IF memory_count >= memory_limit THEN
+        RAISE EXCEPTION 'chat % has reached the chat_memories limit of % (current count %)',
+            NEW.root_chat_id, memory_limit, memory_count
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'chat_memories_per_root_chat_limit';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION enforce_chat_memories_owner_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'chat_memories.root_chat_id is immutable'
+        USING ERRCODE = 'check_violation',
+              CONSTRAINT = 'chat_memory_owner_immutable';
+END;
+$$;
+
 CREATE FUNCTION enforce_user_ai_budget_override_membership() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1111,6 +1191,38 @@ BEGIN
 			      CONSTRAINT = 'user_ai_budget_overrides_must_be_group_member';
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION enforce_user_memories_owner_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'user_memories.user_id is immutable'
+        USING ERRCODE = 'check_violation',
+              CONSTRAINT = 'user_memory_owner_immutable';
+END;
+$$;
+
+CREATE FUNCTION enforce_user_memories_per_user_limit() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    memory_count int;
+    memory_limit constant int := 100;
+BEGIN
+    PERFORM require_read_committed('user_memories cap', 'user_memory_insert_isolation');
+
+    SELECT count(*) INTO memory_count
+    FROM user_memories
+    WHERE user_id = NEW.user_id;
+    IF memory_count >= memory_limit THEN
+        RAISE EXCEPTION 'user % has reached the user_memories limit of % (current count %)',
+            NEW.user_id, memory_limit, memory_count
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_memories_per_user_limit';
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -1542,6 +1654,20 @@ BEGIN
 			organization_members.organization_id = OLD.organization_id;
 	END IF;
 	RETURN OLD;
+END;
+$$;
+
+CREATE FUNCTION require_read_committed(guard_name text, constraint_name text) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF current_setting('transaction_isolation') NOT IN ('read committed', 'read uncommitted') THEN
+		RAISE EXCEPTION '% requires READ COMMITTED isolation, ran under %',
+			guard_name, current_setting('transaction_isolation')
+			USING ERRCODE = 'check_violation',
+				  CONSTRAINT = constraint_name,
+				  DETAIL = 'A stronger level''s snapshot can survive a lock wait and miss concurrently committed rows, overshooting the cap. If no caller set this level, check default_transaction_isolation on the server, database, role, or pooler.';
+	END IF;
 END;
 $$;
 
@@ -2117,6 +2243,20 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 );
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
+
+CREATE TABLE chat_memories (
+    id uuid NOT NULL,
+    root_chat_id uuid NOT NULL,
+    path text NOT NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_memories_content_size CHECK ((octet_length(content) <= 65536)),
+    CONSTRAINT chat_memories_path_format CHECK (((path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'::text) AND (path !~ '(^|/)[.]{1,2}(/|$)'::text))),
+    CONSTRAINT chat_memories_path_size CHECK ((octet_length(path) <= 256))
+);
+
+COMMENT ON TABLE chat_memories IS 'Agent memory documents owned by a root chat; access is gated on the root chat permissions. Rows follow the parent chat lifecycle: retention purges of old chats cascade-delete them without per-memory audit events.';
 
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
@@ -3829,6 +3969,20 @@ COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key us
 
 COMMENT ON COLUMN user_links.claims IS 'Claims from the IDP for the linked user. Includes both id_token and userinfo claims. ';
 
+CREATE TABLE user_memories (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    path text NOT NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_memories_content_size CHECK ((octet_length(content) <= 65536)),
+    CONSTRAINT user_memories_path_format CHECK (((path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'::text) AND (path !~ '(^|/)[.]{1,2}(/|$)'::text))),
+    CONSTRAINT user_memories_path_size CHECK ((octet_length(path) <= 256))
+);
+
+COMMENT ON TABLE user_memories IS 'Private per-user agent memory documents addressed by scope-relative paths. The owner role retains administrative read and delete access; audit logging treats content as a secret.';
+
 CREATE TABLE user_secrets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -4516,6 +4670,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_memories
+    ADD CONSTRAINT chat_memories_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -4768,6 +4925,9 @@ ALTER TABLE ONLY user_deleted
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
 
+ALTER TABLE ONLY user_memories
+    ADD CONSTRAINT user_memories_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_pkey PRIMARY KEY (id);
 
@@ -4895,6 +5055,8 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE UNIQUE INDEX chat_memories_root_chat_id_path_idx ON chat_memories USING btree (root_chat_id, path);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5164,6 +5326,8 @@ CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree 
 
 CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
 
+CREATE UNIQUE INDEX user_memories_user_id_path_idx ON user_memories USING btree (user_id, path);
+
 CREATE UNIQUE INDEX user_secrets_user_env_name_idx ON user_secrets USING btree (user_id, env_name) WHERE (env_name <> ''::text);
 
 CREATE UNIQUE INDEX user_secrets_user_file_path_idx ON user_secrets USING btree (user_id, file_path) WHERE (file_path <> ''::text);
@@ -5290,6 +5454,10 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER IN
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
+CREATE TRIGGER trigger_chat_memories_insert_invariants BEFORE INSERT ON chat_memories FOR EACH ROW EXECUTE FUNCTION enforce_chat_memories_insert_invariants();
+
+CREATE TRIGGER trigger_chat_memories_owner_immutable BEFORE UPDATE ON chat_memories FOR EACH ROW WHEN ((new.root_chat_id IS DISTINCT FROM old.root_chat_id)) EXECUTE FUNCTION enforce_chat_memories_owner_immutable();
+
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
@@ -5312,6 +5480,8 @@ CREATE TRIGGER trigger_insert_user_ai_budget_overrides BEFORE INSERT OR UPDATE O
 
 CREATE TRIGGER trigger_insert_user_ai_provider_keys BEFORE INSERT OR UPDATE OF user_id ON user_ai_provider_keys FOR EACH ROW EXECUTE FUNCTION fail_if_user_deleted('user_ai_provider_key', 'user_ai_provider_key_user_deleted');
 
+CREATE TRIGGER trigger_insert_user_memories BEFORE INSERT ON user_memories FOR EACH ROW EXECUTE FUNCTION fail_if_user_deleted('user_memory', 'user_memory_user_deleted');
+
 CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
 
 CREATE TRIGGER trigger_set_chat_message_revision_on_insert BEFORE INSERT ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
@@ -5333,6 +5503,10 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills FOR EACH ROW EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_user_memories_owner_immutable BEFORE UPDATE ON user_memories FOR EACH ROW WHEN ((new.user_id IS DISTINCT FROM old.user_id)) EXECUTE FUNCTION enforce_user_memories_owner_immutable();
+
+CREATE TRIGGER trigger_zz_user_memories_per_user_limit BEFORE INSERT ON user_memories FOR EACH ROW EXECUTE FUNCTION enforce_user_memories_per_user_limit();
 
 CREATE TRIGGER trigger_zz_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
 
@@ -5403,6 +5577,9 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_memories
+    ADD CONSTRAINT chat_memories_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
@@ -5703,6 +5880,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_memories
+    ADD CONSTRAINT user_memories_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

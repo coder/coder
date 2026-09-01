@@ -536,6 +536,22 @@ func (m queryMetricsStore) DeleteChatDebugDataByChatID(ctx context.Context, chat
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg database.DeleteChatMemoriesByRootChatIDAndPathPrefixParams) ([]database.DeleteChatMemoriesByRootChatIDAndPathPrefixRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteChatMemoriesByRootChatIDAndPathPrefix").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatMemoriesByRootChatIDAndPathPrefix").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.DeleteChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteChatMemoryByRootChatIDAndPath(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteChatMemoryByRootChatIDAndPath").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatMemoryByRootChatIDAndPath").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteChatModelConfigByID(ctx, id)
@@ -926,6 +942,22 @@ func (m queryMetricsStore) DeleteUserChatCompactionThreshold(ctx context.Context
 	m.queryLatencies.WithLabelValues("DeleteUserChatCompactionThreshold").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUserChatCompactionThreshold").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) DeleteUserMemoriesByUserIDAndPathPrefix(ctx context.Context, arg database.DeleteUserMemoriesByUserIDAndPathPrefixParams) ([]database.DeleteUserMemoriesByUserIDAndPathPrefixRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteUserMemoriesByUserIDAndPathPrefix(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteUserMemoriesByUserIDAndPathPrefix").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUserMemoriesByUserIDAndPathPrefix").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteUserMemoryByUserIDAndPath(ctx context.Context, arg database.DeleteUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteUserMemoryByUserIDAndPath(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteUserMemoryByUserIDAndPath").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUserMemoryByUserIDAndPath").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
@@ -1629,6 +1661,22 @@ func (m queryMetricsStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context
 	r0, r1 := m.s.GetChatIncludeDefaultSystemPrompt(ctx)
 	m.queryLatencies.WithLabelValues("GetChatIncludeDefaultSystemPrompt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatIncludeDefaultSystemPrompt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatMemoryByID(ctx context.Context, id uuid.UUID) (database.ChatMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMemoryByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatMemoryByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMemoryByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.GetChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMemoryByRootChatIDAndPath(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatMemoryByRootChatIDAndPath").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMemoryByRootChatIDAndPath").Inc()
 	return r0, r1
 }
 
@@ -3440,6 +3488,22 @@ func (m queryMetricsStore) GetUserLinksByUserID(ctx context.Context, userID uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserMemoryByID(ctx context.Context, id uuid.UUID) (database.UserMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserMemoryByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetUserMemoryByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserMemoryByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUserMemoryByUserIDAndPath(ctx context.Context, arg database.GetUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserMemoryByUserIDAndPath(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserMemoryByUserIDAndPath").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserMemoryByUserIDAndPath").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserNotificationPreferences(ctx, userID)
@@ -4216,6 +4280,14 @@ func (m queryMetricsStore) InsertChatFile(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertChatMemory(ctx context.Context, arg database.InsertChatMemoryParams) (database.ChatMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatMemory(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatMemory").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatMemory").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatMessages(ctx, arg)
@@ -4584,6 +4656,14 @@ func (m queryMetricsStore) InsertUserLink(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertUserMemory(ctx context.Context, arg database.InsertUserMemoryParams) (database.UserMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertUserMemory(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertUserMemory").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertUserMemory").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.UserSkill, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertUserSkill(ctx, arg)
@@ -4872,6 +4952,22 @@ func (m queryMetricsStore) ListChatContextResourcesByChatID(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListChatMemoriesByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]database.ListChatMemoriesByRootChatIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListChatMemoriesByRootChatID(ctx, rootChatID)
+	m.queryLatencies.WithLabelValues("ListChatMemoriesByRootChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatMemoriesByRootChatID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg database.ListChatMemoriesByRootChatIDAndPathPrefixParams) ([]database.ListChatMemoriesByRootChatIDAndPathPrefixRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListChatMemoriesByRootChatIDAndPathPrefix(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListChatMemoriesByRootChatIDAndPathPrefix").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatMemoriesByRootChatIDAndPathPrefix").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListProvisionerKeysByOrganization(ctx, organizationID)
@@ -4909,6 +5005,22 @@ func (m queryMetricsStore) ListUserChatCompactionThresholds(ctx context.Context,
 	r0, r1 := m.s.ListUserChatCompactionThresholds(ctx, userID)
 	m.queryLatencies.WithLabelValues("ListUserChatCompactionThresholds").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListUserChatCompactionThresholds").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListUserMemoriesByUserID(ctx context.Context, userID uuid.UUID) ([]database.ListUserMemoriesByUserIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListUserMemoriesByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("ListUserMemoriesByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListUserMemoriesByUserID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListUserMemoriesByUserIDAndPathPrefix(ctx context.Context, arg database.ListUserMemoriesByUserIDAndPathPrefixParams) ([]database.ListUserMemoriesByUserIDAndPathPrefixRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListUserMemoriesByUserIDAndPathPrefix(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListUserMemoriesByUserIDAndPathPrefix").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListUserMemoriesByUserIDAndPathPrefix").Inc()
 	return r0, r1
 }
 
@@ -5093,6 +5205,22 @@ func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg databas
 	r0, r1 := m.s.RemoveUserFromGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("RemoveUserFromGroups").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RemoveUserFromGroups").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) RenameChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.RenameChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.RenameChatMemoryByRootChatIDAndPath(ctx, arg)
+	m.queryLatencies.WithLabelValues("RenameChatMemoryByRootChatIDAndPath").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RenameChatMemoryByRootChatIDAndPath").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) RenameUserMemoryByUserIDAndPath(ctx context.Context, arg database.RenameUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.RenameUserMemoryByUserIDAndPath(ctx, arg)
+	m.queryLatencies.WithLabelValues("RenameUserMemoryByUserIDAndPath").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RenameUserMemoryByUserIDAndPath").Inc()
 	return r0, r1
 }
 
@@ -5373,6 +5501,14 @@ func (m queryMetricsStore) UpdateChatMCPServerIDs(ctx context.Context, arg datab
 	r0, r1 := m.s.UpdateChatMCPServerIDs(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatMCPServerIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatMCPServerIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.UpdateChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatMemoryByRootChatIDAndPath(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatMemoryByRootChatIDAndPath").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatMemoryByRootChatIDAndPath").Inc()
 	return r0, r1
 }
 
@@ -5925,6 +6061,14 @@ func (m queryMetricsStore) UpdateUserLoginType(ctx context.Context, arg database
 	r0, r1 := m.s.UpdateUserLoginType(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserLoginType").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserLoginType").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserMemoryByUserIDAndPath(ctx context.Context, arg database.UpdateUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserMemoryByUserIDAndPath(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserMemoryByUserIDAndPath").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserMemoryByUserIDAndPath").Inc()
 	return r0, r1
 }
 

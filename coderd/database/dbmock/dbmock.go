@@ -878,6 +878,36 @@ func (mr *MockStoreMockRecorder) DeleteChatDebugDataByChatID(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatDebugDataByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatDebugDataByChatID), ctx, arg)
 }
 
+// DeleteChatMemoriesByRootChatIDAndPathPrefix mocks base method.
+func (m *MockStore) DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg database.DeleteChatMemoriesByRootChatIDAndPathPrefixParams) ([]database.DeleteChatMemoriesByRootChatIDAndPathPrefixRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatMemoriesByRootChatIDAndPathPrefix", ctx, arg)
+	ret0, _ := ret[0].([]database.DeleteChatMemoriesByRootChatIDAndPathPrefixRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteChatMemoriesByRootChatIDAndPathPrefix indicates an expected call of DeleteChatMemoriesByRootChatIDAndPathPrefix.
+func (mr *MockStoreMockRecorder) DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatMemoriesByRootChatIDAndPathPrefix", reflect.TypeOf((*MockStore)(nil).DeleteChatMemoriesByRootChatIDAndPathPrefix), ctx, arg)
+}
+
+// DeleteChatMemoryByRootChatIDAndPath mocks base method.
+func (m *MockStore) DeleteChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.DeleteChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatMemoryByRootChatIDAndPath", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteChatMemoryByRootChatIDAndPath indicates an expected call of DeleteChatMemoryByRootChatIDAndPath.
+func (mr *MockStoreMockRecorder) DeleteChatMemoryByRootChatIDAndPath(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatMemoryByRootChatIDAndPath", reflect.TypeOf((*MockStore)(nil).DeleteChatMemoryByRootChatIDAndPath), ctx, arg)
+}
+
 // DeleteChatModelConfigByID mocks base method.
 func (m *MockStore) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -1598,6 +1628,36 @@ func (m *MockStore) DeleteUserChatCompactionThreshold(ctx context.Context, arg d
 func (mr *MockStoreMockRecorder) DeleteUserChatCompactionThreshold(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserChatCompactionThreshold", reflect.TypeOf((*MockStore)(nil).DeleteUserChatCompactionThreshold), ctx, arg)
+}
+
+// DeleteUserMemoriesByUserIDAndPathPrefix mocks base method.
+func (m *MockStore) DeleteUserMemoriesByUserIDAndPathPrefix(ctx context.Context, arg database.DeleteUserMemoriesByUserIDAndPathPrefixParams) ([]database.DeleteUserMemoriesByUserIDAndPathPrefixRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserMemoriesByUserIDAndPathPrefix", ctx, arg)
+	ret0, _ := ret[0].([]database.DeleteUserMemoriesByUserIDAndPathPrefixRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteUserMemoriesByUserIDAndPathPrefix indicates an expected call of DeleteUserMemoriesByUserIDAndPathPrefix.
+func (mr *MockStoreMockRecorder) DeleteUserMemoriesByUserIDAndPathPrefix(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserMemoriesByUserIDAndPathPrefix", reflect.TypeOf((*MockStore)(nil).DeleteUserMemoriesByUserIDAndPathPrefix), ctx, arg)
+}
+
+// DeleteUserMemoryByUserIDAndPath mocks base method.
+func (m *MockStore) DeleteUserMemoryByUserIDAndPath(ctx context.Context, arg database.DeleteUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserMemoryByUserIDAndPath", ctx, arg)
+	ret0, _ := ret[0].(database.UserMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteUserMemoryByUserIDAndPath indicates an expected call of DeleteUserMemoryByUserIDAndPath.
+func (mr *MockStoreMockRecorder) DeleteUserMemoryByUserIDAndPath(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserMemoryByUserIDAndPath", reflect.TypeOf((*MockStore)(nil).DeleteUserMemoryByUserIDAndPath), ctx, arg)
 }
 
 // DeleteUserSecretByUserIDAndName mocks base method.
@@ -3057,6 +3117,36 @@ func (m *MockStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool
 func (mr *MockStoreMockRecorder) GetChatIncludeDefaultSystemPrompt(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatIncludeDefaultSystemPrompt", reflect.TypeOf((*MockStore)(nil).GetChatIncludeDefaultSystemPrompt), ctx)
+}
+
+// GetChatMemoryByID mocks base method.
+func (m *MockStore) GetChatMemoryByID(ctx context.Context, id uuid.UUID) (database.ChatMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMemoryByID", ctx, id)
+	ret0, _ := ret[0].(database.ChatMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMemoryByID indicates an expected call of GetChatMemoryByID.
+func (mr *MockStoreMockRecorder) GetChatMemoryByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMemoryByID", reflect.TypeOf((*MockStore)(nil).GetChatMemoryByID), ctx, id)
+}
+
+// GetChatMemoryByRootChatIDAndPath mocks base method.
+func (m *MockStore) GetChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.GetChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMemoryByRootChatIDAndPath", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMemoryByRootChatIDAndPath indicates an expected call of GetChatMemoryByRootChatIDAndPath.
+func (mr *MockStoreMockRecorder) GetChatMemoryByRootChatIDAndPath(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMemoryByRootChatIDAndPath", reflect.TypeOf((*MockStore)(nil).GetChatMemoryByRootChatIDAndPath), ctx, arg)
 }
 
 // GetChatMessageByID mocks base method.
@@ -6479,6 +6569,36 @@ func (mr *MockStoreMockRecorder) GetUserLinksByUserID(ctx, userID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetUserLinksByUserID), ctx, userID)
 }
 
+// GetUserMemoryByID mocks base method.
+func (m *MockStore) GetUserMemoryByID(ctx context.Context, id uuid.UUID) (database.UserMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserMemoryByID", ctx, id)
+	ret0, _ := ret[0].(database.UserMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserMemoryByID indicates an expected call of GetUserMemoryByID.
+func (mr *MockStoreMockRecorder) GetUserMemoryByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserMemoryByID", reflect.TypeOf((*MockStore)(nil).GetUserMemoryByID), ctx, id)
+}
+
+// GetUserMemoryByUserIDAndPath mocks base method.
+func (m *MockStore) GetUserMemoryByUserIDAndPath(ctx context.Context, arg database.GetUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserMemoryByUserIDAndPath", ctx, arg)
+	ret0, _ := ret[0].(database.UserMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserMemoryByUserIDAndPath indicates an expected call of GetUserMemoryByUserIDAndPath.
+func (mr *MockStoreMockRecorder) GetUserMemoryByUserIDAndPath(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserMemoryByUserIDAndPath", reflect.TypeOf((*MockStore)(nil).GetUserMemoryByUserIDAndPath), ctx, arg)
+}
+
 // GetUserNotificationPreferences mocks base method.
 func (m *MockStore) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
 	m.ctrl.T.Helper()
@@ -7947,6 +8067,21 @@ func (mr *MockStoreMockRecorder) InsertChatFile(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatFile", reflect.TypeOf((*MockStore)(nil).InsertChatFile), ctx, arg)
 }
 
+// InsertChatMemory mocks base method.
+func (m *MockStore) InsertChatMemory(ctx context.Context, arg database.InsertChatMemoryParams) (database.ChatMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatMemory", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatMemory indicates an expected call of InsertChatMemory.
+func (mr *MockStoreMockRecorder) InsertChatMemory(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatMemory", reflect.TypeOf((*MockStore)(nil).InsertChatMemory), ctx, arg)
+}
+
 // InsertChatMessages mocks base method.
 func (m *MockStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
 	m.ctrl.T.Helper()
@@ -8627,6 +8762,21 @@ func (mr *MockStoreMockRecorder) InsertUserLink(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserLink", reflect.TypeOf((*MockStore)(nil).InsertUserLink), ctx, arg)
 }
 
+// InsertUserMemory mocks base method.
+func (m *MockStore) InsertUserMemory(ctx context.Context, arg database.InsertUserMemoryParams) (database.UserMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertUserMemory", ctx, arg)
+	ret0, _ := ret[0].(database.UserMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertUserMemory indicates an expected call of InsertUserMemory.
+func (mr *MockStoreMockRecorder) InsertUserMemory(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserMemory", reflect.TypeOf((*MockStore)(nil).InsertUserMemory), ctx, arg)
+}
+
 // InsertUserSkill mocks base method.
 func (m *MockStore) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.UserSkill, error) {
 	m.ctrl.T.Helper()
@@ -9237,6 +9387,36 @@ func (mr *MockStoreMockRecorder) ListChatContextResourcesByChatID(ctx, chatID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).ListChatContextResourcesByChatID), ctx, chatID)
 }
 
+// ListChatMemoriesByRootChatID mocks base method.
+func (m *MockStore) ListChatMemoriesByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]database.ListChatMemoriesByRootChatIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListChatMemoriesByRootChatID", ctx, rootChatID)
+	ret0, _ := ret[0].([]database.ListChatMemoriesByRootChatIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListChatMemoriesByRootChatID indicates an expected call of ListChatMemoriesByRootChatID.
+func (mr *MockStoreMockRecorder) ListChatMemoriesByRootChatID(ctx, rootChatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatMemoriesByRootChatID", reflect.TypeOf((*MockStore)(nil).ListChatMemoriesByRootChatID), ctx, rootChatID)
+}
+
+// ListChatMemoriesByRootChatIDAndPathPrefix mocks base method.
+func (m *MockStore) ListChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg database.ListChatMemoriesByRootChatIDAndPathPrefixParams) ([]database.ListChatMemoriesByRootChatIDAndPathPrefixRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListChatMemoriesByRootChatIDAndPathPrefix", ctx, arg)
+	ret0, _ := ret[0].([]database.ListChatMemoriesByRootChatIDAndPathPrefixRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListChatMemoriesByRootChatIDAndPathPrefix indicates an expected call of ListChatMemoriesByRootChatIDAndPathPrefix.
+func (mr *MockStoreMockRecorder) ListChatMemoriesByRootChatIDAndPathPrefix(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatMemoriesByRootChatIDAndPathPrefix", reflect.TypeOf((*MockStore)(nil).ListChatMemoriesByRootChatIDAndPathPrefix), ctx, arg)
+}
+
 // ListProvisionerKeysByOrganization mocks base method.
 func (m *MockStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	m.ctrl.T.Helper()
@@ -9310,6 +9490,36 @@ func (m *MockStore) ListUserChatCompactionThresholds(ctx context.Context, userID
 func (mr *MockStoreMockRecorder) ListUserChatCompactionThresholds(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserChatCompactionThresholds", reflect.TypeOf((*MockStore)(nil).ListUserChatCompactionThresholds), ctx, userID)
+}
+
+// ListUserMemoriesByUserID mocks base method.
+func (m *MockStore) ListUserMemoriesByUserID(ctx context.Context, userID uuid.UUID) ([]database.ListUserMemoriesByUserIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUserMemoriesByUserID", ctx, userID)
+	ret0, _ := ret[0].([]database.ListUserMemoriesByUserIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserMemoriesByUserID indicates an expected call of ListUserMemoriesByUserID.
+func (mr *MockStoreMockRecorder) ListUserMemoriesByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserMemoriesByUserID", reflect.TypeOf((*MockStore)(nil).ListUserMemoriesByUserID), ctx, userID)
+}
+
+// ListUserMemoriesByUserIDAndPathPrefix mocks base method.
+func (m *MockStore) ListUserMemoriesByUserIDAndPathPrefix(ctx context.Context, arg database.ListUserMemoriesByUserIDAndPathPrefixParams) ([]database.ListUserMemoriesByUserIDAndPathPrefixRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUserMemoriesByUserIDAndPathPrefix", ctx, arg)
+	ret0, _ := ret[0].([]database.ListUserMemoriesByUserIDAndPathPrefixRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserMemoriesByUserIDAndPathPrefix indicates an expected call of ListUserMemoriesByUserIDAndPathPrefix.
+func (mr *MockStoreMockRecorder) ListUserMemoriesByUserIDAndPathPrefix(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserMemoriesByUserIDAndPathPrefix", reflect.TypeOf((*MockStore)(nil).ListUserMemoriesByUserIDAndPathPrefix), ctx, arg)
 }
 
 // ListUserSecrets mocks base method.
@@ -9680,6 +9890,36 @@ func (m *MockStore) RemoveUserFromGroups(ctx context.Context, arg database.Remov
 func (mr *MockStoreMockRecorder) RemoveUserFromGroups(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUserFromGroups", reflect.TypeOf((*MockStore)(nil).RemoveUserFromGroups), ctx, arg)
+}
+
+// RenameChatMemoryByRootChatIDAndPath mocks base method.
+func (m *MockStore) RenameChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.RenameChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RenameChatMemoryByRootChatIDAndPath", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RenameChatMemoryByRootChatIDAndPath indicates an expected call of RenameChatMemoryByRootChatIDAndPath.
+func (mr *MockStoreMockRecorder) RenameChatMemoryByRootChatIDAndPath(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenameChatMemoryByRootChatIDAndPath", reflect.TypeOf((*MockStore)(nil).RenameChatMemoryByRootChatIDAndPath), ctx, arg)
+}
+
+// RenameUserMemoryByUserIDAndPath mocks base method.
+func (m *MockStore) RenameUserMemoryByUserIDAndPath(ctx context.Context, arg database.RenameUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RenameUserMemoryByUserIDAndPath", ctx, arg)
+	ret0, _ := ret[0].(database.UserMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RenameUserMemoryByUserIDAndPath indicates an expected call of RenameUserMemoryByUserIDAndPath.
+func (mr *MockStoreMockRecorder) RenameUserMemoryByUserIDAndPath(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenameUserMemoryByUserIDAndPath", reflect.TypeOf((*MockStore)(nil).RenameUserMemoryByUserIDAndPath), ctx, arg)
 }
 
 // ReorderChatQueuedMessageToFront mocks base method.
@@ -10189,6 +10429,21 @@ func (m *MockStore) UpdateChatMCPServerIDs(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateChatMCPServerIDs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatMCPServerIDs", reflect.TypeOf((*MockStore)(nil).UpdateChatMCPServerIDs), ctx, arg)
+}
+
+// UpdateChatMemoryByRootChatIDAndPath mocks base method.
+func (m *MockStore) UpdateChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.UpdateChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatMemoryByRootChatIDAndPath", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatMemoryByRootChatIDAndPath indicates an expected call of UpdateChatMemoryByRootChatIDAndPath.
+func (mr *MockStoreMockRecorder) UpdateChatMemoryByRootChatIDAndPath(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatMemoryByRootChatIDAndPath", reflect.TypeOf((*MockStore)(nil).UpdateChatMemoryByRootChatIDAndPath), ctx, arg)
 }
 
 // UpdateChatModelConfig mocks base method.
@@ -11195,6 +11450,21 @@ func (m *MockStore) UpdateUserLoginType(ctx context.Context, arg database.Update
 func (mr *MockStoreMockRecorder) UpdateUserLoginType(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLoginType", reflect.TypeOf((*MockStore)(nil).UpdateUserLoginType), ctx, arg)
+}
+
+// UpdateUserMemoryByUserIDAndPath mocks base method.
+func (m *MockStore) UpdateUserMemoryByUserIDAndPath(ctx context.Context, arg database.UpdateUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserMemoryByUserIDAndPath", ctx, arg)
+	ret0, _ := ret[0].(database.UserMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserMemoryByUserIDAndPath indicates an expected call of UpdateUserMemoryByUserIDAndPath.
+func (mr *MockStoreMockRecorder) UpdateUserMemoryByUserIDAndPath(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserMemoryByUserIDAndPath", reflect.TypeOf((*MockStore)(nil).UpdateUserMemoryByUserIDAndPath), ctx, arg)
 }
 
 // UpdateUserNotificationPreferences mocks base method.
