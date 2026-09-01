@@ -613,6 +613,48 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		}
 	})
 
+	// RFC 8707 §2 names the authorization endpoint, so a bad resource gets the
+	// same invalid_target the token endpoint already gives it. Only when it is
+	// the sole failure: a client retrying on invalid_target must not be sent
+	// back with a second field still broken.
+	t.Run("MalformedResourceRedirected", func(t *testing.T) {
+		t.Parallel()
+
+		app := seedAppInCatalog(t)
+		for _, tc := range []struct {
+			name   string
+			mutate func(url.Values)
+			code   codersdk.OAuth2ErrorCode
+		}{
+			{
+				name:   "ResourceAlone",
+				mutate: func(url.Values) {},
+				code:   codersdk.OAuth2ErrorCodeInvalidTarget,
+			},
+			{
+				name:   "ResourceAndCodeChallenge",
+				mutate: func(q url.Values) { q.Set("code_challenge", "tooshort") },
+				code:   codersdk.OAuth2ErrorCodeInvalidRequest,
+			},
+		} {
+			for _, method := range []string{http.MethodGet, http.MethodPost} {
+				t.Run(tc.name+"/"+method, func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitLong)
+
+					query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+					query.Set("resource", "not-an-absolute-uri")
+					tc.mutate(query)
+
+					resp := sendAuthorizeRequest(ctx, t, client, method, query)
+					defer resp.Body.Close()
+
+					requireAuthorizeErrorRedirect(t, resp, tc.code, "absolute URI")
+				})
+			}
+		}
+	})
+
 	// The parser reports every field at once, so these all arrive as
 	// invalid_request with the offending fields named in the description.
 	// Explicit as well as omitted redirect_uri, since the two take different
@@ -630,11 +672,6 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 				name:        "MalformedCodeChallenge",
 				mutate:      func(q url.Values) { q.Set("code_challenge", "tooshort") },
 				description: "43 to 128 characters",
-			},
-			{
-				name:        "MalformedResource",
-				mutate:      func(q url.Values) { q.Set("resource", "not-an-absolute-uri") },
-				description: "absolute URI",
 			},
 		} {
 			for _, method := range []string{http.MethodGet, http.MethodPost} {

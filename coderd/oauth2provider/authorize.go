@@ -191,6 +191,16 @@ type authorizeFailure struct {
 	// That is bad server state rather than a client mistake, so it answers 500
 	// and stops the request before any parameter is read.
 	corruptCallback error
+	// code is the OAuth2 error to answer with. Read it through errorCode, which
+	// supplies the invalid_request default.
+	code codersdk.OAuth2ErrorCode
+}
+
+func (f authorizeFailure) errorCode() codersdk.OAuth2ErrorCode {
+	if f.code == "" {
+		return codersdk.OAuth2ErrorCodeInvalidRequest
+	}
+	return f.code
 }
 
 func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OAuth2ProviderApp, registered *url.URL) (authorizeParams, *authorizeFailure) {
@@ -262,6 +272,14 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 		failure := &authorizeFailure{
 			validationErrors: p.Errors,
 			message:          "Invalid query params: " + strings.Join(details, ", "),
+		}
+		// RFC 8707 §2 gives resource its own code, but only when nothing else
+		// failed. A client that retries on invalid_target would otherwise resend
+		// a request that is still broken in the field it did not hear about.
+		if !slices.ContainsFunc(p.Errors, func(e codersdk.ValidationError) bool {
+			return e.Field != "resource"
+		}) {
+			failure.code = codersdk.OAuth2ErrorCodeInvalidTarget
 		}
 		if !clientIDInDoubt(vals, params.clientID, app.ID) {
 			failure.redirect = response
@@ -509,7 +527,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			// arrive.
 			if failure.redirect.canRedirect() {
 				redirectAuthorizeError(rw, r, logger, failure.redirect,
-					codersdk.OAuth2ErrorCodeInvalidRequest, failure.message)
+					failure.errorCode(), failure.message)
 				return
 			}
 
@@ -616,10 +634,10 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			// As on the GET side: §4.1.2.1 delivers this to the client.
 			if failure.redirect.canRedirect() {
 				redirectAuthorizeError(rw, r, logger, failure.redirect,
-					codersdk.OAuth2ErrorCodeInvalidRequest, failure.message)
+					failure.errorCode(), failure.message)
 				return
 			}
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, failure.message)
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, failure.errorCode(), failure.message)
 			return
 		}
 
