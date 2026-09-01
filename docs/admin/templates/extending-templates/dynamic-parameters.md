@@ -852,6 +852,23 @@ You may see warnings in the provisioner logs:
 
 If encountered, reduce the size of the module by removing unnecessary files.
 
+You can hit the same error for a different reason: if the active template
+version has no cached module archive at all, the workspace creation form
+shows a warning for every module in the template, for example:
+
+```txt
+Module not loaded. Did you run `terraform init`?
+Module 'jetbrains' in file "main.tf:149,1-19" cannot be resolved. This module will be ignored.
+```
+
+This happens for template versions published before Coder started archiving
+modules for Dynamic Parameters. **Workspace builds still succeed**, since
+Terraform fetches modules from their original sources during the build
+regardless of the cache; only the form's ability to evaluate module-backed
+parameter values is affected. To fix it,
+[publish a new template version](../managing-templates/index.md#refresh-template-data),
+which re-runs `terraform init` and populates the archive for that version.
+
 This archive is the same one Coder reuses across workspace builds to avoid
 re-downloading modules. See [module caching](./modules.md#module-caching) for
 how to disable that behavior for a template.
