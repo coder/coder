@@ -134,7 +134,7 @@ kubectl create secret generic coder-db-url -n coder \
 
 1. Select a Coder version:
 
-   - **Mainline**: `2.36.1`
+   - **Mainline**: `2.35.7`
    - **Stable**: `2.35.6`
 
    Learn more about release channels in the [Releases documentation](./releases/index.md).
