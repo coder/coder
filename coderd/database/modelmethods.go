@@ -960,6 +960,10 @@ func (s UserSkill) RBACObject() rbac.Object {
 	return rbac.ResourceUserSkill.WithID(s.ID).WithOwner(s.UserID.String())
 }
 
+func (m UserMemory) RBACObject() rbac.Object {
+	return rbac.ResourceUserMemory.WithID(m.ID).WithOwner(m.UserID.String())
+}
+
 func (s UserSecret) RBACObject() rbac.Object {
 	return rbac.ResourceUserSecret.WithID(s.ID).WithOwner(s.UserID.String())
 }

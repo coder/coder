@@ -21,7 +21,34 @@ import (
 func TestAuditLogIsResourceDeleted(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
+	resources := []struct {
+		name         string
+		resourceType database.ResourceType
+		expectGet    func(*dbmock.MockStore, uuid.UUID, error)
+	}{
+		{
+			name:         "Chat",
+			resourceType: database.ResourceTypeChat,
+			expectGet: func(db *dbmock.MockStore, id uuid.UUID, err error) {
+				db.EXPECT().GetChatByID(gomock.Any(), id).Return(database.Chat{}, err)
+			},
+		},
+		{
+			name:         "UserMemory",
+			resourceType: database.ResourceTypeUserMemory,
+			expectGet: func(db *dbmock.MockStore, id uuid.UUID, err error) {
+				db.EXPECT().GetUserMemoryByID(gomock.Any(), id).Return(database.UserMemory{}, err)
+			},
+		},
+		{
+			name:         "ChatMemory",
+			resourceType: database.ResourceTypeChatMemory,
+			expectGet: func(db *dbmock.MockStore, id uuid.UUID, err error) {
+				db.EXPECT().GetChatMemoryByID(gomock.Any(), id).Return(database.ChatMemory{}, err)
+			},
+		},
+	}
+	errors := []struct {
 		name        string
 		err         error
 		wantDeleted bool
@@ -30,23 +57,30 @@ func TestAuditLogIsResourceDeleted(t *testing.T) {
 		{name: "NotAuthorized", err: dbauthz.NotAuthorizedError{}, wantDeleted: false},
 		{name: "NoError", err: nil, wantDeleted: false},
 		{name: "NoRows", err: sql.ErrNoRows, wantDeleted: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	}
+
+	for _, resource := range resources {
+		t.Run(resource.name, func(t *testing.T) {
 			t.Parallel()
+			for _, tc := range errors {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
 
-			ctrl := gomock.NewController(t)
-			db := dbmock.NewMockStore(ctrl)
-			chatID := uuid.New()
-			db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{}, tc.err)
+					ctrl := gomock.NewController(t)
+					db := dbmock.NewMockStore(ctrl)
+					resourceID := uuid.New()
+					resource.expectGet(db, resourceID, tc.err)
 
-			api := &API{
-				Options: &Options{Database: db, Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})},
+					api := &API{
+						Options: &Options{Database: db, Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})},
+					}
+
+					deleted := api.auditLogIsResourceDeleted(context.Background(), database.GetAuditLogsOffsetRow{
+						AuditLog: database.AuditLog{ResourceType: resource.resourceType, ResourceID: resourceID},
+					})
+					require.Equal(t, tc.wantDeleted, deleted)
+				})
 			}
-
-			deleted := api.auditLogIsResourceDeleted(context.Background(), database.GetAuditLogsOffsetRow{
-				AuditLog: database.AuditLog{ResourceType: database.ResourceTypeChat, ResourceID: chatID},
-			})
-			require.Equal(t, tc.wantDeleted, deleted)
 		})
 	}
 }

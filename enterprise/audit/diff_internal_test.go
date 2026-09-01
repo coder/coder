@@ -415,6 +415,44 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			name: "UserMemoryContentMasked",
+			left: audit.Empty[database.UserMemory](),
+			right: database.UserMemory{
+				ID:      uuid.UUID{1},
+				UserID:  uuid.UUID{2},
+				Path:    "preferences/private.md",
+				Content: "a very secret memory",
+			},
+			exp: audit.Map{
+				"id":      audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"user_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"path":    audit.OldNew{Old: "", New: "preferences/private.md"},
+				"content": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "ChatMemoryContentMasked",
+			left: audit.Empty[database.ChatMemory](),
+			right: database.ChatMemory{
+				ID:         uuid.UUID{1},
+				RootChatID: uuid.UUID{2},
+				Path:       "notes/private.md",
+				Content:    "a very secret chat memory",
+			},
+			exp: audit.Map{
+				"id":           audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"root_chat_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"path":         audit.OldNew{Old: "", New: "notes/private.md"},
+				"content":      audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			name: "Create",
 			left: audit.Empty[database.WorkspaceTable](),
 			right: database.WorkspaceTable{

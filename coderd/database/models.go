@@ -535,6 +535,11 @@ const (
 	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeUserMemoryCreate                    APIKeyScope = "user_memory:create"
+	ApiKeyScopeUserMemoryRead                      APIKeyScope = "user_memory:read"
+	ApiKeyScopeUserMemoryUpdate                    APIKeyScope = "user_memory:update"
+	ApiKeyScopeUserMemoryDelete                    APIKeyScope = "user_memory:delete"
+	ApiKeyScopeUserMemory                          APIKeyScope = "user_memory:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -821,7 +826,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatModelConfigRead,
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
-		ApiKeyScopeChatModelConfigShare:
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeUserMemoryCreate,
+		ApiKeyScopeUserMemoryRead,
+		ApiKeyScopeUserMemoryUpdate,
+		ApiKeyScopeUserMemoryDelete,
+		ApiKeyScopeUserMemory:
 		return true
 	}
 	return false
@@ -1077,6 +1087,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeUserMemoryCreate,
+		ApiKeyScopeUserMemoryRead,
+		ApiKeyScopeUserMemoryUpdate,
+		ApiKeyScopeUserMemoryDelete,
+		ApiKeyScopeUserMemory,
 	}
 }
 
@@ -3691,6 +3706,8 @@ const (
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
+	ResourceTypeUserMemory                  ResourceType = "user_memory"
+	ResourceTypeChatMemory                  ResourceType = "chat_memory"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3769,7 +3786,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
-		ResourceTypeChatOperationalSettings:
+		ResourceTypeChatOperationalSettings,
+		ResourceTypeUserMemory,
+		ResourceTypeChatMemory:
 		return true
 	}
 	return false
@@ -3817,6 +3836,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeUserMemory,
+		ResourceTypeChatMemory,
 	}
 }
 
@@ -5275,6 +5296,16 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// Agent memory documents owned by a root chat; access is gated on the root chat permissions. Rows follow the parent chat lifecycle: retention purges of old chats cascade-delete them without per-memory audit events.
+type ChatMemory struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	Path       string    `db:"path" json:"path"`
+	Content    string    `db:"content" json:"content"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -6447,6 +6478,16 @@ type UserLink struct {
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	// Claims from the IDP for the linked user. Includes both id_token and userinfo claims.
 	Claims UserLinkClaims `db:"claims" json:"claims"`
+}
+
+// Private per-user agent memory documents addressed by scope-relative paths. The owner role retains administrative read and delete access; audit logging treats content as a secret.
+type UserMemory struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	Path      string    `db:"path" json:"path"`
+	Content   string    `db:"content" json:"content"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type UserSecret struct {

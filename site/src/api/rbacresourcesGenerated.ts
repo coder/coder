@@ -234,6 +234,12 @@ export const RBACResourceActions: Partial<
 		update: "update an existing user",
 		update_personal: "update personal data",
 	},
+	user_memory: {
+		create: "create a user memory",
+		delete: "delete a user memory",
+		read: "read user memory metadata and content",
+		update: "update user memory metadata and content",
+	},
 	user_secret: {
 		create: "create a user secret",
 		delete: "delete a user secret",

@@ -171,6 +171,8 @@ type sqlcQuerier interface {
 	// window (for example, after an unarchive races with a pending
 	// archive-cleanup retry).
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
+	DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg DeleteChatMemoriesByRootChatIDAndPathPrefixParams) ([]DeleteChatMemoriesByRootChatIDAndPathPrefixRow, error)
+	DeleteChatMemoryByRootChatIDAndPath(ctx context.Context, arg DeleteChatMemoryByRootChatIDAndPathParams) (ChatMemory, error)
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -254,6 +256,8 @@ type sqlcQuerier interface {
 	DeleteUserAIProviderKey(ctx context.Context, arg DeleteUserAIProviderKeyParams) error
 	DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error
 	DeleteUserChatCompactionThreshold(ctx context.Context, arg DeleteUserChatCompactionThresholdParams) error
+	DeleteUserMemoriesByUserIDAndPathPrefix(ctx context.Context, arg DeleteUserMemoriesByUserIDAndPathPrefixParams) ([]DeleteUserMemoriesByUserIDAndPathPrefixRow, error)
+	DeleteUserMemoryByUserIDAndPath(ctx context.Context, arg DeleteUserMemoryByUserIDAndPathParams) (UserMemory, error)
 	DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) (UserSecret, error)
 	DeleteUserSkillByUserIDAndName(ctx context.Context, arg DeleteUserSkillByUserIDAndNameParams) (UserSkill, error)
 	DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg DeleteWebpushSubscriptionByUserIDAndEndpointParams) error
@@ -488,6 +492,8 @@ type sqlcQuerier interface {
 	// When the toggle is unset, a non-empty custom prompt implies false;
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
+	GetChatMemoryByID(ctx context.Context, id uuid.UUID) (ChatMemory, error)
+	GetChatMemoryByRootChatIDAndPath(ctx context.Context, arg GetChatMemoryByRootChatIDAndPathParams) (ChatMemory, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	// Aggregates message-level metrics per chat for messages created
 	// after the given timestamp. Uses message created_at so that
@@ -988,6 +994,8 @@ type sqlcQuerier interface {
 	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
 	GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error)
+	GetUserMemoryByID(ctx context.Context, id uuid.UUID) (UserMemory, error)
+	GetUserMemoryByUserIDAndPath(ctx context.Context, arg GetUserMemoryByUserIDAndPathParams) (UserMemory, error)
 	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserSecret, error)
 	GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error)
@@ -1172,6 +1180,28 @@ type sqlcQuerier interface {
 	// with concurrent FinalizeStale under READ COMMITTED isolation.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
+	// All queries in this file key on root_chat_id and expect the caller to
+	// canonicalize subagent chat IDs to their root chat first; a subagent chat
+	// ID simply matches no rows on reads (writes are rejected by the
+	// chat_memory_root_chat_required trigger).
+	//
+	// There is deliberately no upsert query: the memory tool's create operation
+	// must not clobber an existing document, so callers use Insert (fails on
+	// duplicate path) and Update (fails on missing path) explicitly.
+	//
+	// Memory inserts require READ COMMITTED; the insert trigger rejects every
+	// other isolation level, so callers must not wrap them in
+	// database.ReadModifyUpdate.
+	//
+	// The insert trigger also locks the parent chats row, so a transaction that
+	// holds a lock on any chat-owned child row and then inserts a memory for
+	// the same root chat inverts the lock order against the retention purge
+	// cascade and deadlocks (40P01, which coderd does not retry). Take the
+	// chats row lock first: GetChatByIDForUpdate, or ChatMachine.Update, which
+	// opens with LockChatAndBumpSnapshotVersion (LockChatByID is system-scoped
+	// and not callable as the user). Or do not mix the insert with prior
+	// child-row writes in one transaction.
+	InsertChatMemory(ctx context.Context, arg InsertChatMemoryParams) (ChatMemory, error)
 	// Returns the inserted rows in input array order. Ids are allocated before the
 	// insert and the k-th smallest is assigned to input index k, so callers may
 	// index the result positionally.
@@ -1240,6 +1270,25 @@ type sqlcQuerier interface {
 	// If there is a conflict, the user is already a member
 	InsertUserGroupsByID(ctx context.Context, arg InsertUserGroupsByIDParams) ([]uuid.UUID, error)
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
+	// There is deliberately no upsert query: the memory tool's create operation
+	// must not clobber an existing document, so callers use Insert (fails on
+	// duplicate path) and Update (fails on missing path) explicitly.
+	//
+	// Memory inserts require READ COMMITTED; the insert trigger rejects every
+	// other isolation level, so callers must not wrap them in
+	// database.ReadModifyUpdate.
+	//
+	// The insert trigger also locks the parent users row, so a transaction that
+	// holds a lock on any row that delete_deleted_user_resources deletes
+	// (api_keys, user_links, user_secrets, user_skills, user_ai_provider_keys,
+	// organization_members, or a user_memories row) and then inserts a memory
+	// for the same user inverts the lock order against that cleanup and
+	// deadlocks with a concurrent soft-delete (40P01, which coderd does not
+	// retry). Call AcquireUserSoftDeleteGuardLock first (dbauthz authorizes it
+	// as a system primitive, not an owner capability: wrap only that call in
+	// dbauthz.AsSystemRestricted), or do not mix the insert with prior
+	// child-row writes in one transaction.
+	InsertUserMemory(ctx context.Context, arg InsertUserMemoryParams) (UserMemory, error)
 	InsertUserSkill(ctx context.Context, arg InsertUserSkillParams) (UserSkill, error)
 	InsertVolumeResourceMonitor(ctx context.Context, arg InsertVolumeResourceMonitorParams) (WorkspaceAgentVolumeResourceMonitor, error)
 	// Inserts or updates a webpush subscription. The (user_id, endpoint) pair
@@ -1327,12 +1376,28 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	// Lists order by path with an explicit collation so results are stable
+	// across deployments with different database default collations.
+	ListChatMemoriesByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]ListChatMemoriesByRootChatIDRow, error)
+	// An empty path_prefix matches every row, because starts_with returns true
+	// for an empty prefix. The prefix delete below instead treats an empty
+	// prefix as "no rows", so a bad argument previews everything but deletes
+	// nothing.
+	ListChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg ListChatMemoriesByRootChatIDAndPathPrefixParams) ([]ListChatMemoriesByRootChatIDAndPathPrefixRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	// Used by the usage generator to find missing heartbeat buckets.
 	ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error)
 	ListUserChatCompactionThresholds(ctx context.Context, userID uuid.UUID) ([]UserConfig, error)
+	// Lists order by path with an explicit collation so results are stable
+	// across deployments with different database default collations.
+	ListUserMemoriesByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserMemoriesByUserIDRow, error)
+	// An empty path_prefix matches every row, because starts_with returns true
+	// for an empty prefix. The prefix delete below instead treats an empty
+	// prefix as "no rows", so a bad argument previews everything but deletes
+	// nothing.
+	ListUserMemoriesByUserIDAndPathPrefix(ctx context.Context, arg ListUserMemoriesByUserIDAndPathPrefixParams) ([]ListUserMemoriesByUserIDAndPathPrefixRow, error)
 	// Returns metadata only (no value or value_key_id) for the
 	// REST API list and get endpoints.
 	ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]ListUserSecretsRow, error)
@@ -1403,6 +1468,8 @@ type sqlcQuerier interface {
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
+	RenameChatMemoryByRootChatIDAndPath(ctx context.Context, arg RenameChatMemoryByRootChatIDAndPathParams) (ChatMemory, error)
+	RenameUserMemoryByUserIDAndPath(ctx context.Context, arg RenameUserMemoryByUserIDAndPathParams) (UserMemory, error)
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
@@ -1544,6 +1611,7 @@ type sqlcQuerier interface {
 	// Two summary workers using the same freshness marker are last-write-wins.
 	UpdateChatLastTurnSummary(ctx context.Context, arg UpdateChatLastTurnSummaryParams) (int64, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
+	UpdateChatMemoryByRootChatIDAndPath(ctx context.Context, arg UpdateChatMemoryByRootChatIDAndPathParams) (ChatMemory, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
 	UpdateChatModelConfigACLByID(ctx context.Context, arg UpdateChatModelConfigACLByIDParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
@@ -1633,6 +1701,7 @@ type sqlcQuerier interface {
 	// to avoid overwriting a valid binding.
 	UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error)
 	UpdateUserLoginType(ctx context.Context, arg UpdateUserLoginTypeParams) (User, error)
+	UpdateUserMemoryByUserIDAndPath(ctx context.Context, arg UpdateUserMemoryByUserIDAndPathParams) (UserMemory, error)
 	UpdateUserNotificationPreferences(ctx context.Context, arg UpdateUserNotificationPreferencesParams) (int64, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error)
