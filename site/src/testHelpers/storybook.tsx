@@ -1,10 +1,14 @@
 import type { StoryContext } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
-import { withDefaultFeatures } from "#/api/api";
+import { withDefaultCapabilities, withDefaultFeatures } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { entitlementDetailsQueryKey } from "#/api/queries/entitlements";
 import { hasFirstUserKey, meKey } from "#/api/queries/users";
-import type { Entitlements } from "#/api/typesGenerated";
+import type {
+	DeploymentCapabilities,
+	Entitlements,
+} from "#/api/typesGenerated";
 import { Toaster } from "#/components/Toaster/Toaster";
 import { AuthProvider } from "#/contexts/auth/AuthProvider";
 import {
@@ -20,6 +24,7 @@ import {
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockDefaultOrganization,
+	MockDeploymentCapabilities,
 	MockDeploymentConfig,
 	MockEntitlements,
 	MockOrganizationPermissions,
@@ -30,6 +35,7 @@ export const withDashboardProvider = (
 	Story: FC,
 	{ parameters }: StoryContext,
 ) => {
+	const queryClient = useQueryClient();
 	const {
 		features = [],
 		experiments = [],
@@ -38,7 +44,7 @@ export const withDashboardProvider = (
 		canViewOrganizationSettings = false,
 	} = parameters;
 
-	const entitlements: Entitlements = {
+	const entitlementDetails: Entitlements = {
 		...MockEntitlements,
 		has_license: features.length > 0,
 		features: withDefaultFeatures(
@@ -49,6 +55,32 @@ export const withDashboardProvider = (
 					}
 					const { name, ...values } = feature;
 					return [name, { enabled: true, entitlement: "entitled", ...values }];
+				}),
+			),
+		),
+	};
+	queryClient.setQueryData(entitlementDetailsQueryKey, entitlementDetails);
+
+	const entitlements: DeploymentCapabilities = {
+		...MockDeploymentCapabilities,
+		has_license: features.length > 0,
+		features: withDefaultCapabilities(
+			Object.fromEntries(
+				features.map((feature) => {
+					if (typeof feature === "string") {
+						return [
+							feature,
+							{ enabled: true, entitlement: "entitled", usable: true },
+						];
+					}
+					return [
+						feature.name,
+						{
+							enabled: feature.enabled ?? true,
+							entitlement: feature.entitlement ?? "entitled",
+							usable: true,
+						},
+					];
 				}),
 			),
 		),

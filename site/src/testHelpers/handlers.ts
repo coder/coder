@@ -346,6 +346,9 @@ export const handlers = [
 	http.get("/api/v2/workspacebuilds/:workspaceBuildId/logs", () => {
 		return HttpResponse.json(M.MockWorkspaceBuildLogs);
 	}),
+	http.get("/api/v2/deployment/capabilities", () => {
+		return HttpResponse.json(M.MockDeploymentCapabilities);
+	}),
 	http.get("/api/v2/entitlements", () => {
 		return HttpResponse.json(M.MockEntitlements);
 	}),

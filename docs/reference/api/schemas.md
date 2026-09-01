@@ -2246,6 +2246,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------|
 | `passthru`, `simple` |
 
+## codersdk.Capability
+
+```json
+{
+  "enabled": true,
+  "entitlement": "entitled",
+  "usable": true
+}
+```
+
+### Properties
+
+| Name          | Type                                         | Required | Restrictions | Description |
+|---------------|----------------------------------------------|----------|--------------|-------------|
+| `enabled`     | boolean                                      | false    |              |             |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
+| `usable`      | boolean                                      | false    |              |             |
+
 ## codersdk.ChangePasswordWithOneTimePasscodeRequest
 
 ```json
@@ -7322,6 +7340,36 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |--------------|---------|----------|--------------|-------------|
 | `agent_name` | string  | false    |              |             |
 | `port`       | integer | false    |              |             |
+
+## codersdk.DeploymentCapabilities
+
+```json
+{
+  "features": {
+    "property1": {
+      "enabled": true,
+      "entitlement": "entitled",
+      "usable": true
+    },
+    "property2": {
+      "enabled": true,
+      "entitlement": "entitled",
+      "usable": true
+    }
+  },
+  "has_license": true,
+  "trial": true
+}
+```
+
+### Properties
+
+| Name               | Type                                       | Required | Restrictions | Description |
+|--------------------|--------------------------------------------|----------|--------------|-------------|
+| `features`         | object                                     | false    |              |             |
+| » `[any property]` | [codersdk.Capability](#codersdkcapability) | false    |              |             |
+| `has_license`      | boolean                                    | false    |              |             |
+| `trial`            | boolean                                    | false    |              |             |
 
 ## codersdk.DeploymentConfig
 

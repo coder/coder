@@ -9,7 +9,7 @@ import {
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockDefaultOrganization,
-	MockEntitlements,
+	MockDeploymentCapabilities,
 	MockNoPermissions,
 	MockTasks,
 	MockUserMember,
@@ -34,7 +34,7 @@ const AISettingsIndexRedirectWithProviders = () => (
 	<AuthProvider>
 		<DashboardContext.Provider
 			value={{
-				entitlements: MockEntitlements,
+				entitlements: MockDeploymentCapabilities,
 				experiments: [],
 				appearance: MockAppearanceConfig,
 				buildInfo: MockBuildInfo,

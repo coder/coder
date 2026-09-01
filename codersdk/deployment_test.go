@@ -5,9 +5,11 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1060,6 +1062,85 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 	// Because we only marshal the 1 section, the correct section name is not applied.
 	output := strings.Replace(out.String(), "value:", "externalAuthProviders:", 1)
 	require.Equal(t, inputYAML, output, "re-marshaled is the same as input")
+}
+
+func TestEntitlementsCapabilities(t *testing.T) {
+	t.Parallel()
+
+	entitlements := codersdk.Entitlements{
+		Features: map[codersdk.FeatureName]codersdk.Feature{
+			codersdk.FeatureAuditLog: {
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(10)),
+				Actual:      ptr.Ref(int64(5)),
+			},
+			codersdk.FeatureSCIM: {
+				Entitlement: codersdk.EntitlementGracePeriod,
+				Enabled:     true,
+			},
+			codersdk.FeatureUserLimit: {
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(1)),
+				Actual:      ptr.Ref(int64(2)),
+			},
+			codersdk.FeatureBrowserOnly: {
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     false,
+			},
+			codersdk.FeatureAppearance: {
+				Entitlement: codersdk.EntitlementNotEntitled,
+				Enabled:     true,
+				SoftLimit:   ptr.Ref(int64(3)),
+				HardLimit:   ptr.Ref(int64(4)),
+				ActualMs:    ptr.Ref(int64(5)),
+				UsagePeriod: &codersdk.UsagePeriod{IssuedAt: time.Now()},
+			},
+		},
+		Warnings:         []string{"sensitive warning"},
+		Errors:           []string{"sensitive error"},
+		HasLicense:       true,
+		Trial:            true,
+		RequireTelemetry: true,
+		RefreshedAt:      time.Now(),
+	}
+
+	capabilities := entitlements.Capabilities()
+	require.Len(t, capabilities.Features, len(codersdk.FeatureNames))
+	require.True(t, capabilities.HasLicense)
+	require.True(t, capabilities.Trial)
+	require.Equal(t, codersdk.Capability{
+		Entitlement: codersdk.EntitlementEntitled,
+		Enabled:     true,
+		Usable:      true,
+	}, capabilities.Features[codersdk.FeatureAuditLog])
+	require.True(t, capabilities.Features[codersdk.FeatureSCIM].Usable)
+	require.False(t, capabilities.Features[codersdk.FeatureUserLimit].Usable)
+	require.False(t, capabilities.Features[codersdk.FeatureBrowserOnly].Usable)
+	require.False(t, capabilities.Features[codersdk.FeatureAppearance].Usable)
+	require.Equal(t, codersdk.Capability{
+		Entitlement: codersdk.EntitlementNotEntitled,
+	}, capabilities.Features[codersdk.FeatureBoundary])
+
+	capabilities.Features[codersdk.FeatureAuditLog] = codersdk.Capability{}
+	require.True(t, entitlements.Features[codersdk.FeatureAuditLog].Enabled)
+
+	publicJSON, err := json.Marshal(entitlements.Capabilities())
+	require.NoError(t, err)
+	require.NotContains(t, string(publicJSON), "sensitive warning")
+	require.NotContains(t, string(publicJSON), "sensitive error")
+	var publicFields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(publicJSON, &publicFields))
+	require.ElementsMatch(t, []string{"features", "has_license", "trial"}, slices.Collect(maps.Keys(publicFields)))
+	var featureFields map[string]map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(publicFields["features"], &featureFields))
+	for _, fields := range featureFields {
+		require.ElementsMatch(t, []string{"entitlement", "enabled", "usable"}, slices.Collect(maps.Keys(fields)))
+	}
+
+	entitlements.HasLicense = false
+	require.False(t, entitlements.Capabilities().Features[codersdk.FeatureAuditLog].Usable)
 }
 
 func TestFeatureComparison(t *testing.T) {

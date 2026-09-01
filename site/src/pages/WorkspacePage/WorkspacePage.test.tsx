@@ -14,8 +14,8 @@ import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
+	MockDeploymentCapabilities,
 	MockDeploymentConfig,
-	MockEntitlements,
 	MockFailedWorkspace,
 	MockOrganization,
 	MockOutdatedWorkspace,
@@ -402,7 +402,7 @@ describe("WorkspacePage", () => {
 				<DashboardContext.Provider
 					value={{
 						appearance: MockAppearanceConfig,
-						entitlements: MockEntitlements,
+						entitlements: MockDeploymentCapabilities,
 						experiments: [],
 						buildInfo: {
 							...MockBuildInfo,

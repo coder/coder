@@ -1,5 +1,8 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
+import { entitlementDetails } from "#/api/queries/entitlements";
 import {
+	type Feature,
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 	LicenseAgentRuntimeHoursSoftLimitWarningText,
 	LicenseAgentRuntimeUsageUnavailableErrorText,
@@ -8,7 +11,6 @@ import {
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import {
 	type LicenseBannerLink,
@@ -59,9 +61,7 @@ const isAdvisoryMessage = (message: string): boolean =>
 	message.startsWith(agentRuntimeSoftLimitWarningPrefix);
 
 const aiGovernanceOverLimitMessage = (
-	feature: ReturnType<
-		typeof useDashboard
-	>["entitlements"]["features"]["ai_governance_user_limit"],
+	feature: Feature | undefined,
 ): string | null => {
 	if (!feature) {
 		return null;
@@ -88,9 +88,7 @@ const aiGovernanceOverLimitMessage = (
 };
 
 const aiGovernanceNearLimitMessage = (
-	feature: ReturnType<
-		typeof useDashboard
-	>["entitlements"]["features"]["ai_governance_user_limit"],
+	feature: Feature | undefined,
 ): string | null => {
 	if (!feature) {
 		return null;
@@ -119,9 +117,7 @@ const aiGovernanceNearLimitMessage = (
 
 const normalizeAIGovernanceWarning = (
 	message: string,
-	feature: ReturnType<
-		typeof useDashboard
-	>["entitlements"]["features"]["ai_governance_user_limit"],
+	feature: Feature | undefined,
 ): string => {
 	if (message !== LicenseAIGovernance90PercentWarningText) {
 		return message;
@@ -185,7 +181,10 @@ const toBannerMessage = (
 };
 
 export const LicenseBanner: FC = () => {
-	const { entitlements } = useDashboard();
+	const { data: entitlements } = useQuery(entitlementDetails());
+	if (!entitlements) {
+		return null;
+	}
 	const { errors } = entitlements;
 	const warnings = [...entitlements.warnings];
 	const aiGovernanceUserLimitFeature =

@@ -538,6 +538,21 @@ func (f Feature) Capable() bool {
 	return true
 }
 
+// Capability is the public state needed to decide whether a deployment
+// feature can be used.
+type Capability struct {
+	Entitlement Entitlement `json:"entitlement"`
+	Enabled     bool        `json:"enabled"`
+	Usable      bool        `json:"usable"`
+}
+
+// DeploymentCapabilities contains public deployment feature state.
+type DeploymentCapabilities struct {
+	Features   map[FeatureName]Capability `json:"features"`
+	HasLicense bool                       `json:"has_license"`
+	Trial      bool                       `json:"trial"`
+}
+
 type Entitlements struct {
 	Features         map[FeatureName]Feature `json:"features"`
 	Warnings         []string                `json:"warnings"`
@@ -546,6 +561,28 @@ type Entitlements struct {
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
 	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
+}
+
+// Capabilities returns the public deployment feature state derived from the
+// full entitlements.
+func (e Entitlements) Capabilities() DeploymentCapabilities {
+	features := make(map[FeatureName]Capability, len(FeatureNames))
+	for _, name := range FeatureNames {
+		feature, ok := e.Features[name]
+		if !ok {
+			feature.Entitlement = EntitlementNotEntitled
+		}
+		features[name] = Capability{
+			Entitlement: feature.Entitlement,
+			Enabled:     feature.Enabled,
+			Usable:      e.HasLicense && feature.Entitlement.Entitled() && feature.Enabled && feature.Capable(),
+		}
+	}
+	return DeploymentCapabilities{
+		Features:   features,
+		HasLicense: e.HasLicense,
+		Trial:      e.Trial,
+	}
 }
 
 // AddFeature will add the feature to the entitlements iff it expands
@@ -586,6 +623,20 @@ func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
 		e.Features[name] = add
 		return
 	}
+}
+
+// DeploymentCapabilities returns public deployment feature state.
+func (c *Client) DeploymentCapabilities(ctx context.Context) (DeploymentCapabilities, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/capabilities", nil)
+	if err != nil {
+		return DeploymentCapabilities{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return DeploymentCapabilities{}, ReadBodyAsError(res)
+	}
+	var capabilities DeploymentCapabilities
+	return capabilities, ReadBodyAsJSON(res, &capabilities)
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {

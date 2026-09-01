@@ -3777,6 +3777,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/deployment/capabilities": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get deployment capabilities",
+                "operationId": "get-deployment-capabilities",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentCapabilities"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v2/deployment/config": {
             "get": {
                 "produces": [
@@ -19310,6 +19330,20 @@ const docTemplate = `{
                 "CORSBehaviorPassthru"
             ]
         },
+        "codersdk.Capability": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "entitlement": {
+                    "$ref": "#/definitions/codersdk.Entitlement"
+                },
+                "usable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
             "type": "object",
             "required": [
@@ -22806,6 +22840,23 @@ const docTemplate = `{
                 },
                 "port": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.DeploymentCapabilities": {
+            "type": "object",
+            "properties": {
+                "features": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.Capability"
+                    }
+                },
+                "has_license": {
+                    "type": "boolean"
+                },
+                "trial": {
+                    "type": "boolean"
                 }
             }
         },

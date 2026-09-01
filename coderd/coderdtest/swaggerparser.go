@@ -364,6 +364,7 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 
 	if comment.router == "/api/v2/updatecheck" ||
 		comment.router == "/api/v2/buildinfo" ||
+		comment.router == "/api/v2/deployment/capabilities" ||
 		comment.router == "/api/v2/" ||
 		comment.router == "/api/v2/auth/scopes" ||
 		comment.router == "/api/v2/users/login" ||

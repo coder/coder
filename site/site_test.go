@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -376,6 +377,68 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rw.Code)
 	body := rw.Body.String()
 	assert.Equal(t, "<html></html>", body)
+}
+
+func TestDeploymentCapabilitiesMetadataHidesEntitlementDetails(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	_, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		ExpiresAt: dbtime.Now().Add(time.Hour),
+	})
+	set := entitlements.New()
+	set.Modify(func(entitlements *codersdk.Entitlements) {
+		entitlements.HasLicense = true
+		entitlements.Trial = true
+		entitlements.Warnings = []string{"obvious warning"}
+		entitlements.Errors = []string{"obvious error"}
+		entitlements.RequireTelemetry = true
+		entitlements.RefreshedAt = time.Now()
+		entitlements.Features[codersdk.FeatureAgentRuntimeHours] = codersdk.Feature{
+			Entitlement: codersdk.EntitlementEntitled,
+			Enabled:     true,
+			Limit:       new(int64(100)),
+			SoftLimit:   new(int64(80)),
+			HardLimit:   new(int64(120)),
+			Actual:      new(int64(10)),
+			ActualMs:    new(int64(36_000_000)),
+			UsagePeriod: &codersdk.UsagePeriod{
+				IssuedAt: time.Now().Add(-time.Hour),
+				Start:    time.Now().Add(-time.Hour),
+				End:      time.Now().Add(time.Hour),
+			},
+		}
+	})
+
+	handler, err := site.New(&site.Options{
+		Telemetry:    telemetry.NewNoop(),
+		Database:     db,
+		Entitlements: set,
+		SiteFS: fstest.MapFS{
+			"index.html": &fstest.MapFile{Data: []byte(`<meta property="deployment-capabilities" content="{{ .DeploymentCapabilities }}">`)},
+		},
+	})
+	require.NoError(t, err)
+
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, token)
+	rw := httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+	body := html.UnescapeString(rw.Body.String())
+	require.Contains(t, body, `property="deployment-capabilities"`)
+	require.Contains(t, body, `"has_license":true`)
+	require.Contains(t, body, `"trial":true`)
+	for _, sensitive := range []string{
+		`property="entitlements"`, `"limit":`, `"soft_limit":`,
+		`"hard_limit":`, `"actual":`, `"actual_ms":`, `"usage_period":`,
+		`"warnings":`, `"errors":`, `"require_telemetry":`,
+		`"refreshed_at":`, "obvious warning", "obvious error",
+	} {
+		require.NotContains(t, body, sensitive)
+	}
 }
 
 func TestOrganizationsMetadata(t *testing.T) {

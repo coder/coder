@@ -171,7 +171,6 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		BuildInfo: h.buildInfoJSON,
 		DocsURL:   h.opts.DocsURL,
 	}
-
 	// First check if it's a file we have in our templates
 	if h.serveHTML(rw, r, reqFile, state) {
 		return
@@ -258,14 +257,14 @@ type htmlState struct {
 	ApplicationName string
 	LogoURL         string
 
-	BuildInfo      string
-	User           string
-	Entitlements   string
-	Appearance     string
-	UserAppearance string
-	Experiments    string
-	Regions        string
-	DocsURL        string
+	BuildInfo              string
+	User                   string
+	DeploymentCapabilities string
+	Appearance             string
+	UserAppearance         string
+	Experiments            string
+	Regions                string
+	DocsURL                string
 
 	AITasksEnabled   string
 	AIGatewayEnabled string
@@ -378,6 +377,10 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		return nil, xerrors.Errorf("template %q not found", filePath)
 	}
 
+	if h.Entitlements != nil {
+		state.DeploymentCapabilities = html.EscapeString(string(h.Entitlements.AsCapabilitiesJSON()))
+	}
+
 	// Cookies are sent when requesting HTML, so we can get the user
 	// and pre-populate the state for the frontend to reduce requests.
 	// We use a noop response writer because we don't want to write
@@ -480,11 +483,6 @@ func (h *Handler) populateHTMLState(
 			state.UserAppearance = html.EscapeString(string(data))
 		}
 	})
-	if h.Entitlements != nil {
-		wg.Go(func() {
-			state.Entitlements = html.EscapeString(string(h.Entitlements.AsJSON()))
-		})
-	}
 	wg.Go(func() {
 		cfg, err := af.Fetch(ctx)
 		if err == nil {
