@@ -10839,6 +10839,20 @@ export const UserSecretNameField = "name";
  */
 export const UserSecretValueField = "value";
 
+// From codersdk/usersecrets.go
+/**
+ * UserSecretsCapabilities reports which user secret delivery targets the
+ * deployment allows. Any authenticated user can read it, unlike the full
+ * deployment configuration.
+ */
+export interface UserSecretsCapabilities {
+	/**
+	 * FilePathDeliveryEnabled reports whether Coder writes stored file paths
+	 * into workspaces. Stored paths are preserved either way.
+	 */
+	readonly file_path_delivery_enabled: boolean;
+}
+
 // From codersdk/userskills.go
 /**
  * UserSkill represents a user skill with its raw Markdown content.

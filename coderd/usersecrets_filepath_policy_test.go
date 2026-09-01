@@ -14,7 +14,45 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
+
+func TestUserSecretsCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                    string
+		disableFilePath         bool
+		filePathDeliveryEnabled bool
+	}{
+		{name: "FilePathDeliveryEnabled", disableFilePath: false, filePathDeliveryEnabled: true},
+		{name: "FilePathDeliveryDisabled", disableFilePath: true, filePathDeliveryEnabled: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				dv.DisableUserSecretFilePath = serpent.Bool(tt.disableFilePath)
+			})
+			ownerClient := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
+			owner := coderdtest.CreateFirstUser(t, ownerClient)
+			memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			capabilities, err := memberClient.UserSecretsCapabilities(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, tt.filePathDeliveryEnabled, capabilities.FilePathDeliveryEnabled)
+
+			// The same member may not read the deployment configuration that
+			// holds the underlying option.
+			_, err = memberClient.DeploymentConfig(ctx)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		})
+	}
+}
 
 func TestUserSecretFilePathDisabledHandlers(t *testing.T) {
 	t.Parallel()

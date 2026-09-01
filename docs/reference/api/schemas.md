@@ -16935,6 +16935,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `name`        | string  | false    |              |                                                                                                                                                                                                                                      |
 | `updated_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
 
+## codersdk.UserSecretsCapabilities
+
+```json
+{
+  "file_path_delivery_enabled": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description                                                                                                                       |
+|------------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `file_path_delivery_enabled` | boolean | false    |              | File path delivery enabled reports whether Coder writes stored file paths into workspaces. Stored paths are preserved either way. |
+
 ## codersdk.UserSkill
 
 ```json

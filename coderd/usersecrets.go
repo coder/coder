@@ -118,6 +118,21 @@ func userSecretFilePathPolicyError(old database.UserSecret, req codersdk.UpdateU
 	return nil
 }
 
+// @Summary Get user secrets capabilities
+// @ID get-user-secrets-capabilities
+// @Security CoderSessionToken
+// @Produce json
+// @Tags General
+// @Success 200 {object} codersdk.UserSecretsCapabilities
+// @Router /api/v2/deployment/user-secrets/capabilities [get]
+func (api *API) userSecretsCapabilities(rw http.ResponseWriter, r *http.Request) {
+	// Any authenticated user may read this. It exposes only the delivery
+	// policy that shapes their own secrets, not the deployment config.
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.UserSecretsCapabilities{
+		FilePathDeliveryEnabled: !api.userSecretFilePathBlocked(),
+	})
+}
+
 // @Summary Create a new user secret
 // @ID create-a-new-user-secret
 // @Security CoderSessionToken

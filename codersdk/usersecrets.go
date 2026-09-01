@@ -58,6 +58,31 @@ type UpdateUserSecretRequest struct {
 	Enabled     *bool   `json:"enabled,omitempty"`
 }
 
+// UserSecretsCapabilities reports which user secret delivery targets the
+// deployment allows. Any authenticated user can read it, unlike the full
+// deployment configuration.
+type UserSecretsCapabilities struct {
+	// FilePathDeliveryEnabled reports whether Coder writes stored file paths
+	// into workspaces. Stored paths are preserved either way.
+	FilePathDeliveryEnabled bool `json:"file_path_delivery_enabled"`
+}
+
+// UserSecretsCapabilities reads the deployment's user secret delivery policy.
+// Deployments that predate this endpoint return a 404 error, which callers can
+// treat as "policy unknown" rather than a failure.
+func (c *Client) UserSecretsCapabilities(ctx context.Context) (UserSecretsCapabilities, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/user-secrets/capabilities", nil)
+	if err != nil {
+		return UserSecretsCapabilities{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserSecretsCapabilities{}, ReadBodyAsError(res)
+	}
+	var capabilities UserSecretsCapabilities
+	return capabilities, ReadBodyAsJSON(res, &capabilities)
+}
+
 func (c *Client) CreateUserSecret(ctx context.Context, user string, req CreateUserSecretRequest) (UserSecret, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/secrets", user), req)
 	if err != nil {

@@ -817,6 +817,37 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get user secrets capabilities
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/deployment/user-secrets/capabilities \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/deployment/user-secrets/capabilities`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "file_path_delivery_enabled": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                         |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserSecretsCapabilities](schemas.md#codersdkusersecretscapabilities) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get enabled experiments
 
 ### Code samples
