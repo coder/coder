@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -5279,12 +5280,29 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 			AppName: "ssh",
 		})
 		require.ErrorContains(t, err, "app_name")
-		// unknown app name fails
+		// unknown app names are accepted
 		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "unknown",
+			AppName: "SomeFutureIDE",
 		})
-		require.ErrorContains(t, err, "app_name")
+		require.NoError(t, err)
+
+		// whitespace-only app names of any length are equivalent to an absent
+		// app name: the usage bump still happens, no session is counted
+		for _, appName := range []string{"   ", strings.Repeat(" ", 300)} {
+			err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+				AppName: appName,
+			})
+			require.NoError(t, err)
+
+			// ...and with an agent set they fail the same way an empty app
+			// name does
+			err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+				AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+				AppName: appName,
+			})
+			require.ErrorContains(t, err, "app_name")
+		}
 
 		// vscode works
 		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
@@ -5318,6 +5336,71 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		require.True(t, newWorkspace.LatestBuild.Deadline.Valid)
 		require.Greater(t, newWorkspace.LatestBuild.Deadline.Time, workspace.LatestBuild.Deadline.Time)
 	})
+}
+
+// TestWorkspaceUsageArbitraryAppNameNormalized posts an arbitrary app name
+// through a real batcher and asserts the database stores the normalized key,
+// so readers of session_counts only ever see canonical names.
+func TestWorkspaceUsageArbitraryAppNameNormalized(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
+		workspacestats.BatcherWithStore(store),
+		workspacestats.BatcherWithLogger(testutil.Logger(t).Named("batcher")),
+		workspacestats.BatcherWithInterval(testutil.IntervalFast),
+	)
+	require.NoError(t, err)
+	t.Cleanup(closeBatcher)
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:         store,
+		Pubsub:           ps,
+		DeploymentValues: dv,
+		StatsBatcher:     batcher,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+		Name:           fmt.Sprintf("usage-%d", time.Now().UnixNano()),
+	}).WithAgent().Do()
+	require.Len(t, r.Agents, 1)
+	agentID := r.Agents[0].ID
+
+	err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		AgentID: agentID,
+		AppName: "Some-Future-IDE",
+	})
+	require.NoError(t, err)
+
+	// The batcher flushes on its own schedule, so poll until the row lands.
+	var count int64
+	require.True(t, testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT coalesce(sum((session_counts->>'some_future_ide')::bigint), 0)
+			FROM workspace_agent_stats
+			WHERE agent_id = $1`, agentID).Scan(&count)
+		if err != nil {
+			t.Logf("query session counts: %s", err)
+			return false
+		}
+		return count > 0
+	}, testutil.IntervalFast), "expected the normalized app name to reach the database")
+	require.EqualValues(t, 1, count)
+
+	// The raw name must not be stored: only the normalized key is a valid
+	// session_counts key.
+	var rawKeyRows int64
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM workspace_agent_stats
+		WHERE agent_id = $1 AND session_counts ? 'Some-Future-IDE'`, agentID).Scan(&rawKeyRows)
+	require.NoError(t, err)
+	require.Zero(t, rawKeyRows)
 }
 
 func TestWorkspaceNotifications(t *testing.T) {
