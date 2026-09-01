@@ -81,7 +81,7 @@ type BedrockRuntime struct {
 // IDs behind the configured identifiers. The resolved IDs differ from the
 // configured ones only when those are application inference profile ARNs, which
 // are opaque and must be resolved through AWS; every other identifier resolves
-// to itself. Taking them as arguments keeps the runtime always resolved.
+// to itself.
 func NewBedrockRuntime(cfg aibconfig.AWSBedrock, creds aws.CredentialsProvider, resolvedModel, resolvedSmallFastModel string) *BedrockRuntime {
 	return &BedrockRuntime{
 		Cfg:                    cfg,
@@ -231,9 +231,7 @@ func (i *interceptionBase) Model() string {
 }
 
 // upstreamModel returns the identifier sent to Bedrock as the invocation
-// target, which may be an application inference profile ARN. It is the
-// counterpart to [interceptionBase.Model]: AWS bills and attributes what is
-// invoked, while everything internal keys off the model behind it.
+// target, which may be an application inference profile ARN.
 func (i *interceptionBase) upstreamModel() string {
 	model := i.bedrock.ConfiguredModel()
 	if i.isSmallFastModel {
