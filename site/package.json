@@ -142,7 +142,7 @@
 		"@types/novnc__novnc": "1.5.0",
 		"@types/react": "19.2.18",
 		"@types/react-color": "3.0.13",
-		"@types/react-dom": "19.2.4",
+		"@types/react-dom": "19.2.5",
 		"@types/react-syntax-highlighter": "15.5.13",
 		"@types/react-virtualized-auto-sizer": "1.0.8",
 		"@types/react-window": "1.8.8",
