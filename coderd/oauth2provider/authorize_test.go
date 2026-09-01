@@ -637,13 +637,6 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 				mutate:      func(q url.Values) { q.Set("resource", "not-an-absolute-uri") },
 				description: "absolute URI",
 			},
-			{
-				// The name is the client's to choose, so it reaches
-				// error_description through %q and has to survive sanitizing.
-				name:        "ExcessParameter",
-				mutate:      func(q url.Values) { q.Set(`we"ird`, "1") },
-				description: "not a valid query param",
-			},
 		} {
 			for _, method := range []string{http.MethodGet, http.MethodPost} {
 				for _, redirectURI := range []string{"", appCallbackURL} {
@@ -670,6 +663,51 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 				}
 			}
 		}
+	})
+
+	// OAuth 2.1 §3.1 requires unrecognized parameters to be ignored, so the
+	// nonce and prompt an OIDC client sends must not fail the request.
+	t.Run("UnrecognizedParametersIgnored", func(t *testing.T) {
+		t.Parallel()
+
+		app := seedAppInCatalog(t)
+		unrecognized := func(q url.Values) {
+			q.Set("nonce", "n-0S6_WzA2Mj")
+			q.Set("prompt", "consent")
+			q.Set(`we"ird`, "1")
+		}
+
+		t.Run(http.MethodGet, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+			unrecognized(query)
+
+			resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode,
+				"an ignored parameter must still reach the consent page")
+		})
+
+		t.Run(http.MethodPost, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+			unrecognized(query)
+
+			resp := sendAuthorizeRequest(ctx, t, client, http.MethodPost, query)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusFound, resp.StatusCode)
+			location, err := url.Parse(resp.Header.Get("Location"))
+			require.NoError(t, err)
+			require.NotEmpty(t, location.Query().Get("code"),
+				"an ignored parameter must not withhold the authorization code")
+			require.Empty(t, location.Query().Get("error"))
+		})
 	})
 
 	// A redirect URI the parser could not use is the §4.1.2.1 carve-out: there

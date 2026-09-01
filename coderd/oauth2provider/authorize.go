@@ -187,7 +187,7 @@ type authorizeFailure struct {
 	corruptCallback error
 }
 
-func extractAuthorizeParams(r *http.Request, app database.OAuth2ProviderApp, registered *url.URL) (authorizeParams, *authorizeFailure) {
+func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OAuth2ProviderApp, registered *url.URL) (authorizeParams, *authorizeFailure) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
@@ -236,7 +236,14 @@ func extractAuthorizeParams(r *http.Request, app database.OAuth2ProviderApp, reg
 		})
 	}
 
-	p.ErrorExcessParams(vals)
+	// RFC 6749 §3.1 and OAuth 2.1 §3.1: unrecognized parameters MUST be ignored,
+	// so an OIDC nonce or a vendor extension is not this endpoint's business.
+	// Repeats of the parameters read above are still rejected, by parseSingle.
+	if ignored := ignoredParams(p, vals); len(ignored) > 0 {
+		logger.Debug(r.Context(), "ignoring unrecognized authorization parameters",
+			slog.F("params", ignored))
+	}
+
 	if len(p.Errors) > 0 {
 		details := make([]string, len(p.Errors))
 		for i, err := range p.Errors {
@@ -252,6 +259,20 @@ func extractAuthorizeParams(r *http.Request, app database.OAuth2ProviderApp, reg
 		return authorizeParams{}, failure
 	}
 	return params, nil
+}
+
+// ignoredParams returns the query parameters this endpoint does not read,
+// sorted so the log line is stable. A misspelled parameter (redirect_url for
+// redirect_uri) surfaces here instead of in the client's error.
+func ignoredParams(p *httpapi.QueryParamParser, vals url.Values) []string {
+	var ignored []string
+	for name := range vals {
+		if !p.Parsed[name] {
+			ignored = append(ignored, name)
+		}
+	}
+	slices.Sort(ignored)
+	return ignored
 }
 
 // clientIDInDoubt reports whether the client's identity is unsettled, the
@@ -449,7 +470,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
-		params, failure := extractAuthorizeParams(r, app, callbackURL)
+		params, failure := extractAuthorizeParams(r, logger, app, callbackURL)
 		if failure != nil {
 			// 500, not 400: registration rejects these schemes, so a stored one
 			// is bad server state and takes precedence over anything the client
@@ -571,7 +592,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		params, failure := extractAuthorizeParams(r, app, callbackURL)
+		params, failure := extractAuthorizeParams(r, logger, app, callbackURL)
 		if failure != nil {
 			// As on the GET side: a rejected registered scheme is server state
 			// and outranks the client's own mistakes.

@@ -597,7 +597,7 @@ func TestCarveOutDelivery(t *testing.T) {
 			tc.mutate(vals)
 			r := httptest.NewRequest(http.MethodGet, "/oauth2/authorize?"+vals.Encode(), nil)
 
-			_, failure := extractAuthorizeParams(r, app, registered)
+			_, failure := extractAuthorizeParams(r, slogtest.Make(t, nil), app, registered)
 			require.NotNil(t, failure)
 			require.Equal(t, tc.deliver, failure.redirect.canRedirect())
 		})

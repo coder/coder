@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -344,7 +345,7 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			}
 
 			// Extract authorize params
-			params, failure := extractAuthorizeParams(req, database.OAuth2ProviderApp{}, callbackURL)
+			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{}, callbackURL)
 
 			require.Nil(t, failure)
 			require.Equal(t, tc.expectedScopes, params.scope)
@@ -407,7 +408,7 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 				URL:    reqURL,
 			}
 
-			_, failure := extractAuthorizeParams(req, database.OAuth2ProviderApp{}, callbackURL)
+			_, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{}, callbackURL)
 			if tc.expectValid {
 				require.Nil(t, failure)
 			} else {
@@ -441,7 +442,7 @@ func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T
 		URL:    reqURL,
 	}
 
-	params, failure := extractAuthorizeParams(req, database.OAuth2ProviderApp{}, callbackURL)
+	params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{}, callbackURL)
 	require.Nil(t, failure)
 	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
