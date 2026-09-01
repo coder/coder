@@ -1,6 +1,6 @@
 import type { FC } from "react";
-import { AIBudgetAmount } from "#/components/AIBudgetAmount/AIBudgetAmount";
 import { formatBudgetUSD } from "#/utils/currency";
+import { AIBudgetAmount } from "./AIBudgetAmount";
 
 /** Spend against budget. Highlights spend once it nears or exceeds the limit; values in micros. */
 export const AIBudgetUsage: FC<{
