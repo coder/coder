@@ -2,14 +2,16 @@
 -- must not clobber an existing document, so callers use Insert (fails on
 -- duplicate path) and Update (fails on missing path) explicitly.
 --
--- Memory inserts require READ COMMITTED; the insert trigger rejects every
--- other isolation level, so callers must not wrap them in
--- database.ReadModifyUpdate.
+-- Memory inserts require READ COMMITTED; the insert trigger rejects
+-- REPEATABLE READ and SERIALIZABLE (READ UNCOMMITTED is accepted because
+-- PostgreSQL executes it with READ COMMITTED semantics), so callers must
+-- not wrap them in database.ReadModifyUpdate.
 --
 -- The insert trigger also locks the parent users row, so a transaction that
 -- holds a lock on any row that delete_deleted_user_resources deletes
 -- (api_keys, user_links, user_secrets, user_skills, user_ai_provider_keys,
--- organization_members, or a user_memories row) and then inserts a memory
+-- organization_members, group_members, user_ai_budget_overrides, or a
+-- user_memories row) and then inserts a memory
 -- for the same user inverts the lock order against that cleanup and
 -- deadlocks with a concurrent soft-delete (40P01, which coderd does not
 -- retry). Call AcquireUserSoftDeleteGuardLock first (dbauthz authorizes it
