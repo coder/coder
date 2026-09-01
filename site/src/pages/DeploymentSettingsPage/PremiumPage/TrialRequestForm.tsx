@@ -228,7 +228,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					<Spinner loading={isSubmitting} />
 					Start a trial
 				</Button>
-				<p className="m-0 text-xs text-content-secondary leading-relaxed">
+				<p className="m-0 text-2xs font-normal text-content-secondary leading-relaxed">
 					<PrivacyPolicyNotice /> Opt-out at any time.
 				</p>
 			</div>
