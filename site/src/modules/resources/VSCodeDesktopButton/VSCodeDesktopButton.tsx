@@ -8,8 +8,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { getVSCodeHref } from "#/modules/apps/apps";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
@@ -80,7 +79,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 							selectVariant("vscode");
 						}}
 					>
-						<VSCodeIcon className="size-3" />
+						<ExternalImage src="/icon/code.svg" alt="" className="size-3" />
 						{DisplayAppNameMap.vscode}
 					</DropdownMenuItem>
 					<DropdownMenuItem
@@ -88,7 +87,11 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 							selectVariant("vscode-insiders");
 						}}
 					>
-						<VSCodeInsidersIcon className="size-3" />
+						<ExternalImage
+							src="/icon/code-insiders.svg"
+							alt=""
+							className="size-3"
+						/>
 						{DisplayAppNameMap.vscode_insiders}
 					</DropdownMenuItem>
 				</DropdownMenuContent>
@@ -132,7 +135,7 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
 					});
 			}}
 		>
-			<VSCodeIcon />
+			<ExternalImage src="/icon/code.svg" alt="" />
 			{DisplayAppNameMap.vscode}
 		</AgentButton>
 	);
@@ -169,7 +172,7 @@ const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
 					});
 			}}
 		>
-			<VSCodeInsidersIcon />
+			<ExternalImage src="/icon/code-insiders.svg" alt="" />
 			{DisplayAppNameMap.vscode_insiders}
 		</AgentButton>
 	);

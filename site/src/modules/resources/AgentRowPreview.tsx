@@ -1,7 +1,7 @@
+import { SquareTerminalIcon } from "lucide-react";
 import type { FC } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
-import { TerminalIcon } from "#/components/Icons/TerminalIcon";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { cn } from "#/utils/cn";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
@@ -66,7 +66,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               apps that are included in agent.display_apps */}
 							{agent.display_apps.includes("web_terminal") && (
 								<AppPreview>
-									<TerminalIcon className="size-3" />
+									<SquareTerminalIcon className="size-3" />
 									{DisplayAppNameMap.web_terminal}
 								</AppPreview>
 							)}
@@ -81,13 +81,21 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 							{/* VSCode display apps (vscode, vscode_insiders) get special presentation */}
 							{agent.display_apps.includes("vscode") ? (
 								<AppPreview>
-									<VSCodeIcon className="size-3" />
+									<ExternalImage
+										src="/icon/code.svg"
+										alt=""
+										className="size-3"
+									/>
 									{DisplayAppNameMap.vscode}
 								</AppPreview>
 							) : (
 								agent.display_apps.includes("vscode_insiders") && (
 									<AppPreview>
-										<VSCodeIcon className="size-3" />
+										<ExternalImage
+											src="/icon/code-insiders.svg"
+											alt=""
+											className="size-3"
+										/>
 										{DisplayAppNameMap.vscode_insiders}
 									</AppPreview>
 								)
