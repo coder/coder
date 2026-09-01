@@ -80,6 +80,7 @@ func TestTrialerRequest(t *testing.T) {
 	req := codersdk.LicensorTrialRequest{
 		DeploymentID: "test-deployment",
 		Email:        "coder@coder.com",
+		Source:       codersdk.LicensorTrialSourceNewUser,
 		FirstName:    "Coder",
 		LastName:     "McCoder",
 		PhoneNumber:  "+1 555 0100",
@@ -135,7 +136,7 @@ func TestTrialerRequest(t *testing.T) {
 		require.Equal(t, "application/json", got.contentType)
 		require.Equal(t, map[string]any{
 			"deployment_id": "test-deployment",
-			"source":        "Product",
+			"source":        codersdk.LicensorTrialSourceNewUser,
 			"email":         req.Email,
 			"first_name":    req.FirstName,
 			"last_name":     req.LastName,

@@ -2,5 +2,11 @@
 	"id": "scratch",
 	"display_name": "Scratch",
 	"os": "linux",
-	"default_context": {}
+	"default_context": {},
+	"agents": [
+		{
+			"name": "main",
+			"default": true
+		}
+	]
 }
