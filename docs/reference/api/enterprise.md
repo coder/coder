@@ -4906,10 +4906,12 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&response_
 
 ### Responses
 
-| Status | Meaning                                                    | Description                                                                            | Schema |
-|--------|------------------------------------------------------------|----------------------------------------------------------------------------------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)    | Returns HTML authorization page                                                        |        |
-| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1) |        |
+| Status | Meaning                                                                    | Description                                                                                                   | Schema |
+|--------|----------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | Returns HTML authorization page                                                                               |        |
+| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3)                 | Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)                        |        |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback |        |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | HTML error page. The app's registered callback URL is not usable                                              |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4920,6 +4922,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&response_type=code&code_challenge=string \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -4945,11 +4948,25 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&response
 | `response_type`         | `code`   |
 | `code_challenge_method` | `S256`   |
 
+### Example responses
+
+> 400 Response
+
+```json
+{
+  "error": "invalid_request",
+  "error_description": "string",
+  "error_uri": "string"
+}
+```
+
 ### Responses
 
-| Status | Meaning                                                    | Description                                                                                                            | Schema |
-|--------|------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|--------|
-| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1) |        |
+| Status | Meaning                                                                    | Description                                                                                                            | Schema                                                 |
+|--------|----------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3)                 | Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1) |                                                        |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback                           | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | The app's registered callback URL is not usable                                                                        | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
