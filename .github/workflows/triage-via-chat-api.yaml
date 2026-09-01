@@ -1,16 +1,6 @@
-# This workflow reimplements the AI Triage Automation using the Coder Chat API
-# instead of the Tasks API. The Chat API (/api/experimental/chats) is a simpler
-# interface that does not require a dedicated GitHub Action or workspace
-# provisioning — we just create a chat, poll for completion, and link the
-# result on the issue. All API calls use curl + jq directly.
-#
-# Key differences from the Tasks API workflow (traiage.yaml):
-#   - No checkout of coder/create-task-action; everything is inline curl/jq.
-#   - No template_name / template_preset / prefix inputs — the Chat API handles
-#     resource allocation internally.
-#   - Uses POST /api/experimental/chats to create a chat session.
-#   - Polls GET /api/experimental/chats/<id> until the agent finishes.
-#   - Chat URL format: ${CODER_URL}/agents?chat=${CHAT_ID}
+# AI Triage Automation using the Coder Chat API (/api/v2/chats):
+# create a chat for the labeled issue, poll until the agent finishes, and
+# link the resulting chat on the issue. All API calls use curl + jq directly.
 
 name: AI Triage via Chat API
 
@@ -32,7 +22,7 @@ jobs:
   triage-chat:
     name: Triage GitHub Issue via Chat API
     runs-on: ubuntu-latest
-    if: github.event.label.name == 'chat-triage' || github.event_name == 'workflow_dispatch'
+    if: github.event.label.name == 'chat-triage' || github.event.label.name == 'traiage' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
     env:
       CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
@@ -114,7 +104,7 @@ jobs:
       # Step 3: Create a chat via the Coder Chat API.
       # Unlike the Tasks API which provisions a full workspace, the Chat
       # API creates a lightweight chat session. We POST to
-      # /api/experimental/chats with the triage prompt as the initial
+      # /api/v2/chats with the triage prompt as the initial
       # message and receive a chat ID back.
       # ------------------------------------------------------------------
       - name: Create chat via Coder Chat API
@@ -144,14 +134,25 @@ jobs:
           echo "Creating chat with prompt:"
           echo "${TASK_PROMPT}"
 
+          # Chat creation requires an organization; use the deployment's
+          # default one, matching the old workflow's "default" organization.
+          ORG_ID=$(curl --silent --fail-with-body \
+            -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+            "${CODER_URL}/api/v2/organizations" | jq -r '.[] | select(.is_default) | .id')
+
+          if [[ -z "${ORG_ID}" || "${ORG_ID}" == "null" ]]; then
+            echo "::error::Failed to resolve the default organization"
+            exit 1
+          fi
+
           # POST to the Chat API to create a new chat session.
           RESPONSE=$(curl --silent --fail-with-body \
             -X POST \
             -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "$(jq -n --arg prompt "${TASK_PROMPT}" \
-              '{content: [{type: "text", text: $prompt}]}')" \
-            "${CODER_URL}/api/experimental/chats")
+            -d "$(jq -n --arg prompt "${TASK_PROMPT}" --arg org "${ORG_ID}" \
+              '{organization_id: $org, content: [{type: "text", text: $prompt}]}')" \
+            "${CODER_URL}/api/v2/chats")
 
           echo "Chat API response:"
           echo "${RESPONSE}" | jq .
@@ -173,7 +174,7 @@ jobs:
             exit 1
           fi
 
-          CHAT_URL="${CODER_URL}/agents?chat=${CHAT_ID}"
+          CHAT_URL="${CODER_URL}/agents/${CHAT_ID}"
 
           echo "Chat created: ${CHAT_ID} (status: ${CHAT_STATUS})"
           echo "Chat URL: ${CHAT_URL}"
@@ -184,7 +185,7 @@ jobs:
       # ------------------------------------------------------------------
       # Step 4: Poll the chat status until the agent finishes.
       # The Chat API is asynchronous — after creation the agent begins
-      # working in the background. We poll GET /api/experimental/chats/<id>
+      # working in the background. We poll GET /api/v2/chats/<id>
       # every 5 seconds until the status is "waiting" (agent needs input),
       # "completed" (agent finished), or "error". Timeout after 10 minutes.
       # ------------------------------------------------------------------
@@ -205,7 +206,7 @@ jobs:
           while true; do
             RESPONSE=$(curl --silent --fail-with-body \
               -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-              "${CODER_URL}/api/experimental/chats/${CHAT_ID}")
+              "${CODER_URL}/api/v2/chats/${CHAT_ID}")
 
             STATUS=$(echo "${RESPONSE}" | jq -r '.status')
 
@@ -247,12 +248,12 @@ jobs:
       # as the Tasks API workflow).
       # ------------------------------------------------------------------
       - name: Comment on issue
-        if: startsWith(steps.determine-inputs.outputs.issue_url, format('{0}/{1}', github.server_url, github.repository))
+        if: always() && steps.create-chat.outputs.chat_id != '' && startsWith(steps.determine-inputs.outputs.issue_url, format('{0}/{1}', github.server_url, github.repository))
         env:
           ISSUE_URL: ${{ steps.determine-inputs.outputs.issue_url }}
           CHAT_URL: ${{ steps.create-chat.outputs.chat_url }}
           CHAT_ID: ${{ steps.create-chat.outputs.chat_id }}
-          FINAL_STATUS: ${{ steps.poll-status.outputs.final_status }}
+          FINAL_STATUS: ${{ steps.poll-status.outputs.final_status || 'unknown' }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -267,6 +268,8 @@ jobs:
           **Status:** ${FINAL_STATUS}
 
           The agent is working on a triage plan. Visit the chat to follow progress or provide guidance.
+
+          _The chat runs under the Coder triage service account; the Chats API does not support creating chats on behalf of the triggering user._
           EOF
           )
 
@@ -277,10 +280,11 @@ jobs:
       # Step 6: Write a summary to the GitHub Actions step summary.
       # ------------------------------------------------------------------
       - name: Write summary
+        if: always() && steps.create-chat.outputs.chat_id != ''
         env:
           CHAT_ID: ${{ steps.create-chat.outputs.chat_id }}
           CHAT_URL: ${{ steps.create-chat.outputs.chat_url }}
-          FINAL_STATUS: ${{ steps.poll-status.outputs.final_status }}
+          FINAL_STATUS: ${{ steps.poll-status.outputs.final_status || 'unknown' }}
           ISSUE_URL: ${{ steps.determine-inputs.outputs.issue_url }}
         run: |
           set -euo pipefail

@@ -117,7 +117,6 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.secrets(),
 		r.sharing(),
 		r.state(),
-		r.tasksCommand(),
 		r.templates(),
 		r.tokens(),
 		r.users(),
