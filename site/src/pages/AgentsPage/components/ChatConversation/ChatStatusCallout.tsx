@@ -105,7 +105,7 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 				<span>
 					{status.message}{" "}
 					{statusURL && (
-						<Link href={statusURL} target="_blank" rel="noreferrer">
+						<Link href={statusURL} target="_blank">
 							Status
 						</Link>
 					)}

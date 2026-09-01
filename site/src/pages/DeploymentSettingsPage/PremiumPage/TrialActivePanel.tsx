@@ -26,7 +26,7 @@ export const TrialActivePanel: FC<TrialActivePanelProps> = ({
 			</p>
 
 			<Button asChild className="w-full">
-				<a href={CONTACT_SALES_LINK} target="_blank" rel="noreferrer">
+				<a href={CONTACT_SALES_LINK} target="_blank">
 					Contact sales
 				</a>
 			</Button>

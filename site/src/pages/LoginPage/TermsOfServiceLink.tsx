@@ -13,7 +13,6 @@ export const TermsOfServiceLink: FC<TermsOfServiceLinkProps> = ({ url }) => {
 				className="font-medium whitespace-nowrap"
 				href={url}
 				target="_blank"
-				rel="noreferrer"
 			>
 				Terms of Service
 			</Link>

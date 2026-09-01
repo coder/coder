@@ -186,7 +186,6 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<a
 								href="https://coder.com/pricing"
 								target="_blank"
-								rel="noreferrer"
 								className="text-xs text-content-link hover:underline mt-0.5"
 								aria-label="Learn more about Coder premium pricing"
 							>
@@ -337,7 +336,6 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									<br />
 									<a
 										target="_blank"
-										rel="noreferrer"
 										href={CONTACT_SALES_LINK}
 										className="text-content-link hover:underline"
 									>

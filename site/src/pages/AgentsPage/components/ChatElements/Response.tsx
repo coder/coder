@@ -112,7 +112,6 @@ const createComponents = (
 			<a
 				href={href}
 				target="_blank"
-				rel="noopener noreferrer"
 				className="text-content-link no-underline hover:underline hover:decoration-content-link"
 			>
 				{children}

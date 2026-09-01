@@ -42,7 +42,7 @@ export const TemplateAlternatives: FC = () => {
 				{alternatives.map((alt) =>
 					alt.external ? (
 						<Button key={alt.label} variant="outline" size="sm" asChild>
-							<a href={alt.href} target="_blank" rel="noreferrer">
+							<a href={alt.href} target="_blank">
 								{alt.label}
 								<ExternalLinkIcon />
 							</a>

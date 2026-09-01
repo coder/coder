@@ -627,7 +627,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 										size="sm"
 										href={BEDROCK_MODEL_CARDS_URL}
 										target="_blank"
-										rel="noreferrer"
 									>
 										AWS Bedrock model cards
 									</DocsLink>
@@ -658,7 +657,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								size="sm"
 								href={docs("/ai-coder/ai-gateway/providers#amazon-bedrock")}
 								target="_blank"
-								rel="noreferrer"
 							>
 								View docs
 							</DocsLink>

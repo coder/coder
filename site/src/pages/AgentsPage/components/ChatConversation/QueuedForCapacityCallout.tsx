@@ -31,7 +31,7 @@ export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 
 	let action: ReactNode = (
 		<>
-			<Link href={concurrencyDocsUrl} target="_blank" rel="noreferrer">
+			<Link href={concurrencyDocsUrl} target="_blank">
 				Learn more
 			</Link>
 			.
@@ -56,7 +56,7 @@ export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 					</RouterLink>
 				</Link>{" "}
 				or{" "}
-				<Link href={concurrencyDocsUrl} target="_blank" rel="noreferrer">
+				<Link href={concurrencyDocsUrl} target="_blank">
 					learn more
 				</Link>
 				.

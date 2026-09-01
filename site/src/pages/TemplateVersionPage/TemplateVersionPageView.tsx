@@ -99,7 +99,6 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 							<a
 								href={`/api/v2/templateversions/${currentVersion.id}/logs?format=text`}
 								target="_blank"
-								rel="noopener noreferrer"
 								className="flex items-center gap-1 p-2 text-xs text-content-secondary underline hover:text-content-primary md:py-3.5 md:px-4"
 							>
 								View raw logs

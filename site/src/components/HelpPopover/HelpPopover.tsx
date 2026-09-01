@@ -114,7 +114,6 @@ export const HelpPopoverLink: FC<HelpPopoverLink> = ({ children, href }) => {
 		<a
 			href={href}
 			target="_blank"
-			rel="noreferrer"
 			className="flex items-center text-sm text-content-link no-underline hover:underline"
 		>
 			<ExternalLinkIcon className="size-3.5 mr-2" />

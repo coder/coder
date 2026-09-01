@@ -185,7 +185,6 @@ export const AppLink: FC<AppLinkProps> = ({
 			href={canClick ? link.href : undefined}
 			onClick={link.onClick}
 			target={app.open_in === "tab" ? "_blank" : undefined}
-			rel={app.open_in === "tab" ? "noreferrer" : undefined}
 		>
 			{content}
 		</a>

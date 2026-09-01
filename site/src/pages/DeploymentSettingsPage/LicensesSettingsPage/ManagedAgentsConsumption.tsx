@@ -102,11 +102,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 						</p>
 						<p>
 							Today,{" "}
-							<Link
-								href={docs("/ai-coder/agents")}
-								target="_blank"
-								rel="noreferrer"
-							>
+							<Link href={docs("/ai-coder/agents")} target="_blank">
 								Coder Agents (via UI or API)
 							</Link>{" "}
 							{aiTasksEnabled
@@ -114,11 +110,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 								: "is the only way"}{" "}
 							to create agentic workspaces, but additional protocols and APIs
 							may be supported as standards emerge. Learn more in{" "}
-							<Link
-								href={docs("/ai-coder/ai-governance")}
-								target="_blank"
-								rel="noreferrer"
-							>
+							<Link href={docs("/ai-coder/ai-governance")} target="_blank">
 								the Coder documentation
 							</Link>
 						</p>

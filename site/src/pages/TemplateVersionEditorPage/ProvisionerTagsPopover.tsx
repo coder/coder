@@ -50,7 +50,6 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 									<Link
 										href={docs("/admin/provisioners")}
 										target="_blank"
-										rel="noreferrer"
 										className="p-0"
 										showExternalIcon={false}
 									>

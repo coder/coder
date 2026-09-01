@@ -260,7 +260,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								<a
 									href="https://registry.coder.com"
 									target="_blank"
-									rel="noopener noreferrer"
 									className="flex items-center"
 								>
 									Browse the Coder Registry
@@ -486,7 +485,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									<a
 										href={`/api/v2/templateversions/${templateVersion.id}/logs?format=text`}
 										target="_blank"
-										rel="noopener noreferrer"
 										className="flex items-center gap-1 px-3 text-xs text-content-secondary hover:text-content-primary"
 									>
 										View raw logs

@@ -36,7 +36,7 @@ export const SettingsHeaderDocsLink: FC<SettingsHeaderDocsLinkProps> = ({
 	children = "View docs",
 }) => {
 	return (
-		<Link href={href} target="_blank" rel="noreferrer">
+		<Link href={href} target="_blank">
 			{children}
 			{context && <span className="sr-only"> {context}</span>}
 			<span className="sr-only"> (opens in new tab)</span>

@@ -398,11 +398,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 						<>
 							Tags are a way to control which provisioner daemons complete which
 							build jobs.{" "}
-							<Link
-								href={docs("/admin/provisioners")}
-								target="_blank"
-								rel="noreferrer"
-							>
+							<Link href={docs("/admin/provisioners")} target="_blank">
 								Learn more...
 							</Link>
 						</>

@@ -49,7 +49,6 @@ const BudgetDocsLink: FC = () => (
 	<Link
 		href={docs("/ai-coder/ai-gateway/cost-controls#effective-group-resolution")}
 		target="_blank"
-		rel="noreferrer"
 		size="sm"
 		// The link's default left padding reads as a stray gap when the link
 		// wraps to its own line under the helper text.

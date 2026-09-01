@@ -171,7 +171,6 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 													"/user-guides/workspace-management#workspace-resources",
 												)}
 												target="_blank"
-												rel="noreferrer"
 												size="sm"
 											>
 												Learn more

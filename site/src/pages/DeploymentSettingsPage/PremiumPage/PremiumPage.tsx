@@ -61,7 +61,6 @@ const PremiumPage: FC = () => {
 				<Link
 					href="https://coder.com/pricing#compare"
 					target="_blank"
-					rel="noreferrer"
 					size="sm"
 					className="w-fit"
 				>

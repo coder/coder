@@ -59,7 +59,6 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 			<a
 				href={docs("/ai-coder/agents/models#providers")}
 				target="_blank"
-				rel="noreferrer"
 				className="text-content-link transition-colors hover:text-content-link/80"
 			>
 				not supported by Coder Agents

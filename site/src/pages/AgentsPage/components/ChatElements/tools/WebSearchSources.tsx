@@ -74,7 +74,6 @@ const SourcePill: FC<{ source: { url: string; title: string } }> = ({
 		<a
 			href={source.url}
 			target="_blank"
-			rel="noopener noreferrer"
 			title={source.title || source.url}
 			className={cn(
 				"group inline-flex items-center gap-1.5 rounded-full",

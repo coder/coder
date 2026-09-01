@@ -31,7 +31,6 @@ export const CreateTemplateGalleryPageView: FC<
 							<a
 								href="https://registry.coder.com/templates"
 								target="_blank"
-								rel="noopener noreferrer"
 								className="flex items-center"
 							>
 								Browse other Templates on the Coder Registry
@@ -42,7 +41,6 @@ export const CreateTemplateGalleryPageView: FC<
 							<a
 								href="https://registry.coder.com/skills/coder-templates"
 								target="_blank"
-								rel="noopener noreferrer"
 								className="flex items-center"
 							>
 								Use our template agent skill

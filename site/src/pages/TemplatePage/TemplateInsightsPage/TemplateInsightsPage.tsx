@@ -609,7 +609,6 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 				<Link
 					href={usage.value}
 					target="_blank"
-					rel="noreferrer"
 					showExternalIcon={false}
 					// We're using a manual underline because `inline`
 					// removes it from the first line of the text when it wraps.

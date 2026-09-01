@@ -159,7 +159,6 @@ export const TemplateEmbedPageView: React.FC<TemplateEmbedPageViewProps> = ({
 							<Button asChild>
 								<a
 									target="_blank"
-									rel="noreferrer"
 									href={getButtonUrl(template, {
 										...buttonValues,
 										mode: "manual",

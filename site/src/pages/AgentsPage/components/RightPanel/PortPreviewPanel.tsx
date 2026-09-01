@@ -41,12 +41,7 @@ export const PortPreviewPanel: FC<{
 					</Button>
 				) : (
 					<Button size="icon" variant="subtle" asChild>
-						<a
-							href={url}
-							target="_blank"
-							rel="noreferrer"
-							aria-label="Open port in new tab"
-						>
+						<a href={url} target="_blank" aria-label="Open port in new tab">
 							<ExternalLinkIcon />
 						</a>
 					</Button>

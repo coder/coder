@@ -63,7 +63,6 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 						<Link
 							href={docs("/admin/templates/creating-templates")}
 							target="_blank"
-							rel="noreferrer"
 							showExternalIcon={false}
 							className="p-0 text-xs"
 						>

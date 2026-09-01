@@ -89,7 +89,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				<a
 					href={buildInfo.external_url}
 					target="_blank"
-					rel="noreferrer"
 					className="absolute top-0 left-1/2 -translate-x-1/2 no-underline z-10"
 				>
 					<Badge
@@ -273,12 +272,7 @@ interface SupportButtonProps {
 const SupportButton: FC<SupportButtonProps> = ({ name, target, icon }) => {
 	return (
 		<Button asChild variant="outline">
-			<a
-				href={target}
-				target="_blank"
-				rel="noreferrer"
-				className="inline-block"
-			>
+			<a href={target} target="_blank" className="inline-block">
 				{icon && <SupportIcon icon={icon} className="text-content-secondary" />}
 				{name}
 				<span className="sr-only"> (link opens in new tab)</span>

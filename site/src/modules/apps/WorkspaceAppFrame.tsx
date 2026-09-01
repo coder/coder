@@ -83,11 +83,7 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem asChild>
-								<RouterLink
-									to={link.href ?? ""}
-									target="_blank"
-									rel="noreferrer"
-								>
+								<RouterLink to={link.href ?? ""} target="_blank">
 									<ExternalLinkIcon />
 									Open app in new tab
 								</RouterLink>

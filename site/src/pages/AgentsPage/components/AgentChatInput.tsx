@@ -296,7 +296,6 @@ const ToolBadge: FC<{
 						<Link
 							to={badge.route}
 							target="_blank"
-							rel="noreferrer"
 							className="inline-flex min-w-0 items-center gap-1 text-inherit no-underline"
 						>
 							{badge.statusIcon}

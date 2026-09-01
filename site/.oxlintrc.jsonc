@@ -90,6 +90,7 @@
 		"require-yield": "error",
 
 		// --- security ---
+		"jsx-no-target-blank": "off",
 		"no-eval": "error",
 
 		// --- performance ---
@@ -196,7 +197,6 @@
 		"no-extraneous-class": "off", // complexity/noStaticOnlyClass (small)
 		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)
 		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
-		"jsx-no-target-blank": "off", // security/noBlankTarget (small)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"media-has-caption": "off", // a11y/useMediaCaption (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)

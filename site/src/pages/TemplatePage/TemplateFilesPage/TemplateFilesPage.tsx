@@ -67,7 +67,6 @@ const TemplateFilesPage: FC = () => {
 							<a
 								href="https://registry.coder.com/skills/coder-templates"
 								target="_blank"
-								rel="noopener noreferrer"
 								className="flex items-center"
 							>
 								View agent skill
@@ -78,7 +77,6 @@ const TemplateFilesPage: FC = () => {
 							<a
 								href={docs("/admin/templates/creating-templates")}
 								target="_blank"
-								rel="noopener noreferrer"
 								className="flex items-center"
 							>
 								View docs

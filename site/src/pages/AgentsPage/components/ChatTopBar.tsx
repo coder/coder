@@ -246,7 +246,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				<a
 					href={prUrl}
 					target="_blank"
-					rel="noreferrer"
 					className={cn(
 						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 						panel.showSidebarPanel && "lg:hidden",
