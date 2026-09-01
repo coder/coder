@@ -17,7 +17,7 @@ export const SelectGroup = SelectPrimitive.Group;
 
 export const SelectValue = SelectPrimitive.Value;
 
-export type SelectTriggerProps = React.ComponentPropsWithRef<
+type SelectTriggerProps = React.ComponentPropsWithRef<
 	typeof SelectPrimitive.Trigger
 >;
 

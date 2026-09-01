@@ -6,9 +6,7 @@ import {
 	DisabledBadge,
 	EnabledBadge,
 	EnterpriseBadge,
-	EntitledBadge,
 	PremiumBadge,
-	PreviewBadge,
 } from "./Badges";
 
 const meta: Meta<typeof Badges> = {
@@ -25,11 +23,6 @@ export const Enabled: Story = {
 		children: <EnabledBadge />,
 	},
 };
-export const Entitled: Story = {
-	args: {
-		children: <EntitledBadge />,
-	},
-};
 export const Disabled: Story = {
 	args: {
 		children: <DisabledBadge />,
@@ -38,11 +31,6 @@ export const Disabled: Story = {
 export const Premium: Story = {
 	args: {
 		children: <PremiumBadge />,
-	},
-};
-export const Preview: Story = {
-	args: {
-		children: <PreviewBadge />,
 	},
 };
 export const Alpha: Story = {

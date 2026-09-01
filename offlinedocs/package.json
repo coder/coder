@@ -27,10 +27,10 @@
 		"react-markdown": "10.1.0",
 		"rehype-raw": "7.0.0",
 		"remark-gfm": "4.0.1",
-		"sanitize-html": "2.17.6"
+		"sanitize-html": "2.17.7"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.4.10",
+		"@biomejs/biome": "2.5.10",
 		"@types/lodash": "4.17.25",
 		"@types/node": "22.20.1",
 		"@types/react": "18.3.12",
