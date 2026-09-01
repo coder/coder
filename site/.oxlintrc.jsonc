@@ -91,6 +91,7 @@
 
 		// --- security ---
 		"no-eval": "error",
+		"no-script-url": "error",
 
 		// --- performance ---
 		"no-accumulating-spread": "error",
@@ -202,7 +203,6 @@
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
 		"prefer-template": "off", // style/useTemplate (small)
-		"no-script-url": "off", // security/noScriptUrl (small)
 		"no-console": "off", // suspicious/noConsole (small, coder error rule: Biome suppression to migrate)
 		"rules-of-hooks": "off", // correctness/useHookAtTopLevel (large: flags Storybook render callbacks Biome allows)
 		"exhaustive-deps": "off", // correctness/useExhaustiveDependencies (large: reimplementation; Biome suppressions to migrate)

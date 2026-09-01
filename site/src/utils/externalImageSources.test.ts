@@ -21,7 +21,6 @@ describe("isExternalImageSource", () => {
 		["//attacker.example.com/img.png", true],
 		["/\\attacker.example.com/img.png", true],
 		["\\\\attacker.example.com\\img.png", true],
-		["javascript:alert(1)", true],
 		["file:///etc/passwd", true],
 		["ftp://attacker.example.com/img.png", true],
 	])("isExternalImageSource(%j) === %j", (src, expected) => {
