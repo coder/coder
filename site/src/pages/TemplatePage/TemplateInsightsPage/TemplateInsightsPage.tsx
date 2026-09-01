@@ -28,10 +28,7 @@ import type {
 	UserActivityInsightsResponse,
 	UserLatencyInsightsResponse,
 } from "#/api/typesGenerated";
-import {
-	ActiveUserChart,
-	ActiveUsersTitle,
-} from "#/components/ActiveUserChart/ActiveUserChart";
+import { ActiveUserChart } from "#/components/ActiveUserChart/ActiveUserChart";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	DateRangePicker as DailyPicker,
@@ -285,8 +282,22 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	return (
 		<Panel {...panelProps}>
 			<PanelHeader>
-				<PanelTitle>
-					<ActiveUsersTitle interval={interval} />
+				<PanelTitle className="flex items-center gap-2">
+					{interval === "day" ? "Daily" : "Weekly"} Active Users
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>
+								How do we calculate active users?
+							</HelpPopoverTitle>
+							<HelpPopoverText>
+								When a connection is initiated to a user&apos;s workspace they
+								are considered an active user. e.g. apps, web terminal, SSH.
+								This is for measuring user activity and has no connection to
+								license consumption.
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data}>
