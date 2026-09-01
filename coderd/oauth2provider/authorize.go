@@ -190,21 +190,22 @@ type authorizeParams struct {
 	codeChallengeMethod string // PKCE challenge method
 }
 
-// authorizeFailure is a request that did not parse. Which answer it gets is a
-// property of the failure rather than of the order the handler's checks happen
-// to run in.
+// authorizeFailure is a request that will not produce an authorization code:
+// either a parameter was rejected, or the app's registration is unusable. Which
+// answer it gets is kind(), not the order a handler's checks happen to run in.
 type authorizeFailure struct {
 	// validationErrors is every field the parser rejected, reported together.
 	validationErrors []codersdk.ValidationError
-	// message joins them for the response body.
-	message string
+	// description joins them into the error_description the client receives.
+	description string
 	// redirect is where RFC 6749 §4.1.2.1 puts the answer. Its zero value means
 	// the answer stays on this server, because the failure names the redirect
 	// URI or the client identifier.
 	redirect authorizeResponse
-	// corruptCallback is set when the app's registered callback is unusable.
-	// That is bad server state rather than a client mistake, so it answers 500
-	// and stops the request before any parameter is read.
+	// corruptCallback is set when the app's registered callback does not parse
+	// or uses a scheme registration rejects. That is bad server state rather
+	// than a client mistake, so it answers 500, and it is decided before any
+	// parameter is read.
 	corruptCallback error
 	// code is the OAuth2 error to answer with. Read it through errorCode, which
 	// supplies the invalid_request default.
@@ -317,7 +318,7 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 		}
 		failure := &authorizeFailure{
 			validationErrors: p.Errors,
-			message:          "Invalid query params: " + strings.Join(details, "; "),
+			description:      "Invalid query params: " + strings.Join(details, "; "),
 		}
 		// RFC 8707 §2 gives resource its own code, but only when nothing else
 		// failed. A client that retries on invalid_target would otherwise resend
@@ -422,7 +423,6 @@ func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, register
 	return response, nil
 }
 
-// canRedirect reports whether this response has somewhere to be sent.
 func (a authorizeResponse) canRedirect() bool {
 	return a.callback != nil
 }
@@ -559,7 +559,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 				// learns its request failed and waits on an authorization that
 				// will not arrive.
 				redirectAuthorizeError(rw, r, logger, failure.redirect,
-					failure.errorCode(), failure.message)
+					failure.errorCode(), failure.description)
 
 			case failureAnswerHere:
 				warnings := make([]string, len(failure.validationErrors))
@@ -651,10 +651,10 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 			case failureDeliverToClient:
 				redirectAuthorizeError(rw, r, logger, failure.redirect,
-					failure.errorCode(), failure.message)
+					failure.errorCode(), failure.description)
 
 			case failureAnswerHere:
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, failure.errorCode(), failure.message)
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, failure.errorCode(), failure.description)
 
 			default:
 				logger.Error(ctx, "unhandled authorize failure kind",
