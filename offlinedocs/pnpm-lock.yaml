@@ -4,6 +4,17 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@babel/runtime': 7.26.10
+  brace-expansion: 1.1.13
+  minimatch: 5.1.8
+  glob@>=10: 10.5.0
+  postcss: 8.5.10
+  js-yaml: 3.14.2
+  yaml: 1.10.3
+  flatted: 3.4.2
+  mdast-util-to-hast: 13.2.1
+
 importers:
 
   .:
@@ -62,7 +73,7 @@ importers:
         version: 2.4.10
       '@react-router/dev':
         specifier: 7.18.2
-        version: 7.18.2(@types/node@22.20.1)(babel-plugin-macros@3.1.0)(lightningcss@1.33.0)(react-router@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(typescript@6.0.3)(vite@8.2.1(@types/node@22.20.1)(esbuild@0.28.2))
+        version: 7.18.2(@types/node@22.20.1)(babel-plugin-macros@3.1.0)(lightningcss@1.33.0)(react-router@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(typescript@6.0.3)(vite@8.2.1(@types/node@22.20.1)(esbuild@0.28.2)(yaml@1.10.3))(yaml@1.10.3)
       '@types/lodash':
         specifier: 4.17.25
         version: 4.17.25
@@ -83,7 +94,7 @@ importers:
         version: 6.0.3
       vite:
         specifier: 8.2.1
-        version: 8.2.1(@types/node@22.20.1)(esbuild@0.28.2)
+        version: 8.2.1(@types/node@22.20.1)(esbuild@0.28.2)(yaml@1.10.3)
 
 packages:
 
@@ -1613,10 +1624,6 @@ packages:
     resolution: {integrity: sha512-pMMHxBOZKFU6HgAZ4eyGnwXF/EvPGGqUr0MnZ5+99485wwW41kW91A4LOGxSHhgugZmSChL5AlElNdwlNgcnLQ==}
     engines: {node: ^10 || ^12 || >=14}
 
-  postcss@8.5.26:
-    resolution: {integrity: sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==}
-    engines: {node: ^10 || ^12 || >=14}
-
   prettier@3.9.6:
     resolution: {integrity: sha512-OpN0zzVdiaiAhxpuuj5efpIS4sY9j7bY6uR5mnj5yPzGkdkjNKSJeUThPb60Jw29QuAZgA4o+/iB49kFiaBX6g==}
     engines: {node: '>=14'}
@@ -1919,7 +1926,7 @@ packages:
       sugarss: ^5.0.0
       terser: ^5.16.0
       tsx: ^4.8.1
-      yaml: ^2.4.2
+      yaml: 1.10.3
     peerDependenciesMeta:
       '@types/node':
         optional: true
@@ -1960,7 +1967,7 @@ packages:
       sugarss: ^5.0.0
       terser: ^5.16.0
       tsx: ^4.8.1
-      yaml: ^2.4.2
+      yaml: 1.10.3
     peerDependenciesMeta:
       '@types/node':
         optional: true
@@ -2539,7 +2546,7 @@ snapshots:
 
   '@popperjs/core@2.11.8': {}
 
-  '@react-router/dev@7.18.2(@types/node@22.20.1)(babel-plugin-macros@3.1.0)(lightningcss@1.33.0)(react-router@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(typescript@6.0.3)(vite@8.2.1(@types/node@22.20.1)(esbuild@0.28.2))':
+  '@react-router/dev@7.18.2(@types/node@22.20.1)(babel-plugin-macros@3.1.0)(lightningcss@1.33.0)(react-router@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(typescript@6.0.3)(vite@8.2.1(@types/node@22.20.1)(esbuild@0.28.2)(yaml@1.10.3))(yaml@1.10.3)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/generator': 7.28.3
@@ -2569,8 +2576,8 @@ snapshots:
       semver: 7.8.5
       tinyglobby: 0.2.17
       valibot: 1.4.2(typescript@6.0.3)
-      vite: 8.2.1(@types/node@22.20.1)(esbuild@0.28.2)
-      vite-node: 3.2.4(@types/node@22.20.1)(lightningcss@1.33.0)
+      vite: 8.2.1(@types/node@22.20.1)(esbuild@0.28.2)(yaml@1.10.3)
+      vite-node: 3.2.4(@types/node@22.20.1)(lightningcss@1.33.0)(yaml@1.10.3)
     optionalDependencies:
       typescript: 6.0.3
     transitivePeerDependencies:
@@ -3651,12 +3658,6 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  postcss@8.5.26:
-    dependencies:
-      nanoid: 3.3.18
-      picocolors: 1.1.1
-      source-map-js: 1.2.1
-
   prettier@3.9.6: {}
 
   prop-types@15.8.1:
@@ -4013,13 +4014,13 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
 
-  vite-node@3.2.4(@types/node@22.20.1)(lightningcss@1.33.0):
+  vite-node@3.2.4(@types/node@22.20.1)(lightningcss@1.33.0)(yaml@1.10.3):
     dependencies:
       cac: 6.7.14
       debug: 4.4.3
       es-module-lexer: 1.7.0
       pathe: 2.0.3
-      vite: 7.3.6(@types/node@22.20.1)(lightningcss@1.33.0)
+      vite: 7.3.6(@types/node@22.20.1)(lightningcss@1.33.0)(yaml@1.10.3)
     transitivePeerDependencies:
       - '@types/node'
       - jiti
@@ -4034,30 +4035,32 @@ snapshots:
       - tsx
       - yaml
 
-  vite@7.3.6(@types/node@22.20.1)(lightningcss@1.33.0):
+  vite@7.3.6(@types/node@22.20.1)(lightningcss@1.33.0)(yaml@1.10.3):
     dependencies:
       esbuild: 0.28.2
       fdir: 6.5.0(picomatch@4.0.7)
       picomatch: 4.0.7
-      postcss: 8.5.26
+      postcss: 8.5.10
       rollup: 4.63.1
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 22.20.1
       fsevents: 2.3.3
       lightningcss: 1.33.0
+      yaml: 1.10.3
 
-  vite@8.2.1(@types/node@22.20.1)(esbuild@0.28.2):
+  vite@8.2.1(@types/node@22.20.1)(esbuild@0.28.2)(yaml@1.10.3):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
-      postcss: 8.5.26
+      postcss: 8.5.10
       rolldown: 1.2.6
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 22.20.1
       esbuild: 0.28.2
       fsevents: 2.3.3
+      yaml: 1.10.3
 
   web-namespaces@2.0.1: {}
 
