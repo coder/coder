@@ -31,11 +31,10 @@ type inferenceProfileResolver func(ctx context.Context, cfg config.AWSBedrock, c
 const inferenceProfileResolutionTimeout = 30 * time.Second
 
 // isApplicationInferenceProfileARN reports whether model is an application
-// inference profile ARN.
-//
-// Plain model IDs and system-defined inference profile ARNs both carry the
-// model ID in the identifier itself, so only application inference profiles,
-// whose identifier is opaque, need resolving through AWS.
+// inference profile ARN, whose identifier is opaque and must be resolved
+// through AWS. Plain model IDs and system-defined inference profile ARNs, which
+// AWS documents as {geoRegion}.{modelId}, embed the model ID and need no
+// lookup.
 func isApplicationInferenceProfileARN(model string) bool {
 	parsed, err := arn.Parse(model)
 	if err != nil || parsed.Service != bedrockService {
