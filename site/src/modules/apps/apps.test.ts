@@ -85,6 +85,24 @@ describe("getAppHref", () => {
 		expect(href).toBe("vscode://example.com?token=user-session-token");
 	});
 
+	it("replaces the session token for Antigravity IDE URLs", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `antigravity-ide://coder.coder-remote/open?token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		expect(href).toBe(
+			"antigravity-ide://coder.coder-remote/open?token=user-session-token",
+		);
+	});
+
 	it("doesn't return the URL with the session token replaced when using the HTTP protocol", () => {
 		const externalApp = {
 			...MockWorkspaceApp,
