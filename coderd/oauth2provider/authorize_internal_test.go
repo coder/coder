@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -491,7 +492,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
 		require.True(t, response.canRedirect())
-		require.Equal(t, registered, response.String())
+		require.Equal(t, registered, response.callbackURL())
 		require.Equal(t, "abc123", response.state)
 	})
 
@@ -504,7 +505,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
 		require.True(t, response.canRedirect())
-		require.Equal(t, registered, response.String())
+		require.Equal(t, registered, response.callbackURL())
 	})
 
 	t.Run("MismatchedRedirectURIHasNoDestination", func(t *testing.T) {
@@ -567,6 +568,8 @@ func TestAuthorizeResponseZeroValue(t *testing.T) {
 
 	require.False(t, authorizeResponse{}.canRedirect())
 	require.False(t, (&authorizeFailure{}).redirect.canRedirect())
+	require.NotContains(t, fmt.Sprintf("%v", authorizeResponse{}), "PANIC",
+		"a String method on this type would panic through fmt on every failure path")
 }
 
 // TestFailureKind pins the precedence both handlers dispatch on, in the one

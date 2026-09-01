@@ -427,9 +427,11 @@ func (a authorizeResponse) canRedirect() bool {
 	return a.callback != nil
 }
 
-// String returns the callback, without the query a response adds. Valid only on
-// a response that holds one.
-func (a authorizeResponse) String() string {
+// callbackURL returns the destination, without the query a response adds. Named
+// rather than String so the type is not an implicit fmt.Stringer: the zero value
+// is routine on failure paths, and its String would panic through %v. Valid only
+// on a response that holds a callback.
+func (a authorizeResponse) callbackURL() string {
 	return a.callback.String()
 }
 
@@ -724,7 +726,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 				CodeChallenge:       sql.NullString{String: params.codeChallenge, Valid: params.codeChallenge != ""},
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
 				StateHash:           hashOAuth2State(params.response.state),
-				RedirectUri:         sql.NullString{String: params.response.String(), Valid: params.redirectURIProvided},
+				RedirectUri:         sql.NullString{String: params.response.callbackURL(), Valid: params.redirectURIProvided},
 				// The negotiated scope, not the requested one. The exchange
 				// copies it onto the token row but not yet onto the API key it
 				// mints, so this records what was agreed, not what is enforced.
