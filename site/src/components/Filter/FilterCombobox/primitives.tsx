@@ -30,7 +30,6 @@ const FilterComboboxAnchorContext =
 	createContext<RefObject<HTMLDivElement | null> | null>(null);
 
 type FilterComboboxStateValue = {
-	value: string[];
 	inputValue: string;
 	onInputValueChange?: (value: string) => void;
 	onRemoveValue?: (value: string) => void;
@@ -60,7 +59,6 @@ type FilterComboboxRootProps = {
 	open?: boolean;
 	/** Fired when Radix requests a close (escape / outside press). */
 	onDismiss?: () => void;
-	value?: string[];
 	onRemoveValue?: (value: string) => void;
 	inputValue?: string;
 	onInputValueChange?: (value: string) => void;
@@ -74,8 +72,7 @@ type FilterComboboxRootProps = {
  * Controlled root for the filter combobox. `open` is caller-owned (there is no
  * PopoverTrigger), so the only event Radix originates is a close request,
  * surfaced as `onDismiss`. Dropdown rows are actions that fire their own
- * `onSelect`; `value` holds the committed chip tokens, removed via
- * `onRemoveValue`.
+ * `onSelect`; committed chip removal is surfaced through `onRemoveValue`.
  *
  * Note: `FilterComboboxContent` renders in-flow (`disablePortal`, required so
  * cmdk can DOM-query its list). A consumer mounting this inside an
@@ -85,7 +82,6 @@ type FilterComboboxRootProps = {
 export function FilterComboboxRoot({
 	open = false,
 	onDismiss,
-	value = [],
 	onRemoveValue,
 	inputValue = "",
 	onInputValueChange,
@@ -99,7 +95,6 @@ export function FilterComboboxRoot({
 	const [highlightedValue, setHighlightedValue] = useState("");
 
 	const state: FilterComboboxStateValue = {
-		value,
 		inputValue,
 		onInputValueChange,
 		onRemoveValue,
@@ -137,17 +132,6 @@ export function FilterComboboxRoot({
 		</FilterComboboxAnchorContext>
 	);
 }
-
-type FilterComboboxValueProps = {
-	children: (selected: string[]) => ReactNode;
-};
-
-export const FilterComboboxValue: FC<FilterComboboxValueProps> = ({
-	children,
-}) => {
-	const { value } = useFilterComboboxState();
-	return <>{children(value)}</>;
-};
 
 type FilterComboboxContentProps = ComponentPropsWithRef<typeof PopoverContent>;
 

@@ -22,7 +22,6 @@ import {
 	FilterComboboxList,
 	FilterComboboxRoot,
 	FilterComboboxStatus,
-	FilterComboboxValue,
 } from "./primitives";
 import type { FilterCategory, FilterOption, SearchResult } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
@@ -92,7 +91,6 @@ export function FilterCombobox({
 			<FilterComboboxRoot
 				open={open}
 				onDismiss={actions.dismiss}
-				value={chipValues}
 				onRemoveValue={actions.removeChip}
 				inputValue={inputValue}
 				onInputValueChange={actions.onInputValueChange}
@@ -104,57 +102,51 @@ export function FilterCombobox({
 						<SearchIcon aria-hidden className="size-icon-sm" />
 					</InputGroupAddon>
 					<FilterComboboxChips>
-						<FilterComboboxValue>
-							{(selected: string[]) => (
-								<>
-									{selected.map((token) => (
-										<FilterComboboxChip key={token} value={token}>
-											{token}
-										</FilterComboboxChip>
-									))}
-									{activeCategory && committedFreeText.length > 0 && (
-										<Badge
-											variant="outline"
-											size="md"
-											data-slot="combobox-chip-search"
-											className="font-medium"
-										>
-											{committedFreeText}
-										</Badge>
-									)}
-									{/* Decorative draft prefix: the live region already announces
-								    "Filtering by <category>", so this stays hidden. */}
-									{activeCategory && (
-										<Badge
-											variant="dashed"
-											size="md"
-											data-slot="combobox-chip-draft"
-											className="font-medium"
-											aria-hidden
-										>
-											{/* A single-key category previews its chip prefix
-										    (e.g. `status:`); a multi-key one (Attributes
-										    commits `outdated:true`, etc.) shows its label. */}
-											{activeCategory.chipKeys &&
-											!activeCategory.chipKeys.includes(activeCategory.key)
-												? activeCategory.label
-												: `${activeCategory.key}:`}
-										</Badge>
-									)}
-									<FilterComboboxChipsInput
-										ref={actions.setInputRef}
-										aria-label={placeholder}
-										aria-invalid={invalid || undefined}
-										aria-errormessage={invalid ? errorId : undefined}
-										placeholder={
-											selected.length > 0 || activeCategory ? "" : placeholder
-										}
-										onFocus={actions.onInputFocus}
-										onKeyDown={actions.onInputKeyDown}
-									/>
-								</>
-							)}
-						</FilterComboboxValue>
+						{chipValues.map((token) => (
+							<FilterComboboxChip key={token} value={token}>
+								{token}
+							</FilterComboboxChip>
+						))}
+						{activeCategory && committedFreeText.length > 0 && (
+							<Badge
+								variant="outline"
+								size="md"
+								data-slot="combobox-chip-search"
+								className="font-medium"
+							>
+								{committedFreeText}
+							</Badge>
+						)}
+						{/* Decorative draft prefix: the live region already announces
+							    "Filtering by <category>", so this stays hidden. */}
+						{activeCategory && (
+							<Badge
+								variant="dashed"
+								size="md"
+								data-slot="combobox-chip-draft"
+								className="font-medium"
+								aria-hidden
+							>
+								{/* A single-key category previews its chip prefix
+								    (e.g. `status:`); a multi-key one (Attributes
+								    commits `outdated:true`, etc.) shows its label. */}
+								{activeCategory.chipKeys &&
+								!activeCategory.chipKeys.includes(activeCategory.key)
+									? activeCategory.label
+									: `${activeCategory.key}:`}
+							</Badge>
+						)}
+						<FilterComboboxChipsInput
+							ref={actions.setInputRef}
+							aria-label={placeholder}
+							aria-invalid={invalid || undefined}
+							aria-errormessage={invalid ? errorId : undefined}
+							placeholder={
+								chipValues.length > 0 || activeCategory ? "" : placeholder
+							}
+							onFocus={actions.onInputFocus}
+							onKeyDown={actions.onInputKeyDown}
+						/>
 					</FilterComboboxChips>
 					<InputGroupAddon
 						align="inline-end"
