@@ -43,15 +43,22 @@ const selectOption = async (
 };
 
 export const Default: Story = {
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const submit = canvas.getByRole("button", { name: "Start a trial" });
 
-		await expect(submit).toBeDisabled();
+		// The button stays enabled so submitting surfaces validation errors
+		// instead of silently blocking the user.
+		await expect(submit).toBeEnabled();
 
-		await userEvent.click(canvas.getByRole("checkbox"));
+		await userEvent.click(submit);
 
-		await waitFor(() => expect(submit).toBeEnabled());
+		await waitFor(() =>
+			expect(
+				canvas.getByText("Please acknowledge the database requirements."),
+			).toBeInTheDocument(),
+		);
+		await expect(args.onSubmit).not.toHaveBeenCalled();
 	},
 };
 

@@ -84,6 +84,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 		},
 	});
 	const getFieldHelpers = getFormHelpers<TrialFormValues>(form, error);
+	const acknowledgedField = getFieldHelpers("acknowledged");
 
 	return (
 		<form
@@ -96,6 +97,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					<FormField
 						label="First name"
 						placeholder="Jane"
+						required
 						field={getFieldHelpers("first_name", {
 							maxLength: MAX_NAME_LENGTH,
 						})}
@@ -104,6 +106,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					<FormField
 						label="Last name"
 						placeholder="Doe"
+						required
 						field={getFieldHelpers("last_name", { maxLength: MAX_NAME_LENGTH })}
 						disabled={isSubmitting}
 					/>
@@ -113,6 +116,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					label="Business email"
 					type="email"
 					placeholder="you@company.com"
+					required
 					field={getFieldHelpers("email", { maxLength: MAX_EMAIL_LENGTH })}
 					onChange={onChangeTrimmed(form)}
 					disabled={isSubmitting}
@@ -122,6 +126,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					<FormField
 						label="Company"
 						placeholder="Acme Inc."
+						required
 						field={getFieldHelpers("company_name", {
 							maxLength: MAX_COMPANY_NAME_LENGTH,
 						})}
@@ -130,6 +135,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					<FormField
 						label="Job title"
 						placeholder="Platform Engineer"
+						required
 						field={getFieldHelpers("job_title", {
 							maxLength: MAX_JOB_TITLE_LENGTH,
 						})}
@@ -142,11 +148,13 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 						type="tel"
 						label="Phone number"
 						placeholder="+1 415 5552671"
+						required
 						field={getFieldHelpers("phone_number")}
 						disabled={isSubmitting}
 					/>
 					<SelectField
 						label="Number of developers"
+						required
 						field={getFieldHelpers("developers")}
 						onValueChange={(value) => form.setFieldValue("developers", value)}
 						placeholder="Select..."
@@ -162,6 +170,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 
 				<SelectField
 					label="Country"
+					required
 					field={getFieldHelpers("country")}
 					onValueChange={(value) => form.setFieldValue("country", value)}
 					placeholder="Select..."
@@ -174,31 +183,39 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					))}
 				</SelectField>
 			</div>
-			<div className="flex gap-2 items-start text-sm text-content-primary">
-				<Checkbox
-					id={acknowledgementId}
-					checked={form.values.acknowledged}
-					onCheckedChange={(checked) =>
-						form.setFieldValue("acknowledged", checked === true)
-					}
-					disabled={isSubmitting}
-				/>
-				<div>
-					<label htmlFor={acknowledgementId} className="cursor-pointer">
-						I understand that Coder trial features increase database load, and
-						that Coder recommends an external PostgreSQL database for production
-						deployments.
-					</label>{" "}
-					<a
-						href={docs(DATABASE_DOCS_LINK)}
-						target="_blank"
-						rel="noreferrer"
-						className="text-content-link hover:underline"
-						aria-label="Learn more about external PostgreSQL databases"
-					>
-						Learn more
-					</a>
+			<div className="flex flex-col gap-1">
+				<div className="flex gap-2 items-start text-sm text-content-primary">
+					<Checkbox
+						id={acknowledgementId}
+						className="data-[state=unchecked]:bg-transparent"
+						checked={form.values.acknowledged}
+						onCheckedChange={(checked) =>
+							form.setFieldValue("acknowledged", checked === true)
+						}
+						disabled={isSubmitting}
+					/>
+					<div>
+						<label htmlFor={acknowledgementId} className="cursor-pointer">
+							I understand that Coder trial features increase database load, and
+							that Coder recommends an external PostgreSQL database for
+							production deployments.
+						</label>{" "}
+						<a
+							href={docs(DATABASE_DOCS_LINK)}
+							target="_blank"
+							rel="noreferrer"
+							className="text-content-link hover:underline"
+							aria-label="Learn more about external PostgreSQL databases"
+						>
+							Learn more
+						</a>
+					</div>
 				</div>
+				{acknowledgedField.error && (
+					<span className="text-xs text-content-destructive">
+						{acknowledgedField.helperText}
+					</span>
+				)}
 			</div>
 
 			<div className="flex flex-col gap-2">
@@ -206,7 +223,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					type="submit"
 					size="lg"
 					className="w-full"
-					disabled={!form.values.acknowledged || isSubmitting}
+					disabled={isSubmitting}
 				>
 					<Spinner loading={isSubmitting} />
 					Start a trial
