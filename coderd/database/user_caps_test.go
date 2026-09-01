@@ -31,8 +31,8 @@ func TestUserCapAdvisoryLocks(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	for function, keyPrefix := range map[string]string{
-		"enforce_user_secrets_per_user_limits": "user_secrets_cap:",
-		"enforce_user_skills_per_user_limit":   "user_skills_cap:",
+		"enforce_user_secrets_per_user_limits": database.UserSecretsCapLockKeyPrefix,
+		"enforce_user_skills_per_user_limit":   database.UserSkillsCapLockKeyPrefix,
 	} {
 		var def string
 		err := sqlDB.QueryRowContext(ctx,
@@ -47,10 +47,12 @@ func TestUserCapAdvisoryLocks(t *testing.T) {
 	}
 }
 
-// TestUserSecretsCapConcurrentUpdates verifies the per-user advisory lock
-// serializes concurrent user_secrets updates so the byte caps hold: two
-// transactions growing different rows of the same user must not both pass
-// the pre-statement aggregate check.
+// TestUserSecretsCapConcurrentUpdates verifies the byte caps hold under
+// concurrent user_secrets updates: two transactions growing different rows
+// of the same user must not both pass the pre-statement aggregate check.
+// It proves the writers serialize, not that the advisory lock is what
+// serializes them (the old FOR UPDATE users-row lock passes it too);
+// TestUserSkillsCapConcurrentReassignment isolates the advisory lock.
 func TestUserSecretsCapConcurrentUpdates(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -80,7 +82,6 @@ func TestUserSecretsCapConcurrentUpdates(t *testing.T) {
 	err := runLockRace(ctx, t, sqlDB,
 		[]stmt{{`UPDATE user_secrets SET value = $1 WHERE id = $2`, []any{bigValue, secretA}}},
 		stmt{`UPDATE user_secrets SET value = $1 WHERE id = $2`, []any{bigValue, secretB}},
-		nil,
 	)
 	require.Error(t, err, "the second update must not bypass the byte cap")
 	require.True(t, database.IsCheckViolation(err, database.CheckUserSecretsPerUserTotalBytesLimit),
@@ -146,9 +147,11 @@ func TestUserSkillsCapOwnerReassignment(t *testing.T) {
 	require.NoError(t, err, "reassigning onto an owner with room must succeed")
 }
 
-// TestUserSkillsCapConcurrentInserts proves the advisory lock is
-// load-bearing for the count cap: with one slot left, two racing inserts
-// serialize on the per-user advisory lock and exactly one lands.
+// TestUserSkillsCapConcurrentInserts verifies the count cap holds under
+// concurrent inserts: with one slot left, two racing inserts serialize and
+// exactly one lands. It proves the writers serialize, not that the advisory
+// lock is what serializes them (the old FOR UPDATE users-row lock passes it
+// too); TestUserSkillsCapConcurrentReassignment isolates the advisory lock.
 func TestUserSkillsCapConcurrentInserts(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -175,7 +178,6 @@ func TestUserSkillsCapConcurrentInserts(t *testing.T) {
 	err = runLockRace(ctx, t, sqlDB,
 		[]stmt{insert("winner-skill")},
 		insert("loser-skill"),
-		nil,
 	)
 	require.Error(t, err, "the racing insert must recount and fail the cap")
 	require.True(t, database.IsCheckViolation(err, database.CheckUserSkillsPerUserLimit),
@@ -227,7 +229,6 @@ func TestUserSkillsCapConcurrentReassignment(t *testing.T) {
 			VALUES ($1, $2, 'winner-skill', '', 'content')
 		`, []any{uuid.New(), target.ID}}},
 		stmt{`UPDATE user_skills SET user_id = $1 WHERE id = $2`, []any{target.ID, movingSkill}},
-		nil,
 	)
 	require.Error(t, err, "the racing reassignment must recount and fail the cap")
 	require.True(t, database.IsCheckViolation(err, database.CheckUserSkillsPerUserLimit),

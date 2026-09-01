@@ -34,19 +34,23 @@ var (
 	LockIDChatInstructionPlanMode     = GenLockID("agents_chat_plan_mode_instructions")
 )
 
-// Trigger-side advisory locks, registered here for discoverability only.
-// The per-user cap triggers serialize on transaction-scoped advisory locks
-// derived in SQL, never from Go code. The per-user cap triggers on
-// user_secrets and user_skills (migration 000590) take
+// Trigger-side advisory lock key prefixes, registered here for
+// discoverability only. The per-user cap triggers on user_secrets and
+// user_skills (migration 000590) serialize on transaction-scoped advisory
+// locks derived in SQL, never from Go code:
 //
-//	pg_advisory_xact_lock(hashtextextended('user_secrets_cap:' || user_id, 0))
-//	pg_advisory_xact_lock(hashtextextended('user_skills_cap:'  || user_id, 0))
+//	pg_advisory_xact_lock(hashtextextended('user_secrets_cap:' || NEW.user_id::text, 0))
+//	pg_advisory_xact_lock(hashtextextended('user_skills_cap:' || NEW.user_id::text, 0))
 //
 // TestUserCapAdvisoryLocks pins these key prefixes against the live trigger
 // function definitions so a rename in a future migration fails a test
 // instead of leaving this registry silently stale. hashtextextended shares
 // the same flat bigint keyspace as the IDs above; collision is vanishingly
 // unlikely, not impossible.
+const (
+	UserSecretsCapLockKeyPrefix = "user_secrets_cap:"
+	UserSkillsCapLockKeyPrefix  = "user_skills_cap:"
+)
 
 // GenLockID generates a unique and consistent lock ID from a given string.
 func GenLockID(name string) int64 {

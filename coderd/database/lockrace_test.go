@@ -22,8 +22,8 @@ type stmt struct {
 }
 
 // waitForBackendBlocked polls pg_stat_activity until the backend identified by
-// pid is waiting on a heavyweight lock, proving the racing statement is
-// blocked on a row lock rather than still executing.
+// pid is waiting on a heavyweight lock (row and advisory locks both qualify),
+// proving the racing statement is blocked rather than still executing.
 func waitForBackendBlocked(ctx context.Context, t *testing.T, sqlDB *sql.DB, pid int) {
 	t.Helper()
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -34,17 +34,17 @@ func waitForBackendBlocked(ctx context.Context, t *testing.T, sqlDB *sql.DB, pid
 			WHERE pid = $1 AND wait_event_type = 'Lock'
 		`, pid).Scan(&lockWaits)
 		return err == nil && lockWaits == 1
-	}, testutil.IntervalFast, "wait for the backend to block on a row lock")
+	}, testutil.IntervalFast, "wait for the backend to block on a heavyweight lock")
 	require.NoError(t, ctx.Err(), "waiting for the blocked backend")
 }
 
 // runLockRace executes the blocking statements in one transaction, launches
 // racing in its own transaction on a dedicated connection, deterministically
-// waits for it to block on a lock held by the blocking transaction, executes
-// beforeCommit inside the blocking transaction, commits it, commits the
-// racing transaction when its statement succeeded, and returns the racing
-// side's error. Both transactions run at the default isolation level.
-func runLockRace(ctx context.Context, t *testing.T, sqlDB *sql.DB, blocking []stmt, racing stmt, beforeCommit []stmt) error {
+// waits for it to block on a lock held by the blocking transaction, commits
+// the blocking transaction, commits the racing transaction when its
+// statement succeeded, and returns the racing side's error. Both
+// transactions run at the default isolation level.
+func runLockRace(ctx context.Context, t *testing.T, sqlDB *sql.DB, blocking []stmt, racing stmt) error {
 	t.Helper()
 
 	blockTx, err := sqlDB.BeginTx(ctx, nil)
@@ -82,10 +82,6 @@ func runLockRace(ctx context.Context, t *testing.T, sqlDB *sql.DB, blocking []st
 
 	waitForBackendBlocked(ctx, t, sqlDB, racePID)
 
-	for _, s := range beforeCommit {
-		_, err := blockTx.ExecContext(ctx, s.sql, s.args...)
-		require.NoError(t, err)
-	}
 	require.NoError(t, blockTx.Commit())
 	committed = true
 

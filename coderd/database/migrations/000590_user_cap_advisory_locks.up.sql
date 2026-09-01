@@ -142,6 +142,12 @@ ALTER TRIGGER trigger_user_skills_per_user_limit ON user_skills
 -- its existing trigger already fires BEFORE INSERT OR UPDATE and recounts
 -- unconditionally, because a same-owner update can change the byte
 -- aggregates.
+--
+-- No production query sets user_skills.user_id today
+-- (coderd/database/queries/user_skills.sql defines Insert/Get/List/
+-- Update/Delete and none reassigns ownership), so this leg is defense in
+-- depth against direct SQL and future queries rather than a live bug fix;
+-- no handler currently maps the cap error this trigger can raise.
 CREATE TRIGGER trigger_zz_user_skills_per_user_limit_update
     BEFORE UPDATE ON user_skills
     FOR EACH ROW
