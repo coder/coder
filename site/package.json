@@ -163,7 +163,7 @@
 		"postcss": "8.5.26",
 		"protobufjs": "7.6.5",
 		"resize-observer-polyfill": "1.5.1",
-		"rollup-plugin-visualizer": "7.0.1",
+		"rollup-plugin-visualizer": "7.1.1",
 		"rxjs": "7.8.2",
 		"ssh2": "1.17.0",
 		"storybook": "10.3.3",
