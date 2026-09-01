@@ -3449,10 +3449,6 @@ func TestDeleteIdentifiedModuleCacheFiles(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-	// mkVersion creates a template version whose cached module files point at a
-	// file with the given properties. InsertFile is used directly because
-	// dbgen.File treats uuid.Nil as unset and substitutes a random creator,
-	// while uuid.Nil is exactly what identifies a provisionerd module archive.
 	mkFile := func(name string, createdBy uuid.UUID, mimetype string, createdAt time.Time) database.File {
 		file, err := db.InsertFile(ctx, database.InsertFileParams{
 			ID:        uuid.New(),
@@ -3465,6 +3461,11 @@ func TestDeleteIdentifiedModuleCacheFiles(t *testing.T) {
 		require.NoError(t, err, "insert file %q", name)
 		return file
 	}
+
+	// mkVersion creates a template version whose cached module files point at a
+	// file with the given properties. InsertFile is used directly because
+	// dbgen.File treats uuid.Nil as unset and substitutes a random creator,
+	// while uuid.Nil is exactly what identifies a provisionerd module archive.
 	mkVersion := func(name string, createdBy uuid.UUID, mimetype string, createdAt time.Time) (database.File, database.TemplateVersion) {
 		file := mkFile(name, createdBy, mimetype, createdAt)
 		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
