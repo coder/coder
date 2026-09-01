@@ -850,7 +850,6 @@ const createTemplateVersionTar = async (
 			timings: [],
 			presets: [],
 			resourceReplacements: [],
-			aiTasks: [],
 			...response.graph,
 		} as GraphComplete;
 		response.graph.resources = response.graph.resources?.map(fillResource);

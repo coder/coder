@@ -96,7 +96,5 @@
     }
   ],
   "ExternalAuthProviders": [],
-  "AITasks": [],
-  "HasAITasks": false,
   "HasExternalAgents": false
 }
