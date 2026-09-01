@@ -380,25 +380,24 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 }
 
 type PostWorkspaceUsageRequest struct {
-	AgentID uuid.UUID    `json:"agent_id" format:"uuid"`
-	AppName UsageAppName `json:"app_name"`
+	AgentID uuid.UUID `json:"agent_id" format:"uuid"`
+	// AppName is an arbitrary name for the app reporting usage. The server
+	// normalizes it at ingestion, so new clients need no server change. See
+	// the UsageAppName constants for the well-known names.
+	AppName string `json:"app_name"`
 }
 
 type UsageAppName string
 
+// Well-known usage app names. The API accepts any name, normalized at
+// ingestion. These are wire format and cannot change: the hyphen in
+// reconnecting-pty folds to the canonical reconnecting_pty.
 const (
 	UsageAppNameVscode          UsageAppName = "vscode"
 	UsageAppNameJetbrains       UsageAppName = "jetbrains"
 	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
 	UsageAppNameSSH             UsageAppName = "ssh"
 )
-
-var AllowedAppNames = []UsageAppName{
-	UsageAppNameVscode,
-	UsageAppNameJetbrains,
-	UsageAppNameReconnectingPty,
-	UsageAppNameSSH,
-}
 
 // PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.
 func (c *Client) PostWorkspaceUsageWithBody(ctx context.Context, id uuid.UUID, req PostWorkspaceUsageRequest) error {
