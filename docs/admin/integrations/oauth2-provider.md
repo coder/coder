@@ -120,14 +120,6 @@ Coder supports the following OAuth2 client authentication methods at the token e
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
 - `none`: No client secret. The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1). Available only through [Dynamic Client Registration](#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
-> [!NOTE]
-> Registration accepts `none` today, but the token endpoint does not yet
-> honor it: an `authorization_code` exchange still requires
-> `client_secret`, so a public client cannot obtain a token yet. Discovery
-> omits `none` from `token_endpoint_auth_methods_supported` for the same
-> reason, so a conforming client is not told to attempt an exchange that
-> would be rejected.
-
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
@@ -231,12 +223,31 @@ confidential clients must include PKCE parameters:
 
 3. Include the code verifier in the token exchange (see [Client Authentication Methods](#client-authentication-methods)):
 
+   **Confidential client**
+
    ```sh
    curl -X POST \
      -u "$CLIENT_ID:$CLIENT_SECRET" \
      -H "Content-Type: application/x-www-form-urlencoded" \
      -d "grant_type=authorization_code" \
      -d "code=$AUTH_CODE" \
+     -d "code_verifier=$CODE_VERIFIER" \
+     -d "redirect_uri=https://yourapp.example.com/callback" \
+     "$CODER_URL/oauth2/tokens"
+   ```
+
+   **Public client (`token_endpoint_auth_method: none`)**
+
+   Send `client_id` in the form body and omit `client_secret` entirely. The code
+   verifier is the only proof of possession, and must satisfy RFC 7636 §4.1
+   (43-128 characters from `[A-Za-z0-9-._~]`).
+
+   ```sh
+   curl -X POST \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "grant_type=authorization_code" \
+     -d "code=$AUTH_CODE" \
+     -d "client_id=$CLIENT_ID" \
      -d "code_verifier=$CODE_VERIFIER" \
      -d "redirect_uri=https://yourapp.example.com/callback" \
      "$CODER_URL/oauth2/tokens"
@@ -273,6 +284,8 @@ Coder provides OAuth2 discovery endpoints for programmatic integration:
 
 These endpoints return server capabilities and endpoint URLs according to [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) and [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728).
 
+`token_endpoint_auth_methods_supported` lists every method the token endpoint accepts, including `none`. It is not gated on [Dynamic Client Registration](#dynamic-client-registration), since existing public clients still exchange tokens when new registrations are disabled. `registration_endpoint` is advertised only while Dynamic Client Registration is enabled, so that field, not this one, tells a client whether it can register a new public client.
+
 ## Token Management
 
 ### Refresh Tokens
@@ -299,6 +312,17 @@ curl -X POST \
   -d "refresh_token=$REFRESH_TOKEN" \
   -d "client_id=$CLIENT_ID" \
   -d "client_secret=$CLIENT_SECRET" \
+  "$CODER_URL/oauth2/tokens"
+```
+
+**Option C: Public client (`none`)**
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=$REFRESH_TOKEN" \
+  -d "client_id=$CLIENT_ID" \
   "$CODER_URL/oauth2/tokens"
 ```
 

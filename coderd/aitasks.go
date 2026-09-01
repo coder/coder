@@ -33,7 +33,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
@@ -413,7 +413,7 @@ func deriveTaskCurrentState(
 	return currentState
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
@@ -517,7 +517,7 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 	return result, nil
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
@@ -586,7 +586,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, taskResp)
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
@@ -653,7 +653,7 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusAccepted)
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
@@ -726,7 +726,7 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
@@ -812,7 +812,7 @@ func convertAgentAPIMessagesToLogEntries(messages []agentapisdk.Message) ([]code
 	return logs, nil
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
@@ -1085,7 +1085,7 @@ type TaskLogSnapshotEnvelope struct {
 	Data   any    `json:"data"`
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
@@ -1223,7 +1223,7 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
@@ -1294,7 +1294,7 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {

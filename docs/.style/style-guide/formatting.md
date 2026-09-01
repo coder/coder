@@ -56,8 +56,11 @@ Both **Don't** versions make the source harder to scan and cause spurious diffs 
 `markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial.
 Configure editors that auto-wrap on save to leave the source alone.
 
-*Documentation-only.
-No Vale rule.*
+`Coder.OneSentencePerLine` flags a sentence boundary followed by more text on the same source line.
+The rule is enabled per directory in `.vale.ini` rather than repo-wide, because the convention postdates most of the corpus.
+A directory joins the allowlist once its pages are converted.
+
+*Vale rule: `Coder.OneSentencePerLine` (warning).*
 
 ## Text formatting
 
@@ -150,16 +153,19 @@ Use the most specific language tag available:
   Prefix each typed line with `$`.
 - `ps1` for Windows command-line blocks.
   PowerShell is the default Windows shell in the Coder docs.
-  `pwsh` and `powershell` are not the canonical tag. Use `ps1`.
+  `pwsh` and `powershell` are not the canonical tag.
+  Use `ps1`.
   `ps1` is Shiki's PowerShell alias.
   It's also GitHub's `.ps1` file extension, which GitHub's Markdown renderer falls back to when a fence label isn't a recognized language name.
   `ps` isn't registered either way and won't highlight on GitHub today.
 - `tf` for Terraform and HCL.
-  `terraform` and `hcl` are not the canonical tag. Use `tf`.
+  `terraform` and `hcl` are not the canonical tag.
+  Use `tf`.
   Shiki ships `terraform` and `hcl` as two distinct grammars.
   `tf` aliases the more specific `terraform` grammar (not `hcl`) and matches what nearly every Coder docs code block contains.
 - `yaml` for YAML.
-  `yml` is not the canonical tag. Use `yaml`.
+  `yml` is not the canonical tag.
+  Use `yaml`.
 - `go` for Go.
 - `json` for JSON.
   `jsonc` is a distinct Shiki grammar for JSON that permits comments.
@@ -167,13 +173,16 @@ Use the most specific language tag available:
   Otherwise use `json`.
 - `dotenv` for `.env`-style `KEY=VALUE` blocks.
 - `txt` for command output shown on its own, and for any block with no syntax to highlight.
-  `text`, `output`, `none`, and `url` are not the canonical tag. Use `txt`.
+  `text`, `output`, `none`, and `url` are not the canonical tag.
+  Use `txt`.
 - `dockerfile` for Dockerfiles, lowercase.
   `Dockerfile` (capitalized) is not a valid tag.
 - `md` for Markdown, including Markdown shown as a fenced example inside another Markdown file.
-  `markdown` is not the canonical tag. Use `md`.
+  `markdown` is not the canonical tag.
+  Use `md`.
 - `tsx` for TypeScript, including plain (non-JSX) TypeScript.
-  `ts` and `typescript` are not the canonical tag. Use `tsx`.
+  `ts` and `typescript` are not the canonical tag.
+  Use `tsx`.
   `tsx` mis-tokenizes the legacy angle-bracket type-assertion syntax (`<Type>value`), which is invalid in real `.tsx` files anyway.
   Write casts as `value as Type` instead.
   That form is unambiguous under both grammars and is already the idiomatic style.

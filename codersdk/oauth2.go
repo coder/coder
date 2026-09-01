@@ -271,11 +271,9 @@ const (
 )
 
 // AllOAuth2TokenEndpointAuthMethods returns every token endpoint auth method
-// registration accepts. Valid() is defined in terms of it, so what
-// registration accepts cannot drift from what this function reports.
+// registration accepts. Valid() checks against it, so the two cannot drift.
 //
-// Discovery does not advertise this list verbatim; see
-// AdvertisedOAuth2TokenEndpointAuthMethods for why.
+// See AdvertisedOAuth2TokenEndpointAuthMethods for what discovery publishes.
 func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 	return []OAuth2TokenEndpointAuthMethod{
 		OAuth2TokenEndpointAuthMethodClientSecretBasic,
@@ -285,18 +283,13 @@ func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 }
 
 // AdvertisedOAuth2TokenEndpointAuthMethods returns the token endpoint auth
-// methods safe to advertise in discovery metadata (RFC 8414
-// token_endpoint_auth_methods_supported). It excludes "none": registration
-// accepts "none" (see AllOAuth2TokenEndpointAuthMethods), but the token
-// endpoint still requires a client secret for every authorization_code
-// exchange, so advertising "none" would tell a conforming client the server
-// accepts an exchange it will reject. Once the token endpoint honors "none",
-// this should return the same set as AllOAuth2TokenEndpointAuthMethods.
+// methods published in discovery metadata (RFC 8414
+// token_endpoint_auth_methods_supported). It is separate from
+// AllOAuth2TokenEndpointAuthMethods so a method the token endpoint stops
+// honoring can be dropped from discovery without also being rejected at
+// registration.
 func AdvertisedOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
-	return []OAuth2TokenEndpointAuthMethod{
-		OAuth2TokenEndpointAuthMethodClientSecretBasic,
-		OAuth2TokenEndpointAuthMethodClientSecretPost,
-	}
+	return AllOAuth2TokenEndpointAuthMethods()
 }
 
 func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
@@ -306,9 +299,8 @@ func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
 // OAuth2ClientType is how a client authenticates at the token endpoint
 // (RFC 7591 §2, OAuth 2.1 §2.1). A confidential client authenticates with a
 // secret; a public client authenticates with PKCE alone. It is derived from
-// the requested token_endpoint_auth_method and stored on the app. A
-// follow-up PR wires the token endpoint to read it when deciding whether to
-// require a client secret.
+// the requested token_endpoint_auth_method, stored on the app, and read by
+// the token endpoint to decide whether a client secret is required.
 type OAuth2ClientType string
 
 const (

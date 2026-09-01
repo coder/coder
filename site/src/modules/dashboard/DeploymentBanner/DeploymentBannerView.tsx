@@ -85,7 +85,6 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 		};
 	}, [fetchStats, stats]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies(timeUntilRefresh): periodic refresh
 	const lastAggregated = useMemo(() => {
 		if (!stats) {
 			return;
