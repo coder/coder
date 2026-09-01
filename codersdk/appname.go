@@ -3,6 +3,7 @@ package codersdk
 import (
 	"encoding/json"
 	"strings"
+	"unicode"
 
 	"golang.org/x/xerrors"
 
@@ -117,11 +118,17 @@ func AppNameFamily(appName string) AppFamilyName {
 }
 
 // NormalizeAppName prepares a client-supplied app name for storage and
-// lookup: it strips the null bytes Postgres TEXT rejects, trims, truncates,
-// lowercases, and folds hyphens to underscores. Empty becomes
-// AppFamilyUnknown.
+// lookup: it strips control characters, which covers both the null bytes
+// Postgres TEXT rejects and the escape sequences that would otherwise reach
+// logs and terminals, then trims, truncates, lowercases, and folds hyphens to
+// underscores. Empty becomes AppFamilyUnknown.
 func NormalizeAppName(appName string) string {
-	appName = strings.ReplaceAll(appName, "\x00", "")
+	appName = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, appName)
 	// Trim before truncating so padding does not spend the budget, and after
 	// in case the cut lands in whitespace.
 	appName = strings.TrimSpace(appName)

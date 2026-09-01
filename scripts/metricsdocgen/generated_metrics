@@ -226,6 +226,9 @@ coderd_agentstats_session_count_ssh 0
 # HELP coderd_agentstats_session_count_vscode The number of session established by VSCode
 # TYPE coderd_agentstats_session_count_vscode gauge
 coderd_agentstats_session_count_vscode 0
+# HELP coderd_agentstats_session_counts_folded_total Total number of reported session count entries folded into the unknown app after exceeding the per-report cap.
+# TYPE coderd_agentstats_session_counts_folded_total counter
+coderd_agentstats_session_counts_folded_total 0
 # HELP coderd_agentstats_startup_script_seconds Amount of time taken to run the startup script in seconds.
 # TYPE coderd_agentstats_startup_script_seconds gauge
 coderd_agentstats_startup_script_seconds{success=""} 0
