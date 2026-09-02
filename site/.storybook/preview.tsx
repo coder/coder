@@ -16,6 +16,17 @@ DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
 MotionGlobalConfig.skipAnimations = isPixel();
 
+// Radix keeps exit-animating layers mounted (with body pointer-events locked)
+// until their CSS animation ends, which races play functions under pixel.
+// Freezing CSS animations makes open/close synchronous; vitest, Storybook
+// dev, and the app keep their animations.
+if (isPixel()) {
+	const style = document.createElement("style");
+	style.textContent =
+		"*, *::before, *::after { animation: none !important; transition: none !important; }";
+	document.head.appendChild(style);
+}
+
 export const parameters: Parameters = {
 	options: {
 		storySort: {
