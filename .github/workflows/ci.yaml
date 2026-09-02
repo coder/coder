@@ -1096,15 +1096,11 @@ jobs:
           run_install: true
           cache: true
 
-      - run: pnpm storybook:build
-        working-directory: site/
-        name: Build Storybook
-
       - run: pnpm exec playwright install chromium
         working-directory: site/
         name: Install Chromium
 
-      - run: pnpm pixel-storybook
+      - run: pnpm pixel-storybook:ci
         working-directory: site/
         name: Snapshot
         env:
