@@ -141,12 +141,12 @@ func TestResolveBedrockModels(t *testing.T) {
 			Model:          "eu.anthropic.claude-opus-4-8",
 			SmallFastModel: "anthropic.claude-haiku-4-5",
 		}
-		resolve := func(context.Context, config.AWSBedrock, aws.CredentialsProvider, string) (string, error) {
+		resolve := func(context.Context, aws.Config, string) (string, error) {
 			t.Error("resolver called for a plain model id")
 			return "", nil
 		}
 
-		model, smallFastModel, err := resolveBedrockModels(context.Background(), cfg, nil, resolve)
+		model, smallFastModel, err := resolveBedrockModels(context.Background(), cfg, aws.Config{}, resolve)
 		require.NoError(t, err)
 		require.Equal(t, cfg.Model, model)
 		require.Equal(t, cfg.SmallFastModel, smallFastModel)
@@ -163,11 +163,11 @@ func TestResolveBedrockModels(t *testing.T) {
 			profileARN:          "anthropic.claude-opus-4-8",
 			smallFastProfileARN: "anthropic.claude-haiku-4-5",
 		}
-		resolve := func(_ context.Context, _ config.AWSBedrock, _ aws.CredentialsProvider, arn string) (string, error) {
+		resolve := func(_ context.Context, _ aws.Config, arn string) (string, error) {
 			return resolved[arn], nil
 		}
 
-		model, smallFastModel, err := resolveBedrockModels(context.Background(), cfg, nil, resolve)
+		model, smallFastModel, err := resolveBedrockModels(context.Background(), cfg, aws.Config{}, resolve)
 		require.NoError(t, err)
 		require.Equal(t, "anthropic.claude-opus-4-8", model)
 		require.Equal(t, "anthropic.claude-haiku-4-5", smallFastModel)
@@ -181,12 +181,12 @@ func TestResolveBedrockModels(t *testing.T) {
 			SmallFastModel: smallFastProfileARN,
 		}
 		var calls []string
-		resolve := func(_ context.Context, _ config.AWSBedrock, _ aws.CredentialsProvider, arn string) (string, error) {
+		resolve := func(_ context.Context, _ aws.Config, arn string) (string, error) {
 			calls = append(calls, arn)
 			return "anthropic.claude-haiku-4-5", nil
 		}
 
-		model, smallFastModel, err := resolveBedrockModels(context.Background(), cfg, nil, resolve)
+		model, smallFastModel, err := resolveBedrockModels(context.Background(), cfg, aws.Config{}, resolve)
 		require.NoError(t, err)
 		require.Equal(t, []string{smallFastProfileARN}, calls)
 		require.Equal(t, cfg.Model, model)
@@ -200,11 +200,11 @@ func TestResolveBedrockModels(t *testing.T) {
 			Model:          profileARN,
 			SmallFastModel: "anthropic.claude-haiku-4-5",
 		}
-		resolve := func(context.Context, config.AWSBedrock, aws.CredentialsProvider, string) (string, error) {
+		resolve := func(context.Context, aws.Config, string) (string, error) {
 			return "", xerrors.New("AccessDeniedException")
 		}
 
-		_, _, err := resolveBedrockModels(context.Background(), cfg, nil, resolve)
+		_, _, err := resolveBedrockModels(context.Background(), cfg, aws.Config{}, resolve)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "resolve model")
 		require.Contains(t, err.Error(), "AccessDeniedException")

@@ -69,15 +69,15 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 	// so it is cheap to run at construction.
 	var bedrock *messages.BedrockRuntime
 	if bedrockCfg != nil {
-		creds, resolvedRegion, err := buildBedrockCredentials(ctx, *bedrockCfg)
+		awsCfg, err := buildBedrockCredentials(ctx, *bedrockCfg)
 		if err != nil {
 			return nil, xerrors.Errorf("build bedrock credentials: %w", err)
 		}
 		runtimeCfg := *bedrockCfg
-		// resolvedRegion is bedrockCfg.Region if provided;
+		// awsCfg.Region is bedrockCfg.Region if provided;
 		// otherwise, it is resolved from the environment via awsconfig.LoadDefaultConfig
 		if runtimeCfg.Region == "" {
-			runtimeCfg.Region = resolvedRegion
+			runtimeCfg.Region = awsCfg.Region
 		}
 		if err := runtimeCfg.Validate(); err != nil {
 			return nil, xerrors.Errorf("bedrock config: %w", err)
@@ -90,12 +90,12 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 		// Bedrock rejects outright on models that only accept adaptive thinking.
 		resolveCtx, cancel := context.WithTimeout(ctx, inferenceProfileResolutionTimeout)
 		defer cancel()
-		model, smallFastModel, err := resolveBedrockModels(resolveCtx, runtimeCfg, creds, resolveInferenceProfile)
+		model, smallFastModel, err := resolveBedrockModels(resolveCtx, runtimeCfg, awsCfg, resolveInferenceProfile)
 		if err != nil {
 			return nil, xerrors.Errorf("resolve bedrock models: %w", err)
 		}
 
-		bedrock = messages.NewBedrockRuntime(runtimeCfg, creds, model, smallFastModel)
+		bedrock = messages.NewBedrockRuntime(runtimeCfg, awsCfg.Credentials, model, smallFastModel)
 	}
 
 	return &Anthropic{

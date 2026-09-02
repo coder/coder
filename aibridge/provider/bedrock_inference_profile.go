@@ -7,7 +7,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
 	"golang.org/x/xerrors"
 
@@ -44,17 +43,10 @@ func isApplicationInferenceProfileARN(model string) bool {
 // resolveInferenceProfile returns the Bedrock model ID behind an application
 // inference profile ARN.
 //
-// The caller's credentials sign the call, so the required
-// bedrock:GetInferenceProfile permission belongs to the identity that already
-// invokes Bedrock, including any role assumed via config.AWSBedrock.RoleARN.
-// The rest of the client configuration comes from the AWS environment, so
-// custom control-plane endpoints are honored.
-func resolveInferenceProfile(ctx context.Context, cfg config.AWSBedrock, creds aws.CredentialsProvider, profileARN string) (string, error) {
-	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cfg.Region))
-	if err != nil {
-		return "", xerrors.Errorf("load AWS config: %w", err)
-	}
-	awsCfg.Credentials = creds
+// awsCfg carries the identity that invokes Bedrock, including any role assumed
+// via config.AWSBedrock.RoleARN, so the required bedrock:GetInferenceProfile
+// permission belongs to that identity.
+func resolveInferenceProfile(ctx context.Context, awsCfg aws.Config, profileARN string) (string, error) {
 	client := bedrock.NewFromConfig(awsCfg)
 
 	out, err := client.GetInferenceProfile(ctx, &bedrock.GetInferenceProfileInput{
@@ -96,12 +88,12 @@ func modelIDFromARN(modelARN string) (string, error) {
 // IDs used for capability detection, usage recording, and pricing. Identifiers
 // that are not application inference profile ARNs are returned unchanged and
 // cost no AWS call.
-func resolveBedrockModels(ctx context.Context, cfg config.AWSBedrock, creds aws.CredentialsProvider, resolve func(ctx context.Context, cfg config.AWSBedrock, creds aws.CredentialsProvider, profileARN string) (string, error)) (model, smallFastModel string, err error) {
+func resolveBedrockModels(ctx context.Context, cfg config.AWSBedrock, awsCfg aws.Config, resolve func(ctx context.Context, awsCfg aws.Config, profileARN string) (string, error)) (model, smallFastModel string, err error) {
 	resolveOne := func(configured string) (string, error) {
 		if !isApplicationInferenceProfileARN(configured) {
 			return configured, nil
 		}
-		return resolve(ctx, cfg, creds, configured)
+		return resolve(ctx, awsCfg, configured)
 	}
 
 	model, err = resolveOne(cfg.Model)
