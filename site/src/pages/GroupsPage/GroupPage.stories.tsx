@@ -207,6 +207,15 @@ export const NoUpdatePermission: Story = {
 			permissionsQuery({ canUpdateGroup: false }),
 		],
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByRole("link", { name: "Back to groups" }),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Add users" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 /**
