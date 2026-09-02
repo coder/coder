@@ -261,6 +261,28 @@ confidential clients must include PKCE parameters:
      "$CODER_URL/oauth2/tokens"
    ```
 
+## Scopes
+
+An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions. A token can never do more than its user can.
+
+Scope names come from the same vocabulary as [API key scopes](../users/sessions-tokens.md#api-key-scopes): individual `resource:action` names such as `workspace:ssh`, and `coder:` composites such as `coder:workspaces.access` that stand for a set of them. `coder:all` records an unrestricted grant.
+
+A client asks for a scope with the `scope` parameter on the authorization request, space separated:
+
+```txt
+https://coder.example.com/oauth2/authorize?
+  client_id=your-client-id&
+  response_type=code&
+  scope=coder:workspaces.access&
+  code_challenge=$CODE_CHALLENGE&
+  code_challenge_method=S256&
+  redirect_uri=https://yourapp.example.com/callback
+```
+
+An application registered through [Dynamic Client Registration](#dynamic-client-registration) can declare a `scope` field, which acts as an allowlist. The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing. Applications created through the web UI or the management API declare no allowlist, so any requested scope is honored and a request that names no scope is granted `coder:all`.
+
+The consent page states the scope being granted before the user approves it, and refreshing a token keeps the scope originally granted.
+
 ## Discovery Endpoints
 
 Coder provides OAuth2 discovery endpoints for programmatic integration:
@@ -404,9 +426,41 @@ opens with the name that caused the rejection:
 Omitting `scope` requests the application's registered scopes, or full access
 if it was registered without any.
 
-The negotiated scope is recorded on the authorization and shown on the consent
-page. It does not yet restrict what the issued token can do (see
-[Limitations](#limitations)).
+The negotiated scope is recorded on the authorization, shown on the consent
+page, and applied to the access token issued when the code is exchanged.
+
+### "invalid_grant" for a scope the deployment cannot mint
+
+`POST /oauth2/tokens` mints the access token with the scope recorded on the
+authorization code, or on the refresh token when refreshing. If that stored
+scope names something this deployment cannot mint, the exchange answers HTTP
+400 with `error=invalid_grant` and an `error_description` naming the value.
+
+The usual cause is a grant made against a scope the deployment has since
+dropped. Authorize again to negotiate a scope it still supports; the stored
+scope is not something the client can change by requesting a different one.
+
+### "unsupported_response_type" returned to your callback
+
+Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.
+`GET /.well-known/oauth-authorization-server` reports it in `response_types_supported`.
+
+`response_type=token`, the implicit grant, redirects to your registered callback with `error=unsupported_response_type`, an `error_description` of `Only response_type=code is supported`, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
+A value Coder does not recognize at all, or an omitted `response_type`, fails query parameter validation instead and is answered on Coder rather than redirected: `GET` renders an "Invalid Query Parameters" page and `POST` returns a 400 with a JSON `invalid_request` body.
+
+Earlier releases answered `response_type=token` on Coder as well: `GET` rendered an "Unsupported Response Type" page and `POST` returned a 400 with a JSON body.
+An integration that watched for either now has to read the error from its own callback.
+
+### "invalid_request" for `code_challenge_method`
+
+Coder supports the `S256` challenge method only.
+`plain` sends the verifier itself as the challenge, so anything that can observe the authorization request can complete the exchange, which is what PKCE exists to prevent.
+Omitting the parameter is allowed and means `S256`.
+
+An unsupported method redirects to your registered callback with `error=invalid_request`, an `error_description` that names the method, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
 
 ### "PKCE verification failed"
 
@@ -448,11 +502,10 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 
 As an experimental feature, the current implementation has limitations:
 
-- No scope system - all tokens have full API access
+- A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
+- A client cannot narrow the token's scope on refresh; the `scope` parameter is ignored and the refreshed token always keeps the scope originally granted
 - No client credentials grant support
-- Implicit grant (`response_type=token`) is not supported; OAuth 2.1
-  deprecated this flow due to token leakage risks, and requests return
-  `unsupported_response_type`
+- Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 
 ## Standards Compliance

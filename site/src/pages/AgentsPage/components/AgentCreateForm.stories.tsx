@@ -632,6 +632,13 @@ export const RemembersReasoningEffortByModel: Story = {
 			await body.findByRole("option", { name: /Claude Sonnet 4/i }),
 		);
 
+		// Selecting a model with efforts keeps the popover open. Close it
+		// and wait for the unmount so the next trigger click is a real
+		// reopen rather than a toggle-close racing the exit animation.
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 		await userEvent.click(
 			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
 		);
@@ -641,6 +648,10 @@ export const RemembersReasoningEffortByModel: Story = {
 		);
 		await userEvent.click(await body.findByRole("option", { name: /GPT-4o/i }));
 
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
 		const restoredSlider = await body.findByRole("slider");
 		expect(restoredSlider).toHaveAttribute("aria-valuenow", "4");
@@ -739,6 +750,13 @@ export const ManualReselectKeepsRootOverrideEffort: Story = {
 		// Re-selecting the override's own model keeps the override effort.
 		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
 		await userEvent.click(await body.findByRole("option", { name: /GPT-4o/i }));
+		// Selecting a model with efforts keeps the popover open. Close it
+		// and wait for the unmount so the next trigger click is a real
+		// reopen rather than a toggle-close racing the exit animation.
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
 		expect(await body.findByRole("slider")).toHaveAttribute(
 			"aria-valuenow",

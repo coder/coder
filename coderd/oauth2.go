@@ -123,6 +123,7 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Param redirect_uri query string false "Redirect here after authorization"
 // @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
 // @Success 200 "Returns HTML authorization page"
+// @Success 302 "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
 // @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 	return oauth2provider.ShowAuthorizePage(api.AccessURL, api.Logger)
@@ -137,7 +138,7 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
 // @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
-// @Success 302 "Returns redirect with authorization code"
+// @Success 302 "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 	return oauth2provider.ProcessAuthorize(api.Database, api.Logger)
@@ -153,7 +154,7 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param code_verifier formData string false "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636."
 // @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
-// @Success 200 {object} oauth2.Token
+// @Success 200 {object} codersdk.OAuth2TokenResponse
 // @Router /oauth2/tokens [post]
 func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 	return oauth2provider.Tokens(api.Database, api.DeploymentValues.Sessions)

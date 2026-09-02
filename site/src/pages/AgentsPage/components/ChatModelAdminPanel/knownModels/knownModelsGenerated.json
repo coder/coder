@@ -387,6 +387,17 @@
 		},
 		{
 			"provider": "google",
+			"modelIdentifier": "gemini-3.8-flash",
+			"displayName": "Gemini 3.8 Flash",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 65536,
+			"inputCost": 0.75,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.075
+		},
+		{
+			"provider": "google",
 			"modelIdentifier": "gemini-3.7-flash",
 			"displayName": "Gemini 3.7 Flash",
 			"aliases": [],
@@ -593,10 +604,10 @@
 			"displayName": "GLM-5.2",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 262144,
-			"inputCost": 1.19,
-			"outputCost": 3.74,
-			"cacheReadCost": 0.221
+			"maxOutputTokens": 131072,
+			"inputCost": 0.966,
+			"outputCost": 3.036,
+			"cacheReadCost": 0.1932
 		},
 		{
 			"provider": "openrouter",
@@ -689,9 +700,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.07168,
-			"outputCost": 0.14336,
-			"cacheReadCost": 0.014336
+			"inputCost": 0.08554,
+			"outputCost": 0.17108,
+			"cacheReadCost": 0.017108
 		},
 		{
 			"provider": "openrouter",
@@ -700,9 +711,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 1.024164,
-			"outputCost": 2.048328,
-			"cacheReadCost": 0.085347
+			"inputCost": 1.030776,
+			"outputCost": 2.061552,
+			"cacheReadCost": 0.085898
 		},
 		{
 			"provider": "openrouter",

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,7 +40,31 @@ var (
 	// errConflictingClientAuth means the client provided credentials in both the
 	// request body and HTTP Basic, but they did not match.
 	errConflictingClientAuth = xerrors.New("conflicting client authentication")
+	// errUnmintableScope means the scope stored on a grant names something no
+	// API key can be minted from.
+	errUnmintableScope = xerrors.New("scope is not a valid API key scope")
 )
+
+// scopeStringToAPIKeyScopes converts a grant's stored scope into the scope list
+// an API key is minted with. Names are checked here, not in apikey.Generate,
+// whose error would surface as a 500. An empty list is an error rather than an
+// unrestricted key.
+func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
+	names := strings.Fields(scope)
+	if len(names) == 0 {
+		return nil, xerrors.Errorf("'%s': %w", scope, errUnmintableScope)
+	}
+
+	scopes := make(database.APIKeyScopes, 0, len(names))
+	for _, name := range names {
+		s := database.APIKeyScope(name)
+		if !s.Valid() {
+			return nil, xerrors.Errorf("'%s': %w", name, errUnmintableScope)
+		}
+		scopes = append(scopes, s)
+	}
+	return scopes, nil
+}
 
 // extractTokenRequest parses and validates the /oauth2/tokens form. It takes
 // the app because whether client_secret is required depends on the client
@@ -227,6 +252,14 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
+		if errors.Is(err, errUnmintableScope) {
+			// Not invalid_scope: RFC 6749 §5.2 scopes that to what the client
+			// requested, and this value is stored state the client cannot
+			// change by asking differently. The grant is what is unusable, and
+			// re-authorizing is the only way out, so invalid_grant.
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
+			return
+		}
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to exchange token",
@@ -375,13 +408,19 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
+	// Without this the key defaults to coder:all, discarding the negotiation.
+	scopes, err := scopeStringToAPIKeyScopes(dbCode.Scope)
+	if err != nil {
+		return codersdk.OAuth2TokenResponse{}, err
+	}
+
 	// Generate the API key we will swap for the code.
-	// TODO: We are ignoring scopes for now.
 	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", dbCode.UserID, app.ID)
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
 		UserID:          dbCode.UserID,
 		LoginType:       database.LoginTypeOAuth2ProviderApp,
 		DefaultLifetime: lifetimes.DefaultDuration.Value(),
+		Scopes:          scopes,
 		// For now, we allow only one token per app and user at a time.
 		TokenName: tokenName,
 	})
@@ -389,7 +428,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	// Grab the user roles so we can perform the exchange as the user.
+	// Grab the user roles so we can perform the exchange as the user. ScopeAll
+	// because this actor writes the key: narrowing it to the granted scope would
+	// deny api_key:create. The issued token is bounded by api_keys.scopes.
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbCode.UserID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
@@ -454,6 +495,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		TokenType:    codersdk.OAuth2TokenTypeBearer,
 		RefreshToken: refreshToken.Formatted,
 		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
+		Scope:        dbCode.Scope,
 		Expiry:       &key.ExpiresAt,
 	}, nil
 }
@@ -507,6 +549,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
+	// ScopeAll for the same reason as in authorizationCodeGrant.
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.UserID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
@@ -518,13 +561,19 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
+	// A refresh neither widens nor narrows the original grant.
+	scopes, err := scopeStringToAPIKeyScopes(dbToken.Scope)
+	if err != nil {
+		return codersdk.OAuth2TokenResponse{}, err
+	}
+
 	// Generate the new API key.
-	// TODO: We are ignoring scopes for now.
 	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", prevKey.UserID, app.ID)
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
 		UserID:          prevKey.UserID,
 		LoginType:       database.LoginTypeOAuth2ProviderApp,
 		DefaultLifetime: lifetimes.DefaultDuration.Value(),
+		Scopes:          scopes,
 		// For now, we allow only one token per app and user at a time.
 		TokenName: tokenName,
 	})
@@ -582,6 +631,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		TokenType:    codersdk.OAuth2TokenTypeBearer,
 		RefreshToken: refreshToken.Formatted,
 		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
+		Scope:        dbToken.Scope,
 		Expiry:       &key.ExpiresAt,
 	}, nil
 }

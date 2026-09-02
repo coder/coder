@@ -4016,6 +4016,31 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/deployment/user-secrets/capabilities": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get user secrets capabilities",
+                "operationId": "get-user-secrets-capabilities",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserSecretsCapabilities"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/derp-map": {
             "get": {
                 "tags": [
@@ -13379,6 +13404,18 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -13570,6 +13607,18 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -16670,6 +16719,9 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "Returns HTML authorization page"
+                    },
+                    "302": {
+                        "description": "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
                     }
                 },
                 "security": [
@@ -16725,7 +16777,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "302": {
-                        "description": "Returns redirect with authorization code"
+                        "description": "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
                     }
                 },
                 "security": [
@@ -16960,7 +17012,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/oauth2.Token"
+                            "$ref": "#/definitions/codersdk.OAuth2TokenResponse"
                         }
                     }
                 }
@@ -19021,6 +19073,9 @@ const docTemplate = `{
                 },
                 "application_name": {
                     "type": "string"
+                },
+                "codernauts_enabled": {
+                    "type": "boolean"
                 },
                 "docs_url": {
                     "type": "string"
@@ -23152,6 +23207,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
+                "disable_user_secret_file_path": {
+                    "type": "boolean"
+                },
                 "disable_workspace_agent_context_sync": {
                     "type": "boolean"
                 },
@@ -25561,6 +25619,42 @@ const docTemplate = `{
                 "OAuth2TokenEndpointAuthMethodClientSecretBasic",
                 "OAuth2TokenEndpointAuthMethodClientSecretPost",
                 "OAuth2TokenEndpointAuthMethodNone"
+            ]
+        },
+        "codersdk.OAuth2TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "expiry": {
+                    "description": "Expiry is not part of RFC 6749 but is included for compatibility with\ngolang.org/x/oauth2.Token and clients that expect a timestamp.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "$ref": "#/definitions/codersdk.OAuth2TokenType"
+                }
+            }
+        },
+        "codersdk.OAuth2TokenType": {
+            "type": "string",
+            "enum": [
+                "Bearer",
+                "DPoP"
+            ],
+            "x-enum-varnames": [
+                "OAuth2TokenTypeBearer",
+                "OAuth2TokenTypeDPoP"
             ]
         },
         "codersdk.OAuthConversionResponse": {
@@ -28241,6 +28335,12 @@ const docTemplate = `{
         "codersdk.TemplateBuilderBase": {
             "type": "object",
             "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderBaseAgent"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
@@ -28267,6 +28367,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateBuilderBaseAgent": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "description": "Default reports whether modules attach to this agent when they do not\nname one.",
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TemplateBuilderBasesResponse": {
             "type": "object",
             "properties": {
@@ -28281,6 +28396,10 @@ const docTemplate = `{
         "codersdk.TemplateBuilderComposeModule": {
             "type": "object",
             "properties": {
+                "agent_name": {
+                    "description": "AgentName targets a base coder_agent by name. Empty uses the base default.",
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -29238,6 +29357,9 @@ const docTemplate = `{
                 },
                 "application_name": {
                     "type": "string"
+                },
+                "codernauts_enabled": {
+                    "type": "boolean"
                 },
                 "logo_url": {
                     "type": "string"
@@ -30636,6 +30758,15 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.UserSecretsCapabilities": {
+            "type": "object",
+            "properties": {
+                "file_path_delivery_enabled": {
+                    "description": "FilePathDeliveryEnabled reports whether Coder writes stored file paths\ninto workspaces. Stored paths are preserved either way.",
+                    "type": "boolean"
                 }
             }
         },
@@ -33124,31 +33255,6 @@ const docTemplate = `{
                 },
                 "upnP": {
                     "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
-                    "type": "string"
-                }
-            }
-        },
-        "oauth2.Token": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "description": "AccessToken is the token that authorizes and authenticates\nthe requests.",
-                    "type": "string"
-                },
-                "expires_in": {
-                    "description": "ExpiresIn is the OAuth2 wire format \"expires_in\" field,\nwhich specifies how many seconds later the token expires,\nrelative to an unknown time base approximately around \"now\".\nIt is the application's responsibility to populate\n` + "`" + `Expiry` + "`" + ` from ` + "`" + `ExpiresIn` + "`" + ` when required.",
-                    "type": "integer"
-                },
-                "expiry": {
-                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, [TokenSource] implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
-                    "type": "string"
-                },
-                "refresh_token": {
-                    "description": "RefreshToken is a token that's used by the application\n(as opposed to the user) to refresh the access token\nif it expires.",
-                    "type": "string"
-                },
-                "token_type": {
-                    "description": "TokenType is the type of token.\nThe Type method returns either this or \"Bearer\", the default.",
                     "type": "string"
                 }
             }
