@@ -1084,6 +1084,9 @@ jobs:
 
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
 
+    env:
+      PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         name: Checkout
@@ -1100,11 +1103,13 @@ jobs:
         working-directory: site/
         name: Install Chromium
 
+      # Forks and Dependabot receive no secrets, so there is no Pixel project
+      # to snapshot against.
       - run: pnpm pixel-storybook:ci
         working-directory: site/
         name: Snapshot
+        if: env.PIXEL_KEY != ''
         env:
-          PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
           PIXEL_AUTO_REVIEW: ${{ github.repository_owner == 'coder' && github.ref_name == 'main' }}
 
   offlinedocs:
