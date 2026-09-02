@@ -2019,7 +2019,7 @@ func TestChatRuntimeRequests(t *testing.T) {
 	t.Run("CreateRejectsCoderRuntimeOptionsBeforeProvisioning", func(t *testing.T) {
 		t.Parallel()
 
-		const unsupported = "plan_mode, mcp_server_ids, unsafe_dynamic_tools, system_prompt, and reasoning_effort are not supported for runtime chats."
+		const unsupported = "plan_mode, mcp_server_ids, unsafe_dynamic_tools, system_prompt, and reasoning_effort are not supported on runtime chats."
 		tests := []struct {
 			name        string
 			mutate      func(*codersdk.CreateChatRequest)
@@ -2112,11 +2112,33 @@ func TestChatRuntimeRequests(t *testing.T) {
 				wantMessage: "plan_mode, mcp_server_ids, and reasoning_effort are not supported on runtime chats.",
 			},
 			{
+				name: "SendWithEmptyMCPServerIDs",
+				do: func() error {
+					_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+						Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "runtime send"}},
+						MCPServerIDs: &[]uuid.UUID{},
+					})
+					return err
+				},
+				wantMessage: "plan_mode, mcp_server_ids, and reasoning_effort are not supported on runtime chats.",
+			},
+			{
 				name: "EditWithReasoningEffort",
 				do: func() error {
 					_, err := client.EditChatMessage(ctx, chat.ID, message.ID, codersdk.EditChatMessageRequest{
 						Content:         []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "runtime edit"}},
 						ReasoningEffort: ptr.Ref("high"),
+					})
+					return err
+				},
+				wantMessage: "mcp_server_ids and reasoning_effort are not supported on runtime chats.",
+			},
+			{
+				name: "EditWithEmptyMCPServerIDs",
+				do: func() error {
+					_, err := client.EditChatMessage(ctx, chat.ID, message.ID, codersdk.EditChatMessageRequest{
+						Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "runtime edit"}},
+						MCPServerIDs: &[]uuid.UUID{},
 					})
 					return err
 				},

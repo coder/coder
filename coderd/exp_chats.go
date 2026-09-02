@@ -1297,7 +1297,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 		if req.PlanMode != "" || len(req.MCPServerIDs) > 0 || len(req.UnsafeDynamicTools) > 0 || req.SystemPrompt != "" || req.ReasoningEffort != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "plan_mode, mcp_server_ids, unsafe_dynamic_tools, system_prompt, and reasoning_effort are not supported for runtime chats.",
+				Message: "plan_mode, mcp_server_ids, unsafe_dynamic_tools, system_prompt, and reasoning_effort are not supported on runtime chats.",
 			})
 			return
 		}
@@ -2704,7 +2704,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if chat.Runtime != database.ChatRuntimeCoder {
-		if req.PlanMode != nil || (req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0) || req.ReasoningEffort != nil {
+		if req.PlanMode != nil || req.MCPServerIDs != nil || req.ReasoningEffort != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "plan_mode, mcp_server_ids, and reasoning_effort are not supported on runtime chats.",
 			})
@@ -2926,7 +2926,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if chat.Runtime != database.ChatRuntimeCoder {
-		if (req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0) || req.ReasoningEffort != nil {
+		if req.MCPServerIDs != nil || req.ReasoningEffort != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "mcp_server_ids and reasoning_effort are not supported on runtime chats.",
 			})
