@@ -1,10 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	type ResizeObserverMock,
-	setupResizeObserverMock,
-} from "#/testHelpers/resizeObserver";
+import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import { useDesktopConnection } from "./useDesktopConnection";
 
 vi.mock("#/api/api", () => ({
@@ -77,10 +74,6 @@ const mockWatchChatDesktop = vi.mocked(watchChatDesktop);
 const mockClipboardReadText = vi.fn<() => Promise<string>>();
 const mockClipboardWriteText = vi.fn<(text: string) => Promise<void>>();
 
-// ---- Mock ResizeObserver ----------------------------------------------------
-
-let resizeObserver: ResizeObserverMock;
-
 // ---- helpers ---------------------------------------------------------------
 
 function getLastRFBInstance(): MockRFBInstance {
@@ -104,7 +97,8 @@ describe("useDesktopConnection", () => {
 		mockWatchChatDesktop.mockReturnValue(createMockSocket());
 		lastInstance.current = null;
 		FakeRFB.throwOnConstruct = false;
-		resizeObserver = setupResizeObserverMock();
+		MockResizeObserver.reset();
+		vi.stubGlobal("ResizeObserver", MockResizeObserver);
 		mockClipboardReadText.mockReset();
 		mockClipboardReadText.mockResolvedValue("");
 		mockClipboardWriteText.mockReset();
@@ -904,7 +898,7 @@ describe("useDesktopConnection", () => {
 		const rfb = getLastRFBInstance();
 		act(() => rfb.simulateEvent("connect"));
 
-		const observer = resizeObserver.getLast();
+		const observer = MockResizeObserver.getLast();
 
 		// First observation with nonzero size (initial attach).
 		act(() => observer.simulateResize(800, 600));
@@ -928,7 +922,7 @@ describe("useDesktopConnection", () => {
 		const rfb = getLastRFBInstance();
 		act(() => rfb.simulateEvent("connect"));
 
-		const observer = resizeObserver.getLast();
+		const observer = MockResizeObserver.getLast();
 
 		// Initial nonzero observation.
 		act(() => observer.simulateResize(800, 600));
@@ -948,7 +942,7 @@ describe("useDesktopConnection", () => {
 		);
 
 		getLastRFBInstance();
-		const observer = resizeObserver.getLast();
+		const observer = MockResizeObserver.getLast();
 
 		unmount();
 
@@ -965,8 +959,8 @@ describe("useDesktopConnection", () => {
 			const rfb1 = getLastRFBInstance();
 			act(() => rfb1.simulateEvent("connect"));
 
-			expect(resizeObserver.instances).toHaveLength(1);
-			const observer1 = resizeObserver.instances[0];
+			expect(MockResizeObserver.instances).toHaveLength(1);
+			const observer1 = MockResizeObserver.instances[0];
 
 			// Trigger reconnect.
 			act(() => rfb1.simulateEvent("disconnect", { clean: false }));
@@ -976,7 +970,7 @@ describe("useDesktopConnection", () => {
 			expect(observer1.disconnect).toHaveBeenCalled();
 
 			// New observer created for the new connection.
-			expect(resizeObserver.instances).toHaveLength(2);
+			expect(MockResizeObserver.instances).toHaveLength(2);
 		} finally {
 			vi.useRealTimers();
 		}
@@ -992,7 +986,7 @@ describe("useDesktopConnection", () => {
 		const rfb1 = getLastRFBInstance();
 		act(() => rfb1.simulateEvent("connect"));
 
-		const observer1 = resizeObserver.instances[0];
+		const observer1 = MockResizeObserver.instances[0];
 
 		// Set nonzero previous dimensions on old observer.
 		act(() => observer1.simulateResize(800, 600));

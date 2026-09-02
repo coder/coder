@@ -1,11 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
-import {
-	type ResizeObserverMock,
-	setupResizeObserverMock,
-} from "#/testHelpers/resizeObserver";
+import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import { useKebabMenu } from "./useKebabMenu";
-
-let resizeObserver: ResizeObserverMock;
 
 const setElementOffsetWidth = (element: HTMLElement, width: number): void => {
 	Object.defineProperty(element, "offsetWidth", {
@@ -57,7 +52,8 @@ const TestHarness = ({ tabGap = 0 }: { tabGap?: number }) => {
 
 describe("useKebabMenu", () => {
 	beforeEach(() => {
-		resizeObserver = setupResizeObserverMock();
+		MockResizeObserver.reset();
+		vi.stubGlobal("ResizeObserver", MockResizeObserver);
 	});
 
 	afterEach(() => {
@@ -75,7 +71,7 @@ describe("useKebabMenu", () => {
 		setElementOffsetWidth(startup, 70);
 
 		await act(() => {
-			resizeObserver.getLast().simulateResize(220);
+			MockResizeObserver.getLast().simulateResize(220);
 		});
 
 		expect(screen.getByTestId("visible-values")).toHaveTextContent(
@@ -93,7 +89,7 @@ describe("useKebabMenu", () => {
 		setElementOffsetWidth(startup, 70);
 
 		await act(() => {
-			resizeObserver.getLast().simulateResize(220);
+			MockResizeObserver.getLast().simulateResize(220);
 		});
 
 		expect(screen.getByTestId("visible-values")).toHaveTextContent("all");
