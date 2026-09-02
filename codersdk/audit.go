@@ -55,6 +55,7 @@ const (
 	ResourceTypeChat                    ResourceType = "chat"
 	ResourceTypeMCPServerConfig         ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig         ResourceType = "chat_model_config"
+	ResourceTypeChatRuntimeConfig       ResourceType = "chat_runtime_config"
 	ResourceTypeUserSecret              ResourceType = "user_secret"
 	ResourceTypeUserSkill               ResourceType = "user_skill"
 	ResourceTypeChatInstructionSettings ResourceType = "chat_instruction_settings"
@@ -137,6 +138,8 @@ func (r ResourceType) FriendlyString() string {
 		return "mcp server config"
 	case ResourceTypeChatModelConfig:
 		return "chat model config"
+	case ResourceTypeChatRuntimeConfig:
+		return "chat runtime config"
 	case ResourceTypeUserSecret:
 		return "user secret"
 	case ResourceTypeUserSkill:

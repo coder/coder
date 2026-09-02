@@ -2010,6 +2010,63 @@ func TestChatRuntimeConfigAndAvailability(t *testing.T) {
 	require.Empty(t, configs)
 }
 
+// TestChatRuntimeConfigAudit verifies that runtime config writes, which
+// pick the template that provisions user workspaces and the agent's
+// permission mode, leave an audit trail like the other chat settings.
+func TestChatRuntimeConfigAudit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	mAudit := audit.NewMock()
+	client, db, _ := newChatClientWithoutAIBridge(t, enableAgentsRuntimeConfigExperiment, func(opts *coderdtest.Options) {
+		opts.Auditor = mAudit
+	})
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: user.OrganizationID,
+		CreatedBy:      user.UserID,
+	})
+	runtime := chatacp.Harnesses()[0].Runtime
+	upsert := func(enabled bool) {
+		_, err := client.UpsertChatRuntimeConfig(ctx, codersdk.UpsertChatRuntimeConfigRequest{
+			OrganizationID: user.OrganizationID,
+			Runtime:        runtime,
+			TemplateID:     template.ID,
+			Enabled:        enabled,
+		})
+		require.NoError(t, err)
+	}
+	mAudit.ResetLogs()
+
+	upsert(true)
+	upsert(false)
+	require.NoError(t, client.DeleteChatRuntimeConfig(ctx, user.OrganizationID, runtime))
+	// Deleting a config that no longer exists changes nothing and is not
+	// audited.
+	require.NoError(t, client.DeleteChatRuntimeConfig(ctx, user.OrganizationID, runtime))
+
+	logs := mAudit.AuditLogs()
+	require.Len(t, logs, 3)
+	wantResourceID := uuid.NewSHA1(user.OrganizationID, []byte(runtime))
+	for i, want := range []struct {
+		action database.AuditAction
+		status int
+	}{
+		{database.AuditActionCreate, http.StatusOK},
+		{database.AuditActionWrite, http.StatusOK},
+		{database.AuditActionDelete, http.StatusNoContent},
+	} {
+		log := logs[i]
+		require.Equal(t, want.action, log.Action)
+		require.Equal(t, database.ResourceTypeChatRuntimeConfig, log.ResourceType)
+		require.Equal(t, wantResourceID, log.ResourceID)
+		require.Equal(t, string(runtime), log.ResourceTarget)
+		require.Equal(t, user.OrganizationID, log.OrganizationID)
+		require.Equal(t, user.UserID, log.UserID)
+		require.EqualValues(t, want.status, log.StatusCode)
+	}
+}
+
 func TestChatRuntimeRequests(t *testing.T) {
 	t.Parallel()
 

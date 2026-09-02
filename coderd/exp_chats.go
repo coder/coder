@@ -6228,6 +6228,30 @@ func (api *API) putChatRuntimeConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	existing, err := api.Database.GetChatRuntimeConfig(ctx, database.GetChatRuntimeConfigParams{
+		OrganizationID: req.OrganizationID,
+		Runtime:        database.ChatRuntime(req.Runtime),
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error loading chat runtime config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	action := database.AuditActionCreate
+	if err == nil {
+		action = database.AuditActionWrite
+	}
+	aReq, commitAudit := audit.InitRequest[database.ChatRuntimeConfig](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         action,
+		OrganizationID: req.OrganizationID,
+	})
+	defer commitAudit()
+	aReq.Old = existing
 	if req.Model != "" {
 		configs, err := api.Database.GetEnabledChatModelConfigsByOrganization(ctx, req.OrganizationID)
 		if err != nil {
@@ -6267,6 +6291,7 @@ func (api *API) putChatRuntimeConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = config
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatRuntimeConfig(config))
 }
 
@@ -6310,6 +6335,30 @@ func (api *API) deleteChatRuntimeConfig(rw http.ResponseWriter, r *http.Request)
 	if _, ok := requireExternalChatRuntime(ctx, rw, runtime); !ok {
 		return
 	}
+	existing, err := api.Database.GetChatRuntimeConfig(ctx, database.GetChatRuntimeConfigParams{
+		OrganizationID: orgID,
+		Runtime:        database.ChatRuntime(runtime),
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error loading chat runtime config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq, commitAudit := audit.InitRequest[database.ChatRuntimeConfig](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionDelete,
+		OrganizationID: orgID,
+	})
+	defer commitAudit()
+	aReq.Old = existing
 	if err := api.Database.DeleteChatRuntimeConfig(ctx, database.DeleteChatRuntimeConfigParams{
 		OrganizationID: orgID,
 		Runtime:        database.ChatRuntime(runtime),
