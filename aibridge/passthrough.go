@@ -50,7 +50,7 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 	// credentials beneath the key failover layer, which leaves requests
 	// untouched when the provider has no key pool. BYOK requests pass through.
 	inner := apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal())
-	var rt http.RoundTripper = inner
+	rt := inner
 	if w, ok := prov.(provider.PassthroughTransportWrapper); ok {
 		rt = w.WrapPassthroughTransport(rt)
 	}
