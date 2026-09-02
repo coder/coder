@@ -307,6 +307,56 @@ func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueue
 	}, nil
 }
 
+// FetchACPModelConfig loads an explicitly selected model config for an
+// external runtime chat together with its provider. The config is read
+// as the caller, so the organization scope and model ACLs that govern
+// built-in chats apply here too; only the provider row, which chat
+// owners cannot read, is loaded with metadata access. Only enabled,
+// non-deleted configs on an enabled provider of the harness type are
+// selectable: the runtime injects that provider's credentials into the
+// adapter, so other provider types cannot be honored. Failures wrap
+// ErrInvalidModelConfigID unless the lookup itself errored.
+func FetchACPModelConfig(
+	ctx context.Context,
+	store database.Store,
+	organizationID uuid.UUID,
+	harness chatacp.Harness,
+	id uuid.UUID,
+) (database.ChatModelConfig, database.AIProvider, error) {
+	config, err := store.GetEnabledChatModelConfigByID(ctx, id)
+	if err == nil && config.OrganizationID != organizationID {
+		err = sql.ErrNoRows
+	}
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+			return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+				"%w: %s", ErrInvalidModelConfigID, id,
+			)
+		}
+		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+			"get model config %s: %w", id, err,
+		)
+	}
+	//nolint:gocritic // The harness only needs the provider type; chat owners cannot read provider rows.
+	provider, err := store.GetAIProviderByID(dbauthz.AsAIProviderMetadataReader(ctx), config.AIProviderID.UUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+				"%w: %s", ErrInvalidModelConfigID, id,
+			)
+		}
+		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+			"get ai provider for model config %s: %w", id, err,
+		)
+	}
+	if provider.Type != database.AIProviderType(harness.ProviderType) {
+		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+			"%w: model config %s is not an %s model", ErrInvalidModelConfigID, id, harness.ProviderLabel,
+		)
+	}
+	return config, provider, nil
+}
+
 // resolveQueuedMessageModelConfigID mirrors the send path: a queued
 // selection survives promotion only while the chat can still use it.
 // Built-in chats fall back to the organization default; external
@@ -318,9 +368,24 @@ func (tx *Tx) resolveQueuedMessageModelConfigID(
 ) (uuid.NullUUID, error) {
 	//nolint:gocritic // Queue promotion needs daemon access to deployment model configuration.
 	ctx := dbauthz.AsChatd(tx.ctx)
-	harness, external := chatacp.HarnessFor(codersdk.ChatRuntime(chat.Runtime))
+	if harness, external := chatacp.HarnessFor(codersdk.ChatRuntime(chat.Runtime)); external {
+		if !queued.ModelConfigID.Valid {
+			return uuid.NullUUID{}, nil
+		}
+		_, _, err := FetchACPModelConfig(ctx, tx.store, chat.OrganizationID, harness, queued.ModelConfigID.UUID)
+		if err == nil {
+			return queued.ModelConfigID, nil
+		}
+		if errors.Is(err, ErrInvalidModelConfigID) {
+			return uuid.NullUUID{}, nil
+		}
+		return uuid.NullUUID{}, err
+	}
 	if queued.ModelConfigID.Valid {
 		config, err := tx.store.GetEnabledChatModelConfigByID(ctx, queued.ModelConfigID.UUID)
+		if err == nil && config.OrganizationID == chat.OrganizationID {
+			return queued.ModelConfigID, nil
+		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return uuid.NullUUID{}, xerrors.Errorf(
 				"get chat model config %s: %w",
@@ -328,25 +393,6 @@ func (tx *Tx) resolveQueuedMessageModelConfigID(
 				err,
 			)
 		}
-		if err == nil && config.OrganizationID == chat.OrganizationID {
-			if !external {
-				return queued.ModelConfigID, nil
-			}
-			provider, err := tx.store.GetAIProviderByID(ctx, config.AIProviderID.UUID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return uuid.NullUUID{}, xerrors.Errorf(
-					"get ai provider for chat model config %s: %w",
-					queued.ModelConfigID.UUID,
-					err,
-				)
-			}
-			if err == nil && provider.Type == database.AIProviderType(harness.ProviderType) {
-				return queued.ModelConfigID, nil
-			}
-		}
-	}
-	if external {
-		return uuid.NullUUID{}, nil
 	}
 
 	configs, err := tx.store.GetEnabledChatModelConfigsByOrganization(ctx, chat.OrganizationID)

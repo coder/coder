@@ -1089,7 +1089,7 @@ type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.Ag
 var (
 	// ErrInvalidModelConfigID indicates the requested model config does not
 	// exist, is disabled, or its provider is disabled.
-	ErrInvalidModelConfigID = xerrors.New("invalid model config ID")
+	ErrInvalidModelConfigID = chatstate.ErrInvalidModelConfigID
 	// ErrEditedMessageNotFound indicates the edited message does not exist
 	// in the target chat.
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
@@ -1372,7 +1372,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.ModelConfigID != uuid.Nil {
 		var err error
 		if isExternal {
-			_, _, err = fetchACPModelConfig(ctx, p.db, opts.OrganizationID, harness, opts.ModelConfigID)
+			_, _, err = chatstate.FetchACPModelConfig(ctx, p.db, opts.OrganizationID, harness, opts.ModelConfigID)
 		} else {
 			err = requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID)
 		}
@@ -1719,7 +1719,7 @@ func resolveSendMessageModelConfigID(
 				chat.Runtime,
 			)
 		}
-		if _, _, err := fetchACPModelConfig(ctx, store, chat.OrganizationID, harness, requested); err != nil {
+		if _, _, err := chatstate.FetchACPModelConfig(ctx, store, chat.OrganizationID, harness, requested); err != nil {
 			return uuid.Nil, err
 		}
 		return requested, nil
@@ -1783,66 +1783,6 @@ func validateCreateModelConfigID(
 		return xerrors.Errorf("%w: %s", ErrInvalidModelConfigID, modelConfigID)
 	}
 	return xerrors.Errorf("get requested model config %s: %w", modelConfigID, err)
-}
-
-// fetchACPModelConfig loads an explicitly selected model config for an
-// external runtime chat together with its provider. The config is read
-// as the caller, so the organization scope and model ACLs that govern
-// built-in chats apply here too; only the provider row, which chat
-// owners cannot read, is loaded with metadata access. Only enabled,
-// non-deleted configs on an enabled provider of the harness type are
-// selectable: the runtime injects that provider's credentials into the
-// adapter, so other provider types cannot be honored. Failures wrap
-// ErrInvalidModelConfigID unless the lookup itself errored.
-func fetchACPModelConfig(
-	ctx context.Context,
-	store database.Store,
-	organizationID uuid.UUID,
-	harness chatacp.Harness,
-	id uuid.UUID,
-) (database.ChatModelConfig, database.AIProvider, error) {
-	config, err := store.GetEnabledChatModelConfigByID(ctx, id)
-	if err == nil && config.OrganizationID != organizationID {
-		err = sql.ErrNoRows
-	}
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
-			return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
-				"%w: %s", ErrInvalidModelConfigID, id,
-			)
-		}
-		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
-			"get model config %s: %w", id, err,
-		)
-	}
-	//nolint:gocritic // The harness only needs the provider type; chat owners cannot read provider rows.
-	provider, err := store.GetAIProviderByID(dbauthz.AsAIProviderMetadataReader(ctx), config.AIProviderID.UUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
-				"%w: %s", ErrInvalidModelConfigID, id,
-			)
-		}
-		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
-			"get ai provider for model config %s: %w", id, err,
-		)
-	}
-	if provider.Type != database.AIProviderType(harness.ProviderType) {
-		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
-			"%w: model config %s is not an %s model", ErrInvalidModelConfigID, id, harness.ProviderLabel,
-		)
-	}
-	return config, provider, nil
-}
-
-// ValidateACPModelConfigID checks that an explicit model selection for
-// an external runtime chat in the organization references an enabled
-// model config the caller may use on the harness provider. It returns
-// an error wrapping ErrInvalidModelConfigID when the selection is not
-// usable.
-func (p *Server) ValidateACPModelConfigID(ctx context.Context, harness chatacp.Harness, organizationID uuid.UUID, id uuid.UUID) error {
-	_, _, err := fetchACPModelConfig(ctx, p.db, organizationID, harness, id)
-	return err
 }
 
 func resolveFallbackModelConfigID(

@@ -1094,11 +1094,11 @@ func (api *API) validateExplicitChatModelConfigAvailable(
 		return 0, nil
 	}
 	if harness, ok := chatacp.HarnessFor(codersdk.ChatRuntime(runtime)); ok {
-		err := api.chatDaemon.ValidateACPModelConfigID(ctx, harness, organizationID, modelConfigID)
+		_, _, err := chatstate.FetchACPModelConfig(ctx, api.Database, organizationID, harness, modelConfigID)
 		if err == nil {
 			return 0, nil
 		}
-		if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
+		if xerrors.Is(err, chatstate.ErrInvalidModelConfigID) {
 			return http.StatusBadRequest, &codersdk.Response{
 				Message: "Invalid model config ID.",
 				Detail:  fmt.Sprintf("%s chats accept enabled %s model configs only.", harness.DisplayName, harness.ProviderLabel),

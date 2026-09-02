@@ -398,7 +398,7 @@ func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, cha
 		if err != nil {
 			return acpTurnConfig{}, err
 		}
-		modelConfig, provider, err := fetchACPModelConfig(modelCtx, p.db, chat.OrganizationID, harness, selection)
+		modelConfig, provider, err := chatstate.FetchACPModelConfig(modelCtx, p.db, chat.OrganizationID, harness, selection)
 		if err == nil {
 			if creds, ok := credsByProvider[provider.ID]; ok {
 				creds.Model = modelConfig.Model
