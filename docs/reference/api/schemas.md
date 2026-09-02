@@ -1684,6 +1684,7 @@ None
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "docs_url": "string",
   "logo_url": "string",
   "service_banner": {
@@ -1708,6 +1709,7 @@ None
 |------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
 | `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
+| `codernauts_enabled`   | boolean                                                 | false    |              |                                                                     |
 | `docs_url`             | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
@@ -15313,6 +15315,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -15328,6 +15331,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
 | `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
+| `codernauts_enabled`   | boolean                                                 | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 

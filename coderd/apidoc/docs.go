@@ -18840,6 +18840,9 @@ const docTemplate = `{
                 "application_name": {
                     "type": "string"
                 },
+                "codernauts_enabled": {
+                    "type": "boolean"
+                },
                 "docs_url": {
                     "type": "string"
                 },
@@ -28944,6 +28947,9 @@ const docTemplate = `{
                 },
                 "application_name": {
                     "type": "string"
+                },
+                "codernauts_enabled": {
+                    "type": "boolean"
                 },
                 "logo_url": {
                     "type": "string"
