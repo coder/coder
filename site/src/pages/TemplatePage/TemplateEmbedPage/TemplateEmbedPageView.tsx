@@ -7,16 +7,9 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
@@ -201,27 +194,25 @@ const ParametersSkeleton: React.FC = () => {
 
 const TestHelpPopover: React.FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger size="small" />
-			<HelpPopoverContent>
-				<HelpPopoverTitle>Testing your Open in Coder settings</HelpPopoverTitle>
-				<HelpPopoverText>
+		<InfoTooltip
+			size="small"
+			title="Testing your Open in Coder settings"
+			message={
+				<>
 					This button will open the workspace creation page in a new tab with
 					the parameters that you have supplied. Use this to debug your{" "}
 					<strong>Open in Coder</strong> button before using it.
-				</HelpPopoverText>
-				<HelpPopoverText>
+					<br />
 					Note: Even if you have set creation mode to auto, this button will not
 					automatically create a workspace so that you have the opportunity to
 					inspect the parameters and check for errors.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/admin/templates/open-in-coder")}>
+					<br />
+					<Link size="sm" href={docs("/admin/templates/open-in-coder")}>
 						Templates &ndash; Open in Coder
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+					</Link>
+				</>
+			}
+		/>
 	);
 };
 

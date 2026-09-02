@@ -6,16 +6,9 @@ import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { Textarea } from "#/components/Textarea/Textarea";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
 import { cn } from "#/utils/cn";
@@ -134,25 +127,24 @@ export const PublishTemplateVersionDialog: FC<
 									</Label>
 								</div>
 
-								<HelpPopover>
-									<HelpPopoverIconTrigger />
-									<HelpPopoverContent>
-										<HelpPopoverTitle>Active versions</HelpPopoverTitle>
-										<HelpPopoverText>
+								<InfoTooltip
+									title="Active versions"
+									message={
+										<>
 											Templates can enforce that the active version be used for
 											all workspaces <EnterpriseBadge />
-										</HelpPopoverText>
-										<HelpPopoverLinksGroup>
-											<HelpPopoverLink
+											<br />
+											<Link
+												size="sm"
 												href={docs(
 													"/admin/templates/managing-templates#template-update-policies",
 												)}
 											>
 												Review the documentation
-											</HelpPopoverLink>
-										</HelpPopoverLinksGroup>
-									</HelpPopoverContent>
-								</HelpPopover>
+											</Link>
+										</>
+									}
+								/>
 							</div>
 						</FormFields>
 					</div>

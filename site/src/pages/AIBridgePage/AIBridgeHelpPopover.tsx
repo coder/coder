@@ -1,32 +1,22 @@
 import type { FC } from "react";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
 export const AIBridgeHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is AI Gateway?</HelpPopoverTitle>
-				<HelpPopoverText>
+		<InfoTooltip
+			title="What is AI Gateway?"
+			message={
+				<>
 					AI Gateway is a smart gateway for AI that provides centralized
 					management, auditing, and attribution for LLM usage.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/ai-coder/ai-gateway")}>
+					<br />
+					<Link size="sm" href={docs("/ai-coder/ai-gateway")}>
 						Read the docs
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+					</Link>
+				</>
+			}
+		/>
 	);
 };

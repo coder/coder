@@ -501,6 +501,7 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 						{snapshotAt && (
 							<InfoTooltip
 								type="info"
+								size="small"
 								message={`This log snapshot was taken ${relativeTime(snapshotAt)}.`}
 							/>
 						)}

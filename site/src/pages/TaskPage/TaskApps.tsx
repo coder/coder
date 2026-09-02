@@ -207,6 +207,7 @@ const TaskAppTab: FC<TaskAppTabProps> = ({
 					title="This app is unhealthy."
 					message="The health check failed."
 					type="warning"
+					size="small"
 				/>
 			)}
 		</TaskTab>
