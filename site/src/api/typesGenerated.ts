@@ -1590,6 +1590,7 @@ export interface AppearanceConfig {
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
 	readonly support_links?: readonly LinkConfig[];
+	readonly codernauts_enabled: boolean;
 }
 
 // From codersdk/templates.go
@@ -9740,6 +9741,7 @@ export interface UpdateAppearanceConfig {
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
+	readonly codernauts_enabled: boolean;
 }
 
 // From codersdk/chats.go
