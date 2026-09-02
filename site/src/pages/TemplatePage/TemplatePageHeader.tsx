@@ -106,29 +106,25 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 					</ShadcnButton>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
-					<DropdownMenuItem
-						onClick={() => navigate(`${templateLink}/settings`)}
-					>
-						<SettingsIcon className="size-icon-sm" />
-						Settings
+					<DropdownMenuItem asChild>
+						<RouterLink to={`${templateLink}/settings`}>
+							<SettingsIcon className="size-icon-sm" />
+							Settings
+						</RouterLink>
 					</DropdownMenuItem>
 
-					<DropdownMenuItem
-						onClick={() =>
-							navigate(`${templateLink}/versions/${templateVersion}/edit`)
-						}
-					>
-						<EditIcon />
-						Edit files
+					<DropdownMenuItem asChild>
+						<RouterLink to={`${templateLink}/versions/${templateVersion}/edit`}>
+							<EditIcon />
+							Edit files
+						</RouterLink>
 					</DropdownMenuItem>
 
-					<DropdownMenuItem
-						onClick={() =>
-							navigate(`/templates/new?fromTemplate=${templateId}`)
-						}
-					>
-						<CopyIcon className="size-icon-sm" />
-						Duplicate&hellip;
+					<DropdownMenuItem asChild>
+						<RouterLink to={`/templates/new?fromTemplate=${templateId}`}>
+							<CopyIcon className="size-icon-sm" />
+							Duplicate&hellip;
+						</RouterLink>
 					</DropdownMenuItem>
 
 					<DropdownMenuItem onClick={() => handleExport()}>
