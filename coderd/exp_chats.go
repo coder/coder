@@ -3826,6 +3826,18 @@ func (api *API) chatStopWorkspace(
 	workspaceID uuid.UUID,
 	req codersdk.CreateWorkspaceBuildRequest,
 ) (codersdk.WorkspaceBuild, error) {
+	req.Transition = codersdk.WorkspaceTransitionStop
+	return api.chatTransitionWorkspace(ctx, ownerID, workspaceID, req)
+}
+
+// chatTransitionWorkspace creates a workspace build as the chat owner
+// for the transition the request names.
+func (api *API) chatTransitionWorkspace(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	workspaceID uuid.UUID,
+	req codersdk.CreateWorkspaceBuildRequest,
+) (codersdk.WorkspaceBuild, error) {
 	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
@@ -3836,8 +3848,6 @@ func (api *API) chatStopWorkspace(
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
 	}
-
-	req.Transition = codersdk.WorkspaceTransitionStop
 
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator.
@@ -4393,35 +4403,12 @@ func (api *API) createChatRuntimeWorkspace(
 func (api *API) deleteChatRuntimeWorkspace(ctx context.Context, ownerID uuid.UUID, workspaceID uuid.UUID) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
-	logCleanupFailure := func(err error) {
+	_, err := api.chatTransitionWorkspace(ctx, ownerID, workspaceID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+	})
+	if err != nil {
 		api.Logger.Error(ctx, "failed to clean up runtime chat workspace after chat creation failure",
 			slog.F("workspace_id", workspaceID), slog.F("owner_id", ownerID), slog.Error(err))
-	}
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
-	if err != nil {
-		logCleanupFailure(xerrors.Errorf("load user authorization: %w", err))
-		return
-	}
-	ctx = dbauthz.As(ctx, actor)
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		logCleanupFailure(xerrors.Errorf("get workspace: %w", err))
-		return
-	}
-	_, err = api.postWorkspaceBuildsInternal(
-		ctx,
-		database.APIKey{UserID: ownerID},
-		workspace,
-		codersdk.CreateWorkspaceBuildRequest{
-			Transition: codersdk.WorkspaceTransitionDelete,
-		},
-		func(action policy.Action, object rbac.Objecter) bool {
-			return api.HTTPAuth.Authorizer.Authorize(ctx, actor, action, object.RBACObject()) == nil
-		},
-		audit.WorkspaceBuildBaggage{},
-	)
-	if err != nil {
-		logCleanupFailure(xerrors.Errorf("create delete build: %w", err))
 	}
 }
 
