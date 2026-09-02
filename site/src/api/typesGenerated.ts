@@ -10519,9 +10519,10 @@ export interface UpsertAIModelPricesRequest {
  *
  * SECURITY: enabling a runtime injects the deployment's provider API
  * key into the runtime agent process inside each chat owner's
- * workspace, where the owner can read it. Configure a scoped,
- * rate-limited key (e.g. an AI gateway token), never a raw
- * organization-wide provider key.
+ * workspace, where the owner can read it, and Codex persists it in
+ * its own auth store on the workspace's home volume across restarts
+ * and key rotations. Configure a scoped, rate-limited key (e.g. an AI
+ * gateway token), never a raw organization-wide provider key.
  */
 export interface UpsertChatRuntimeConfigRequest {
 	readonly organization_id: string;
