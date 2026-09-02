@@ -7503,6 +7503,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
+    "disable_user_secret_file_path": true,
     "disable_workspace_agent_context_sync": true,
     "disable_workspace_sharing": true,
     "docs_url": {
@@ -8135,6 +8136,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
+  "disable_user_secret_file_path": true,
   "disable_workspace_agent_context_sync": true,
   "disable_workspace_sharing": true,
   "docs_url": {
@@ -8534,6 +8536,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                           |
 | `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                           |
 | `disable_path_apps`                            | boolean                                                                                              | false    |              |                                                                           |
+| `disable_user_secret_file_path`                | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                           |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
@@ -16935,6 +16938,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`          | string  | false    |              |                                                                                                                                                                                                                                      |
 | `name`        | string  | false    |              |                                                                                                                                                                                                                                      |
 | `updated_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
+
+## codersdk.UserSecretsCapabilities
+
+```json
+{
+  "file_path_delivery_enabled": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description                                                                                                                       |
+|------------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `file_path_delivery_enabled` | boolean | false    |              | File path delivery enabled reports whether Coder writes stored file paths into workspaces. Stored paths are preserved either way. |
 
 ## codersdk.UserSkill
 

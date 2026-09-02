@@ -4336,8 +4336,9 @@ export interface CreateUserRequestWithOrgs {
  * secret. Name and Value are required. An enabled secret must have at
  * least one of EnvName or FilePath non-empty so it has an injection
  * target; to keep a secret without injecting it, set Enabled to false.
- * All other fields are optional and default to empty string. Enabled
- * defaults to true when omitted.
+ * A deployment may disable file path delivery, which rejects a
+ * non-empty FilePath. All other fields are optional and default to
+ * empty string. Enabled defaults to true when omitted.
  */
 export interface CreateUserSecretRequest {
 	readonly name: string;
@@ -4839,6 +4840,7 @@ export interface DeploymentValues {
 	readonly disable_workspace_sharing?: boolean;
 	readonly disable_chat_sharing?: boolean;
 	readonly disable_workspace_agent_context_sync?: boolean;
+	readonly disable_user_secret_file_path?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
@@ -10295,6 +10297,8 @@ export interface UpdateUserQuietHoursScheduleRequest {
  * to empty string). If the post-update row is enabled it must still
  * have at least one of EnvName or FilePath non-empty; clearing both
  * targets is only allowed when the secret is (or becomes) disabled.
+ * When a deployment disables file path delivery, an enabled row also
+ * requires EnvName.
  */
 export interface UpdateUserSecretRequest {
 	readonly value?: string;
@@ -10850,6 +10854,20 @@ export const UserSecretNameField = "name";
  * name used in coderd route segments.
  */
 export const UserSecretValueField = "value";
+
+// From codersdk/usersecrets.go
+/**
+ * UserSecretsCapabilities reports which user secret delivery targets the
+ * deployment allows. Any authenticated user can read it, unlike the full
+ * deployment configuration.
+ */
+export interface UserSecretsCapabilities {
+	/**
+	 * FilePathDeliveryEnabled reports whether Coder writes stored file paths
+	 * into workspaces. Stored paths are preserved either way.
+	 */
+	readonly file_path_delivery_enabled: boolean;
+}
 
 // From codersdk/userskills.go
 /**
