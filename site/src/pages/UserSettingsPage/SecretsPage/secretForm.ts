@@ -81,14 +81,9 @@ export const getCreateSecretRequiredFieldErrors = (
 	return errors;
 };
 
-type SecretTypeLabel = "env var" | "file" | "env var + file" | "not injected";
-
-export interface SecretInjectionSummary {
-	injectsEnv: boolean;
-	injectsFile: boolean;
-	hasBlockedFilePath: boolean;
+interface SecretInjectionSummary {
 	canEnable: boolean;
-	typeLabel: SecretTypeLabel;
+	typeLabel: "env var" | "file" | "env var + file" | "not injected";
 }
 
 export const getSecretInjectionSummary = (
@@ -96,33 +91,19 @@ export const getSecretInjectionSummary = (
 	filePathEnabled: boolean,
 ): SecretInjectionSummary => {
 	const injectsEnv = secret.env_name !== "";
-	const hasFilePath = secret.file_path !== "";
-	const injectsFile = hasFilePath && filePathEnabled;
+	const injectsFile = filePathEnabled && secret.file_path !== "";
 
-	return {
-		injectsEnv,
-		injectsFile,
-		hasBlockedFilePath: hasFilePath && !filePathEnabled,
-		canEnable: injectsEnv || injectsFile,
-		typeLabel: getSecretTypeLabel(injectsEnv, injectsFile),
-	};
-};
-
-function getSecretTypeLabel(
-	injectsEnv: boolean,
-	injectsFile: boolean,
-): SecretTypeLabel {
-	if (injectsEnv && injectsFile) {
-		return "env var + file";
-	}
 	if (injectsEnv) {
-		return "env var";
+		return {
+			canEnable: true,
+			typeLabel: injectsFile ? "env var + file" : "env var",
+		};
 	}
 	if (injectsFile) {
-		return "file";
+		return { canEnable: true, typeLabel: "file" };
 	}
-	return "not injected";
-}
+	return { canEnable: false, typeLabel: "not injected" };
+};
 
 export const buildCreateUserSecretRequest = (
 	values: SecretFormValues,
@@ -151,7 +132,6 @@ export const buildUpdateUserSecretRequest = (
 		secret.enabled &&
 		secret.file_path !== "" &&
 		values.file_path === "" &&
-		values.file_path !== secret.file_path &&
 		values.env_name === "";
 
 	return {

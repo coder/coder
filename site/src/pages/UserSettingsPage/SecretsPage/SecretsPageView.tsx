@@ -20,7 +20,7 @@ import { SecretsTable } from "./SecretsTable";
 
 type SecretsPageViewProps = {
 	secrets?: readonly UserSecret[];
-	filePathEnabled?: boolean;
+	filePathEnabled: boolean;
 	isLoading: boolean;
 	hasLoaded: boolean;
 	isCreating: boolean;
@@ -48,7 +48,7 @@ type SecretDialogState =
 
 export const SecretsPageView: FC<SecretsPageViewProps> = ({
 	secrets = [],
-	filePathEnabled = true,
+	filePathEnabled,
 	isLoading,
 	hasLoaded,
 	isCreating,

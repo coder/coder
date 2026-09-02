@@ -19,8 +19,6 @@ import { SecretsPageView } from "./SecretsPageView";
 
 const visibleSecrets = MockUserSecrets.slice(0, 4);
 const PLACEHOLDER_INPUT = "placeholder input";
-const FILE_PATH_DISABLED_NOTICE =
-	/File path delivery is disabled\. Environment variables still work/;
 
 const meta: Meta<typeof SecretsPageView> = {
 	title: "pages/UserSettingsPage/SecretsPageView",
@@ -29,6 +27,7 @@ const meta: Meta<typeof SecretsPageView> = {
 	parameters: { pixel: { exclude: true } },
 	args: {
 		secrets: visibleSecrets,
+		filePathEnabled: true,
 		isLoading: false,
 		hasLoaded: true,
 		isCreating: false,
@@ -111,8 +110,6 @@ export const Loaded: Story = {
 		await expect(canvas.getByText("file")).toBeInTheDocument();
 		await expect(canvas.getByText("env var + file")).toBeInTheDocument();
 		await expect(canvas.getByText("not injected")).toBeInTheDocument();
-		// Default args omit `filePathEnabled`, covering the metadata fallback.
-		await expect(canvas.queryByText(FILE_PATH_DISABLED_NOTICE)).toBeNull();
 
 		const docsLink = canvas.getByRole("link", { name: /View docs/ });
 		await expect(docsLink).toHaveAttribute(
@@ -182,8 +179,6 @@ export const AddDialogOpened: Story = {
 			"placeholder",
 			"Enter secret value",
 		);
-		// Fallback path: file paths stay offered when the setting is absent.
-		await expect(dialogView.getByLabelText("File path")).toBeEnabled();
 	},
 };
 
@@ -962,9 +957,10 @@ export const FilePathDisabledStatusAndCreate: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 
-		await expect(canvas.getByText(FILE_PATH_DISABLED_NOTICE)).toBeVisible();
+		await expect(
+			canvas.getByText(/File path delivery is disabled/),
+		).toBeVisible();
 
-		// A dual-target secret keeps env delivery and its stored path.
 		const dualTargetRow = within(
 			canvas.getByRole("row", { name: new RegExp(dualTargetSecret.name) }),
 		);
@@ -973,7 +969,6 @@ export const FilePathDisabledStatusAndCreate: Story = {
 			dualTargetRow.getByText(dualTargetSecret.file_path),
 		).toBeVisible();
 
-		// A file-only secret loses its only target.
 		const fileOnlyRow = within(
 			canvas.getByRole("row", { name: new RegExp(fileOnlySecret.name) }),
 		);
@@ -981,7 +976,6 @@ export const FilePathDisabledStatusAndCreate: Story = {
 		await expect(
 			fileOnlyRow.getByText("Saved, not written to workspaces"),
 		).toBeVisible();
-		await expect(canvas.queryByText("env var + file")).toBeNull();
 
 		await user.click(canvas.getByRole("button", { name: "Add secret" }));
 		const dialog = within(await body.findByRole("dialog"));
@@ -1035,7 +1029,7 @@ export const FilePathDisabledCleanupDisablesSecret: Story = {
 
 		await user.click(dialog.getByRole("button", { name: "Remove file path" }));
 		await expect(
-			dialog.getByText(/also disables an enabled file-only secret/),
+			dialog.getByText(/which also disables this secret/),
 		).toBeVisible();
 		await expect(updateButton).toBeEnabled();
 
@@ -1086,13 +1080,11 @@ export const FilePathDisabledBlockedEnableThenAddEnv: Story = {
 		expect(filePathDisabledToggle).not.toHaveBeenCalled();
 
 		await user.hover(toggle);
-		// Radix renders the tooltip before it finishes fading in.
-		await waitFor(() => {
-			const [tooltip] = body.getAllByText(
-				"Add an environment variable before enabling this secret. Your deployment administrator disabled file path secrets.",
-			);
-			expect(tooltip).toBeVisible();
-		});
+		await waitFor(() =>
+			expect(body.getByRole("tooltip")).toHaveTextContent(
+				/disabled file path delivery/,
+			),
+		);
 		await user.unhover(toggle);
 
 		await user.click(

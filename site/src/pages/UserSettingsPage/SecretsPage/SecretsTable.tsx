@@ -28,10 +28,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { relativeTime } from "#/utils/time";
-import {
-	getSecretInjectionSummary,
-	type SecretInjectionSummary,
-} from "./secretForm";
+import { getSecretInjectionSummary } from "./secretForm";
 
 type SecretsTableProps = {
 	secrets?: readonly UserSecret[];
@@ -126,66 +123,61 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 						/>
 					)}
 					{!isLoading &&
-						secrets?.map((secret) => {
-							const injection = getSecretInjectionSummary(
-								secret,
-								filePathEnabled,
-							);
-
-							return (
-								<TableRow key={secret.id}>
-									<TableCell>
-										<EnabledToggle
+						secrets?.map((secret) => (
+							<TableRow key={secret.id}>
+								<TableCell>
+									<EnabledToggle
+										secret={secret}
+										filePathEnabled={filePathEnabled}
+										isPending={togglingSecretId === secret.id}
+										onToggle={handleToggle}
+									/>
+								</TableCell>
+								<TableCell className="font-semibold text-content-primary">
+									<span>{secret.name}</span>
+								</TableCell>
+								<TableCell>
+									<OptionalSecretValue value={secret.env_name} />
+								</TableCell>
+								<TableCell>
+									<FilePathValue
+										filePath={secret.file_path}
+										isBlocked={!filePathEnabled && secret.file_path !== ""}
+									/>
+								</TableCell>
+								<TableCell>
+									<Badge>
+										{
+											getSecretInjectionSummary(secret, filePathEnabled)
+												.typeLabel
+										}
+									</Badge>
+								</TableCell>
+								<TableCell className="max-w-0">
+									{secret.description ? (
+										<span className="block truncate" title={secret.description}>
+											{secret.description}
+										</span>
+									) : (
+										<span className="text-content-disabled">
+											No description
+										</span>
+									)}
+								</TableCell>
+								<TableCell data-pixel="ignore" className="whitespace-nowrap">
+									{relativeTime(secret.updated_at)}
+								</TableCell>
+								<TableCell>
+									<div className="flex justify-end flex-1">
+										<SecretRowActions
 											secret={secret}
-											injection={injection}
-											isPending={togglingSecretId === secret.id}
-											onToggle={handleToggle}
+											onEditSecret={onEditSecret}
+											onDeleteSecret={setSecretToDelete}
 										/>
-									</TableCell>
-									<TableCell className="font-semibold text-content-primary">
-										<span>{secret.name}</span>
-									</TableCell>
-									<TableCell>
-										<OptionalSecretValue value={secret.env_name} />
-									</TableCell>
-									<TableCell>
-										<FilePathValue
-											filePath={secret.file_path}
-											isBlocked={injection.hasBlockedFilePath}
-										/>
-									</TableCell>
-									<TableCell>
-										<Badge>{injection.typeLabel}</Badge>
-									</TableCell>
-									<TableCell className="max-w-0">
-										{secret.description ? (
-											<span
-												className="block truncate"
-												title={secret.description}
-											>
-												{secret.description}
-											</span>
-										) : (
-											<span className="text-content-disabled">
-												No description
-											</span>
-										)}
-									</TableCell>
-									<TableCell data-pixel="ignore" className="whitespace-nowrap">
-										{relativeTime(secret.updated_at)}
-									</TableCell>
-									<TableCell>
-										<div className="flex justify-end flex-1">
-											<SecretRowActions
-												secret={secret}
-												onEditSecret={onEditSecret}
-												onDeleteSecret={setSecretToDelete}
-											/>
-										</div>
-									</TableCell>
-								</TableRow>
-							);
-						})}
+									</div>
+								</TableCell>
+							</TableRow>
+						))}
 				</TableBody>
 			</Table>
 		</>
@@ -209,12 +201,8 @@ type FilePathValueProps = {
 };
 
 const FilePathValue: FC<FilePathValueProps> = ({ filePath, isBlocked }) => {
-	if (!filePath) {
-		return <OptionalSecretValue value={filePath} />;
-	}
-
 	if (!isBlocked) {
-		return filePath;
+		return <OptionalSecretValue value={filePath} />;
 	}
 
 	return (
@@ -229,18 +217,19 @@ const FilePathValue: FC<FilePathValueProps> = ({ filePath, isBlocked }) => {
 
 type EnabledToggleProps = {
 	secret: UserSecret;
-	injection: SecretInjectionSummary;
+	filePathEnabled: boolean;
 	isPending: boolean;
 	onToggle: (secret: UserSecret, enabled: boolean) => void;
 };
 
 const EnabledToggle: FC<EnabledToggleProps> = ({
 	secret,
-	injection,
+	filePathEnabled,
 	isPending,
 	onToggle,
 }) => {
-	const cannotEnable = !secret.enabled && !injection.canEnable;
+	const { canEnable } = getSecretInjectionSummary(secret, filePathEnabled);
+	const cannotEnable = !secret.enabled && !canEnable;
 
 	return (
 		<Tooltip>
@@ -262,9 +251,9 @@ const EnabledToggle: FC<EnabledToggleProps> = ({
 			</TooltipTrigger>
 			{cannotEnable && (
 				<TooltipContent side="top">
-					{injection.hasBlockedFilePath
-						? "Add an environment variable before enabling this secret. Your deployment administrator disabled file path secrets."
-						: "Add an environment variable or file path before enabling this secret."}
+					{filePathEnabled
+						? "Add an environment variable or file path before enabling this secret."
+						: "Your administrator disabled file path delivery. Add an environment variable to enable this secret."}
 				</TooltipContent>
 			)}
 		</Tooltip>

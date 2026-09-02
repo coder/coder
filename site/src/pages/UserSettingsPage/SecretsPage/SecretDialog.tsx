@@ -242,6 +242,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 								<BlockedFilePathField
 									storedFilePath={secret.file_path}
 									isRemoved={form.values.file_path === ""}
+									disablesSecret={secret.enabled && form.values.env_name === ""}
 									onRemove={() => {
 										void form.setFieldValue("file_path", "", false);
 									}}
@@ -344,9 +345,7 @@ const SecretFields: FC<SecretFieldsProps> = ({
 	const envNameRequired = Boolean(showRequiredLabels && !filePathEnabled);
 	const envNameHelperText = envNameRequired
 		? "Required while file path delivery is disabled."
-		: filePathEnabled
-			? "Optional. Exposes the secret as this environment variable."
-			: "Environment variable delivery remains available.";
+		: "Optional. Exposes the secret as an environment variable with this name in your workspace.";
 
 	return (
 		<>
@@ -420,6 +419,7 @@ const SecretFields: FC<SecretFieldsProps> = ({
 type BlockedFilePathFieldProps = {
 	storedFilePath: string;
 	isRemoved: boolean;
+	disablesSecret: boolean;
 	onRemove: () => void;
 	onRestore: () => void;
 };
@@ -427,6 +427,7 @@ type BlockedFilePathFieldProps = {
 const BlockedFilePathField: FC<BlockedFilePathFieldProps> = ({
 	storedFilePath,
 	isRemoved,
+	disablesSecret,
 	onRemove,
 	onRestore,
 }) => {
@@ -456,8 +457,10 @@ const BlockedFilePathField: FC<BlockedFilePathFieldProps> = ({
 			</div>
 			<span className="text-xs text-content-secondary">
 				{isRemoved
-					? "The path will be removed. This also disables an enabled file-only secret."
-					: "Saved but blocked. It resumes if file delivery is enabled."}
+					? disablesSecret
+						? "The path will be removed, which also disables this secret."
+						: "The path will be removed."
+					: "Saved, not written to workspaces."}
 			</span>
 		</div>
 	);

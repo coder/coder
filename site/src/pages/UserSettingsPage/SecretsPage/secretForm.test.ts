@@ -110,6 +110,22 @@ describe("getCreateSecretRequiredFieldErrors", () => {
 			name: "Name is required.",
 		});
 	});
+
+	it("requires an environment variable when file paths are disabled", () => {
+		expect(
+			getCreateSecretRequiredFieldErrors(
+				{
+					name: "service-token",
+					value: "some value",
+					env_name: "",
+				},
+				false,
+			),
+		).toEqual({
+			env_name:
+				"Environment variable is required when file path delivery is disabled.",
+		});
+	});
 });
 
 describe("payload builders", () => {
@@ -185,9 +201,9 @@ describe("payload builders", () => {
 		file_path: "~/.config/service/key",
 		enabled: true,
 	};
-	const clearBlockedPath = (env_name: string) =>
+	const clearBlockedPath = (env_name: string, storedEnvName = "") =>
 		buildUpdateUserSecretRequest(
-			blockedFileOnly,
+			{ ...blockedFileOnly, env_name: storedEnvName },
 			{
 				name: blockedFileOnly.name,
 				value: "",
@@ -204,42 +220,37 @@ describe("payload builders", () => {
 			env_name: "SERVICE_API_KEY",
 			file_path: "",
 		});
+		expect(clearBlockedPath("SERVICE_API_KEY", "SERVICE_API_KEY")).toEqual({
+			file_path: "",
+		});
 	});
 });
 
 describe("getSecretInjectionSummary", () => {
 	const FILE = "~/.config/service/key";
 
-	// injectsEnv/injectsFile only feed typeLabel; the table consumes the three
-	// fields below, so results collapse to [typeLabel, canEnable, blockedPath].
-	const summarize = (
-		env_name: string,
-		file_path: string,
-		filePathEnabled: boolean,
-	) => {
-		const s = getSecretInjectionSummary(
-			{ env_name, file_path },
-			filePathEnabled,
-		);
-		return [s.typeLabel, s.canEnable, s.hasBlockedFilePath];
-	};
-
 	it("keeps stored targets effective while file paths are allowed", () => {
-		expect(summarize("SERVICE_TOKEN", FILE, true)).toEqual([
-			"env var + file",
-			true,
-			false,
-		]);
-		expect(summarize("", FILE, true)).toEqual(["file", true, false]);
+		expect(
+			getSecretInjectionSummary(
+				{ env_name: "SERVICE_TOKEN", file_path: FILE },
+				true,
+			),
+		).toEqual({ typeLabel: "env var + file", canEnable: true });
+		expect(
+			getSecretInjectionSummary({ env_name: "", file_path: FILE }, true),
+		).toEqual({ typeLabel: "file", canEnable: true });
 	});
 
 	it("drops only the file target while file paths are blocked", () => {
-		expect(summarize("SERVICE_TOKEN", FILE, false)).toEqual([
-			"env var",
-			true,
-			true,
-		]);
-		expect(summarize("", FILE, false)).toEqual(["not injected", false, true]);
+		expect(
+			getSecretInjectionSummary(
+				{ env_name: "SERVICE_TOKEN", file_path: FILE },
+				false,
+			),
+		).toEqual({ typeLabel: "env var", canEnable: true });
+		expect(
+			getSecretInjectionSummary({ env_name: "", file_path: FILE }, false),
+		).toEqual({ typeLabel: "not injected", canEnable: false });
 	});
 });
 
