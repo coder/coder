@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -40,6 +40,24 @@ type Story = StoryObj<typeof Dialog>;
 export const OpenDialog: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Open Dialog" }));
+		const body = within(document.body);
+		const trigger = canvas.getByRole("button", { name: "Open Dialog" });
+
+		await userEvent.click(trigger);
+		await expect(body.getByRole("dialog")).toHaveAttribute(
+			"data-state",
+			"open",
+		);
+
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(trigger);
+		await expect(body.getByRole("dialog")).toHaveAttribute(
+			"data-state",
+			"open",
+		);
 	},
 };

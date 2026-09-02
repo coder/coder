@@ -167,6 +167,13 @@ func TestScopesCover(t *testing.T) {
 			wantErrContains: "expand allowed scope",
 		},
 		{
+			// An implementation answering on the first match never reaches it.
+			name:            "UnknownAllowedScopeErrorsBesideCoveringScope",
+			allowed:         []rbac.ScopeName{rbac.ScopeAll, "not_a_real_scope"},
+			requested:       "workspace:read",
+			wantErrContains: "expand allowed scope",
+		},
+		{
 			// The aliases IsExternalScope accepts are not expandable names,
 			// so callers must canonicalize before asking about coverage.
 			name:            "NonCanonicalAliasErrorsRequestedAll",

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -5004,7 +5005,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Template Builder Registry URL",
-			Description: "The base URL of the module registry used by the template builder for module source paths.",
+			Description: "The module registry host the template builder uses for module source paths (for example, \"registry.coder.com\" or \"mirror.internal:8443\"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.",
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,
@@ -5143,6 +5144,33 @@ type TemplateBuilderConfig struct {
 	RegistryURL serpent.String `json:"registry_url,omitempty"`
 }
 
+// NormalizeTemplateBuilderRegistryURL canonicalizes a configured template
+// builder registry value into the bare host used verbatim in a Terraform module
+// source. An empty value returns empty (the caller defaults it). An accidental
+// http(s):// scheme and trailing slashes are stripped so a value pasted as a URL
+// still resolves to a host; any other scheme, a path, query, fragment, or
+// embedded credentials is rejected so a misconfiguration fails at server start
+// rather than rendering broken or unsafe module sources. It does not otherwise
+// canonicalize the host.
+func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return "", nil
+	}
+	v = strings.TrimPrefix(v, "https://")
+	v = strings.TrimPrefix(v, "http://")
+	v = strings.TrimRight(v, "/")
+	// net/url isolates a bare host:port only in authority form. Requiring the
+	// parsed host to equal the whole remainder rejects a leftover path, query,
+	// fragment, non-http scheme, or embedded credentials, and never echoes the
+	// input.
+	u, err := url.Parse("//" + v)
+	if err != nil || u.Host != v || u.Hostname() == "" || u.User != nil {
+		return "", xerrors.New(`template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port`)
+	}
+	return v, nil
+}
+
 type SupportConfig struct {
 	Links serpent.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
@@ -5212,6 +5240,14 @@ func (c *DeploymentValues) Validate() error {
 			if hookTimeout <= 0 || hookTimeout > 5*time.Second {
 				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
 			}
+		}
+	}
+
+	// Gated on the builder being enabled and run here rather than as a per-option
+	// serpent validator, which only fires in Set and so misses the YAML path.
+	if !c.TemplateBuilder.Disabled.Value() {
+		if _, err := NormalizeTemplateBuilderRegistryURL(c.TemplateBuilder.RegistryURL.Value()); err != nil {
+			return err
 		}
 	}
 

@@ -10,7 +10,6 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
-import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
@@ -21,8 +20,6 @@ interface ManagedAgentsConsumptionProps {
 export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	managedAgentFeature,
 }) => {
-	const aiTasksEnabled = useAITasksEnabled();
-
 	// If no feature is provided or it's disabled, show disabled state
 	if (!managedAgentFeature?.enabled) {
 		return (
@@ -96,30 +93,27 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 					>
 						<p>
 							Agent Workspace Builds are measured when you start an ephemeral
-							workspace, purely for running an agentic workload. These are not
-							to be confused with workspaces used for day-to-day development,
-							even if AI tooling is involved.
+							workspace, purely for running an agentic workload. Workspaces used
+							by developers for day-to-day development do not count, even if AI
+							tooling is involved.
 						</p>
 						<p>
-							Today,{" "}
 							<Link
 								href={docs("/ai-coder/agents")}
 								target="_blank"
 								rel="noreferrer"
 							>
-								Coder Agents (via UI or API)
+								Coder Agents
 							</Link>{" "}
-							{aiTasksEnabled
-								? "and Coder Tasks (via UI, CLI, or API) are the only ways"
-								: "is the only way"}{" "}
-							to create agentic workspaces, but additional protocols and APIs
-							may be supported as standards emerge. Learn more in{" "}
+							workspaces count towards your Agent Workspace Builds limit.
+							Additional protocols and APIs may be supported as standards
+							emerge.
 							<Link
 								href={docs("/ai-coder/ai-governance")}
 								target="_blank"
 								rel="noreferrer"
 							>
-								the Coder documentation
+								View docs
 							</Link>
 						</p>
 						<ul>

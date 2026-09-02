@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
@@ -43,6 +44,7 @@ const emojiManifestPlugin = (): PluginOption => {
 };
 
 const plugins: PluginOption[] = [
+	tailwindcss(),
 	emojiManifestPlugin(),
 	react(),
 	babel({ presets: [compilerPreset] }),
