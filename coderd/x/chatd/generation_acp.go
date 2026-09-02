@@ -427,7 +427,8 @@ func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, cha
 // model pin sources credentials from its own model config's provider,
 // and without a pin the single keyed harness provider supplies them
 // with the adapter's default model. The chain never guesses between
-// providers.
+// providers and never routes a pin whose model config has since been
+// disabled or deleted.
 func (p *Server) acpDefaultCredentials(
 	ctx context.Context,
 	harness chatacp.Harness,
@@ -451,9 +452,17 @@ func (p *Server) acpDefaultCredentials(
 				pinned[providerID] = creds
 			}
 		}
-		if len(pinned) > 0 {
-			candidates = pinned
+		if len(pinned) == 0 {
+			return chatacp.TurnCredentials{}, chaterror.WithClassification(
+				xerrors.Errorf("pinned model %q has no enabled %s model config", pinnedModel, harness.ProviderType),
+				chaterror.ClassifiedError{
+					Kind: codersdk.ChatErrorKindConfig,
+					Message: fmt.Sprintf("The %s runtime's pinned model %q is disabled or no longer available; an administrator must update the runtime configuration.",
+						harness.DisplayName, pinnedModel),
+				},
+			)
 		}
+		candidates = pinned
 	}
 	if len(candidates) > 1 {
 		return chatacp.TurnCredentials{}, chaterror.WithClassification(

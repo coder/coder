@@ -65,6 +65,9 @@ type acpTestSetup struct {
 	// different type, whose model configs the runtime must reject.
 	providerID      uuid.UUID
 	otherProviderID uuid.UUID
+	// pinnedConfig is the enabled model config on providerID that the
+	// runtime config's acpTestPinnedModel pin resolves to.
+	pinnedConfig database.ChatModelConfig
 }
 
 func seedACPChatDependencies(t *testing.T, db database.Store, harness chatacp.Harness, transition database.WorkspaceTransition) acpTestSetup {
@@ -112,7 +115,7 @@ func seedACPChatDependencies(t *testing.T, db database.Store, harness chatacp.Ha
 	})
 	seedWorkspaceBuild(t, db, ws, tv.ID, transition, 1)
 
-	dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+	pinnedConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		OrganizationID: org.ID,
 		Model:          acpTestPinnedModel,
 		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
@@ -134,6 +137,7 @@ func seedACPChatDependencies(t *testing.T, db database.Store, harness chatacp.Ha
 		workspace:       ws,
 		providerID:      provider.ID,
 		otherProviderID: otherProvider.ID,
+		pinnedConfig:    pinnedConfig,
 	}
 }
 
@@ -549,6 +553,26 @@ func TestACPChatTurn(t *testing.T) {
 				},
 				wantCreds: primaryCredentials(acpTestPinnedModel),
 				wantMode:  "acceptEdits",
+			},
+			{
+				name: "PinnedDisabledFails",
+				seed: func(t *testing.T, db database.Store, setup acpTestSetup) uuid.UUID {
+					pinned := setup.pinnedConfig
+					_, err := db.UpdateChatModelConfig(context.Background(), database.UpdateChatModelConfigParams{
+						ID:                   pinned.ID,
+						Model:                pinned.Model,
+						DisplayName:          pinned.DisplayName,
+						Enabled:              false,
+						IsDefault:            pinned.IsDefault,
+						ContextLimit:         pinned.ContextLimit,
+						CompressionThreshold: pinned.CompressionThreshold,
+						Options:              pinned.Options,
+						AIProviderID:         pinned.AIProviderID,
+					})
+					require.NoError(t, err)
+					return uuid.Nil
+				},
+				wantError: "The " + harness.DisplayName + ` runtime's pinned model "` + acpTestPinnedModel + `" is disabled or no longer available; an administrator must update the runtime configuration.`,
 			},
 			{
 				name: "SelectedModel",
