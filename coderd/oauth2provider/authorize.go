@@ -76,7 +76,7 @@ func grantableScopes(appScope string) []string {
 	return canonicalScopes(filtered)
 }
 
-// firstScopeNotCovered returns the first requested scope the ceiling does not
+// firstScopeBeyondCeiling returns the first requested scope the ceiling does not
 // confer, or "" when it confers all of them. It compares what the scopes grant,
 // not their names: a ceiling of `coder:workspaces.access` covers
 // `workspace:read`. Pass both slices through canonicalScopes first, since RBAC
@@ -85,7 +85,7 @@ func grantableScopes(appScope string) []string {
 //
 // The ceiling is the app's allowlist at authorization and the token's own grant
 // at refresh, which is what phase names in the log.
-func firstScopeNotCovered(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, ceiling, requested []string) (string, error) {
+func firstScopeBeyondCeiling(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, ceiling, requested []string) (string, error) {
 	allowedNames := make([]rbac.ScopeName, 0, len(ceiling))
 	for _, a := range ceiling {
 		allowedNames = append(allowedNames, rbac.ScopeName(a))
@@ -155,7 +155,7 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		return strings.Join(allowlist, " "), nil // RFC 6749 §3.3 default
 	}
 
-	outside, err := firstScopeNotCovered(ctx, logger, "authorize", app.ID, allowlist, granted)
+	outside, err := firstScopeBeyondCeiling(ctx, logger, "authorize", app.ID, allowlist, granted)
 	if err != nil {
 		return "", err
 	}

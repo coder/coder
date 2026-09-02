@@ -77,7 +77,7 @@ func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app databas
 	}
 
 	// Canonicalized because the row may have been written by an older server.
-	outside, err := firstScopeNotCovered(ctx, logger, "redeem", app.ID, allowlist, canonicalScopes(strings.Fields(granted)))
+	outside, err := firstScopeBeyondCeiling(ctx, logger, "redeem", app.ID, allowlist, canonicalScopes(strings.Fields(granted)))
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func narrowGrantedScope(ctx context.Context, logger slog.Logger, app database.OA
 
 	narrowed := canonicalScopes(requested)
 	// Canonicalized for the same reason as in scopeStillCoveredByAllowlist.
-	outside, err := firstScopeNotCovered(ctx, logger, "refresh", app.ID, canonicalScopes(strings.Fields(granted)), narrowed)
+	outside, err := firstScopeBeyondCeiling(ctx, logger, "refresh", app.ID, canonicalScopes(strings.Fields(granted)), narrowed)
 	if err != nil {
 		return "", err
 	}
