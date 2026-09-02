@@ -17,12 +17,6 @@ type ModuleConfigurationProps = {
 	onRemove?: () => void;
 	fields?: ConfigurationFieldDefinition[];
 	optionalFields?: ConfigurationFieldDefinition[];
-	/**
-	 * Sensitive variables belonging to this module. Rendered as an info note
-	 * at the bottom of the module's grey card because their values are
-	 * collected from the developer at workspace creation, not during template
-	 * composition.
-	 */
 	sensitiveVariables?: TemplateBuilderModuleVariable[];
 };
 
