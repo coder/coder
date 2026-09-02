@@ -25,10 +25,12 @@ const CreateUserPage: FC = () => {
 		<>
 			<title>{pageTitle("New user")}</title>
 
-			{authMethodsQuery.isLoading ? (
-				<Loader />
-			) : !authMethodsQuery.data ? (
-				<ErrorAlert error={authMethodsQuery.error} />
+			{!authMethodsQuery.data ? (
+				authMethodsQuery.error ? (
+					<ErrorAlert error={authMethodsQuery.error} />
+				) : (
+					<Loader />
+				)
 			) : (
 				<CreateUserForm
 					error={createUserMutation.error}
