@@ -15,13 +15,6 @@ const API_KEY_PLACEHOLDER = "••••••••••••••••";
 const BEDROCK_UNSUPPORTED_NOTE =
 	"AWS Bedrock providers do not support personal API keys yet. Requests authenticate with AWS credentials configured by your deployment administrator.";
 
-// The AI gateway re-signs Bedrock requests with the deployment's AWS
-// credentials (SigV4), so a personal key saved for a Bedrock provider is
-// never used. Hide the key form for Bedrock instead of collecting a secret
-// that has no effect.
-const supportsUserKeys = (provider: UserChatProviderConfig): boolean =>
-	provider.provider !== "bedrock";
-
 type ProviderStatus = {
 	label: string;
 	variant: "default" | "green" | "warning";
@@ -31,7 +24,7 @@ type ProviderStatus = {
 const getProviderStatus = (
 	provider: UserChatProviderConfig,
 ): ProviderStatus => {
-	if (!supportsUserKeys(provider)) {
+	if (!provider.supports_user_api_key) {
 		if (provider.has_user_api_key) {
 			return {
 				label: "Key not used",
@@ -143,7 +136,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 		onRemove(provider.provider_id);
 	};
 
-	const deleteDescription = !supportsUserKeys(provider)
+	const deleteDescription = !provider.supports_user_api_key
 		? "This will remove your saved API key. Requests are unaffected; they continue to authenticate with AWS credentials configured by your deployment administrator."
 		: provider.has_central_api_key_fallback
 			? "This will remove your personal API key. Requests will fall back to the shared deployment key for this provider."
@@ -165,7 +158,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 				</Badge>
 			</div>
 
-			{supportsUserKeys(provider) ? (
+			{provider.supports_user_api_key ? (
 				<form className="mt-6 flex flex-col gap-3" onSubmit={handleSave}>
 					<label
 						htmlFor={apiKeyInputId}

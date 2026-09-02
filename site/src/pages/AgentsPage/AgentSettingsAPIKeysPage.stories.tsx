@@ -19,6 +19,7 @@ const createProvider = (
 	has_user_api_key: overrides.has_user_api_key ?? false,
 	has_central_api_key_fallback: overrides.has_central_api_key_fallback ?? false,
 	byok_enabled: overrides.byok_enabled ?? true,
+	supports_user_api_key: overrides.supports_user_api_key ?? true,
 });
 
 const createModel = (
@@ -120,6 +121,7 @@ export const BedrockProvider: Story = {
 				provider_id: "prov-bedrock",
 				provider: "bedrock",
 				display_name: "AWS Bedrock",
+				supports_user_api_key: false,
 			}),
 		]),
 		models: [
@@ -146,6 +148,25 @@ export const BedrockProvider: Story = {
 	},
 };
 
+export const AnthropicTypedBedrockProvider: Story = {
+	args: {
+		providerItems: createProviderItems([
+			createProvider({
+				provider_id: "prov-anthropic-bedrock",
+				provider: "anthropic",
+				display_name: "Anthropic via Bedrock",
+				supports_user_api_key: false,
+			}),
+		]),
+		models: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Not supported")).toBeVisible();
+		expect(canvas.queryByLabelText(/API Key/i)).not.toBeInTheDocument();
+	},
+};
+
 export const BedrockProviderWithSavedKey: Story = {
 	args: {
 		providerItems: createProviderItems([
@@ -154,6 +175,7 @@ export const BedrockProviderWithSavedKey: Story = {
 				provider: "bedrock",
 				display_name: "AWS Bedrock",
 				has_user_api_key: true,
+				supports_user_api_key: false,
 			}),
 		]),
 		models: [],

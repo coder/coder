@@ -16442,18 +16442,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "type": "openai"
-  }
+  },
+  "supports_user_api_key": true
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                                     | Required | Restrictions | Description |
-|------------------------|----------------------------------------------------------|----------|--------------|-------------|
-| `byok_enabled`         | boolean                                                  | false    |              |             |
-| `has_provider_api_key` | boolean                                                  | false    |              |             |
-| `has_user_api_key`     | boolean                                                  | false    |              |             |
-| `provider`             | [codersdk.AIProviderSummary](#codersdkaiprovidersummary) | false    |              |             |
+| Name                    | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                              |
+|-------------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `byok_enabled`          | boolean                                                  | false    |              |                                                                                                                                                                                                                                                          |
+| `has_provider_api_key`  | boolean                                                  | false    |              |                                                                                                                                                                                                                                                          |
+| `has_user_api_key`      | boolean                                                  | false    |              |                                                                                                                                                                                                                                                          |
+| `provider`              | [codersdk.AIProviderSummary](#codersdkaiprovidersummary) | false    |              |                                                                                                                                                                                                                                                          |
+| `supports_user_api_key` | boolean                                                  | false    |              | Supports user api key reports whether a personal API key can authenticate requests to this provider. It is false for Bedrock-authenticated providers, which the AI gateway signs with the deployment's AWS credentials regardless of any saved user key. |
 
 ## codersdk.UserAISpendStatus
 

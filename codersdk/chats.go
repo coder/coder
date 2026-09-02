@@ -1269,6 +1269,11 @@ type UserAIProviderKeyConfig struct {
 	HasUserAPIKey     bool              `json:"has_user_api_key"`
 	HasProviderAPIKey bool              `json:"has_provider_api_key"`
 	BYOKEnabled       bool              `json:"byok_enabled"`
+	// SupportsUserAPIKey reports whether a personal API key can authenticate
+	// requests to this provider. It is false for Bedrock-authenticated
+	// providers, which the AI gateway signs with the deployment's AWS
+	// credentials regardless of any saved user key.
+	SupportsUserAPIKey bool `json:"supports_user_api_key"`
 }
 
 // CreateUserAIProviderKeyRequest creates or replaces a user's API key
@@ -1288,6 +1293,7 @@ type UserChatProviderConfig struct {
 	HasUserAPIKey            bool      `json:"has_user_api_key"`
 	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
 	BYOKEnabled              bool      `json:"byok_enabled"`
+	SupportsUserAPIKey       bool      `json:"supports_user_api_key"`
 }
 
 // CreateUserChatProviderKeyRequest creates or replaces a user's API key
