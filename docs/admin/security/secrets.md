@@ -57,15 +57,15 @@ Refer to the [user secrets guide](../../user-guides/user-secrets.md) for user wo
 Configure the deployment-scoped setting, which defaults to `false`, with one form:
 
 ```sh
-coder server --user-secrets-disable-file-path
+coder server --disable-user-secret-file-path
 ```
 
 ```sh
-CODER_USER_SECRETS_DISABLE_FILE_PATH=true coder server
+CODER_DISABLE_USER_SECRET_FILE_PATH=true coder server
 ```
 
 ```yaml
-userSecretsDisableFilePath: true
+disableUserSecretFilePath: true
 ```
 
 Use the same value on every Coder replica and restart each replica after changing it.
