@@ -2264,6 +2264,53 @@ func TestChatRuntimeRequests(t *testing.T) {
 		require.Nil(t, got.LastModelConfigID)
 	})
 
+	// Editing without a model follows the send rule per runtime: external
+	// runtimes drop the edited row's pick (Default), built-in chats keep it.
+	t.Run("DefaultEditFollowsRuntime", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		harness, ok := chatacp.HarnessFor(codersdk.ChatRuntimeCodex)
+		require.True(t, ok)
+		for _, tc := range []struct {
+			runtime  database.ChatRuntime
+			provider string
+			wantKept bool
+		}{
+			{runtime: database.ChatRuntimeCodex, provider: string(harness.ProviderType)},
+			{runtime: database.ChatRuntimeCoder, provider: "openai", wantKept: true},
+		} {
+			model := createAdditionalChatModel(t, client, tc.provider, "edit-default-"+uuid.NewString())
+			editChat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    user.OrganizationID,
+				OwnerID:           user.UserID,
+				Runtime:           tc.runtime,
+				Title:             "edit default " + string(tc.runtime),
+				LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+			})
+			original := dbgen.ChatMessage(t, db, database.ChatMessage{
+				ChatID:        editChat.ID,
+				Role:          database.ChatMessageRoleUser,
+				ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+				Content:       pqtype.NullRawMessage{RawMessage: []byte(`[{"type":"text","text":"original"}]`), Valid: true},
+			})
+
+			edited, err := client.EditChatMessage(ctx, editChat.ID, original.ID, codersdk.EditChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "edited"}},
+			})
+			require.NoError(t, err, tc.runtime)
+			got, err := client.GetChat(ctx, editChat.ID)
+			require.NoError(t, err, tc.runtime)
+			if tc.wantKept {
+				require.Equal(t, &model.ID, edited.Message.ModelConfigID, tc.runtime)
+				require.Equal(t, &model.ID, got.LastModelConfigID, tc.runtime)
+				continue
+			}
+			require.Nil(t, edited.Message.ModelConfigID, tc.runtime)
+			require.Nil(t, got.LastModelConfigID, tc.runtime)
+		}
+	})
+
 	t.Run("RejectsInvalidModelConfigsConsistently", func(t *testing.T) {
 		t.Parallel()
 

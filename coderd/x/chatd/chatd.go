@@ -2008,7 +2008,10 @@ func (p *Server) EditMessage(
 					modelOverride = uuid.NullUUID{UUID: resolved, Valid: true}
 				}
 			}
-		} else if opts.ModelConfigID != uuid.Nil {
+		} else {
+			// External runtimes treat an omitted selection as the runtime
+			// default, exactly like send, so the replacement row must not
+			// inherit the edited row's pick.
 			resolved, err := resolveSendMessageModelConfigID(ctx, store, lockedChat, opts.ModelConfigID)
 			if err != nil {
 				return err
