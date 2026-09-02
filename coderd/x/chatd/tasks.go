@@ -287,7 +287,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 	partialMessages, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
 		parts:          parts,
-		modelConfigID:  chat.LastModelConfigID,
+		modelConfigID:  chat.LastModelConfigID.UUID,
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         s.opts.Logger,
 		interruptedAt:  interruptedAt,
@@ -724,7 +724,7 @@ func committedPendingLocalToolCancellationMessages(
 			Role:           database.ChatMessageRoleTool,
 			Content:        content,
 			Visibility:     database.ChatMessageVisibilityBoth,
-			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
+			ModelConfigID:  chat.LastModelConfigID,
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
 		if unbilledSubagentToolNames[call.ToolName] {
@@ -749,7 +749,7 @@ func committedPendingLocalToolCancellationMessages(
 	// Bill the interval union once on a dedicated usage record so
 	// cancellation rows stay free of batch-level runtime.
 	stamp, ok, err := batchUsageMessage(
-		chat.LastModelConfigID,
+		chat.LastModelConfigID.UUID,
 		chatprompt.CurrentContentVersion,
 		chatloop.BilledIntervalsDuration(intervals),
 		len(intervals),

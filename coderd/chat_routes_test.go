@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -25,7 +26,7 @@ func TestChatRoutesCompatibility(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 
 	for _, route := range []string{
@@ -53,6 +54,8 @@ func TestChatRoutesCompatibility(t *testing.T) {
 		{http.MethodGet, "/api/v2/chats/user-provider-configs"},
 		{http.MethodGet, "/api/v2/chats/config/computer-use-provider"},
 		{http.MethodGet, "/api/v2/chats/config/advisor"},
+		{http.MethodGet, "/api/v2/chats/config/runtimes"},
+		{http.MethodGet, "/api/v2/chats/runtime-availability"},
 		{http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/debug/runs", chat.ID)},
 		{http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/stream/desktop", chat.ID)},
 		{http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/not-a-uuid/acl/available", firstUser.OrganizationID)},

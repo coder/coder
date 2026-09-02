@@ -268,6 +268,7 @@ interface ChatPageInputProps {
 	aiGatewayDisabled?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	isClaudeCodeChat?: boolean;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -336,6 +337,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	aiGatewayDisabled,
 	planModeEnabled,
 	onPlanModeToggle,
+	isClaudeCodeChat,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -554,7 +556,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			}}
 			sendShortcut={sendShortcut}
 			attachments={attachments}
-			onAttach={handleAttach}
+			onAttach={isClaudeCodeChat ? undefined : handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
@@ -587,6 +589,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onReasoningEffortChange={onReasoningEffortChange}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
+			claudeCodeEnabled={isClaudeCodeChat}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={chatOrganizationId}

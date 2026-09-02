@@ -82,7 +82,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			segments := []string{"/model-configs"}
 			// TODO(CODAGT-922): drop the provider reservations with the
 			// experimental mounts.
-			segments = append(segments, "/providers", "/user-provider-configs")
+			segments = append(segments, "/providers", "/user-provider-configs", "/runtime-availability")
 			for _, segment := range segments {
 				r.Route(segment, func(r chi.Router) {
 					r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
@@ -94,6 +94,12 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 		r.Get("/by-workspace", api.chatsByWorkspace)
 		r.Get("/", api.listChats)
 		r.Post("/", api.postChats)
+		if experimental {
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAgentsRuntimeConfig))
+				r.Get("/runtime-availability", api.listChatRuntimeAvailability)
+			})
+		}
 		r.Get("/watch", api.watchChats)
 		r.Route("/files", func(r chi.Router) {
 			r.Use(api.chatFilesRateLimitMW())
@@ -135,6 +141,12 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
 					r.Get("/advisor", api.getChatAdvisorConfig)
 					r.Put("/advisor", api.putChatAdvisorConfig)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAgentsRuntimeConfig))
+					r.Get("/runtimes", api.listChatRuntimeConfigs)
+					r.Put("/runtimes", api.putChatRuntimeConfig)
+					r.Delete("/runtimes", api.deleteChatRuntimeConfig)
 				})
 			}
 		})

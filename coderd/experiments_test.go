@@ -73,7 +73,25 @@ func Test_Experiments(t *testing.T) {
 		for _, ex := range codersdk.ExperimentsSafe {
 			require.True(t, experiments.Enabled(ex))
 		}
+		require.False(t, experiments.Enabled(codersdk.ExperimentAgentsRuntimeConfig))
 		require.False(t, experiments.Enabled("danger"))
+	})
+
+	t.Run("explicit hidden experiment", func(t *testing.T) {
+		t.Parallel()
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = []string{string(codersdk.ExperimentAgentsRuntimeConfig)}
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: cfg,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		experiments, err := client.Experiments(ctx)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.Experiments{codersdk.ExperimentAgentsRuntimeConfig}, experiments)
 	})
 
 	t.Run("alternate wildcard with manual opt-in", func(t *testing.T) {

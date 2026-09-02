@@ -526,6 +526,7 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	agentID := uuid.New()
 	parentChatID := uuid.New()
 	rootChatID := uuid.New()
+	lastModelConfigID := uuid.New()
 
 	original := codersdk.Chat{
 		ID:                uuid.New(),
@@ -535,7 +536,7 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 		AgentID:           &agentID,
 		ParentChatID:      &parentChatID,
 		RootChatID:        &rootChatID,
-		LastModelConfigID: uuid.New(),
+		LastModelConfigID: &lastModelConfigID,
 		Title:             "round-trip-test",
 		Status:            codersdk.ChatStatusRunning,
 		LastError:         lastError,

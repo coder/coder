@@ -62,7 +62,7 @@ func TestSessionStartDispatchSources(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-	chat := dbgen.Chat(t, db, database.Chat{OwnerID: user.ID, OrganizationID: org.ID, LastModelConfigID: model.ID})
+	chat := dbgen.Chat(t, db, database.Chat{OwnerID: user.ID, OrganizationID: org.ID, LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true}})
 	turnID := uuid.New()
 	ctx := testutil.Context(t, testutil.WaitLong)
 

@@ -80,11 +80,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 	const hasChildren = childIDs.length > 0;
 	const isDelegated = Boolean(getParentChatID(chat));
 	const isDelegatedExecuting = isDelegated && chat.status === "running";
-	const modelName = getModelDisplayName(
-		chat.last_model_config_id,
-		modelConfigs,
-		isLoadingModelConfigs,
-	);
+	const modelName =
+		chat.runtime === "claude_code"
+			? "Claude Code"
+			: getModelDisplayName(
+					chat.last_model_config_id,
+					modelConfigs,
+					isLoadingModelConfigs,
+				);
 	const errorReason =
 		chat.status === "error"
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined

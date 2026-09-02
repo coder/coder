@@ -77,7 +77,7 @@ func driveChatToRequiresAction(
 				Role:           database.ChatMessageRoleAssistant,
 				Content:        assistantContent,
 				Visibility:     database.ChatMessageVisibilityBoth,
-				ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: *chat.LastModelConfigID, Valid: true},
 				ContentVersion: chatprompt.CurrentContentVersion,
 			}},
 		})
@@ -459,7 +459,7 @@ func TestPatchChatArchiveChildRejected(t *testing.T) {
 	childA := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "child-a",
 		Status:            database.ChatStatusWaiting,
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
@@ -468,7 +468,7 @@ func TestPatchChatArchiveChildRejected(t *testing.T) {
 	childB := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "child-b",
 		Status:            database.ChatStatusWaiting,
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
@@ -508,7 +508,7 @@ func TestPatchChatUnarchiveChildRejected(t *testing.T) {
 	childA := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "child-a",
 		Status:            database.ChatStatusWaiting,
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
@@ -517,7 +517,7 @@ func TestPatchChatUnarchiveChildRejected(t *testing.T) {
 	childB := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "child-b",
 		Status:            database.ChatStatusWaiting,
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
@@ -568,7 +568,7 @@ func TestPatchChatArchiveRootRollsBackWhenChildCannotArchive(t *testing.T) {
 	child := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "child",
 		Status:            database.ChatStatusRunning,
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},

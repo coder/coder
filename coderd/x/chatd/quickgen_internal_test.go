@@ -553,7 +553,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             chatprompt.FallbackTitle(userPrompt),
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,

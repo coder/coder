@@ -158,7 +158,7 @@ func loadDynamicPostToolUseState(
 		}
 		modelConfigID := opts.ModelConfigID
 		if modelConfigID == uuid.Nil {
-			modelConfigID = chat.LastModelConfigID
+			modelConfigID = chat.LastModelConfigID.UUID
 		}
 		state = dynamicPostToolUseState{
 			chat:          chat,

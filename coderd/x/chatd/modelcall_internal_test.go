@@ -73,7 +73,7 @@ func TestResolveModelCallDerivesProviderOptions(t *testing.T) {
 	config := titleOverrideModelConfig("gpt-4o-mini", true)
 	config.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
 	config.Options = modelCallSentinelOptions(t, "summary-options-sentinel")
-	chat.LastModelConfigID = config.ID
+	chat.LastModelConfigID = uuid.NullUUID{UUID: config.ID, Valid: true}
 
 	db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()

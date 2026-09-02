@@ -44,6 +44,7 @@ const AgentCreatePage: FC = () => {
 		mcpServerIds,
 		organizationId,
 		planMode,
+		runtime,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
 		if (message.trim()) {
@@ -54,20 +55,28 @@ const AgentCreatePage: FC = () => {
 				content.push({ type: "file", file_id: fileID });
 			}
 		}
-		const createRequest: TypesGen.CreateChatRequest = {
-			organization_id: organizationId,
-			content,
-			workspace_id: workspaceId,
-			mcp_server_ids:
-				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
-			plan_mode: planMode === "plan" ? "plan" : undefined,
-			client_type: "ui",
-			...(model ? { model_config_id: model } : {}),
-			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-		};
+		const createRequest: TypesGen.CreateChatRequest = runtime
+			? {
+					organization_id: organizationId,
+					content,
+					client_type: "ui",
+					runtime,
+					...(model ? { model_config_id: model } : {}),
+				}
+			: {
+					organization_id: organizationId,
+					content,
+					workspace_id: workspaceId,
+					mcp_server_ids:
+						mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
+					plan_mode: planMode === "plan" ? "plan" : undefined,
+					client_type: "ui",
+					...(model ? { model_config_id: model } : {}),
+					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+				};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
-		if (model) {
+		if (model && !runtime) {
 			localStorage.setItem(lastModelConfigIDStorageKey, model);
 		}
 		navigate({

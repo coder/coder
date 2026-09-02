@@ -394,7 +394,7 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OwnerID:           user.ID,
 		OrganizationID:    org.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
 		Status:            database.ChatStatusWaiting,
@@ -427,7 +427,7 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 	unpinnedChat := dbgen.Chat(t, db, database.Chat{
 		OwnerID:           user.ID,
 		OrganizationID:    org.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
 		Status:            database.ChatStatusWaiting,

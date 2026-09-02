@@ -39,7 +39,7 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		chat := dbgen.Chat(t, fix.db, database.Chat{
 			OwnerID:           fix.user.ID,
 			OrganizationID:    fix.org.ID,
-			LastModelConfigID: fix.model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: fix.model.ID, Valid: true},
 			WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
 			AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
 			Status:            database.ChatStatusWaiting,
@@ -88,7 +88,7 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		chat := dbgen.Chat(t, fix.db, database.Chat{
 			OwnerID:           fix.user.ID,
 			OrganizationID:    fix.org.ID,
-			LastModelConfigID: fix.model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: fix.model.ID, Valid: true},
 			WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
 			AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
 			Status:            database.ChatStatusWaiting,
@@ -132,7 +132,7 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		chat := dbgen.Chat(t, fix.db, database.Chat{
 			OwnerID:           fix.user.ID,
 			OrganizationID:    fix.org.ID,
-			LastModelConfigID: fix.model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: fix.model.ID, Valid: true},
 			WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
 			Status:            database.ChatStatusWaiting,
 		})
@@ -161,7 +161,7 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		chat := dbgen.Chat(t, fix.db, database.Chat{
 			OwnerID:           fix.user.ID,
 			OrganizationID:    fix.org.ID,
-			LastModelConfigID: fix.model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: fix.model.ID, Valid: true},
 			WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
 			AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
 			Status:            database.ChatStatusWaiting,

@@ -860,6 +860,16 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{}
 	}
 
+	// External runtimes have no chat model config; skip model
+	// resolution so the status label falls back to a generic one.
+	if chat.Runtime != database.ChatRuntimeCoder {
+		return runChatResult{
+			FinalAssistantText:  finalAssistantText,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+		}
+	}
+
 	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {
 		logger.Warn(ctx, "derive final turn status label: ensure synthetic API key", slog.Error(err))
