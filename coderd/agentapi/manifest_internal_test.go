@@ -28,7 +28,7 @@ func Test_dbUserSecretsToProto(t *testing.T) {
 		expected []*agentproto.WorkspaceSecret
 	}{
 		{
-			name:   "PolicyOff",
+			name:   "FilePathAllowed",
 			policy: userSecretFilePathAllowed,
 			expected: []*agentproto.WorkspaceSecret{
 				{EnvName: "ENV_ONLY", Value: []byte("env-val")},
@@ -37,7 +37,7 @@ func Test_dbUserSecretsToProto(t *testing.T) {
 			},
 		},
 		{
-			name:   "PolicyOn",
+			name:   "FilePathBlocked",
 			policy: userSecretFilePathBlocked,
 			expected: []*agentproto.WorkspaceSecret{
 				{EnvName: "ENV_ONLY", Value: []byte("env-val")},

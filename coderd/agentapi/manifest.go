@@ -281,6 +281,8 @@ func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevconta
 	return ret
 }
 
+// userSecretFilePathPolicy is a named type rather than a bool parameter to
+// satisfy revive's flag-parameter rule.
 type userSecretFilePathPolicy int
 
 const (

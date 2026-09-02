@@ -215,14 +215,15 @@ func TestWorkspaceAgentRPCUserSecretFilePathDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, manifest.Secrets, 2)
-	byEnv := make(map[string]*agentproto.WorkspaceSecret, len(manifest.Secrets))
+	byEnv := make(map[string][]byte, len(manifest.Secrets))
 	for _, secret := range manifest.Secrets {
-		byEnv[secret.EnvName] = secret
 		require.Empty(t, secret.FilePath)
-		require.NotEqual(t, []byte("file-value"), secret.Value)
+		byEnv[secret.EnvName] = secret.Value
 	}
-	require.Equal(t, []byte("env-value"), byEnv["ENV_ONLY"].Value)
-	require.Equal(t, []byte("dual-value"), byEnv["DUAL_TARGET"].Value)
+	require.Equal(t, map[string][]byte{
+		"ENV_ONLY":    []byte("env-value"),
+		"DUAL_TARGET": []byte("dual-value"),
+	}, byEnv)
 }
 
 func TestWorkspaceAgentRPCRole(t *testing.T) {
