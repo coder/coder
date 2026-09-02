@@ -27,8 +27,8 @@ type streamSyncPoller struct {
 }
 
 type streamSyncPollerSubscriber struct {
-	chatID  uuid.UUID
-	deliver func(streamSyncHint)
+	chatID uuid.UUID
+	hints  chan streamSyncHint
 }
 
 func newStreamSyncPoller(
@@ -68,20 +68,15 @@ func (p *streamSyncPoller) Close() {
 	p.cancel()
 }
 
-// Register subscribes deliver to poll hints for chatID until the returned
-// unregister func is called. deliver is invoked outside the poller's mutex and
-// may race with unregister, so it must remain safe to call after unregister
-// returns (e.g. by sending to a channel that is never closed). deliver runs
-// synchronously on the shared poll loop, so it must not block; a blocked
-// callback stalls polling for every chat on the replica. Dropped hints are
-// re-delivered on the next poll tick.
-func (p *streamSyncPoller) Register(chatID uuid.UUID, deliver func(streamSyncHint)) (unregister func()) {
+func (p *streamSyncPoller) Register(chatID uuid.UUID) (<-chan streamSyncHint, func()) {
 	if p == nil {
-		return func() {}
+		ch := make(chan streamSyncHint)
+		close(ch)
+		return ch, func() {}
 	}
 	subscriber := &streamSyncPollerSubscriber{
-		chatID:  chatID,
-		deliver: deliver,
+		chatID: chatID,
+		hints:  make(chan streamSyncHint, 1),
 	}
 	p.mu.Lock()
 	if p.subscribers[chatID] == nil {
@@ -90,7 +85,7 @@ func (p *streamSyncPoller) Register(chatID uuid.UUID, deliver func(streamSyncHin
 	p.subscribers[chatID][subscriber] = struct{}{}
 	p.mu.Unlock()
 
-	return func() {
+	return subscriber.hints, func() {
 		p.unregister(subscriber)
 	}
 }
@@ -136,7 +131,10 @@ func (p *streamSyncPoller) pollOnce() {
 	for _, row := range rows {
 		hint := streamSyncHintFromPollRow(row)
 		for _, subscriber := range subscribers[row.ID] {
-			subscriber.deliver(hint)
+			select {
+			case subscriber.hints <- hint:
+			default:
+			}
 		}
 	}
 }

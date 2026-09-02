@@ -58,12 +58,7 @@ func (p *Server) subscribeStreamLoop(
 		return subscribeWithInitialError(chatID, "failed to subscribe to chat updates")
 	}
 
-	unregisterPoller := p.streamSyncPoller.Register(chatID, func(hint streamSyncHint) {
-		select {
-		case updateCh <- hint:
-		default:
-		}
-	})
+	pollerCh, unregisterPoller := p.streamSyncPoller.Register(chatID)
 	loop := newStreamLoop(chat, p.db, logger, afterMessageID)
 	// The immediate sync builds the initial snapshot returned to the caller
 	// and the relay target for the forwarder. Hints only fire on state
@@ -99,6 +94,13 @@ func (p *Server) subscribeStreamLoop(
 			case <-streamCtx.Done():
 				return
 			case hint := <-updateCh:
+				if !p.runStreamSync(streamCtx, loop, relay, events, hint) {
+					return
+				}
+			case hint, ok := <-pollerCh:
+				if !ok {
+					return
+				}
 				if !p.runStreamSync(streamCtx, loop, relay, events, hint) {
 					return
 				}
