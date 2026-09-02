@@ -65,7 +65,7 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 // allowlist. A rejection is an RFC 6749 §4.1.2.1 invalid_scope.
 //
 //	allowlist  request  result
-//	absent     absent   ApiKeyScopeCoderAll, the pre-enforcement grant
+//	absent     absent   ApiKeyScopeCoderAll, an unrestricted grant
 //	absent     present  the request
 //	present    absent   the allowlist, catalog-filtered (RFC 6749 §3.3 default)
 //	present    present  the request, once shown to be within the allowlist
@@ -550,8 +550,8 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 				StateHash:           hashOAuth2State(params.state),
 				RedirectUri:         sql.NullString{String: params.callback.String(), Valid: params.redirectURIProvided},
 				// The negotiated scope, not the requested one. The exchange
-				// copies it onto the token row but not yet onto the API key it
-				// mints, so this records what was agreed, not what is enforced.
+				// copies it onto the token row and the API key it mints, so
+				// this bounds the issued token.
 				Scope: grantedScope,
 			})
 			if err != nil {
