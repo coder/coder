@@ -28068,30 +28068,38 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "agents": {
+                    "description": "Agents are the coder_agents the base declares for modules to target.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateBuilderBaseAgent"
                     }
                 },
                 "description": {
+                    "description": "Description summarizes the infrastructure the base provisions.",
                     "type": "string"
                 },
                 "icon": {
+                    "description": "Icon is a URL or built-in icon path.",
                     "type": "string"
                 },
                 "id": {
+                    "description": "ID uniquely identifies the base in compose requests.",
                     "type": "string"
                 },
                 "name": {
+                    "description": "Name is the human-facing base template name.",
                     "type": "string"
                 },
                 "os": {
+                    "description": "OS is the operating system the base provisions.",
                     "type": "string"
                 },
                 "prerequisites": {
+                    "description": "Prerequisites describes setup required before using the base, if any.",
                     "type": "string"
                 },
                 "variables": {
+                    "description": "Variables are the base template's configurable inputs.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateBuilderModuleVariable"
@@ -28107,9 +28115,11 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "display_name": {
+                    "description": "DisplayName is the human-facing agent name; may be empty.",
                     "type": "string"
                 },
                 "name": {
+                    "description": "Name is the coder_agent resource name modules target.",
                     "type": "string"
                 }
             }
@@ -28118,6 +28128,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "bases": {
+                    "description": "Bases are the available base templates.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateBuilderBase"
@@ -28133,9 +28144,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "description": "ID selects a catalog module to compose.",
                     "type": "string"
                 },
                 "variables": {
+                    "description": "Variables sets the module's input variables by name.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
@@ -28147,15 +28160,18 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "base_template_id": {
+                    "description": "BaseTemplateID selects the base template to compose onto.",
                     "type": "string"
                 },
                 "base_variable_values": {
+                    "description": "BaseVariableValues sets the base's input variables by name.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
                     }
                 },
                 "modules": {
+                    "description": "Modules are the modules to compose onto the base.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateBuilderComposeModule"
@@ -28182,37 +28198,46 @@ const docTemplate = `{
             ],
             "properties": {
                 "base_template_id": {
+                    "description": "BaseTemplateID selects the base template to compose onto.",
                     "type": "string"
                 },
                 "base_variable_values": {
+                    "description": "BaseVariableValues sets the base's input variables by name.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
                     }
                 },
                 "description": {
+                    "description": "Description is shown on the template page.",
                     "type": "string"
                 },
                 "display_name": {
+                    "description": "DisplayName is the human-facing template name.",
                     "type": "string"
                 },
                 "icon": {
+                    "description": "Icon is a URL or built-in icon path.",
                     "type": "string"
                 },
                 "modules": {
+                    "description": "Modules are the modules to compose onto the base.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateBuilderComposeModule"
                     }
                 },
                 "name": {
+                    "description": "Name is the template's unique slug.",
                     "type": "string"
                 },
                 "organization_id": {
+                    "description": "OrganizationID owns the created template.",
                     "type": "string",
                     "format": "uuid"
                 },
                 "provisioner_tags": {
+                    "description": "ProvisionerTags route the import job to matching provisioners.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
@@ -28224,7 +28249,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "template": {
-                    "$ref": "#/definitions/codersdk.Template"
+                    "description": "Template is the newly created template.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.Template"
+                        }
+                    ]
                 }
             }
         },
@@ -28232,39 +28262,48 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category": {
+                    "description": "Category groups related modules in the builder.",
                     "type": "string"
                 },
                 "compatible_os": {
+                    "description": "CompatibleOS lists the base operating systems the module supports.",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
                 "conflicts_with": {
+                    "description": "ConflictsWith lists module IDs that cannot be selected alongside this one.",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
                 "description": {
+                    "description": "Description summarizes what the module does.",
                     "type": "string"
                 },
                 "display_name": {
+                    "description": "DisplayName is the human-facing module name.",
                     "type": "string"
                 },
                 "icon": {
+                    "description": "Icon is a URL or built-in icon path.",
                     "type": "string"
                 },
                 "id": {
+                    "description": "ID uniquely identifies the module in the catalog and compose requests.",
                     "type": "string"
                 },
                 "variables": {
+                    "description": "Variables are the module's configurable inputs.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateBuilderModuleVariable"
                     }
                 },
                 "version": {
+                    "description": "Version is the pinned module version from the catalog manifest.",
                     "type": "string"
                 }
             }
@@ -28273,25 +28312,35 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default": {
+                    "description": "Default is applied when no value is supplied; omitted when there is none.",
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
                 },
                 "description": {
+                    "description": "Description is human-facing help text shown in the builder.",
                     "type": "string"
                 },
                 "name": {
+                    "description": "Name is the Terraform variable name values are keyed by.",
                     "type": "string"
                 },
                 "required": {
+                    "description": "Required reports whether a value must be supplied to compose.",
                     "type": "boolean"
                 },
                 "sensitive": {
+                    "description": "Sensitive hides the value in the UI and excludes it from logs.",
                     "type": "boolean"
                 },
                 "type": {
-                    "$ref": "#/definitions/codersdk.TemplateBuilderVariableType"
+                    "description": "Type constrains the accepted value (string, number, or bool).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderVariableType"
+                        }
+                    ]
                 }
             }
         },
@@ -28299,6 +28348,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "modules": {
+                    "description": "Modules are the modules available for the requested base.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateBuilderModule"
@@ -28325,12 +28375,15 @@ const docTemplate = `{
             ],
             "properties": {
                 "base_template_id": {
+                    "description": "BaseTemplateID is the selected base, when known.",
                     "type": "string"
                 },
                 "duration_seconds": {
+                    "description": "DurationSeconds is the elapsed wizard time for the event.",
                     "type": "number"
                 },
                 "event_type": {
+                    "description": "EventType is the telemetry event being reported.",
                     "enum": [
                         "wizard_entry",
                         "compose_completion"
@@ -28342,16 +28395,19 @@ const docTemplate = `{
                     ]
                 },
                 "module_ids": {
+                    "description": "ModuleIDs are the selected modules, when known.",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
                 "session_id": {
+                    "description": "SessionID correlates events within one builder session.",
                     "type": "string",
                     "format": "uuid"
                 },
                 "success": {
+                    "description": "Success reports whether the composition succeeded.",
                     "type": "boolean"
                 }
             }
