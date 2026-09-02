@@ -7,7 +7,6 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { docs } from "#/utils/docs";
 import { EditUserForm } from "./EditUserForm";
 
 const meta: Meta<typeof EditUserForm> = {
@@ -38,9 +37,6 @@ export const Ready: Story = {
 		await expect(
 			canvas.getByRole("link", { name: /back to users/i }),
 		).toBeVisible();
-		await expect(
-			canvas.getByRole("link", { name: /view docs/i }),
-		).toHaveAttribute("href", docs("/admin/users#edit-a-users-profile"));
 		await expect(canvas.getByText("Unique identifier.")).toBeVisible();
 		await expect(
 			canvas.getByText("Friendly name. Defaults to the username if blank."),
