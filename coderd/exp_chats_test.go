@@ -1983,23 +1983,47 @@ func TestChatRuntimeRequests(t *testing.T) {
 	client, db, _ := newChatClientWithoutAIBridge(t, enableAgentsRuntimeConfigExperiment)
 	user := coderdtest.CreateFirstUser(t, client.Client)
 
-	t.Run("CreateRejectsWorkspaceSelectionBeforeProvisioning", func(t *testing.T) {
+	t.Run("CreateRejectsCoderRuntimeOptionsBeforeProvisioning", func(t *testing.T) {
 		t.Parallel()
 
+		const unsupported = "plan_mode, mcp_server_ids, unsafe_dynamic_tools, system_prompt, and reasoning_effort are not supported for runtime chats."
+		tests := []struct {
+			name        string
+			mutate      func(*codersdk.CreateChatRequest)
+			wantMessage string
+		}{
+			{
+				name:        "WorkspaceID",
+				mutate:      func(req *codersdk.CreateChatRequest) { req.WorkspaceID = ptr.Ref(uuid.New()) },
+				wantMessage: "workspace_id cannot be set for runtime chats.",
+			},
+			{
+				name:        "PlanMode",
+				mutate:      func(req *codersdk.CreateChatRequest) { req.PlanMode = codersdk.ChatPlanModePlan },
+				wantMessage: unsupported,
+			},
+			{
+				name:        "ReasoningEffort",
+				mutate:      func(req *codersdk.CreateChatRequest) { req.ReasoningEffort = ptr.Ref("high") },
+				wantMessage: unsupported,
+			},
+		}
 		ctx := testutil.Context(t, testutil.WaitLong)
-		for _, runtime := range []codersdk.ChatRuntime{codersdk.ChatRuntimeClaudeCode, codersdk.ChatRuntimeCodex} {
-			workspaceID := uuid.New()
-			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-				OrganizationID: user.OrganizationID,
-				Runtime:        runtime,
-				WorkspaceID:    &workspaceID,
-				Content: []codersdk.ChatInputPart{{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "runtime create",
-				}},
-			})
-			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-			require.Equal(t, "workspace_id cannot be set for runtime chats.", sdkErr.Message, runtime)
+		for _, tc := range tests {
+			for _, runtime := range []codersdk.ChatRuntime{codersdk.ChatRuntimeClaudeCode, codersdk.ChatRuntimeCodex} {
+				req := codersdk.CreateChatRequest{
+					OrganizationID: user.OrganizationID,
+					Runtime:        runtime,
+					Content: []codersdk.ChatInputPart{{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "runtime create",
+					}},
+				}
+				tc.mutate(&req)
+				_, err := client.CreateChat(ctx, req)
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, tc.wantMessage, sdkErr.Message, "%s on %s", tc.name, runtime)
+			}
 		}
 
 		workspaces, err := db.GetWorkspacesAndAgentsByOwnerID(dbauthz.AsSystemRestricted(ctx), user.UserID)

@@ -1290,9 +1290,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if req.PlanMode != "" || len(req.MCPServerIDs) > 0 || len(req.UnsafeDynamicTools) > 0 || req.SystemPrompt != "" {
+		if req.PlanMode != "" || len(req.MCPServerIDs) > 0 || len(req.UnsafeDynamicTools) > 0 || req.SystemPrompt != "" || req.ReasoningEffort != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "plan_mode, mcp_server_ids, unsafe_dynamic_tools, and system_prompt are not supported for runtime chats.",
+				Message: "plan_mode, mcp_server_ids, unsafe_dynamic_tools, system_prompt, and reasoning_effort are not supported for runtime chats.",
 			})
 			return
 		}
