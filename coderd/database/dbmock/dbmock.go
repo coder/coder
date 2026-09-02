@@ -804,6 +804,21 @@ func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, us
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, userID)
 }
 
+// DeleteCachedModuleFilesCreatedBetween mocks base method.
+func (m *MockStore) DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg database.DeleteCachedModuleFilesCreatedBetweenParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteCachedModuleFilesCreatedBetween", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteCachedModuleFilesCreatedBetween indicates an expected call of DeleteCachedModuleFilesCreatedBetween.
+func (mr *MockStoreMockRecorder) DeleteCachedModuleFilesCreatedBetween(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCachedModuleFilesCreatedBetween", reflect.TypeOf((*MockStore)(nil).DeleteCachedModuleFilesCreatedBetween), ctx, arg)
+}
+
 // DeleteChatContextResourcesByChatID mocks base method.
 func (m *MockStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -3597,6 +3612,21 @@ func (m *MockStore) GetChildChatsByParentIDs(ctx context.Context, arg database.G
 func (mr *MockStoreMockRecorder) GetChildChatsByParentIDs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChildChatsByParentIDs", reflect.TypeOf((*MockStore)(nil).GetChildChatsByParentIDs), ctx, arg)
+}
+
+// GetCodernautsEnabled mocks base method.
+func (m *MockStore) GetCodernautsEnabled(ctx context.Context) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCodernautsEnabled", ctx)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCodernautsEnabled indicates an expected call of GetCodernautsEnabled.
+func (mr *MockStoreMockRecorder) GetCodernautsEnabled(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodernautsEnabled", reflect.TypeOf((*MockStore)(nil).GetCodernautsEnabled), ctx)
 }
 
 // GetConnectionLogsOffset mocks base method.
@@ -6507,6 +6537,21 @@ func (m *MockStore) GetUserSecretByUserIDAndName(ctx context.Context, arg databa
 func (mr *MockStoreMockRecorder) GetUserSecretByUserIDAndName(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSecretByUserIDAndName", reflect.TypeOf((*MockStore)(nil).GetUserSecretByUserIDAndName), ctx, arg)
+}
+
+// GetUserSecretByUserIDAndNameForUpdate mocks base method.
+func (m *MockStore) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg database.GetUserSecretByUserIDAndNameForUpdateParams) (database.UserSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserSecretByUserIDAndNameForUpdate", ctx, arg)
+	ret0, _ := ret[0].(database.UserSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserSecretByUserIDAndNameForUpdate indicates an expected call of GetUserSecretByUserIDAndNameForUpdate.
+func (mr *MockStoreMockRecorder) GetUserSecretByUserIDAndNameForUpdate(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSecretByUserIDAndNameForUpdate", reflect.TypeOf((*MockStore)(nil).GetUserSecretByUserIDAndNameForUpdate), ctx, arg)
 }
 
 // GetUserSecretsTelemetrySummary mocks base method.
@@ -9796,6 +9841,21 @@ func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wor
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentsByWorkspaceID), ctx, workspaceID)
 }
 
+// SyncAgentChatsContextMCPResources mocks base method.
+func (m *MockStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SyncAgentChatsContextMCPResources", ctx, agentID)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SyncAgentChatsContextMCPResources indicates an expected call of SyncAgentChatsContextMCPResources.
+func (mr *MockStoreMockRecorder) SyncAgentChatsContextMCPResources(ctx, agentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextMCPResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextMCPResources), ctx, agentID)
+}
+
 // TouchChatDebugRunUpdatedAt mocks base method.
 func (m *MockStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
 	m.ctrl.T.Helper()
@@ -12145,6 +12205,20 @@ func (m *MockStore) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl str
 func (mr *MockStoreMockRecorder) UpsertChatWorkspaceTTL(ctx, workspaceTtl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatWorkspaceTTL", reflect.TypeOf((*MockStore)(nil).UpsertChatWorkspaceTTL), ctx, workspaceTtl)
+}
+
+// UpsertCodernautsEnabled mocks base method.
+func (m *MockStore) UpsertCodernautsEnabled(ctx context.Context, enabled bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertCodernautsEnabled", ctx, enabled)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertCodernautsEnabled indicates an expected call of UpsertCodernautsEnabled.
+func (mr *MockStoreMockRecorder) UpsertCodernautsEnabled(ctx, enabled any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertCodernautsEnabled", reflect.TypeOf((*MockStore)(nil).UpsertCodernautsEnabled), ctx, enabled)
 }
 
 // UpsertDefaultProxy mocks base method.

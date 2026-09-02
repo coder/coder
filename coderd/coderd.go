@@ -758,7 +758,7 @@ func New(options *Options) *API {
 		options.AppSigningKeyCache,
 	)
 
-	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)
@@ -787,7 +787,6 @@ func New(options *Options) *API {
 		Entitlements:      options.Entitlements,
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
-		AITasksEnabled:    options.DeploymentValues.EnableAITasks.Value(),
 		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 	})
 	if err != nil {
@@ -1442,6 +1441,7 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
+			r.Get("/user-secrets/capabilities", api.userSecretsCapabilities)
 			r.Post("/premium-funnel-events", api.postPremiumFunnelEvent)
 		})
 		r.Route("/experiments", func(r chi.Router) {

@@ -93,3 +93,9 @@ export const Badge: React.FC<BadgeProps> = ({
 		/>
 	);
 };
+
+export const BadgeGroup: React.FC<React.PropsWithChildren> = ({ children }) => {
+	return (
+		<div className="flex flex-row items-center gap-2 mb-4">{children}</div>
+	);
+};

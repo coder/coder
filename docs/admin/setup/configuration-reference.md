@@ -73,6 +73,14 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 - CLI flag: [`--disable-path-apps`](../../reference/cli/server.md#--disable-path-apps)
 - YAML key: `disablePathApps`
 
+### Disable user secret file path
+
+Disable Coder-managed file path delivery for user secrets. Stored paths remain until users clear them and resume if this setting is turned off.
+
+- Environment variable: `CODER_DISABLE_USER_SECRET_FILE_PATH`
+- CLI flag: [`--disable-user-secret-file-path`](../../reference/cli/server.md#--disable-user-secret-file-path)
+- YAML key: `disableUserSecretFilePath`
+
 ### Disable workspace agent context sync
 
 Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.

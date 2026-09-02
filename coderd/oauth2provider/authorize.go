@@ -160,6 +160,17 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	return strings.Join(granted, " "), nil
 }
 
+// scopeFailureResponse maps a negotiateScope rejection to the client's error.
+// errCoverageUndecidable is this server failing to compare, not a bad request,
+// so it answers server_error (RFC 6749 §4.1.2.1) with a fixed description;
+// negotiateScope already logged the detail.
+func scopeFailureResponse(err error) (codersdk.OAuth2ErrorCode, string) {
+	if errors.Is(err, errCoverageUndecidable) {
+		return codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated"
+	}
+	return codersdk.OAuth2ErrorCodeInvalidScope, err.Error()
+}
+
 // consentScopes returns the scope names the consent page lists, and whether the
 // grant is unrestricted. An unrestricted grant lists nothing: the page's
 // full-access wording tells a user more than "coder:all" does.
@@ -175,7 +186,7 @@ func consentScopes(granted string) (names []string, unrestricted bool) {
 
 type authorizeParams struct {
 	clientID            string
-	redirectURL         *url.URL
+	callback            validatedCallbackURL
 	redirectURIProvided bool
 	responseType        codersdk.OAuth2ProviderResponseType
 	scope               []string
@@ -194,7 +205,7 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
-		redirectURL:         p.RedirectURL(vals, callbackURL, "redirect_uri"),
+		callback:            validatedCallbackURL{url: p.RedirectURL(vals, callbackURL, "redirect_uri")},
 		redirectURIProvided: vals.Get("redirect_uri") != "",
 		responseType:        httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
 		scope:               strings.Fields(strings.TrimSpace(p.String(vals, "", "scope"))),
@@ -243,27 +254,88 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	return params, nil, nil
 }
 
-// redirectAuthorizeError reports an authorization error through the client's
-// own callback, as RFC 6749 §4.1.2.1 requires once the client is known. Only
-// callers after extractAuthorizeParams may use it: before that point the
-// redirect URI is whatever the request supplied, not the app's registered
-// callback.
-func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, redirectURL *url.URL, state string, code codersdk.OAuth2ErrorCode, description string) {
-	// Copied because the caller's URL is also the consent page's cancel link
-	// and, on the POST side, the success redirect.
-	errorURL := *redirectURL
-	query := errorURL.Query()
-	query.Set("error", string(code))
-	query.Set("error_description", description)
-	// §4.1.2.1 returns state only when the client sent one.
+// validatedCallbackURL is a redirect URI extractAuthorizeParams has exact-matched
+// against the app's registered callback. Requiring one keeps the error redirects
+// below from becoming open redirects. The unexported field is a guard, not a
+// proof: no other package can fabricate one; this package still can.
+type validatedCallbackURL struct {
+	url *url.URL
+}
+
+// String returns the registered callback, without the query a response adds.
+func (c validatedCallbackURL) String() string {
+	return c.url.String()
+}
+
+// reservedResponseParams are the response parameters RFC 6749 §4.1.2.1 and
+// §4.1.2 define. A registered callback may carry any of them: registration
+// checks the scheme and rejects fragments, but says nothing about the query.
+var reservedResponseParams = []string{"code", "error", "error_description", "state"}
+
+// withQuery returns a copy of the callback with set applied to its query, plus
+// the state §4.1.2.1 returns whenever the client sent one. Copied because the
+// callback is also what String reports and what ProcessAuthorize stores.
+//
+// The registered query is kept (§3.1.2) except for the reserved parameters: a
+// registered error= would otherwise ride out on a success response, where a
+// client reading error first discards a valid code.
+func (c validatedCallbackURL) withQuery(state string, set func(url.Values)) *url.URL {
+	destination := *c.url
+	query := destination.Query()
+	for _, param := range reservedResponseParams {
+		query.Del(param)
+	}
+	set(query)
 	if state != "" {
 		query.Set("state", state)
 	}
-	errorURL.RawQuery = query.Encode()
+	destination.RawQuery = query.Encode()
+	return &destination
+}
+
+// sanitizeErrorDescription confines a description to the NQSCHAR set RFC 6749
+// Appendix A permits in error_description. The rule is on the decoded value, so
+// percent-encoding on the wire does not satisfy it.
+func sanitizeErrorDescription(description string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '"':
+			return '\'' // permitted, and reads the same
+		case r == '\\':
+			return -1 // escapes the quote rewritten above
+		case r < 0x20 || r > 0x7E:
+			return ' '
+		default:
+			return r
+		}
+	}, description)
+}
+
+// errorURL returns the callback carrying an RFC 6749 §4.1.2.1 error.
+func (c validatedCallbackURL) errorURL(state string, code codersdk.OAuth2ErrorCode, description string) *url.URL {
+	return c.withQuery(state, func(query url.Values) {
+		query.Set("error", string(code))
+		query.Set("error_description", sanitizeErrorDescription(description))
+	})
+}
+
+// codeURL returns the callback carrying the authorization code.
+func (c validatedCallbackURL) codeURL(state, code string) *url.URL {
+	return c.withQuery(state, func(query url.Values) {
+		query.Set("code", code)
+	})
+}
+
+func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog.Logger, callback validatedCallbackURL, state string, code codersdk.OAuth2ErrorCode, description string) {
+	app := httpmw.OAuth2ProviderApp(r)
+	logger.Info(r.Context(), "oauth2 authorization rejected",
+		slog.F("app_id", app.ID.String()),
+		slog.F("error", string(code)),
+		slog.F("error_description", description))
 
 	// 302 rather than 307, matching the success redirect below: some external
 	// OAuth2 apps and browsers do not handle 307.
-	http.Redirect(rw, r, errorURL.String(), http.StatusFound)
+	http.Redirect(rw, r, callback.errorURL(state, code, description).String(), http.StatusFound)
 }
 
 // logCorruptCallback reports a registered callback URL this server should never
@@ -322,11 +394,11 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
-		// Checked once here, right after the URI has been matched against the
-		// registered callback, because later code writes it into a Location
-		// header and into the cancel link. 500, not 400: registration rejects
-		// these schemes, so a stored one is bad server state.
-		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
+		// Checked right after the exact match against the registered callback,
+		// because every redirect below writes this URL into a Location header,
+		// and the consent page into the cancel link's href. 500, not 400:
+		// registration rejects these schemes, so a stored one is bad server state.
+		if err := codersdk.ValidateRedirectURIScheme(params.callback.url); err != nil {
 			logCorruptCallback(r.Context(), logger, app, err)
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusInternalServerError,
@@ -343,19 +415,25 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
+		// OAuth 2.1 removes the implicit grant, and §4.1.2.1 delivers
+		// unsupported_response_type through the client's own callback.
+		//
+		// In the query, not the fragment §4.2.2.1 would use: Coder advertises
+		// code alone in response_types_supported, so a client asking for token
+		// is misconfigured rather than mid-implicit-flow.
 		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				HideStatus:  false,
-				Title:       "Unsupported Response Type",
-				Description: "Only response_type=code is supported.",
-				Actions: []site.Action{
-					{
-						URL:  accessURL.String(),
-						Text: "Back to site",
-					},
-				},
-			})
+			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
+				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
+				"Only response_type=code is supported")
+			return
+		}
+
+		// Checked here as well as on POST for the same reason the scope is
+		// negotiated below: the page must not render for a request POST will
+		// refuse. Only POST defaults an omitted method, since only POST stores it.
+		if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
+			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
+				codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
 
@@ -364,21 +442,17 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// clicks Allow. The result also decides what the page lists.
 		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
 		if err != nil {
-			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
-				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			code, description := scopeFailureResponse(err)
+			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
+				code, description)
 			return
 		}
 
-		cancel := params.redirectURL
-		cancelQuery := params.redirectURL.Query()
-		// Set, not Add: a registered callback carrying its own state= would
-		// otherwise hand the client two values.
-		cancelQuery.Set("error", "access_denied")
-		cancelQuery.Set("error_description", "The resource owner or authorization server denied the request")
-		if params.state != "" {
-			cancelQuery.Set("state", params.state)
-		}
-		cancel.RawQuery = cancelQuery.Encode()
+		// Declining is an authorization failure like any other, so the cancel
+		// link is the same §4.1.2.1 error URL the redirects above build.
+		cancel := params.callback.errorURL(params.state,
+			codersdk.OAuth2ErrorCodeAccessDenied,
+			"The resource owner or authorization server denied the request")
 
 		scopes, unrestricted := consentScopes(grantedScope)
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
@@ -417,9 +491,9 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		// As on the GET side: the scope rejection below and the success redirect
-		// at the end both write this URL into a Location header.
-		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
+		// As on the GET side: every redirect below writes this URL into a
+		// Location header.
+		if err := codersdk.ValidateRedirectURIScheme(params.callback.url); err != nil {
 			logCorruptCallback(ctx, logger, app, err)
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
 				codersdk.OAuth2ErrorCodeServerError,
@@ -427,10 +501,9 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		// OAuth 2.1 removes the implicit grant. Only
-		// authorization code flow is supported.
+		// As on the GET side: OAuth 2.1 removes the implicit grant.
 		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest,
+			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
 				"Only response_type=code is supported")
 			return
@@ -442,14 +515,16 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			params.codeChallengeMethod = string(codersdk.OAuth2PKCECodeChallengeMethodS256)
 		}
 		if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
+			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
+				codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
 
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
 		if err != nil {
-			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
-				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			code, description := scopeFailureResponse(err)
+			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
+				code, description)
 			return
 		}
 
@@ -488,7 +563,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 				CodeChallenge:       sql.NullString{String: params.codeChallenge, Valid: params.codeChallenge != ""},
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
 				StateHash:           hashOAuth2State(params.state),
-				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: params.redirectURIProvided},
+				RedirectUri:         sql.NullString{String: params.callback.String(), Valid: params.redirectURIProvided},
 				// The negotiated scope, not the requested one. The exchange
 				// copies it onto the token row and the API key it mints, so
 				// this bounds the issued token.
@@ -505,17 +580,9 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		newQuery := params.redirectURL.Query()
-		// Set, not Add, for the reason the cancel URI uses it.
-		newQuery.Set("code", code.Formatted)
-		if params.state != "" {
-			newQuery.Set("state", params.state)
-		}
-		params.redirectURL.RawQuery = newQuery.Encode()
-
 		// (ThomasK33): Use a 302 redirect as some (external) OAuth 2 apps and browsers
 		// do not work with the 307.
-		http.Redirect(rw, r, params.redirectURL.String(), http.StatusFound)
+		http.Redirect(rw, r, params.callback.codeURL(params.state, code.Formatted).String(), http.StatusFound)
 	}
 }
 

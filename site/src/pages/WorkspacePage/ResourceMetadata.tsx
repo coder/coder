@@ -58,7 +58,7 @@ export const ResourceMetadata: FC<ResourceMetadataProps> = ({
 													</CopyableValue>
 												);
 											}
-											return <>{children}</>;
+											return children;
 										},
 									}}
 								>
