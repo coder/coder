@@ -3,11 +3,11 @@ package chatd_test
 import (
 	"context"
 	"database/sql"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -211,48 +211,21 @@ func withInitialModelConfig(id uuid.UUID) func(*chatstate.CreateChatInput) {
 	}
 }
 
-// acpConfigOverrides routes turns to the fake agent and asserts the
-// adapter environment carries the pinned model and provider key through
-// the harness env builder.
-func acpConfigOverrides(t *testing.T, setup acpTestSetup, agent *chatacptest.FakeAgent) func(*chatd.Config) {
+// acpModelConfig seeds an enabled model config in the chat's
+// organization on the given provider.
+func acpModelConfig(t *testing.T, db database.Store, setup acpTestSetup, providerID uuid.UUID, model string, munge ...func(*database.InsertChatModelConfigParams)) database.ChatModelConfig {
 	t.Helper()
-	return acpConfigOverridesWithEnv(t, setup, agent, func(env map[string]string) {
-		requireTurnEnv(t, setup.harness, env, primaryCredentials(acpTestPinnedModel))
-	})
+	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID: setup.org.ID,
+		Model:          model,
+		AIProviderID:   uuid.NullUUID{UUID: providerID, Valid: true},
+	}, munge...)
 }
 
-// requireTurnEnv checks the environment chatd handed the transport
-// against what the harness builds for the expected credentials.
-func requireTurnEnv(t *testing.T, harness chatacp.Harness, env map[string]string, creds chatacp.TurnCredentials) {
-	t.Helper()
-	require.Equal(t, harness.Env(creds), env)
-}
-
-type acpEnvRecorder struct {
-	mu   sync.Mutex
-	envs []map[string]string
-}
-
-func (r *acpEnvRecorder) record(env map[string]string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.envs = append(r.envs, env)
-}
-
-func (r *acpEnvRecorder) last(t *testing.T) map[string]string {
-	t.Helper()
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	require.NotEmpty(t, r.envs)
-	return r.envs[len(r.envs)-1]
-}
-
-func acpConfigOverridesCaptureEnv(t *testing.T, setup acpTestSetup, agent *chatacptest.FakeAgent, recorder *acpEnvRecorder) func(*chatd.Config) {
-	t.Helper()
-	return acpConfigOverridesWithEnv(t, setup, agent, recorder.record)
-}
-
-func acpConfigOverridesWithEnv(t *testing.T, setup acpTestSetup, agent *chatacptest.FakeAgent, inspectEnv func(map[string]string)) func(*chatd.Config) {
+// acpConfigOverrides routes turns to the fake agent and checks that the
+// adapter environment chatd hands the transport is what the harness
+// builds for the expected credentials.
+func acpConfigOverrides(t *testing.T, setup acpTestSetup, agent *chatacptest.FakeAgent, wantCreds chatacp.TurnCredentials) func(*chatd.Config) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -263,8 +236,8 @@ func acpConfigOverridesWithEnv(t *testing.T, setup acpTestSetup, agent *chatacpt
 			return mockConn, func() {}, nil
 		}
 		cfg.ACPTransport = func(_ context.Context, _ workspacesdk.AgentConn, _ database.WorkspaceAgent, harness chatacp.Harness, env map[string]string, _ time.Time) (chatacp.Transport, func(), error) {
-			require.Equal(t, setup.harness.Runtime, harness.Runtime)
-			inspectEnv(env)
+			assert.Equal(t, setup.harness.Runtime, harness.Runtime)
+			assert.Equal(t, setup.harness.Env(wantCreds), env)
 			return &chatacptest.PipeTransport{Agent: agent}, func() {}, nil
 		}
 	}
@@ -321,7 +294,7 @@ func TestACPChatTurn(t *testing.T) {
 		fakeAgent := replyingFakeAgent("Hello from the agent")
 
 		created := createACPChat(ctx, t, db, ps, setup, "hello agent")
-		_ = newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent))
+		_ = newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent, primaryCredentials(acpTestPinnedModel)))
 
 		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 		require.Equal(t, database.ChatStatusWaiting, chat.Status)
@@ -376,7 +349,7 @@ func TestACPChatResumesSession(t *testing.T) {
 		}
 
 		created := createACPChat(ctx, t, db, ps, setup, "first message")
-		server := newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent))
+		server := newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent, primaryCredentials(acpTestPinnedModel)))
 
 		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 		require.Equal(t, database.ChatStatusWaiting, chat.Status)
@@ -419,7 +392,7 @@ func TestACPChatRestartsStoppedWorkspace(t *testing.T) {
 		fakeAgent := &chatacptest.FakeAgent{}
 		created := createACPChat(ctx, t, db, ps, setup, "wake up")
 
-		overrides := acpConfigOverrides(t, setup, fakeAgent)
+		overrides := acpConfigOverrides(t, setup, fakeAgent, primaryCredentials(acpTestPinnedModel))
 		_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			overrides(cfg)
 			cfg.StartWorkspace = func(ctx context.Context, ownerID uuid.UUID, workspaceID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
@@ -485,7 +458,7 @@ func TestACPChatMissingRuntimeConfigFails(t *testing.T) {
 
 		fakeAgent := &chatacptest.FakeAgent{}
 		created := createACPChat(ctx, t, db, ps, setup, "hello")
-		_ = newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent))
+		_ = newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent, primaryCredentials(acpTestPinnedModel)))
 
 		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 		require.Equal(t, database.ChatStatusError, chat.Status)
@@ -495,186 +468,144 @@ func TestACPChatMissingRuntimeConfigFails(t *testing.T) {
 	})
 }
 
-func TestACPChatModelSelection(t *testing.T) {
+// TestACPChatTurnCredentials is the behavior matrix over acpTurnConfig:
+// which credentials, model, session mode, and message stamp result from
+// the organization config and the message's model selection.
+func TestACPChatTurnCredentials(t *testing.T) {
 	t.Parallel()
 
 	forEachHarness(t, func(t *testing.T, harness chatacp.Harness) {
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
-		selected := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			OrganizationID: setup.org.ID,
-			Model:          "selected-model",
-			AIProviderID:   uuid.NullUUID{UUID: setup.providerID, Valid: true},
-		})
-
-		recorder := &acpEnvRecorder{}
-		created := createACPChat(ctx, t, db, ps, setup, "hello", withInitialModelConfig(selected.ID))
-		_ = newActiveTestServer(t, db, ps, acpConfigOverridesCaptureEnv(t, setup, replyingFakeAgent("selected reply"), recorder))
-
-		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
-		require.Equal(t, database.ChatStatusWaiting, chat.Status)
-		require.False(t, chat.LastError.Valid)
-
-		requireTurnEnv(t, harness, recorder.last(t), primaryCredentials("selected-model"))
-
-		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.Chat.ID})
-		require.NoError(t, err)
-		require.Len(t, messages, 2)
-		require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
-		require.Equal(t, uuid.NullUUID{UUID: selected.ID, Valid: true}, messages[1].ModelConfigID)
-		require.False(t, messages[1].TotalCostMicros.Valid)
-		require.Equal(t, int64(11), messages[1].InputTokens.Int64)
-		require.Equal(t, uuid.NullUUID{UUID: selected.ID, Valid: true}, chat.LastModelConfigID)
-	})
-}
-
-func TestACPChatModelSelectionUnavailableFallsBack(t *testing.T) {
-	t.Parallel()
-
-	forEachHarness(t, func(t *testing.T, harness chatacp.Harness) {
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
-		disabled := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			OrganizationID: setup.org.ID,
-			Model:          "disabled-model",
-			AIProviderID:   uuid.NullUUID{UUID: setup.providerID, Valid: true},
-		}, func(p *database.InsertChatModelConfigParams) {
-			p.Enabled = false
-		})
-
-		recorder := &acpEnvRecorder{}
-		created := createACPChat(ctx, t, db, ps, setup, "hello", withInitialModelConfig(disabled.ID))
-		_ = newActiveTestServer(t, db, ps, acpConfigOverridesCaptureEnv(t, setup, replyingFakeAgent("fallback reply"), recorder))
-
-		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
-		require.Equal(t, database.ChatStatusWaiting, chat.Status)
-		require.False(t, chat.LastError.Valid)
-
-		requireTurnEnv(t, harness, recorder.last(t), primaryCredentials(acpTestPinnedModel))
-		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.Chat.ID})
-		require.NoError(t, err)
-		require.Len(t, messages, 2)
-		require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
-		require.False(t, messages[1].ModelConfigID.Valid)
-	})
-}
-
-// TestACPChatRuntimeDefaults covers an organization config that pins
-// neither a model nor a permission mode: the adapter keeps its own
-// model and the harness default session mode applies.
-func TestACPChatRuntimeDefaults(t *testing.T) {
-	t.Parallel()
-
-	forEachHarness(t, func(t *testing.T, harness chatacp.Harness) {
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
-		_, err := db.UpsertChatRuntimeConfig(ctx, database.UpsertChatRuntimeConfigParams{
-			OrganizationID: setup.org.ID,
-			Runtime:        database.ChatRuntime(harness.Runtime),
-			TemplateID:     setup.workspace.TemplateID,
-			Enabled:        true,
-			Model:          "",
-			PermissionMode: "",
-		})
-		require.NoError(t, err)
-
-		recorder := &acpEnvRecorder{}
-		fakeAgent := replyingFakeAgent("default reply")
-		created := createACPChat(ctx, t, db, ps, setup, "hello")
-		_ = newActiveTestServer(t, db, ps, acpConfigOverridesCaptureEnv(t, setup, fakeAgent, recorder))
-
-		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
-		require.Equal(t, database.ChatStatusWaiting, chat.Status)
-
-		requireTurnEnv(t, harness, recorder.last(t), primaryCredentials(""))
-		modes := fakeAgent.Modes()
-		if harness.DefaultSessionMode == "" {
-			require.Empty(t, modes)
-		} else {
-			require.Len(t, modes, 1)
-			require.Equal(t, acp.SessionModeId(harness.DefaultSessionMode), modes[0].ModeId)
+		tests := []struct {
+			name string
+			// noPin clears the organization config's model pin and
+			// permission mode so the adapter and harness defaults apply.
+			noPin bool
+			// seed returns the model config the chat's first message
+			// selects; nil rows use the runtime default chain.
+			seed      func(t *testing.T, db database.Store, setup acpTestSetup) uuid.UUID
+			wantCreds chatacp.TurnCredentials
+			// wantStamp expects the assistant message to carry the
+			// selected model config id.
+			wantStamp bool
+			wantMode  string
+		}{
+			{
+				name:      "PinnedDefault",
+				wantCreds: primaryCredentials(acpTestPinnedModel),
+				wantMode:  "acceptEdits",
+			},
+			{
+				name:      "NoPinUsesAdapterDefaults",
+				noPin:     true,
+				wantCreds: primaryCredentials(""),
+				wantMode:  harness.DefaultSessionMode,
+			},
+			{
+				name: "SelectedModel",
+				seed: func(t *testing.T, db database.Store, setup acpTestSetup) uuid.UUID {
+					return acpModelConfig(t, db, setup, setup.providerID, "selected-model").ID
+				},
+				wantCreds: primaryCredentials("selected-model"),
+				wantStamp: true,
+				wantMode:  "acceptEdits",
+			},
+			{
+				name: "SelectedDisabledFallsBack",
+				seed: func(t *testing.T, db database.Store, setup acpTestSetup) uuid.UUID {
+					return acpModelConfig(t, db, setup, setup.providerID, "disabled-model", func(p *database.InsertChatModelConfigParams) {
+						p.Enabled = false
+					}).ID
+				},
+				wantCreds: primaryCredentials(acpTestPinnedModel),
+				wantMode:  "acceptEdits",
+			},
+			{
+				name: "SelectedProviderKey",
+				seed: func(t *testing.T, db database.Store, setup acpTestSetup) uuid.UUID {
+					second := dbgen.ChatProvider(t, db, database.ChatProvider{
+						Provider:    string(setup.harness.ProviderType),
+						DisplayName: "second",
+						Enabled:     true,
+						BaseUrl:     "https://second.example.com",
+					}, func(p *database.InsertChatProviderParams) {
+						p.APIKey = "second-provider-key"
+					})
+					return acpModelConfig(t, db, setup, second.ID, "second-model").ID
+				},
+				wantCreds: chatacp.TurnCredentials{APIKey: "second-provider-key", BaseURL: "https://second.example.com", Model: "second-model"},
+				wantStamp: true,
+				wantMode:  "acceptEdits",
+			},
+			{
+				// A model is never paired with another provider's key.
+				name: "SelectedKeylessProviderFallsBack",
+				seed: func(t *testing.T, db database.Store, setup acpTestSetup) uuid.UUID {
+					keyless := dbgen.ChatProvider(t, db, database.ChatProvider{
+						Provider:    string(setup.harness.ProviderType),
+						DisplayName: "keyless",
+						Enabled:     true,
+					}, func(p *database.InsertChatProviderParams) {
+						p.APIKey = ""
+					})
+					return acpModelConfig(t, db, setup, keyless.ID, "keyless-model").ID
+				},
+				wantCreds: primaryCredentials(acpTestPinnedModel),
+				wantMode:  "acceptEdits",
+			},
 		}
-	})
-}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				db, ps := dbtestutil.NewDB(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
 
-func TestACPChatSelectionCredentials(t *testing.T) {
-	t.Parallel()
+				setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
+				if tc.noPin {
+					_, err := db.UpsertChatRuntimeConfig(ctx, database.UpsertChatRuntimeConfigParams{
+						OrganizationID: setup.org.ID,
+						Runtime:        database.ChatRuntime(harness.Runtime),
+						TemplateID:     setup.workspace.TemplateID,
+						Enabled:        true,
+					})
+					require.NoError(t, err)
+				}
+				var mutators []func(*chatstate.CreateChatInput)
+				var wantStamp uuid.NullUUID
+				if tc.seed != nil {
+					selected := tc.seed(t, db, setup)
+					mutators = append(mutators, withInitialModelConfig(selected))
+					if tc.wantStamp {
+						wantStamp = uuid.NullUUID{UUID: selected, Valid: true}
+					}
+				}
 
-	forEachHarness(t, func(t *testing.T, harness chatacp.Harness) {
-		t.Run("SelectedProviderKey", func(t *testing.T) {
-			t.Parallel()
+				fakeAgent := replyingFakeAgent("reply")
+				created := createACPChat(ctx, t, db, ps, setup, "hello", mutators...)
+				_ = newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent, tc.wantCreds))
 
-			db, ps := dbtestutil.NewDB(t)
-			ctx := testutil.Context(t, testutil.WaitLong)
+				chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
+				require.Equal(t, database.ChatStatusWaiting, chat.Status)
+				require.False(t, chat.LastError.Valid)
+				require.Len(t, fakeAgent.Prompts(), 1)
 
-			setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
-			second := dbgen.ChatProvider(t, db, database.ChatProvider{
-				Provider:    string(harness.ProviderType),
-				DisplayName: "second",
-				Enabled:     true,
-				BaseUrl:     "https://second.example.com",
-			}, func(p *database.InsertChatProviderParams) {
-				p.APIKey = "second-provider-key"
+				modes := fakeAgent.Modes()
+				if tc.wantMode == "" {
+					require.Empty(t, modes)
+				} else {
+					require.Len(t, modes, 1)
+					require.Equal(t, acp.SessionModeId(tc.wantMode), modes[0].ModeId)
+				}
+
+				messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.Chat.ID})
+				require.NoError(t, err)
+				require.Len(t, messages, 2)
+				require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
+				require.Equal(t, wantStamp, messages[1].ModelConfigID)
+				// The applied selection groups token analytics; these turns
+				// carry no cost.
+				require.False(t, messages[1].TotalCostMicros.Valid)
 			})
-			selected := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-				OrganizationID: setup.org.ID,
-				Model:          "second-model",
-				AIProviderID:   uuid.NullUUID{UUID: second.ID, Valid: true},
-			})
-
-			recorder := &acpEnvRecorder{}
-			created := createACPChat(ctx, t, db, ps, setup, "hello", withInitialModelConfig(selected.ID))
-			_ = newActiveTestServer(t, db, ps, acpConfigOverridesCaptureEnv(t, setup, replyingFakeAgent("second reply"), recorder))
-
-			chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
-			require.Equal(t, database.ChatStatusWaiting, chat.Status)
-
-			requireTurnEnv(t, harness, recorder.last(t), chatacp.TurnCredentials{
-				APIKey:  "second-provider-key",
-				BaseURL: "https://second.example.com",
-				Model:   "second-model",
-			})
-		})
-
-		t.Run("KeylessProviderFallsBack", func(t *testing.T) {
-			t.Parallel()
-
-			db, ps := dbtestutil.NewDB(t)
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
-			keyless := dbgen.ChatProvider(t, db, database.ChatProvider{
-				Provider:    string(harness.ProviderType),
-				DisplayName: "keyless",
-				Enabled:     true,
-			}, func(p *database.InsertChatProviderParams) {
-				p.APIKey = ""
-			})
-			selected := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-				OrganizationID: setup.org.ID,
-				Model:          "keyless-model",
-				AIProviderID:   uuid.NullUUID{UUID: keyless.ID, Valid: true},
-			})
-
-			recorder := &acpEnvRecorder{}
-			created := createACPChat(ctx, t, db, ps, setup, "hello", withInitialModelConfig(selected.ID))
-			_ = newActiveTestServer(t, db, ps, acpConfigOverridesCaptureEnv(t, setup, replyingFakeAgent("keyless reply"), recorder))
-
-			chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
-			require.Equal(t, database.ChatStatusWaiting, chat.Status)
-
-			requireTurnEnv(t, harness, recorder.last(t), primaryCredentials(acpTestPinnedModel))
-			messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.Chat.ID})
-			require.NoError(t, err)
-			require.Len(t, messages, 2)
-			require.False(t, messages[1].ModelConfigID.Valid)
-		})
+		}
 	})
 }
 
@@ -687,22 +618,11 @@ func TestACPModelSelectionValidation(t *testing.T) {
 		setupCtx := testutil.Context(t, testutil.WaitLong)
 
 		setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
-		validCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			OrganizationID: setup.org.ID,
-			Model:          "valid-model",
-			AIProviderID:   uuid.NullUUID{UUID: setup.providerID, Valid: true},
+		validCfg := acpModelConfig(t, db, setup, setup.providerID, "valid-model")
+		otherCfg := acpModelConfig(t, db, setup, setup.otherProviderID, "other-provider-model", func(p *database.InsertChatModelConfigParams) {
+			p.IsDefault = true
 		})
-		otherCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			OrganizationID: setup.org.ID,
-			Model:          "other-provider-model",
-			AIProviderID:   uuid.NullUUID{UUID: setup.otherProviderID, Valid: true},
-			IsDefault:      true,
-		})
-		disabledCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			OrganizationID: setup.org.ID,
-			Model:          "disabled-model",
-			AIProviderID:   uuid.NullUUID{UUID: setup.providerID, Valid: true},
-		}, func(p *database.InsertChatModelConfigParams) {
+		disabledCfg := acpModelConfig(t, db, setup, setup.providerID, "disabled-model", func(p *database.InsertChatModelConfigParams) {
 			p.Enabled = false
 		})
 		otherOrgCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
