@@ -169,6 +169,7 @@ func TestRenderModulesAgentTargeting(t *testing.T) {
 		[]ComposeModule{
 			{ID: "code-server", AgentName: "gpu"},
 			{ID: "git-commit-signing"},
+			{ID: "zed", AgentName: "gpu"},
 		},
 		catalog, "registry.coder.com", agentRefByName, "main",
 	)
@@ -177,4 +178,7 @@ func TestRenderModulesAgentTargeting(t *testing.T) {
 	out := string(modulesTF)
 	require.Contains(t, out, "coder_agent.gpu[0].id")
 	require.Contains(t, out, "coder_agent.main.id")
+	// zed declares an agent_name input; the builder binds it to the attached
+	// agent's name rather than leaving the manifest default.
+	require.Contains(t, out, `agent_name = "gpu"`)
 }

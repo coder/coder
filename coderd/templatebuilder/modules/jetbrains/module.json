@@ -29,7 +29,7 @@
       "description": "The name of a Coder agent. Needed for workspaces with multiple agents.",
       "required": false,
       "sensitive": false,
-      "computed": false
+      "computed": true
     },
     {
       "name": "channel",

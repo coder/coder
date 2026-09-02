@@ -310,6 +310,7 @@ func renderModules(
 			RegistryBase:      registryURL,
 			PinnedVersion:     manifest.PinnedVersion,
 			AgentResourceName: agentRef,
+			AgentName:         agentName,
 			Variables:         vars,
 		}
 

@@ -30,7 +30,7 @@
       "default": "",
       "required": false,
       "sensitive": false,
-      "computed": false
+      "computed": true
     },
     {
       "name": "folder",

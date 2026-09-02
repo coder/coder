@@ -3,7 +3,7 @@ module "jetbrains" {
   source   = "{{ .RegistryBase }}/coder/jetbrains/coder"
   version  = "{{ .PinnedVersion }}"
   agent_id = coder_agent.{{ .AgentResourceName }}.id
-  agent_name = {{ .Variables.agent_name }}
+  agent_name = "{{ .AgentName }}"
   channel = {{ .Variables.channel }}
   download_base_link = {{ .Variables.download_base_link }}
   folder = {{ .Variables.folder }}

@@ -3,7 +3,7 @@ module "filebrowser" {
   source   = "{{ .RegistryBase }}/coder/filebrowser/coder"
   version  = "{{ .PinnedVersion }}"
   agent_id = coder_agent.{{ .AgentResourceName }}.id
-  agent_name = {{ .Variables.agent_name }}
+  agent_name = "{{ .AgentName }}"
   database_path = {{ .Variables.database_path }}
   folder = {{ .Variables.folder }}
   port = {{ .Variables.port }}

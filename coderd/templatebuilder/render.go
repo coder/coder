@@ -43,6 +43,10 @@ type ModuleRenderContext struct {
 	// AgentResourceName is the Terraform resource name of the coder_agent
 	// declared in the base template (e.g. "main" or "dev").
 	AgentResourceName string
+	// AgentName is the attached agent's name, for modules that take an
+	// agent_name input. Builder-owned like AgentResourceName; the two name the
+	// same agent (id vs. label).
+	AgentName string
 	// Variables maps variable names to their HCL expressions.
 	Variables map[string]string
 }

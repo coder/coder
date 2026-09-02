@@ -28,7 +28,7 @@
       "description": "The name of the coder_agent resource.",
       "required": false,
       "sensitive": false,
-      "computed": false
+      "computed": true
     },
     {
       "name": "database_path",
