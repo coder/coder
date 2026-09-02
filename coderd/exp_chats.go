@@ -2704,9 +2704,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if chat.Runtime != database.ChatRuntimeCoder {
-		if req.PlanMode != nil || (req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0) {
+		if req.PlanMode != nil || (req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0) || req.ReasoningEffort != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "plan_mode and mcp_server_ids are not supported on runtime chats.",
+				Message: "plan_mode, mcp_server_ids, and reasoning_effort are not supported on runtime chats.",
 			})
 			return
 		}
@@ -2926,6 +2926,12 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if chat.Runtime != database.ChatRuntimeCoder {
+		if (req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0) || req.ReasoningEffort != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "mcp_server_ids and reasoning_effort are not supported on runtime chats.",
+			})
+			return
+		}
 		if resp := runtimeChatTextOnlyError(req.Content); resp != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 			return

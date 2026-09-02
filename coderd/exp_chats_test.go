@@ -2098,7 +2098,40 @@ func TestChatRuntimeRequests(t *testing.T) {
 					})
 					return err
 				},
-				wantMessage: "plan_mode and mcp_server_ids are not supported on runtime chats.",
+				wantMessage: "plan_mode, mcp_server_ids, and reasoning_effort are not supported on runtime chats.",
+			},
+			{
+				name: "SendWithReasoningEffort",
+				do: func() error {
+					_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+						Content:         []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "runtime send"}},
+						ReasoningEffort: ptr.Ref("high"),
+					})
+					return err
+				},
+				wantMessage: "plan_mode, mcp_server_ids, and reasoning_effort are not supported on runtime chats.",
+			},
+			{
+				name: "EditWithReasoningEffort",
+				do: func() error {
+					_, err := client.EditChatMessage(ctx, chat.ID, message.ID, codersdk.EditChatMessageRequest{
+						Content:         []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "runtime edit"}},
+						ReasoningEffort: ptr.Ref("high"),
+					})
+					return err
+				},
+				wantMessage: "mcp_server_ids and reasoning_effort are not supported on runtime chats.",
+			},
+			{
+				name: "EditWithMCPServerIDs",
+				do: func() error {
+					_, err := client.EditChatMessage(ctx, chat.ID, message.ID, codersdk.EditChatMessageRequest{
+						Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "runtime edit"}},
+						MCPServerIDs: &[]uuid.UUID{uuid.New()},
+					})
+					return err
+				},
+				wantMessage: "mcp_server_ids and reasoning_effort are not supported on runtime chats.",
 			},
 			{
 				name:        "Compact",
