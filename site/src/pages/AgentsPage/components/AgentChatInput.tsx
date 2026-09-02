@@ -78,7 +78,7 @@ import {
 	type ExternalChatRuntime,
 	externalChatRuntimes,
 } from "../utils/chatRuntimes";
-import type { ChatSlashCommand } from "../utils/slashCommands";
+import type { ChatComposerCommand } from "../utils/slashCommands";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -209,9 +209,8 @@ interface AgentChatInputProps {
 	// AI Gateway is disabled deployment-wide, independent of provider/model
 	// configuration. Forces the setup notice regardless of the counts above.
 	aiGatewayDisabled?: boolean;
-	// Built-in commands offered by the "/" trigger menu ahead of
-	// personal skills.
-	slashCommands?: readonly ChatSlashCommand[];
+	// Commands offered by the "/" trigger menu ahead of personal skills.
+	slashCommands?: readonly ChatComposerCommand[];
 }
 
 export interface AttachedWorkspaceInfo {

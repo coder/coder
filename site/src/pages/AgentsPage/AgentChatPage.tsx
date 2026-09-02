@@ -1718,10 +1718,12 @@ const AgentChatPage: FC = () => {
 			pendingWorkspaceSyncRef.current,
 		]);
 
-		// Built-ins only intercept new, text-only sends. A personal or workspace
-		// skill with the same name takes precedence.
+		// Built-ins only intercept new, text-only sends on coder chats. A
+		// personal or workspace skill with the same name takes precedence,
+		// and runtime chats forward every "/name" to the runtime instead.
 		const builtInCommand =
 			editedMessageID === undefined &&
+			!isRuntimeChat &&
 			content.length === 1 &&
 			content[0].type === "text"
 				? CHAT_SLASH_COMMANDS.find(
@@ -2170,6 +2172,7 @@ const AgentChatPage: FC = () => {
 			chatContext={chatQuery.data?.context}
 			queuedForCapacity={chatQuery.data?.queued_for_capacity ?? false}
 			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
+			runtimeCommands={chatQuery.data?.runtime_commands}
 		/>
 	);
 };

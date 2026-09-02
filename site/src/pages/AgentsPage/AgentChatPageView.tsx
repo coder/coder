@@ -231,6 +231,7 @@ interface AgentChatPageViewProps {
 
 	chatContext?: TypesGen.ChatContext;
 	workspaceSkills?: readonly SkillMetadata[];
+	runtimeCommands?: readonly TypesGen.ChatRuntimeCommand[];
 }
 
 const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
@@ -402,6 +403,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 	chatContext,
 	workspaceSkills,
+	runtimeCommands,
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
@@ -1052,6 +1054,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									onMCPAuthComplete={onMCPAuthComplete}
 									chatContext={chatContext}
 									workspaceSkills={workspaceSkills}
+									runtimeCommands={runtimeCommands}
 									workspace={workspace}
 									workspaceAgent={workspaceAgent}
 									chatId={agentId}

@@ -503,6 +503,29 @@ export const EnterSelectsCommand: Story = {
 	},
 };
 
+// A command that takes arguments shows its input hint and inserts a
+// trailing space so the caret is ready for them.
+export const CommandWithInputHintInsertsTrailingSpace: Story = {
+	args: {
+		personalSkillsOverride: [],
+		slashCommands: [
+			{
+				name: "model",
+				description: "Switch the model",
+				inputHint: "<model name>",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/mod");
+		await findVisibleText("<model name>");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/model ");
+		});
+	},
+};
+
 // Commands are first in the combined list, so the first ArrowDown
 // moves the highlight from the command into the skills group.
 export const ArrowKeysCrossCommandAndSkillGroups: Story = {

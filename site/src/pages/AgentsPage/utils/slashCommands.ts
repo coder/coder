@@ -1,12 +1,23 @@
+import type * as TypesGen from "#/api/typesGenerated";
+
 /**
- * A built-in chat command offered by the "/" trigger menu. Unlike
- * personal skills, commands are fixed client-side actions: the
- * composer intercepts them at submit time instead of sending the
- * text as a message.
+ * A command offered by the "/" trigger menu. Selecting one inserts
+ * "/name" into the composer; inputHint is placeholder text for the
+ * arguments a command accepts after its name.
  */
-export type ChatSlashCommand = {
-	name: "clear" | "compact";
+export type ChatComposerCommand = {
+	name: string;
 	description: string;
+	inputHint?: string;
+};
+
+/**
+ * A built-in chat command. Unlike personal skills and runtime commands,
+ * built-ins are fixed client-side actions: the composer intercepts them
+ * at submit time instead of sending the text as a message.
+ */
+type ChatSlashCommand = ChatComposerCommand & {
+	name: "clear" | "compact";
 };
 
 export const COMPACT_SLASH_COMMAND: ChatSlashCommand = {
@@ -49,3 +60,17 @@ export const resolveChatSlashCommandAvailability = (
 export const chatSlashCommandTriggerText = (
 	command: ChatSlashCommand,
 ): string => `/${command.name}`;
+
+/**
+ * Commands an external runtime advertised for the chat. They are sent
+ * as message text ("/name args") and interpreted by the runtime, so the
+ * built-in client-side commands do not apply alongside them.
+ */
+export const runtimeSlashCommands = (
+	commands: readonly TypesGen.ChatRuntimeCommand[] | undefined,
+): readonly ChatComposerCommand[] =>
+	(commands ?? []).map((command) => ({
+		name: command.name,
+		description: command.description,
+		inputHint: command.input_hint || undefined,
+	}));

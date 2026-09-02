@@ -87,6 +87,7 @@ import {
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
+import { isExternalChatRuntime } from "./utils/chatRuntimes";
 import { maybePlayChime } from "./utils/chime";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
@@ -153,6 +154,17 @@ export const chatCostIdToInvalidate = (
 	}
 	return getChatCostTreeID(chat);
 };
+
+// Runtime commands are omitted from watch payloads (NOTIFY size cap) and
+// persisted before the turn finishes, so the turn-ending status change is
+// the point to refetch them from the single-chat GET.
+export const shouldRefetchRuntimeCommands = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean =>
+	eventKind === "status_change" &&
+	isExternalChatRuntime(chat.runtime) &&
+	!isActiveChatStatus(chat.status);
 
 const AgentsPageLayout: FC = () => {
 	useAgentsPWA();
@@ -659,7 +671,10 @@ const AgentsPageLayout: FC = () => {
 						if (costChatId) {
 							void invalidateChatCostTree(queryClient, costChatId);
 						}
-						if (chatEvent.kind === "context_dirty") {
+						if (
+							chatEvent.kind === "context_dirty" ||
+							shouldRefetchRuntimeCommands(updatedChat, chatEvent.kind)
+						) {
 							// The watch payload carries only the lightweight
 							// context flags (the merge above applies them);
 							// refetch the open chat to pull the pinned
