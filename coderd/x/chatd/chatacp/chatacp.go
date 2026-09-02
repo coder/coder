@@ -22,6 +22,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	acp "github.com/coder/acp-go-sdk"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -628,7 +629,8 @@ type RuntimeState struct {
 }
 
 // UsageTotals mirrors the ACP usage counters, which report
-// session-cumulative counts rather than per-turn ones.
+// session-cumulative counts rather than per-turn ones. Its fields match
+// fantasy.Usage so a per-turn delta converts directly.
 type UsageTotals struct {
 	InputTokens         int64 `json:"input_tokens,omitempty"`
 	OutputTokens        int64 `json:"output_tokens,omitempty"`
@@ -636,6 +638,62 @@ type UsageTotals struct {
 	ReasoningTokens     int64 `json:"reasoning_tokens,omitempty"`
 	CacheCreationTokens int64 `json:"cache_creation_tokens,omitempty"`
 	CacheReadTokens     int64 `json:"cache_read_tokens,omitempty"`
+}
+
+func usageTotals(usage acp.Usage) UsageTotals {
+	return UsageTotals{
+		InputTokens:         int64(usage.InputTokens),
+		OutputTokens:        int64(usage.OutputTokens),
+		TotalTokens:         int64(usage.TotalTokens),
+		ReasoningTokens:     int64(ptr.NilToEmpty(usage.ThoughtTokens)),
+		CacheCreationTokens: int64(ptr.NilToEmpty(usage.CachedWriteTokens)),
+		CacheReadTokens:     int64(ptr.NilToEmpty(usage.CachedReadTokens)),
+	}
+}
+
+// since returns the per-turn delta from base. A negative delta means the
+// adapter restarted its counters; the raw counts are then the closest
+// per-turn approximation.
+func (u UsageTotals) since(base UsageTotals) UsageTotals {
+	delta := UsageTotals{
+		InputTokens:         u.InputTokens - base.InputTokens,
+		OutputTokens:        u.OutputTokens - base.OutputTokens,
+		TotalTokens:         u.TotalTokens - base.TotalTokens,
+		ReasoningTokens:     u.ReasoningTokens - base.ReasoningTokens,
+		CacheCreationTokens: u.CacheCreationTokens - base.CacheCreationTokens,
+		CacheReadTokens:     u.CacheReadTokens - base.CacheReadTokens,
+	}
+	if min(delta.InputTokens, delta.OutputTokens, delta.TotalTokens,
+		delta.ReasoningTokens, delta.CacheCreationTokens, delta.CacheReadTokens) < 0 {
+		return u
+	}
+	return delta
+}
+
+// Advance returns the state to persist after a turn and the turn's own
+// token usage. Only a continued session carries the prior working
+// directory, command list, and cumulative usage forward; the usage
+// base is subtracted because ACP counters span the whole session.
+func (s RuntimeState) Advance(outcome TurnOutcome, cwd string, now time.Time) (RuntimeState, fantasy.Usage) {
+	next := RuntimeState{SessionID: outcome.SessionID, Cwd: cwd, UpdatedAt: now.UTC()}
+	if outcome.Resumed {
+		next.Cwd = cmp.Or(s.Cwd, cwd)
+		next.AvailableCommands = s.AvailableCommands
+		next.Usage = s.Usage
+	}
+	if outcome.AvailableCommands != nil {
+		next.AvailableCommands = outcome.AvailableCommands
+	}
+	if outcome.Usage == nil {
+		return next, fantasy.Usage{}
+	}
+	totals := usageTotals(*outcome.Usage)
+	turn := totals
+	if outcome.Resumed && s.Usage != nil {
+		turn = totals.since(*s.Usage)
+	}
+	next.Usage = &totals
+	return next, fantasy.Usage(turn)
 }
 
 // ParseRuntimeState decodes persisted runtime state, tolerating absent

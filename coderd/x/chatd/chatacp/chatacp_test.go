@@ -350,6 +350,132 @@ func TestRuntimeStateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRuntimeStateAdvance(t *testing.T) {
+	t.Parallel()
+
+	const turnCwd = "/home/coder/turn"
+	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	intPtr := func(v int) *int { return &v }
+	priorCommands := []codersdk.ChatRuntimeCommand{{Name: "review", Description: "Review the diff"}}
+	turnCommands := []codersdk.ChatRuntimeCommand{{Name: "compact", Description: "Compact history"}}
+	prior := chatacp.RuntimeState{
+		SessionID:         "s1",
+		Cwd:               "/home/coder/prior",
+		Usage:             &chatacp.UsageTotals{InputTokens: 100, OutputTokens: 40, TotalTokens: 140, ReasoningTokens: 10},
+		AvailableCommands: priorCommands,
+	}
+
+	tests := []struct {
+		name      string
+		prior     chatacp.RuntimeState
+		outcome   chatacp.TurnOutcome
+		wantState chatacp.RuntimeState
+		wantUsage fantasy.Usage
+	}{
+		{
+			name:    "FreshSessionUsesRawCounts",
+			outcome: chatacp.TurnOutcome{SessionID: "s1", Usage: &acp.Usage{InputTokens: 100, OutputTokens: 40, TotalTokens: 140}},
+			wantState: chatacp.RuntimeState{
+				SessionID: "s1",
+				Cwd:       turnCwd,
+				Usage:     &chatacp.UsageTotals{InputTokens: 100, OutputTokens: 40, TotalTokens: 140},
+				UpdatedAt: now,
+			},
+			wantUsage: fantasy.Usage{InputTokens: 100, OutputTokens: 40, TotalTokens: 140},
+		},
+		{
+			name:  "ResumedSubtractsPriorTotals",
+			prior: prior,
+			outcome: chatacp.TurnOutcome{SessionID: "s1", Resumed: true, Usage: &acp.Usage{
+				InputTokens: 250, OutputTokens: 90, TotalTokens: 340, ThoughtTokens: intPtr(30), CachedReadTokens: intPtr(5),
+			}},
+			wantState: chatacp.RuntimeState{
+				SessionID:         "s1",
+				Cwd:               "/home/coder/prior",
+				Usage:             &chatacp.UsageTotals{InputTokens: 250, OutputTokens: 90, TotalTokens: 340, ReasoningTokens: 30, CacheReadTokens: 5},
+				AvailableCommands: priorCommands,
+				UpdatedAt:         now,
+			},
+			wantUsage: fantasy.Usage{InputTokens: 150, OutputTokens: 50, TotalTokens: 200, ReasoningTokens: 20, CacheReadTokens: 5},
+		},
+		{
+			name:    "ResumedWithoutUsageCarriesPriorForward",
+			prior:   prior,
+			outcome: chatacp.TurnOutcome{SessionID: "s1", Resumed: true},
+			wantState: chatacp.RuntimeState{
+				SessionID:         "s1",
+				Cwd:               "/home/coder/prior",
+				Usage:             prior.Usage,
+				AvailableCommands: priorCommands,
+				UpdatedAt:         now,
+			},
+		},
+		{
+			name:    "CounterRestartFallsBackToRawCounts",
+			prior:   prior,
+			outcome: chatacp.TurnOutcome{SessionID: "s1", Resumed: true, Usage: &acp.Usage{InputTokens: 20, OutputTokens: 5, TotalTokens: 25}},
+			wantState: chatacp.RuntimeState{
+				SessionID:         "s1",
+				Cwd:               "/home/coder/prior",
+				Usage:             &chatacp.UsageTotals{InputTokens: 20, OutputTokens: 5, TotalTokens: 25},
+				AvailableCommands: priorCommands,
+				UpdatedAt:         now,
+			},
+			wantUsage: fantasy.Usage{InputTokens: 20, OutputTokens: 5, TotalTokens: 25},
+		},
+		{
+			name:    "NewSessionDropsPrior",
+			prior:   prior,
+			outcome: chatacp.TurnOutcome{SessionID: "s2", Usage: &acp.Usage{TotalTokens: 50}},
+			wantState: chatacp.RuntimeState{
+				SessionID: "s2",
+				Cwd:       turnCwd,
+				Usage:     &chatacp.UsageTotals{TotalTokens: 50},
+				UpdatedAt: now,
+			},
+			wantUsage: fantasy.Usage{TotalTokens: 50},
+		},
+		{
+			name:      "NewSessionWithoutUsageDropsPriorTotals",
+			prior:     prior,
+			outcome:   chatacp.TurnOutcome{SessionID: "s2"},
+			wantState: chatacp.RuntimeState{SessionID: "s2", Cwd: turnCwd, UpdatedAt: now},
+		},
+		{
+			name:    "TurnCommandListWins",
+			prior:   prior,
+			outcome: chatacp.TurnOutcome{SessionID: "s1", Resumed: true, AvailableCommands: turnCommands},
+			wantState: chatacp.RuntimeState{
+				SessionID:         "s1",
+				Cwd:               "/home/coder/prior",
+				Usage:             prior.Usage,
+				AvailableCommands: turnCommands,
+				UpdatedAt:         now,
+			},
+		},
+		{
+			name:    "EmptyTurnCommandListClears",
+			prior:   prior,
+			outcome: chatacp.TurnOutcome{SessionID: "s1", Resumed: true, AvailableCommands: []codersdk.ChatRuntimeCommand{}},
+			wantState: chatacp.RuntimeState{
+				SessionID:         "s1",
+				Cwd:               "/home/coder/prior",
+				Usage:             prior.Usage,
+				AvailableCommands: []codersdk.ChatRuntimeCommand{},
+				UpdatedAt:         now,
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			gotState, gotUsage := tc.prior.Advance(tc.outcome, turnCwd, now)
+			require.Equal(t, tc.wantState, gotState)
+			require.Equal(t, tc.wantUsage, gotUsage)
+		})
+	}
+}
+
 func TestRunTurnReseedsWhenSessionGone(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

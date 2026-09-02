@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	gossh "golang.org/x/crypto/ssh"
@@ -145,13 +144,13 @@ func (s *taskStarter) startACPGeneration(
 	})
 	elapsed := s.opts.Clock.Now("chatworker", "chatacp").Sub(startedAt)
 
-	turnUsage, usageTotals := acpTurnUsage(outcome, state)
+	next, turnUsage := state.Advance(outcome, cwd, s.opts.Clock.Now("chatworker", "chatacp"))
 
 	// Record the session even when the turn was interrupted or the
 	// commit below fails: the workspace-side session advanced either
 	// way, and the next turn should resume it.
 	if outcome.SessionID != "" {
-		s.persistACPRuntimeState(ctx, chat.ID, outcome, state, cwd, usageTotals)
+		s.persistACPRuntimeState(ctx, chat.ID, next)
 	}
 
 	if ctx.Err() != nil {
@@ -694,25 +693,8 @@ func probeACPAdapter(ctx context.Context, clock quartz.Clock, client *gossh.Clie
 // that served the turn so the next turn can resume it. It runs even
 // when the turn was interrupted or the commit fails, because the
 // workspace-side session advanced regardless.
-func (s *taskStarter) persistACPRuntimeState(
-	ctx context.Context,
-	chatID uuid.UUID,
-	outcome chatacp.TurnOutcome,
-	prior chatacp.RuntimeState,
-	newCwd string,
-	usageTotals *chatacp.UsageTotals,
-) {
-	cwd := newCwd
-	if outcome.Resumed && prior.Cwd != "" {
-		cwd = prior.Cwd
-	}
-	encoded, err := json.Marshal(chatacp.RuntimeState{
-		SessionID:         outcome.SessionID,
-		Cwd:               cwd,
-		Usage:             usageTotals,
-		AvailableCommands: acpAvailableCommands(outcome, prior),
-		UpdatedAt:         s.opts.Clock.Now("chatworker", "chatacp").UTC(),
-	})
+func (s *taskStarter) persistACPRuntimeState(ctx context.Context, chatID uuid.UUID, state chatacp.RuntimeState) {
+	encoded, err := json.Marshal(state)
 	if err != nil {
 		s.opts.Logger.Warn(ctx, "marshal acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
 		return
@@ -725,76 +707,4 @@ func (s *taskStarter) persistACPRuntimeState(
 	}); err != nil {
 		s.opts.Logger.Warn(persistCtx, "persist acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
 	}
-}
-
-// acpAvailableCommands picks the command list to persist: the turn's
-// own list when the adapter advertised one, else the prior list when the
-// same session continued and its commands are still current, else none.
-func acpAvailableCommands(outcome chatacp.TurnOutcome, prior chatacp.RuntimeState) []codersdk.ChatRuntimeCommand {
-	if outcome.AvailableCommands != nil {
-		return outcome.AvailableCommands
-	}
-	if outcome.Resumed && outcome.SessionID == prior.SessionID {
-		return prior.AvailableCommands
-	}
-	return nil
-}
-
-// acpTurnUsage derives per-turn token usage from ACP's
-// session-cumulative counters: on a resumed session it subtracts the
-// totals persisted after the previous turn, otherwise the session is
-// fresh and the counters already are per-turn. It returns the new
-// cumulative totals to persist alongside the session.
-func acpTurnUsage(
-	outcome chatacp.TurnOutcome,
-	prior chatacp.RuntimeState,
-) (fantasy.Usage, *chatacp.UsageTotals) {
-	if outcome.Usage == nil {
-		// No usage this turn: carry prior totals forward so a later
-		// turn that does report usage still subtracts them.
-		if outcome.Resumed && outcome.SessionID == prior.SessionID {
-			return fantasy.Usage{}, prior.Usage
-		}
-		return fantasy.Usage{}, nil
-	}
-	totals := &chatacp.UsageTotals{
-		InputTokens:  int64(outcome.Usage.InputTokens),
-		OutputTokens: int64(outcome.Usage.OutputTokens),
-		TotalTokens:  int64(outcome.Usage.TotalTokens),
-	}
-	if outcome.Usage.ThoughtTokens != nil {
-		totals.ReasoningTokens = int64(*outcome.Usage.ThoughtTokens)
-	}
-	if outcome.Usage.CachedWriteTokens != nil {
-		totals.CacheCreationTokens = int64(*outcome.Usage.CachedWriteTokens)
-	}
-	if outcome.Usage.CachedReadTokens != nil {
-		totals.CacheReadTokens = int64(*outcome.Usage.CachedReadTokens)
-	}
-	base := chatacp.UsageTotals{}
-	if outcome.Resumed && outcome.SessionID == prior.SessionID && prior.Usage != nil {
-		base = *prior.Usage
-	}
-	usage := fantasy.Usage{
-		InputTokens:         totals.InputTokens - base.InputTokens,
-		OutputTokens:        totals.OutputTokens - base.OutputTokens,
-		TotalTokens:         totals.TotalTokens - base.TotalTokens,
-		ReasoningTokens:     totals.ReasoningTokens - base.ReasoningTokens,
-		CacheCreationTokens: totals.CacheCreationTokens - base.CacheCreationTokens,
-		CacheReadTokens:     totals.CacheReadTokens - base.CacheReadTokens,
-	}
-	if usage.InputTokens < 0 || usage.OutputTokens < 0 || usage.TotalTokens < 0 ||
-		usage.ReasoningTokens < 0 || usage.CacheCreationTokens < 0 || usage.CacheReadTokens < 0 {
-		// A negative delta means the adapter restarted its counters;
-		// the raw counts are then the closest per-turn approximation.
-		usage = fantasy.Usage{
-			InputTokens:         totals.InputTokens,
-			OutputTokens:        totals.OutputTokens,
-			TotalTokens:         totals.TotalTokens,
-			ReasoningTokens:     totals.ReasoningTokens,
-			CacheCreationTokens: totals.CacheCreationTokens,
-			CacheReadTokens:     totals.CacheReadTokens,
-		}
-	}
-	return usage, totals
 }
