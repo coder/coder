@@ -20,6 +20,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	availableExternalChatRuntimes,
 	type ExternalChatRuntime,
+	externalChatRuntimes,
 	filterModelOptionsForRuntime,
 } from "../utils/chatRuntimes";
 import { parseStoredDraft } from "../utils/draftStorage";
@@ -438,6 +439,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		? filterModelOptionsForRuntime(modelOptions, runtime)
 		: modelOptions;
 	const [runtimeSelectedModel, setRuntimeSelectedModel] = useState("");
+	const [pendingRuntimePick, setPendingRuntimePick] =
+		useState<ExternalChatRuntime | null>(null);
+	const pendingRuntimeLabel = pendingRuntimePick
+		? externalChatRuntimes[pendingRuntimePick].label
+		: "";
 	const effectiveRuntimeModel = runtime
 		? resolveModelOptionId(runtimeSelectedModel, activeModelOptions)
 		: "";
@@ -560,6 +566,21 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			[selectedModel]: value,
 		}));
 		saveReasoningEffortForModel(selectedModel, value);
+	};
+
+	const applyRuntimeChange = (nextRuntime: ExternalChatRuntime | undefined) => {
+		if (nextRuntime) {
+			resetAttachments();
+			setRuntimeSelectedModel(
+				resolveModelOptionId(
+					selectedModel,
+					filterModelOptionsForRuntime(modelOptions, nextRuntime),
+				),
+			);
+		}
+		setRuntimePick(
+			nextRuntime ? { runtime: nextRuntime, organizationId } : null,
+		);
 	};
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {
@@ -735,25 +756,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						onRuntimeChange={
 							availableRuntimes.length > 0
 								? (nextRuntime) => {
-										if (nextRuntime) {
-											// Runtimes do not accept file attachments;
-											// drop any staged ones.
-											resetAttachments();
-											setRuntimeSelectedModel(
-												resolveModelOptionId(
-													selectedModel,
-													filterModelOptionsForRuntime(
-														modelOptions,
-														nextRuntime,
-													),
-												),
-											);
+										// Runtimes do not accept file attachments, so
+										// confirm before dropping staged ones.
+										if (nextRuntime && attachments.length > 0) {
+											setPendingRuntimePick(nextRuntime);
+											return;
 										}
-										setRuntimePick(
-											nextRuntime
-												? { runtime: nextRuntime, organizationId }
-												: null,
-										);
+										applyRuntimeChange(nextRuntime);
 									}
 								: undefined
 						}
@@ -819,6 +828,22 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					selectOrganization(pendingOrgChange);
 				}}
 				onClose={() => setPendingOrgChange(null)}
+			/>
+			<ConfirmDialog
+				open={pendingRuntimePick !== null}
+				title={`Run with ${pendingRuntimeLabel}?`}
+				description={`${pendingRuntimeLabel} does not accept file attachments. Continuing will remove your current attachments.`}
+				type="info"
+				hideCancel={false}
+				confirmText="Continue"
+				onConfirm={() => {
+					if (!pendingRuntimePick) {
+						return;
+					}
+					setPendingRuntimePick(null);
+					applyRuntimeChange(pendingRuntimePick);
+				}}
+				onClose={() => setPendingRuntimePick(null)}
 			/>
 		</>
 	);

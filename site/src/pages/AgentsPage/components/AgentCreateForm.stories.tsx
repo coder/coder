@@ -2547,6 +2547,75 @@ export const RuntimeMenuSwitchesBetweenRuntimes: Story = {
 	},
 };
 
+/** Runtimes do not accept attachments, so picking one with a staged file
+ * asks before dropping it; canceling keeps both the file and the coder
+ * runtime. */
+export const RuntimeSelectionConfirmsAttachmentRemoval: Story = {
+	args: defaultArgs,
+	parameters: claudeCodeAvailableParameters,
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([
+				{
+					fileId: "file-default-org",
+					fileName: "notes.txt",
+					fileType: "text/plain",
+					lastModified: 1700000000000,
+					organizationId: MockDefaultOrganization.id,
+				},
+			]),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await waitFor(() =>
+			expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument(),
+		);
+
+		const openRuntimeMenuItem = async () => {
+			// The closed dialog lifts aria-hidden from the page asynchronously.
+			await userEvent.click(
+				await canvas.findByRole("button", { name: "More options" }),
+			);
+			await userEvent.click(
+				await screen.findByRole("menuitemcheckbox", {
+					name: "Run with Claude Code",
+				}),
+			);
+			return body.findByRole("dialog", { name: "Run with Claude Code?" });
+		};
+
+		let dialog = await openRuntimeMenuItem();
+		expect(
+			within(dialog).getByText(
+				"Claude Code does not accept file attachments. Continuing will remove your current attachments.",
+			),
+		).toBeInTheDocument();
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Cancel" }),
+		);
+		await waitFor(() =>
+			expect(
+				body.queryByRole("dialog", { name: "Run with Claude Code?" }),
+			).not.toBeInTheDocument(),
+		);
+		expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument();
+		expect(canvas.queryByTestId("chat-runtime-badge")).not.toBeInTheDocument();
+
+		dialog = await openRuntimeMenuItem();
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Continue" }),
+		);
+		expect(await canvas.findByTestId("chat-runtime-badge")).toHaveTextContent(
+			"Claude Code",
+		);
+		expect(canvas.queryByLabelText("Remove notes.txt")).not.toBeInTheDocument();
+	},
+};
+
 const runtimeSubmissionStory = (runtime: ExternalChatRuntime): Story => ({
 	args: {
 		...defaultArgs,
