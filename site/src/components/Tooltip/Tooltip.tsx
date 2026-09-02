@@ -7,6 +7,12 @@ import { cn } from "#/utils/cn";
 
 export const TooltipProvider = TooltipPrimitive.Provider;
 
+/**
+ * Shared open delay (ms) for tooltips. Used by the app-wide provider and by
+ * self-contained tooltips such as InfoTooltip so hover timing stays consistent.
+ */
+export const TOOLTIP_DELAY_DURATION = 100;
+
 export const Tooltip = TooltipPrimitive.Root;
 
 export const TooltipTrigger = TooltipPrimitive.Trigger;

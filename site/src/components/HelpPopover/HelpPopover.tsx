@@ -14,7 +14,7 @@ type Size = "small" | "medium";
 
 export const HelpPopoverTrigger = PopoverTrigger;
 
-export const HelpPopoverIcon = CircleHelpIcon;
+const HelpPopoverIcon = CircleHelpIcon;
 
 export const HelpPopover = Popover;
 
