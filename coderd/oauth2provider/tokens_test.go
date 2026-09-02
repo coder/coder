@@ -226,7 +226,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 		status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
 
-		description := requireTokenScopeError(t, status, body)
+		description := requireTokenGrantError(t, status, body)
 		require.Contains(t, description, scopeOutOfCatalog,
 			"an operator cannot act on this without knowing which stored name is the problem")
 	})
@@ -241,7 +241,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 		status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
 
-		description := requireTokenScopeError(t, status, body)
+		description := requireTokenGrantError(t, status, body)
 		require.Contains(t, description, oauth2provider.ReasonStaleScope)
 		require.Contains(t, description, "workspace:ssh",
 			"the client needs the scope name to know what was withdrawn")
@@ -517,6 +517,21 @@ func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2
 	require.NotEmpty(t, token.AccessToken)
 	require.NotEmpty(t, token.RefreshToken)
 	return token
+}
+
+// requireTokenGrantError asserts an RFC 6749 §5.2 invalid_grant response and
+// returns its description.
+func requireTokenGrantError(t *testing.T, status int, body string) string {
+	t.Helper()
+
+	require.Equal(t, http.StatusBadRequest, status, body)
+	var oauthErr struct {
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
+	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidGrant), oauthErr.Error)
+	return oauthErr.ErrorDescription
 }
 
 // requireTokenScopeError asserts an RFC 6749 §5.2 invalid_scope response and

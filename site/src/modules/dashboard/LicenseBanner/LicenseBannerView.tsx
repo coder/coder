@@ -1,7 +1,12 @@
 import { cva } from "class-variance-authority";
-import { TriangleAlertIcon } from "lucide-react";
+import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
-import { Expander } from "#/components/Expander/Expander";
+import { Button } from "#/components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
 import { cn } from "#/utils/cn";
 
@@ -127,15 +132,36 @@ const ExpandableLicenseMessageList: React.FC<{
 	hiddenMessages: readonly LicenseBannerMessage[];
 }> = ({ visibleMessages, hiddenMessages }) => {
 	const [showDetails, setShowDetails] = useState(false);
-	const showExpander = hiddenMessages.length > 0;
 
 	return (
 		<div className="flex flex-col gap-1">
 			<LicenseMessageList messages={visibleMessages} />
-			{showExpander && (
-				<Expander expanded={showDetails} setExpanded={setShowDetails}>
-					<LicenseMessageList messages={hiddenMessages} />
-				</Expander>
+			{hiddenMessages.length > 0 && (
+				<Collapsible open={showDetails} onOpenChange={setShowDetails}>
+					<CollapsibleContent>
+						<div className="text-content-primary text-xs">
+							<LicenseMessageList messages={hiddenMessages} />
+						</div>
+					</CollapsibleContent>
+					{/* asChild: the trigger must not render its own <button>
+					    around Button, which is invalid HTML and exposes two
+					    identically named buttons to assistive tech. */}
+					<CollapsibleTrigger asChild>
+						<Button
+							className="text-xs mt-0.5 text-content-primary px-0"
+							variant="subtle"
+							size="sm"
+						>
+							<ChevronRightIcon
+								className={cn(
+									"transition-transform duration-200",
+									showDetails ? "-rotate-90" : "",
+								)}
+							/>
+							<span>{showDetails ? "Show less" : "Show more"}</span>
+						</Button>
+					</CollapsibleTrigger>
+				</Collapsible>
 			)}
 		</div>
 	);

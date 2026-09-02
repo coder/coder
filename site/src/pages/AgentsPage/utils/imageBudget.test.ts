@@ -40,9 +40,12 @@ describe("imageBudgetForProvider", () => {
 		" anthropic ",
 		"\tanthropic\n",
 		"AnThRoPiC",
-	])("normalizes case/whitespace before matching strict providers (%s)", (input) => {
-		expect(imageBudgetForProvider(input)).toBe(ANTHROPIC_BUDGET);
-	});
+	])(
+		"normalizes case/whitespace before matching strict providers (%s)",
+		(input) => {
+			expect(imageBudgetForProvider(input)).toBe(ANTHROPIC_BUDGET);
+		},
+	);
 
 	it("normalizes Bedrock variants too", () => {
 		expect(imageBudgetForProvider("Bedrock")).toBe(ANTHROPIC_BUDGET);

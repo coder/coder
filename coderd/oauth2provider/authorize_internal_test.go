@@ -10,10 +10,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestNegotiateScope(t *testing.T) {
@@ -267,6 +269,58 @@ func TestNoScopeAllowlist(t *testing.T) {
 	assert.False(t, noScopeAllowlist(sql.NullString{String: "   ", Valid: true}))
 }
 
+func TestScopeFailureResponse(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		err             error
+		wantCode        codersdk.OAuth2ErrorCode
+		wantDescription string
+	}{
+		{
+			name:            "UnknownScope",
+			err:             errUnknownScope,
+			wantCode:        codersdk.OAuth2ErrorCodeInvalidScope,
+			wantDescription: errUnknownScope.Error(),
+		},
+		{
+			name:            "NoGrantableScope",
+			err:             errNoGrantableScope,
+			wantCode:        codersdk.OAuth2ErrorCodeInvalidScope,
+			wantDescription: errNoGrantableScope.Error(),
+		},
+		{
+			name:            "ScopeNotAllowed",
+			err:             errScopeNotAllowed,
+			wantCode:        codersdk.OAuth2ErrorCodeInvalidScope,
+			wantDescription: errScopeNotAllowed.Error(),
+		},
+		{
+			name:            "CoverageUndecidable",
+			err:             errCoverageUndecidable,
+			wantCode:        codersdk.OAuth2ErrorCodeServerError,
+			wantDescription: "The requested scope could not be evaluated",
+		},
+		{
+			// The sentinel still decides the response once wrapped.
+			name:            "WrappedCoverageUndecidable",
+			err:             xerrors.Errorf("negotiate: %w", errCoverageUndecidable),
+			wantCode:        codersdk.OAuth2ErrorCodeServerError,
+			wantDescription: "The requested scope could not be evaluated",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			code, description := scopeFailureResponse(test.err)
+			require.Equal(t, test.wantCode, code)
+			require.Equal(t, test.wantDescription, description)
+		})
+	}
+}
+
 func TestHashOAuth2State(t *testing.T) {
 	t.Parallel()
 
@@ -307,6 +361,67 @@ func TestHashOAuth2State(t *testing.T) {
 		assert.Equal(t, hash1.String, hash2.String,
 			"same state should produce identical hash")
 	})
+}
+
+func TestSanitizeErrorDescription(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		description string
+		want        string
+	}{
+		{
+			name:        "PlainTextUnchanged",
+			description: "Only response_type=code is supported",
+			want:        "Only response_type=code is supported",
+		},
+		{
+			// What negotiateScope's %q produces for a well-behaved scope name.
+			name:        "QuotedScopeBecomesApostrophes",
+			description: `"openid": unknown or unsupported scope`,
+			want:        "'openid': unknown or unsupported scope",
+		},
+		{
+			// %q escapes a quote inside the value; the backslash goes with it.
+			name:        "EscapedQuoteLosesItsBackslash",
+			description: `"\"><img>": unknown or unsupported scope`,
+			want:        "''><img>': unknown or unsupported scope",
+		},
+		{
+			// Both NQSCHAR exclusions, and nothing else, are rewritten.
+			name:        "BoundaryCharactersSurvive",
+			description: "!#[]~ ",
+			want:        "!#[]~ ",
+		},
+		{
+			name:        "ControlCharactersBecomeSpaces",
+			description: "line\nbreak\ttab",
+			want:        "line break tab",
+		},
+		{
+			name:        "NonASCIIBecomesSpace",
+			description: "caf\u00e9",
+			want:        "caf ",
+		},
+		{
+			name:        "Empty",
+			description: "",
+			want:        "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := sanitizeErrorDescription(tc.description)
+			assert.Equal(t, tc.want, got)
+			for _, r := range got {
+				assert.True(t, r == 0x20 || r == 0x21 || (r >= 0x23 && r <= 0x5B) || (r >= 0x5D && r <= 0x7E),
+					"%q is outside the NQSCHAR set RFC 6749 Appendix A permits", r)
+			}
+		})
+	}
 }
 
 func TestConsentScopes(t *testing.T) {
