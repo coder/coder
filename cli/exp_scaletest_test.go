@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -141,6 +142,51 @@ func TestScaleTestNotifications_ReuseUsersInsufficient(t *testing.T) {
 		"--reuse-users",
 		"--dial-timeout", "5s",
 		"--notification-timeout", "5s",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "not enough scaletest users to reuse")
+}
+
+// TestScaleTestWorkspaceUpdates_ReuseUsersInsufficient verifies that
+// --reuse-users checks the pool up front and exits with an actionable error
+// when not enough scaletest users exist, rather than creating any.
+func TestScaleTestWorkspaceUpdates_ReuseUsersInsufficient(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger:                   &log,
+		IncludeProvisionerDaemon: true,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	tpl := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "workspace-updates",
+		"--workspace-count", "2",
+		"--power-user-workspaces", "2",
+		"--power-user-percentage", "0",
+		"--template", tpl.Name,
+		"--reuse-users",
+		"--dial-timeout", "5s",
+		"--workspace-updates-timeout", "5s",
 		"--scaletest-prometheus-address", "127.0.0.1:0",
 		"--scaletest-prometheus-wait", "0s",
 		"--output", "text",

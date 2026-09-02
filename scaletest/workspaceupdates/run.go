@@ -69,12 +69,27 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.client.SetLogger(logger)
 	r.client.SetLogBodies(true)
 
-	r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
-	newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
-	if err != nil {
-		return xerrors.Errorf("create user: %w", err)
+	var (
+		newUser      codersdk.User
+		sessionToken string
+	)
+	if r.cfg.SessionToken != "" {
+		// Reuse mode: run as the pre-created user and do not create one. The user
+		// is not cleaned up afterwards (createUserRunner stays nil).
+		newUser = r.cfg.PreCreatedUser
+		sessionToken = r.cfg.SessionToken
+		logger.Info(ctx, fmt.Sprintf("reusing existing user %q", newUser.Username), slog.F("id", newUser.ID.String()))
+	} else {
+		r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
+		newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
+		if err != nil {
+			return xerrors.Errorf("create user: %w", err)
+		}
+		newUser = newUserAndToken.User
+		sessionToken = newUserAndToken.SessionToken
+		logger.Info(ctx, fmt.Sprintf("user %q created", newUser.Username), slog.F("id", newUser.ID.String()))
 	}
-	newUser := newUserAndToken.User
+
 	// Create a user client with an independent HTTP transport cloned from the
 	// runner's client. Using codersdk.New directly would inherit
 	// http.DefaultTransport, which is shared across all runners. That causes
@@ -84,11 +99,9 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	if err != nil {
 		return xerrors.Errorf("create user client: %w", err)
 	}
-	newUserClient.SetSessionToken(newUserAndToken.SessionToken)
+	newUserClient.SetSessionToken(sessionToken)
 	newUserClient.SetLogger(logger)
 	newUserClient.SetLogBodies(true)
-
-	logger.Info(ctx, fmt.Sprintf("user %q created", newUser.Username), slog.F("id", newUser.ID.String()))
 
 	dialCtx, cancel := context.WithTimeout(ctx, r.cfg.DialTimeout)
 	defer cancel()
