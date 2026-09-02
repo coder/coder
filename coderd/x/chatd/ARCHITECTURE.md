@@ -996,6 +996,8 @@ TODO(PR author): Document how ACP available_commands updates are captured per tu
 
 TODO(PR author): Document how lifecycle hooks interact with external runtimes: session_start runs before the ACP dispatch, hook user_message notices are user-visible system rows that the ACP prompt skips, and hook model_context rows are model-visible only and are not forwarded to the adapter.
 
+TODO(PR author): Document the runtime_state session invariants: a message edit resets the persisted ACP session so the next turn reseeds from the truncated transcript, a turn records its session only while runtime_state.updated_at is unchanged since the turn started, new sessions wait for the agent's expanded directory, and queue promotion never stamps the organization default model on runtime chats.
+
 ## Runner cleanup
 
 When the manager cleans up a runner, the runner must cancel all goroutines it has spawned and unsubscribe from pubsub.
