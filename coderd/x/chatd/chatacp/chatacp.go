@@ -73,8 +73,6 @@ type TurnOutcome struct {
 	// Resumed reports whether the previous session was continued
 	// (session/resume or session/load) rather than started fresh.
 	Resumed bool
-	// StopReason is the ACP turn stop reason.
-	StopReason acp.StopReason
 	// Content is the collected assistant output in the same shape the
 	// built-in pipeline persists.
 	Content []fantasy.Content
@@ -199,7 +197,6 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 	return TurnOutcome{
 		SessionID:         string(session),
 		Resumed:           resumed,
-		StopReason:        result.resp.StopReason,
 		Content:           collector.finalize(),
 		Usage:             result.resp.Usage,
 		AvailableCommands: collector.availableCommands(),
@@ -217,10 +214,7 @@ func establishSession(
 ) (acp.SessionId, bool, error) {
 	if input.SessionID != "" {
 		prior := acp.SessionId(input.SessionID)
-		resumeCwd := input.SessionCwd
-		if resumeCwd == "" {
-			resumeCwd = input.Cwd
-		}
+		resumeCwd := cmp.Or(input.SessionCwd, input.Cwd)
 		if caps.SessionCapabilities.Resume != nil {
 			_, err := conn.ResumeSession(ctx, acp.ResumeSessionRequest{
 				SessionId: prior,

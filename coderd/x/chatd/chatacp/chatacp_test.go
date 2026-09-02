@@ -89,7 +89,6 @@ func TestRunTurnNewSession(t *testing.T) {
 
 	require.Equal(t, "session-new", outcome.SessionID)
 	require.False(t, outcome.Resumed)
-	require.Equal(t, acp.StopReasonEndTurn, outcome.StopReason)
 	require.NotNil(t, outcome.Usage)
 	require.Equal(t, 15, outcome.Usage.TotalTokens)
 
@@ -733,14 +732,13 @@ func TestRunTurnCancellation(t *testing.T) {
 	}()
 
 	recorder := &partRecorder{}
-	outcome, err := chatacp.RunTurn(turnCtx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
+	_, err := chatacp.RunTurn(turnCtx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 		Cwd:        "/home/coder",
 		PromptText: "long task",
 		Publish:    recorder.publish,
 		Logger:     testLogger(t),
 	})
 	require.NoError(t, err)
-	require.Equal(t, acp.StopReasonCancelled, outcome.StopReason)
 	require.NotEmpty(t, recorder.snapshot())
 
 	require.Len(t, agent.Cancels(), 1)
