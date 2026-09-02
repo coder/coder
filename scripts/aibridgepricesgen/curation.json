@@ -122,6 +122,9 @@
 			"modelIdentifier": "gemini-flash-latest"
 		},
 		{
+			"modelIdentifier": "gemini-3.8-flash"
+		},
+		{
 			"modelIdentifier": "gemini-3.7-flash"
 		},
 		{
