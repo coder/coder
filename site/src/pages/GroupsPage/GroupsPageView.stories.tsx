@@ -150,7 +150,6 @@ export const WithMemberAvatars: Story = {
 	},
 };
 
-// Member avatars still loading: the Users column shows avatar placeholders.
 export const WithMemberAvatarsLoading: Story = {
 	args: {
 		groups: [
