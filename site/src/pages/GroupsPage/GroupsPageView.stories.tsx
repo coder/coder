@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
-import { expect, within } from "storybook/test";
+import { expect, spyOn, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	GROUP_MEMBER_AVATAR_LIMIT,
 	getGroupMemberAvatarsQueryKey,
@@ -146,6 +147,32 @@ export const WithMemberAvatars: Story = {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("+3")).toBeInTheDocument();
 		await expect(canvas.getByText("8 members")).toBeInTheDocument();
+	},
+};
+
+// Member avatars still loading: the Users column shows avatar placeholders.
+export const WithMemberAvatarsLoading: Story = {
+	args: {
+		groups: [
+			{
+				...mockGroupWithSpend,
+				id: "members-loading",
+				name: "members-loading",
+				display_name: "Members loading",
+				total_member_count: 3,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getGroupMembers").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Members loading")).toBeVisible();
+		await expect(canvas.getByText("3 members")).toBeVisible();
+		expect(canvas.queryByText(MockUserOwner.username)).not.toBeInTheDocument();
 	},
 };
 
