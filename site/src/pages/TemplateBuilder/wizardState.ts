@@ -184,6 +184,25 @@ export type WizardAction =
 	| { type: "RESET_CUSTOMIZATIONS" }
 	| { type: "RESET" };
 
+/**
+ * Merges an incoming SET_MODULES entry with its previously selected state,
+ * preserving prior variable values and agent choice. agentDefault is set only
+ * for multi-agent bases; when undefined, agent_name is left as-is.
+ */
+function mergeSelectedModule(
+	incoming: TemplateBuilderComposeModule,
+	existing: TemplateBuilderComposeModule | undefined,
+	agentDefault: string | undefined,
+): TemplateBuilderComposeModule {
+	return {
+		...incoming,
+		variables: incoming.variables ?? existing?.variables,
+		...(agentDefault !== undefined && {
+			agent_name: incoming.agent_name ?? existing?.agent_name ?? agentDefault,
+		}),
+	};
+}
+
 export function wizardReducer(
 	state: TemplateBuilderWizardState,
 	action: WizardAction,
@@ -210,30 +229,22 @@ export function wizardReducer(
 				baseVariableValues: action.values,
 			};
 		case "SET_MODULES": {
-			// Preserve existing variable values for modules that remain selected.
 			const existingById = new Map(state.modules.map((m) => [m.id, m]));
 			const base = state.selectedBase;
-			const defaultAgent = base ? defaultBaseAgentName(base) : undefined;
-			const merged = action.modules.map((incoming) => {
-				const existing = existingById.get(incoming.id);
-				let next = incoming;
-				if (existing?.variables && !incoming.variables) {
-					next = { ...next, variables: existing.variables };
-				}
-				// Only multi-agent bases carry a per-module agent choice; single-agent
-				// bases leave agent_name unset so the backend uses the sole agent.
-				if (base && base.agents.length > 1) {
-					next = {
-						...next,
-						agent_name:
-							incoming.agent_name ?? existing?.agent_name ?? defaultAgent,
-					};
-				}
-				return next;
-			});
+			// Only multi-agent bases carry a per-module agent choice; agentDefault
+			// stays undefined otherwise so agent_name is left unset and the backend
+			// uses the sole agent.
+			const agentDefault =
+				base && base.agents.length > 1 ? defaultBaseAgentName(base) : undefined;
 			return {
 				...state,
-				modules: merged,
+				modules: action.modules.map((incoming) =>
+					mergeSelectedModule(
+						incoming,
+						existingById.get(incoming.id),
+						agentDefault,
+					),
+				),
 				selectedModules: action.meta,
 			};
 		}
