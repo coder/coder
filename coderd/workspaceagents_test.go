@@ -522,6 +522,37 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		require.False(t, agent.Apps[0].Statuses[0].NeedsUserAttention)
 	})
 
+	t.Run("NoOpDuplicate", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user2.ID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Apps = []*proto.App{{Slug: "vscode-dedupe"}}
+			return a
+		}).Do()
+
+		dedupeAgentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+		for range 2 {
+			err := dedupeAgentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+				AppSlug: "vscode-dedupe",
+				Message: "testing",
+				URI:     "https://example.com",
+				State:   codersdk.WorkspaceAppStatusStateComplete,
+			})
+			require.NoError(t, err)
+		}
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		agent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
+		require.NoError(t, err)
+		// The identical second report must not add another status row.
+		require.Len(t, agent.Apps[0].Statuses, 1)
+	})
+
 	t.Run("FailUnknownApp", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)

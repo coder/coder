@@ -1,6 +1,7 @@
 package agentapi
 
 import (
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
@@ -109,6 +110,101 @@ func TestShouldBump(t *testing.T) {
 			} else {
 				require.False(t, didBump, "wanted deadline not to bump but it did")
 			}
+		})
+	}
+}
+
+func TestIsDuplicateAppStatus(t *testing.T) {
+	t.Parallel()
+
+	makeStatus := func(state database.WorkspaceAppStatusState, message, uri string) database.WorkspaceAppStatus {
+		return database.WorkspaceAppStatus{
+			ID:      uuid.UUID{1},
+			State:   state,
+			Message: message,
+			Uri:     sql.NullString{String: uri, Valid: uri != ""},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		latest  database.WorkspaceAppStatus
+		state   database.WorkspaceAppStatusState
+		message string
+		uri     string
+		want    bool
+	}{
+		{
+			name:    "NoPreviousStatus",
+			latest:  database.WorkspaceAppStatus{},
+			state:   database.WorkspaceAppStatusStateComplete,
+			message: "testing",
+			uri:     "https://example.com",
+			want:    false,
+		},
+		{
+			name:    "Identical",
+			latest:  makeStatus(database.WorkspaceAppStatusStateComplete, "testing", "https://example.com"),
+			state:   database.WorkspaceAppStatusStateComplete,
+			message: "testing",
+			uri:     "https://example.com",
+			want:    true,
+		},
+		{
+			name:    "IdenticalEmptyURI",
+			latest:  makeStatus(database.WorkspaceAppStatusStateIdle, "", ""),
+			state:   database.WorkspaceAppStatusStateIdle,
+			message: "",
+			uri:     "",
+			want:    true,
+		},
+		{
+			name:    "DifferentState",
+			latest:  makeStatus(database.WorkspaceAppStatusStateWorking, "testing", "https://example.com"),
+			state:   database.WorkspaceAppStatusStateComplete,
+			message: "testing",
+			uri:     "https://example.com",
+			want:    false,
+		},
+		{
+			name:    "DifferentMessage",
+			latest:  makeStatus(database.WorkspaceAppStatusStateComplete, "testing", "https://example.com"),
+			state:   database.WorkspaceAppStatusStateComplete,
+			message: "something else",
+			uri:     "https://example.com",
+			want:    false,
+		},
+		{
+			name:    "DifferentURI",
+			latest:  makeStatus(database.WorkspaceAppStatusStateComplete, "testing", "https://example.com"),
+			state:   database.WorkspaceAppStatusStateComplete,
+			message: "testing",
+			uri:     "https://other.example.com",
+			want:    false,
+		},
+		{
+			name:    "URICleared",
+			latest:  makeStatus(database.WorkspaceAppStatusStateComplete, "testing", "https://example.com"),
+			state:   database.WorkspaceAppStatusStateComplete,
+			message: "testing",
+			uri:     "",
+			want:    false,
+		},
+		{
+			name:    "URISet",
+			latest:  makeStatus(database.WorkspaceAppStatusStateComplete, "testing", ""),
+			state:   database.WorkspaceAppStatusStateComplete,
+			message: "testing",
+			uri:     "https://example.com",
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := isDuplicateAppStatus(tt.latest, tt.state, tt.message, tt.uri)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

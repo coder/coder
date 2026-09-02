@@ -178,34 +178,40 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 	// If no rows found, latestAppStatus will be a zero-value struct (ID == uuid.Nil)
 
-	// nolint:gocritic // This is a system restricted operation.
-	_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
-		ID:          uuid.New(),
-		CreatedAt:   dbtime.Now(),
-		WorkspaceID: ws.ID,
-		AgentID:     a.AgentID,
-		AppID:       app.ID,
-		State:       dbState,
-		Message:     cleaned,
-		Uri: sql.NullString{
-			String: req.Uri,
-			Valid:  req.Uri != "",
-		},
-	})
-	if err != nil {
-		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to insert workspace app status.",
-			Detail:  err.Error(),
+	// Agents may re-report an identical status (e.g. the MCP screen watcher
+	// reports idle on every stable event). Skip storing duplicates so
+	// workspace_app_statuses doesn't grow unboundedly. Notifications and
+	// activity bumps below still run to preserve keep-alive behavior.
+	if !isDuplicateAppStatus(latestAppStatus, dbState, cleaned, req.Uri) {
+		// nolint:gocritic // This is a system restricted operation.
+		_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+			ID:          uuid.New(),
+			CreatedAt:   dbtime.Now(),
+			WorkspaceID: ws.ID,
+			AgentID:     a.AgentID,
+			AppID:       app.ID,
+			State:       dbState,
+			Message:     cleaned,
+			Uri: sql.NullString{
+				String: req.Uri,
+				Valid:  req.Uri != "",
+			},
 		})
-	}
-
-	if a.PublishWorkspaceUpdateFn != nil {
-		err = a.PublishWorkspaceUpdateFn(ctx, a.AgentID, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
 		if err != nil {
 			return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to publish workspace update.",
+				Message: "Failed to insert workspace app status.",
 				Detail:  err.Error(),
 			})
+		}
+
+		if a.PublishWorkspaceUpdateFn != nil {
+			err = a.PublishWorkspaceUpdateFn(ctx, a.AgentID, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
+			if err != nil {
+				return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to publish workspace update.",
+					Detail:  err.Error(),
+				})
+			}
 		}
 	}
 
@@ -220,6 +226,16 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 	// just return a blank response because it doesn't contain any settable fields at present.
 	return new(agentproto.UpdateAppStatusResponse), nil
+}
+
+// isDuplicateAppStatus reports whether the incoming status matches the
+// latest persisted status for the app, making an insert redundant.
+func isDuplicateAppStatus(latest database.WorkspaceAppStatus, state database.WorkspaceAppStatusState, message, uri string) bool {
+	return latest.ID != uuid.Nil &&
+		latest.State == state &&
+		latest.Message == message &&
+		latest.Uri.String == uri &&
+		latest.Uri.Valid == (uri != "")
 }
 
 func shouldBump(dbState database.WorkspaceAppStatusState, latestAppStatus database.WorkspaceAppStatus) bool {
