@@ -37,13 +37,13 @@ export const AboveDeploymentBanner: Story = {
 			await screen.findByText(/Coder v0\.12\.9 is now available/),
 		).toBeInTheDocument();
 		await expect(
-			screen.getByRole("link", { name: "Release notes" }),
+			screen.getByRole("link", { name: "View release notes" }),
 		).toHaveAttribute(
 			"href",
 			"https://github.com/coder/coder/releases/tag/v0.12.9",
 		);
 		await expect(
-			screen.getByRole("link", { name: "Upgrade instructions" }),
+			screen.getByRole("link", { name: "View upgrade instructions" }),
 		).toBeInTheDocument();
 
 		await userEvent.click(screen.getByRole("button", { name: "Close toast" }));
