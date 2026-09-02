@@ -18,7 +18,6 @@ type UserMoreActionsProps = {
 	onAction: (action: UserAdminAction) => void;
 	canViewActivity?: boolean;
 	oidcRoleSyncEnabled?: boolean;
-	/** Hide the Edit item when the menu is already on the edit page. */
 	showEdit?: boolean;
 };
 

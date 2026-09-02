@@ -40,11 +40,10 @@ const EditUserPage: FC = () => {
 		enabled: permissions.viewDeploymentConfig,
 	});
 
-	// Indicates if oidc roles are synced from the oidc idp.
-	// Assign 'false' if unknown.
-	const oidcRoleSyncEnabled =
+	const oidcRoleSyncEnabled = Boolean(
 		permissions.viewDeploymentConfig &&
-		deploymentValues?.config.oidc?.user_role_field !== "";
+			deploymentValues?.config.oidc?.user_role_field,
+	);
 
 	const userData = userQuery.data;
 
@@ -89,6 +88,16 @@ const EditUserPage: FC = () => {
 					onSubmit={(values) => {
 						const mutation = updateProfileMutation.mutateAsync(values, {
 							onSuccess: (updatedUser) => {
+								if (
+									!isUUID(usernameOrId) &&
+									updatedUser.username !== usernameOrId
+								) {
+									queryClient.removeQueries({
+										queryKey: userKey(usernameOrId),
+										exact: true,
+									});
+								}
+
 								// The response is the saved user, so write it straight to the
 								// cache: the heading updates immediately instead of waiting on
 								// a refetch, and a rename lands on a warm cache entry.
