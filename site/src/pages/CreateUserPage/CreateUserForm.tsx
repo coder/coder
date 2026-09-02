@@ -8,6 +8,7 @@ import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { FormFields, FormFooter } from "#/components/Form/Form";
@@ -113,28 +114,72 @@ const createOrgMemberCheck = {
 	action: "create",
 } as const;
 
-export const CreateUserForm: FC<CreateUserFormProps> = ({
+export const CreateUserForm: FC<CreateUserFormProps> = (props) => {
+	const availableLoginTypes = (
+		["password", "oidc", "github", "none"] as const
+	).filter((key) => {
+		if (key === "none") {
+			return props.serviceAccountsEnabled;
+		}
+		return props.authMethods[key].enabled;
+	});
+	const defaultLoginType = availableLoginTypes[0];
+
+	if (!defaultLoginType) {
+		return (
+			<div>
+				<Button variant="subtle" asChild className="-ml-3">
+					<Link to="/deployment/users">
+						<ArrowLeftIcon />
+						<span>Back to users</span>
+					</Link>
+				</Button>
+				<div className="pt-6">
+					<SettingsHeader>
+						<SettingsHeaderTitle>New user</SettingsHeaderTitle>
+						<SettingsHeaderDescription>
+							Add a user to this Coder deployment.{" "}
+							<SettingsHeaderDocsLink
+								href={docs("/admin/users#create-a-user")}
+							/>
+						</SettingsHeaderDescription>
+					</SettingsHeader>
+					<Alert severity="error" prominent>
+						No authentication methods are available for new users.
+					</Alert>
+				</div>
+			</div>
+		);
+	}
+
+	return (
+		<CreateUserFormFields
+			{...props}
+			availableLoginTypes={availableLoginTypes}
+			defaultLoginType={defaultLoginType}
+		/>
+	);
+};
+
+type AvailableLoginType = keyof typeof loginTypeOptions;
+
+type CreateUserFormFieldsProps = CreateUserFormProps & {
+	availableLoginTypes: readonly AvailableLoginType[];
+	defaultLoginType: AvailableLoginType;
+};
+
+const CreateUserFormFields: FC<CreateUserFormFieldsProps> = ({
 	error,
 	isLoading,
 	onSubmit,
 	onCancel,
 	showOrganizations,
-	authMethods,
-	serviceAccountsEnabled,
 	availableRoles,
 	rolesLoading,
 	rolesError,
+	availableLoginTypes,
+	defaultLoginType,
 }) => {
-	const availableLoginTypes = (
-		["password", "oidc", "github", "none"] as const
-	).filter((key) => {
-		if (key === "none") {
-			return serviceAccountsEnabled;
-		}
-		return authMethods[key].enabled;
-	});
-	const defaultLoginType = availableLoginTypes[0] ?? "password";
-
 	const form = useFormik<CreateUserFormData>({
 		initialValues: {
 			email: "",
