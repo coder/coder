@@ -7,7 +7,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
-import { DeprecatedBadge } from "#/components/Badges/Badges";
+import { DeprecatedBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import {
 	HelpPopover,

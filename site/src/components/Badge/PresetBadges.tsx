@@ -1,4 +1,4 @@
-import { Badge } from "#/components/Badge/Badge";
+import { Badge } from "./Badge";
 
 export const EnabledBadge: React.FC = () => {
 	return (
@@ -22,11 +22,7 @@ export const EnterpriseBadge: React.FC = () => {
 	return <Badge variant="purple">Enterprise</Badge>;
 };
 
-interface PremiumBadgeProps {
-	children?: React.ReactNode;
-}
-
-export const PremiumBadge: React.FC<PremiumBadgeProps> = ({
+export const PremiumBadge: React.FC<React.PropsWithChildren> = ({
 	children = "Premium",
 }) => {
 	return <Badge variant="magenta">{children}</Badge>;
@@ -38,10 +34,4 @@ export const AlphaBadge: React.FC = () => {
 
 export const DeprecatedBadge: React.FC = () => {
 	return <Badge variant="warning">Deprecated</Badge>;
-};
-
-export const Badges: React.FC<React.PropsWithChildren> = ({ children }) => {
-	return (
-		<div className="flex flex-row items-center gap-2 mb-4">{children}</div>
-	);
 };

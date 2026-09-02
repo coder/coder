@@ -11,8 +11,10 @@ import (
 
 var (
 	workspaceRead         = Permission{ResourceType: "workspace", Action: policy.ActionRead}
+	workspaceDelete       = Permission{ResourceType: "workspace", Action: policy.ActionDelete}
 	workspaceWildcard     = Permission{ResourceType: "workspace", Action: policy.WildcardSymbol}
 	workspaceDeleteNegate = Permission{ResourceType: "workspace", Action: policy.ActionDelete, Negate: true}
+	wildcardResourceRead  = Permission{ResourceType: policy.WildcardSymbol, Action: policy.ActionRead}
 )
 
 // coverableScope is the shape every ExpandScope result has: site permissions
@@ -165,6 +167,32 @@ func TestScopesCoverGuards(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The only wildcard resource the catalog spells is coder:all's {*, *}, so no
+// catalog-driven case reaches this shape.
+func TestScopesCoverWildcardResourceChecksAction(t *testing.T) {
+	t.Parallel()
+
+	allowed := []namedScope{{name: "wildcard_read", scope: coverableScope(wildcardResourceRead)}}
+
+	// Positive control: the wildcard resource does match, so the assertion
+	// below fails on the action rather than the resource.
+	covered, err := scopesCoverExpanded(allowed, namedScope{name: "workspace_read", scope: coverableScope(workspaceRead)})
+	require.NoError(t, err)
+	require.True(t, covered)
+
+	covered, err = scopesCoverExpanded(allowed, namedScope{name: "workspace_delete", scope: coverableScope(workspaceDelete)})
+	require.NoError(t, err)
+	require.False(t, covered, "read on every resource must not cover delete")
+
+	// The mirror, on the requested side.
+	covered, err = scopesCoverExpanded(
+		[]namedScope{{name: "workspace_read", scope: coverableScope(workspaceRead)}},
+		namedScope{name: "wildcard_read", scope: coverableScope(wildcardResourceRead)},
+	)
+	require.NoError(t, err)
+	require.False(t, covered, "read on one resource must not cover read on every resource")
 }
 
 // TestCoverageModelFields fails when one of the types coverage reads grows a

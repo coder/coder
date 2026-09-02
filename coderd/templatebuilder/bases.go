@@ -44,6 +44,16 @@ type BaseManifest struct {
 	OS             string             `json:"os"`
 	DefaultContext BaseDefaultContext `json:"default_context"`
 	Variables      []ModuleVariable   `json:"variables"`
+	Agents         []BaseAgent        `json:"agents,omitempty"`
+}
+
+// BaseAgent is a coder_agent declared in base.json. Name must match the
+// resource label in the base's main.tf.tmpl.
+type BaseAgent struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name,omitempty"`
+	// Default is the agent modules attach to when they do not name one.
+	Default bool `json:"default,omitempty"`
 }
 
 // BaseDefaultContext holds default render values stored in base.json.
@@ -161,8 +171,35 @@ func parseManifest(parent fs.FS, dirName string) (BaseManifest, error) {
 	if _, ok := validBaseOS[manifest.OS]; !ok && manifest.OS != "" {
 		return BaseManifest{}, xerrors.Errorf("base %q has unknown os %q", manifest.ID, manifest.OS)
 	}
+	if err := validateBaseAgents(manifest); err != nil {
+		return BaseManifest{}, err
+	}
 
 	return manifest, nil
+}
+
+// validateBaseAgents requires a multi-agent base to mark exactly one default,
+// so module wiring never depends on base.json array order.
+func validateBaseAgents(manifest BaseManifest) error {
+	seen := make(map[string]bool, len(manifest.Agents))
+	defaults := 0
+	for i, a := range manifest.Agents {
+		if a.Name == "" {
+			return xerrors.Errorf("base %q agent %d has empty name", manifest.ID, i)
+		}
+		if seen[a.Name] {
+			return xerrors.Errorf("base %q has duplicate agent name %q", manifest.ID, a.Name)
+		}
+		seen[a.Name] = true
+		if a.Default {
+			defaults++
+		}
+	}
+	if len(manifest.Agents) > 1 && defaults != 1 {
+		return xerrors.Errorf("base %q declares %d agents but marks %d as default; exactly one required",
+			manifest.ID, len(manifest.Agents), defaults)
+	}
+	return nil
 }
 
 // parseTemplatesFromFS walks the filesystem and pre-parses all .tf.tmpl files
@@ -259,6 +296,33 @@ func BaseVariables(exampleID string) []ModuleVariable {
 		return nil
 	}
 	return bases[exampleID].Manifest.Variables
+}
+
+// BaseAgents returns the agents declared in a base's manifest, or nil.
+func BaseAgents(exampleID string) []BaseAgent {
+	bases, err := loadBases()
+	if err != nil || bases[exampleID] == nil {
+		return nil
+	}
+	return bases[exampleID].Manifest.Agents
+}
+
+// BaseDefaultAgentName returns the default agent's name: the one marked
+// default, else the first declared. Empty if the base declares none.
+func BaseDefaultAgentName(exampleID string) string {
+	return defaultAgentName(BaseAgents(exampleID))
+}
+
+func defaultAgentName(agents []BaseAgent) string {
+	for _, a := range agents {
+		if a.Default {
+			return a.Name
+		}
+	}
+	if len(agents) > 0 {
+		return agents[0].Name
+	}
+	return ""
 }
 
 // baseIncludedModules derives, for each base, the catalog module IDs the base
