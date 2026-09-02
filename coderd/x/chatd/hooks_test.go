@@ -649,7 +649,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 	})
 	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
 	require.NoError(t, err)
-	for range chatstate.MaxQueueSize {
+	for range codersdk.DefaultChatMaxQueuedMessagesPerChat {
 		_, err = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
 			ChatID:        busy.ID,
 			Content:       queuedContent.RawMessage,

@@ -804,7 +804,7 @@ func TestStopAndStoreRecording_EvictsOldestAtCap(t *testing.T) {
 	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
 	var oldest uuid.UUID
-	for i := range codersdk.MaxChatFileIDs {
+	for i := range codersdk.DefaultChatMaxAttachmentsPerChat {
 		id := insertLinkedChatFile(
 			ctx,
 			t,
