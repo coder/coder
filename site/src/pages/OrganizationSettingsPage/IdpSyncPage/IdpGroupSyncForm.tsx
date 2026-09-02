@@ -17,13 +17,7 @@ import {
 	ComboboxList,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
@@ -447,15 +441,7 @@ const GroupRow: FC<GroupRowProps> = ({
 
 const AutoCreateMissingGroupsHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverText>
-					Enabling auto create missing groups will automatically create groups
-					returned by the OIDC provider if they do not exist in Coder.
-				</HelpPopoverText>
-			</HelpPopoverContent>
-		</HelpPopover>
+		<InfoTooltip message="Enabling auto create missing groups will automatically create groups returned by the OIDC provider if they do not exist in Coder." />
 	);
 };
 
@@ -464,22 +450,22 @@ const LegacyGroupSyncHeader: FC = () => {
 		<h4 className="text-xl font-medium">
 			<div className="flex items-end gap-2">
 				<span>Legacy group sync settings</span>
-				<HelpPopover>
-					<HelpPopoverIconTrigger />
-					<HelpPopoverContent>
-						<HelpPopoverTitle>Legacy group sync settings</HelpPopoverTitle>
-						<HelpPopoverText>
+				<InfoTooltip
+					title="Legacy group sync settings"
+					message={
+						<>
 							These settings were configured using environment variables, and
 							only apply to the default organization. It is now recommended to
 							configure IdP sync via the CLI or the UI, which enables sync to be
 							configured for any organization, and for those settings to be
-							persisted without manually setting environment variables.{" "}
-							<Link href={docs("/admin/users/idp-sync")}>
+							persisted without manually setting environment variables.
+							<br />
+							<Link size="sm" href={docs("/admin/users/idp-sync")}>
 								Learn more&hellip;
 							</Link>
-						</HelpPopoverText>
-					</HelpPopoverContent>
-				</HelpPopover>
+						</>
+					}
+				/>
 			</div>
 		</h4>
 	);

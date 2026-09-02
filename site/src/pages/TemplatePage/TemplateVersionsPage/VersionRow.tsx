@@ -53,7 +53,11 @@ export const VersionRow: FC<VersionRowProps> = ({
 								version <strong>{version.name}</strong>
 							</span>
 							{version.message && (
-								<InfoTooltip title="Message" message={version.message} />
+								<InfoTooltip
+									title="Message"
+									message={version.message}
+									size="small"
+								/>
 							)}
 							<span className="text-xs text-content-secondary">
 								{new Date(version.created_at).toLocaleTimeString()}

@@ -9,15 +9,8 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { DeprecatedBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -52,21 +45,19 @@ import { type TemplateFilterState, TemplatesFilter } from "./TemplatesFilter";
 
 const TemplateHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is a template?</HelpPopoverTitle>
-				<HelpPopoverText>
+		<InfoTooltip
+			title="What is a template?"
+			message={
+				<>
 					With templates you can create a common configuration for your
 					workspaces using Terraform.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/admin/templates")}>
+					<br />
+					<Link size="sm" href={docs("/admin/templates")}>
 						Manage templates
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+					</Link>
+				</>
+			}
+		/>
 	);
 };
 

@@ -46,7 +46,7 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 			{children ? (
 				<HelpPopoverTrigger asChild>
 					<span
-						className="flex items-center gap-1.5 cursor-help"
+						className="flex items-center gap-1.5"
 						onClick={stopPropagation}
 						onKeyDown={stopPropagation}
 						onKeyUp={stopPropagation}

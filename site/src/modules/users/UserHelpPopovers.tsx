@@ -1,51 +1,42 @@
 import type { FC } from "react";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
 export const RolesHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger size="small" />
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is a role?</HelpPopoverTitle>
-				<HelpPopoverText>
+		<InfoTooltip
+			size="small"
+			title="What is a role?"
+			message={
+				<>
 					Coder role-based access control (RBAC) provides fine-grained access
 					management. View our docs on how to use the available roles.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/admin/users/groups-roles")}>
+					<br />
+					<Link size="sm" href={docs("/admin/users/groups-roles")}>
 						User Roles
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+					</Link>
+				</>
+			}
+		/>
 	);
 };
 
 export const GroupsHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger size="small" />
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is a group?</HelpPopoverTitle>
-				<HelpPopoverText>
+		<InfoTooltip
+			size="small"
+			title="What is a group?"
+			message={
+				<>
 					Groups can be used with template RBAC to give groups of users access
 					to specific templates. View our docs on how to use groups.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/admin/users/groups-roles")}>
+					<br />
+					<Link size="sm" href={docs("/admin/users/groups-roles")}>
 						Groups
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+					</Link>
+				</>
+			}
+		/>
 	);
 };
