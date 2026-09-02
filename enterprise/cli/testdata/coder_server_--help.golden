@@ -49,6 +49,11 @@ OPTIONS:
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
 
+      --disable-user-secret-file-path bool, $CODER_DISABLE_USER_SECRET_FILE_PATH
+          Disable Coder-managed file path delivery for user secrets. Stored
+          paths remain until users clear them and resume if this setting is
+          turned off.
+
       --disable-workspace-agent-context-sync bool, $CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC
           Stop persisting workspace agent context snapshots (instructions,
           skills, and MCP state used for pinned chat context). When set, coderd
