@@ -11,7 +11,7 @@ import type {
  * UI-only view of a base coder_agent. displayName is guaranteed non-empty:
  * it falls back to name when the API omits display_name.
  */
-export type SelectedBaseAgent = {
+type SelectedBaseAgent = {
 	name: string;
 	displayName: string;
 	default: boolean;
