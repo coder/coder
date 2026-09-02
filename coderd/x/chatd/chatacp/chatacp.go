@@ -712,6 +712,16 @@ func (s RuntimeState) Advance(outcome TurnOutcome, cwd string, now time.Time) (R
 	return next, fantasy.Usage(turn)
 }
 
+// UpdatedAtText is UpdatedAt exactly as the persisted JSON carries it,
+// or empty for a state that was never written. UpdateChatRuntimeState
+// compares it against the stored value before overwriting.
+func (s RuntimeState) UpdatedAtText() string {
+	if s.UpdatedAt.IsZero() {
+		return ""
+	}
+	return s.UpdatedAt.Format(time.RFC3339Nano)
+}
+
 // ParseRuntimeState decodes persisted runtime state, tolerating absent
 // or malformed payloads so broken state degrades to a fresh session
 // instead of a wedged chat.

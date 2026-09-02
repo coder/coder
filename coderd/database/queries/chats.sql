@@ -1230,10 +1230,14 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
--- name: UpdateChatRuntimeState :exec
+-- name: UpdateChatRuntimeState :execrows
+-- Writes only while the stored state's updated_at is still the one the
+-- caller observed (empty for no state), so a concurrent write is never
+-- silently overwritten.
 UPDATE chats
 SET runtime_state = @runtime_state, updated_at = NOW()
-WHERE id = @id::uuid;
+WHERE id = @id::uuid
+  AND COALESCE(runtime_state->>'updated_at', '') = @expected_updated_at::text;
 
 -- name: UpdateChatLastModelConfigByID :one
 WITH updated_chat AS (

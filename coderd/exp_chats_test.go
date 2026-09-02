@@ -2182,13 +2182,14 @@ func TestChatRuntimeRequests(t *testing.T) {
 			Runtime:        database.ChatRuntimeClaudeCode,
 			Title:          "runtime commands",
 		})
-		require.NoError(t, db.UpdateChatRuntimeState(dbauthz.AsSystemRestricted(ctx), database.UpdateChatRuntimeStateParams{
+		_, err := db.UpdateChatRuntimeState(dbauthz.AsSystemRestricted(ctx), database.UpdateChatRuntimeStateParams{
 			ID: commanded.ID,
 			RuntimeState: pqtype.NullRawMessage{
 				RawMessage: []byte(`{"session_id":"s1","available_commands":[{"name":"review","description":"Review the diff","input_hint":"pr number"}]}`),
 				Valid:      true,
 			},
-		}))
+		})
+		require.NoError(t, err)
 
 		got, err := client.GetChat(ctx, commanded.ID)
 		require.NoError(t, err)

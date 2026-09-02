@@ -368,6 +368,7 @@ func (tx *Tx) resolveQueuedMessageModelConfigID(
 // the reset and skip recording its now stale session.
 func (tx *Tx) resetRuntimeSession(chat database.Chat) error {
 	state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
+	observed := state.UpdatedAtText()
 	state.SessionID = ""
 	state.Cwd = ""
 	state.Usage = nil
@@ -376,11 +377,16 @@ func (tx *Tx) resetRuntimeSession(chat database.Chat) error {
 	if err != nil {
 		return xerrors.Errorf("marshal runtime state: %w", err)
 	}
-	if err := tx.store.UpdateChatRuntimeState(tx.ctx, database.UpdateChatRuntimeStateParams{
-		ID:           tx.chatID,
-		RuntimeState: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
-	}); err != nil {
+	rows, err := tx.store.UpdateChatRuntimeState(tx.ctx, database.UpdateChatRuntimeStateParams{
+		ID:                tx.chatID,
+		RuntimeState:      pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
+		ExpectedUpdatedAt: observed,
+	})
+	if err != nil {
 		return xerrors.Errorf("reset runtime session: %w", err)
+	}
+	if rows == 0 {
+		return xerrors.New("reset runtime session: runtime state changed")
 	}
 	return nil
 }

@@ -224,10 +224,13 @@ func TestPersistACPRuntimeStateSkipsResetSession(t *testing.T) {
 	reset := chatacp.RuntimeState{UpdatedAt: now.Add(time.Minute)}
 	encoded, err := json.Marshal(reset)
 	require.NoError(t, err)
-	require.NoError(t, db.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
-		ID:           chat.ID,
-		RuntimeState: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
-	}))
+	rows, err := db.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
+		ID:                chat.ID,
+		RuntimeState:      pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
+		ExpectedUpdatedAt: first.UpdatedAtText(),
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
 	stale := chatacp.RuntimeState{SessionID: "session-1", Cwd: "/home/coder/project", UpdatedAt: now.Add(2 * time.Minute)}
 	starter.persistACPRuntimeState(ctx, chat.ID, first, stale)
 	require.Equal(t, reset, storedState())

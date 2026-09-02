@@ -7722,13 +7722,13 @@ func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateC
 	return q.db.UpdateChatRetryState(ctx, arg)
 }
 
-func (q *querier) UpdateChatRuntimeState(ctx context.Context, arg database.UpdateChatRuntimeStateParams) error {
+func (q *querier) UpdateChatRuntimeState(ctx context.Context, arg database.UpdateChatRuntimeStateParams) (int64, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.UpdateChatRuntimeState(ctx, arg)
 }

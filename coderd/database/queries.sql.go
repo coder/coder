@@ -13389,20 +13389,28 @@ func (q *sqlQuerier) UpdateChatRetryState(ctx context.Context, arg UpdateChatRet
 	return i, err
 }
 
-const updateChatRuntimeState = `-- name: UpdateChatRuntimeState :exec
+const updateChatRuntimeState = `-- name: UpdateChatRuntimeState :execrows
 UPDATE chats
 SET runtime_state = $1, updated_at = NOW()
 WHERE id = $2::uuid
+  AND COALESCE(runtime_state->>'updated_at', '') = $3::text
 `
 
 type UpdateChatRuntimeStateParams struct {
-	RuntimeState pqtype.NullRawMessage `db:"runtime_state" json:"runtime_state"`
-	ID           uuid.UUID             `db:"id" json:"id"`
+	RuntimeState      pqtype.NullRawMessage `db:"runtime_state" json:"runtime_state"`
+	ID                uuid.UUID             `db:"id" json:"id"`
+	ExpectedUpdatedAt string                `db:"expected_updated_at" json:"expected_updated_at"`
 }
 
-func (q *sqlQuerier) UpdateChatRuntimeState(ctx context.Context, arg UpdateChatRuntimeStateParams) error {
-	_, err := q.db.ExecContext(ctx, updateChatRuntimeState, arg.RuntimeState, arg.ID)
-	return err
+// Writes only while the stored state's updated_at is still the one the
+// caller observed (empty for no state), so a concurrent write is never
+// silently overwritten.
+func (q *sqlQuerier) UpdateChatRuntimeState(ctx context.Context, arg UpdateChatRuntimeStateParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatRuntimeState, arg.RuntimeState, arg.ID, arg.ExpectedUpdatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateChatStatus = `-- name: UpdateChatStatus :one

@@ -807,20 +807,17 @@ func (s *taskStarter) persistACPRuntimeState(ctx context.Context, chatID uuid.UU
 	}
 	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), acpPersistStateTimeout)
 	defer cancel()
-	current, err := s.opts.Store.GetChatByID(persistCtx, chatID)
+	rows, err := s.opts.Store.UpdateChatRuntimeState(persistCtx, database.UpdateChatRuntimeStateParams{
+		ID:                chatID,
+		RuntimeState:      pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
+		ExpectedUpdatedAt: observed.UpdatedAtText(),
+	})
 	if err != nil {
-		s.opts.Logger.Warn(persistCtx, "load chat for acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
+		s.opts.Logger.Warn(persistCtx, "persist acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
 		return
 	}
-	if stored := chatacp.ParseRuntimeState(current.RuntimeState.RawMessage); !stored.UpdatedAt.Equal(observed.UpdatedAt) {
+	if rows == 0 {
 		s.opts.Logger.Info(persistCtx, "acp runtime state changed during turn, not recording session",
 			slog.F("chat_id", chatID), slog.F("session_id", next.SessionID))
-		return
-	}
-	if err := s.opts.Store.UpdateChatRuntimeState(persistCtx, database.UpdateChatRuntimeStateParams{
-		ID:           chatID,
-		RuntimeState: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
-	}); err != nil {
-		s.opts.Logger.Warn(persistCtx, "persist acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
 	}
 }

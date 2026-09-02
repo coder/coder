@@ -846,10 +846,11 @@ func TestEditMessageResetsRuntimeSession(t *testing.T) {
 				InitialMessages: []chatstate.Message{userTextMessage("hello", f.User.ID, f.Model.ID)},
 			})
 			require.NoError(t, err)
-			require.NoError(t, f.DB.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
+			_, err = f.DB.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
 				ID:           created.Chat.ID,
 				RuntimeState: pqtype.NullRawMessage{RawMessage: json.RawMessage(seededState), Valid: true},
-			}))
+			})
+			require.NoError(t, err)
 
 			rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")})
 			require.NoError(t, err)

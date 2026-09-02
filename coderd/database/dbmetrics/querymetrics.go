@@ -5448,12 +5448,12 @@ func (m queryMetricsStore) UpdateChatRetryState(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatRuntimeState(ctx context.Context, arg database.UpdateChatRuntimeStateParams) error {
+func (m queryMetricsStore) UpdateChatRuntimeState(ctx context.Context, arg database.UpdateChatRuntimeStateParams) (int64, error) {
 	start := time.Now()
-	r0 := m.s.UpdateChatRuntimeState(ctx, arg)
+	r0, r1 := m.s.UpdateChatRuntimeState(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatRuntimeState").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatRuntimeState").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatStatus(ctx context.Context, arg database.UpdateChatStatusParams) (database.Chat, error) {

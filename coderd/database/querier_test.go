@@ -16217,6 +16217,56 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.NotEqual(t, chat.HistoryVersion, fetched.HistoryVersion)
 }
 
+// TestUpdateChatRuntimeState verifies the write is conditional on the
+// stored state's updated_at, so a stale writer changes nothing.
+func TestUpdateChatRuntimeState(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID: org.ID,
+		OwnerID:        owner.ID,
+		Runtime:        database.ChatRuntimeClaudeCode,
+	})
+	write := func(state, expectedUpdatedAt string) int64 {
+		rows, err := db.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
+			ID:                chat.ID,
+			RuntimeState:      pqtype.NullRawMessage{RawMessage: json.RawMessage(state), Valid: true},
+			ExpectedUpdatedAt: expectedUpdatedAt,
+		})
+		require.NoError(t, err)
+		return rows
+	}
+	stored := func() string {
+		got, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		return string(got.RuntimeState.RawMessage)
+	}
+
+	const first = `{"session_id":"s1","updated_at":"2024-01-02T03:04:05Z"}`
+	const second = `{"session_id":"s2","updated_at":"2024-01-02T03:05:05Z"}`
+	// No stored state matches an empty expectation only.
+	require.EqualValues(t, 0, write(first, "2024-01-02T03:04:05Z"))
+	require.EqualValues(t, 1, write(first, ""))
+	require.JSONEq(t, first, stored())
+	// A stale expectation leaves the stored state untouched.
+	require.EqualValues(t, 0, write(second, ""))
+	require.EqualValues(t, 0, write(second, "2024-01-02T03:05:05Z"))
+	require.JSONEq(t, first, stored())
+	require.EqualValues(t, 1, write(second, "2024-01-02T03:04:05Z"))
+	require.JSONEq(t, second, stored())
+}
+
 func TestUpdateChatSummary(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
