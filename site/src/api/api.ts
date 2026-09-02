@@ -2532,6 +2532,7 @@ class ApiMethods {
 					docs_url: "",
 					logo_url: "",
 					announcement_banners: [],
+					codernauts_enabled: true,
 					service_banner: {
 						enabled: false,
 					},
