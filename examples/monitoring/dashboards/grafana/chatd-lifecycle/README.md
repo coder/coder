@@ -4,7 +4,8 @@ A Grafana dashboard for diagnosing where time goes in Coder Agents chat
 sessions. It aggregates the stage histogram
 `coderd_chatd_stage_duration_seconds{stage,scope,chat_kind,model,effort}`
 into a stage-level flame graph with a selectable summary statistic
-(mean, p50, p90, p95, p99), plus summary panels for the whole chat pipeline.
+(mean, p50, p90, p95, p99), plus summary panels for the whole chat
+pipeline and a per-turn partition of turn wall time.
 
 Stage hierarchy:
 
@@ -55,14 +56,22 @@ rather than narrowing part of the hierarchy the way `$model` and
 `$effort` do. Background provider calls run outside a turn and carry an
 empty value, so that panel is never filtered by it.
 
-Stages that run before or outside model resolution (`chat_turn`,
-`queue_wait`, `capacity_wait`, `acquisition`, `mcp_connect`, `commit`)
-always carry empty `model`/`effort` labels. Panels match those stages
-without the `$model`/`$effort` matchers, since a matcher there could only
-subtract, so narrowing either variable keeps the turn root and the waits
-populated and narrows only the model-carrying stages (`generation_step`,
-`prepare`, `provider_attempt`, `time_to_first_token`, `stream`,
-`thinking`, `tool_call`, `compaction`).
+Stages that run before a model is resolved (`queue_wait`,
+`capacity_wait`, `acquisition`, `mcp_connect`, `commit`) always carry
+empty `model`/`effort` labels. Panels match those stages without the
+`$model`/`$effort` matchers, since a matcher there could only subtract,
+so narrowing either variable keeps the waits populated and narrows only
+the model-carrying stages (`chat_turn`, `generation_step`, `prepare`,
+`provider_attempt`, `time_to_first_token`, `stream`, `thinking`,
+`tool_call`, `compaction`). `chat_turn` is stamped with the turn's model
+and effort when the turn ends, so it takes the matchers like any other
+model-carrying stage.
+
+The turn-end metrics behind the Turn time partition row
+(`coderd_chatd_turn_time_seconds`, `coderd_chatd_turn_time_share`,
+`coderd_chatd_stage_share_of_turn`) are observed once per turn with the
+turn's `chat_kind`, `model` and `effort` already known, so all three
+variables apply to them without exception.
 
 ## Panels
 
@@ -104,17 +113,16 @@ this is the drill-down for "when did it get slow" - a regression visible
 in the profile shows here as a step or trend in the affected stage. Idle
 stages drop out rather than plotting NaN.
 
-**Stage time share of chat_turn** - each stage's total time as a
-percentage of total `chat_turn` time, from mean rates of the histogram
-sums. Dimensions: numerator is `scope="turn"` split by `stage`, with
-`$chat_kind` applied and `$model`/`$effort` applied to the
-model-carrying stages only; the denominator is `chat_turn` time for the
-same `$chat_kind` selection, without model/effort filters, because
-`chat_turn` carries empty model/effort labels. Under a concrete model
-the generation stages therefore read as that model's share of all turn
-time. How to read: this is the "where does the time go" summary -
-stages overlap, so series can sum past 100%, but a single stage rising
-toward 100% of turn time identifies the dominant cost.
+**Stage share of turn ($stat)** - the selected `$stat` of each stage's
+per-turn share of its turn, from `coderd_chatd_stage_share_of_turn`,
+which records one fraction per stage when a turn ends. Dimensions: one
+series per stage, and the chat kind, model and effort variables all
+apply,
+because the metric is stamped with the turn's identity at turn end. How
+to read: this is the exact form of the share question - every sample
+comes from one completed turn, so there is no phase skew between
+numerator and denominator. Stages overlap, so the shares do not sum to
+100%, and at p99 several stages can each approach the whole turn.
 
 **Queue, capacity and acquisition wait (p99)** - p99 of the three
 pre-generation waits: `queue_wait` (queued message insert to
@@ -125,6 +133,65 @@ promotion), `capacity_wait` (concurrent-agent limiter admission) and
 are not applied and the panel stays populated under any model selection.
 How to read: these are scheduling delays before any model work starts -
 user-visible latency that no provider-side optimization can fix.
+
+### Turn time partition
+
+The stage hierarchy overlaps in wall time, so it can tell you which
+stages are slow but not how a turn's seconds divide up. The turn-end
+metrics answer that with an exclusive partition of turn wall time,
+observed once per turn:
+
+| Category              | Turn time spent                                     |
+|-----------------------|-----------------------------------------------------|
+| `scheduling`          | queueing, capacity admission and worker pickup      |
+| `time_to_first_token` | provider request open until the first streamed part |
+| `streaming`           | first part until the stream closes                  |
+| `tool_execution`      | local tool calls                                    |
+| `provider_error`      | attempts that ended in a provider error             |
+| `retry_backoff`       | waiting between provider attempts                   |
+| `compaction`          | auxiliary compaction calls                          |
+| `chatd_overhead`      | prompt build, persistence and other chatd work      |
+| `unattributed`        | turn time no category claimed                       |
+
+The categories are exclusive and sum to the turn, so these panels do add
+up, unlike the stage panels. `unattributed` is the completeness check:
+if it grows, real turn time is happening outside every instrumented
+stage.
+
+These per-turn histograms replaced the earlier time-share panels that
+divided aggregated stage seconds by aggregated `chat_turn` seconds: the
+two observations for one turn land at different times, so any aggregate
+ratio mixes turns and reads well past 100%.
+
+**Turn time mix by model** - one 100%-stacked bar per model, each
+category's total seconds over the range divided by all categories'
+total seconds. Dimensions: `$chat_kind`, `$model` and `$effort` all
+apply; the grouping is fixed to `model`, because Grafana transformation
+options do not interpolate dashboard variables and the matrix transform
+needs a static row field. How to read: the fastest way to compare where
+models spend a turn, for example a model with a large
+`time_to_first_token` share against one dominated by `streaming`.
+
+**Seconds per turn by category** - mean seconds per turn in each
+category, stacked, with total turn duration as a line. Category seconds
+are divided by the turn count taken from the `unattributed` category's
+`_count`, since every category is observed once per turn even when it is
+zero. How to read: the stack height is the mean turn duration, so the
+line should sit on top of the stack; a gap means the current variable
+selection dropped categories.
+
+**Unattributed turn time** - mean unattributed seconds per turn and its
+mean share of a turn. How to read: this is the completeness check for
+the stage model, so treat a rising line as an instrumentation gap rather
+than a workload change.
+
+**Category share per turn ($stat)** - the selected `$stat` of each
+category's share of a turn, from `coderd_chatd_turn_time_share`. How to
+read: the mix bar shows where aggregate time goes, this shows how much a
+category varies per turn, so a small mean with a large p99 marks a
+bursty cost such as a slow tool call or a retry storm in a minority of
+turns. Quantiles are per category, so unlike the mean shares they do not
+sum to 100%.
 
 ### Throughput and TTFT
 

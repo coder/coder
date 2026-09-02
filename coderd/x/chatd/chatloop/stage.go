@@ -8,6 +8,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/coder/quartz"
 )
 
 // Stage names. Every value is both a span name and the `stage` label
@@ -27,7 +29,14 @@ const (
 	StageToolCall         = "tool_call"
 	StageCommit           = "commit"
 	StageCompaction       = "compaction"
+	StageRetryBackoff     = "retry_backoff"
 )
+
+// GenerationActionExecuteLocalTools is the generation_action value of
+// a step that runs local tools. Turn accounting reads it to separate
+// tool execution from chatd overhead, so it must match the action the
+// generation loop reports through SetGenerationAction.
+const GenerationActionExecuteLocalTools = "execute_local_tools"
 
 // Span attribute keys. Keys are lowercase snake_case and shared by
 // every stage that carries the value.
@@ -73,6 +82,9 @@ const tracerName = "github.com/coder/coder/v2/coderd/x/chatd"
 type StageTracer struct {
 	tracer  trace.Tracer
 	metrics *Metrics
+	// clock is the time source for the stage windows measured here.
+	// Stages recorded from explicit timestamps do not use it.
+	clock quartz.Clock
 }
 
 // NewStageTracer builds a stage tracer from a tracer provider and the
@@ -89,6 +101,7 @@ func NewStageTracer(provider trace.TracerProvider, metrics *Metrics) *StageTrace
 	return &StageTracer{
 		tracer:  provider.Tracer(tracerName),
 		metrics: metrics,
+		clock:   quartz.NewReal(),
 	}
 }
 
@@ -103,6 +116,13 @@ func (t *StageTracer) otelTracer() trace.Tracer {
 		return noop.NewTracerProvider().Tracer(tracerName)
 	}
 	return t.tracer
+}
+
+func (t *StageTracer) now() time.Time {
+	if t == nil || t.clock == nil {
+		return time.Now()
+	}
+	return t.clock.Now()
 }
 
 // StageModel identifies the model a stage ran against. Both fields
@@ -138,6 +158,11 @@ type StageSpan struct {
 	span     trace.Span
 	start    time.Time
 	ended    bool
+	// acc is the turn the stage runs in, nil outside a turn.
+	acc *TurnAccumulator
+	// node is the stage's place in the turn's attribution tree, nil
+	// for stages that do not partition turn time.
+	node *stageNode
 }
 
 // stageScopeKey keys the stage scope carried by a context. It is
@@ -235,7 +260,7 @@ func (t *StageTracer) startSpan(
 	start time.Time,
 	opts []trace.SpanStartOption,
 ) (context.Context, *StageSpan) {
-	now := time.Now()
+	now := t.now()
 	if start.IsZero() || start.After(now) {
 		start = now
 	} else {
@@ -243,6 +268,14 @@ func (t *StageTracer) startSpan(
 	}
 	chatKind := chatKindFromContext(ctx)
 	opts = append(opts, trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...))
+	acc := turnAccumulatorFromContext(ctx)
+	var node *stageNode
+	if acc != nil {
+		if _, attributing := attributingStages[stage]; attributing {
+			node = &stageNode{stage: stage, parent: stageNodeFromContext(ctx)}
+			ctx = context.WithValue(ctx, stageNodeKey{}, node)
+		}
+	}
 	ctx, span := t.otelTracer().Start(ContextWithScope(ctx, scope), stage, opts...)
 	return ctx, &StageSpan{
 		tracer:   t,
@@ -251,6 +284,8 @@ func (t *StageTracer) startSpan(
 		chatKind: chatKind,
 		span:     span,
 		start:    start,
+		acc:      acc,
+		node:     node,
 	}
 }
 
@@ -283,7 +318,19 @@ func (s *StageSpan) SetModel(model StageModel) {
 		return
 	}
 	s.model = model
+	s.acc.setModel(model)
 	s.span.SetAttributes(model.attributes()...)
+}
+
+// SetGenerationAction records the action a generation step took, on
+// the span and on the step's turn attribution, where it decides
+// whether the step's own time counts as tool execution.
+func (s *StageSpan) SetGenerationAction(action string) {
+	if s == nil || s.ended {
+		return
+	}
+	s.node.setAction(action)
+	s.span.SetAttributes(attribute.String(AttrGenerationAction, action))
 }
 
 // SpanContext returns the span context of the stage span, which is
@@ -299,8 +346,11 @@ func (s *StageSpan) SpanContext() trace.SpanContext {
 // as errored when err is non-nil. Calls after the first are ignored so
 // a deferred End cannot double-count a stage.
 func (s *StageSpan) End(err error) {
+	s.adoptTurnModel()
 	if elapsed, ok := s.closeSpan(err); ok {
 		s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
+		s.addTurnStageTotal(elapsed)
+		s.report(elapsed, err)
 	}
 }
 
@@ -310,7 +360,21 @@ func (s *StageSpan) End(err error) {
 // would skew the histogram while the span still needs to report the
 // failure.
 func (s *StageSpan) EndWithoutObservation(err error) {
-	s.closeSpan(err)
+	if elapsed, ok := s.closeSpan(err); ok {
+		s.report(elapsed, err)
+	}
+}
+
+// adoptTurnModel gives the turn's root stage the model identity that
+// the turn resolved after the root started, so the root is labeled
+// like the stages inside it.
+func (s *StageSpan) adoptTurnModel() {
+	if s == nil || s.stage != StageChatTurn || s.model.Model != "" {
+		return
+	}
+	if model := s.acc.Model(); model.Model != "" {
+		s.SetModel(model)
+	}
 }
 
 // closeSpan ends the span and returns the window it covered. ok is
@@ -321,7 +385,7 @@ func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 		return 0, false
 	}
 	s.ended = true
-	elapsed = time.Since(s.start)
+	elapsed = s.tracer.now().Sub(s.start)
 	if err != nil {
 		s.span.RecordError(err)
 		s.span.SetStatus(codes.Error, err.Error())
@@ -375,6 +439,7 @@ func (t *StageTracer) RecordAs(
 	}
 	span.End(trace.WithTimestamp(end))
 	t.observe(stage, scope, chatKind, model, end.Sub(start))
+	recordAttribution(ctx, stage, end.Sub(start))
 }
 
 func (t *StageTracer) observe(stage, scope, chatKind string, model StageModel, elapsed time.Duration) {

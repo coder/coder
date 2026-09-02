@@ -471,10 +471,17 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		return AssistantOutcome{}, wrappedErr
 	}
 	defer attempt.release()
+	// Releasing the attempt closes the time_to_first_token window, so it
+	// must happen before the stream stage ends: a window still open then
+	// would be counted outside the stream that contains it.
+	endStream := func(err error) {
+		attempt.release()
+		streamSpan.End(err)
+	}
 
 	result, processErr := processStepStream(attempt.ctx, attempt.stream, opts.Clock, publishMessagePart)
 	if err := attempt.finish(processErr); err != nil {
-		streamSpan.End(err)
+		endStream(err)
 		if errors.Is(err, ErrInterrupted) {
 			return AssistantOutcome{}, ErrInterrupted
 		}
@@ -487,7 +494,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	}
 
 	contextLimit := extractContextLimitWithFallback(result.providerMetadata, opts.ContextLimitFallback)
-	streamSpan.End(nil)
+	endStream(nil)
 	result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,

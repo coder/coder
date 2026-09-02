@@ -36,6 +36,10 @@ type Metrics struct {
 	ToolErrorsTotal           *prometheus.CounterVec
 	TTFTSeconds               *prometheus.HistogramVec
 	StageDurationSeconds      *prometheus.HistogramVec
+	TurnStageSeconds          *prometheus.HistogramVec
+	StageShareOfTurn          *prometheus.HistogramVec
+	TurnTimeSeconds           *prometheus.HistogramVec
+	TurnTimeShare             *prometheus.HistogramVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
 	StreamRetriesTotal        *prometheus.CounterVec
@@ -102,10 +106,36 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Subsystem: metricsSubsystem,
 			Name:      "stage_duration_seconds",
 			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The chat_kind label is empty for stages recorded without a known chat, and the model and effort labels are empty for stages that run before a model is resolved.",
-			// 10ms .. ~2.9h, log-spaced. The top of the range covers
-			// long-lived stages such as a chat turn.
-			Buckets: prometheus.ExponentialBuckets(0.01, 2, 21),
+			Buckets:   stageDurationBuckets(),
 		}, []string{"stage", "scope", "chat_kind", "model", "effort"}),
+		TurnStageSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_stage_seconds",
+			Help:      "Total wall time one chat turn spent in a stage, observed once per turn when the turn ends. Stages overlap, so these do not partition the turn. Only turns that finished normally are counted.",
+			Buckets:   stageDurationBuckets(),
+		}, []string{"stage", "chat_kind", "model", "effort"}),
+		StageShareOfTurn: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_share_of_turn",
+			Help:      "Fraction of a chat turn's wall time spent in a stage, observed once per turn when the turn ends. Stages overlap, so shares can exceed 1 and do not sum to 1. Only turns that finished normally are counted.",
+			Buckets:   turnShareBuckets(),
+		}, []string{"stage", "chat_kind", "model", "effort"}),
+		TurnTimeSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_time_seconds",
+			Help:      "Wall time of one chat turn split into disjoint categories that sum to the turn duration, observed once per turn per category when the turn ends. Every category is observed, including the ones with no time. Only turns that finished normally are counted.",
+			Buckets:   stageDurationBuckets(),
+		}, []string{"category", "chat_kind", "model", "effort"}),
+		TurnTimeShare: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_time_share",
+			Help:      "Fraction of a chat turn's wall time in each disjoint category, observed once per turn per category when the turn ends. The shares of one turn sum to 1. Only turns that finished normally are counted.",
+			Buckets:   turnShareBuckets(),
+		}, []string{"category", "chat_kind", "model", "effort"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -158,6 +188,19 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 	}
 }
 
+// stageDurationBuckets returns the duration buckets shared by the
+// stage and turn timing histograms: 10ms to ~2.9h, log-spaced. The top
+// of the range covers long-lived stages such as a chat turn.
+func stageDurationBuckets() []float64 {
+	return prometheus.ExponentialBuckets(0.01, 2, 21)
+}
+
+// turnShareBuckets returns the buckets for the share histograms: 0 to
+// 1 in twentieths.
+func turnShareBuckets() []float64 {
+	return prometheus.LinearBuckets(0, 0.05, 21)
+}
+
 // NopMetrics returns a Metrics instance that discards all data.
 // Useful for tests and when metrics collection is not desired.
 func NopMetrics() *Metrics {
@@ -173,6 +216,30 @@ func (m *Metrics) RecordStageDuration(stage, scope, chatKind, model, effort stri
 		return
 	}
 	m.StageDurationSeconds.WithLabelValues(stage, scope, chatKind, model, effort).Observe(elapsed.Seconds())
+}
+
+// RecordTurnStage observes the total time one turn spent in a stage
+// and that time as a fraction of the turn. Both come from the same
+// turn so the pair cannot describe different turns. No-op when m is
+// nil.
+func (m *Metrics) RecordTurnStage(stage, chatKind, model, effort string, elapsed time.Duration, share float64) {
+	if m == nil || elapsed < 0 {
+		return
+	}
+	m.TurnStageSeconds.WithLabelValues(stage, chatKind, model, effort).Observe(elapsed.Seconds())
+	m.StageShareOfTurn.WithLabelValues(stage, chatKind, model, effort).Observe(share)
+}
+
+// RecordTurnCategory observes one category of a turn's time partition
+// and that category as a fraction of the turn. Categories with no time
+// are observed as zero so the shares of a turn always sum to 1. No-op
+// when m is nil.
+func (m *Metrics) RecordTurnCategory(category, chatKind, model, effort string, elapsed time.Duration, share float64) {
+	if m == nil || elapsed < 0 {
+		return
+	}
+	m.TurnTimeSeconds.WithLabelValues(category, chatKind, model, effort).Observe(elapsed.Seconds())
+	m.TurnTimeShare.WithLabelValues(category, chatKind, model, effort).Observe(share)
 }
 
 // RecordCompaction classifies and records a compaction attempt.

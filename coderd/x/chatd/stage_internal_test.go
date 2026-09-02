@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -322,4 +323,91 @@ func TestRunnerTurnSpanCarriesChatKind(t *testing.T) {
 			attribute.String(chatloop.AttrChatKind, chatloop.ChatKindSubagent),
 			"stage %s must carry the turn's chat kind", span.Name())
 	}
+}
+
+// turnSpansByStart returns the chat_turn spans the recorder saw,
+// ordered by start time.
+func turnSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder) []sdktrace.ReadOnlySpan {
+	t.Helper()
+	var turns []sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		if span.Name() == chatloop.StageChatTurn {
+			turns = append(turns, span)
+		}
+	}
+	sort.Slice(turns, func(i, j int) bool {
+		return turns[i].StartTime().Before(turns[j].StartTime())
+	})
+	return turns
+}
+
+func TestRunnerTurnSpanRotatesOnPromotion(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New()}
+
+	turnCtx := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Minute))
+	_, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
+	step.End(nil)
+
+	queuedAt := time.Now().Add(-30 * time.Second)
+	turn.Complete()
+	turn.Rotate(t.Context(), queuedAt)
+	// The promoted message's wait belongs to the turn it opens.
+	tracer.Record(turn.Context(t.Context()), chatloop.StageQueueWait, chatloop.StageModel{},
+		queuedAt, time.Now(), nil)
+	turn.End(nil)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 2)
+	require.Equal(t, queuedAt.UTC(), turns[1].StartTime().UTC())
+	require.NotEqual(t, turns[0].SpanContext().TraceID(), turns[1].SpanContext().TraceID())
+	require.Contains(t, turns[1].Attributes(),
+		attribute.String(chatloop.AttrChatKind, chatloop.ChatKindRoot))
+
+	var queueWait sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		if span.Name() == chatloop.StageQueueWait {
+			queueWait = span
+		}
+	}
+	require.NotNil(t, queueWait)
+	require.Equal(t, turns[1].SpanContext().SpanID(), queueWait.Parent().SpanID())
+
+	// The rotated turn's head is the queue wait, so it records no
+	// acquisition: both windows start at the same instant and both
+	// would count as scheduling time.
+	var acquisitions int
+	for _, span := range recorder.Ended() {
+		if span.Name() == chatloop.StageAcquisition {
+			acquisitions++
+			require.Equal(t, turns[0].SpanContext().SpanID(), span.Parent().SpanID())
+		}
+	}
+	require.Equal(t, 1, acquisitions)
+}
+
+func TestRunnerTurnSpanEnsureOpensTurnPerPrompt(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New()}
+
+	firstTrigger := time.Now().Add(-2 * time.Minute)
+	turn.Ensure(t.Context(), chat, firstTrigger)
+	// A second prompt on the same runner reuses the open turn until it
+	// finishes.
+	turn.Ensure(t.Context(), chat, firstTrigger)
+	require.Len(t, turnSpansByStart(t, recorder), 0)
+
+	turn.Complete()
+	secondTrigger := time.Now().Add(-time.Minute)
+	turn.Ensure(t.Context(), chat, secondTrigger)
+	turn.End(nil)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 2)
+	require.Equal(t, firstTrigger.UTC(), turns[0].StartTime().UTC())
+	require.Equal(t, secondTrigger.UTC(), turns[1].StartTime().UTC())
 }

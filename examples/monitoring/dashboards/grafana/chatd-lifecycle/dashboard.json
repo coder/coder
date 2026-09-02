@@ -79,7 +79,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"chat_turn\", \"\", \"\"),\n\"n\", \"01\", \"\", \"\"),\n\"level\", \"0\", \"\", \"\"),\n\"name\", \"chat_turn\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"queue_wait\", \"\", \"\"),\n\"n\", \"02\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ queue_wait\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"capacity_wait\", \"\", \"\"),\n\"n\", \"03\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ capacity_wait\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"acquisition\", \"\", \"\"),\n\"n\", \"04\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ acquisition\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"generation_step\", \"\", \"\"),\n\"n\", \"05\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ generation_step\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"prepare\", \"\", \"\"),\n\"n\", \"06\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ prepare\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"mcp_connect\", \"\", \"\"),\n\"n\", \"07\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ mcp_connect\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"provider_attempt\", \"\", \"\"),\n\"n\", \"08\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ provider_attempt\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"time_to_first_token\", \"\", \"\"),\n\"n\", \"09\", \"\", \"\"),\n\"level\", \"3\", \"\", \"\"),\n\"name\", \"│  │  └─ time_to_first_token\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"stream\", \"\", \"\"),\n\"n\", \"10\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ stream\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"thinking\", \"\", \"\"),\n\"n\", \"11\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ thinking\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"tool_call\", \"\", \"\"),\n\"n\", \"12\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ tool_call\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"commit\", \"\", \"\"),\n\"n\", \"13\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ commit\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"compaction\", \"\", \"\"),\n\"n\", \"14\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ compaction\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)",
+          "expr": "(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"chat_turn\", \"\", \"\"),\n\"n\", \"01\", \"\", \"\"),\n\"level\", \"0\", \"\", \"\"),\n\"name\", \"chat_turn\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"queue_wait\", \"\", \"\"),\n\"n\", \"02\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ queue_wait\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"capacity_wait\", \"\", \"\"),\n\"n\", \"03\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ capacity_wait\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"acquisition\", \"\", \"\"),\n\"n\", \"04\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ acquisition\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"generation_step\", \"\", \"\"),\n\"n\", \"05\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ generation_step\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"prepare\", \"\", \"\"),\n\"n\", \"06\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ prepare\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"mcp_connect\", \"\", \"\"),\n\"n\", \"07\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ mcp_connect\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"provider_attempt\", \"\", \"\"),\n\"n\", \"08\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ provider_attempt\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"time_to_first_token\", \"\", \"\"),\n\"n\", \"09\", \"\", \"\"),\n\"level\", \"3\", \"\", \"\"),\n\"name\", \"│  │  └─ time_to_first_token\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"stream\", \"\", \"\"),\n\"n\", \"10\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ stream\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"thinking\", \"\", \"\"),\n\"n\", \"11\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ thinking\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"tool_call\", \"\", \"\"),\n\"n\", \"12\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ tool_call\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"commit\", \"\", \"\"),\n\"n\", \"13\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ commit\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"compaction\", \"\", \"\"),\n\"n\", \"14\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ compaction\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)",
           "range": false,
           "refId": "A",
           "format": "table",
@@ -211,7 +211,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"chat_turn\", \"\", \"\"),\n\"n\", \"01\", \"\", \"\"),\n\"level\", \"0\", \"\", \"\"),\n\"name\", \"chat_turn\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"queue_wait\", \"\", \"\"),\n\"n\", \"02\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ queue_wait\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"capacity_wait\", \"\", \"\"),\n\"n\", \"03\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ capacity_wait\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"acquisition\", \"\", \"\"),\n\"n\", \"04\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ acquisition\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"generation_step\", \"\", \"\"),\n\"n\", \"05\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ generation_step\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"prepare\", \"\", \"\"),\n\"n\", \"06\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ prepare\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"mcp_connect\", \"\", \"\"),\n\"n\", \"07\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ mcp_connect\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"provider_attempt\", \"\", \"\"),\n\"n\", \"08\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ provider_attempt\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"time_to_first_token\", \"\", \"\"),\n\"n\", \"09\", \"\", \"\"),\n\"level\", \"3\", \"\", \"\"),\n\"name\", \"│  │  └─ time_to_first_token\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"stream\", \"\", \"\"),\n\"n\", \"10\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ stream\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"thinking\", \"\", \"\"),\n\"n\", \"11\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ thinking\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"tool_call\", \"\", \"\"),\n\"n\", \"12\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ tool_call\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"commit\", \"\", \"\"),\n\"n\", \"13\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ commit\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"compaction\", \"\", \"\"),\n\"n\", \"14\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ compaction\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)",
+          "expr": "(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"chat_turn\", \"\", \"\"),\n\"n\", \"01\", \"\", \"\"),\n\"level\", \"0\", \"\", \"\"),\n\"name\", \"chat_turn\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"queue_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"queue_wait\", \"\", \"\"),\n\"n\", \"02\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ queue_wait\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"capacity_wait\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"capacity_wait\", \"\", \"\"),\n\"n\", \"03\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ capacity_wait\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"acquisition\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"acquisition\", \"\", \"\"),\n\"n\", \"04\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ acquisition\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"generation_step\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"generation_step\", \"\", \"\"),\n\"n\", \"05\", \"\", \"\"),\n\"level\", \"1\", \"\", \"\"),\n\"name\", \"├─ generation_step\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"prepare\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"prepare\", \"\", \"\"),\n\"n\", \"06\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ prepare\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"mcp_connect\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"mcp_connect\", \"\", \"\"),\n\"n\", \"07\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ mcp_connect\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"provider_attempt\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"provider_attempt\", \"\", \"\"),\n\"n\", \"08\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ provider_attempt\", \"\", \"\"),\n\"leaf\", \"0\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"time_to_first_token\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"time_to_first_token\", \"\", \"\"),\n\"n\", \"09\", \"\", \"\"),\n\"level\", \"3\", \"\", \"\"),\n\"name\", \"│  │  └─ time_to_first_token\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"stream\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"stream\", \"\", \"\"),\n\"n\", \"10\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ stream\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"thinking\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"thinking\", \"\", \"\"),\n\"n\", \"11\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ thinking\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"tool_call\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"tool_call\", \"\", \"\"),\n\"n\", \"12\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ tool_call\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"commit\", \"\", \"\"),\n\"n\", \"13\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ commit\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)\nor\n(\n  label_replace(label_replace(label_replace(label_replace(label_replace((\n    histogram_quantile($stat, sum by (le) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))) and on() (vector($stat) > bool 0) == 1 and on() (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)\n  )\n  or\n  (\n    sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) / (sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0) and on() (vector($stat) == bool 0) == 1\n  )\n  or vector(0),\n\"label\", \"compaction\", \"\", \"\"),\n\"n\", \"14\", \"\", \"\"),\n\"level\", \"2\", \"\", \"\"),\n\"name\", \"│  ├─ compaction\", \"\", \"\"),\n\"leaf\", \"1\", \"\", \"\")\n)",
           "range": false,
           "refId": "A",
           "format": "table",
@@ -353,7 +353,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=~\"chat_turn|queue_wait|capacity_wait|acquisition|mcp_connect|commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"chat_turn|queue_wait|capacity_wait|acquisition|mcp_connect|commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"chat_turn|queue_wait|capacity_wait|acquisition|mcp_connect|commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"chat_turn|queue_wait|capacity_wait|acquisition|mcp_connect|commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=~\"queue_wait|capacity_wait|acquisition|mcp_connect|commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"queue_wait|capacity_wait|acquisition|mcp_connect|commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"queue_wait|capacity_wait|acquisition|mcp_connect|commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"queue_wait|capacity_wait|acquisition|mcp_connect|commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
           "range": true,
           "refId": "A",
           "legendFormat": "{{stage}}"
@@ -364,7 +364,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=~\"generation_step|prepare|provider_attempt|time_to_first_token|stream|thinking|tool_call|compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"generation_step|prepare|provider_attempt|time_to_first_token|stream|thinking|tool_call|compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"generation_step|prepare|provider_attempt|time_to_first_token|stream|thinking|tool_call|compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"generation_step|prepare|provider_attempt|time_to_first_token|stream|thinking|tool_call|compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_duration_seconds_bucket{stage=~\"chat_turn|generation_step|prepare|provider_attempt|time_to_first_token|stream|thinking|tool_call|compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"chat_turn|generation_step|prepare|provider_attempt|time_to_first_token|stream|thinking|tool_call|compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"chat_turn|generation_step|prepare|provider_attempt|time_to_first_token|stream|thinking|tool_call|compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"chat_turn|generation_step|prepare|provider_attempt|time_to_first_token|stream|thinking|tool_call|compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
           "range": true,
           "refId": "B",
           "legendFormat": "{{stage}}"
@@ -378,7 +378,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Total time spent in each stage as a percentage of total chat_turn time, from mean rates (rate of the histogram _sum). Stages overlap, so the series can sum to more than 100%. Intervals with no chat_turn time are dropped instead of dividing by zero. The chat_turn denominator is never filtered by model or effort.\n\n$model and $effort apply only to the stages that carry those labels (generation_step, prepare, provider_attempt, time_to_first_token, stream, thinking, tool_call, compaction). The stages recorded before a model is resolved (chat_turn, queue_wait, capacity_wait, acquisition, mcp_connect, commit) are always matched without them, so they stay populated under any selection.\n\n$chat_kind selects root chats, subagent chats spawned by a parent agent, or both. It is a turn property carried by every turn-scoped stage, so unlike $model and $effort it applies to every stage in this panel.",
+      "description": "Total seconds each stage occupied within a turn, from the coderd_chatd_turn_stage_seconds histogram recorded once per turn when chat_turn ends. $stat selects the statistic; an idle stage drops out instead of returning NaN.\n\nThis is the absolute companion to the share panel next to it, and it differs from the stage duration panel above: that one measures single stage occurrences, this one sums every occurrence within a turn, so repeated stages (generation_step, provider_attempt, tool_call) read higher here.\n\nStages overlap in wall time, so these seconds do not add up to the turn duration. $chat_kind, $model and $effort all apply.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -427,7 +427,7 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -437,7 +437,7 @@
         "x": 12,
         "y": 16
       },
-      "id": 4,
+      "id": 14,
       "options": {
         "legend": {
           "calcs": [
@@ -460,24 +460,109 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "100 * sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"queue_wait|capacity_wait|acquisition|mcp_connect|commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval]))\n/ on() group_left() (sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_seconds_bucket{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_seconds_sum{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "legendFormat": "{{stage}}",
           "range": true,
-          "refId": "A",
-          "legendFormat": "{{stage}}"
+          "refId": "A"
+        }
+      ],
+      "title": "Stage seconds per turn (${stat:text})",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Per-turn fraction of the turn that each stage occupied, from the coderd_chatd_stage_share_of_turn histogram recorded once per turn when chat_turn ends. $stat selects the statistic: mean is rate(_sum)/rate(_count), the percentiles are histogram_quantile over the bucket rates, and an idle stage drops out instead of returning NaN.\n\nUnlike the range-totals bar, every sample here comes from a single completed turn, so there is no phase skew between numerator and denominator. Stages still overlap in wall time, so the shares do not sum to 100% and a p99 share can approach 100% for several stages at once.\n\n$chat_kind, $model and $effort all apply: this metric is recorded at turn end with the turn's model and effort stamped on it.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percentunit"
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "100 * sum by (stage) (rate(coderd_chatd_stage_duration_seconds_sum{stage=~\"generation_step|prepare|provider_attempt|time_to_first_token|stream|thinking|tool_call|compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval]))\n/ on() group_left() (sum(rate(coderd_chatd_stage_duration_seconds_sum{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_share_of_turn_bucket{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_share_of_turn_sum{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "legendFormat": "{{stage}}",
           "range": true,
-          "refId": "B",
-          "legendFormat": "{{stage}}"
+          "refId": "A"
         }
       ],
-      "title": "Stage time share of chat_turn",
+      "title": "Stage share of turn (${stat:text})",
       "type": "timeseries"
     },
     {
@@ -540,8 +625,8 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 24,
-        "x": 0,
+        "w": 12,
+        "x": 12,
         "y": 25
       },
       "id": 5,
@@ -583,6 +668,889 @@
         "w": 24,
         "x": 0,
         "y": 34
+      },
+      "id": 103,
+      "panels": [],
+      "title": "Turn time partition",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "How turn wall time splits across the exclusive turn-time categories, per model, over the dashboard time range. Each bar is one model and sums to 100%; the value is that category's total seconds divided by all categories' total seconds, from increase() over the range.\n\nThe categories partition the turn, so unlike the stage panels they do not overlap and do add up. unattributed is the remainder the stage instrumentation could not place; watch it as the completeness check for the model.\n\n$chat_kind, $model and $effort all apply. Grouping is fixed to model because Grafana transformation options do not interpolate dashboard variables.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "lineWidth": 1
+          },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scheduling"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time_to_first_token"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "streaming"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tool_execution"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "provider_error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retry_backoff"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "semi-dark-yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "compaction"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "light-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "chatd_overhead"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unattributed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#808080",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "id": 10,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.7,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "never",
+        "stacking": "normal",
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "xField": "model\\category"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum by (model, category) (increase(coderd_chatd_turn_time_seconds_sum{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range]))\n/ on(model) group_left() (sum by (model) (increase(coderd_chatd_turn_time_seconds_sum{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__range])) > 0)",
+          "legendFormat": "",
+          "range": false,
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "title": "Turn time mix by model",
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "category",
+            "emptyValue": "zero",
+            "rowField": "model",
+            "valueField": "Value"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {
+              "model": 0,
+              "model\\category": 0,
+              "scheduling": 1,
+              "time_to_first_token": 2,
+              "streaming": 3,
+              "tool_execution": 4,
+              "provider_error": 5,
+              "retry_backoff": 6,
+              "compaction": 7,
+              "chatd_overhead": 8,
+              "unattributed": 9
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Mean seconds per turn spent in each turn-time category, stacked, plus the total turn duration as a line. Each category's seconds are divided by the turn count, taken from the unattributed category's _count because every category is observed once per turn, including when it is zero.\n\nBecause the categories are exclusive, the stack height equals the mean turn duration and the line should sit on top of the stack. A gap between them means categories were dropped by the $model, $effort or $chat_kind selection rather than by the partition.\n\nIntervals with no completed turns are dropped instead of dividing by zero.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scheduling"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time_to_first_token"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "streaming"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tool_execution"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "provider_error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retry_backoff"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "semi-dark-yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "compaction"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "light-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "chatd_overhead"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unattributed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#808080",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total per turn"
+            },
+            "properties": [
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "group": false,
+                  "mode": "none"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "text",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (category) (rate(coderd_chatd_turn_time_seconds_sum{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval]))\n/ on() group_left() (sum(rate(coderd_chatd_turn_time_seconds_count{category=\"unattributed\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)",
+          "legendFormat": "{{category}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(coderd_chatd_turn_time_seconds_sum{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval]))\n/ on() group_left() (sum(rate(coderd_chatd_turn_time_seconds_count{category=\"unattributed\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)",
+          "legendFormat": "total per turn",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Seconds per turn by category",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Turn time the stage instrumentation could not place in any category: mean unattributed seconds per turn on the left axis and the mean unattributed share of a turn on the right.\n\nThis is the completeness check for the stage model. Near zero means the categories account for the turn. A rising line means real turn time is happening outside every instrumented stage, so the profile and partition panels are understating something; treat it as a bug in the instrumentation rather than as a workload change.\n\n$chat_kind, $model and $effort all apply.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "share of turn"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#808080",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 45
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(coderd_chatd_turn_time_seconds_sum{category=\"unattributed\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval]))\n/ (sum(rate(coderd_chatd_turn_time_seconds_count{category=\"unattributed\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)",
+          "legendFormat": "seconds per turn",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(coderd_chatd_turn_time_share_sum{category=\"unattributed\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval]))\n/ (sum(rate(coderd_chatd_turn_time_share_count{category=\"unattributed\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)",
+          "legendFormat": "share of turn",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Unattributed turn time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Distribution of each category's share of a turn, from the coderd_chatd_turn_time_share histogram recorded once per turn. $stat selects the statistic, so p99 reads as \"in the worst turns, this category took this fraction of the turn\".\n\nUse it next to the mix bar: the bar shows where aggregate time goes, this shows how much a category varies per turn. A category with a small mean and a large p99 is bursty (a slow tool call or a retry storm in a minority of turns) rather than a steady cost.\n\nQuantiles are per category, so unlike the mean shares they do not sum to 100%. $chat_kind, $model and $effort all apply.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scheduling"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time_to_first_token"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "streaming"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tool_execution"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "provider_error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retry_backoff"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "semi-dark-yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "compaction"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "light-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "chatd_overhead"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unattributed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#808080",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 45
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, category) (rate(coderd_chatd_turn_time_share_bucket{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(category) (sum by (category) (rate(coderd_chatd_turn_time_share_count{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (category) (rate(coderd_chatd_turn_time_share_sum{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) / (sum by (category) (rate(coderd_chatd_turn_time_share_count{chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "legendFormat": "{{category}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Category share per turn (${stat:text})",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 53
       },
       "id": 102,
       "panels": [],
@@ -651,7 +1619,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 35
+        "y": 54
       },
       "id": 6,
       "options": {
@@ -780,7 +1748,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 35
+        "y": 54
       },
       "id": 7,
       "options": {
@@ -805,7 +1773,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval]))",
+          "expr": "sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval]))",
           "range": true,
           "refId": "A",
           "legendFormat": "chat turns"
@@ -915,7 +1883,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 35
+        "y": 54
       },
       "id": 8,
       "options": {

@@ -453,6 +453,11 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if again {
 			continue
 		}
+		if err != nil {
+			// The turn stops here, so its stage totals cover only part
+			// of a turn.
+			input.Turn.Invalidate()
+		}
 		return err
 	}
 }
@@ -548,7 +553,7 @@ func (s *taskStarter) runGenerationStep(
 		return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
 
-	stepSpan.SetAttributes(attribute.String(chatloop.AttrGenerationAction, string(decision.kind)))
+	stepSpan.SetGenerationAction(string(decision.kind))
 	var actionErr error
 	switch decision.kind {
 	case generationActionEnterRequiresAction:
@@ -691,13 +696,17 @@ func (*taskStarter) recordGenerationRetry(
 }
 
 func (s *taskStarter) waitGenerationRetry(ctx context.Context, delay time.Duration) error {
+	_, span := s.server.stages.Start(ctx, chatloop.StageRetryBackoff)
 	timer := s.opts.Clock.NewTimer(delay, "chatworker", "generation-retry")
 	defer timer.Stop()
 	select {
 	case <-timer.C:
+		span.End(nil)
 		return nil
 	case <-ctx.Done():
-		return errors.Join(errTaskExpectedExit, xerrors.Errorf("wait generation retry: %w", ctx.Err()))
+		err := errors.Join(errTaskExpectedExit, xerrors.Errorf("wait generation retry: %w", ctx.Err()))
+		span.End(err)
+		return err
 	}
 }
 
@@ -1580,8 +1589,27 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
-	s.recordQueueWaitStage(ctx, input, promotedQueuedAt)
+	s.finishTurnAccounting(ctx, input, promotedQueuedAt)
 	return s.completeGenerationTurn(ctx, input, committed, decision.promotedMessageID)
+}
+
+// finishTurnAccounting closes the turn that just finished and records
+// the queue wait of a message the finish transition promoted. A
+// promotion opens the next turn here, anchored at the moment the
+// message was queued, so the wait it served and the work it causes are
+// accounted to the turn it starts rather than the one that released
+// it. A zero queuedAt means the transition promoted nothing.
+func (s *taskStarter) finishTurnAccounting(
+	ctx context.Context,
+	input chatWorkerTaskStartInput,
+	queuedAt time.Time,
+) {
+	input.Turn.Complete()
+	if queuedAt.IsZero() {
+		return
+	}
+	input.Turn.Rotate(ctx, queuedAt)
+	s.recordQueueWaitStage(ctx, input, queuedAt)
 }
 
 // recordQueueWaitStage emits the queue_wait stage for a message just
@@ -1690,7 +1718,7 @@ func (s *taskStarter) finishGenerationTurn(
 			Kind: runnerActionKind(generationActionGenerateAssistant),
 		})
 	}
-	s.recordQueueWaitStage(ctx, input, promotedQueuedAt)
+	s.finishTurnAccounting(ctx, input, promotedQueuedAt)
 	return s.completeGenerationTurn(ctx, input, committed, decision.promotedMessageID)
 }
 
@@ -1701,6 +1729,9 @@ func (s *taskStarter) finishGenerationError(
 	cause error,
 	fence generationAttemptFence,
 ) error {
+	// The turn ends on an error, so the stages it collected describe a
+	// partial turn.
+	input.Turn.Invalidate()
 	classified := chaterror.Classify(cause)
 	// Log the unsanitized cause before persisting so administrators can
 	// diagnose the failure even when the classified user-facing message
