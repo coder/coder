@@ -120,6 +120,8 @@ export interface AgentsPageOutletContext {
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
 	onChatReady: () => void;
+	/** Root chats for which the server has reported active summary generation. */
+	summaryGeneratingChatIds?: ReadonlySet<string>;
 }
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -137,9 +139,14 @@ export const shouldInvalidateFilteredChatList = (
 // status, so invalidate the root-keyed cost query when those events arrive.
 const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 	"chat_summary_change",
+	"chat_summary_failed",
 	"summary_change",
 	"title_change",
 ]);
+
+// Matches chatd.chatSummaryWorkTimeout so a failed generation cannot leave
+// the transient loading state visible indefinitely.
+const chatSummaryGeneratingTimeoutMs = 120_000;
 
 export const chatCostIdToInvalidate = (
 	chat: TypesGen.Chat,
@@ -178,6 +185,9 @@ const AgentsPageLayout: FC = () => {
 		setSearchParams,
 	);
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
+	const [summaryGeneratingChatIds, setSummaryGeneratingChatIds] = useState<
+		ReadonlySet<string>
+	>(() => new Set());
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -556,7 +566,106 @@ const AgentsPageLayout: FC = () => {
 		void invalidateChatSearches(queryClient);
 	}, [agentId, queryClient]);
 	useEffect(() => {
-		return createReconnectingWebSocket({
+		const summaryGeneratingTimeouts = new Map<
+			string,
+			ReturnType<typeof setTimeout>
+		>();
+		const latestSummaryGenerationStartedAt = new Map<string, string>();
+		const clearSummaryGenerating = (
+			chatId: string,
+			expectedGenerationStartedAt?: string,
+		) => {
+			const latestGenerationStartedAt =
+				latestSummaryGenerationStartedAt.get(chatId);
+			if (
+				expectedGenerationStartedAt !== undefined &&
+				latestGenerationStartedAt !== undefined &&
+				expectedGenerationStartedAt !== latestGenerationStartedAt
+			) {
+				return false;
+			}
+			setSummaryGeneratingChatIds((current) => {
+				if (!current.has(chatId)) {
+					return current;
+				}
+				const next = new Set(current);
+				next.delete(chatId);
+				return next;
+			});
+			return true;
+		};
+		const clearAllSummaryGenerating = () => {
+			for (const timeout of summaryGeneratingTimeouts.values()) {
+				clearTimeout(timeout);
+			}
+			summaryGeneratingTimeouts.clear();
+			latestSummaryGenerationStartedAt.clear();
+			setSummaryGeneratingChatIds((current) =>
+				current.size === 0 ? current : new Set(),
+			);
+		};
+		const markSummaryGenerating = (
+			chatId: string,
+			timeoutMs = chatSummaryGeneratingTimeoutMs,
+			generationStartedAt?: string,
+		) => {
+			const previousGenerationStartedAt =
+				latestSummaryGenerationStartedAt.get(chatId);
+			if (
+				generationStartedAt !== undefined &&
+				previousGenerationStartedAt !== undefined
+			) {
+				const generationStartedAtMs = Date.parse(generationStartedAt);
+				const previousGenerationStartedAtMs = Date.parse(
+					previousGenerationStartedAt,
+				);
+				if (
+					generationStartedAt === previousGenerationStartedAt ||
+					(Number.isFinite(generationStartedAtMs) &&
+						Number.isFinite(previousGenerationStartedAtMs) &&
+						generationStartedAtMs <= previousGenerationStartedAtMs)
+				) {
+					return;
+				}
+			}
+			const previousTimeout = summaryGeneratingTimeouts.get(chatId);
+			if (previousTimeout !== undefined) {
+				clearTimeout(previousTimeout);
+			}
+			if (generationStartedAt === undefined) {
+				latestSummaryGenerationStartedAt.delete(chatId);
+			} else {
+				latestSummaryGenerationStartedAt.set(chatId, generationStartedAt);
+			}
+			const boundedTimeoutMs = Math.max(
+				0,
+				Math.min(timeoutMs, chatSummaryGeneratingTimeoutMs),
+			);
+			if (boundedTimeoutMs === 0) {
+				summaryGeneratingTimeouts.delete(chatId);
+				if (clearSummaryGenerating(chatId, generationStartedAt)) {
+					void invalidateChatEntity(queryClient, chatId);
+					void invalidateChatCostTree(queryClient, chatId);
+				}
+				return;
+			}
+			setSummaryGeneratingChatIds((current) => {
+				if (current.has(chatId)) {
+					return current;
+				}
+				return new Set(current).add(chatId);
+			});
+			const timeout = setTimeout(() => {
+				summaryGeneratingTimeouts.delete(chatId);
+				if (clearSummaryGenerating(chatId, generationStartedAt)) {
+					void invalidateChatEntity(queryClient, chatId);
+					void invalidateChatCostTree(queryClient, chatId);
+				}
+			}, boundedTimeoutMs);
+			summaryGeneratingTimeouts.set(chatId, timeout);
+		};
+
+		const dispose = createReconnectingWebSocket({
 			connect() {
 				const ws = watchChats();
 
@@ -567,12 +676,38 @@ const AgentsPageLayout: FC = () => {
 					}
 					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
-					// The old membership is only available before the cache write below.
-					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === updatedChat.id,
-					)?.status;
-					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
+					if (chatEvent.kind === "chat_summary_generating") {
+						markSummaryGenerating(
+							updatedChat.id,
+							chatEvent.chat_summary_generation_remaining_ms,
+							chatEvent.chat_summary_generation_started_at,
+						);
+					} else if (
+						chatEvent.kind === "chat_summary_change" ||
+						chatEvent.kind === "chat_summary_failed" ||
+						chatEvent.kind === "deleted"
+					) {
+						if (
+							clearSummaryGenerating(
+								updatedChat.id,
+								chatEvent.chat_summary_generation_started_at,
+							)
+						) {
+							const timeout = summaryGeneratingTimeouts.get(updatedChat.id);
+							if (timeout !== undefined) {
+								clearTimeout(timeout);
+								summaryGeneratingTimeouts.delete(updatedChat.id);
+							}
+						}
+					}
+					if (
+						chatEvent.kind === "status_change" &&
+						!updatedChat.parent_chat_id
+					) {
+						// The old membership is only available before the cache write below.
+						const prevStatus = readInfiniteChatsCache(queryClient)?.find(
+							(chat) => chat.id === updatedChat.id,
+						)?.status;
 						maybePlayChime(
 							prevStatus,
 							updatedChat.status,
@@ -582,6 +717,7 @@ const AgentsPageLayout: FC = () => {
 					}
 
 					if (chatEvent.kind === "deleted") {
+						latestSummaryGenerationStartedAt.delete(updatedChat.id);
 						// The server publishes `deleted` when a chat is
 						// archived (one event per family member); there is
 						// no hard-delete wire event. Patch archive state in
@@ -673,11 +809,31 @@ const AgentsPageLayout: FC = () => {
 				return ws;
 			},
 			onOpen() {
+				clearAllSummaryGenerating();
+				const activeChatId = activeChatIDRef.current;
+				if (activeChatId) {
+					void invalidateChatEntity(queryClient, activeChatId);
+					const activeChat = queryClient.getQueryData<TypesGen.Chat>(
+						chatEntityKey(activeChatId),
+					);
+					if (activeChat) {
+						const costChatId = getChatCostTreeID(activeChat);
+						if (costChatId) {
+							void invalidateChatCostTree(queryClient, costChatId);
+						}
+					}
+				}
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
 			},
 		});
+		return () => {
+			dispose();
+			for (const timeout of summaryGeneratingTimeouts.values()) {
+				clearTimeout(timeout);
+			}
+		};
 	}, [queryClient]);
 
 	useAgentsPageKeybindings({
@@ -738,6 +894,7 @@ const AgentsPageLayout: FC = () => {
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
 		onExpandSidebar: () => setIsSidebarCollapsed(false),
 		onChatReady: () => {},
+		summaryGeneratingChatIds,
 	};
 
 	return (

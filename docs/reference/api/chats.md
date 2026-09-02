@@ -1393,6 +1393,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     ],
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
+  "chat_summary_generation_remaining_ms": 0,
+  "chat_summary_generation_started_at": "2019-08-24T14:15:22Z",
   "kind": "status_change",
   "tool_calls": [
     {

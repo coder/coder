@@ -16204,10 +16204,66 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.False(t, chat.Summary.Valid)
 	require.False(t, chat.SummaryGeneratedAt.Valid)
 
-	affected, err := db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
+	generationStartedAt, err := db.StartChatSummaryGeneration(ctx, database.StartChatSummaryGenerationParams{
 		ID:                     chat.ID,
 		ExpectedHistoryVersion: chat.HistoryVersion,
-		Summary:                sql.NullString{String: "Implemented the whole-chat summary feature.", Valid: true},
+	})
+	require.NoError(t, err)
+
+	activeGenerations, err := db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+		OwnerID:       owner.ID,
+		MaxAgeSeconds: 60,
+	})
+	require.NoError(t, err)
+	require.Len(t, activeGenerations, 1)
+	require.Equal(t, chat.ID, activeGenerations[0].Chat.ID)
+	require.True(t, generationStartedAt.Equal(activeGenerations[0].GenerationStartedAt))
+	require.Positive(t, activeGenerations[0].RemainingMs)
+	require.LessOrEqual(t, activeGenerations[0].RemainingMs, int64(60_000))
+
+	previousGenerationStartedAt := generationStartedAt
+	generationStartedAt, err = db.StartChatSummaryGeneration(ctx, database.StartChatSummaryGenerationParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, generationStartedAt.Sub(previousGenerationStartedAt), time.Millisecond)
+
+	_, err = db.StartChatSummaryGeneration(ctx, database.StartChatSummaryGenerationParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion - 1,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	activeGenerations, err = db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+		OwnerID:       owner.ID,
+		MaxAgeSeconds: 60,
+	})
+	require.NoError(t, err)
+	require.Len(t, activeGenerations, 1)
+	require.True(t, generationStartedAt.Equal(activeGenerations[0].GenerationStartedAt))
+
+	expiredGenerations, err := db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+		OwnerID:       owner.ID,
+		MaxAgeSeconds: 0,
+	})
+	require.NoError(t, err)
+	require.Empty(t, expiredGenerations)
+
+	affected, err := db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
+		ID:                          chat.ID,
+		ExpectedHistoryVersion:      chat.HistoryVersion,
+		ExpectedGenerationStartedAt: sql.NullTime{Time: generationStartedAt.Add(-time.Second), Valid: true},
+		Summary:                     sql.NullString{String: "stale generation", Valid: true},
+	})
+	require.NoError(t, err)
+	require.Zero(t, affected)
+
+	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
+		ID:                          chat.ID,
+		ExpectedHistoryVersion:      chat.HistoryVersion,
+		ExpectedGenerationStartedAt: sql.NullTime{Time: generationStartedAt, Valid: true},
+		Summary:                     sql.NullString{String: "Implemented the whole-chat summary feature.", Valid: true},
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
@@ -16217,6 +16273,20 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.Equal(t, sql.NullString{String: "Implemented the whole-chat summary feature.", Valid: true}, fetched.Summary)
 	require.True(t, fetched.SummaryGeneratedAt.Valid)
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
+
+	activeGenerations, err = db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+		OwnerID:       owner.ID,
+		MaxAgeSeconds: 60,
+	})
+	require.NoError(t, err)
+	require.Empty(t, activeGenerations)
+
+	cleared, err := db.ClearChatSummaryGeneration(ctx, database.ClearChatSummaryGenerationParams{
+		ID:                  chat.ID,
+		GenerationStartedAt: generationStartedAt,
+	})
+	require.NoError(t, err)
+	require.Zero(t, cleared)
 
 	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,
@@ -16274,6 +16344,86 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, sql.NullString{String: "Fresh whole-chat summary.", Valid: true}, fetched.Summary)
 	require.NotEqual(t, chat.HistoryVersion, fetched.HistoryVersion)
+
+	// A concurrent history update must win before the generation marker is
+	// deleted, otherwise reconnect replay loses track of the active worker.
+	generationStartedAt, err = db.StartChatSummaryGeneration(ctx, database.StartChatSummaryGenerationParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: fetched.HistoryVersion,
+	})
+	require.NoError(t, err)
+
+	historyTx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	historyTxCommitted := false
+	t.Cleanup(func() {
+		if !historyTxCommitted {
+			_ = historyTx.Rollback()
+		}
+	})
+	var lockedChatID uuid.UUID
+	err = historyTx.QueryRowContext(ctx, `
+SELECT id
+FROM chats
+WHERE id = $1
+FOR UPDATE
+`, chat.ID).Scan(&lockedChatID)
+	require.NoError(t, err)
+	require.Equal(t, chat.ID, lockedChatID)
+
+	type summaryUpdateResult struct {
+		affected int64
+		err      error
+	}
+	updateResult := make(chan summaryUpdateResult, 1)
+	go func() {
+		affected, err := db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
+			ID:                          chat.ID,
+			ExpectedHistoryVersion:      fetched.HistoryVersion,
+			ExpectedGenerationStartedAt: sql.NullTime{Time: generationStartedAt, Valid: true},
+			Summary:                     sql.NullString{String: "Raced whole-chat summary.", Valid: true},
+		})
+		updateResult <- summaryUpdateResult{affected: affected, err: err}
+	}()
+
+	var summaryLockWaits int
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		err := historyTx.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM pg_stat_activity
+WHERE datname = current_database()
+	AND pid <> pg_backend_pid()
+	AND query LIKE '%-- name: UpdateChatSummary%'
+	AND wait_event_type = 'Lock'
+`).Scan(&summaryLockWaits)
+		return err == nil && summaryLockWaits == 1
+	}, testutil.IntervalFast, "wait for summary update to reach the chat row lock")
+	require.NoError(t, ctx.Err(), "waiting for summary update")
+
+	_, err = historyTx.ExecContext(ctx, `
+UPDATE chats
+SET history_version = history_version + 1
+WHERE id = $1
+`, chat.ID)
+	require.NoError(t, err)
+	require.NoError(t, historyTx.Commit())
+	historyTxCommitted = true
+
+	select {
+	case result := <-updateResult:
+		require.NoError(t, result.err)
+		require.Zero(t, result.affected)
+	case <-ctx.Done():
+		require.Failf(t, "summary update did not finish", "context ended: %v", ctx.Err())
+	}
+
+	activeGenerations, err = db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+		OwnerID:       owner.ID,
+		MaxAgeSeconds: 60,
+	})
+	require.NoError(t, err)
+	require.Len(t, activeGenerations, 1)
+	require.True(t, generationStartedAt.Equal(activeGenerations[0].GenerationStartedAt))
 }
 
 func TestUpdateChatWorkspaceBindingNoOp(t *testing.T) {

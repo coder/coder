@@ -3133,6 +3133,50 @@ func TestWatchChats(t *testing.T) {
 			}
 		}
 	})
+	t.Run("ReplaysActiveSummaryGeneration", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		client := codersdk.NewExperimentalClient(rawClient)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+		})
+
+		generationStartedAt, err := api.Database.StartChatSummaryGeneration(
+			dbauthz.AsChatd(ctx),
+			database.StartChatSummaryGenerationParams{
+				ID:                     chat.ID,
+				ExpectedHistoryVersion: chat.HistoryVersion,
+			},
+		)
+		require.NoError(t, err)
+
+		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+
+		var payload codersdk.ChatWatchEvent
+		require.NoError(t, wsjson.Read(ctx, conn, &payload))
+		require.Equal(t, codersdk.ChatWatchEventKindChatSummaryGenerating, payload.Kind)
+		require.Equal(t, chat.ID, payload.Chat.ID)
+		require.NotNil(t, payload.ChatSummaryGenerationStartedAt)
+		require.True(t, generationStartedAt.Equal(*payload.ChatSummaryGenerationStartedAt))
+		require.NotNil(t, payload.ChatSummaryGenerationRemainingMS)
+		require.Positive(t, *payload.ChatSummaryGenerationRemainingMS)
+		require.LessOrEqual(
+			t,
+			*payload.ChatSummaryGenerationRemainingMS,
+			codersdk.ChatSummaryGenerationTimeout.Milliseconds(),
+		)
+	})
+
 	t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {
 		t.Parallel()
 

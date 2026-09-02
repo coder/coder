@@ -82,6 +82,62 @@ func (t *testMCPAgentTool) MCPServerConfigID() uuid.UUID {
 	return t.configID
 }
 
+func TestFailChatSummaryGeneration(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ps := newRecordingPubsub(dbpubsub.NewInMemory())
+	server := &Server{db: db, pubsub: ps}
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	generationStartedAt := time.Now()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	db.EXPECT().ClearChatSummaryGeneration(gomock.Any(), database.ClearChatSummaryGenerationParams{
+		ID:                  chat.ID,
+		GenerationStartedAt: generationStartedAt,
+	}).Return(int64(1), nil)
+
+	server.failChatSummaryGeneration(
+		context.Background(),
+		logger,
+		chat,
+		generationStartedAt,
+	)
+
+	events := ps.watchEvents(t)
+	require.Len(t, events, 1)
+	require.Equal(t, codersdk.ChatWatchEventKindChatSummaryFailed, events[0].Kind)
+	require.NotNil(t, events[0].ChatSummaryGenerationStartedAt)
+	require.True(t, generationStartedAt.Equal(*events[0].ChatSummaryGenerationStartedAt))
+}
+
+func TestFailChatSummaryGenerationSuperseded(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ps := newRecordingPubsub(dbpubsub.NewInMemory())
+	server := &Server{db: db, pubsub: ps}
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	generationStartedAt := time.Now()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	db.EXPECT().ClearChatSummaryGeneration(gomock.Any(), database.ClearChatSummaryGenerationParams{
+		ID:                  chat.ID,
+		GenerationStartedAt: generationStartedAt,
+	}).Return(int64(0), nil)
+
+	server.failChatSummaryGeneration(
+		context.Background(),
+		logger,
+		chat,
+		generationStartedAt,
+	)
+
+	require.Empty(t, ps.watchEvents(t))
+}
+
 func TestUpdateChatSummary(t *testing.T) {
 	t.Parallel()
 
@@ -94,6 +150,7 @@ func TestUpdateChatSummary(t *testing.T) {
 		server := &Server{db: db, pubsub: ps}
 		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		generationStartedAt := time.Now()
 		caller := rbac.Subject{
 			ID:    chat.OwnerID.String(),
 			Type:  rbac.SubjectTypeUser,
@@ -103,9 +160,10 @@ func TestUpdateChatSummary(t *testing.T) {
 		ctx := dbauthz.As(context.Background(), caller)
 
 		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
-			ID:                     chat.ID,
-			ExpectedHistoryVersion: chat.HistoryVersion,
-			Summary:                sql.NullString{String: "trimmed summary", Valid: true},
+			ID:                          chat.ID,
+			ExpectedHistoryVersion:      chat.HistoryVersion,
+			ExpectedGenerationStartedAt: sql.NullTime{Time: generationStartedAt, Valid: true},
+			Summary:                     sql.NullString{String: "trimmed summary", Valid: true},
 		}).DoAndReturn(func(ctx context.Context, _ database.UpdateChatSummaryParams) (int64, error) {
 			actor, ok := dbauthz.ActorFromContext(ctx)
 			require.True(t, ok, "summary writes must preserve the caller's actor")
@@ -113,11 +171,13 @@ func TestUpdateChatSummary(t *testing.T) {
 			return 1, nil
 		})
 
-		server.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, " \n trimmed summary\t ")
+		server.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, sql.NullTime{Time: generationStartedAt, Valid: true}, " \n trimmed summary\t ")
 
 		events := ps.watchEvents(t)
 		require.Len(t, events, 1)
 		require.Equal(t, codersdk.ChatWatchEventKindChatSummaryChange, events[0].Kind)
+		require.NotNil(t, events[0].ChatSummaryGenerationStartedAt)
+		require.True(t, generationStartedAt.Equal(*events[0].ChatSummaryGenerationStartedAt))
 		require.NotNil(t, events[0].Chat.Summary)
 		require.Equal(t, "trimmed summary", *events[0].Chat.Summary)
 	})
@@ -131,7 +191,7 @@ func TestUpdateChatSummary(t *testing.T) {
 		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, " \n\t ")
+		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, sql.NullTime{}, " \n\t ")
 	})
 
 	t.Run("SkipsEventOnStaleWrite", func(t *testing.T) {
@@ -150,7 +210,7 @@ func TestUpdateChatSummary(t *testing.T) {
 			Summary:                sql.NullString{String: "stale summary", Valid: true},
 		}).Return(int64(0), nil)
 
-		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, "stale summary")
+		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, sql.NullTime{}, "stale summary")
 
 		require.Empty(t, ps.watchEvents(t))
 	})

@@ -1858,6 +1858,10 @@ func NewDynamicTool[T any](
 	}
 }
 
+// ChatSummaryGenerationTimeout bounds how long an interrupted generation can
+// be replayed to newly connected chat watchers.
+const ChatSummaryGenerationTimeout = 2 * time.Minute
+
 // ChatWatchEventKind represents the kind of event in the chat watch stream.
 type ChatWatchEventKind string
 
@@ -1867,12 +1871,14 @@ const (
 	// ChatWatchEventKindChatSummaryChange carries the persisted whole-chat
 	// summary. It is distinct from SummaryChange (bound to last_turn_summary) so
 	// the frontend updates one field without disturbing the other.
-	ChatWatchEventKindChatSummaryChange ChatWatchEventKind = "chat_summary_change"
-	ChatWatchEventKindTitleChange       ChatWatchEventKind = "title_change"
-	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
-	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
-	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
-	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
+	ChatWatchEventKindChatSummaryChange     ChatWatchEventKind = "chat_summary_change"
+	ChatWatchEventKindChatSummaryGenerating ChatWatchEventKind = "chat_summary_generating"
+	ChatWatchEventKindChatSummaryFailed     ChatWatchEventKind = "chat_summary_failed"
+	ChatWatchEventKindTitleChange           ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated               ChatWatchEventKind = "created"
+	ChatWatchEventKindDeleted               ChatWatchEventKind = "deleted"
+	ChatWatchEventKindDiffStatusChange      ChatWatchEventKind = "diff_status_change"
+	ChatWatchEventKindActionRequired        ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context changed: it drifted from the agent's latest
 	// pushed snapshot, or hydration first populated it (a first-turn
@@ -1888,9 +1894,15 @@ const (
 // ActionRequired, ToolCalls contains the pending dynamic tool
 // invocations the client must execute and submit back.
 type ChatWatchEvent struct {
-	Kind      ChatWatchEventKind   `json:"kind"`
-	Chat      Chat                 `json:"chat"`
-	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
+	Kind ChatWatchEventKind `json:"kind"`
+	Chat Chat               `json:"chat"`
+	// ChatSummaryGenerationStartedAt identifies the summary worker that emitted
+	// generating and terminal lifecycle events.
+	ChatSummaryGenerationStartedAt *time.Time `json:"chat_summary_generation_started_at,omitempty" format:"date-time"`
+	// ChatSummaryGenerationRemainingMS is present on chat_summary_generating
+	// events so clients do not restart the generation timeout after reconnecting.
+	ChatSummaryGenerationRemainingMS *int64               `json:"chat_summary_generation_remaining_ms,omitempty"`
+	ToolCalls                        []ChatStreamToolCall `json:"tool_calls,omitempty"`
 }
 
 // ChatStreamEvent represents a real-time update for chat streaming.

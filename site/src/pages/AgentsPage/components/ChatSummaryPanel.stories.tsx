@@ -22,6 +22,7 @@ type MockRequestOptions = {
 	chatError?: boolean;
 	parentChatId?: string;
 	rootChatId?: string;
+	status?: TypesGen.ChatStatus;
 };
 
 const mockRequests = ({
@@ -30,6 +31,7 @@ const mockRequests = ({
 	chatError,
 	parentChatId,
 	rootChatId,
+	status,
 }: MockRequestOptions = {}) => {
 	if (chatError) {
 		spyOn(API.experimental, "getChat").mockRejectedValue(
@@ -41,6 +43,7 @@ const mockRequests = ({
 			summary,
 			...(parentChatId ? { parent_chat_id: parentChatId } : {}),
 			...(rootChatId ? { root_chat_id: rootChatId } : {}),
+			...(status ? { status } : {}),
 		});
 	}
 
@@ -68,20 +71,41 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 export default meta;
 type Story = StoryObj<typeof ChatSummaryPanel>;
 
+export const Loading: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockImplementation(
+			() => new Promise<TypesGen.Chat>(() => {}),
+		);
+		spyOn(API.experimental, "getChatCost").mockResolvedValue(mockCost);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByLabelText("Loading summary")).toBeVisible();
+		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
+	},
+};
+
 export const WithSummary: Story = {
 	beforeEach: () =>
 		mockRequests({
-			summary:
-				"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
+			summary: [
+				"Investigated the flaky CI job and landed a fix.",
+				"",
+				"- Traced it to a cache-layer race in `chatd.go`",
+				"- Added a regression test covering the race",
+			].join("\n"),
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
 			expect(
-				canvas.getByText(/traced it to a cache-layer race/),
+				canvas.getByText(/Traced it to a cache-layer race/),
 			).toBeInTheDocument();
 			expect(canvas.getByText("$1.25")).toBeInTheDocument();
 		});
+		expect(
+			within(canvas.getByRole("list")).getAllByRole("listitem"),
+		).toHaveLength(2);
 	},
 };
 
@@ -96,6 +120,7 @@ export const SubagentSummaryPending: Story = {
 				canvas.getByText("Summary pending agent completion."),
 			).toBeInTheDocument();
 		});
+		expect(canvas.queryByText("Generating summary")).not.toBeInTheDocument();
 	},
 };
 
@@ -140,7 +165,62 @@ export const NotVisible: Story = {
 		expect(
 			canvas.queryByText("Should never be fetched."),
 		).not.toBeInTheDocument();
-		expect(canvas.queryByText("No summary yet.")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText("Not enough details to summarize."),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const NoSummary: Story = {
+	beforeEach: () => mockRequests(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText("Not enough details to summarize."),
+			).toBeInTheDocument();
+		});
+		expect(
+			canvas.getByText(
+				"A recap of your chat will appear here after a few more messages.",
+			),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("Generating summary")).not.toBeInTheDocument();
+		expect(canvas.getByText("Created:")).toBeInTheDocument();
+		expect(canvas.getByText("Updated:")).toBeInTheDocument();
+		expect(canvas.getByText("Cost:")).toBeInTheDocument();
+		expect(canvas.getByText("$1.25")).toBeInTheDocument();
+	},
+};
+
+export const GeneratingSummary: Story = {
+	args: { isGenerating: true },
+	beforeEach: () => mockRequests({ status: "waiting" }),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const status = await canvas.findByRole("status");
+		expect(status).toHaveTextContent("Generating summary");
+		expect(
+			canvas.queryByText("Not enough details to summarize."),
+		).not.toBeInTheDocument();
+		expect(canvas.getByText("Created:")).toBeInTheDocument();
+		expect(canvas.getByText("Cost:")).toBeInTheDocument();
+	},
+};
+
+// A short completed chat (for example, a single "test" prompt) is waiting but
+// never emits chat_summary_generating, so it must keep the empty state.
+export const ShortChatDoesNotGenerateSummary: Story = {
+	beforeEach: () => mockRequests({ status: "waiting" }),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText("Not enough details to summarize."),
+			).toBeInTheDocument();
+		});
+		expect(canvas.queryByText("Generating summary")).not.toBeInTheDocument();
+		expect(canvas.getByText("Cost:")).toBeInTheDocument();
 	},
 };
 

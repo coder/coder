@@ -7561,6 +7561,26 @@ func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUps
 	return err
 }
 
+const clearChatSummaryGeneration = `-- name: ClearChatSummaryGeneration :execrows
+DELETE FROM chat_summary_generations
+WHERE
+    chat_id = $1::uuid
+    AND started_at = $2::timestamptz
+`
+
+type ClearChatSummaryGenerationParams struct {
+	ID                  uuid.UUID `db:"id" json:"id"`
+	GenerationStartedAt time.Time `db:"generation_started_at" json:"generation_started_at"`
+}
+
+func (q *sqlQuerier) ClearChatSummaryGeneration(ctx context.Context, arg ClearChatSummaryGenerationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, clearChatSummaryGeneration, arg.ID, arg.GenerationStartedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const countChatCapacityActiveByPool = `-- name: CountChatCapacityActiveByPool :one
 SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
@@ -7763,6 +7783,113 @@ func (q *sqlQuerier) DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const getActiveChatSummaryGenerationsByOwnerID = `-- name: GetActiveChatSummaryGenerationsByOwnerID :many
+WITH params AS (
+    SELECT $2::int AS max_age_seconds
+)
+SELECT
+    c.id, c.owner_id, c.workspace_id, c.title, c.status, c.worker_id, c.started_at, c.heartbeat_at, c.created_at, c.updated_at, c.parent_chat_id, c.root_chat_id, c.last_model_config_id, c.last_reasoning_effort, c.archived, c.last_error, c.mode, c.mcp_server_ids, c.labels, c.build_id, c.agent_id, c.pin_order, c.last_read_message_id, c.dynamic_tools, c.organization_id, c.plan_mode, c.client_type, c.last_turn_summary, c.summary, c.summary_generated_at, c.snapshot_version, c.history_version, c.queue_version, c.generation_attempt, c.retry_state, c.retry_state_version, c.runner_id, c.requires_action_deadline_at, c.user_acl, c.group_acl, c.owner_username, c.owner_name, c.context_aggregate_hash, c.context_dirty_since, c.context_dirty_resources, c.context_error, c.compaction_requested_at,
+    (
+        GREATEST(
+            0,
+            params.max_age_seconds::bigint - FLOOR(EXTRACT(EPOCH FROM NOW() - g.started_at))::bigint
+        ) * 1000
+    )::bigint AS remaining_ms,
+    g.started_at AS generation_started_at
+FROM chat_summary_generations g
+JOIN chats_expanded c ON c.id = g.chat_id
+CROSS JOIN params
+WHERE
+    c.owner_id = $1::uuid
+    AND c.parent_chat_id IS NULL
+    AND g.started_at > NOW() - (INTERVAL '1 second' * params.max_age_seconds)
+ORDER BY g.started_at
+`
+
+type GetActiveChatSummaryGenerationsByOwnerIDParams struct {
+	OwnerID       uuid.UUID `db:"owner_id" json:"owner_id"`
+	MaxAgeSeconds int32     `db:"max_age_seconds" json:"max_age_seconds"`
+}
+
+type GetActiveChatSummaryGenerationsByOwnerIDRow struct {
+	Chat                Chat      `db:"chat" json:"chat"`
+	RemainingMs         int64     `db:"remaining_ms" json:"remaining_ms"`
+	GenerationStartedAt time.Time `db:"generation_started_at" json:"generation_started_at"`
+}
+
+func (q *sqlQuerier) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg GetActiveChatSummaryGenerationsByOwnerIDParams) ([]GetActiveChatSummaryGenerationsByOwnerIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveChatSummaryGenerationsByOwnerID, arg.OwnerID, arg.MaxAgeSeconds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveChatSummaryGenerationsByOwnerIDRow
+	for rows.Next() {
+		var i GetActiveChatSummaryGenerationsByOwnerIDRow
+		if err := rows.Scan(
+			&i.Chat.ID,
+			&i.Chat.OwnerID,
+			&i.Chat.WorkspaceID,
+			&i.Chat.Title,
+			&i.Chat.Status,
+			&i.Chat.WorkerID,
+			&i.Chat.StartedAt,
+			&i.Chat.HeartbeatAt,
+			&i.Chat.CreatedAt,
+			&i.Chat.UpdatedAt,
+			&i.Chat.ParentChatID,
+			&i.Chat.RootChatID,
+			&i.Chat.LastModelConfigID,
+			&i.Chat.LastReasoningEffort,
+			&i.Chat.Archived,
+			&i.Chat.LastError,
+			&i.Chat.Mode,
+			pq.Array(&i.Chat.MCPServerIDs),
+			&i.Chat.Labels,
+			&i.Chat.BuildID,
+			&i.Chat.AgentID,
+			&i.Chat.PinOrder,
+			&i.Chat.LastReadMessageID,
+			&i.Chat.DynamicTools,
+			&i.Chat.OrganizationID,
+			&i.Chat.PlanMode,
+			&i.Chat.ClientType,
+			&i.Chat.LastTurnSummary,
+			&i.Chat.Summary,
+			&i.Chat.SummaryGeneratedAt,
+			&i.Chat.SnapshotVersion,
+			&i.Chat.HistoryVersion,
+			&i.Chat.QueueVersion,
+			&i.Chat.GenerationAttempt,
+			&i.Chat.RetryState,
+			&i.Chat.RetryStateVersion,
+			&i.Chat.RunnerID,
+			&i.Chat.RequiresActionDeadlineAt,
+			&i.Chat.UserACL,
+			&i.Chat.GroupACL,
+			&i.Chat.OwnerUsername,
+			&i.Chat.OwnerName,
+			&i.Chat.ContextAggregateHash,
+			&i.Chat.ContextDirtySince,
+			&i.Chat.ContextDirtyResources,
+			&i.Chat.ContextError,
+			&i.Chat.CompactionRequestedAt,
+			&i.RemainingMs,
+			&i.GenerationStartedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getActiveChatsByAgentID = `-- name: GetActiveChatsByAgentID :many
@@ -11584,6 +11711,38 @@ func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID u
 	return err
 }
 
+const startChatSummaryGeneration = `-- name: StartChatSummaryGeneration :one
+WITH locked_chat AS (
+    SELECT id
+    FROM chats
+    WHERE
+        id = $1::uuid
+        AND history_version = $2::bigint
+    FOR UPDATE
+)
+INSERT INTO chat_summary_generations (chat_id)
+SELECT id FROM locked_chat
+ON CONFLICT (chat_id) DO UPDATE
+SET started_at = GREATEST(
+    NOW(),
+    chat_summary_generations.started_at + INTERVAL '1 millisecond'
+)
+RETURNING started_at
+`
+
+type StartChatSummaryGenerationParams struct {
+	ID                     uuid.UUID `db:"id" json:"id"`
+	ExpectedHistoryVersion int64     `db:"expected_history_version" json:"expected_history_version"`
+}
+
+// Clients order generation identities at millisecond precision.
+func (q *sqlQuerier) StartChatSummaryGeneration(ctx context.Context, arg StartChatSummaryGenerationParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, startChatSummaryGeneration, arg.ID, arg.ExpectedHistoryVersion)
+	var started_at time.Time
+	err := row.Scan(&started_at)
+	return started_at, err
+}
+
 const unarchiveChatByID = `-- name: UnarchiveChatByID :many
 WITH updated_chats AS (
     UPDATE chats SET
@@ -13177,25 +13336,52 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 }
 
 const updateChatSummary = `-- name: UpdateChatSummary :execrows
+WITH locked_chat AS (
+    SELECT id
+    FROM chats
+    WHERE
+        id = $3::uuid
+        AND history_version = $4::bigint
+    FOR UPDATE
+),
+cleared_generation AS (
+    DELETE FROM chat_summary_generations g
+    USING locked_chat
+    WHERE
+        g.chat_id = locked_chat.id
+        AND g.started_at = $2::timestamptz
+    RETURNING g.chat_id
+)
 UPDATE chats
 SET
     summary = $1::text,
     summary_generated_at = NOW()
+FROM locked_chat
 WHERE
-    id = $2::uuid
-    AND history_version = $3::bigint
+    chats.id = locked_chat.id
+    AND (
+        $2::timestamptz IS NULL
+        OR EXISTS (SELECT 1 FROM cleared_generation)
+    )
 `
 
 type UpdateChatSummaryParams struct {
-	Summary                sql.NullString `db:"summary" json:"summary"`
-	ID                     uuid.UUID      `db:"id" json:"id"`
-	ExpectedHistoryVersion int64          `db:"expected_history_version" json:"expected_history_version"`
+	Summary                     sql.NullString `db:"summary" json:"summary"`
+	ExpectedGenerationStartedAt sql.NullTime   `db:"expected_generation_started_at" json:"expected_generation_started_at"`
+	ID                          uuid.UUID      `db:"id" json:"id"`
+	ExpectedHistoryVersion      int64          `db:"expected_history_version" json:"expected_history_version"`
 }
 
 // The history_version fence lets background summary writes ignore worker-only
-// updates while losing to newer message history.
+// updates while losing to newer message history. Root summary workers atomically
+// delete their generation marker so storage and replay state cannot diverge.
 func (q *sqlQuerier) UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateChatSummary, arg.Summary, arg.ID, arg.ExpectedHistoryVersion)
+	result, err := q.db.ExecContext(ctx, updateChatSummary,
+		arg.Summary,
+		arg.ExpectedGenerationStartedAt,
+		arg.ID,
+		arg.ExpectedHistoryVersion,
+	)
 	if err != nil {
 		return 0, err
 	}

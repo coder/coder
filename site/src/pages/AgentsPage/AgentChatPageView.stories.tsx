@@ -138,6 +138,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
 		isSharedChat: false,
+		isChatSummaryGenerating: false,
 		chatOwner: undefined as ComponentProps<
 			typeof AgentChatPageView
 		>["chatOwner"],

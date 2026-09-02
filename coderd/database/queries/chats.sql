@@ -1496,16 +1496,84 @@ WHERE
     id = @id::uuid
     AND history_version = @expected_history_version::bigint;
 
+-- name: StartChatSummaryGeneration :one
+WITH locked_chat AS (
+    SELECT id
+    FROM chats
+    WHERE
+        id = @id::uuid
+        AND history_version = @expected_history_version::bigint
+    FOR UPDATE
+)
+INSERT INTO chat_summary_generations (chat_id)
+SELECT id FROM locked_chat
+ON CONFLICT (chat_id) DO UPDATE
+-- Clients order generation identities at millisecond precision.
+SET started_at = GREATEST(
+    NOW(),
+    chat_summary_generations.started_at + INTERVAL '1 millisecond'
+)
+RETURNING started_at;
+
+-- name: ClearChatSummaryGeneration :execrows
+DELETE FROM chat_summary_generations
+WHERE
+    chat_id = @id::uuid
+    AND started_at = sqlc.arg('generation_started_at')::timestamptz;
+
+-- name: GetActiveChatSummaryGenerationsByOwnerID :many
+WITH params AS (
+    SELECT @max_age_seconds::int AS max_age_seconds
+)
+SELECT
+    sqlc.embed(c),
+    (
+        GREATEST(
+            0,
+            params.max_age_seconds::bigint - FLOOR(EXTRACT(EPOCH FROM NOW() - g.started_at))::bigint
+        ) * 1000
+    )::bigint AS remaining_ms,
+    g.started_at AS generation_started_at
+FROM chat_summary_generations g
+JOIN chats_expanded c ON c.id = g.chat_id
+CROSS JOIN params
+WHERE
+    c.owner_id = @owner_id::uuid
+    AND c.parent_chat_id IS NULL
+    AND g.started_at > NOW() - (INTERVAL '1 second' * params.max_age_seconds)
+ORDER BY g.started_at;
+
 -- name: UpdateChatSummary :execrows
 -- The history_version fence lets background summary writes ignore worker-only
--- updates while losing to newer message history.
+-- updates while losing to newer message history. Root summary workers atomically
+-- delete their generation marker so storage and replay state cannot diverge.
+WITH locked_chat AS (
+    SELECT id
+    FROM chats
+    WHERE
+        id = @id::uuid
+        AND history_version = @expected_history_version::bigint
+    FOR UPDATE
+),
+cleared_generation AS (
+    DELETE FROM chat_summary_generations g
+    USING locked_chat
+    WHERE
+        g.chat_id = locked_chat.id
+        AND g.started_at = sqlc.narg('expected_generation_started_at')::timestamptz
+    RETURNING g.chat_id
+)
 UPDATE chats
 SET
     summary = sqlc.narg('summary')::text,
     summary_generated_at = NOW()
+FROM locked_chat
 WHERE
-    id = @id::uuid
-    AND history_version = @expected_history_version::bigint;
+    chats.id = locked_chat.id
+    AND (
+        sqlc.narg('expected_generation_started_at')::timestamptz IS NULL
+        OR EXISTS (SELECT 1 FROM cleared_generation)
+    );
 
 -- name: UpdateChatMCPServerIDs :one
 WITH updated_chat AS (

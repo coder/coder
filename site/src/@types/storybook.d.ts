@@ -13,8 +13,17 @@ import type { Permissions } from "#/modules/permissions";
 
 declare module "@storybook/react-vite" {
 	type WebSocketEvent =
-		| { event: "message"; data: string }
-		| { event: "open" | "error" | "close" };
+		| {
+				event: "message";
+				data: string;
+				delayMs?: number;
+				connectionIndex?: number;
+		  }
+		| {
+				event: "open" | "error" | "close";
+				delayMs?: number;
+				connectionIndex?: number;
+		  };
 	interface Parameters {
 		features?: (FeatureName | ({ name: FeatureName } & Partial<Feature>))[];
 		experiments?: Experiments;

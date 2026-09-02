@@ -263,9 +263,8 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 				if encoder == nil {
 					return
 				}
-				// The encoder is only written from the pubsub delivery
-				// goroutine, which processes messages serially. Do not
-				// add a second write path without synchronization.
+				// Replays finish before encoderReady closes. After that,
+				// only this serial pubsub delivery goroutine writes.
 				if err := encoder.Encode(payload); err != nil {
 					logger.Debug(cbCtx, "failed to send chat watch event", slog.Error(err))
 					cancel()
@@ -283,6 +282,23 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cancelSubscribe()
+
+	activeSummaryGenerations, err := api.Database.GetActiveChatSummaryGenerationsByOwnerID(
+		ctx,
+		database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+			OwnerID:       apiKey.UserID,
+			MaxAgeSeconds: int32(codersdk.ChatSummaryGenerationTimeout / time.Second),
+		},
+	)
+	if err != nil {
+		close(encoderReady)
+		logger.Error(ctx, "failed to load active chat summary generations", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load active chat summary generations.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -302,6 +318,22 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx = api.wsWatcher.Watch(ctx, logger, conn)
 
 	encoder = json.NewEncoder(wsNetConn)
+	for _, generation := range activeSummaryGenerations {
+		generationStartedAt := generation.GenerationStartedAt
+		remainingMs := generation.RemainingMs
+		if err := encoder.Encode(codersdk.ChatWatchEvent{
+			Kind:                             codersdk.ChatWatchEventKindChatSummaryGenerating,
+			Chat:                             db2sdk.Chat(generation.Chat, nil, nil),
+			ChatSummaryGenerationStartedAt:   &generationStartedAt,
+			ChatSummaryGenerationRemainingMS: &remainingMs,
+		}); err != nil {
+			encoder = nil
+			close(encoderReady)
+			logger.Debug(ctx, "failed to replay chat summary generation",
+				slog.F("chat_id", generation.Chat.ID), slog.Error(err))
+			return
+		}
+	}
 	close(encoderReady)
 
 	<-ctx.Done()
