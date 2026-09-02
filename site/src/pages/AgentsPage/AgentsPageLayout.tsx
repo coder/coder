@@ -620,7 +620,10 @@ const AgentsPageLayout: FC = () => {
 					// title generation finished, so its response carries
 					// the fallback title.
 					void cancelChatListRefetches(queryClient);
-					void cancelLoadedChatEntityRefetch(queryClient, updatedChat.id);
+					const interruptedEntityRefetch = cancelLoadedChatEntityRefetch(
+						queryClient,
+						updatedChat.id,
+					);
 
 					if (chatEvent.kind === "created") {
 						if (updatedChat.parent_chat_id) {
@@ -672,6 +675,7 @@ const AgentsPageLayout: FC = () => {
 							void invalidateChatCostTree(queryClient, costChatId);
 						}
 						if (
+							interruptedEntityRefetch ||
 							chatEvent.kind === "context_dirty" ||
 							shouldRefetchRuntimeCommands(updatedChat, chatEvent.kind)
 						) {
@@ -680,7 +684,11 @@ const AgentsPageLayout: FC = () => {
 							// refetch the open chat to pull the pinned
 							// resources the single-chat GET computes. Only the
 							// active chat has an observer, so other chats are
-							// merely marked stale.
+							// merely marked stale. A refetch the cancel above
+							// interrupted is re-requested here: runtime chats
+							// publish summary_change right after the turn-ending
+							// status_change, which otherwise loses the runtime
+							// commands refetch until the next turn.
 							void invalidateChatEntity(queryClient, updatedChat.id);
 						}
 					}
