@@ -2119,7 +2119,7 @@ communicating directly.`,
 	aiGatewayWIFAllowedIdentityTokenFiles := serpent.Option{
 		Name: "AI Gateway WIF Allowed Identity Token Files",
 		Description: "Absolute paths of OIDC identity token files that Workload Identity Federation (WIF) AI providers managed through the API may read. " +
-			"Files referenced by CODER_AI_GATEWAY_PROVIDER_<N>_WIF_IDENTITY_TOKEN_FILE are trusted automatically, but only together with that provider's configured base URL, and only by coderd; a standalone AI Gateway does not parse provider env vars and trusts only the files listed here. " +
+			"Files referenced by `CODER_AI_GATEWAY_PROVIDER_<N>_WIF_IDENTITY_TOKEN_FILE` are trusted automatically, but only together with that provider's configured base URL, and only by coderd; a standalone AI Gateway does not parse provider env vars and trusts only the files listed here. " +
 			"A file listed here can be sent to any HTTPS base URL a Coder administrator configures on a WIF provider, so list only tokens intended for AI provider federation. " +
 			"coderd enforces this list when providers are created or updated through the API, and the process performing the token exchanges enforces it again before reading a file; " +
 			"when the AI Gateway runs standalone, set the same value on both coderd and the gateway process.",

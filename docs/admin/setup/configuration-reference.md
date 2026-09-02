@@ -305,6 +305,14 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 - YAML key: `ai_gateway.structured_logging`
 - Default value: `false`
 
+### WIF allowed identity token files
+
+Absolute paths of OIDC identity token files that Workload Identity Federation (WIF) AI providers managed through the API may read. Files referenced by `CODER_AI_GATEWAY_PROVIDER_<N>_WIF_IDENTITY_TOKEN_FILE` are trusted automatically, but only together with that provider's configured base URL, and only by coderd; a standalone AI Gateway does not parse provider env vars and trusts only the files listed here. A file listed here can be sent to any HTTPS base URL a Coder administrator configures on a WIF provider, so list only tokens intended for AI provider federation. coderd enforces this list when providers are created or updated through the API, and the process performing the token exchanges enforces it again before reading a file; when the AI Gateway runs standalone, set the same value on both coderd and the gateway process.
+
+- Environment variable: `CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES`
+- CLI flag: [`--ai-gateway-wif-allowed-identity-token-files`](../../reference/cli/server.md#--ai-gateway-wif-allowed-identity-token-files)
+- YAML key: `ai_gateway.wif_allowed_identity_token_files`
+
 ### Anthropic base URL
 
 **Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL of the Anthropic API.
