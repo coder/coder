@@ -130,6 +130,64 @@ func TestWaitForACPAdapter(t *testing.T) {
 	}
 }
 
+func TestACPNewSessionCwd(t *testing.T) {
+	t.Parallel()
+
+	const expanded = "/home/coder/project"
+	tests := []struct {
+		name  string
+		agent database.WorkspaceAgent
+		// expandOnReload is the reload that reports the expansion; 0
+		// never does.
+		expandOnReload int
+		wantReloads    int
+		wantCwd        string
+	}{
+		{name: "ExpansionKnown", agent: database.WorkspaceAgent{Directory: "~/project", ExpandedDirectory: expanded}, wantCwd: expanded},
+		{name: "NoDirectoryConfigured", agent: database.WorkspaceAgent{}},
+		{name: "WaitsForExpansion", agent: database.WorkspaceAgent{Directory: "~/project"}, expandOnReload: 2, wantReloads: 2, wantCwd: expanded},
+		{name: "DeadlineFallsBack", agent: database.WorkspaceAgent{Directory: "~/project"}, wantReloads: int(acpWorkspaceReadyTimeout / acpWorkspacePollInterval)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+			deadline := clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
+			trap := clock.Trap().NewTimer("chatworker", "chatacp-cwd")
+			defer trap.Close()
+
+			reloads := 0
+			reload := func(context.Context) (database.WorkspaceAgent, error) {
+				reloads++
+				agent := tc.agent
+				if reloads == tc.expandOnReload {
+					agent.ExpandedDirectory = expanded
+				}
+				return agent, nil
+			}
+
+			type result struct {
+				cwd string
+				err error
+			}
+			done := make(chan result, 1)
+			go func() {
+				cwd, err := acpNewSessionCwd(ctx, clock, tc.agent, deadline, reload)
+				done <- result{cwd: cwd, err: err}
+			}()
+			for range tc.wantReloads {
+				trap.MustWait(ctx).MustRelease(ctx)
+				clock.Advance(acpWorkspacePollInterval).MustWait(ctx)
+			}
+			got := testutil.RequireReceive(ctx, t, done)
+			require.NoError(t, got.err)
+			require.Equal(t, tc.wantCwd, got.cwd)
+			require.Equal(t, tc.wantReloads, reloads)
+		})
+	}
+}
+
 // TestPersistACPRuntimeStateSkipsResetSession verifies that a turn only
 // records its session while the stored state is still the one it
 // started from, so a message edit that reset the session mid-turn wins.

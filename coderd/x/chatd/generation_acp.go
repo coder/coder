@@ -111,7 +111,19 @@ func (s *taskStarter) startACPGeneration(
 	}
 	defer closeTransport()
 
+	state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
 	cwd := agent.ExpandedDirectory
+	if state.SessionID == "" {
+		cwd, err = acpNewSessionCwd(ctx, s.opts.Clock, agent, readinessDeadline, func(ctx context.Context) (database.WorkspaceAgent, error) {
+			return s.server.db.GetWorkspaceAgentByID(ctx, agent.ID)
+		})
+		if err != nil {
+			if ctx.Err() != nil {
+				return errors.Join(errTaskExpectedExit, xerrors.Errorf("resolve session directory: %w", err))
+			}
+			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+		}
+	}
 	if cwd == "" {
 		cwd, err = chattool.ResolveWorkspaceHome(ctx, conn)
 		if err != nil {
@@ -125,7 +137,6 @@ func (s *taskStarter) startACPGeneration(
 	}
 	defer attempt.closeEpisode()
 
-	state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
 	startedAt := s.opts.Clock.Now("chatworker", "chatacp")
 	outcome, runErr := chatacp.RunTurn(ctx, transport, chatacp.TurnInput{
 		SessionID:      state.SessionID,
@@ -659,6 +670,40 @@ func waitForACPAdapter(
 			return xerrors.Errorf("acp adapter preflight: %w", ctx.Err())
 		}
 	}
+}
+
+// acpNewSessionCwd returns the agent's expanded directory for a new
+// ACP session. The directory is persisted with the session and keys
+// Claude Code's session storage for the life of the chat, and a turn
+// that dials right after a workspace build can see the agent before it
+// has reported the expansion. An agent with a configured directory is
+// therefore re-read until the expansion lands or the deadline passes;
+// an empty result leaves the caller to fall back to the home directory.
+func acpNewSessionCwd(
+	ctx context.Context,
+	clock quartz.Clock,
+	agent database.WorkspaceAgent,
+	deadline time.Time,
+	reload func(context.Context) (database.WorkspaceAgent, error),
+) (string, error) {
+	for agent.ExpandedDirectory == "" && agent.Directory != "" {
+		if !clock.Now("chatworker", "chatacp-cwd").Before(deadline) {
+			break
+		}
+		timer := clock.NewTimer(acpWorkspacePollInterval, "chatworker", "chatacp-cwd")
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return "", xerrors.Errorf("wait for agent directory: %w", ctx.Err())
+		}
+		refreshed, err := reload(ctx)
+		if err != nil {
+			return "", xerrors.Errorf("reload workspace agent: %w", err)
+		}
+		agent = refreshed
+	}
+	return agent.ExpandedDirectory, nil
 }
 
 // probeACPAdapter checks once whether the adapter binary is on
