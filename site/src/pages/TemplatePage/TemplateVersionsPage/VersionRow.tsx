@@ -7,6 +7,7 @@ import { Button } from "#/components/Button/Button";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
+import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
@@ -53,7 +54,10 @@ export const VersionRow: FC<VersionRowProps> = ({
 								version <strong>{version.name}</strong>
 							</span>
 							{version.message && (
-								<InfoTooltip title="Message" message={version.message} />
+								<InfoTooltip>
+									<TooltipTitle>Message</TooltipTitle>
+									<TooltipMessage>{version.message}</TooltipMessage>
+								</InfoTooltip>
 							)}
 							<span className="text-xs text-content-secondary">
 								{new Date(version.created_at).toLocaleTimeString()}
