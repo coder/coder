@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { workspacesKey } from "#/api/queries/workspaces";
 import {
 	MockTemplate,
@@ -59,6 +59,13 @@ export const Example: Story = {
 		await expect(
 			menu.getByRole("menuitem", { name: "Duplicate…" }),
 		).toHaveAttribute("href", `/templates/new?fromTemplate=${MockTemplate.id}`);
+
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(
+				menu.queryByRole("menuitem", { name: "Settings" }),
+			).not.toBeInTheDocument();
+		});
 	},
 };
 
