@@ -50,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -2055,30 +2056,13 @@ func TestChatRuntimeRequests(t *testing.T) {
 	t.Run("RejectsInvalidModelConfigsConsistently", func(t *testing.T) {
 		t.Parallel()
 
-		runtimes := []struct {
-			runtime       codersdk.ChatRuntime
-			provider      string
-			otherProvider string
-			detail        string
-		}{
-			{
-				runtime:       codersdk.ChatRuntimeClaudeCode,
-				provider:      "anthropic",
-				otherProvider: "openai",
-				detail:        "Claude Code chats accept enabled Anthropic model configs only.",
-			},
-			{
-				runtime:       codersdk.ChatRuntimeCodex,
-				provider:      "openai",
-				otherProvider: "anthropic",
-				detail:        "Codex chats accept enabled OpenAI model configs only.",
-			},
-		}
-
-		for _, rt := range runtimes {
-			t.Run(string(rt.runtime), func(t *testing.T) {
+		for runtime, detail := range map[codersdk.ChatRuntime]string{
+			codersdk.ChatRuntimeClaudeCode: "Claude Code chats accept enabled Anthropic model configs only.",
+			codersdk.ChatRuntimeCodex:      "Codex chats accept enabled OpenAI model configs only.",
+		} {
+			t.Run(string(runtime), func(t *testing.T) {
 				t.Parallel()
-				testRuntimeRejectsInvalidModelConfigs(t, client, db, user, rt.runtime, rt.provider, rt.otherProvider, rt.detail)
+				testRuntimeRejectsInvalidModelConfigs(t, client, db, user, runtime, detail)
 			})
 		}
 	})
@@ -2090,11 +2074,17 @@ func testRuntimeRejectsInvalidModelConfigs(
 	db database.Store,
 	user codersdk.CreateFirstUserResponse,
 	runtime codersdk.ChatRuntime,
-	provider string,
-	otherProvider string,
 	wantDetail string,
 ) {
 	t.Helper()
+
+	harness, ok := chatacp.HarnessFor(runtime)
+	require.True(t, ok)
+	provider := string(harness.ProviderType)
+	otherProvider := string(codersdk.AIProviderTypeAnthropic)
+	if harness.ProviderType == codersdk.AIProviderTypeAnthropic {
+		otherProvider = string(codersdk.AIProviderTypeOpenAI)
+	}
 
 	memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, user.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)

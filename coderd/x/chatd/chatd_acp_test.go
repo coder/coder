@@ -60,7 +60,6 @@ type acpTestSetup struct {
 	user      database.User
 	org       database.Organization
 	workspace database.WorkspaceTable
-	agent     database.WorkspaceAgent
 	// providerID is an enabled provider of the harness type holding
 	// acpTestProviderKey; otherProviderID is an enabled provider of a
 	// different type, whose model configs the runtime must reject.
@@ -111,37 +110,9 @@ func seedACPChatDependencies(t *testing.T, db database.Store, harness chatacp.Ha
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
 	})
+	seedWorkspaceBuild(t, db, ws, tv.ID, transition, 1)
 
-	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		InitiatorID:    user.ID,
-		OrganizationID: org.ID,
-		StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
-		CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
-	})
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		TemplateVersionID: tv.ID,
-		WorkspaceID:       ws.ID,
-		JobID:             pj.ID,
-		Transition:        transition,
-	})
-	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-		Transition: transition,
-		JobID:      pj.ID,
-	})
-	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-		ResourceID:      res.ID,
-		Directory:       "/home/coder/project",
-		OperatingSystem: "linux",
-	})
-	require.NoError(t, db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
-		ID:                agent.ID,
-		Version:           "v1.0.0",
-		ExpandedDirectory: "/home/coder/project",
-	}))
-	agent, err := db.GetWorkspaceAgentByID(ctx, agent.ID)
-	require.NoError(t, err)
-
-	_, err = db.UpsertChatRuntimeConfig(ctx, database.UpsertChatRuntimeConfigParams{
+	_, err := db.UpsertChatRuntimeConfig(ctx, database.UpsertChatRuntimeConfigParams{
 		OrganizationID: org.ID,
 		Runtime:        database.ChatRuntime(harness.Runtime),
 		TemplateID:     tpl.ID,
@@ -156,10 +127,42 @@ func seedACPChatDependencies(t *testing.T, db database.Store, harness chatacp.Ha
 		user:            user,
 		org:             org,
 		workspace:       ws,
-		agent:           agent,
 		providerID:      provider.ID,
 		otherProviderID: otherProvider.ID,
 	}
+}
+
+// seedWorkspaceBuild records a completed build of the given transition
+// with one ready agent whose directory the runtime uses as its cwd.
+func seedWorkspaceBuild(t *testing.T, db database.Store, workspace database.WorkspaceTable, templateVersionID uuid.UUID, transition database.WorkspaceTransition, buildNumber int32) {
+	t.Helper()
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		InitiatorID:    workspace.OwnerID,
+		OrganizationID: workspace.OrganizationID,
+		StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
+		CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		TemplateVersionID: templateVersionID,
+		WorkspaceID:       workspace.ID,
+		JobID:             job.ID,
+		Transition:        transition,
+		BuildNumber:       buildNumber,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		Transition: transition,
+		JobID:      job.ID,
+	})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID:      resource.ID,
+		Directory:       "/home/coder/project",
+		OperatingSystem: "linux",
+	})
+	require.NoError(t, db.UpdateWorkspaceAgentStartupByID(context.Background(), database.UpdateWorkspaceAgentStartupByIDParams{
+		ID:                agent.ID,
+		Version:           "v1.0.0",
+		ExpandedDirectory: "/home/coder/project",
+	}))
 }
 
 func createACPChat(
@@ -392,53 +395,31 @@ func TestACPChatRestartsStoppedWorkspace(t *testing.T) {
 		fakeAgent := &chatacptest.FakeAgent{}
 		created := createACPChat(ctx, t, db, ps, setup, "wake up")
 
+		// The worker goroutine only records the start request; the test
+		// goroutine seeds the resulting build, which the worker polls for.
+		type startRequest struct {
+			ownerID, workspaceID uuid.UUID
+			transition           codersdk.WorkspaceTransition
+		}
+		started := make(chan startRequest, 1)
 		overrides := acpConfigOverrides(t, setup, fakeAgent, primaryCredentials(acpTestPinnedModel))
 		_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			overrides(cfg)
-			cfg.StartWorkspace = func(ctx context.Context, ownerID uuid.UUID, workspaceID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
-				require.Equal(t, setup.user.ID, ownerID)
-				require.Equal(t, setup.workspace.ID, workspaceID)
-				require.Equal(t, codersdk.WorkspaceTransitionStart, req.Transition)
-				build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
-				if err != nil {
-					return codersdk.WorkspaceBuild{}, err
-				}
-				pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-					InitiatorID:    ownerID,
-					OrganizationID: setup.org.ID,
-					StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
-					CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
-				})
-				newBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					TemplateVersionID: build.TemplateVersionID,
-					WorkspaceID:       workspaceID,
-					JobID:             pj.ID,
-					Transition:        database.WorkspaceTransitionStart,
-					BuildNumber:       build.BuildNumber + 1,
-				})
-				res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-					Transition: database.WorkspaceTransitionStart,
-					JobID:      pj.ID,
-				})
-				agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-					ResourceID:      res.ID,
-					Directory:       "/home/coder/project",
-					OperatingSystem: "linux",
-				})
-				if err := db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
-					ID:                agent.ID,
-					Version:           "v1.0.0",
-					ExpandedDirectory: "/home/coder/project",
-				}); err != nil {
-					return codersdk.WorkspaceBuild{}, err
-				}
-				return codersdk.WorkspaceBuild{ID: newBuild.ID}, nil
+			cfg.StartWorkspace = func(_ context.Context, ownerID uuid.UUID, workspaceID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				started <- startRequest{ownerID, workspaceID, req.Transition}
+				return codersdk.WorkspaceBuild{}, nil
 			}
 		})
+
+		request := testutil.RequireReceive(ctx, t, started)
+		stopped, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, setup.workspace.ID)
+		require.NoError(t, err)
+		seedWorkspaceBuild(t, db, setup.workspace, stopped.TemplateVersionID, database.WorkspaceTransitionStart, stopped.BuildNumber+1)
 
 		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 		require.Equal(t, database.ChatStatusWaiting, chat.Status)
 		require.False(t, chat.LastError.Valid)
+		require.Equal(t, startRequest{setup.user.ID, setup.workspace.ID, codersdk.WorkspaceTransitionStart}, request)
 		require.Len(t, fakeAgent.Prompts(), 1)
 	})
 }
@@ -691,16 +672,6 @@ func TestACPModelSelectionValidation(t *testing.T) {
 				ModelConfigID:   otherCfg.ID,
 			})
 			require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
-		})
-
-		t.Run("ValidateForCreatePath", func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			require.NoError(t, replica.ValidateACPModelConfigID(ctx, harness, setup.org.ID, validCfg.ID))
-			for _, id := range []uuid.UUID{otherCfg.ID, otherOrgCfg.ID, disabledCfg.ID, uuid.New()} {
-				require.ErrorIs(t, replica.ValidateACPModelConfigID(ctx, harness, setup.org.ID, id), chatd.ErrInvalidModelConfigID)
-			}
 		})
 	})
 }
