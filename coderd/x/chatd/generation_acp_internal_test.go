@@ -2,14 +2,19 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -123,6 +128,56 @@ func TestWaitForACPAdapter(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestPersistACPRuntimeStateSkipsResetSession verifies that a turn only
+// records its session while the stored state is still the one it
+// started from, so a message edit that reset the session mid-turn wins.
+func TestPersistACPRuntimeStateSkipsResetSession(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Runtime:        database.ChatRuntime(testHarness.Runtime),
+	})
+	starter := &taskStarter{opts: chatWorkerOptions{
+		Store:  db,
+		Logger: testutil.NewFakeSink(t).Logger(),
+	}}
+	storedState := func() chatacp.RuntimeState {
+		got, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		return chatacp.ParseRuntimeState(got.RuntimeState.RawMessage)
+	}
+	now := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	// The first turn starts from an empty state and records its session.
+	first := chatacp.RuntimeState{SessionID: "session-1", Cwd: "/home/coder/project", UpdatedAt: now}
+	starter.persistACPRuntimeState(ctx, chat.ID, chatacp.RuntimeState{}, first)
+	require.Equal(t, first, storedState())
+
+	// An edit resets the session while the second turn is in flight;
+	// that turn's late write must not resurrect the discarded session.
+	reset := chatacp.RuntimeState{UpdatedAt: now.Add(time.Minute)}
+	encoded, err := json.Marshal(reset)
+	require.NoError(t, err)
+	require.NoError(t, db.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
+		ID:           chat.ID,
+		RuntimeState: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
+	}))
+	stale := chatacp.RuntimeState{SessionID: "session-1", Cwd: "/home/coder/project", UpdatedAt: now.Add(2 * time.Minute)}
+	starter.persistACPRuntimeState(ctx, chat.ID, first, stale)
+	require.Equal(t, reset, storedState())
+
+	// The turn that started after the reset records its new session.
+	fresh := chatacp.RuntimeState{SessionID: "session-2", Cwd: "/home/coder/project", UpdatedAt: now.Add(3 * time.Minute)}
+	starter.persistACPRuntimeState(ctx, chat.ID, reset, fresh)
+	require.Equal(t, fresh, storedState())
 }
 
 func acpMessage(t *testing.T, id int64, role database.ChatMessageRole, part codersdk.ChatMessagePart) database.ChatMessage {

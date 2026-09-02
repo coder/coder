@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -360,6 +361,30 @@ func (tx *Tx) resolveQueuedMessageModelConfigID(
 	return uuid.NullUUID{}, ErrNoDefaultChatModelConfig
 }
 
+// resetRuntimeSession drops the persisted ACP session once an edit has
+// truncated the transcript. Resuming it would replay the discarded
+// turns, so the next turn starts a new session and reseeds it from the
+// surviving history. The fresh UpdatedAt lets an in-flight turn detect
+// the reset and skip recording its now stale session.
+func (tx *Tx) resetRuntimeSession(chat database.Chat) error {
+	state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
+	state.SessionID = ""
+	state.Cwd = ""
+	state.Usage = nil
+	state.UpdatedAt = dbtime.Now()
+	encoded, err := json.Marshal(state)
+	if err != nil {
+		return xerrors.Errorf("marshal runtime state: %w", err)
+	}
+	if err := tx.store.UpdateChatRuntimeState(tx.ctx, database.UpdateChatRuntimeStateParams{
+		ID:           tx.chatID,
+		RuntimeState: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
+	}); err != nil {
+		return xerrors.Errorf("reset runtime session: %w", err)
+	}
+	return nil
+}
+
 // SetArchivedInput configures [Tx.SetArchived].
 type SetArchivedInput struct {
 	Archived bool
@@ -677,6 +702,11 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		AfterID: target.ID,
 	}); err != nil {
 		return EditMessageResult{}, xerrors.Errorf("soft-delete suffix: %w", err)
+	}
+	if _, external := chatacp.HarnessFor(codersdk.ChatRuntime(chat.Runtime)); external {
+		if err := tx.resetRuntimeSession(chat); err != nil {
+			return EditMessageResult{}, err
+		}
 	}
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by message edit", false)
 	if err != nil {

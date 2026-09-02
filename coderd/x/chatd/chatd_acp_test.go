@@ -331,6 +331,55 @@ func TestACPChatResumesSession(t *testing.T) {
 	})
 }
 
+// TestACPChatEditStartsNewSession verifies that editing a message does
+// not resume the ACP session that still holds the discarded turns: the
+// next turn starts a new session and reseeds it from the transcript.
+func TestACPChatEditStartsNewSession(t *testing.T) {
+	t.Parallel()
+
+	forEachHarness(t, func(t *testing.T, harness chatacp.Harness) {
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
+
+		fakeAgent := &chatacptest.FakeAgent{
+			Capabilities: acp.AgentCapabilities{
+				SessionCapabilities: acp.SessionCapabilities{Resume: &acp.SessionResumeCapabilities{}},
+			},
+		}
+
+		created := createACPChat(ctx, t, db, ps, setup, "first message")
+		server := newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent, primaryCredentials(acpTestPinnedModel)))
+
+		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
+		require.Equal(t, database.ChatStatusWaiting, chat.Status)
+		require.Len(t, fakeAgent.NewSessions(), 1)
+
+		_, err := server.EditMessage(ctx, chatd.EditMessageOptions{
+			ChatID:          chat.ID,
+			CreatedBy:       setup.user.ID,
+			EditedMessageID: created.InitialMessages[0].ID,
+			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited message")},
+		})
+		require.NoError(t, err)
+
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			got, err := db.GetChatByID(ctx, chat.ID)
+			if err != nil {
+				return false
+			}
+			return got.Status == database.ChatStatusWaiting && got.HistoryVersion > chat.HistoryVersion
+		}, testutil.IntervalFast)
+
+		require.Empty(t, fakeAgent.ResumeSessions())
+		require.Len(t, fakeAgent.NewSessions(), 2)
+		prompts := fakeAgent.Prompts()
+		require.Len(t, prompts, 2)
+		require.Equal(t, "edited message", prompts[1].Prompt[0].Text.Text)
+	})
+}
+
 func TestACPChatRestartsStoppedWorkspace(t *testing.T) {
 	t.Parallel()
 

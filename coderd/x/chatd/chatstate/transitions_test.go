@@ -820,6 +820,64 @@ func TestEditMessageInsertsSuffixMessages(t *testing.T) {
 	}
 }
 
+// TestEditMessageResetsRuntimeSession verifies that truncating an
+// external runtime chat's transcript also drops the persisted ACP
+// session, while built-in chats keep their runtime_state untouched.
+func TestEditMessageResetsRuntimeSession(t *testing.T) {
+	t.Parallel()
+
+	const seededState = `{"session_id":"s1","cwd":"/home/coder/project","usage":{"input_tokens":3},"available_commands":[{"name":"review"}],"updated_at":"2024-01-02T03:04:05Z"}`
+
+	runtimes := []database.ChatRuntime{database.ChatRuntimeCoder}
+	for _, harness := range chatacp.Harnesses() {
+		runtimes = append(runtimes, database.ChatRuntime(harness.Runtime))
+	}
+	for _, runtime := range runtimes {
+		t.Run(string(runtime), func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			created, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+				OrganizationID:  f.Org.ID,
+				OwnerID:         f.User.ID,
+				Runtime:         runtime,
+				Title:           "edit resets session",
+				ClientType:      database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{userTextMessage("hello", f.User.ID, f.Model.ID)},
+			})
+			require.NoError(t, err)
+			require.NoError(t, f.DB.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
+				ID:           created.Chat.ID,
+				RuntimeState: pqtype.NullRawMessage{RawMessage: json.RawMessage(seededState), Valid: true},
+			}))
+
+			rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")})
+			require.NoError(t, err)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := tx.EditMessage(chatstate.EditMessageInput{
+					MessageID: created.InitialMessages[0].ID,
+					CreatedBy: f.User.ID,
+					Content:   rawContent,
+				})
+				return err
+			}))
+
+			chat := f.readChat(ctx, t, created.Chat.ID)
+			state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
+			if runtime == database.ChatRuntimeCoder {
+				require.JSONEq(t, seededState, string(chat.RuntimeState.RawMessage))
+				return
+			}
+			require.Empty(t, state.SessionID)
+			require.Empty(t, state.Cwd)
+			require.Nil(t, state.Usage)
+			require.Equal(t, []codersdk.ChatRuntimeCommand{{Name: "review"}}, state.AvailableCommands)
+			require.True(t, state.UpdatedAt.After(chatacp.ParseRuntimeState([]byte(seededState)).UpdatedAt))
+		})
+	}
+}
+
 // TestTransitionAbandon_RejectsUnowned verifies that calling Abandon
 // on a chat the runner does not own returns ErrTransitionNotAllowed
 // wrapped in a TransitionError that records the loaded from-state,

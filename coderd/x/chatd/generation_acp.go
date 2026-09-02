@@ -147,7 +147,7 @@ func (s *taskStarter) startACPGeneration(
 	// commit below fails: the workspace-side session advanced either
 	// way, and the next turn should resume it.
 	if outcome.SessionID != "" {
-		s.persistACPRuntimeState(ctx, chat.ID, next)
+		s.persistACPRuntimeState(ctx, chat.ID, state, next)
 	}
 
 	if ctx.Err() != nil {
@@ -689,15 +689,28 @@ func probeACPAdapter(ctx context.Context, clock quartz.Clock, client *gossh.Clie
 // persistACPRuntimeState best-effort records the ACP session
 // that served the turn so the next turn can resume it. It runs even
 // when the turn was interrupted or the commit fails, because the
-// workspace-side session advanced regardless.
-func (s *taskStarter) persistACPRuntimeState(ctx context.Context, chatID uuid.UUID, state chatacp.RuntimeState) {
-	encoded, err := json.Marshal(state)
+// workspace-side session advanced regardless. It skips the write when
+// the stored state moved past the one the turn started from: a message
+// edit resets the session mid-turn, and recording this turn's session
+// would resurrect the transcript the edit discarded.
+func (s *taskStarter) persistACPRuntimeState(ctx context.Context, chatID uuid.UUID, observed, next chatacp.RuntimeState) {
+	encoded, err := json.Marshal(next)
 	if err != nil {
 		s.opts.Logger.Warn(ctx, "marshal acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
 		return
 	}
 	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), acpPersistStateTimeout)
 	defer cancel()
+	current, err := s.opts.Store.GetChatByID(persistCtx, chatID)
+	if err != nil {
+		s.opts.Logger.Warn(persistCtx, "load chat for acp runtime state", slog.F("chat_id", chatID), slog.Error(err))
+		return
+	}
+	if stored := chatacp.ParseRuntimeState(current.RuntimeState.RawMessage); !stored.UpdatedAt.Equal(observed.UpdatedAt) {
+		s.opts.Logger.Info(persistCtx, "acp runtime state changed during turn, not recording session",
+			slog.F("chat_id", chatID), slog.F("session_id", next.SessionID))
+		return
+	}
 	if err := s.opts.Store.UpdateChatRuntimeState(persistCtx, database.UpdateChatRuntimeStateParams{
 		ID:           chatID,
 		RuntimeState: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
