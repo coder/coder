@@ -3671,6 +3671,12 @@ func (q *querier) GetChatRetentionDays(ctx context.Context) (int32, error) {
 }
 
 func (q *querier) GetChatRuntimeConfig(ctx context.Context, arg database.GetChatRuntimeConfigParams) (database.ChatRuntimeConfig, error) {
+	// Chat owners read their organization's runtime config at chat
+	// creation and the chat worker at turn start. Only requires a
+	// valid actor in context.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return database.ChatRuntimeConfig{}, ErrNoActor
+	}
 	return q.db.GetChatRuntimeConfig(ctx, arg)
 }
 
