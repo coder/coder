@@ -61,12 +61,12 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 }
 
 // grantableScopes drops allowlist entries this deployment does not offer. An
-// empty result is returned rather than rejected: negotiation and redemption
-// report it differently.
+// empty result is returned rather than rejected so the caller decides: both
+// callers happen to answer errNoGrantableScope, but only one of them can say
+// whether an empty allowlist should also fail the request.
 func grantableScopes(appScope string) []string {
-	allowed := strings.Fields(appScope)
-	filtered := make([]string, 0, len(allowed))
-	for _, a := range allowed {
+	filtered := make([]string, 0, strings.Count(appScope, " ")+1)
+	for a := range strings.FieldsSeq(appScope) {
 		if rbac.IsExternalScope(rbac.ScopeName(a)) {
 			filtered = append(filtered, a)
 		}
@@ -77,30 +77,35 @@ func grantableScopes(appScope string) []string {
 }
 
 // firstScopeNotCovered returns the first requested scope the ceiling does not
-// confer, or "" when it confers all of them. The check is coverage, not
-// membership: a ceiling of `coder:workspaces.access` covers `workspace:read`.
-// Both arguments must already be canonical. The ceiling is the app's allowlist
-// at authorization and the token's own grant at refresh.
-func firstScopeNotCovered(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, ceiling, requested []string) (string, error) {
+// confer, or "" when it confers all of them. It compares what the scopes grant,
+// not their names: a ceiling of `coder:workspaces.access` covers
+// `workspace:read`. Pass both slices through canonicalScopes first, since RBAC
+// expands `coder:all` but not the bare `all` alias. A comparison it cannot
+// decide refuses.
+//
+// The ceiling is the app's allowlist at authorization and the token's own grant
+// at refresh, which is what phase names in the log.
+func firstScopeNotCovered(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, ceiling, requested []string) (string, error) {
 	allowedNames := make([]rbac.ScopeName, 0, len(ceiling))
 	for _, a := range ceiling {
 		allowedNames = append(allowedNames, rbac.ScopeName(a))
 	}
-	for _, s := range requested {
-		covered, err := rbac.ScopesCover(allowedNames, rbac.ScopeName(s))
-		if err != nil {
-			logger.Warn(ctx, "oauth2 scope coverage could not be determined",
-				slog.Error(err),
-				slog.F("app_id", app.ID.String()),
-				slog.F("ceiling", strings.Join(ceiling, " ")),
-				slog.F("scope", s))
-			return "", xerrors.Errorf("%q: %w", s, errCoverageUndecidable)
-		}
-		if !covered {
-			return s, nil
-		}
+	requestedNames := make([]rbac.ScopeName, 0, len(requested))
+	for _, r := range requested {
+		requestedNames = append(requestedNames, rbac.ScopeName(r))
 	}
-	return "", nil
+	// One pass over the ceiling rather than one per requested scope.
+	outside, err := rbac.FirstScopeNotCovered(allowedNames, requestedNames)
+	if err != nil {
+		logger.Warn(ctx, "oauth2 scope coverage could not be determined",
+			slog.Error(err),
+			slog.F("phase", phase),
+			slog.F("app_id", appID.String()),
+			slog.F("ceiling", strings.Join(ceiling, " ")),
+			slog.F("scope", string(outside)))
+		return "", xerrors.Errorf("'%s': %w", outside, errCoverageUndecidable)
+	}
+	return string(outside), nil
 }
 
 // negotiateScope decides the scope the authorization code will carry. Every
@@ -150,7 +155,7 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		return strings.Join(allowlist, " "), nil // RFC 6749 §3.3 default
 	}
 
-	outside, err := firstScopeNotCovered(ctx, logger, app, allowlist, granted)
+	outside, err := firstScopeNotCovered(ctx, logger, "authorize", app.ID, allowlist, granted)
 	if err != nil {
 		return "", err
 	}

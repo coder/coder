@@ -250,14 +250,13 @@ func requirePersistableScope(t *testing.T, scope string) {
 	}
 }
 
-// Rejection reasons for the package's black-box tests, which cannot reach the
-// sentinels.
+// Rejection reasons from authorize.go for the package's black-box tests, which
+// cannot reach the sentinels.
 var (
-	ReasonUnknownScope     = errUnknownScope.Error()
-	ReasonNoGrantableScope = errNoGrantableScope.Error()
-	ReasonScopeNotAllowed  = errScopeNotAllowed.Error()
-	ReasonStaleScope       = errStaleScope.Error()
-	ReasonScopeNotGranted  = errScopeNotGranted.Error()
+	ReasonUnknownScope        = errUnknownScope.Error()
+	ReasonNoGrantableScope    = errNoGrantableScope.Error()
+	ReasonScopeNotAllowed     = errScopeNotAllowed.Error()
+	ReasonCoverageUndecidable = errCoverageUndecidable.Error()
 )
 
 func TestNoScopeAllowlist(t *testing.T) {
