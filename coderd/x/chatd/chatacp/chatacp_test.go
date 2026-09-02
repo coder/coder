@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func testLogger(t *testing.T) slog.Logger {
@@ -751,13 +752,16 @@ func TestBuildReseedContext(t *testing.T) {
 
 func TestRunTurnCancelTimeout(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().NewTimer("chatacp", "cancel-resolve")
+	defer trap.Close()
 
-	promptStarted := make(chan struct{})
+	promptStarted := make(chan struct{}, 1)
 	release := make(chan struct{})
 	agent := &chatacptest.FakeAgent{}
 	agent.OnPrompt = func(context.Context, *acp.AgentSideConnection, acp.PromptRequest) (acp.PromptResponse, error) {
-		close(promptStarted)
+		promptStarted <- struct{}{}
 		// Never resolve until released: simulates an adapter that
 		// ignores session/cancel.
 		<-release
@@ -766,21 +770,21 @@ func TestRunTurnCancelTimeout(t *testing.T) {
 	t.Cleanup(func() { close(release) })
 
 	turnCtx, cancelTurn := context.WithCancel(ctx)
+	done := make(chan error, 1)
 	go func() {
-		select {
-		case <-promptStarted:
-		case <-ctx.Done():
-		}
-		cancelTurn()
+		_, err := chatacp.RunTurn(turnCtx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
+			Cwd:        "/home/coder",
+			PromptText: "hang",
+			Logger:     testLogger(t),
+			Clock:      clock,
+		})
+		done <- err
 	}()
 
-	start := time.Now()
-	_, err := chatacp.RunTurn(turnCtx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
-		Cwd:        "/home/coder",
-		PromptText: "hang",
-		Logger:     testLogger(t),
-	})
-	require.Error(t, err)
-	require.ErrorIs(t, err, context.Canceled)
-	require.Less(t, time.Since(start), testutil.WaitLong)
+	testutil.RequireReceive(ctx, t, promptStarted)
+	cancelTurn()
+	call := trap.MustWait(ctx)
+	call.MustRelease(ctx)
+	clock.Advance(call.Duration).MustWait(ctx)
+	require.ErrorIs(t, testutil.RequireReceive(ctx, t, done), context.Canceled)
 }

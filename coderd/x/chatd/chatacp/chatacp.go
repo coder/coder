@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -63,6 +64,8 @@ type TurnInput struct {
 	// buffer.
 	Publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger  slog.Logger
+	// Clock paces the cancel handshake; nil uses the real clock.
+	Clock quartz.Clock
 }
 
 // TurnOutcome is the durable result of one generation turn.
@@ -184,9 +187,11 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 			defer done()
 			_ = conn.Cancel(cancelCtx, acp.CancelNotification{SessionId: session})
 		}()
+		timer := cmp.Or(input.Clock, quartz.NewReal()).NewTimer(cancelResolveTimeout, "chatacp", "cancel-resolve")
 		select {
 		case result = <-resultCh:
-		case <-time.After(cancelResolveTimeout):
+			timer.Stop()
+		case <-timer.C:
 			return TurnOutcome{}, xerrors.Errorf("acp turn: %w", ctx.Err())
 		}
 	}

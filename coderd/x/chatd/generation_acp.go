@@ -137,6 +137,7 @@ func (s *taskStarter) startACPGeneration(
 		AgentName:      harness.DisplayName,
 		Publish:        attempt.publish,
 		Logger:         s.opts.Logger,
+		Clock:          s.opts.Clock,
 	})
 	elapsed := s.opts.Clock.Now("chatworker", "chatacp").Sub(startedAt)
 
