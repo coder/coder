@@ -441,16 +441,40 @@ dropped. Authorize again to negotiate a scope it still supports; the stored
 scope is not something the client can change by requesting a different one.
 
 The exchange also re-checks the code's scope against the application's
-registered `scope`, which an administrator can narrow during the ten minutes a
-code stays valid. A code whose scope the narrowed registration no longer
-covers is refused the same way, with `scope is no longer allowed by this app's
-registered scopes`. Authorize again to negotiate a scope within the new
-registration.
+registered `scope`, which can change during the ten minutes a code stays valid.
+Two more descriptions can open the `error_description` here:
 
-A refresh is not re-checked against the registration. RFC 6749 section 6 bounds
-it by the scope originally granted, so narrowing an application's registered
-scopes takes effect at the next authorization rather than cutting short a
-session already in progress.
+- `scope is no longer allowed by this app's registered scopes`: the
+  registration narrowed after the code was issued and no longer covers the
+  code's scope. Authorize again to negotiate a scope within the new
+  registration.
+- `none of the scopes registered for this app are supported by this
+  deployment`: the registration names nothing this deployment offers, so no
+  code against it can be redeemed. Re-register the application with supported
+  scopes.
+
+A coverage comparison this deployment cannot decide answers HTTP 500 with
+`error=server_error` and `The requested scope could not be evaluated`; the
+scope that could not be compared is in the server logs, not the response.
+
+Only the application itself can change its registered `scope`, through
+[Dynamic Client Registration](#dynamic-client-registration). No administrator
+surface writes the column, and an application that holds its registration
+access token can widen its own allowlist again before redeeming a code, so
+treat this re-check as reflecting the registration at redemption time rather
+than as a constraint on the client.
+
+A refresh is not re-checked against the registration. That is a Coder policy
+choice: withdrawing scope from a session already running would break it
+mid-flight, so a narrowing takes effect at the next authorization. A refresh
+token keeps its granted scope until it expires, which can be up to the
+configured refresh lifetime; revoke the token to cut a live session.
+
+Codes issued before the upgrade that added scope columns carry `coder:all`,
+recorded as an unrestricted grant. For an application registered with a
+narrower `scope`, those codes are refused with `scope is no longer allowed by
+this app's registered scopes` until they expire, which takes at most ten
+minutes. Authorizing again issues a code within the current registration.
 
 ### "unsupported_response_type" returned to your callback
 

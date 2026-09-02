@@ -86,7 +86,14 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 	})
 }
 
-func TestScopeStillCoveredByAllowlist(t *testing.T) {
+// Rejection reasons from tokens.go, exported for the same reason as the
+// authorize.go block in authorize_internal_test.go.
+var (
+	ReasonUnmintableScope = errUnmintableScope.Error()
+	ReasonStaleScope      = errStaleScope.Error()
+)
+
+func TestCheckScopeStillCovered(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -161,6 +168,14 @@ func TestScopeStillCoveredByAllowlist(t *testing.T) {
 			appScope: sql.NullString{String: "all", Valid: true},
 		},
 		{
+			// The mirror image, and the only row that exercises canonicalizing
+			// the granted side: `all` is not expandable, so a code stored
+			// before canonicalization landed would refuse without it.
+			name:     "LegacyAliasGrantCoveredByCanonicalAllowlist",
+			granted:  "all",
+			appScope: sql.NullString{String: "coder:all", Valid: true},
+		},
+		{
 			name:     "GrantOutsideTheCatalogUndecidable",
 			granted:  "some_removed_scope",
 			appScope: sql.NullString{String: inCatalog, Valid: true},
@@ -173,7 +188,7 @@ func TestScopeStillCoveredByAllowlist(t *testing.T) {
 			t.Parallel()
 
 			app := database.OAuth2ProviderApp{ID: uuid.New(), Scope: test.appScope}
-			err := scopeStillCoveredByAllowlist(t.Context(), slogtest.Make(t, nil), app, test.granted)
+			err := checkScopeStillCovered(t.Context(), slogtest.Make(t, nil), app, test.granted)
 			if test.wantErr == nil {
 				require.NoError(t, err)
 				return

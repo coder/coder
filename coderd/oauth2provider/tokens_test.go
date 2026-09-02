@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -160,6 +161,8 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
 
 		description := requireTokenGrantError(t, status, body)
+		require.Contains(t, description, oauth2provider.ReasonUnmintableScope,
+			"the mint check is what this case is named for, and both sentinels echo the scope")
 		require.Contains(t, description, scopeOutOfCatalog,
 			"an operator cannot act on this without knowing which stored name is the problem")
 	})
@@ -178,6 +181,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		require.Contains(t, description, oauth2provider.ReasonStaleScope)
 		require.Contains(t, description, "workspace:ssh",
 			"the client needs the scope name to know what was withdrawn")
+		requireNoSessionKey(ctx, t, db, owner.UserID, app.ID)
 	})
 
 	t.Run("AllowlistWidenedAfterAuthorizationStillRedeems", func(t *testing.T) {
@@ -192,10 +196,12 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
 			mintedKeyScopes(ctx, t, db, token.RefreshToken))
+		requireCodeConsumed(ctx, t, db, code)
 	})
 
-	// RFC 6749 §6 bounds a refresh by the scope originally granted, not by the
-	// live allowlist.
+	// A narrowing takes effect at the next authorization rather than cutting
+	// short a session already running. That is a Coder policy choice: §6 caps
+	// what a refresh may request, it does not oblige the server to keep issuing.
 	t.Run("RefreshIgnoresAllowlistNarrowing", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -353,6 +359,29 @@ func seedCode(ctx context.Context, t *testing.T, db database.Store, appID, userI
 	})
 	require.NoError(t, err)
 	return secret.Formatted
+}
+
+// requireNoSessionKey asserts the exchange minted nothing. The scope checks run
+// before the transaction that deletes the code and inserts the key, so a
+// rejection that left a row behind would still answer 400.
+func requireNoSessionKey(ctx context.Context, t *testing.T, db database.Store, userID, appID uuid.UUID) {
+	t.Helper()
+
+	_, err := db.GetAPIKeyByName(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeyByNameParams{
+		UserID:    userID,
+		TokenName: fmt.Sprintf("%s_%s_oauth_session_token", userID, appID),
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows, "a refused redemption must mint no key")
+}
+
+// requireCodeConsumed asserts a redeemed code cannot be redeemed again.
+func requireCodeConsumed(ctx context.Context, t *testing.T, db database.Store, code string) {
+	t.Helper()
+
+	parsed, err := oauth2provider.ParseFormattedSecret(code)
+	require.NoError(t, err)
+	_, err = db.GetOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(parsed.Prefix))
+	require.ErrorIs(t, err, sql.ErrNoRows, "a redeemed code must not survive the exchange")
 }
 
 func tokenExchangeForm(app appWithSecret, code, verifier string) url.Values {
