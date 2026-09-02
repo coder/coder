@@ -119,8 +119,12 @@ type codexModelProviderConfig struct {
 // codexEnv configures codex-acp for non-interactive API-key auth:
 // NO_BROWSER hides the ChatGPT login method and DEFAULT_AUTH_REQUEST
 // makes the adapter log in with OPENAI_API_KEY itself when Codex asks
-// for authentication. Model and gateway routing travel in CODEX_CONFIG,
-// which the adapter merges into the Codex session config.
+// for authentication. That login writes the key to Codex's auth store
+// under CODEX_HOME on the workspace's persistent home, next to the
+// session storage resume depends on, so the key outlives the turn and
+// chatd cannot prevent that without giving up session resume. Model and
+// gateway routing travel in CODEX_CONFIG, which the adapter merges into
+// the Codex session config.
 func codexEnv(creds TurnCredentials) map[string]string {
 	env := map[string]string{
 		"OPENAI_API_KEY":       creds.APIKey,
