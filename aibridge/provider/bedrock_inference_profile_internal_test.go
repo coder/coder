@@ -131,13 +131,13 @@ func TestModelIDFromARN(t *testing.T) {
 func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 	const profileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5"
 
-	bedrockCfg := func(model string) *config.AWSBedrock {
+	bedrockCfg := func(model, smallFastModel string) *config.AWSBedrock {
 		return &config.AWSBedrock{
 			Region:          "us-east-1",
 			AccessKey:       "test-key",
 			AccessKeySecret: "test-secret",
 			Model:           model,
-			SmallFastModel:  "anthropic.claude-haiku-4-5",
+			SmallFastModel:  smallFastModel,
 		}
 	}
 
@@ -162,7 +162,7 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN))
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
 		require.NoError(t, err)
 		require.Equal(t, "anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
 		// The profile stays the configured identifier so AWS attributes spend to it.
@@ -181,7 +181,7 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN))
+		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
 		require.ErrorContains(t, err, "resolve bedrock models")
 		require.ErrorContains(t, err, "GetInferenceProfile")
 	})
@@ -193,7 +193,7 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN))
+		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
 		require.ErrorContains(t, err, "references no model")
 	})
 
@@ -206,10 +206,7 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		cfg := bedrockCfg("eu.anthropic.claude-opus-4-8")
-		cfg.SmallFastModel = smallFastProfileARN
-
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, cfg)
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8", smallFastProfileARN))
 		require.NoError(t, err)
 		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
 		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
@@ -224,7 +221,7 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8"))
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"))
 		require.NoError(t, err)
 		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
 		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ConfiguredModel())
