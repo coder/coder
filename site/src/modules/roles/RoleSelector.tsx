@@ -240,7 +240,7 @@ const ImpliedRoleRow: React.FC<ImpliedRoleRowProps> = ({
 	caption,
 }) => {
 	return (
-		<div className="border-t border-border py-2 flex items-start gap-2 text-content-disabled">
+		<div className="py-2 px-4 flex items-start gap-2 text-content-disabled">
 			<UserIcon className="size-4 mt-1 shrink-0" />
 			<div className="flex flex-col">
 				<span className="text-sm font-medium">{title}</span>

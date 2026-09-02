@@ -26,6 +26,38 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+export const Loading: Story = {
+	parameters: {
+		queries: [{ key: rolesQueryKey, data: [] }],
+	},
+	beforeEach: () => {
+		spyOn(API, "getAuthMethods").mockReturnValue(new Promise(() => {}));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("status", { name: /loading/i }),
+		).toBeVisible();
+	},
+};
+
+export const AuthMethodsError: Story = {
+	parameters: {
+		queries: [{ key: rolesQueryKey, data: [] }],
+	},
+	beforeEach: () => {
+		spyOn(API, "getAuthMethods").mockRejectedValue(
+			mockApiError({ message: "Failed to load authentication methods." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByText("Failed to load authentication methods."),
+		).toBeVisible();
+	},
+};
+
 export const ShowsSuccessNotificationOnSubmit: Story = {
 	beforeEach: () => {
 		spyOn(API, "createUser").mockResolvedValue({
@@ -106,24 +138,23 @@ async function fillForm(
 	loginType: "password" | "service account" = "password",
 ) {
 	const isPasswordLogin = loginType === "password";
-	const body = within(document.body);
 
-	await user.type(await canvas.findByLabelText("Username"), "someuser");
+	await user.type(await canvas.findByLabelText(/username/i), "someuser");
 	if (isPasswordLogin) {
 		await user.type(canvas.getByLabelText(/email/i), "someone@coder.com");
-	}
-
-	await user.click(canvas.getByTestId("login-type-input"));
-	await user.click(
-		await body.findByRole("option", { name: new RegExp(loginType, "i") }),
-	);
-
-	if (isPasswordLogin) {
 		await user.type(
-			await canvas.findByTestId("password-input"),
+			canvas.getByTestId("password-input"),
 			"SomeSecurePassword!",
 		);
+	} else {
+		await user.click(canvas.getByTestId("login-type-input"));
+		await user.click(
+			await within(document.body).findByRole("option", {
+				name: /service account/i,
+			}),
+		);
+		await user.keyboard("{Escape}");
 	}
 
-	await user.click(canvas.getByRole("button", { name: /save/i }));
+	await user.click(await canvas.findByRole("button", { name: /save/i }));
 }
