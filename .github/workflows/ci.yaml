@@ -1084,8 +1084,10 @@ jobs:
 
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
 
+    # Forks and Dependabot receive no secrets, so they only build Storybook;
+    # trusted runs snapshot it against Pixel instead.
     env:
-      PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
+      PIXEL_ENABLED: ${{ github.event_name != 'pull_request' || (!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1103,13 +1105,17 @@ jobs:
         working-directory: site/
         name: Install Chromium
 
-      # Forks and Dependabot receive no secrets, so there is no Pixel project
-      # to snapshot against.
+      - run: pnpm storybook:build
+        working-directory: site/
+        name: Build
+        if: env.PIXEL_ENABLED != 'true'
+
       - run: pnpm pixel-storybook:ci
         working-directory: site/
         name: Snapshot
-        if: env.PIXEL_KEY != ''
+        if: env.PIXEL_ENABLED == 'true'
         env:
+          PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
           PIXEL_AUTO_REVIEW: ${{ github.repository_owner == 'coder' && github.ref_name == 'main' }}
 
   offlinedocs:
