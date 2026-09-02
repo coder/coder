@@ -76,12 +76,6 @@ const (
 		"has not yet addressed; they follow this summary verbatim. Orient " +
 		"yourself with the summary below, then address the user's pending " +
 		"message(s) directly:"
-	compactionPendingUserNote = "Note: the user's most recent message(s) " +
-		"arrived immediately before this compaction, have not been " +
-		"responded to, and are intentionally excluded from the " +
-		"conversation shown to you. They are preserved verbatim outside " +
-		"this summary. Do not describe, attribute, or speculate about " +
-		"them; summarize only the conversation you can see."
 )
 
 // CompactionSource identifies what triggered a compaction. It is
@@ -96,16 +90,16 @@ const (
 )
 
 type CompactionOptions struct {
-	ThresholdPercent    int32
-	ContextLimit        int64
-	SummaryPrompt       string
-	SummaryHint         string
-	SystemSummaryPrefix string
-	PendingUserMessages bool
-	Persist             func(context.Context, CompactionResult) error
-	DebugSvc            *chatdebug.Service
-	ChatID              uuid.UUID
-	HistoryTipMessageID int64
+	ThresholdPercent       int32
+	ContextLimit           int64
+	SummaryPrompt          string
+	SummaryHint            string
+	SystemSummaryPrefix    string
+	HasPendingUserMessages bool
+	Persist                func(context.Context, CompactionResult) error
+	DebugSvc               *chatdebug.Service
+	ChatID                 uuid.UUID
+	HistoryTipMessageID    int64
 
 	ResolvedProvider string
 	ResolvedModel    string
@@ -236,36 +230,33 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 
 func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (CompactionOptions, bool) {
 	config := CompactionOptions{
-		ThresholdPercent:    opts.ThresholdPercent,
-		ContextLimit:        opts.ContextLimit,
-		SummaryPrompt:       opts.SummaryPrompt,
-		SummaryHint:         opts.SummaryHint,
-		SystemSummaryPrefix: opts.SystemSummaryPrefix,
-		PendingUserMessages: opts.PendingUserMessages,
-		DebugSvc:            opts.DebugSvc,
-		ChatID:              opts.ChatID,
-		HistoryTipMessageID: opts.HistoryTipMessageID,
-		ResolvedProvider:    opts.ResolvedProvider,
-		ResolvedModel:       opts.ResolvedModel,
-		ModelConfigID:       opts.ModelConfigID,
-		SummaryCall:         opts.SummaryCall,
-		Force:               opts.Force,
-		Source:              opts.Source,
-		ToolCallID:          opts.ToolCallID,
-		ToolName:            opts.ToolName,
-		PublishMessagePart:  opts.PublishMessagePart,
+		ThresholdPercent:       opts.ThresholdPercent,
+		ContextLimit:           opts.ContextLimit,
+		SummaryPrompt:          opts.SummaryPrompt,
+		SummaryHint:            opts.SummaryHint,
+		SystemSummaryPrefix:    opts.SystemSummaryPrefix,
+		HasPendingUserMessages: opts.HasPendingUserMessages,
+		DebugSvc:               opts.DebugSvc,
+		ChatID:                 opts.ChatID,
+		HistoryTipMessageID:    opts.HistoryTipMessageID,
+		ResolvedProvider:       opts.ResolvedProvider,
+		ResolvedModel:          opts.ResolvedModel,
+		ModelConfigID:          opts.ModelConfigID,
+		SummaryCall:            opts.SummaryCall,
+		Force:                  opts.Force,
+		Source:                 opts.Source,
+		ToolCallID:             opts.ToolCallID,
+		ToolName:               opts.ToolName,
+		PublishMessagePart:     opts.PublishMessagePart,
 	}
 	if strings.TrimSpace(config.SummaryPrompt) == "" {
 		config.SummaryPrompt = defaultCompactionSummaryPrompt
 	}
 	if strings.TrimSpace(config.SystemSummaryPrefix) == "" {
 		config.SystemSummaryPrefix = defaultCompactionSystemSummaryPrefix
-		if config.PendingUserMessages {
+		if config.HasPendingUserMessages {
 			config.SystemSummaryPrefix = defaultCompactionSystemSummaryPrefixPendingUser
 		}
-	}
-	if config.PendingUserMessages {
-		config.SummaryPrompt += "\n\n" + compactionPendingUserNote
 	}
 	if config.Source == "" {
 		config.Source = CompactionSourceAutomatic

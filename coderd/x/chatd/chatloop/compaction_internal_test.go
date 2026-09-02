@@ -403,13 +403,13 @@ func TestGenerateCompaction_PendingUserMessagesPromptVariant(t *testing.T) {
 	}
 
 	result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-		Model:               model,
-		Clock:               quartz.NewMock(t),
-		Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello"), textMessage(fantasy.MessageRoleAssistant, "answered")},
-		ThresholdPercent:    70,
-		ContextLimit:        1000,
-		StepUsage:           fantasy.Usage{InputTokens: 900},
-		PendingUserMessages: true,
+		Model:                  model,
+		Clock:                  quartz.NewMock(t),
+		Messages:               []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello"), textMessage(fantasy.MessageRoleAssistant, "answered")},
+		ThresholdPercent:       70,
+		ContextLimit:           1000,
+		StepUsage:              fantasy.Usage{InputTokens: 900},
+		HasPendingUserMessages: true,
 	})
 	require.NoError(t, err)
 
@@ -418,8 +418,7 @@ func TestGenerateCompaction_PendingUserMessagesPromptVariant(t *testing.T) {
 	require.Equal(t, fantasy.MessageRoleUser, last.Role)
 	text, ok := last.Content[0].(fantasy.TextPart)
 	require.True(t, ok)
-	require.Contains(t, text.Text, defaultCompactionSummaryPrompt)
-	require.Contains(t, text.Text, compactionPendingUserNote)
+	require.Equal(t, defaultCompactionSummaryPrompt, text.Text)
 
 	require.True(t, strings.HasPrefix(result.SystemSummary, defaultCompactionSystemSummaryPrefixPendingUser))
 	require.NotContains(t, result.SystemSummary, "actively working")
@@ -453,6 +452,6 @@ func TestGenerateCompaction_DefaultPromptWithoutPendingUser(t *testing.T) {
 	last := captured.Prompt[len(captured.Prompt)-1]
 	text, ok := last.Content[0].(fantasy.TextPart)
 	require.True(t, ok)
-	require.NotContains(t, text.Text, compactionPendingUserNote)
+	require.Equal(t, defaultCompactionSummaryPrompt, text.Text)
 	require.True(t, strings.HasPrefix(result.SystemSummary, defaultCompactionSystemSummaryPrefix))
 }

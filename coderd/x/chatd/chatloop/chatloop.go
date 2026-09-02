@@ -313,7 +313,7 @@ type GenerateCompactionOptions struct {
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata
 
-	PendingUserMessages bool
+	HasPendingUserMessages bool
 
 	// Force skips the threshold gate (including the threshold=100
 	// disable and the zero-usage early return). Set for manual,

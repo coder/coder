@@ -287,7 +287,16 @@ func (server *Server) prepareGeneration(
 	// provider-executed blocks, so a mid-chat provider switch must not replay
 	// them.
 	//
-	// Derive the pending-user segment from unsanitized rows: sanitization can drop assistant separator rows, and it only rewrites assistant rows, so sanitizing the head alone is equivalent.
+	// The pending-user segment (trailing user rows the assistant has not
+	// answered yet) is handled separately from here through prompt
+	// assembly: it is excluded from the compaction summarizer input and
+	// replayed verbatim after the compaction boundary. It must be located
+	// on the unsanitized rows because sanitization can drop an assistant
+	// row that separates an already-answered user message from the
+	// pending tail; locating it afterwards would pull that answered
+	// message into the tail. Sanitizing only the head is equivalent to
+	// sanitizing everything, since the tail is user-only and the
+	// sanitizer only rewrites assistant rows.
 	pendingRowsStart := pendingUserSegmentStart(promptRows)
 	sanitizedHead := server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, modelConfig.ID)
 	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
@@ -723,22 +732,22 @@ func (server *Server) prepareGeneration(
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
-		Model:                model.LanguageModel(),
-		Messages:             compactionPromptMessages,
-		PendingUserMessages:  len(pendingUserRows) > 0,
-		ThresholdPercent:     effectiveThreshold,
-		ContextLimit:         compactionContextLimit,
-		ContextLimitFallback: compactionContextLimit,
-		ToolCallID:           compactionToolCallID,
-		ToolName:             "chat_summarized",
-		DebugSvc:             debugSvc,
-		ChatID:               chat.ID,
-		HistoryTipMessageID:  historyTipMessageID,
-		ResolvedProvider:     resolved.resolvedProvider,
-		ResolvedModel:        resolved.resolvedModel,
-		ModelConfigID:        modelConfig.ID,
-		StepUsage:            compactionStepUsage,
-		SummaryCall:          compactionSummaryCall(resolved),
+		Model:                  model.LanguageModel(),
+		Messages:               compactionPromptMessages,
+		HasPendingUserMessages: len(pendingUserRows) > 0,
+		ThresholdPercent:       effectiveThreshold,
+		ContextLimit:           compactionContextLimit,
+		ContextLimitFallback:   compactionContextLimit,
+		ToolCallID:             compactionToolCallID,
+		ToolName:               "chat_summarized",
+		DebugSvc:               debugSvc,
+		ChatID:                 chat.ID,
+		HistoryTipMessageID:    historyTipMessageID,
+		ResolvedProvider:       resolved.resolvedProvider,
+		ResolvedModel:          resolved.resolvedModel,
+		ModelConfigID:          modelConfig.ID,
+		StepUsage:              compactionStepUsage,
+		SummaryCall:            compactionSummaryCall(resolved),
 	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted

@@ -1280,10 +1280,9 @@ func TestPendingUserSegmentStart(t *testing.T) {
 
 	t.Run("DroppedAssistantRowStillStopsSegment", func(t *testing.T) {
 		t.Parallel()
-		// Regression for PR #28645 review: an assistant row that prompt
-		// conversion drops (no replayable parts) must still terminate
-		// the segment so the older user message before it is never
-		// treated as pending.
+		// An assistant row that prompt conversion drops (no replayable
+		// parts) must still terminate the segment so the older user
+		// message before it is never treated as pending.
 		rows := []database.ChatMessage{
 			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("older user message")),
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false),
@@ -1296,8 +1295,7 @@ func TestPendingUserSegmentStart(t *testing.T) {
 // Converting the head and the user-only pending tail separately must
 // produce the same generation prompt as converting all rows at once,
 // while keeping the older user message in the head even when an
-// intervening assistant row is dropped by conversion (PR #28645
-// review).
+// intervening assistant row is dropped by conversion.
 func TestPendingUserSegmentConversionEquivalence(t *testing.T) {
 	t.Parallel()
 
