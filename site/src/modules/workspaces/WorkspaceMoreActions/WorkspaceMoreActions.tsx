@@ -123,7 +123,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 			<DropdownMenu open={open} onOpenChange={setOpen}>
 				<DropdownMenuTrigger asChild>
 					<Button
-						size="icon-lg"
+						size="icon"
 						variant="subtle"
 						data-testid="workspace-options-button"
 						aria-controls="workspace-options"

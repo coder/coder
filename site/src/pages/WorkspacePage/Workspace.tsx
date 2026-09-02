@@ -19,6 +19,7 @@ import {
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
+import { WorkspaceHeader } from "./WorkspaceHeader";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 interface WorkspaceProps {
@@ -109,17 +110,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 				template={template}
 				permissions={permissions}
 				latestVersion={latestVersion}
-				isUpdating={isUpdating}
-				isRestarting={isRestarting}
-				handleStart={handleStart}
-				handleStop={handleStop}
 				handleRestart={handleRestart}
 				handleUpdate={handleUpdate}
-				handleCancel={handleCancel}
-				handleRetry={handleRetry}
-				handleDebug={handleDebug}
 				handleDormantActivate={handleDormantActivate}
-				handleToggleFavorite={handleToggleFavorite}
 			/>
 
 			<div className="flex flex-1 min-h-0">
@@ -169,6 +162,22 @@ export const Workspace: FC<WorkspaceProps> = ({
 							/>
 						)}
 						<div className="flex flex-col gap-6 max-w-[1200px] m-auto">
+							<WorkspaceHeader
+								workspace={workspace}
+								permissions={permissions}
+								isUpdating={isUpdating}
+								isRestarting={isRestarting}
+								handleStart={handleStart}
+								handleStop={handleStop}
+								handleRestart={handleRestart}
+								handleUpdate={handleUpdate}
+								handleCancel={handleCancel}
+								handleRetry={handleRetry}
+								handleDebug={handleDebug}
+								handleDormantActivate={handleDormantActivate}
+								handleToggleFavorite={handleToggleFavorite}
+							/>
+
 							{workspace.latest_build.status === "deleted" && (
 								<WorkspaceDeletedBanner
 									createWorkspaceLink={createWorkspaceLink}

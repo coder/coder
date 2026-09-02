@@ -1,0 +1,298 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
+import { expect, userEvent, within } from "storybook/test";
+import { deploymentConfigQueryKey } from "#/api/queries/deployment";
+import { agentLogsKey, buildLogsKey } from "#/api/queries/workspaces";
+import * as Mocks from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withDesktopViewport,
+} from "#/testHelpers/storybook";
+import { WorkspaceHeader } from "./WorkspaceHeader";
+
+const meta: Meta<typeof WorkspaceHeader> = {
+	title: "pages/WorkspacePage/WorkspaceHeader",
+	component: WorkspaceHeader,
+	args: {
+		workspace: Mocks.MockWorkspace,
+		isUpdating: false,
+		isRestarting: false,
+		permissions: {
+			readWorkspace: true,
+			shareWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: true,
+			deleteFailedWorkspace: true,
+		},
+		handleStart: action("start"),
+		handleStop: action("stop"),
+		handleRestart: action("restart"),
+		handleUpdate: action("update"),
+		handleCancel: action("cancel"),
+		handleRetry: action("retry"),
+		handleDebug: action("debug"),
+		handleDormantActivate: action("activate"),
+		handleToggleFavorite: action("favorite"),
+	},
+	decorators: [withDashboardProvider, withDesktopViewport, withAuthProvider],
+	parameters: {
+		user: Mocks.MockUserOwner,
+		queries: [
+			{
+				key: deploymentConfigQueryKey,
+				data: Mocks.MockDeploymentConfig,
+			},
+		],
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof WorkspaceHeader>;
+
+export const Starting: Story = {
+	args: {
+		workspace: Mocks.MockStartingWorkspace,
+	},
+};
+
+export const Running: Story = {
+	args: {
+		workspace: Mocks.MockWorkspace,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", { name: Mocks.MockWorkspace.name }),
+		).toBeVisible();
+		await expect(canvas.getByText(/Workspace status:/)).toBeVisible();
+		await expect(canvas.getByRole("button", { name: "Stop" })).toBeVisible();
+	},
+};
+
+export const RunningUpdateAvailable: Story = {
+	name: "Running (Update available)",
+	args: {
+		workspace: {
+			...Mocks.MockWorkspace,
+			outdated: true,
+		},
+	},
+};
+
+export const RunningRequireActiveVersion: Story = {
+	name: "Running (No required update)",
+	args: {
+		workspace: {
+			...Mocks.MockWorkspace,
+			template_require_active_version: true,
+		},
+	},
+};
+
+export const RunningUpdateRequired: Story = {
+	name: "Running (Update Required)",
+	args: {
+		workspace: {
+			...Mocks.MockWorkspace,
+			template_require_active_version: true,
+			outdated: true,
+		},
+	},
+};
+
+export const Stopping: Story = {
+	args: {
+		workspace: Mocks.MockStoppingWorkspace,
+	},
+};
+
+export const Stopped: Story = {
+	args: {
+		workspace: Mocks.MockStoppedWorkspace,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", {
+				name: Mocks.MockStoppedWorkspace.name,
+			}),
+		).toBeVisible();
+		await expect(canvas.getByRole("button", { name: "Start" })).toBeVisible();
+	},
+};
+
+export const StoppedUpdateAvailable: Story = {
+	name: "Stopped (Update available)",
+	args: {
+		workspace: {
+			...Mocks.MockStoppedWorkspace,
+			outdated: true,
+		},
+	},
+};
+
+export const StoppedRequireActiveVersion: Story = {
+	name: "Stopped (No required update)",
+	args: {
+		workspace: {
+			...Mocks.MockStoppedWorkspace,
+			template_require_active_version: true,
+		},
+	},
+};
+
+export const StoppedUpdateRequired: Story = {
+	name: "Stopped (Update Required)",
+	args: {
+		workspace: {
+			...Mocks.MockStoppedWorkspace,
+			template_require_active_version: true,
+			outdated: true,
+		},
+	},
+};
+
+export const Updating: Story = {
+	args: {
+		workspace: Mocks.MockOutdatedWorkspace,
+		isUpdating: true,
+	},
+};
+
+export const Restarting: Story = {
+	args: {
+		workspace: Mocks.MockStoppingWorkspace,
+		isRestarting: true,
+	},
+};
+
+export const Canceling: Story = {
+	args: {
+		workspace: Mocks.MockCancelingWorkspace,
+	},
+};
+
+export const Deleting: Story = {
+	args: {
+		workspace: Mocks.MockDeletingWorkspace,
+	},
+};
+
+export const Deleted: Story = {
+	args: {
+		workspace: Mocks.MockDeletedWorkspace,
+	},
+};
+
+export const Outdated: Story = {
+	args: {
+		workspace: Mocks.MockOutdatedWorkspace,
+	},
+};
+
+export const Failed: Story = {
+	args: {
+		workspace: Mocks.MockFailedWorkspace,
+	},
+};
+
+export const FailedWithDebug: Story = {
+	args: {
+		workspace: Mocks.MockFailedWorkspace,
+		permissions: {
+			readWorkspace: true,
+			shareWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: true,
+			deleteFailedWorkspace: true,
+		},
+	},
+};
+
+export const CancelShownForOwner: Story = {
+	args: {
+		workspace: {
+			...Mocks.MockStartingWorkspace,
+			template_allow_user_cancel_workspace_jobs: false,
+		},
+	},
+};
+
+export const CancelShownForUser: Story = {
+	args: {
+		workspace: Mocks.MockStartingWorkspace,
+	},
+	parameters: {
+		user: Mocks.MockUserMember,
+	},
+};
+
+export const CancelHiddenForUser: Story = {
+	args: {
+		workspace: {
+			...Mocks.MockStartingWorkspace,
+			template_allow_user_cancel_workspace_jobs: false,
+		},
+	},
+	parameters: {
+		user: Mocks.MockUserMember,
+	},
+};
+
+export const FavoriteHiddenForNonOwner: Story = {
+	args: {
+		workspace: Mocks.MockWorkspace,
+	},
+	parameters: {
+		user: Mocks.MockUserMember,
+	},
+};
+
+export const OpenDownloadLogs: Story = {
+	args: {
+		workspace: Mocks.MockWorkspace,
+	},
+	parameters: {
+		queries: [
+			{
+				key: buildLogsKey(Mocks.MockWorkspace.id),
+				data: generateLogs(200),
+			},
+			{
+				key: agentLogsKey(Mocks.MockWorkspaceAgent.id),
+				data: generateLogs(400),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Workspace actions" }),
+		);
+		const screen = within(document.body);
+		await userEvent.click(screen.getByText("Download logs…"));
+		await expect(screen.getByTestId("dialog")).toBeInTheDocument();
+	},
+};
+
+export const CanDeleteDormantWorkspace: Story = {
+	args: {
+		workspace: Mocks.MockDormantWorkspace,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Workspace actions" }),
+		);
+		const screen = within(document.body);
+		const deleteButton = screen.getByText("Delete…");
+		await expect(deleteButton).toBeEnabled();
+	},
+};
+
+function generateLogs(count: number) {
+	return Array.from({ length: count }, (_, i) => ({
+		output: `log ${i + 1}`,
+	}));
+}

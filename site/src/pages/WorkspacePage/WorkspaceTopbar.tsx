@@ -28,12 +28,10 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
-import { WorkspaceStatusIndicator } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import { cn } from "#/utils/cn";
 import { displayDormantDeletion } from "#/utils/dormant";
 import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
-import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
@@ -44,21 +42,13 @@ const BREADCRUMB_SEGMENT_CLASS = cn(
 const BREADCRUMB_TEXT_CLASS = "overflow-x-hidden text-ellipsis";
 
 interface WorkspaceTopbarProps {
-	isUpdating: boolean;
-	isRestarting: boolean;
 	workspace: TypesGen.Workspace;
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
 	latestVersion?: TypesGen.TemplateVersion;
-	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleStop: () => void;
 	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleUpdate: () => void;
-	handleCancel: () => void;
 	handleDormantActivate: () => void;
-	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleToggleFavorite: () => void;
 }
 
 export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
@@ -66,17 +56,9 @@ export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
 	template,
 	latestVersion,
 	permissions,
-	isUpdating,
-	isRestarting,
-	handleStart,
-	handleStop,
 	handleRestart,
 	handleUpdate,
-	handleCancel,
 	handleDormantActivate,
-	handleToggleFavorite,
-	handleRetry,
-	handleDebug,
 }) => {
 	const { entitlements, organizations, showOrganizations } = useDashboard();
 	const getLink = useLinks();
@@ -230,24 +212,6 @@ export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
 						onRestartWorkspace={handleRestart}
 						onUpdateWorkspace={handleUpdate}
 						onActivateWorkspace={handleDormantActivate}
-					/>
-
-					<WorkspaceStatusIndicator workspace={workspace} />
-
-					<WorkspaceActions
-						workspace={workspace}
-						permissions={permissions}
-						isUpdating={isUpdating}
-						isRestarting={isRestarting}
-						handleStart={handleStart}
-						handleStop={handleStop}
-						handleRestart={handleRestart}
-						handleUpdate={handleUpdate}
-						handleCancel={handleCancel}
-						handleRetry={handleRetry}
-						handleDebug={handleDebug}
-						handleDormantActivate={handleDormantActivate}
-						handleToggleFavorite={handleToggleFavorite}
 					/>
 				</div>
 			)}
