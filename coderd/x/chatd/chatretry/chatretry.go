@@ -11,7 +11,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -26,10 +25,8 @@ const (
 	// MaxAttempts is the upper bound on retry attempts before
 	// giving up. With a 60s max backoff this allows roughly
 	// 25 minutes of retries, which is reasonable for transient
-	// LLM provider issues. Turn-level generation retries use the
-	// deployment-configured limit instead; this default applies
-	// to the Retry helper.
-	MaxAttempts = codersdk.DefaultChatMaxGenerationRetries
+	// LLM provider issues.
+	MaxAttempts = 25
 )
 
 type ClassifiedError = chaterror.ClassifiedError
