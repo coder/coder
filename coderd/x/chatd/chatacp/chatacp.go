@@ -81,7 +81,7 @@ type TurnOutcome struct {
 	Usage *acp.Usage
 	// AvailableCommands is the slash-command list the adapter last
 	// advertised during the turn. Nil means it advertised none.
-	AvailableCommands []RuntimeCommand
+	AvailableCommands []codersdk.ChatRuntimeCommand
 }
 
 // RunTurn executes a full prompt turn against a fresh adapter process.
@@ -278,7 +278,7 @@ type turnCollector struct {
 	text          strings.Builder
 	reasoning     strings.Builder
 	openToolCalls map[string]*openToolCall
-	commands      []RuntimeCommand
+	commands      []codersdk.ChatRuntimeCommand
 
 	publish   func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	logger    slog.Logger
@@ -326,7 +326,7 @@ func (c *turnCollector) finalize() []fantasy.Content {
 	return c.content
 }
 
-func (c *turnCollector) availableCommands() []RuntimeCommand {
+func (c *turnCollector) availableCommands() []codersdk.ChatRuntimeCommand {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.commands
@@ -545,13 +545,13 @@ func toolDisplayName(kind, title string) string {
 // runtimeCommands flattens the ACP command list into the persisted
 // shape. An update with no usable commands yields an empty, non-nil
 // slice so callers can tell "advertised none" from "never advertised".
-func runtimeCommands(commands []acp.AvailableCommand) []RuntimeCommand {
-	out := make([]RuntimeCommand, 0, len(commands))
+func runtimeCommands(commands []acp.AvailableCommand) []codersdk.ChatRuntimeCommand {
+	out := make([]codersdk.ChatRuntimeCommand, 0, len(commands))
 	for _, command := range commands {
 		if strings.TrimSpace(command.Name) == "" {
 			continue
 		}
-		converted := RuntimeCommand{
+		converted := codersdk.ChatRuntimeCommand{
 			Name:        command.Name,
 			Description: command.Description,
 		}
@@ -622,19 +622,9 @@ type RuntimeState struct {
 	Usage *UsageTotals `json:"usage,omitempty"`
 	// AvailableCommands is the slash-command list the adapter last
 	// advertised, so clients can offer commands the session accepts.
-	AvailableCommands []RuntimeCommand `json:"available_commands,omitempty"`
+	AvailableCommands []codersdk.ChatRuntimeCommand `json:"available_commands,omitempty"`
 	// UpdatedAt records when the state was last written.
 	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// RuntimeCommand is one slash command the external agent accepts as a
-// prompt of the form "/name args".
-type RuntimeCommand struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	// InputHint is the adapter's placeholder for the text after the
-	// command name; empty when the command takes no input.
-	InputHint string `json:"input_hint,omitempty"`
 }
 
 // UsageTotals mirrors the ACP usage counters, which report

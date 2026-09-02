@@ -730,7 +730,7 @@ func (s *taskStarter) persistACPRuntimeState(
 // acpAvailableCommands picks the command list to persist: the turn's
 // own list when the adapter advertised one, else the prior list when the
 // same session continued and its commands are still current, else none.
-func acpAvailableCommands(outcome chatacp.TurnOutcome, prior chatacp.RuntimeState) []chatacp.RuntimeCommand {
+func acpAvailableCommands(outcome chatacp.TurnOutcome, prior chatacp.RuntimeState) []codersdk.ChatRuntimeCommand {
 	if outcome.AvailableCommands != nil {
 		return outcome.AvailableCommands
 	}

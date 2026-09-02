@@ -248,13 +248,13 @@ func TestACPTurnFromHistory(t *testing.T) {
 func TestACPAvailableCommands(t *testing.T) {
 	t.Parallel()
 
-	priorCommands := []chatacp.RuntimeCommand{{Name: "review", Description: "Review the diff"}}
-	turnCommands := []chatacp.RuntimeCommand{{Name: "compact", Description: "Compact history"}}
+	priorCommands := []codersdk.ChatRuntimeCommand{{Name: "review", Description: "Review the diff"}}
+	turnCommands := []codersdk.ChatRuntimeCommand{{Name: "compact", Description: "Compact history"}}
 	tests := []struct {
 		name    string
 		outcome chatacp.TurnOutcome
 		prior   chatacp.RuntimeState
-		want    []chatacp.RuntimeCommand
+		want    []codersdk.ChatRuntimeCommand
 	}{
 		{
 			name:    "TurnListWins",
@@ -264,9 +264,9 @@ func TestACPAvailableCommands(t *testing.T) {
 		},
 		{
 			name:    "EmptyTurnListClears",
-			outcome: chatacp.TurnOutcome{SessionID: "s1", Resumed: true, AvailableCommands: []chatacp.RuntimeCommand{}},
+			outcome: chatacp.TurnOutcome{SessionID: "s1", Resumed: true, AvailableCommands: []codersdk.ChatRuntimeCommand{}},
 			prior:   chatacp.RuntimeState{SessionID: "s1", AvailableCommands: priorCommands},
-			want:    []chatacp.RuntimeCommand{},
+			want:    []codersdk.ChatRuntimeCommand{},
 		},
 		{
 			name:    "ResumedSessionCarriesPriorForward",

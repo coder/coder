@@ -185,7 +185,7 @@ func TestRunTurnAvailableCommands(t *testing.T) {
 	tests := []struct {
 		name    string
 		updates [][]acp.AvailableCommand
-		want    []chatacp.RuntimeCommand
+		want    []codersdk.ChatRuntimeCommand
 	}{
 		{
 			name:    "NoUpdate",
@@ -199,7 +199,7 @@ func TestRunTurnAvailableCommands(t *testing.T) {
 				{Name: "init", Description: "Create a guide"},
 				{Name: "  ", Description: "dropped: blank name"},
 			}},
-			want: []chatacp.RuntimeCommand{
+			want: []codersdk.ChatRuntimeCommand{
 				{Name: "review", Description: "Review the diff", InputHint: "pr number"},
 				{Name: "init", Description: "Create a guide"},
 			},
@@ -210,7 +210,7 @@ func TestRunTurnAvailableCommands(t *testing.T) {
 				{{Name: "review", Description: "Review the diff"}},
 				{{Name: "compact", Description: "Compact history"}},
 			},
-			want: []chatacp.RuntimeCommand{{Name: "compact", Description: "Compact history"}},
+			want: []codersdk.ChatRuntimeCommand{{Name: "compact", Description: "Compact history"}},
 		},
 		{
 			name: "EmptyUpdateClearsList",
@@ -218,7 +218,7 @@ func TestRunTurnAvailableCommands(t *testing.T) {
 				{{Name: "review", Description: "Review the diff"}},
 				{},
 			},
-			want: []chatacp.RuntimeCommand{},
+			want: []codersdk.ChatRuntimeCommand{},
 		},
 	}
 	for _, tc := range tests {
@@ -287,7 +287,7 @@ func TestRunTurnAvailableCommandsDuringLoad(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, outcome.Resumed)
 	require.Empty(t, recorder.snapshot())
-	require.Equal(t, []chatacp.RuntimeCommand{{Name: "review", Description: "Review the diff"}}, outcome.AvailableCommands)
+	require.Equal(t, []codersdk.ChatRuntimeCommand{{Name: "review", Description: "Review the diff"}}, outcome.AvailableCommands)
 }
 
 func TestRuntimeStateRoundTrip(t *testing.T) {
@@ -323,18 +323,18 @@ func TestRuntimeStateRoundTrip(t *testing.T) {
 			raw: func(t *testing.T) []byte {
 				raw, err := json.Marshal(chatacp.RuntimeState{
 					SessionID: "s1",
-					AvailableCommands: []chatacp.RuntimeCommand{
+					AvailableCommands: []codersdk.ChatRuntimeCommand{
 						{Name: "review", Description: "Review the diff", InputHint: "pr number"},
 						{Name: "init"},
 					},
 				})
 				require.NoError(t, err)
-				require.Contains(t, string(raw), `"available_commands":[{"name":"review","description":"Review the diff","input_hint":"pr number"},{"name":"init"}]`)
+				require.Contains(t, string(raw), `"available_commands":[{"name":"review","description":"Review the diff","input_hint":"pr number"},{"name":"init","description":""}]`)
 				return raw
 			},
 			want: chatacp.RuntimeState{
 				SessionID: "s1",
-				AvailableCommands: []chatacp.RuntimeCommand{
+				AvailableCommands: []codersdk.ChatRuntimeCommand{
 					{Name: "review", Description: "Review the diff", InputHint: "pr number"},
 					{Name: "init"},
 				},

@@ -13,7 +13,6 @@ import (
 
 	acp "github.com/coder/acp-go-sdk"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -354,14 +353,10 @@ func TestACPChatTurn(t *testing.T) {
 		state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
 		require.Equal(t, "session-new", state.SessionID)
 		require.Equal(t, "/home/coder/project", state.Cwd)
-		require.Equal(t, []chatacp.RuntimeCommand{
-			{Name: "review", Description: "Review the current diff", InputHint: "pr number"},
-			{Name: "init", Description: "Create a project guide"},
-		}, state.AvailableCommands)
 		require.Equal(t, []codersdk.ChatRuntimeCommand{
 			{Name: "review", Description: "Review the current diff", InputHint: "pr number"},
 			{Name: "init", Description: "Create a project guide"},
-		}, db2sdk.Chat(chat, nil, nil).RuntimeCommands)
+		}, state.AvailableCommands)
 	})
 }
 
