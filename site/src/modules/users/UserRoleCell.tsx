@@ -46,7 +46,14 @@ const MoreRolePill: React.FC<MoreRolePillProps> = ({ roles }) => {
 		<TooltipProvider>
 			<Tooltip delayDuration={0}>
 				<TooltipTrigger asChild>
-					<Badge>+{roles.length} more</Badge>
+					<Badge>
+						+{roles.length} more
+						{/* The tooltip only opens on hover, so the names also have to be
+						    readable by assistive technology without pointer input. */}
+						<span className="sr-only">
+							{`: ${roles.map(roleDisplayName).join(", ")}`}
+						</span>
+					</Badge>
 				</TooltipTrigger>
 
 				<TooltipContent className="flex flex-row flex-wrap content-around gap-x-2 gap-y-3 px-4 py-3 border-surface-quaternary">
@@ -63,8 +70,11 @@ type RoleBadgeProps = {
 	role: ScopedSlimRole;
 };
 
+const roleDisplayName = (role: ScopedSlimRole): string =>
+	role.display_name || role.name;
+
 const RoleBadge: React.FC<RoleBadgeProps> = ({ role }) => {
-	const displayName = role.display_name || role.name;
+	const displayName = roleDisplayName(role);
 	const isOwnerRole =
 		role.name === "owner" || role.name === "organization-admin";
 

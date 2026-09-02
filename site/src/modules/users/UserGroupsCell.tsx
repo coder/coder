@@ -30,6 +30,9 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 									? "No groups"
 									: `View ${userGroups.length} group${userGroups.length !== 1 ? "s" : ""}`
 							}
+							onClick={(event) => event.stopPropagation()}
+							onKeyDown={(event) => event.stopPropagation()}
+							onKeyUp={(event) => event.stopPropagation()}
 						>
 							<div className="flex flex-row gap-2 items-center">
 								<UsersIcon

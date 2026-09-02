@@ -358,7 +358,7 @@ async function openUserMenu(
 	canvas: ReturnType<typeof within>,
 	user: ReturnType<typeof userEvent.setup>,
 ) {
-	const row = canvas.getByRole("row", {
+	const row = canvas.getByRole("button", {
 		name: (accessibleName: string) =>
 			accessibleName.includes(MockUsers[0].email),
 	});

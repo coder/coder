@@ -16,7 +16,7 @@ test("remove user", async ({ page, baseURL }) => {
 	await page.goto(`${baseURL}/users`, { waitUntil: "domcontentloaded" });
 	await expect(page).toHaveTitle("Users - Coder");
 
-	const userRow = page.getByRole("row", { name: user.email });
+	const userRow = page.locator("tr", { hasText: user.email });
 	await userRow.getByRole("button", { name: "Open menu" }).click();
 	const menu = page.getByRole("menu");
 	await menu.getByText("Delete…").click();

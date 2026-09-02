@@ -1,6 +1,8 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import type { SyntheticEvent } from "react";
+import { useNavigate } from "react-router";
 import type { GroupsByUserId } from "#/api/queries/groups";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -20,6 +22,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import type { UserAdminAction } from "#/modules/users/UserActionDialogs";
 import { UserGroupsCell } from "#/modules/users/UserGroupsCell";
 import {
@@ -95,7 +98,53 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	}
 
 	return users.map((user) => (
-		<TableRow key={user.id} data-testid={`user-${user.id}`}>
+		<UserRow
+			key={user.id}
+			user={user}
+			groups={groupsByUserId?.get(user.id)}
+			me={me}
+			canEditUsers={canEditUsers}
+			canViewActivity={canViewActivity}
+			oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+			onAction={onAction}
+		/>
+	));
+};
+
+type UserRowProps = {
+	user: TypesGen.User;
+	groups: readonly TypesGen.Group[] | undefined;
+	me: string;
+	canEditUsers: boolean;
+	canViewActivity?: boolean;
+	oidcRoleSyncEnabled?: boolean;
+	onAction: (action: UserAdminAction) => void;
+};
+
+const UserRow: React.FC<UserRowProps> = ({
+	user,
+	groups,
+	me,
+	canEditUsers,
+	canViewActivity,
+	oidcRoleSyncEnabled,
+	onAction,
+}) => {
+	const navigate = useNavigate();
+	const clickableProps = useClickableTableRow({
+		onClick: () => navigate(user.username),
+	});
+
+	// Nested controls must not activate the row (click, Enter, or Space).
+	const stopRowActivation = (event: SyntheticEvent) => {
+		event.stopPropagation();
+	};
+
+	return (
+		<TableRow
+			data-testid={`user-${user.id}`}
+			{...(canEditUsers ? clickableProps : {})}
+		>
 			<TableCell>
 				<AvatarData
 					title={user.username}
@@ -106,7 +155,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 
 			<UserRoleCell roles={user.roles} />
 
-			<UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
+			<UserGroupsCell userGroups={groups} />
 
 			<TableCell
 				className={cn(
@@ -121,7 +170,12 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 			</TableCell>
 
 			{canEditUsers && (
-				<TableCell className="w-px whitespace-nowrap text-right">
+				<TableCell
+					className="w-px whitespace-nowrap text-right"
+					onClick={stopRowActivation}
+					onKeyDown={stopRowActivation}
+					onKeyUp={stopRowActivation}
+				>
 					<div className="flex justify-end">
 						<UserMoreActions
 							user={user}
@@ -134,7 +188,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 				</TableCell>
 			)}
 		</TableRow>
-	));
+	);
 };
 
 type UsersTableSkeletonProps = {
