@@ -372,21 +372,14 @@ func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, cha
 	if err != nil {
 		return acpTurnConfig{}, xerrors.Errorf("configure %s providers: %w", harness.ProviderType, err)
 	}
-	// The runtime default chain pairs the admin model pin with the first
-	// harness provider key; an explicit selection uses its own provider's.
-	var defaultCreds chatacp.TurnCredentials
 	credsByProvider := make(map[uuid.UUID]chatacp.TurnCredentials, len(configuredProviders))
 	for _, configured := range configuredProviders {
 		if configured.APIKey == "" {
 			continue
 		}
-		creds := chatacp.TurnCredentials{APIKey: configured.APIKey, BaseURL: configured.BaseURL}
-		credsByProvider[configured.ProviderID] = creds
-		if defaultCreds.APIKey == "" {
-			defaultCreds = creds
-		}
+		credsByProvider[configured.ProviderID] = chatacp.TurnCredentials{APIKey: configured.APIKey, BaseURL: configured.BaseURL}
 	}
-	if defaultCreds.APIKey == "" {
+	if len(credsByProvider) == 0 {
 		return acpTurnConfig{}, chaterror.WithClassification(
 			xerrors.Errorf("no %s provider key configured", harness.ProviderType),
 			chaterror.ClassifiedError{
@@ -397,35 +390,87 @@ func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, cha
 		)
 	}
 
-	defaultCreds.Model = cfg.Model
 	out := acpTurnConfig{
-		TurnCredentials: defaultCreds,
-		permissionMode:  cmp.Or(cfg.PermissionMode, harness.DefaultSessionMode),
+		permissionMode: cmp.Or(cfg.PermissionMode, harness.DefaultSessionMode),
 	}
-	if selection == uuid.Nil {
-		return out, nil
+	if selection != uuid.Nil {
+		modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
+		if err != nil {
+			return acpTurnConfig{}, err
+		}
+		modelConfig, provider, err := fetchACPModelConfig(modelCtx, p.db, chat.OrganizationID, harness, selection)
+		if err == nil {
+			if creds, ok := credsByProvider[provider.ID]; ok {
+				creds.Model = modelConfig.Model
+				out.TurnCredentials = creds
+				out.modelConfigID = selection
+				return out, nil
+			}
+			err = xerrors.Errorf("provider %s has no usable key", provider.ID)
+		}
+		// The selection was valid at send time; losing it mid-flight (config
+		// deleted or disabled, provider changed or left without a key) falls
+		// back to the runtime default chain and leaves the assistant messages
+		// unstamped. A model is never paired with another provider's key.
+		p.logger.Warn(ctx, "acp turn: selected model config unavailable, using runtime default",
+			slog.F("chat_id", chat.ID), slog.F("model_config_id", selection), slog.Error(err))
 	}
-	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
+	creds, err := p.acpDefaultCredentials(ctx, harness, chat.OrganizationID, cfg.Model, credsByProvider)
 	if err != nil {
 		return acpTurnConfig{}, err
 	}
-	modelConfig, provider, err := fetchACPModelConfig(modelCtx, p.db, chat.OrganizationID, harness, selection)
-	if err == nil {
-		if creds, ok := credsByProvider[provider.ID]; ok {
-			creds.Model = modelConfig.Model
-			out.TurnCredentials = creds
-			out.modelConfigID = selection
-			return out, nil
-		}
-		err = xerrors.Errorf("provider %s has no usable key", provider.ID)
-	}
-	// The selection was valid at send time; losing it mid-flight (config
-	// deleted or disabled, provider changed or left without a key) falls
-	// back to the runtime default chain and leaves the assistant messages
-	// unstamped. A model is never paired with another provider's key.
-	p.logger.Warn(ctx, "acp turn: selected model config unavailable, using runtime default",
-		slog.F("chat_id", chat.ID), slog.F("model_config_id", selection), slog.Error(err))
+	out.TurnCredentials = creds
 	return out, nil
+}
+
+// acpDefaultCredentials resolves the runtime default chain: the admin
+// model pin sources credentials from its own model config's provider,
+// and without a pin the single keyed harness provider supplies them
+// with the adapter's default model. The chain never guesses between
+// providers.
+func (p *Server) acpDefaultCredentials(
+	ctx context.Context,
+	harness chatacp.Harness,
+	organizationID uuid.UUID,
+	pinnedModel string,
+	credsByProvider map[uuid.UUID]chatacp.TurnCredentials,
+) (chatacp.TurnCredentials, error) {
+	candidates := credsByProvider
+	if pinnedModel != "" {
+		configs, err := p.db.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
+		if err != nil {
+			return chatacp.TurnCredentials{}, xerrors.Errorf("get enabled model configs: %w", err)
+		}
+		pinned := make(map[uuid.UUID]chatacp.TurnCredentials)
+		for _, row := range configs {
+			providerID := row.ChatModelConfig.AIProviderID.UUID
+			if row.Provider != string(harness.ProviderType) || row.ChatModelConfig.Model != pinnedModel {
+				continue
+			}
+			if creds, ok := credsByProvider[providerID]; ok {
+				pinned[providerID] = creds
+			}
+		}
+		if len(pinned) > 0 {
+			candidates = pinned
+		}
+	}
+	if len(candidates) > 1 {
+		return chatacp.TurnCredentials{}, chaterror.WithClassification(
+			xerrors.Errorf("%d %s providers are keyed", len(candidates), harness.ProviderType),
+			chaterror.ClassifiedError{
+				Kind: codersdk.ChatErrorKindConfig,
+				Message: fmt.Sprintf("Multiple %s providers are enabled, so the %s runtime cannot choose one. Select a model, or have an administrator keep a single %s provider enabled.",
+					harness.ProviderLabel, harness.DisplayName, harness.ProviderLabel),
+			},
+		)
+	}
+	var creds chatacp.TurnCredentials
+	for _, candidate := range candidates {
+		creds = candidate
+	}
+	creds.Model = pinnedModel
+	return creds, nil
 }
 
 // ensureACPWorkspaceRunning makes sure the chat's bound

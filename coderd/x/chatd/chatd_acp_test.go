@@ -112,6 +112,11 @@ func seedACPChatDependencies(t *testing.T, db database.Store, harness chatacp.Ha
 	})
 	seedWorkspaceBuild(t, db, ws, tv.ID, transition, 1)
 
+	dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID: org.ID,
+		Model:          acpTestPinnedModel,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+	})
 	_, err := db.UpsertChatRuntimeConfig(ctx, database.UpsertChatRuntimeConfigParams{
 		OrganizationID: org.ID,
 		Runtime:        database.ChatRuntime(harness.Runtime),
@@ -223,6 +228,20 @@ func acpModelConfig(t *testing.T, db database.Store, setup acpTestSetup, provide
 		Model:          model,
 		AIProviderID:   uuid.NullUUID{UUID: providerID, Valid: true},
 	}, munge...)
+}
+
+// seedSecondHarnessProvider adds a second enabled, keyed provider of
+// the harness type so the runtime default chain has two candidates.
+func seedSecondHarnessProvider(t *testing.T, db database.Store, setup acpTestSetup) database.ChatProvider {
+	t.Helper()
+	return dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    string(setup.harness.ProviderType),
+		DisplayName: "second",
+		Enabled:     true,
+		BaseUrl:     "https://second.example.com",
+	}, func(p *database.InsertChatProviderParams) {
+		p.APIKey = "second-provider-key"
+	})
 }
 
 // acpConfigOverrides routes turns to the fake agent and checks that the
@@ -491,13 +510,16 @@ func TestACPChatTurn(t *testing.T) {
 			// permission mode so the adapter and harness defaults apply.
 			noPin bool
 			// seed returns the model config the chat's first message
-			// selects; nil rows use the runtime default chain.
+			// selects; nil rows and uuid.Nil use the runtime default chain.
 			seed      func(t *testing.T, db database.Store, setup acpTestSetup) uuid.UUID
 			wantCreds chatacp.TurnCredentials
 			// wantStamp expects the assistant message to carry the
 			// selected model config id.
 			wantStamp bool
 			wantMode  string
+			// wantError is the config error message that fails the turn
+			// before any adapter request.
+			wantError string
 		}{
 			{
 				name:      "PinnedDefault",
@@ -509,6 +531,24 @@ func TestACPChatTurn(t *testing.T) {
 				noPin:     true,
 				wantCreds: primaryCredentials(""),
 				wantMode:  harness.DefaultSessionMode,
+			},
+			{
+				name:  "AmbiguousDefaultProviders",
+				noPin: true,
+				seed: func(t *testing.T, db database.Store, setup acpTestSetup) uuid.UUID {
+					seedSecondHarnessProvider(t, db, setup)
+					return uuid.Nil
+				},
+				wantError: "Multiple " + harness.ProviderLabel + " providers are enabled, so the " + harness.DisplayName + " runtime cannot choose one. Select a model, or have an administrator keep a single " + harness.ProviderLabel + " provider enabled.",
+			},
+			{
+				name: "PinnedWithTwoProviders",
+				seed: func(t *testing.T, db database.Store, setup acpTestSetup) uuid.UUID {
+					seedSecondHarnessProvider(t, db, setup)
+					return uuid.Nil
+				},
+				wantCreds: primaryCredentials(acpTestPinnedModel),
+				wantMode:  "acceptEdits",
 			},
 			{
 				name: "SelectedModel",
@@ -532,14 +572,7 @@ func TestACPChatTurn(t *testing.T) {
 			{
 				name: "SelectedProviderKey",
 				seed: func(t *testing.T, db database.Store, setup acpTestSetup) uuid.UUID {
-					second := dbgen.ChatProvider(t, db, database.ChatProvider{
-						Provider:    string(setup.harness.ProviderType),
-						DisplayName: "second",
-						Enabled:     true,
-						BaseUrl:     "https://second.example.com",
-					}, func(p *database.InsertChatProviderParams) {
-						p.APIKey = "second-provider-key"
-					})
+					second := seedSecondHarnessProvider(t, db, setup)
 					return acpModelConfig(t, db, setup, second.ID, "second-model").ID
 				},
 				wantCreds: chatacp.TurnCredentials{APIKey: "second-provider-key", BaseURL: "https://second.example.com", Model: "second-model"},
@@ -582,10 +615,11 @@ func TestACPChatTurn(t *testing.T) {
 				var mutators []func(*chatstate.CreateChatInput)
 				var wantStamp uuid.NullUUID
 				if tc.seed != nil {
-					selected := tc.seed(t, db, setup)
-					mutators = append(mutators, withInitialModelConfig(selected))
-					if tc.wantStamp {
-						wantStamp = uuid.NullUUID{UUID: selected, Valid: true}
+					if selected := tc.seed(t, db, setup); selected != uuid.Nil {
+						mutators = append(mutators, withInitialModelConfig(selected))
+						if tc.wantStamp {
+							wantStamp = uuid.NullUUID{UUID: selected, Valid: true}
+						}
 					}
 				}
 
@@ -594,6 +628,16 @@ func TestACPChatTurn(t *testing.T) {
 				_ = newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent, tc.wantCreds))
 
 				chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
+				if tc.wantError != "" {
+					require.Equal(t, database.ChatStatusError, chat.Status)
+					var lastError codersdk.ChatError
+					require.NoError(t, json.Unmarshal(chat.LastError.RawMessage, &lastError))
+					require.Equal(t, codersdk.ChatErrorKindConfig, lastError.Kind)
+					require.Equal(t, tc.wantError, lastError.Message)
+					require.Empty(t, fakeAgent.Prompts())
+					require.Empty(t, fakeAgent.NewSessions())
+					return
+				}
 				require.Equal(t, database.ChatStatusWaiting, chat.Status)
 				require.False(t, chat.LastError.Valid)
 				prompts := fakeAgent.Prompts()
