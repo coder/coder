@@ -2038,6 +2038,36 @@ func TestChatRuntimeRequests(t *testing.T) {
 		require.Equal(t, "plan_mode and mcp_server_ids are not supported on runtime chats.", sdkErr.Message)
 	})
 
+	t.Run("GetHydratesRuntimeCommands", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		commanded := dbgen.Chat(t, db, database.Chat{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			Runtime:        database.ChatRuntimeClaudeCode,
+			Title:          "runtime commands",
+		})
+		require.NoError(t, db.UpdateChatRuntimeState(dbauthz.AsSystemRestricted(ctx), database.UpdateChatRuntimeStateParams{
+			ID: commanded.ID,
+			RuntimeState: pqtype.NullRawMessage{
+				RawMessage: []byte(`{"session_id":"s1","available_commands":[{"name":"review","description":"Review the diff","input_hint":"pr number"}]}`),
+				Valid:      true,
+			},
+		}))
+
+		got, err := client.GetChat(ctx, commanded.ID)
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.ChatRuntimeCommand{{Name: "review", Description: "Review the diff", InputHint: "pr number"}}, got.RuntimeCommands)
+
+		// List responses skip the runtime_state parse.
+		listed, err := client.ListChats(ctx, nil)
+		require.NoError(t, err)
+		index := slices.IndexFunc(listed, func(chat codersdk.Chat) bool { return chat.ID == commanded.ID })
+		require.NotEqual(t, -1, index)
+		require.Nil(t, listed[index].RuntimeCommands)
+	})
+
 	t.Run("EditRejectsNonTextContent", func(t *testing.T) {
 		t.Parallel()
 

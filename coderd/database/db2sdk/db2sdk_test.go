@@ -873,7 +873,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	v := reflect.ValueOf(got)
 	typ := v.Type()
 	// These fields are set outside db2sdk.Chat and intentionally remain zero.
-	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
+	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true, "RuntimeCommands": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {
@@ -886,33 +886,24 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	}
 }
 
-func TestChat_RuntimeCommands(t *testing.T) {
+// TestChat_RuntimeCommandsOmitted pins the list and watch contract: the
+// shared conversion never parses runtime_state, and the unset field is
+// omitted from JSON.
+func TestChat_RuntimeCommandsOmitted(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Absent", func(t *testing.T) {
-		t.Parallel()
-		got := db2sdk.Chat(database.Chat{ID: uuid.New(), Runtime: database.ChatRuntimeCoder}, nil, nil)
-		require.Nil(t, got.RuntimeCommands)
-		encoded, err := json.Marshal(got)
-		require.NoError(t, err)
-		require.NotContains(t, string(encoded), "runtime_commands")
-	})
-
-	t.Run("Advertised", func(t *testing.T) {
-		t.Parallel()
-		got := db2sdk.Chat(database.Chat{
-			ID:      uuid.New(),
-			Runtime: database.ChatRuntimeClaudeCode,
-			RuntimeState: pqtype.NullRawMessage{
-				RawMessage: json.RawMessage(`{"session_id":"s1","available_commands":[{"name":"review","description":"Review the diff","input_hint":"pr number"},{"name":"init"}]}`),
-				Valid:      true,
-			},
-		}, nil, nil)
-		require.Equal(t, []codersdk.ChatRuntimeCommand{
-			{Name: "review", Description: "Review the diff", InputHint: "pr number"},
-			{Name: "init"},
-		}, got.RuntimeCommands)
-	})
+	got := db2sdk.Chat(database.Chat{
+		ID:      uuid.New(),
+		Runtime: database.ChatRuntimeClaudeCode,
+		RuntimeState: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`{"session_id":"s1","available_commands":[{"name":"review"}]}`),
+			Valid:      true,
+		},
+	}, nil, nil)
+	require.Nil(t, got.RuntimeCommands)
+	encoded, err := json.Marshal(got)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "runtime_commands")
 }
 
 func TestChat_Shared(t *testing.T) {

@@ -28,7 +28,6 @@ import (
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -1853,7 +1852,6 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		ClientType:     codersdk.ChatClientType(c.ClientType),
 		LastError:      lastError,
 	}
-	chat.RuntimeCommands = chatacp.ParseRuntimeState(c.RuntimeState.RawMessage).AvailableCommands
 	if c.LastModelConfigID.Valid {
 		lastModelConfigID := c.LastModelConfigID.UUID
 		chat.LastModelConfigID = &lastModelConfigID

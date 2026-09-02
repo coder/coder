@@ -1534,8 +1534,16 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
-	response := db2sdk.Chat(chat, nil, chatFiles)
-	httpapi.Write(ctx, rw, http.StatusCreated, response)
+	httpapi.Write(ctx, rw, http.StatusCreated, chatResponse(chat, nil, chatFiles))
+}
+
+// chatResponse converts a chat for the endpoints a composer reads,
+// hydrating the runtime command list from runtime_state. List responses
+// and watch payloads skip that parse.
+func chatResponse(chat database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
+	sdkChat := db2sdk.Chat(chat, diffStatus, files)
+	sdkChat.RuntimeCommands = chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage).AvailableCommands
+	return sdkChat
 }
 
 // @Summary Get chat by ID
@@ -1572,7 +1580,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// Hydrate file metadata for all files linked to this chat.
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
-	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
+	sdkChat := chatResponse(chat, diffStatus, chatFiles)
 
 	if api.chatDaemon != nil {
 		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
@@ -2266,7 +2274,7 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sdkChat := db2sdk.Chat(updated, nil, nil)
+	sdkChat := chatResponse(updated, nil, nil)
 
 	// Enrich the context summary with the freshly pinned resources so the
 	// client reflects the refresh immediately, without a full reload. This
@@ -3389,7 +3397,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	}
 	chat = updated
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, chatResponse(chat, nil, nil))
 }
 
 // @Summary Compact chat
@@ -3459,7 +3467,7 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, chatResponse(updated, nil, nil))
 }
 
 // @Summary Clear chat context
@@ -3528,7 +3536,7 @@ func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, chatResponse(updated, nil, nil))
 }
 
 // @Summary Reconcile invalid chat state
@@ -3577,7 +3585,7 @@ func (api *API) reconcileInvalidChatState(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, chatResponse(updated, nil, nil))
 }
 
 // @Summary Propose chat title
