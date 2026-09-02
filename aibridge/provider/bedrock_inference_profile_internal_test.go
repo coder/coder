@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -209,14 +211,16 @@ func TestResolveBedrockModels(t *testing.T) {
 	})
 }
 
+// TestNewAnthropic_InferenceProfileResolution drives the Bedrock
+// GetInferenceProfile path against a mock endpoint.
+// https://docs.aws.amazon.com/bedrock/latest/APIReference/API_GetInferenceProfile.html
+// NOTE: no t.Parallel() because the subtests use t.Setenv.
 func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
-	t.Parallel()
-
-	const profileARN = "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/46u2vhiyo6z5"
+	const profileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5"
 
 	bedrockCfg := func(model string) *config.AWSBedrock {
 		return &config.AWSBedrock{
-			Region:          "eu-west-2",
+			Region:          "us-east-1",
 			AccessKey:       "test-key",
 			AccessKeySecret: "test-secret",
 			Model:           model,
@@ -224,44 +228,72 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 		}
 	}
 
+	// mockBedrock serves the Bedrock control-plane API and records the paths it
+	// receives. Callers point the SDK at the returned URL.
+	mockBedrock := func(t *testing.T, handler http.HandlerFunc) (url string, paths *[]string) {
+		t.Helper()
+
+		var got []string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got = append(got, r.URL.Path)
+			handler(w, r)
+		}))
+		t.Cleanup(srv.Close)
+		return srv.URL, &got
+	}
+
 	t.Run("resolved profile drives the model id", func(t *testing.T) {
-		t.Parallel()
+		url, paths := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"models":[{"modelArn":"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8"}]}`))
+		})
+		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		resolve := func(_ context.Context, _ config.AWSBedrock, _ aws.CredentialsProvider, arn string) (string, error) {
-			require.Equal(t, profileARN, arn)
-			return "anthropic.claude-opus-4-8", nil
-		}
-
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN), withInferenceProfileResolver(resolve))
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN))
 		require.NoError(t, err)
 		require.Equal(t, "anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
 		// The profile stays the configured identifier so AWS attributes spend to it.
 		require.Equal(t, profileARN, p.bedrock.ConfiguredModel())
 		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
+		require.Len(t, *paths, 1, "only the profile ARN is resolved")
+		require.Contains(t, (*paths)[0], profileARN)
 	})
 
 	t.Run("failed resolution fails construction", func(t *testing.T) {
-		t.Parallel()
+		url, _ := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Amzn-Errortype", "AccessDeniedException")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"not authorized to perform bedrock:GetInferenceProfile"}`))
+		})
+		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		resolve := func(context.Context, config.AWSBedrock, aws.CredentialsProvider, string) (string, error) {
-			return "", xerrors.New("AccessDeniedException")
-		}
-
-		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN), withInferenceProfileResolver(resolve))
+		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN))
 		require.ErrorContains(t, err, "resolve bedrock models")
+		require.ErrorContains(t, err, "GetInferenceProfile")
+	})
+
+	t.Run("profile without a model fails construction", func(t *testing.T) {
+		url, _ := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"models":[]}`))
+		})
+		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
+
+		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN))
+		require.ErrorContains(t, err, "references no model")
 	})
 
 	t.Run("plain model id needs no resolution", func(t *testing.T) {
-		t.Parallel()
+		url, paths := mockBedrock(t, func(http.ResponseWriter, *http.Request) {
+			t.Error("Bedrock called for a plain model id")
+		})
+		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		resolve := func(context.Context, config.AWSBedrock, aws.CredentialsProvider, string) (string, error) {
-			t.Error("resolver called for a plain model id")
-			return "", nil
-		}
-
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8"), withInferenceProfileResolver(resolve))
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8"))
 		require.NoError(t, err)
 		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
 		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ConfiguredModel())
+		require.Empty(t, *paths)
 	})
 }

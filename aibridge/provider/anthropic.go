@@ -33,22 +33,6 @@ type Anthropic struct {
 	bedrock *messages.BedrockRuntime
 }
 
-// anthropicOption customizes provider construction. The type is unexported so
-// the set of behaviors stays closed to this package.
-type anthropicOption func(*anthropicOptions)
-
-type anthropicOptions struct {
-	resolveInferenceProfile inferenceProfileResolver
-}
-
-// withInferenceProfileResolver overrides how application inference profile
-// ARNs are resolved, so tests do not call AWS.
-func withInferenceProfileResolver(resolve inferenceProfileResolver) anthropicOption {
-	return func(o *anthropicOptions) {
-		o.resolveInferenceProfile = resolve
-	}
-}
-
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
 
 var anthropicOpenErrorResponse = func() []byte {
@@ -67,12 +51,7 @@ var anthropicIsFailure = func(statusCode int) bool {
 	return circuitbreaker.DefaultIsFailure(statusCode)
 }
 
-func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock, opts ...anthropicOption) (*Anthropic, error) {
-	options := anthropicOptions{resolveInferenceProfile: resolveInferenceProfile}
-	for _, opt := range opts {
-		opt(&options)
-	}
-
+func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (*Anthropic, error) {
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderAnthropic
 	}
@@ -111,7 +90,7 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 		// Bedrock rejects outright on models that only accept adaptive thinking.
 		resolveCtx, cancel := context.WithTimeout(ctx, inferenceProfileResolutionTimeout)
 		defer cancel()
-		model, smallFastModel, err := resolveBedrockModels(resolveCtx, runtimeCfg, creds, options.resolveInferenceProfile)
+		model, smallFastModel, err := resolveBedrockModels(resolveCtx, runtimeCfg, creds, resolveInferenceProfile)
 		if err != nil {
 			return nil, xerrors.Errorf("resolve bedrock models: %w", err)
 		}

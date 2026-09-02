@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
 	"golang.org/x/xerrors"
 
@@ -20,10 +21,6 @@ const bedrockService = "bedrock"
 // application inference profile, the AWS-native mechanism for attributing
 // Bedrock spend to a team or workload via cost allocation tags.
 const applicationInferenceProfileResourceType = "application-inference-profile"
-
-// inferenceProfileResolver resolves an application inference profile ARN to the
-// Bedrock model ID it wraps.
-type inferenceProfileResolver func(ctx context.Context, cfg config.AWSBedrock, creds aws.CredentialsProvider, profileARN string) (string, error)
 
 // inferenceProfileResolutionTimeout bounds the Bedrock control-plane calls made
 // while constructing a provider, which also cover the first credential
@@ -50,11 +47,15 @@ func isApplicationInferenceProfileARN(model string) bool {
 // The caller's credentials sign the call, so the required
 // bedrock:GetInferenceProfile permission belongs to the identity that already
 // invokes Bedrock, including any role assumed via config.AWSBedrock.RoleARN.
+// The rest of the client configuration comes from the AWS environment, so
+// custom control-plane endpoints are honored.
 func resolveInferenceProfile(ctx context.Context, cfg config.AWSBedrock, creds aws.CredentialsProvider, profileARN string) (string, error) {
-	client := bedrock.NewFromConfig(aws.Config{
-		Region:      cfg.Region,
-		Credentials: creds,
-	})
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cfg.Region))
+	if err != nil {
+		return "", xerrors.Errorf("load AWS config: %w", err)
+	}
+	awsCfg.Credentials = creds
+	client := bedrock.NewFromConfig(awsCfg)
 
 	out, err := client.GetInferenceProfile(ctx, &bedrock.GetInferenceProfileInput{
 		InferenceProfileIdentifier: aws.String(profileARN),
@@ -95,7 +96,7 @@ func modelIDFromARN(modelARN string) (string, error) {
 // IDs used for capability detection, usage recording, and pricing. Identifiers
 // that are not application inference profile ARNs are returned unchanged and
 // cost no AWS call.
-func resolveBedrockModels(ctx context.Context, cfg config.AWSBedrock, creds aws.CredentialsProvider, resolve inferenceProfileResolver) (model, smallFastModel string, err error) {
+func resolveBedrockModels(ctx context.Context, cfg config.AWSBedrock, creds aws.CredentialsProvider, resolve func(ctx context.Context, cfg config.AWSBedrock, creds aws.CredentialsProvider, profileARN string) (string, error)) (model, smallFastModel string, err error) {
 	resolveOne := func(configured string) (string, error) {
 		if !isApplicationInferenceProfileARN(configured) {
 			return configured, nil
