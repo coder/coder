@@ -61,7 +61,7 @@ func (p *Server) subscribeStreamLoop(
 	unregisterPoller := p.streamSyncPoller.Register(chatID, func(hint streamSyncHint) {
 		select {
 		case updateCh <- hint:
-		case <-streamCtx.Done():
+		default:
 		}
 	})
 	loop := newStreamLoop(chat, p.db, logger, afterMessageID)

@@ -71,7 +71,10 @@ func (p *streamSyncPoller) Close() {
 // Register subscribes deliver to poll hints for chatID until the returned
 // unregister func is called. deliver is invoked outside the poller's mutex and
 // may race with unregister, so it must remain safe to call after unregister
-// returns (e.g. by guarding on the subscriber's own context).
+// returns (e.g. by sending to a channel that is never closed). deliver runs
+// synchronously on the shared poll loop, so it must not block; a blocked
+// callback stalls polling for every chat on the replica. Dropped hints are
+// re-delivered on the next poll tick.
 func (p *streamSyncPoller) Register(chatID uuid.UUID, deliver func(streamSyncHint)) (unregister func()) {
 	if p == nil {
 		return func() {}
