@@ -4625,7 +4625,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		aReq.New.PlanModeInstructions = sanitizedInstructions
 		noChange = aReq.New.PlanModeInstructions == aReq.Old.PlanModeInstructions
 		return nil
-	}, nil)
+	}, database.DefaultTXOptions().WithID("chat_plan_mode_instructions_write"))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating plan mode instructions.",

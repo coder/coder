@@ -137,6 +137,14 @@ If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_
 > also differs by client type. See
 > [Callback URL schemes](#callback-url-schemes).
 
+A client's type is fixed when it registers.
+An RFC 7592 update that would move a client between public and confidential is rejected with `invalid_client_metadata`, since the client either holds a secret that would stop being required or has none and no way to be issued one.
+Switching between `client_secret_basic` and `client_secret_post` is allowed, because both are confidential.
+To change type, register a new client.
+
+Clients registered with `token_endpoint_auth_method: none` before Coder honored it are stored as confidential and still require their `client_secret`.
+Coder reports `client_secret_basic` for those clients so that what it reports matches what it enforces, and the mismatch clears the next time the client updates its registration using the value Coder reported.
+
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
 ### Standard OAuth2 Flow
@@ -374,6 +382,31 @@ If you see this error when authorizing, the registered callback URL uses a
 blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). Update the
 application's callback URL to a valid scheme (see
 [Callback URL schemes](#callback-url-schemes)).
+
+### "invalid_scope" returned to your callback
+
+The authorization endpoint validates the `scope` parameter. When it cannot
+grant what was asked for, it redirects to your registered callback with
+`error=invalid_scope` rather than issuing a code. The `error_description`
+opens with the name that caused the rejection:
+
+- `unknown or unsupported scope`: this deployment does not offer that scope
+  name. Read the current list from `scopes_supported` in
+  `GET /.well-known/oauth-authorization-server`.
+- `scope requests permissions beyond this app's allowed scopes`: the name is
+  supported, but the application was registered with a narrower `scope`.
+  Request less, or re-register the application with a wider one.
+- `none of the scopes registered for this app are supported by this
+  deployment`: the application's own registered `scope` names nothing this
+  deployment offers, so no request against it can succeed, including one
+  that omits `scope`. Re-register the application with supported scopes.
+
+Omitting `scope` requests the application's registered scopes, or full access
+if it was registered without any.
+
+The negotiated scope is recorded on the authorization and shown on the consent
+page. It does not yet restrict what the issued token can do (see
+[Limitations](#limitations)).
 
 ### "PKCE verification failed"
 

@@ -10,7 +10,6 @@ import type {
 	OrganizationGroupsAISpend,
 	PaginatedGroup,
 } from "#/api/typesGenerated";
-import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
@@ -36,6 +35,7 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
+import { AIBudgetUsage } from "#/modules/groups/AIBudgetUsage";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { SpendEstimateDocsLink } from "./AICostControl";
