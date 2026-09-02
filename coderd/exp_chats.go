@@ -6186,7 +6186,8 @@ func (api *API) putChatRuntimeConfig(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if !requireExternalChatRuntime(ctx, rw, req.Runtime) {
+	harness, ok := requireExternalChatRuntime(ctx, rw, req.Runtime)
+	if !ok {
 		return
 	}
 	if req.OrganizationID == uuid.Nil || req.TemplateID == uuid.Nil {
@@ -6221,6 +6222,30 @@ func (api *API) putChatRuntimeConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if req.Model != "" {
+		configs, err := api.Database.GetEnabledChatModelConfigsByOrganization(ctx, req.OrganizationID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error validating model.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		accepted := make([]string, 0, len(configs))
+		for _, config := range configs {
+			if config.Provider == string(harness.ProviderType) {
+				accepted = append(accepted, config.ChatModelConfig.Model)
+			}
+		}
+		if !slices.Contains(accepted, req.Model) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model.",
+				Detail: fmt.Sprintf("%s runtimes accept the model of an enabled %s model config in the organization; got %q, want one of %v.",
+					harness.DisplayName, harness.ProviderLabel, req.Model, accepted),
+			})
+			return
+		}
+	}
 	config, err := api.Database.UpsertChatRuntimeConfig(ctx, database.UpsertChatRuntimeConfigParams{
 		OrganizationID: req.OrganizationID,
 		Runtime:        database.ChatRuntime(req.Runtime),
@@ -6240,17 +6265,17 @@ func (api *API) putChatRuntimeConfig(rw http.ResponseWriter, r *http.Request) {
 }
 
 // requireExternalChatRuntime rejects runtime config writes for anything
-// without an ACP harness, the built-in runtime included. It reports
-// whether the handler may continue.
-func requireExternalChatRuntime(ctx context.Context, rw http.ResponseWriter, runtime codersdk.ChatRuntime) bool {
-	if _, ok := chatacp.HarnessFor(runtime); ok {
-		return true
+// without an ACP harness, the built-in runtime included. It returns the
+// harness and whether the handler may continue.
+func requireExternalChatRuntime(ctx context.Context, rw http.ResponseWriter, runtime codersdk.ChatRuntime) (chatacp.Harness, bool) {
+	if harness, ok := chatacp.HarnessFor(runtime); ok {
+		return harness, true
 	}
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: "Invalid runtime.",
 		Detail:  fmt.Sprintf("Only external runtimes can be configured, got %q.", runtime),
 	})
-	return false
+	return chatacp.Harness{}, false
 }
 
 // @Summary Delete chat runtime config
@@ -6276,7 +6301,7 @@ func (api *API) deleteChatRuntimeConfig(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	runtime := codersdk.ChatRuntime(r.URL.Query().Get("runtime"))
-	if !requireExternalChatRuntime(ctx, rw, runtime) {
+	if _, ok := requireExternalChatRuntime(ctx, rw, runtime); !ok {
 		return
 	}
 	if err := api.Database.DeleteChatRuntimeConfig(ctx, database.DeleteChatRuntimeConfigParams{

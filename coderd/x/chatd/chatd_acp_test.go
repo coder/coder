@@ -3,6 +3,7 @@ package chatd_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	acp "github.com/coder/acp-go-sdk"
 	"github.com/coder/coder/v2/coderd/database"
@@ -442,6 +444,35 @@ func TestACPChatMissingRuntimeConfigFails(t *testing.T) {
 		require.Equal(t, database.ChatStatusError, chat.Status)
 		require.True(t, chat.LastError.Valid)
 		require.Contains(t, string(chat.LastError.RawMessage), "The "+harness.DisplayName+" runtime is not configured")
+		require.Empty(t, fakeAgent.Prompts())
+	})
+}
+
+// TestACPChatRejectedPermissionModeFails verifies that an adapter
+// refusing the configured permission mode surfaces as a configuration
+// error naming the mode, so administrators learn the setting is wrong.
+func TestACPChatRejectedPermissionModeFails(t *testing.T) {
+	t.Parallel()
+
+	forEachHarness(t, func(t *testing.T, harness chatacp.Harness) {
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
+		fakeAgent := &chatacptest.FakeAgent{}
+		fakeAgent.OnSetSessionMode = func(acp.SetSessionModeRequest) error {
+			return xerrors.New("unknown mode")
+		}
+		created := createACPChat(ctx, t, db, ps, setup, "hello")
+		_ = newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent, primaryCredentials(acpTestPinnedModel)))
+
+		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
+		require.Equal(t, database.ChatStatusError, chat.Status)
+		require.True(t, chat.LastError.Valid)
+		var lastError codersdk.ChatError
+		require.NoError(t, json.Unmarshal(chat.LastError.RawMessage, &lastError))
+		require.Equal(t, codersdk.ChatErrorKindConfig, lastError.Kind)
+		require.Equal(t, "The "+harness.DisplayName+` runtime's permission mode "acceptEdits" is not supported by the adapter; ask an administrator to change it in the runtime config.`, lastError.Message)
 		require.Empty(t, fakeAgent.Prompts())
 	})
 }

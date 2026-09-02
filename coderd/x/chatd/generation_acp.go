@@ -165,6 +165,13 @@ func (s *taskStarter) startACPGeneration(
 		return errors.Join(errTaskExpectedExit, xerrors.Errorf("acp turn interrupted: %w", ctx.Err()))
 	}
 	if runErr != nil {
+		if modeErr, ok := errors.AsType[*chatacp.SessionModeError](runErr); ok {
+			runErr = chaterror.WithClassification(runErr, chaterror.ClassifiedError{
+				Kind: codersdk.ChatErrorKindConfig,
+				Message: fmt.Sprintf("The %s runtime's permission mode %q is not supported by the adapter; ask an administrator to change it in the runtime config.",
+					harness.DisplayName, modeErr.Mode),
+			})
+		}
 		return s.finishGenerationError(ctx, machine, input, runErr, requireGenerationAttempt(attempt.number))
 	}
 	if len(outcome.Content) == 0 {

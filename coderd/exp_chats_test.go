@@ -1943,23 +1943,45 @@ func TestChatRuntimeConfigAndAvailability(t *testing.T) {
 		}
 	}
 
+	// The model pin must name an enabled model config on the harness
+	// provider so a typo or another provider's model cannot be saved.
+	pinnedModels := map[codersdk.ChatRuntime]string{}
+	for _, harness := range chatacp.Harnesses() {
+		pinnedModels[harness.Runtime] = createAdditionalChatModel(t, client, string(harness.ProviderType), "pinned-"+string(harness.Runtime)).Model
+	}
 	wantAvailability := []codersdk.ChatRuntimeAvailability{}
 	for _, harness := range chatacp.Harnesses() {
 		runtime := harness.Runtime
-		config, err := client.UpsertChatRuntimeConfig(ctx, codersdk.UpsertChatRuntimeConfigRequest{
-			OrganizationID: user.OrganizationID,
-			Runtime:        runtime,
-			TemplateID:     template.ID,
-			Enabled:        true,
-			Model:          "pinned-" + string(runtime),
-			PermissionMode: "acceptEdits",
-		})
+		upsert := func(model string) (codersdk.ChatRuntimeConfig, error) {
+			return client.UpsertChatRuntimeConfig(ctx, codersdk.UpsertChatRuntimeConfigRequest{
+				OrganizationID: user.OrganizationID,
+				Runtime:        runtime,
+				TemplateID:     template.ID,
+				Enabled:        true,
+				Model:          model,
+				PermissionMode: "acceptEdits",
+			})
+		}
+		for _, other := range chatacp.Harnesses() {
+			if other.Runtime == runtime {
+				continue
+			}
+			_, err := upsert(pinnedModels[other.Runtime])
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Invalid model.", sdkErr.Message, "%s accepted %s model", runtime, other.Runtime)
+		}
+		_, err := upsert("not-a-real-model")
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, pinnedModels[runtime])
+
+		config, err := upsert(pinnedModels[runtime])
 		require.NoError(t, err)
 		require.Equal(t, user.OrganizationID, config.OrganizationID)
 		require.Equal(t, runtime, config.Runtime)
 		require.Equal(t, template.ID, config.TemplateID)
 		require.True(t, config.Enabled)
-		require.Equal(t, "pinned-"+string(runtime), config.Model)
+		require.Equal(t, pinnedModels[runtime], config.Model)
 		require.Equal(t, "acceptEdits", config.PermissionMode)
 		wantAvailability = append(wantAvailability, codersdk.ChatRuntimeAvailability{
 			OrganizationID: user.OrganizationID,

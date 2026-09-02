@@ -3,6 +3,7 @@ package chatacp_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -726,6 +727,32 @@ func TestRunTurnPermissionAutoDeny(t *testing.T) {
 	require.NotEmpty(t, parts)
 	require.Contains(t, parts[0].part.Text, "Test Agent requested a permission")
 	require.Contains(t, parts[0].part.Text, "declined automatically")
+	require.Contains(t, parts[0].part.Text, "ask an organization administrator to change the runtime's permission mode")
+}
+
+// TestRunTurnRejectedSessionMode verifies that an adapter refusing the
+// configured session mode fails the turn before any prompt is sent,
+// instead of silently running under a different mode.
+func TestRunTurnRejectedSessionMode(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	agent := &chatacptest.FakeAgent{}
+	agent.OnSetSessionMode = func(acp.SetSessionModeRequest) error {
+		return xerrors.New("unknown mode")
+	}
+
+	_, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
+		Cwd:            "/home/coder",
+		PromptText:     "hello",
+		PermissionMode: "bogus-mode",
+		Publish:        func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {},
+		Logger:         testLogger(t),
+	})
+	modeErr, ok := errors.AsType[*chatacp.SessionModeError](err)
+	require.True(t, ok, "got %v", err)
+	require.Equal(t, "bogus-mode", modeErr.Mode)
+	require.Empty(t, agent.Prompts())
 }
 
 func TestBuildReseedContext(t *testing.T) {

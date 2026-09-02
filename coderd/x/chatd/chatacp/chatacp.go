@@ -12,6 +12,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	stdslog "log/slog"
 	"strings"
 	"sync"
@@ -35,8 +36,23 @@ const (
 	cancelResolveTimeout = 10 * time.Second
 	// permissionDeniedNote is streamed, prefixed with the agent name,
 	// when the adapter asks for a permission the auto-policy rejects.
-	permissionDeniedNote = " requested a permission this chat's policy does not grant; the action was declined automatically."
+	permissionDeniedNote = " requested a permission this chat's policy does not grant; the action was declined automatically. " +
+		"To allow it, ask an organization administrator to change the runtime's permission mode in the runtime config."
 )
+
+// SessionModeError reports that the adapter rejected the configured
+// session mode. The mode is an organization setting, so callers surface
+// it as a configuration problem instead of an opaque turn failure.
+type SessionModeError struct {
+	Mode string
+	err  error
+}
+
+func (e *SessionModeError) Error() string {
+	return fmt.Sprintf("set session mode %q: %v", e.Mode, e.err)
+}
+
+func (e *SessionModeError) Unwrap() error { return e.err }
 
 // TurnInput configures one generation turn.
 type TurnInput struct {
@@ -141,11 +157,10 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 			if ctx.Err() != nil {
 				return TurnOutcome{}, xerrors.Errorf("set session mode: %w", err)
 			}
-			// Mode support varies by adapter version; a turn without
-			// the requested mode still runs under the auto-deny
-			// permission policy.
-			input.Logger.Warn(ctx, "set acp session mode failed",
-				slog.F("mode", input.PermissionMode), slog.Error(err))
+			// Mode support varies by adapter version; running the turn
+			// under a mode the administrator did not choose would hide
+			// the misconfiguration behind auto-denied permissions.
+			return TurnOutcome{}, &SessionModeError{Mode: input.PermissionMode, err: err}
 		}
 	}
 

@@ -31,6 +31,8 @@ type FakeAgent struct {
 	OnResumeSession func(params acp.ResumeSessionRequest) error
 	// OnLoadSession replays history for session/load.
 	OnLoadSession func(ctx context.Context, conn *acp.AgentSideConnection, params acp.LoadSessionRequest) error
+	// OnSetSessionMode rejects or accepts session/set_mode.
+	OnSetSessionMode func(params acp.SetSessionModeRequest) error
 
 	newSessions    []acp.NewSessionRequest
 	resumeSessions []acp.ResumeSessionRequest
@@ -155,8 +157,14 @@ func (a *FakeAgent) Cancel(_ context.Context, params acp.CancelNotification) err
 
 func (a *FakeAgent) SetSessionMode(_ context.Context, params acp.SetSessionModeRequest) (acp.SetSessionModeResponse, error) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	a.modes = append(a.modes, params)
+	handler := a.OnSetSessionMode
+	a.mu.Unlock()
+	if handler != nil {
+		if err := handler(params); err != nil {
+			return acp.SetSessionModeResponse{}, err
+		}
+	}
 	return acp.SetSessionModeResponse{}, nil
 }
 
