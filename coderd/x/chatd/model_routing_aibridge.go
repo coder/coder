@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
@@ -105,7 +106,7 @@ func isOpenRouterLikeAIGatewayProvider(provider database.AIProvider) bool {
 	if strings.EqualFold(strings.TrimSpace(provider.Name), "openrouter") {
 		return true
 	}
-	host := chatprovider.ProviderBaseURLHostname(provider.BaseUrl)
+	host := aibridged.BaseURLHostname(provider.BaseUrl)
 	return host == "openrouter.ai" || strings.HasSuffix(host, ".openrouter.ai")
 }
 

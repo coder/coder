@@ -14,7 +14,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func Test_diffValues(t *testing.T) {
@@ -83,14 +82,14 @@ func Test_diffValues(t *testing.T) {
 		runDiffValuesTests(t, table, []diffTest{
 			{
 				name: "LeftNil",
-				left: foo{Bar: nil}, right: foo{Bar: ptr.Ref("baz")},
+				left: foo{Bar: nil}, right: foo{Bar: new("baz")},
 				exp: audit.Map{
 					"bar": audit.OldNew{Old: "", New: "baz"},
 				},
 			},
 			{
 				name: "RightNil",
-				left: foo{Bar: ptr.Ref("baz")}, right: foo{Bar: nil},
+				left: foo{Bar: new("baz")}, right: foo{Bar: nil},
 				exp: audit.Map{
 					"bar": audit.OldNew{Old: "baz", New: ""},
 				},

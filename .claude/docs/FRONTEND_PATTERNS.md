@@ -30,6 +30,9 @@ function actually exercises the interaction. Jest/RTL tests are for pure logic
 - When a component depends on the current time or date, accept it as a prop or
   via context instead of reading `new Date()` or `Date.now()` internally, so
   stories render deterministically without mocking globals.
+- `renderHook` suites for stateful UI hooks are interaction tests, not pure
+  logic. Cover that behavior through the story of the component that uses the
+  hook.
 
 **Incorrect (interaction test in Jest/RTL):**
 
@@ -70,15 +73,15 @@ export const SelectModel: Story = {
 **Incorrect:**
 
 ```tsx
-const config = data as unknown as ChatModelConfig;
+const config = data as unknown as ChatModel;
 ```
 
 **Correct:**
 
 ```tsx
-import type { ChatModelConfig } from "api/typesGenerated";
+import type { ChatModel } from "api/typesGenerated";
 
-const config: ChatModelConfig = parseConfig(data);
+const config: ChatModel = parseConfig(data);
 ```
 
 ## FE3: Reuse before building, and keep PRs single-purpose
@@ -89,6 +92,8 @@ const config: ChatModelConfig = parseConfig(data);
   of existing ones.
 - Use existing wrapped primitives (Combobox, dialogs, tables) instead of
   hand-assembling the underlying pieces they already wrap.
+- Do not introduce a new React hook when an existing hook, a plain function,
+  or component state can express the logic.
 - Delete dead code and unreachable branches instead of carrying them along.
 - Keep the PR scoped to one change. Move unrelated cleanups, renames, and
   drive-by refactors to separate PRs.
@@ -167,17 +172,17 @@ with `useState` + `useEffect`.
 
 ```tsx
 parameters: {
-  queries: [{ key: ["chat-model-configs"], data: [MockChatModelConfig] }],
+  queries: [{ key: ["chat-models"], data: [MockChatModel] }],
 },
 ```
 
 **Correct (imported constant):**
 
 ```tsx
-import { chatModelConfigsKey } from "api/queries/chats";
+import { chatModelsKey } from "api/queries/chats";
 
 parameters: {
-  queries: [{ key: chatModelConfigsKey, data: [MockChatModelConfig] }],
+  queries: [{ key: chatModelsKey, data: [MockChatModel] }],
 },
 ```
 
@@ -203,12 +208,15 @@ Decide where logic goes before reaching for `useEffect`:
 ## FE9: Fixtures and mocks follow repo conventions
 
 - Represent entities with shared `Mock*` constants in `site/src/testHelpers/`
-  (for example `MockChatModelConfig` in `testHelpers/chatModels.ts`). When a
+  (for example `MockChatModel` in `testHelpers/chatModels.ts`). When a
   story needs a variant, spread the base fixture into a named local constant.
 - Compose story query wiring (`{ key, data }`) inline per story so each story
   is readable on its own. Share the entity fixture, not a pre-wired query
   object.
 - Query keys in mocks follow FE7: import the constant.
+- Never replace browser globals with `Object.defineProperty` in tests or
+  stories. Use `vi.stubGlobal` in unit tests and `spyOn` from
+  `storybook/test` in stories.
 
 ## FE10: Tests assert observable behavior
 

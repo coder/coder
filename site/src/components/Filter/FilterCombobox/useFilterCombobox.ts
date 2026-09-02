@@ -237,9 +237,9 @@ export const useFilterCombobox = ({
 		[chipKeys, value],
 	);
 
-	const listedCategories = useMemo(() => {
+	const listedCategories = useMemo<FilterCategory[]>(() => {
 		if (activeCategoryKey !== null || !isBrowsing) {
-			return [] as FilterCategory[];
+			return [];
 		}
 		if (inputValue.trim().length === 0) {
 			return [...categories];

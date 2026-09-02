@@ -1,4 +1,6 @@
-# Glossary
+---
+title: Glossary
+---
 
 This glossary defines the Coder-specific terms and product names you encounter across the documentation.
 Each entry gives a short definition and, where it helps, links to the page that covers the term in depth.
@@ -92,11 +94,6 @@ The self-hosted platform that provisions and manages remote development environm
 The native, self-hosted AI product for delegating development work and research to coding agents.
 The agent loop runs in the control plane, and developers work through the dashboard, the `coder agents` CLI, or the REST API.
 Not to be confused with a [workspace agent](#workspace-agent) or the [`coder_agent`](#coder_agent) resource.
-Refer to [Coder Agents](../ai-coder/agents/index.md).
-
-### Coder Agents User
-
-The per-organization role that a member needs to use [Coder Agents](#coder-agents).
 Refer to [Coder Agents](../ai-coder/agents/index.md).
 
 ### Coder CLI

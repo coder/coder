@@ -1,4 +1,6 @@
-# Icons
+---
+title: Icons
+---
 
 Coder uses icons in several places, including ones that can be configured
 throughout the app, or specified in your Terraform. They're specified by a URL,

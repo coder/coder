@@ -120,18 +120,15 @@ const IdpSyncPage: FC = () => {
 	}
 
 	return (
-		<div className="w-full max-w-screen-2xl pb-10">
+		<div className="w-full max-w-(--breakpoint-2xl) pb-10">
 			{title}
 
-			<SettingsHeader
-				actions={
-					<SettingsHeaderDocsLink href={docs("/admin/users/idp-sync")} />
-				}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>IdP Sync</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Automatically assign groups or roles to a user based on their IdP
-					claims.
+					claims.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/users/idp-sync")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{!isIdpSyncEnabled ? (

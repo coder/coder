@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -107,19 +106,20 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: ptr.Ref("turn-options-sentinel"),
+				User: new("turn-options-sentinel"),
 			},
 		},
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-			Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
-			Max:     ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
+			Default: new(codersdk.ChatModelReasoningEffortLow),
+			Max:     new(codersdk.ChatModelReasoningEffortMedium),
 		},
 	})
 	require.NoError(t, err)
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		Options:      modelConfigRaw,
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		Options:        modelConfigRaw,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
@@ -203,15 +203,16 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		},
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: ptr.Ref("computer-use"),
+				User: new("computer-use"),
 			},
 		},
 	})
 	require.NoError(t, err)
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		Options:      modelConfigRaw,
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		Options:        modelConfigRaw,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
@@ -304,8 +305,9 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		Type: database.AIProviderTypeOpenai,
 	}, "test-key")
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
@@ -385,9 +387,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:       "gpt-4o-mini",
-			DisplayName: "gpt-4o-mini",
-			Options:     json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+			Model:          "gpt-4o-mini",
+			DisplayName:    "gpt-4o-mini",
+			Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+			OrganizationID: org.ID,
 		}, func(p *database.InsertChatModelConfigParams) {
 			p.Enabled = true
 			p.IsDefault = true
@@ -504,9 +507,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		})
 		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "gpt-4o-mini",
-			DisplayName:  "gpt-4o-mini",
-			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+			Model:          "gpt-4o-mini",
+			DisplayName:    "gpt-4o-mini",
+			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			OrganizationID: org.ID,
 		})
 
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{

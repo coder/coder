@@ -49,17 +49,14 @@ const PremiumPage: FC = () => {
 		<>
 			<title>{pageTitle("Start a Coder trial")}</title>
 
-			<SettingsHeader
-				actions={
-					<SettingsHeaderDocsLink href={docs(DATABASE_DOCS_LINK)}>
-						Review Coder system requirements
-					</SettingsHeaderDocsLink>
-				}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>Start a Coder trial</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					For enterprises ready to achieve world-class security, scalability,
-					and developer experience.
+					and developer experience.{" "}
+					<SettingsHeaderDocsLink href={docs(DATABASE_DOCS_LINK)}>
+						Review Coder system requirements
+					</SettingsHeaderDocsLink>
 				</SettingsHeaderDescription>
 				<Link
 					href="https://coder.com/pricing#compare"

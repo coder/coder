@@ -92,7 +92,7 @@ Use our API reference for more information on how to
 ### Set max token length
 
 You can use the
-[`CODER_MAX_TOKEN_LIFETIME`](https://coder.com/docs/reference/cli/server#--max-token-lifetime)
+[`CODER_MAX_TOKEN_LIFETIME`](../../reference/cli/server.md#--max-token-lifetime)
 server flag to set the maximum duration for long-lived tokens in your
 deployment.
 
@@ -123,7 +123,7 @@ Deleting the user that owns a token revokes every token that user holds at the s
 
 ## API Key Scopes
 
-API key scopes allow you to limit the permissions of a token to specific operations. By default, tokens are created with the `all` scope, granting full access to all actions the user can perform. For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.
+API key scopes allow you to limit the permissions of a token to specific operations. By default, tokens are created with the `coder:all` scope, granting full access to all actions the user can perform. For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.
 
 Scopes follow the format `resource:action`, where `resource` is the type of object (like `workspace`, `template`, or `user`) and `action` is the operation (like `read`, `create`, `update`, or `delete`). You can also use wildcards like `workspace:*` to grant all permissions for a specific resource type.
 
@@ -145,9 +145,15 @@ Common scope examples include:
 - `workspace:*` - Full workspace access (create, read, update, delete)
 - `template:read` - View template information
 - `api_key:read` - View API keys (useful for automation)
-- `application_connect` - Connect to workspace applications
+- `coder:application_connect` - Connect to workspace applications
 
-For a complete list of available scopes, see the API reference documentation.
+The
+[`codersdk.APIKeyScope` schema](../../reference/api/schemas.md#codersdkapikeyscope)
+lists every scope name Coder defines, but a token cannot request all of them.
+Internal scopes such as `debug_info:read` are rejected with a `400` response, so
+use the `resource:action` and `coder:` names described on this page.
+
+The older names `all` and `application_connect` are still accepted for backward compatibility. Tokens created with them are stored and listed as `coder:all` and `coder:application_connect`.
 
 ### Allow lists (advanced)
 

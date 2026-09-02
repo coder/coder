@@ -1,4 +1,6 @@
-# Organizations - best practices
+---
+title: Organizations - best practices
+---
 
 ---
 

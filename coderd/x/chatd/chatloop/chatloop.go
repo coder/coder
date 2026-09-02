@@ -51,6 +51,9 @@ var (
 	// classifiers blocked the response and the model produced no
 	// content, e.g. Anthropic's stop_reason "refusal".
 	ErrContentFiltered = xerrors.New("response blocked by provider content filter")
+	// ErrNoModelOutput is returned when a stream ends without visible content or
+	// tool calls and its finish reason indicates an incomplete response.
+	ErrNoModelOutput = xerrors.New("model stream finished without output")
 
 	errStreamSilenceTimeout = xerrors.New(
 		"chat stream was silent for longer than the configured timeout",
@@ -73,11 +76,15 @@ type PersistedStep struct {
 	Content      []fantasy.Content
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
-	// Runtime is the wall-clock duration of the model invocation
-	// that produced this step's content, measured from just before
-	// the provider stream is opened until the stream is fully
-	// consumed.
+	// Runtime is the wall-clock duration from opening to consuming the
+	// model stream.
 	Runtime time.Duration
+	// BatchRuntime is the union of billed local-tool execution intervals.
+	// Parallel calls count once and serial calls count from their own start.
+	BatchRuntime time.Duration
+	// BatchBilledCalls counts the executed calls whose intervals produced
+	// BatchRuntime. Audit metadata for the batch usage record.
+	BatchBilledCalls int
 	// PendingDynamicToolCalls lists tool calls that target
 	// dynamic tools. When non-empty the chatloop exits with
 	// ErrDynamicToolCall so the caller can execute them
@@ -266,15 +273,30 @@ type ExecuteLocalToolsOptions struct {
 	// is renamed but old chat histories still reference the old name.
 	ToolNameAliases map[string]string
 
+	// UnbilledToolNames lists called tool names excluded from the batch
+	// window. Include deprecated aliases.
+	UnbilledToolNames map[string]bool
+	// BillingRecorder observes each local call's start and completion
+	// for interrupt billing. Serial calls may start after concurrent
+	// siblings settle, so interrupts bill actual starts and skip calls
+	// that never run. Optional.
+	BillingRecorder ToolBillingRecorder
+
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
 	Metrics            *Metrics
 	Clock              quartz.Clock
 }
 
-// ToolExecutionOutcome is the durable tool-result content from one batch.
-type ToolExecutionOutcome struct {
-	Step PersistedStep
+// ToolBillingRecorder records live start and completion timestamps for
+// local tool calls. Interrupt billing uses these so a cancel can bill
+// work that already started and skip calls that never ran.
+// dispatchIndex identifies the dispatch-order occurrence.
+// RecordComplete may run from multiple tool goroutines; implementations
+// must be concurrency-safe.
+type ToolBillingRecorder interface {
+	RecordStart(dispatchIndex int, startedAt time.Time)
+	RecordComplete(dispatchIndex int, completedAt time.Time)
 }
 
 // GenerateCompactionOptions configures one context compaction call.
@@ -462,6 +484,12 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	if result.finishReason == fantasy.FinishReasonContentFilter && !hasUserVisibleContent(result.content) {
 		return AssistantOutcome{}, contentFilterError(errorProvider, result.providerMetadata)
 	}
+	// Treat discarded responses as retryable so an empty turn is not persisted.
+	if silentNoOutputFinish(result.finishReason) && !hasUserVisibleContent(result.content) && len(result.toolCalls) == 0 {
+		noOutputErr := noModelOutputError(errorProvider, result.finishReason)
+		opts.Metrics.RecordStreamRetry(provider, modelName, chaterror.Classify(noOutputErr))
+		return AssistantOutcome{}, noOutputErr
+	}
 	step := PersistedStep{
 		Content:              result.content,
 		Usage:                result.usage,
@@ -496,18 +524,46 @@ func wrapProviderStreamError(provider string, err error) error {
 	return xerrors.Errorf("stream response: %w", chaterror.WithClassification(err, classified))
 }
 
-// hasUserVisibleContent reports whether any content part carries output the
-// user can see. Reasoning parts do not count: they stream transiently and are
-// not a substitute for a response.
+// hasUserVisibleContent ignores reasoning and blank text because neither can
+// complete a user-facing response.
 func hasUserVisibleContent(content []fantasy.Content) bool {
 	for _, part := range content {
-		switch part.(type) {
+		switch value := part.(type) {
 		case fantasy.ReasoningContent, *fantasy.ReasoningContent:
+		case fantasy.TextContent:
+			if strings.TrimSpace(value.Text) != "" {
+				return true
+			}
+		case *fantasy.TextContent:
+			if value != nil && strings.TrimSpace(value.Text) != "" {
+				return true
+			}
 		default:
 			return true
 		}
 	}
 	return false
+}
+
+func silentNoOutputFinish(reason fantasy.FinishReason) bool {
+	switch reason {
+	case fantasy.FinishReasonUnknown, fantasy.FinishReasonError,
+		fantasy.FinishReasonOther, fantasy.FinishReasonToolCalls:
+		return true
+	default:
+		return false
+	}
+}
+
+func noModelOutputError(provider string, reason fantasy.FinishReason) error {
+	classified := chaterror.ClassifiedError{
+		Message:   "The model ended its response without producing any output.",
+		Detail:    "finish reason: " + string(reason),
+		Kind:      codersdk.ChatErrorKindGeneric,
+		Provider:  provider,
+		Retryable: true,
+	}
+	return chaterror.WithClassification(ErrNoModelOutput, classified)
 }
 
 func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
@@ -525,7 +581,7 @@ func contentFilterError(provider string, metadata fantasy.ProviderMetadata) erro
 
 // ExecuteLocalTools runs local tool calls and returns durable tool results. It
 // does not retry or persist.
-func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (ToolExecutionOutcome, error) {
+func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (PersistedStep, error) {
 	if opts.Metrics == nil {
 		opts.Metrics = NopMetrics()
 	}
@@ -547,7 +603,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	// without capturing the publisher at construction time.
 	ctx = WithMessagePartPublisher(ctx, opts.PublishMessagePart)
 	if ctx.Err() != nil {
-		return ToolExecutionOutcome{}, ctx.Err()
+		return PersistedStep{}, ctx.Err()
 	}
 
 	localCalls := make([]fantasy.ToolCallContent, 0, len(opts.ToolCalls))
@@ -557,7 +613,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		}
 	}
 	if len(localCalls) == 0 {
-		return ToolExecutionOutcome{}, nil
+		return PersistedStep{}, nil
 	}
 
 	var result stepResult
@@ -579,16 +635,17 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 			result.content = append(result.content, tr)
 		}
 		if ctx.Err() != nil {
-			return ToolExecutionOutcome{}, ctx.Err()
+			return PersistedStep{}, ctx.Err()
 		}
-		return ToolExecutionOutcome{Step: PersistedStep{
+		return PersistedStep{
 			Content:             result.content,
 			ToolResultCreatedAt: result.toolResultCreatedAt,
-		}}, nil
+		}, nil
 	}
 
 	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
-	toolResults := executeTools(
+	batchStart := clockNow(opts.Clock)
+	toolExecutions := executeTools(
 		ctx,
 		opts.Clock,
 		opts.Tools,
@@ -604,24 +661,81 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		opts.BuiltinToolNames,
 		maxResultBytes,
 		opts.ToolNameAliases,
-		func(tr fantasy.ToolResultContent, completedAt time.Time) {
-			recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
-			publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
-			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
-			ssePart.CreatedAt = &completedAt
-			publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
-		},
+		batchStart,
+		opts.BillingRecorder,
 	)
-	if ctx.Err() != nil {
-		return ToolExecutionOutcome{}, ctx.Err()
-	}
-	for _, tr := range toolResults {
+	for _, execution := range toolExecutions {
+		tr := execution.content
+		completedAt := execution.interval.End
+		recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
+		publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
+		ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
+		ssePart.CreatedAt = &completedAt
+		publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 		result.content = append(result.content, tr)
 	}
-	return ToolExecutionOutcome{Step: PersistedStep{
+	if ctx.Err() != nil {
+		return PersistedStep{}, ctx.Err()
+	}
+	billedIntervals := billableBatchIntervals(toolExecutions, opts.UnbilledToolNames)
+	return PersistedStep{
 		Content:             result.content,
 		ToolResultCreatedAt: result.toolResultCreatedAt,
-	}}, nil
+		BatchRuntime:        BilledIntervalsDuration(billedIntervals),
+		BatchBilledCalls:    len(billedIntervals),
+	}, nil
+}
+
+// billableBatchIntervals returns the billed execution intervals.
+// Unbilled tools and calls without both stamps do not count.
+func billableBatchIntervals(
+	executions []toolExecutionResult,
+	unbilledToolNames map[string]bool,
+) []BilledInterval {
+	intervals := make([]BilledInterval, 0, len(executions))
+	for _, execution := range executions {
+		if unbilledToolNames[execution.content.ToolName] ||
+			execution.interval.Start.IsZero() ||
+			execution.interval.End.IsZero() {
+			continue
+		}
+		intervals = append(intervals, execution.interval)
+	}
+	return intervals
+}
+
+// BilledInterval is one billed tool call's execution window.
+type BilledInterval struct {
+	Start time.Time
+	End   time.Time
+}
+
+// BilledIntervalsDuration returns the union duration of valid intervals.
+// Overlaps count once, gaps do not, and inverted intervals are ignored.
+// Committed and interrupted batches share this helper.
+func BilledIntervalsDuration(intervals []BilledInterval) time.Duration {
+	valid := slices.DeleteFunc(slices.Clone(intervals), func(iv BilledInterval) bool {
+		return iv.End.Before(iv.Start)
+	})
+	if len(valid) == 0 {
+		return 0
+	}
+	slices.SortFunc(valid, func(a, b BilledInterval) int {
+		return a.Start.Compare(b.Start)
+	})
+	curStart, curEnd := valid[0].Start, valid[0].End
+	var total time.Duration
+	for _, iv := range valid[1:] {
+		if iv.Start.After(curEnd) {
+			total += curEnd.Sub(curStart)
+			curStart, curEnd = iv.Start, iv.End
+			continue
+		}
+		if iv.End.After(curEnd) {
+			curEnd = iv.End
+		}
+	}
+	return total + curEnd.Sub(curStart)
 }
 
 // prepareMessagesForRequest applies the prompt preparation pipeline used
@@ -1049,10 +1163,14 @@ func processStepStream(
 	return result, nil
 }
 
-// executeTools runs all tool calls concurrently after the stream
-// completes. Results are published via onResult in the original
-// tool-call order after all tools finish, preserving deterministic
-// event ordering for SSE subscribers.
+type toolExecutionResult struct {
+	content  fantasy.ToolResultContent
+	interval BilledInterval
+}
+
+// executeTools runs non-serial calls concurrently, then SerialToolCalls in
+// call order. Results are returned in original order after all tools finish.
+// recorder, if set, receives live start and completion timestamps.
 func executeTools(
 	ctx context.Context,
 	clock quartz.Clock,
@@ -1068,8 +1186,9 @@ func executeTools(
 	builtinToolNames map[string]bool,
 	maxResultBytes int,
 	toolNameAliases map[string]string,
-	onResult func(fantasy.ToolResultContent, time.Time),
-) []fantasy.ToolResultContent {
+	batchStart time.Time,
+	recorder ToolBillingRecorder,
+) []toolExecutionResult {
 	if len(toolCalls) == 0 {
 		return nil
 	}
@@ -1118,12 +1237,11 @@ func executeTools(
 	}
 	notifyStepToolCallObservers(toolMap, toolNameAliases, observed)
 
-	results := make([]fantasy.ToolResultContent, len(localToolCalls))
-	completedAt := make([]time.Time, len(localToolCalls))
+	executions := make([]toolExecutionResult, len(localToolCalls))
 	runCall := func(i int, tc fantasy.ToolCallContent) {
 		defer func() {
 			if r := recover(); r != nil {
-				results[i] = fantasy.ToolResultContent{
+				executions[i].content = fantasy.ToolResultContent{
 					ToolCallID: tc.ToolCallID,
 					ToolName:   tc.ToolName,
 					Result: fantasy.ToolResultOutputContentError{
@@ -1134,9 +1252,13 @@ func executeTools(
 			// Record when this tool completed (or panicked).
 			// Captured per call so parallel tools get
 			// accurate individual completion times.
-			completedAt[i] = clockNow(clock)
+			completedAt := clockNow(clock)
+			executions[i].interval.End = completedAt
+			if recorder != nil {
+				recorder.RecordComplete(i, completedAt)
+			}
 		}()
-		results[i] = executeSingleTool(
+		executions[i].content = executeSingleTool(
 			ctx,
 			toolMap,
 			tc,
@@ -1153,18 +1275,18 @@ func executeTools(
 			toolNameAliases,
 		)
 	}
-	// Calls to tools that opt in via SerialToolCalls run in tool-call
-	// order after every concurrent sibling has settled. The step waits
-	// for all calls anyway, so sequencing them last costs nothing, and
-	// order-sensitive shared state (for example the find_tools
-	// activation budget) is claimed deterministically after sibling
-	// outcomes are known. All other calls stay concurrent.
+	// SerialToolCalls run in call order after concurrent siblings settle, so
+	// order-sensitive state observes final sibling outcomes.
 	var serialIndexes []int
 	var wg sync.WaitGroup
 	for i, tc := range localToolCalls {
 		if isSerialToolCall(toolMap, toolNameAliases, tc.ToolName) {
 			serialIndexes = append(serialIndexes, i)
 			continue
+		}
+		executions[i].interval.Start = batchStart
+		if recorder != nil {
+			recorder.RecordStart(i, batchStart)
 		}
 		wg.Add(1)
 		go func() {
@@ -1174,29 +1296,26 @@ func executeTools(
 	}
 	wg.Wait()
 
-	// Reconcile settled sibling outcomes before serial tools run, so
-	// for example find_tools refunds reservations of errored direct
-	// calls before its searches admit activations.
-	settled := make([]fantasy.ToolResultContent, 0, len(results))
-	for i := range results {
+	// Reconcile concurrent results before serial tools inspect shared state.
+	settled := make([]fantasy.ToolResultContent, 0, len(executions))
+	for i := range executions {
 		if !slices.Contains(serialIndexes, i) {
-			settled = append(settled, results[i])
+			settled = append(settled, executions[i].content)
 		}
 	}
 	notifyStepToolResultObservers(toolMap, toolNameAliases, localToolCalls, observed, settled)
 
 	for _, i := range serialIndexes {
+		// Stamp serial calls at launch, not batch start.
+		startedAt := clockNow(clock)
+		executions[i].interval.Start = startedAt
+		if recorder != nil {
+			recorder.RecordStart(i, startedAt)
+		}
 		runCall(i, localToolCalls[i])
 	}
 
-	// Publish results in the original tool-call order so SSE
-	// subscribers see a deterministic event sequence.
-	if onResult != nil {
-		for i, tr := range results {
-			onResult(tr, completedAt[i])
-		}
-	}
-	return results
+	return executions
 }
 
 // applyExclusiveToolPolicy checks whether toolCalls violate the

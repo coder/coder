@@ -139,8 +139,21 @@ role is assigned to them directly, which is useful for restricted accounts
 that should only hold the minimal member permissions.
 
 To edit the default roles in the dashboard, go to
-**Admin settings** > **Organizations** > **Roles** > **Default Roles**, or
-set `default_org_member_roles` via
+**Admin settings** > **Organizations** > **Roles** > **Default Roles**.
+
+From the CLI, use `coder organizations edit`:
+
+```shell
+coder organizations edit --org <organization> \
+  --default-org-member-roles organization-workspace-access,organization-template-admin
+```
+
+The flag replaces the current list rather than adding to it, and accepts a
+comma-separated list of built-in role names. Pass an empty value to remove
+every role. Removing a role prompts for confirmation unless you pass
+`--yes`.
+
+You can also set `default_org_member_roles` via
 `PATCH /organizations/{organization}`.
 
 ### Limitations

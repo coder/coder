@@ -5,17 +5,23 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { canViewDeploymentSettings } from "#/modules/permissions";
+import {
+	canAccessAnyChatModelConfig,
+	canViewDeploymentSettings,
+} from "#/modules/permissions";
+import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
 export const Navbar: React.FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const { appearance, canViewOrganizationSettings } = useDashboard();
+	const { appearance, canViewOrganizationSettings, organizations } =
+		useDashboard();
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
+	const canAccessAnyModel = canAccessAnyChatModelConfig(permissions);
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);
 	const canViewOrganizations = canViewOrganizationSettings;
@@ -26,14 +32,22 @@ export const Navbar: React.FC = () => {
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
 	const canViewAIBridge =
 		featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception;
-	const canViewAISettings =
+	const canViewSiteWideAISettings =
 		permissions.viewAnyAIProvider ||
 		permissions.viewAIGatewayKeys ||
 		permissions.editDeploymentConfig ||
 		permissions.viewAnyMCPServerConfigs ||
 		permissions.createAnyMCPServerConfig ||
 		permissions.updateAnyMCPServerConfig ||
-		permissions.deleteAnyMCPServerConfig;
+		permissions.deleteAnyMCPServerConfig ||
+		permissions.updateAnyTemplate ||
+		canAccessAnyModel;
+	const organizationMCPSharing = useCanShareOrganizationMCPServers(
+		organizations,
+		{ enabled: !canViewSiteWideAISettings },
+	);
+	const canViewAISettings =
+		canViewSiteWideAISettings || organizationMCPSharing.canShare;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
@@ -58,6 +72,7 @@ export const Navbar: React.FC = () => {
 				canViewHealth,
 			}}
 			canCreateChat={canCreateChat}
+			canViewLicenses={permissions.viewAllLicenses}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

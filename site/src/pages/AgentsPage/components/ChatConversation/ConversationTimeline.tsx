@@ -97,6 +97,7 @@ const LifecycleHookNotice: FC<{
 );
 
 const ChatMessageItem = memo<{
+	organizationId: string | undefined;
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
@@ -139,6 +140,7 @@ const ChatMessageItem = memo<{
 	onJumpToUserMessage?: (messageKey: string) => void;
 }>(
 	({
+		organizationId,
 		renderKey,
 		message,
 		parsed,
@@ -243,6 +245,7 @@ const ChatMessageItem = memo<{
 						<Message className="w-full">
 							<MessageContent className="whitespace-normal">
 								<AssistantOutput
+									organizationId={organizationId}
 									keyPrefix={renderKey}
 									blocks={parsed?.blocks ?? liveBlocks}
 									tools={parsed?.tools ?? liveTools}
@@ -399,6 +402,7 @@ const ChatMessageItem = memo<{
 );
 
 interface ConversationTimelineProps {
+	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
 	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
@@ -425,6 +429,7 @@ interface ConversationTimelineProps {
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
+		organizationId,
 		parsedMessages,
 		initialActiveTurnMaxMessageId,
 		streamState,
@@ -558,6 +563,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						return (
 							<MessageScroller.Item key={row.key} messageId={row.key}>
 								<ChatMessageItem
+									organizationId={organizationId}
 									renderKey={row.key}
 									liveStatus={liveStatus}
 									liveBlocks={liveBlocks}
@@ -589,6 +595,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							}
 						>
 							<ChatMessageItem
+								organizationId={organizationId}
 								renderKey={row.key}
 								message={message}
 								parsed={parsed}

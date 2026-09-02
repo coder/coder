@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -37,7 +36,7 @@ func TestOAuth2ProviderSettings(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		updated, err := client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-			DynamicClientRegistrationEnabled: ptr.Ref(false),
+			DynamicClientRegistrationEnabled: new(false),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updated.DynamicClientRegistrationEnabled)
@@ -49,7 +48,7 @@ func TestOAuth2ProviderSettings(t *testing.T) {
 		require.False(t, *settings.DynamicClientRegistrationEnabled)
 
 		updated, err = client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-			DynamicClientRegistrationEnabled: ptr.Ref(true),
+			DynamicClientRegistrationEnabled: new(true),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updated.DynamicClientRegistrationEnabled)
@@ -66,7 +65,7 @@ func TestOAuth2ProviderSettings(t *testing.T) {
 		// Establish a known, non-default value first so a subsequent
 		// omitted-field PUT has something to preserve or wrongly clear.
 		_, err := client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-			DynamicClientRegistrationEnabled: ptr.Ref(true),
+			DynamicClientRegistrationEnabled: new(true),
 		})
 		require.NoError(t, err)
 
@@ -106,7 +105,7 @@ func TestOAuth2ProviderSettings(t *testing.T) {
 				name: "Put",
 				do: func(ctx context.Context, client *codersdk.Client) error {
 					_, err := client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-						DynamicClientRegistrationEnabled: ptr.Ref(false),
+						DynamicClientRegistrationEnabled: new(false),
 					})
 					return err
 				},

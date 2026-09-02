@@ -74,7 +74,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 						}}
 						Label={({ path, filename, isFolder }) => {
 							if (isFolder) {
-								return <>{filename}</>;
+								return filename;
 							}
 
 							const hasDiff = fileInfo(path).hasDiff;

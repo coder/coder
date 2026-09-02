@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -79,6 +80,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	namesByHost := buildHostnameCollisionMap(rows)
 	out := make([]codersdk.AIProvider, 0, len(rows))
 	for _, row := range rows {
 		sdk, err := db2sdk.AIProvider(row, keysByProvider[row.ID])
@@ -90,6 +92,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		sdk.Status = api.aiProviderStatus(row, namesByHost)
 		out = append(out, sdk)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
@@ -131,6 +134,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	sdk.Status = api.aiProviderStatusFromDB(ctx, row)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -252,6 +256,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	sdk.Status = api.aiProviderStatusFromDB(ctx, row)
 	httpapi.Write(ctx, rw, http.StatusCreated, sdk)
 }
 
@@ -445,6 +450,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	sdk.Status = api.aiProviderStatusFromDB(ctx, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -554,6 +560,65 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 		return database.AIProvider{}, errAIProviderInvalidName
 	}
 	return store.GetAIProviderByName(ctx, idOrName)
+}
+
+// buildHostnameCollisionMap returns a map from normalized hostname to
+// the names of enabled, non-deleted providers sharing that hostname,
+// in the order the database returned them (ORDER BY name ASC). The
+// first name is the proxy winner and does not get a warning; later
+// names do.
+func buildHostnameCollisionMap(rows []database.AIProvider) map[string][]string {
+	namesByHost := make(map[string][]string)
+	for _, row := range rows {
+		if !row.Enabled || row.Deleted {
+			continue
+		}
+		host := aibridged.BaseURLHostname(row.BaseUrl)
+		if host == "" {
+			continue
+		}
+		namesByHost[host] = append(namesByHost[host], row.Name)
+	}
+	return namesByHost
+}
+
+// aiProviderStatus collects warnings for an AI provider.
+func (api *API) aiProviderStatus(provider database.AIProvider, namesByHost map[string][]string) *codersdk.AIProviderStatus {
+	var warnings []string
+	if warning := api.proxyCollisionWarning(provider, namesByHost); warning != "" {
+		warnings = append(warnings, warning)
+	}
+	if len(warnings) == 0 {
+		return nil
+	}
+	return &codersdk.AIProviderStatus{Warnings: warnings}
+}
+
+// proxyCollisionWarning reports when another provider claims the proxy
+// hostname first in database order.
+func (api *API) proxyCollisionWarning(provider database.AIProvider, namesByHost map[string][]string) string {
+	if !api.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() || !provider.Enabled || provider.Deleted {
+		return ""
+	}
+	host := aibridged.BaseURLHostname(provider.BaseUrl)
+	if host == "" {
+		return ""
+	}
+	names := namesByHost[host]
+	if len(names) < 2 || provider.Name == names[0] {
+		return ""
+	}
+	return fmt.Sprintf("Hostname %q is claimed by provider %q. AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/%s/... endpoint).", host, names[0], provider.Name)
+}
+
+// aiProviderStatusFromDB loads status data for a single provider response.
+func (api *API) aiProviderStatusFromDB(ctx context.Context, provider database.AIProvider) *codersdk.AIProviderStatus {
+	rows, err := api.Database.GetAIProviders(ctx, database.GetAIProvidersParams{})
+	if err != nil {
+		api.Logger.Error(ctx, "load AI providers for status", slog.Error(err))
+		return nil
+	}
+	return api.aiProviderStatus(provider, buildHostnameCollisionMap(rows))
 }
 
 // writeAIProviderError translates an error from the AI provider

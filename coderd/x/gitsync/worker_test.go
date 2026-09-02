@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -84,7 +83,7 @@ func newTestRefresher(t *testing.T, clk quartz.Clock, opts ...testRefresherOpt) 
 
 	providers := func(context.Context, string) gitprovider.Provider { return prov }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
-		return ptr.Ref("tok"), nil
+		return new("tok"), nil
 	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -1122,7 +1121,7 @@ func TestRefreshChat_RefreshError(t *testing.T) {
 	// Provider resolver returns nil → "no provider" error.
 	providers := func(context.Context, string) gitprovider.Provider { return nil }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
-		return ptr.Ref("tok"), nil
+		return new("tok"), nil
 	}
 
 	mClock := quartz.NewMock(t)
@@ -1207,7 +1206,7 @@ func TestWorker_NoTokenBackoff(t *testing.T) {
 	prov := &mockProvider{}
 	providers := func(context.Context, string) gitprovider.Provider { return prov }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
-		return ptr.Ref(""), nil
+		return new(""), nil
 	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})

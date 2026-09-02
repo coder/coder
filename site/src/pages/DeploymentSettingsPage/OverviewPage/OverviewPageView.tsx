@@ -32,12 +32,11 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 }) => {
 	return (
 		<>
-			<SettingsHeader
-				actions={<SettingsHeaderDocsLink href={docs("/admin/setup")} />}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>General</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Information about your Coder deployment.
+					Information about your Coder deployment.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/setup")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

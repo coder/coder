@@ -72,8 +72,7 @@ Custom roles can also be applied to
 
 ### Creating custom roles
 
-Clicking "Create custom role" opens a UI to select the desired permissions for a
-given persona.
+Selecting "Create custom role" opens a UI to select the desired permissions for a given persona.
 
 ![Creating a custom role](../../images/admin/users/roles/creating-custom-role.PNG)
 

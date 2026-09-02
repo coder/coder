@@ -10,7 +10,6 @@ import type {
 	OrganizationGroupsAISpend,
 	PaginatedGroup,
 } from "#/api/typesGenerated";
-import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
@@ -36,6 +35,7 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
+import { AIBudgetUsage } from "#/modules/groups/AIBudgetUsage";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { SpendEstimateDocsLink } from "./AICostControl";
@@ -284,7 +284,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 							<Skeleton
 								key={key}
 								variant="circular"
-								className="size-[--avatar-default]"
+								className="size-(--avatar-default)"
 							/>
 						))}
 					</div>
@@ -298,7 +298,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 							/>
 						))}
 						{remainingAvatars > 0 && (
-							<Badge className="h-[--avatar-default]">
+							<Badge className="h-(--avatar-default)">
 								+{remainingAvatars}
 							</Badge>
 						)}

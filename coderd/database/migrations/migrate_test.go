@@ -3,6 +3,7 @@ package migrations_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -115,21 +115,6 @@ func testSQLDB(t testing.TB) *sql.DB {
 	require.NoError(t, err)
 
 	return db
-}
-
-func stepMigrationsUpTo(t *testing.T, next func() (version uint, more bool, err error), target uint) {
-	t.Helper()
-
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", target)
-		}
-		if version == target {
-			return
-		}
-	}
 }
 
 // paralleltest linter doesn't correctly handle table-driven tests (https://github.com/kunwardeep/paralleltest/issues/8)
@@ -1203,6 +1188,74 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 		gotRoleNames,
 		"trigger should only create org-member and org-service-account system roles",
 	)
+}
+
+func TestMigration000587RemoveAgentsAccessRole(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 587
+
+	// The immediately preceding migration numbers may not exist in this
+	// tree (the target is numbered past migrations that landed on main
+	// separately), so step to the highest version below the target rather
+	// than assuming migrationVersion-1 exists.
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+	prevVersion := uint(0)
+	for _, entry := range entries {
+		var version uint
+		if _, err := fmt.Sscanf(entry.Name(), "%d_", &version); err != nil {
+			continue
+		}
+		if version > prevVersion && version < migrationVersion {
+			prevVersion = version
+		}
+	}
+	require.NotZero(t, prevVersion)
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == prevVersion {
+			break
+		}
+	}
+
+	db := database.New(sqlDB)
+	user := dbgen.User(t, db, database.User{
+		RBACRoles: []string{"auditor", "agents-access"},
+	})
+	org := dbgen.Organization(t, db, database.Organization{
+		DefaultOrgMemberRoles: []string{"organization-workspace-access", "agents-access"},
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+		Roles:          []string{"organization-auditor", "agents-access"},
+	})
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var siteRoles, orgRoles, defaultRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", user.ID).Scan(&siteRoles)
+	require.NoError(t, err)
+	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", org.ID, user.ID).Scan(&orgRoles)
+	require.NoError(t, err)
+	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", org.ID).Scan(&defaultRoles)
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"auditor"}, []string(siteRoles))
+	require.Equal(t, []string{"organization-auditor"}, []string(orgRoles))
+	require.Equal(t, []string{"organization-workspace-access"}, []string(defaultRoles))
 }
 
 func TestMigration000504AIProvidersBackfill(t *testing.T) {
@@ -2527,14 +2580,54 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	require.Equal(t, []int64{eligibleNoText.ID, eligibleText.ID}, pendingIDs(ctx, 10))
 
 	// Sweep-style UPDATE. The '' sentinel (not NULL) marks no-text rows as
-	// swept; NULL means pending, so COALESCE is what drains them from the
-	// queue.
+	// swept; search_tsv_config records the config that produced the vector.
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
-		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector),
+		    search_tsv_config = 'english'
 		WHERE id = ANY($1)`, pq.Array([]int64{eligibleText.ID, eligibleNoText.ID}))
 	require.NoError(t, err)
 	require.Empty(t, pendingIDs(ctx, 10), "swept rows must leave the queue, including no-text rows")
+
+	// A non-NULL vector with a stale config is not in the NULL queue but
+	// must be found by the stale-reindex predicate: this is how rows
+	// written by an old binary during a rolling upgrade (which cannot set
+	// search_tsv_config) are eventually rewritten.
+	staleIDs := func(ctx context.Context, limit int) []int64 {
+		rows, err := sqlDB.QueryContext(ctx, `
+			SELECT id FROM chat_messages
+			WHERE search_tsv IS NOT NULL
+				AND search_tsv_config IS DISTINCT FROM 'english'
+				AND `+eligibilityPredicate+`
+			ORDER BY id DESC
+			LIMIT $1`, limit)
+		require.NoError(t, err)
+		defer rows.Close()
+		var ids []int64
+		for rows.Next() {
+			var id int64
+			require.NoError(t, rows.Scan(&id))
+			ids = append(ids, id)
+		}
+		require.NoError(t, rows.Err())
+		return ids
+	}
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages
+		SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
+		    search_tsv_config = NULL
+		WHERE id = $1`, eligibleText.ID)
+	require.NoError(t, err)
+	require.Empty(t, pendingIDs(ctx, 10), "stale rows must not enter the NULL queue")
+	require.Equal(t, []int64{eligibleText.ID}, staleIDs(ctx, 10),
+		"stale-config vectors must match the stale-reindex predicate")
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages
+		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector),
+		    search_tsv_config = 'english'
+		WHERE id = $1`, eligibleText.ID)
+	require.NoError(t, err)
+	require.Empty(t, staleIDs(ctx, 10))
 
 	// Soft-deleting an unswept row removes it from the queue without a sweep.
 	unswept := newMsg(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("unswept deploy row"))
@@ -2547,13 +2640,14 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	// ineligible ones) and assert the search-index predicate filters them.
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
-		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector),
+		    search_tsv_config = 'english'
 		WHERE chat_id = $1`, chat.ID)
 	require.NoError(t, err)
 
 	rows, err := sqlDB.QueryContext(ctx, `
 		SELECT id FROM chat_messages
-		WHERE search_tsv @@ websearch_to_tsquery('simple', $1)
+		WHERE search_tsv @@ websearch_to_tsquery('english', $1)
 			AND search_tsv IS NOT NULL
 			AND `+eligibilityPredicate+`
 		ORDER BY id`, "deploy")
@@ -2569,6 +2663,108 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	require.Equal(t, []int64{eligibleText.ID}, matched,
 		"search must exclude deleted, model-only, and tool-role rows (%d %d %d)",
 		toolMsg.ID, modelOnly.ID, deletedMsg.ID)
+}
+
+func TestMigration000585ChatSearchEnglishConfigDown(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault: true,
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+	})
+
+	newMsg := func(text string) database.ChatMessage {
+		return dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:     chat.ID,
+			CreatedBy:  uuid.NullUUID{UUID: owner.ID, Valid: true},
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: []byte(`[{"type":"text","text":"` + text + `"}]`), Valid: true},
+		})
+	}
+
+	// A row the upgraded sweep re-vectorized, a stale row it never
+	// reached, and a row that was still pending.
+	rewritten := newMsg("rewritten with english")
+	stale := newMsg("stale simple vector")
+	pending := newMsg("still pending")
+
+	_, err := sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages
+		SET search_tsv = to_tsvector('english', chat_message_search_text(content)),
+		    search_tsv_config = 'english'
+		WHERE id = $1`, rewritten.ID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages
+		SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
+		    search_tsv_config = NULL
+		WHERE id = $1`, stale.ID)
+	require.NoError(t, err)
+
+	var revisionBefore int64
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT revision FROM chat_messages WHERE id = $1`, rewritten.ID,
+	).Scan(&revisionBefore)
+	require.NoError(t, err)
+
+	downSQL, err := os.ReadFile("000585_chat_search_english_config.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	// The 'english' row is handed back to the parent sweep: NULL vector
+	// re-enters the parent's search_tsv IS NULL pending queue.
+	tsvState := func(id int64) (isNull bool, isSimple bool) {
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT search_tsv IS NULL,
+			       search_tsv IS NOT DISTINCT FROM to_tsvector('simple', chat_message_search_text(content))
+			FROM chat_messages WHERE id = $1`, id,
+		).Scan(&isNull, &isSimple)
+		require.NoError(t, err)
+		return isNull, isSimple
+	}
+	isNull, _ := tsvState(rewritten.ID)
+	require.True(t, isNull, "english-stamped rows must be reset so the parent sweep reindexes them")
+	isNull, isSimple := tsvState(stale.ID)
+	require.False(t, isNull, "rows never re-vectorized must keep their vector")
+	require.True(t, isSimple, "rows never re-vectorized must keep their 'simple' lexemes")
+	isNull, _ = tsvState(pending.ID)
+	require.True(t, isNull, "pending rows stay pending")
+
+	// The reset ran under the replacement trigger functions, so it must
+	// not have advanced the message revision.
+	var revisionAfter int64
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT revision FROM chat_messages WHERE id = $1`, rewritten.ID,
+	).Scan(&revisionAfter)
+	require.NoError(t, err)
+	require.Equal(t, revisionBefore, revisionAfter, "down migration reset must not bump revisions")
+
+	var columnCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_name = 'chat_messages' AND column_name = 'search_tsv_config'`,
+	).Scan(&columnCount)
+	require.NoError(t, err)
+	require.Zero(t, columnCount, "search_tsv_config must be dropped")
 }
 
 func TestMigration000556UserSecretsEnabled(t *testing.T) {
@@ -2807,18 +3003,18 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 		`, id, now, name, clientType, authMethod)
 		require.NoError(t, err)
 	}
-	seed(ids["legacy"], "test-565-legacy", "confidential", ptr.Ref("none"))
+	seed(ids["legacy"], "test-565-legacy", "confidential", new("none"))
 	seed(ids["nullMethod"], "test-565-null", "confidential", nil)
-	seed(ids["publicMismatched"], "test-565-public-mismatch", "public", ptr.Ref("client_secret_basic"))
-	seed(ids["confidentialBasic"], "test-565-basic", "confidential", ptr.Ref("client_secret_basic"))
-	seed(ids["confidentialPost"], "test-565-post", "confidential", ptr.Ref("client_secret_post"))
-	seed(ids["publicNone"], "test-565-public", "public", ptr.Ref("none"))
+	seed(ids["publicMismatched"], "test-565-public-mismatch", "public", new("client_secret_basic"))
+	seed(ids["confidentialBasic"], "test-565-basic", "confidential", new("client_secret_basic"))
+	seed(ids["confidentialPost"], "test-565-post", "confidential", new("client_secret_post"))
+	seed(ids["publicNone"], "test-565-public", "public", new("none"))
 	// Neither of these is producible by today's write path: ApplyDefaults maps
 	// "" to client_secret_basic and Valid() rejects unknown methods. They stand
 	// in for history the squashed log cannot rule out, and both would satisfy
 	// the eventual cross-column constraint while remaining unusable.
-	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", ptr.Ref(""))
-	seed(ids["confidentialJunk"], "test-565-junk", "confidential", ptr.Ref("client_secret_jwt"))
+	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", new(""))
+	seed(ids["confidentialJunk"], "test-565-junk", "confidential", new("client_secret_jwt"))
 	seed(ids["publicNull"], "test-565-public-null", "public", nil)
 
 	return sqlDB, ctx, ids
@@ -3008,324 +3204,392 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 		"the backfill aligns the declaration to what is enforced, so the enforced value must be unchanged")
 }
 
-func TestMigration000574MCPServerConfigsOrganizationID(t *testing.T) {
+func TestMigration000580ChatModelConfigOrganization(t *testing.T) {
 	t.Parallel()
 
-	const priorMigrationVersion = 573
+	const migrationVersion = 580
+	const previousMigrationVersion = 579
 
 	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	stepMigrationsUpTo(t, next, priorMigrationVersion)
 
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	now := time.Now().UTC().Truncate(time.Microsecond)
-
-	var defaultOrgID uuid.UUID
-	err = sqlDB.QueryRowContext(ctx, `SELECT id FROM organizations WHERE is_default = true`).Scan(&defaultOrgID)
-	require.NoError(t, err)
-
-	otherOrgID := uuid.New()
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO organizations (
-			id, name, display_name, description, icon, created_at, updated_at,
-			is_default, deleted, default_org_member_roles
-		) VALUES ($1, 'migration-568-org', 'Migration 568 Org', '', '', $2, $2, false, false, '{}')
-	`, otherOrgID, now)
-	require.NoError(t, err)
-
-	userID := uuid.New()
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO users (
-			id, username, email, hashed_password, created_at, updated_at,
-			status, rbac_roles, login_type
-		) VALUES ($1, 'migration-568-user', 'migration-568@example.com', ''::bytea, $2, $2, 'active', '{}', 'password')
-	`, userID, now)
-	require.NoError(t, err)
-
-	const keyDigest = "migration-568-key"
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO dbcrypt_keys (number, active_key_digest, test)
-		VALUES (568000, $1, 'migration-568-test')
-	`, keyDigest)
-	require.NoError(t, err)
-
-	providerID := uuid.New()
-	modelConfigID := uuid.New()
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO ai_providers (
-			id, type, name, display_name, enabled, base_url, created_at, updated_at
-		) VALUES ($1, 'openai', 'migration-568-provider', 'Migration 568 Provider', true, 'https://provider.example.com', $2, $2)
-	`, providerID, now)
-	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO chat_model_configs (
-			id, model, display_name, ai_provider_id, context_limit,
-			compression_threshold, created_at, updated_at
-		) VALUES ($1, 'migration-568-model', 'Migration 568 Model', $2, 128000, 70, $3, $3)
-	`, modelConfigID, providerID, now)
-	require.NoError(t, err)
-
-	type configSeed struct {
-		id                      uuid.UUID
-		slug                    string
-		authType                string
-		oauth2ClientID          string
-		oauth2ClientSecret      string
-		oauth2ClientSecretKeyID sql.NullString
-		oauth2AuthURL           string
-		oauth2TokenURL          string
-		oauth2RevocationURL     string
-		oauth2Scopes            string
-		apiKeyHeader            string
-		apiKeyValue             string
-		apiKeyValueKeyID        sql.NullString
-		customHeaders           string
-		customHeadersKeyID      sql.NullString
-	}
-	keyID := sql.NullString{String: keyDigest, Valid: true}
-	configs := []configSeed{
-		{id: uuid.New(), slug: "migration-568-none", authType: "none", apiKeyHeader: "Authorization", customHeaders: "{}"},
-		// Every credential column carries ciphertext to prove the backfill
-		// leaves rows byte-identical apart from organization_id.
-		{
-			id:                      uuid.New(),
-			slug:                    "migration-568-oauth2",
-			authType:                "oauth2",
-			oauth2ClientID:          "oauth-client-id",
-			oauth2ClientSecret:      "oauth-secret-ciphertext",
-			oauth2ClientSecretKeyID: keyID,
-			oauth2AuthURL:           "https://oauth.example.com/authorize",
-			oauth2TokenURL:          "https://oauth.example.com/token",
-			oauth2RevocationURL:     "https://oauth.example.com/revoke",
-			oauth2Scopes:            "openid profile",
-			apiKeyHeader:            "X-API-Key",
-			apiKeyValue:             "api-key-ciphertext",
-			apiKeyValueKeyID:        keyID,
-			customHeaders:           "custom-headers-ciphertext",
-			customHeadersKeyID:      keyID,
-		},
-	}
-
-	originalJSON := make(map[uuid.UUID]string, len(configs))
-	for _, config := range configs {
-		_, err = sqlDB.ExecContext(ctx, `
-			INSERT INTO mcp_server_configs (
-				id, display_name, slug, description, url, auth_type,
-				oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id,
-				oauth2_auth_url, oauth2_token_url, oauth2_revocation_url, oauth2_scopes,
-				api_key_header, api_key_value, api_key_value_key_id,
-				custom_headers, custom_headers_key_id, availability, enabled,
-				created_by, updated_by, created_at, updated_at
-			) VALUES (
-				$1, $2, $3, $4, $5, $6,
-				$7, $8, $9, $10, $11, $12, $13,
-				$14, $15, $16, $17, $18, 'default_on', true,
-				$19, $19, $20, $20
-			)
-		`,
-			config.id, "Migration 568 "+config.authType, config.slug, "migration 568 config", "https://mcp.example.com/"+config.slug, config.authType,
-			config.oauth2ClientID, config.oauth2ClientSecret, config.oauth2ClientSecretKeyID,
-			config.oauth2AuthURL, config.oauth2TokenURL, config.oauth2RevocationURL, config.oauth2Scopes,
-			config.apiKeyHeader, config.apiKeyValue, config.apiKeyValueKeyID,
-			config.customHeaders, config.customHeadersKeyID, userID, now,
-		)
-		require.NoError(t, err)
-
-		var rowJSON string
-		err = sqlDB.QueryRowContext(ctx, `SELECT to_jsonb(config) FROM mcp_server_configs AS config WHERE id = $1`, config.id).Scan(&rowJSON)
-		require.NoError(t, err)
-		originalJSON[config.id] = rowJSON
-	}
-
-	oauthConfigID := configs[1].id
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO mcp_server_user_tokens (
-			id, mcp_server_config_id, user_id, access_token, access_token_key_id,
-			refresh_token, refresh_token_key_id, created_at, updated_at
-		) VALUES ($1, $2, $3, 'access-token-ciphertext', $4, 'refresh-token-ciphertext', $4, $5, $5)
-	`, uuid.New(), oauthConfigID, userID, keyDigest, now)
-	require.NoError(t, err)
-
-	chatID := uuid.New()
-	chatConfigIDs := []uuid.UUID{configs[1].id, configs[0].id}
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO chats (
-			id, owner_id, organization_id, last_model_config_id, title,
-			mcp_server_ids, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, 'Migration 568 Chat', $5, $6, $6)
-	`, chatID, userID, otherOrgID, modelConfigID, pq.Array(chatConfigIDs), now)
-	require.NoError(t, err)
-
-	version, _, err := next()
-	require.NoError(t, err)
-	require.EqualValues(t, 574, version)
-
-	var totalConfigs int
-	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs`).Scan(&totalConfigs)
-	require.NoError(t, err)
-	require.Equal(t, len(configs), totalConfigs)
-
-	for _, config := range configs {
-		var gotJSON string
-		var organizationID uuid.UUID
-		err = sqlDB.QueryRowContext(ctx, `
-			SELECT to_jsonb(config) - 'organization_id', organization_id
-			FROM mcp_server_configs AS config
-			WHERE id = $1
-		`, config.id).Scan(&gotJSON, &organizationID)
-		require.NoError(t, err)
-		require.JSONEq(t, originalJSON[config.id], gotJSON)
-		require.Equal(t, defaultOrgID, organizationID)
-	}
-
-	var tokenCount int
-	var tokenConfigID uuid.UUID
-	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*), MIN(mcp_server_config_id::text)::uuid FROM mcp_server_user_tokens`).Scan(&tokenCount, &tokenConfigID)
-	require.NoError(t, err)
-	require.Equal(t, 1, tokenCount)
-	require.Equal(t, oauthConfigID, tokenConfigID)
-
-	var slugConstraint string
-	err = sqlDB.QueryRowContext(ctx, `
-		SELECT pg_get_constraintdef(oid)
-		FROM pg_constraint
-		WHERE conname = 'mcp_server_configs_organization_id_slug_key'
-	`).Scan(&slugConstraint)
-	require.NoError(t, err)
-	require.Equal(t, "UNIQUE (organization_id, slug)", slugConstraint)
-
-	getChatIDs := func(t *testing.T, chatID uuid.UUID) []uuid.UUID {
-		t.Helper()
-		var ids []uuid.UUID
-		err := sqlDB.QueryRowContext(ctx, `SELECT mcp_server_ids FROM chats WHERE id = $1`, chatID).Scan(pq.Array(&ids))
-		require.NoError(t, err)
-		return ids
-	}
-	require.Equal(t, chatConfigIDs, getChatIDs(t, chatID))
-
-	// An organization-created config referenced by a chat exercises the down
-	// sweep: the config is deleted and its chat references removed.
-	orgLocalConfigID := uuid.New()
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO mcp_server_configs (
-			id, organization_id, display_name, slug, url, auth_type
-		) VALUES ($1, $2, 'Org-local config', 'migration-568-org-local', 'https://mcp.example.com/org-local', 'none')
-	`, orgLocalConfigID, otherOrgID)
-	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `
-		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
-	`, chatID, pq.Array([]uuid.UUID{orgLocalConfigID}))
-	require.NoError(t, err)
-	require.Equal(t, []uuid.UUID{orgLocalConfigID}, getChatIDs(t, chatID))
-
-	downSQL, err := os.ReadFile("000574_mcp_server_configs_organization_id.down.sql")
-	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, string(downSQL))
-	require.NoError(t, err)
-
-	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs`).Scan(&totalConfigs)
-	require.NoError(t, err)
-	require.Equal(t, len(configs), totalConfigs)
-
-	require.Empty(t, getChatIDs(t, chatID))
-	var danglingIDs int
-	err = sqlDB.QueryRowContext(ctx, `
-		SELECT COUNT(*)
-		FROM chats AS chat
-		CROSS JOIN LATERAL unnest(chat.mcp_server_ids) AS config_id
-		WHERE NOT EXISTS (SELECT 1 FROM mcp_server_configs WHERE id = config_id)
-	`).Scan(&danglingIDs)
-	require.NoError(t, err)
-	require.Zero(t, danglingIDs)
-}
-
-func TestMigration000576MCPServerConfigACL(t *testing.T) {
-	t.Parallel()
-
-	const priorMigrationVersion = 575
-
-	sqlDB := testSQLDB(t)
+	// Migrate up to the migration before the org-scoping migration.
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
 	for {
 		version, more, err := next()
 		require.NoError(t, err)
 		if !more {
-			t.Fatalf("migration %d not found", priorMigrationVersion)
+			t.Fatalf("migration %d not found", previousMigrationVersion)
 		}
-		if version == priorMigrationVersion {
+		if version == previousMigrationVersion {
 			break
 		}
 	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	providerID := uuid.New()
+	defaultConfigID := uuid.New()
+	plainConfigID := uuid.New()
+	deletedConfigID := uuid.New()
+	historyOrgID := uuid.New()
+	chatID := uuid.New()
+	messageID := int64(578001)
+	queuedMessageID := int64(578002)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
-	var defaultOrgID uuid.UUID
-	err = sqlDB.QueryRowContext(ctx, `SELECT id FROM organizations WHERE is_default = true`).Scan(&defaultOrgID)
-	require.NoError(t, err)
-
-	orgID := uuid.New()
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO organizations (
-			id, name, display_name, description, icon, created_at, updated_at,
-			is_default, deleted, default_org_member_roles
-		) VALUES ($1, 'migration-570-org', 'Migration 570 Org', '', '', $2, $2, false, false, '{}')
-	`, orgID, now)
-	require.NoError(t, err)
-
-	configIDs := []uuid.UUID{uuid.New(), uuid.New()}
-	orgIDs := []uuid.UUID{defaultOrgID, orgID}
-	for i, configID := range configIDs {
-		_, err = sqlDB.ExecContext(ctx, `
-			INSERT INTO mcp_server_configs (
-				id, organization_id, display_name, slug, description, url, auth_type,
-				availability, enabled, created_at, updated_at
-			) VALUES ($1, $2, $3, $4, 'unchanged', $5, 'none', 'default_on', true, $6, $6)
-		`, configID, orgIDs[i], fmt.Sprintf("Migration 570 Config %d", i), fmt.Sprintf("migration-570-config-%d", i), fmt.Sprintf("https://mcp.example.com/%d", i), now)
-		require.NoError(t, err)
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			`INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{providerID, "openai", "openai-578", true, "https://api.openai.com/v1", now, now},
+		},
+		// The deployment's single live default config.
+		{
+			`INSERT INTO chat_model_configs (id, model, display_name, enabled, is_default, context_limit, compression_threshold, ai_provider_id, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			[]any{defaultConfigID, "gpt-5.2", "Default 578", true, true, 200000, 70, providerID, now, now},
+		},
+		// A live non-default config.
+		{
+			`INSERT INTO chat_model_configs (id, model, display_name, enabled, is_default, context_limit, compression_threshold, ai_provider_id, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			[]any{plainConfigID, "gpt-5.2-mini", "Plain 578", true, false, 128000, 70, providerID, now, now},
+		},
+		// A soft-deleted config is backfilled like any row.
+		{
+			`INSERT INTO chat_model_configs (id, model, display_name, enabled, is_default, deleted, deleted_at, context_limit, compression_threshold, ai_provider_id, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+			[]any{deletedConfigID, "gpt-4-legacy", "Deleted 578", false, false, true, now, 128000, 70, providerID, now, now},
+		},
+		{
+			`INSERT INTO organizations (id, name, description, display_name, default_org_member_roles, created_at, updated_at)
+			VALUES ($1, $2, '', '', $3, $4, $4)`,
+			[]any{historyOrgID, "history-org-578", pq.StringArray{}, now},
+		},
+		// A non-default organization chat keeps the pre-migration model ID.
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, title, organization_id, created_at, updated_at)
+			SELECT $1, u.id, $2, $3, $4, $5, $5
+			FROM users u
+			ORDER BY u.created_at, u.id
+			LIMIT 1`,
+			[]any{chatID, plainConfigID, "History 578", historyOrgID, now},
+		},
+		{
+			`INSERT INTO chat_messages (id, chat_id, model_config_id, role, content, content_version, created_by, created_at)
+			SELECT $1, $2, $3, 'user', '{"type":"text","text":"history"}'::jsonb, 1, owner_id, $4
+			FROM chats WHERE id = $2`,
+			[]any{messageID, chatID, plainConfigID, now},
+		},
+		{
+			`INSERT INTO chat_queued_messages (id, chat_id, model_config_id, content, created_by, created_at)
+			SELECT $1, $2, $3, '{"type":"text","text":"queued"}'::jsonb, owner_id, $4
+			FROM chats WHERE id = $2`,
+			[]any{queuedMessageID, chatID, plainConfigID, now},
+		},
 	}
 
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+	for i, f := range fixtures {
+		_, err := tx.ExecContext(ctx, f.query, f.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+	require.NoError(t, tx.Commit())
+
+	// Run the migration.
 	version, _, err := next()
 	require.NoError(t, err)
-	require.EqualValues(t, 576, version)
+	require.EqualValues(t, migrationVersion, version)
 
-	for i, configID := range configIDs {
-		var displayName, description string
-		var enabled bool
-		var groupACL, userACL string
-		err = sqlDB.QueryRowContext(ctx, `
-			SELECT display_name, description, enabled, group_acl::text, user_acl::text
-			FROM mcp_server_configs WHERE id = $1
-		`, configID).Scan(&displayName, &description, &enabled, &groupACL, &userACL)
+	var defaultOrgID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT id FROM organizations WHERE is_default = true",
+	).Scan(&defaultOrgID)
+	require.NoError(t, err)
+
+	// Every row, including the soft-deleted one, is backfilled to the
+	// default org.
+	var backfilled int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM chat_model_configs WHERE organization_id = $1", defaultOrgID,
+	).Scan(&backfilled)
+	require.NoError(t, err)
+	require.Equal(t, 3, backfilled, "all existing configs should move only to the default org")
+
+	var totalConfigs int
+	err = sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_model_configs").Scan(&totalConfigs)
+	require.NoError(t, err)
+	require.Equal(t, 3, totalConfigs, "the migration must not copy configs to other organizations")
+
+	var notNullViolation bool
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT EXISTS(SELECT 1 FROM chat_model_configs WHERE organization_id IS NULL)",
+	).Scan(&notNullViolation)
+	require.NoError(t, err)
+	require.False(t, notNullViolation, "no row may keep a NULL organization_id")
+
+	var chatModelConfigID, messageModelConfigID, queuedModelConfigID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT last_model_config_id FROM chats WHERE id = $1", chatID,
+	).Scan(&chatModelConfigID)
+	require.NoError(t, err)
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_messages WHERE id = $1", messageID,
+	).Scan(&messageModelConfigID)
+	require.NoError(t, err)
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT model_config_id FROM chat_queued_messages WHERE id = $1", queuedMessageID,
+	).Scan(&queuedModelConfigID)
+	require.NoError(t, err)
+	require.Equal(t, plainConfigID, chatModelConfigID)
+	require.Equal(t, plainConfigID, messageModelConfigID)
+	require.Equal(t, plainConfigID, queuedModelConfigID)
+
+	// Every row's group_acl is seeded with the everyone-in-org read
+	// entry keyed by the org ID (the Everyone group shares the org ID).
+	seededACL := map[string]any{
+		defaultOrgID.String(): map[string]any{"permissions": []string{"read"}},
+	}
+	for _, id := range []uuid.UUID{defaultConfigID, plainConfigID, deletedConfigID} {
+		var groupACL []byte
+		err = sqlDB.QueryRowContext(ctx,
+			"SELECT group_acl FROM chat_model_configs WHERE id = $1", id,
+		).Scan(&groupACL)
 		require.NoError(t, err)
-		require.Equal(t, fmt.Sprintf("Migration 570 Config %d", i), displayName)
-		require.Equal(t, "unchanged", description)
-		require.True(t, enabled)
-		require.JSONEq(t, fmt.Sprintf(`{%q:{"permissions":["read"]}}`, orgIDs[i].String()), groupACL)
-		require.JSONEq(t, `{}`, userACL)
+		require.JSONEq(t, string(mustJSON(t, seededACL)), string(groupACL),
+			"group_acl should carry the everyone-in-org read entry")
 	}
 
-	for _, column := range []string{"group_acl", "user_acl"} {
-		var defaultValue string
-		err = sqlDB.QueryRowContext(ctx, `
-			SELECT column_default FROM information_schema.columns
-			WHERE table_name = 'mcp_server_configs' AND column_name = $1
-		`, column).Scan(&defaultValue)
-		require.NoError(t, err)
-		require.Equal(t, "'{}'::jsonb", defaultValue)
-	}
+	// The single-default index is now keyed per organization: the index
+	// definition references organization_id and keeps its predicate.
+	var indexDef string
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_chat_model_configs_single_default'",
+	).Scan(&indexDef)
+	require.NoError(t, err)
+	require.Contains(t, indexDef, "organization_id")
+	require.Contains(t, indexDef, "is_default = true")
+	require.Contains(t, indexDef, "deleted = false")
 
-	downSQL, err := os.ReadFile("000576_mcp_server_config_acl.down.sql")
+	// The org lookup index exists.
+	var orgIndexExists bool
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT EXISTS(SELECT 1 FROM pg_indexes WHERE indexname = 'idx_chat_model_configs_organization_id')",
+	).Scan(&orgIndexExists)
+	require.NoError(t, err)
+	require.True(t, orgIndexExists)
+
+	// The default org can host only one live default: a second insert
+	// violates the per-org partial unique index.
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO chat_model_configs (id, model, display_name, enabled, is_default, context_limit, compression_threshold, ai_provider_id, organization_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		uuid.New(), "gpt-5.2-alt", "Second Default 578", true, true, 200000, 70, providerID, defaultOrgID, now, now,
+	)
+	require.Error(t, err, "a second live default in the same org must be rejected")
+	require.Contains(t, err.Error(), "idx_chat_model_configs_single_default")
+
+	// A second org can host its own live default.
+	secondOrgID := uuid.New()
+	secondOrgDefaultConfigID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO organizations (id, name, description, display_name, default_org_member_roles, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		secondOrgID, "second-org-578", "", "", pq.StringArray{}, now, now,
+	)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO chat_model_configs (id, model, display_name, enabled, is_default, context_limit, compression_threshold, ai_provider_id, organization_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		secondOrgDefaultConfigID, "gpt-5.2-org2", "Second Org Default 578", true, true, 200000, 70, providerID, secondOrgID, now, now,
+	)
+	require.NoError(t, err, "each org can host its own live default")
+
+	// The ACL object CHECKs reject non-object values.
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO chat_model_configs (id, model, display_name, enabled, context_limit, compression_threshold, ai_provider_id, organization_id, group_acl, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '[]'::jsonb, $9, $10)`,
+		uuid.New(), "bad-acl", "Bad ACL 578", true, 128000, 70, providerID, secondOrgID, now, now,
+	)
+	require.Error(t, err, "non-object group_acl must be rejected")
+
+	var rowCountBeforeDown int
+	err = sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_model_configs").Scan(&rowCountBeforeDown)
+	require.NoError(t, err)
+
+	downSQL, err := os.ReadFile("000580_chat_model_config_organization.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
-	var aclColumns int
-	err = sqlDB.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM information_schema.columns
-		WHERE table_name = 'mcp_server_configs' AND column_name IN ('group_acl', 'user_acl')
-	`).Scan(&aclColumns)
+
+	var defaultOrgIsDefault bool
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT is_default FROM chat_model_configs WHERE id = $1", defaultConfigID,
+	).Scan(&defaultOrgIsDefault)
 	require.NoError(t, err)
-	require.Zero(t, aclColumns)
+	require.True(t, defaultOrgIsDefault)
+
+	var secondOrgIsDefault bool
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT is_default FROM chat_model_configs WHERE id = $1", secondOrgDefaultConfigID,
+	).Scan(&secondOrgIsDefault)
+	require.NoError(t, err)
+	require.False(t, secondOrgIsDefault)
+
+	var rowCountAfterDown int
+	err = sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_model_configs").Scan(&rowCountAfterDown)
+	require.NoError(t, err)
+	require.Equal(t, rowCountBeforeDown, rowCountAfterDown)
+
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_chat_model_configs_single_default'",
+	).Scan(&indexDef)
+	require.NoError(t, err)
+	require.Contains(t, indexDef, "((1))")
+
+	upSQL, err := os.ReadFile("000580_chat_model_config_organization.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	require.NoError(t, err)
+	return raw
+}
+
+func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 583
+
+	db := testSQLDB(t)
+	next, err := migrations.Stepper(db)
+	require.NoError(t, err)
+	last := uint(0)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			break
+		}
+		last = version
+	}
+	require.GreaterOrEqual(t, last, uint(migrationVersion))
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	upSQL, err := os.ReadFile("000583_chat_model_override_org_scope.up.sql")
+	require.NoError(t, err)
+	downSQL, err := os.ReadFile("000583_chat_model_override_org_scope.down.sql")
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	userID := uuid.New()
+	providerID := uuid.New()
+	modelID := uuid.New()
+
+	var orgID uuid.UUID
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT id FROM organizations WHERE is_default = true").Scan(&orgID))
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $5, 'active', '{}', 'password')`,
+		userID, "model-override-"+userID.String(), userID.String()+"@example.com", []byte{}, now)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
+		VALUES ($1, 'openai', $2, true, 'https://example.com', $3, $3)`,
+		providerID, "model-override-"+providerID.String(), now)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO chat_model_configs (
+			id, model, display_name, enabled, is_default, deleted,
+			context_limit, compression_threshold, ai_provider_id, organization_id,
+			group_acl, user_acl, created_at, updated_at
+		) VALUES ($1, $2, $2, true, false, false, 128000, 70, $3, $4, '{}', '{}', $5, $5)`,
+		modelID, "model-override-"+modelID.String(), providerID, orgID, now)
+	require.NoError(t, err)
+
+	advisorConfig := fmt.Sprintf(
+		`{"enabled":true,"max_uses_per_run":2,"model_config_id":%q,"reasoning_effort":"low"}`, modelID)
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO site_configs (key, value) VALUES
+			('agents_chat_general_model_override', $1),
+			('agents_chat_title_generation_model_override', 'not-a-uuid'),
+			('agents_advisor_config', $2)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+		modelID.String()+":high", advisorConfig)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO user_configs (user_id, key, value) VALUES
+			($1, 'chat_personal_model_override:root', $2),
+			($1, 'chat_personal_model_override:general', 'chat_default')`,
+		userID, "model:"+modelID.String()+":max")
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+
+	// Legacy overrides are dropped rather than migrated: the new tables start
+	// empty and the serialized keys are gone.
+	var count int
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM chat_organization_model_overrides").Scan(&count))
+	require.Zero(t, count)
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM chat_user_model_overrides").Scan(&count))
+	require.Zero(t, count)
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM site_configs
+		WHERE key IN (
+			'agents_chat_general_model_override',
+			'agents_chat_explore_model_override',
+			'agents_chat_title_generation_model_override',
+			'agents_chat_compaction_model_override'
+		)`).Scan(&count))
+	require.Zero(t, count)
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM user_configs
+		WHERE user_id = $1 AND key LIKE 'chat\_personal\_model\_override:%'`, userID).Scan(&count))
+	require.Zero(t, count)
+
+	// The migration does not parse the advisor runtime config; stale model
+	// fields stay in the stored JSON and are ignored by readers.
+	var value string
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT value FROM site_configs WHERE key = 'agents_advisor_config'").Scan(&value))
+	require.Equal(t, advisorConfig, value)
+
+	// The composite foreign key rejects model references from another
+	// organization.
+	otherOrgID := uuid.New()
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO organizations (
+			id, name, display_name, description, created_at, updated_at,
+			is_default, default_org_member_roles
+		) VALUES ($1, $2, $2, '', $3, $3, false, '{}')`,
+		otherOrgID, "model-override-"+otherOrgID.String(), now)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id)
+		VALUES ($1, 'explore', $2)`, otherOrgID, modelID)
+	require.Error(t, err)
+	require.True(t, database.IsForeignKeyViolation(err))
+
+	_, err = db.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
 }

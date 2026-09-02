@@ -1,4 +1,6 @@
-# Backend
+---
+title: Backend
+---
 
 This guide is designed to support both Coder engineers and community contributors in understanding our backend systems and getting started with development.
 

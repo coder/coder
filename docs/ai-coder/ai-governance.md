@@ -1,4 +1,6 @@
-# AI Governance
+---
+title: AI Governance
+---
 
 Coder Workspaces already lets teams run AI tools like
 [Cursor](https://registry.coder.com/modules/coder/cursor) and

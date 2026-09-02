@@ -136,7 +136,7 @@ const WorkspaceProxyPage: FC = () => {
 								) : (
 									<div className="flex flex-col">
 										{[...errors, ...warnings].map((msg) => (
-											<span key={msg} className="[&::first-letter]:uppercase">
+											<span key={msg} className="first-letter:uppercase">
 												{msg}
 											</span>
 										))}

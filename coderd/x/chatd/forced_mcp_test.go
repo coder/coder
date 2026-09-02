@@ -123,13 +123,6 @@ func TestCreateChat_ForceOnMCPServerEnforced(t *testing.T) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
-	// The seeded member needs agents-access to create a chat.
-	_, err := db.UpdateMemberRoles(dbauthz.AsSystemRestricted(ctx), database.UpdateMemberRolesParams{
-		GrantedRoles: []string{rbac.RoleAgentsAccess()},
-		UserID:       user.ID,
-		OrgID:        org.ID,
-	})
-	require.NoError(t, err)
 	ownerSubject, _, err := httpmw.UserRBACSubject(dbauthz.AsSystemRestricted(ctx), db, user.ID, rbac.ScopeAll)
 	require.NoError(t, err)
 	ownerCtx := dbauthz.As(ctx, ownerSubject)

@@ -29,16 +29,13 @@ export const AIGovernanceSettingsPageView: FC<
 			</SettingsHeader>
 
 			<div>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-governance")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
 						AI Gateway
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Monitor and manage AI requests across your deployment.
+						Monitor and manage AI requests across your deployment.{" "}
+						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-governance")} />
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 

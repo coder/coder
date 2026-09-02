@@ -204,7 +204,7 @@ export const emptyModelConfigFormState: ModelConfigFormState = (() => {
 // ── Extract form state from an existing API model ──────────────
 
 export const extractModelConfigFormState = (
-	model: TypesGen.ChatModelConfig,
+	model: TypesGen.ChatModel,
 ): ModelConfigFormState => {
 	const config = model.model_config;
 	if (!config) {
@@ -250,7 +250,7 @@ export const extractModelConfigFormState = (
 // ── Build initial model form values ────────────────────────────
 
 export const buildInitialModelFormValues = (
-	sourceModel?: TypesGen.ChatModelConfig,
+	sourceModel?: TypesGen.ChatModel,
 ): ModelFormValues => ({
 	model: sourceModel?.model ?? "",
 	displayName: sourceModel?.display_name ?? "",

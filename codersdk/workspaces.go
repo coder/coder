@@ -66,9 +66,12 @@ type Workspace struct {
 	// what is causing an unhealthy status.
 	Health           WorkspaceHealth  `json:"health"`
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
-	AllowRenames     bool             `json:"allow_renames"`
-	Favorite         bool             `json:"favorite"`
-	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
+	// AllowRenames is the effective rename permission for this workspace,
+	// derived from the template's allow_workspace_renames setting and the
+	// deprecated deployment-wide flag.
+	AllowRenames bool       `json:"allow_renames"`
+	Favorite     bool       `json:"favorite"`
+	NextStartAt  *time.Time `json:"next_start_at" format:"date-time"`
 	// IsPrebuild indicates whether the workspace is a prebuilt workspace.
 	// Prebuilt workspaces are owned by the prebuilds system user and have specific behavior,
 	// such as being managed differently from regular workspaces.

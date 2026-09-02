@@ -8,7 +8,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -188,9 +187,9 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				DisplayName:                 &displayName,
 				Description:                 &description,
 				Icon:                        &icon,
-				DefaultTTLMillis:            ptr.Ref(defaultTTL.Milliseconds()),
-				ActivityBumpMillis:          ptr.Ref(activityBump.Milliseconds()),
-				TimeTilAutostopNotifyMillis: ptr.Ref(timeTilAutostopNotify.Milliseconds()),
+				DefaultTTLMillis:            new(defaultTTL.Milliseconds()),
+				ActivityBumpMillis:          new(activityBump.Milliseconds()),
+				TimeTilAutostopNotifyMillis: new(timeTilAutostopNotify.Milliseconds()),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeek,
 					Weeks:      autostopRequirementWeeks,
@@ -198,9 +197,9 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 					DaysOfWeek: autostartRequirementDaysOfWeek,
 				},
-				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
-				TimeTilDormantMillis:           ptr.Ref(dormancyThreshold.Milliseconds()),
-				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormancyAutoDeletion.Milliseconds()),
+				FailureTTLMillis:               new(failureTTL.Milliseconds()),
+				TimeTilDormantMillis:           new(dormancyThreshold.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: new(dormancyAutoDeletion.Milliseconds()),
 				AllowUserCancelWorkspaceJobs:   &allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:             &allowUserAutostart,
 				AllowUserAutostop:              &allowUserAutostop,

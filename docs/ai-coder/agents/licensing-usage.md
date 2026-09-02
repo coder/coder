@@ -11,9 +11,9 @@ Coder doesn't limit how long those agents can run or how many tasks they complet
 Agents queue when more than five agents are active at a time.
 With this agent pool, individuals and small teams can experiment with Coder Agents at no cost.
 
-## AI Premium licenses and Agent Time
+## Premium licenses and Agent Hours
 
-AI Premium licenses include a customizable amount of Agent Time.
+A Premium license includes a preset amount of Agent Time.
 Agent Time is shared across the deployment, allowing unlimited agents to run concurrently while consuming from a shared pool of purchased working hours.
 This usage-based model supports enterprise workloads where large development teams, background automation, and API-triggered tasks can create variable bursts of agent activity.
 
@@ -49,7 +49,7 @@ Coder handles concurrency and usage limits differently depending on the license 
 When a Community license deployment reaches its limit of five concurrently active agents, Coder places additional agents in a queue.
 When an active agent completes its task, the next queued agent begins its work.
 
-### AI Premium Agent Time exhaustion
+### Agent Hours exhaustion
 
 Coder sends deployment administrators an in-app soft warning as the deployment approaches its maximum allotted Agent Time, so they can purchase additional Agent Time before the concurrency fallback takes effect.
 

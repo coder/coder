@@ -1,4 +1,6 @@
-# Integrations
+---
+title: Integrations
+---
 
 Coder is highly extensible and is not limited to the platforms outlined in these
 docs. The control plane can be provisioned on any VM or container compute, and

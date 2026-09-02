@@ -18,7 +18,7 @@ const (
 	ClientKilo        Client = "Kilo Code"
 	ClientCoderAgents Client = "Coder Agents"
 	ClientCrush       Client = "Charm Crush"
-	ClientMux         Client = "Mux"
+	ClientXum         Client = "Xum"
 	ClientRoo         Client = "Roo Code"
 	ClientCursor      Client = "Cursor"
 	ClientOpenCode    Client = "OpenCode"
@@ -35,8 +35,9 @@ func GuessClient(r *http.Request) Client {
 
 	// Must be kept in sync with documentation: https://github.com/coder/coder/blob/3cf867f84aa32d2febf7a26dc7e52be6beb8a2ac/docs/ai-coder/ai-gateway/monitoring.md?plain=1#L47-L57
 	switch {
-	case strings.HasPrefix(userAgent, "mux/"):
-		return ClientMux
+	case strings.HasPrefix(userAgent, "xum/") || strings.HasPrefix(userAgent, "mux/"):
+		// Mux was renamed to Xum; "mux/" is kept for older, unupgraded clients.
+		return ClientXum
 	case strings.HasPrefix(userAgent, "claude"):
 		return ClientClaudeCode
 	case strings.HasPrefix(userAgent, "codex"):

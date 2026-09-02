@@ -1,4 +1,6 @@
-# Customizing dev containers
+---
+title: Customizing dev containers
+---
 
 Coder supports custom configuration in your `devcontainer.json` file through the
 `customizations.coder` block. These options let you control how Coder interacts

@@ -83,6 +83,12 @@ sql:
           - column: "chats.group_acl"
             go_type:
               type: "ChatACL"
+          - column: "chat_model_configs.user_acl"
+            go_type:
+              type: "ChatACL"
+          - column: "chat_model_configs.group_acl"
+            go_type:
+              type: "ChatACL"
           - column: "mcp_server_configs.user_acl"
             go_type:
               type: "ChatACL"

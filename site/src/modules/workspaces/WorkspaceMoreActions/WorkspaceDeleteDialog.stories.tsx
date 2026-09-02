@@ -1,10 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import {
-	MockFailedWorkspace,
-	MockTaskWorkspace,
-	MockWorkspace,
-} from "#/testHelpers/entities";
+import { MockFailedWorkspace, MockWorkspace } from "#/testHelpers/entities";
 import { daysAgo } from "#/utils/time";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
@@ -72,21 +68,6 @@ export const UnhealthyAdminView: Story = {
 		await userEvent.type(confirm, MockFailedWorkspace.name);
 		await userEvent.click(body.getByRole("button", { name: "Delete" }));
 		await expect(args.onConfirm).toHaveBeenCalledWith(true);
-	},
-};
-
-export const WithTask: Story = {
-	args: {
-		workspace: MockTaskWorkspace,
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await expect(
-			body.getByText("This workspace is related to a task"),
-		).toBeInTheDocument();
-		await expect(
-			body.getByRole("link", { name: /this task/i }),
-		).toBeInTheDocument();
 	},
 };
 

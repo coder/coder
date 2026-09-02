@@ -643,7 +643,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 	}
 
 	db := dbmock.NewMockStore(gomock.NewController(t))
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: "Reasoning title",
@@ -800,7 +800,7 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	t.Run("chooses the highest-priority configured lightweight model", func(t *testing.T) {
 		t.Parallel()
 
-		configs := []database.GetEnabledChatModelConfigsRow{
+		configs := []database.GetEnabledChatModelConfigsByOrganizationRow{
 			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[2].model}, Provider: preferredTitleModels[2].provider},
 			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[1].model}, Provider: preferredTitleModels[1].provider},
 			{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"}, Provider: "openai"},
@@ -814,7 +814,7 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
 		t.Parallel()
 
-		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsRow{{
+		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsByOrganizationRow{{
 			ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"},
 			Provider:        "openai",
 		}})
@@ -857,6 +857,32 @@ func TestNormalizeTurnStatusLabel(t *testing.T) {
 			got, ok := normalizeTurnStatusLabel(tt.input)
 			require.Equal(t, tt.ok, ok)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_normalizeTitleOutput(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "empty after normalization", input: " \"\" ", want: ""},
+		{name: "collapses whitespace and strips quotes", input: "\"Fix   pq  duplicate\tkey\"", want: "Fix pq duplicate key"},
+		{name: "keeps titles within the word budget", input: "Review risky changes in acme/webapp PR #123", want: "Review risky changes in acme/webapp PR #123"},
+		{
+			name:  "truncates overlong titles to the word budget",
+			input: "Re-capture Tasks-enabled evidence for the Coder pull request feature flag",
+			want:  "Re-capture Tasks-enabled evidence for the Coder pull request",
+		},
+		{name: "truncates to 80 runes", input: strings.Repeat("a", 100), want: strings.Repeat("a", 80)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, normalizeTitleOutput(tc.input))
 		})
 	}
 }
@@ -944,6 +970,31 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 	require.Equal(t, "Failed workspace logs", title)
 	require.Equal(t, []bool{true, false}, sawTemperature,
 		"generation should retry without temperature after the model rejects it")
+}
+
+func TestGenerateStructuredTitleWithUsage_TruncatesOverlongTitle(t *testing.T) {
+	t.Parallel()
+
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{
+					"title": "Re-capture Tasks-enabled evidence for the Coder pull request feature flag",
+				},
+			}, nil
+		},
+	}
+
+	title, _, err := generateStructuredTitleWithUsage(
+		t.Context(),
+		model,
+		titleObjectCall(resolvedModelCall{}),
+		titleGenerationPrompt,
+		"re-capture UI evidence for a Coder pull request",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Re-capture Tasks-enabled evidence for the Coder pull request", title,
+		"an overlong generated title should be truncated to the word budget, not rejected")
 }
 
 func newOpenAICompatStructuredOutputServer(

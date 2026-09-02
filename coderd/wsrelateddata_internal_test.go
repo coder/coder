@@ -63,6 +63,12 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 	app := database.WorkspaceApp{ID: uuid.New(), AgentID: agent.ID}
 
 	expectJob := func(db *dbmock.MockStore) {
+		db.EXPECT().GetProvisionerJobsByIDs(gomock.Any(), gomock.Any()).
+			Return([]database.ProvisionerJob{}, nil)
+		db.EXPECT().GetEligibleProvisionerDaemonsByProvisionerJobIDs(gomock.Any(), gomock.Any()).
+			Return([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}, nil)
+	}
+	expectJobWithQueuePosition := func(db *dbmock.MockStore) {
 		db.EXPECT().GetProvisionerJobsByIDsWithQueuePosition(gomock.Any(), gomock.Any()).
 			Return([]database.GetProvisionerJobsByIDsWithQueuePositionRow{}, nil)
 		db.EXPECT().GetEligibleProvisionerDaemonsByProvisionerJobIDs(gomock.Any(), gomock.Any()).
@@ -99,6 +105,11 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 			name:  "Job",
 			cfg:   latestBuildRelated{Job: &jobRelated{}},
 			setup: expectJob,
+		},
+		{
+			name:  "JobWithQueuePosition",
+			cfg:   latestBuildRelated{Job: &jobRelated{QueuePosition: true}},
+			setup: expectJobWithQueuePosition,
 		},
 		{
 			name:  "TemplateVersion",
@@ -171,7 +182,7 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 			name: "All",
 			cfg:  allLatestBuildRelated(),
 			setup: func(db *dbmock.MockStore) {
-				expectJob(db)
+				expectJobWithQueuePosition(db)
 				expectTemplateVersion(db)
 				expectResources(db)
 				expectAgents(db)

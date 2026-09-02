@@ -51,6 +51,19 @@ func TestEditFiles(t *testing.T) {
 		assert.NotContains(t, editProps, "search", "schema should not expose deprecated search")
 		assert.NotContains(t, editProps, "replace", "schema should not expose deprecated replace")
 
+		// The model relies on per-field guidance; the descriptions
+		// live on workspacesdk.FileEdit and must survive into the
+		// generated schema.
+		oldTextProps, ok := editProps["old_text"].(map[string]any)
+		require.True(t, ok)
+		assert.Contains(t, oldTextProps["description"], "fuzzy")
+		newTextProps, ok := editProps["new_text"].(map[string]any)
+		require.True(t, ok)
+		assert.Contains(t, newTextProps["description"], "replaces old_text")
+		replaceAllProps, ok := editProps["replace_all"].(map[string]any)
+		require.True(t, ok)
+		assert.Contains(t, replaceAllProps["description"], "every match")
+
 		// Requiredness alone did not stop models from omitting path,
 		// so the schema must also describe it.
 		pathSchema, ok := props["path"].(map[string]any)
@@ -158,7 +171,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/README.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"/home/coder/README.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -187,8 +200,8 @@ func TestEditFiles(t *testing.T) {
 			ID:   "call-1",
 			Name: "edit_files",
 			Input: `{"files":[` +
-				`{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]},` +
-				`{"path":"/home/coder/README.md","edits":[{"search":"old","replace":"new"}]}` +
+				`{"path":"` + planPath + `","edits":[{"old_text":"old","new_text":"new"}]},` +
+				`{"path":"/home/coder/README.md","edits":[{"old_text":"old","new_text":"new"}]}` +
 				`]}`,
 		})
 		require.NoError(t, err)
@@ -208,8 +221,8 @@ func TestEditFiles(t *testing.T) {
 			Files: []workspacesdk.FileEdits{{
 				Path: planPath,
 				Edits: []workspacesdk.FileEdit{{
-					Search:  "old",
-					Replace: "new",
+					OldText: "old",
+					NewText: "new",
 				}},
 			}},
 			IncludeDiff: true,
@@ -230,7 +243,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"` + planPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -249,8 +262,8 @@ func TestEditFiles(t *testing.T) {
 			Files: []workspacesdk.FileEdits{{
 				Path: planPath,
 				Edits: []workspacesdk.FileEdit{{
-					Search:  "old",
-					Replace: "new",
+					OldText: "old",
+					NewText: "new",
 				}},
 			}},
 			IncludeDiff: true,
@@ -270,7 +283,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"` + planPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -295,7 +308,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"` + planPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -312,14 +325,14 @@ func TestEditFiles(t *testing.T) {
 		}{
 			{
 				name:                 "SingleHomeRootPlanPath",
-				input:                `{"files":[{"path":"/Users/dev/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+				input:                `{"files":[{"path":"/Users/dev/plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 				expectedRejectedPath: "/Users/dev/plan.md",
 			},
 			{
 				name: "MultiFileBatchWithHomeRootPlanPath",
 				input: `{"files":[` +
-					`{"path":"/Users/dev/subdir/plan.md","edits":[{"search":"old","replace":"new"}]},` +
-					`{"path":"/Users/dev/plan.md","edits":[{"search":"old","replace":"new"}]}` +
+					`{"path":"/Users/dev/subdir/plan.md","edits":[{"old_text":"old","new_text":"new"}]},` +
+					`{"path":"/Users/dev/plan.md","edits":[{"old_text":"old","new_text":"new"}]}` +
 					`]}`,
 				expectedRejectedPath: "/Users/dev/plan.md",
 			},
@@ -377,7 +390,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"/home/coder/plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -402,7 +415,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -419,8 +432,8 @@ func TestEditFiles(t *testing.T) {
 			Files: []workspacesdk.FileEdits{{
 				Path: chatPlanPath,
 				Edits: []workspacesdk.FileEdit{{
-					Search:  "old",
-					Replace: "new",
+					OldText: "old",
+					NewText: "new",
 				}},
 			}},
 			IncludeDiff: true,
@@ -441,7 +454,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + chatPlanPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"` + chatPlanPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -456,8 +469,8 @@ func TestEditFiles(t *testing.T) {
 			Files: []workspacesdk.FileEdits{{
 				Path: "/home/coder/myproject/plan.md",
 				Edits: []workspacesdk.FileEdit{{
-					Search:  "old",
-					Replace: "new",
+					OldText: "old",
+					NewText: "new",
 				}},
 			}},
 			IncludeDiff: true,
@@ -476,7 +489,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -490,8 +503,8 @@ func TestEditFiles(t *testing.T) {
 			Files: []workspacesdk.FileEdits{{
 				Path: "/home/coder/myproject/plan.md",
 				Edits: []workspacesdk.FileEdit{{
-					Search:  "old",
-					Replace: "new",
+					OldText: "old",
+					NewText: "new",
 				}},
 			}},
 			IncludeDiff: true,
@@ -512,7 +525,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -527,8 +540,8 @@ func TestEditFiles(t *testing.T) {
 			Files: []workspacesdk.FileEdits{{
 				Path: "/home/dev/my-plan.md",
 				Edits: []workspacesdk.FileEdit{{
-					Search:  "old",
-					Replace: "new",
+					OldText: "old",
+					NewText: "new",
 				}},
 			}},
 			IncludeDiff: true,
@@ -549,7 +562,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/dev/my-plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"/home/dev/my-plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -564,8 +577,8 @@ func TestEditFiles(t *testing.T) {
 			Files: []workspacesdk.FileEdits{{
 				Path: chattool.LegacySharedPlanPath,
 				Edits: []workspacesdk.FileEdit{{
-					Search:  "old",
-					Replace: "new",
+					OldText: "old",
+					NewText: "new",
 				}},
 			}},
 			IncludeDiff: true,
@@ -581,28 +594,27 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + chattool.LegacySharedPlanPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"` + chattool.LegacySharedPlanPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
 	})
 }
 
-func TestEditFiles_OldTextNewTextFieldsPreferred(t *testing.T) {
+func TestEditFiles_MapsOldTextNewTextToSDK(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	targetPath := "/home/coder/main.go"
 
-	// The agent API should map old_text->Search and new_text->Replace.
 	mockConn.EXPECT().
 		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
 			Files: []workspacesdk.FileEdits{{
 				Path: targetPath,
 				Edits: []workspacesdk.FileEdit{{
-					Search:  "old content",
-					Replace: "new content",
+					OldText: "old content",
+					NewText: "new content",
 				}},
 			}},
 			IncludeDiff: true,
@@ -619,111 +631,6 @@ func TestEditFiles_OldTextNewTextFieldsPreferred(t *testing.T) {
 		ID:    "call-1",
 		Name:  "edit_files",
 		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"old_text":"old content","new_text":"new content"}]}]}`,
-	})
-	require.NoError(t, err)
-	assert.False(t, resp.IsError)
-}
-
-func TestEditFiles_DeprecatedSearchReplaceFieldsStillWork(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	targetPath := "/home/coder/main.go"
-
-	// Agents with cached schemas may still send "search"/"replace".
-	// Also exercises replace_all through the new unmarshal+convert path.
-	mockConn.EXPECT().
-		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
-			Files: []workspacesdk.FileEdits{{
-				Path: targetPath,
-				Edits: []workspacesdk.FileEdit{{
-					Search:     "old",
-					Replace:    "replacement",
-					ReplaceAll: true,
-				}},
-			}},
-			IncludeDiff: true,
-		}).
-		Return(workspacesdk.FileEditResponse{}, nil)
-
-	tool := chattool.EditFiles(chattool.EditFilesOptions{
-		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-			return mockConn, nil
-		},
-	})
-
-	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-		ID:    "call-1",
-		Name:  "edit_files",
-		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"search":"old","replace":"replacement","replace_all":true}]}]}`,
-	})
-	require.NoError(t, err)
-	assert.False(t, resp.IsError)
-}
-
-func TestEditFiles_DeprecatedFieldsAreCaseSensitive(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	targetPath := "/home/coder/main.go"
-	mockConn.EXPECT().
-		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
-			Files: []workspacesdk.FileEdits{{
-				Path:  targetPath,
-				Edits: []workspacesdk.FileEdit{{}},
-			}},
-			IncludeDiff: true,
-		}).
-		Return(workspacesdk.FileEditResponse{}, nil)
-
-	tool := chattool.EditFiles(chattool.EditFilesOptions{
-		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-			return mockConn, nil
-		},
-	})
-
-	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-		ID:    "call-1",
-		Name:  "edit_files",
-		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"SEARCH":"old","REPLACE":"replacement"}]}]}`,
-	})
-	require.NoError(t, err)
-	assert.False(t, resp.IsError)
-}
-
-func TestEditFiles_NewFieldNamesTakePrecedenceOverOld(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	targetPath := "/home/coder/main.go"
-
-	// If both old and new field names are present, new names win.
-	mockConn.EXPECT().
-		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
-			Files: []workspacesdk.FileEdits{{
-				Path: targetPath,
-				Edits: []workspacesdk.FileEdit{{
-					Search:  "from-oldText",
-					Replace: "from-newText",
-				}},
-			}},
-			IncludeDiff: true,
-		}).
-		Return(workspacesdk.FileEditResponse{}, nil)
-
-	tool := chattool.EditFiles(chattool.EditFilesOptions{
-		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-			return mockConn, nil
-		},
-	})
-
-	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-		ID:    "call-1",
-		Name:  "edit_files",
-		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"old_text":"from-oldText","search":"from-search","new_text":"from-newText","replace":"from-replace"}]}]}`,
 	})
 	require.NoError(t, err)
 	assert.False(t, resp.IsError)
@@ -748,8 +655,8 @@ func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
 			Files: []workspacesdk.FileEdits{{
 				Path: targetPath,
 				Edits: []workspacesdk.FileEdit{{
-					Search:  "old",
-					Replace: "new",
+					OldText: "old",
+					NewText: "new",
 				}},
 			}},
 			IncludeDiff: true,
@@ -765,7 +672,7 @@ func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
 	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 		ID:    "call-1",
 		Name:  "edit_files",
-		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
 	})
 	require.NoError(t, err)
 	assert.False(t, resp.IsError)

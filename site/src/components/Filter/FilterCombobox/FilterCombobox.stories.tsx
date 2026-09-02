@@ -51,7 +51,7 @@ const attributeOptions: FilterOption[] = [
 		value: "outdated",
 		token: "outdated:true",
 		startIcon: (
-			<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+			<span className="flex size-(--avatar-default) shrink-0 items-center justify-center">
 				<RefreshCwOffIcon className="size-icon-sm" />
 			</span>
 		),
@@ -61,7 +61,7 @@ const attributeOptions: FilterOption[] = [
 		value: "dormant",
 		token: "dormant:true",
 		startIcon: (
-			<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+			<span className="flex size-(--avatar-default) shrink-0 items-center justify-center">
 				<MoonIcon className="size-icon-sm" />
 			</span>
 		),
@@ -71,7 +71,7 @@ const attributeOptions: FilterOption[] = [
 		value: "shared",
 		token: "shared:true",
 		startIcon: (
-			<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+			<span className="flex size-(--avatar-default) shrink-0 items-center justify-center">
 				<Share2Icon className="size-icon-sm" />
 			</span>
 		),
@@ -203,12 +203,14 @@ export const OpenFilterMenu: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
-		// Popup is portaled and animates open; wait until options are visible.
+		// Wait for the popup animation before asserting its options.
 		await waitFor(() =>
 			expect(body.getByRole("option", { name: /Status/i })).toBeVisible(),
 		);
 		await expect(body.getByRole("option", { name: /Template/i })).toBeVisible();
-		await expect(body.getByRole("option", { name: /Owner/i })).toBeVisible();
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Owner/i })).toBeVisible(),
+		);
 		await expect(input).toHaveFocus();
 	},
 };
@@ -284,7 +286,9 @@ export const TypeaheadMatchingCategories: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "ow");
-		await expect(body.getByRole("option", { name: /Owner/i })).toBeVisible();
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Owner/i })).toBeVisible(),
+		);
 		await expect(
 			body.queryByRole("option", { name: /Status/i }),
 		).not.toBeInTheDocument();
@@ -304,7 +308,9 @@ export const TabCompletesTopCategory: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "ow");
-		await expect(body.getByRole("option", { name: /Owner/i })).toBeVisible();
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Owner/i })).toBeVisible(),
+		);
 		await userEvent.keyboard("{Tab}");
 		await expect(canvas.getByText("owner:")).toBeVisible();
 		await waitFor(() => expect(body.getByText("alice")).toBeVisible());

@@ -1,7 +1,9 @@
 import { useFormik } from "formik";
 import { type FC, useRef, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
+import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import {
@@ -16,6 +18,12 @@ import {
 	parseThresholdInteger,
 } from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
 import { getFormHelpers } from "#/utils/formUtils";
+import {
+	creatableModelOrganizations,
+	selectModelOrganizationPath,
+	useOrganizationModels,
+} from "../organizationModels";
+import { ChatModelSharingDialog } from "./ChatModelSharingDialog";
 import { ModelFormDialogs } from "./ModelFormDialogs";
 import { ModelFormFields } from "./ModelFormFields";
 import { ModelFormBackLink, ModelFormHeader } from "./ModelFormHeader";
@@ -44,22 +52,22 @@ const validationSchema = Yup.object({
 });
 
 interface ModelFormProps {
-	editingModel?: TypesGen.ChatModelConfig;
-	duplicateSourceModel?: TypesGen.ChatModelConfig;
+	editingModel?: TypesGen.ChatModel;
+	duplicateSourceModel?: TypesGen.ChatModel;
 	providerStates: readonly ProviderState[];
 	selectedProviderState: ProviderState | null;
 	onProviderChange: (providerKey: string) => void;
 	isSaving: boolean;
 	isDeleting: boolean;
-	onCreateModel: (
-		req: TypesGen.CreateChatModelConfigRequest,
-	) => Promise<unknown>;
+	canUpdateModel?: boolean;
+	canShareModel?: boolean;
+	onCreateModel: (req: TypesGen.CreateChatModelRequest) => Promise<unknown>;
 	onUpdateModel: (
-		modelConfigId: string,
-		req: TypesGen.UpdateChatModelConfigRequest,
+		modelId: string,
+		req: TypesGen.UpdateChatModelRequest,
 	) => Promise<unknown>;
-	onDeleteModel?: (modelConfigId: string) => Promise<void>;
-	currentDefaultModel?: TypesGen.ChatModelConfig;
+	onDeleteModel?: (modelId: string) => Promise<void>;
+	currentDefaultModel?: TypesGen.ChatModel;
 	onSetDefault?: () => void;
 	onDuplicate?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
@@ -73,6 +81,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 	onProviderChange,
 	isSaving,
 	isDeleting,
+	canUpdateModel = true,
+	canShareModel = false,
 	onCreateModel,
 	onUpdateModel,
 	onDeleteModel,
@@ -80,6 +90,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 	currentDefaultModel,
 	onToggleEnabled,
 }) => {
+	const { organization, accessibleOrganizations, permissionsByOrganization } =
+		useOrganizationModels();
+	const location = useLocation();
+	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
 	const initialModel = editingModel ?? duplicateSourceModel;
 	const isEditing = Boolean(editingModel);
 	const isDuplicating = Boolean(duplicateSourceModel) && !isEditing;
@@ -90,6 +105,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [showCostEstimate, setShowCostEstimate] = useState(false);
 	const [showProviderConfig, setShowProviderConfig] = useState(false);
+	const [sharingOpen, setSharingOpen] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [confirmingReplaceDefault, setConfirmingReplaceDefault] =
 		useState(false);
@@ -97,6 +113,27 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const canAddModelForSelectedProvider = canManageProviderModels(
 		selectedProviderState ?? undefined,
+	);
+	const creatableOrganizations = creatableModelOrganizations(
+		accessibleOrganizations,
+		permissionsByOrganization,
+	);
+	const addOrganizationField = creatableOrganizations.length > 1 && (
+		<OrganizationField
+			id="model-form-organization"
+			organization={organization}
+			organizations={creatableOrganizations}
+			optionsTabbable
+			onChange={(nextOrganization) => {
+				void navigate(
+					selectModelOrganizationPath(
+						location.pathname,
+						nextOrganization,
+						searchParams,
+					),
+				);
+			}}
+		/>
 	);
 	const mode: "add" | "edit" | "duplicate" = isEditing
 		? "edit"
@@ -144,11 +181,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 			const builtModelConfig = buildResult.modelConfig;
 
 			const selectedProviderConfigID =
-				selectedProviderState?.providerConfig?.id;
+				selectedProviderState?.providerDescriptor.id;
 			const editingProviderConfigID = editingModel?.ai_provider_id.trim() ?? "";
 
 			if (isEditing && editingModel) {
-				const req: TypesGen.UpdateChatModelConfigRequest = {
+				const req: TypesGen.UpdateChatModelRequest = {
 					...(selectedProviderConfigID &&
 						selectedProviderConfigID !== editingProviderConfigID && {
 							ai_provider_id: selectedProviderConfigID,
@@ -179,10 +216,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!selectedProviderState?.providerConfig) return;
+				if (!selectedProviderState) return;
 
-				const req: TypesGen.CreateChatModelConfigRequest = {
-					ai_provider_id: selectedProviderState.providerConfig.id,
+				const req: TypesGen.CreateChatModelRequest = {
+					ai_provider_id: selectedProviderState.providerDescriptor.id,
 					model: trimmedModel,
 					enabled: values.enabled,
 					is_default: values.isDefault,
@@ -218,9 +255,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const hasFieldErrors =
 		Object.keys(modelConfigFormBuildResult.fieldErrors).length > 0;
 	const enabledToggleDisabled =
+		!canUpdateModel ||
 		isSaving ||
 		(editingModel?.is_default === true && editingModel.enabled === true);
 	const setDefaultDisabled =
+		!canUpdateModel ||
 		isSaving ||
 		(isEditing &&
 			(editingModel?.is_default === true || editingModel?.enabled === false));
@@ -233,9 +272,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const hasProviderChange =
 		isEditing &&
 		!!editingModel &&
-		!!selectedProviderState?.providerConfig &&
-		selectedProviderState.providerConfig.id !== editingModel.ai_provider_id;
+		!!selectedProviderState &&
+		selectedProviderState.providerDescriptor.id !== editingModel.ai_provider_id;
 	const canSubmit =
+		(!isEditing || canUpdateModel) &&
 		!isSaving &&
 		!hasFieldErrors &&
 		form.values.model.trim().length > 0 &&
@@ -269,13 +309,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 							/>
 							{selectedProviderState && (
 								<p className="text-sm text-content-secondary m-0">
-									{!selectedProviderState.providerConfig
-										? "Create a managed provider before adding models."
-										: selectedProviderState.providerConfig.enabled === false
-											? `${selectedProviderState.label} is disabled. Enable it before adding models.`
-											: "Set an API key for this provider before adding models."}
+									{selectedProviderState.providerDescriptor.enabled === false
+										? `${selectedProviderState.label} is disabled. Enable it before adding models.`
+										: "Set an API key for this provider before adding models."}
 								</p>
 							)}
+							{addOrganizationField}
 						</div>
 					</div>
 				</div>
@@ -306,6 +345,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				editingModel={editingModel}
 				onDeleteModel={onDeleteModel}
 				onDuplicate={onDuplicate}
+				onShareModel={canShareModel ? () => setSharingOpen(true) : undefined}
 				onToggleEnabled={onToggleEnabled}
 				isSaving={isSaving}
 				enabledToggleDisabled={enabledToggleDisabled}
@@ -323,6 +363,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 					isDuplicating={isDuplicating}
 					isEditing={isEditing}
 					isSaving={isSaving}
+					isReadOnly={isEditing && !canUpdateModel}
 					canSubmit={canSubmit}
 					initialModel={initialModel}
 					modelField={modelField}
@@ -339,6 +380,15 @@ export const ModelForm: FC<ModelFormProps> = ({
 					setShowAdvanced={setShowAdvanced}
 				/>
 			</div>
+			{editingModel && canShareModel && (
+				<ChatModelSharingDialog
+					open={sharingOpen}
+					onOpenChange={setSharingOpen}
+					organizationId={organization.id}
+					modelId={editingModel.id}
+					modelName={editingModel.display_name || editingModel.model}
+				/>
+			)}
 			<ModelFormDialogs
 				editingModel={editingModel}
 				onDeleteModel={onDeleteModel}

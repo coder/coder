@@ -58,8 +58,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 		visibleChatIDs,
 		normalizedSearch,
 		expandedById,
-		modelOptions,
 		modelConfigs,
+		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
 		isArchiving,
@@ -83,7 +83,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 	const modelName = getModelDisplayName(
 		chat.last_model_config_id,
 		modelConfigs,
-		modelOptions,
+		isLoadingModelConfigs,
 	);
 	const errorReason =
 		chat.status === "error"
@@ -91,7 +91,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
 	const isStreaming = chat.status === "running";
-	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
+	const streamingSubtitle =
+		isStreaming && modelName ? `${modelName} streaming…` : undefined;
 	const staleTurnSummaryReleaseMs = 10_000;
 	const [streamingSummary, setStreamingSummary] = useState<string | undefined>(
 		isStreaming ? lastTurnSummary : undefined,
@@ -191,8 +192,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
-							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-data-[state=open]:bg-surface-tertiary",
 							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 							hoverLayout,
 							activeLayout,
@@ -290,7 +291,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 											className={cn(
 												"min-w-0 overflow-hidden text-[13px] leading-4",
 												errorReason
-													? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+													? "line-clamp-1 whitespace-normal text-content-destructive wrap-anywhere"
 													: "truncate text-content-secondary",
 											)}
 											title={subtitle}
@@ -316,7 +317,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 											// hover; without menu actions there is no trigger, so
 											// keep the timestamp visible.
 											hasMenuActions &&
-												"[@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden",
+												"[@media(hover:hover)]:group-hover:hidden group-has-data-[state=open]:hidden",
 											hasMenuActions && isActiveChat && "hidden",
 										)}
 									>

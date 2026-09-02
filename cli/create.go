@@ -356,7 +356,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			var ttlMillis *int64
 			if stopAfter > 0 {
-				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
+				ttlMillis = new(stopAfter.Milliseconds())
 			}
 
 			req := codersdk.CreateWorkspaceRequest{

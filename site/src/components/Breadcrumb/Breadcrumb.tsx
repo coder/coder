@@ -21,7 +21,7 @@ export const BreadcrumbList: React.FC<React.ComponentPropsWithRef<"ol">> = ({
 	return (
 		<ol
 			className={cn(
-				"flex flex-wrap items-center text-sm pl-6 my-4 gap-1.5 break-words font-medium list-none sm:gap-2.5",
+				"flex flex-wrap items-center text-sm pl-6 my-4 gap-1.5 wrap-break-word font-medium list-none sm:gap-2.5",
 				className,
 			)}
 			{...props}

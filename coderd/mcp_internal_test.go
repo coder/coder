@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"encoding/json"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -213,4 +214,56 @@ func TestOIDCMCPTokenSource(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, tok)
 	})
+}
+
+func TestProtectedResourceMetadataResourceUnmarshal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    resourceIdentifiers
+		wantErr bool
+	}{
+		{
+			name:  "String",
+			input: `{"resource": "https://gitlab.example.com/api/v4/mcp", "authorization_servers": ["https://gitlab.example.com"]}`,
+			want:  resourceIdentifiers{"https://gitlab.example.com/api/v4/mcp"},
+		},
+		{
+			// GitLab's official MCP server returns an array of
+			// resources despite RFC 9728 defining a string.
+			name:  "Array",
+			input: `{"resource": ["https://gitlab.example.com/api/v4/mcp", "https://gitlab.example.com/api/v4/orbit/mcp"], "authorization_servers": ["https://gitlab.example.com"]}`,
+			want: resourceIdentifiers{
+				"https://gitlab.example.com/api/v4/mcp",
+				"https://gitlab.example.com/api/v4/orbit/mcp",
+			},
+		},
+		{
+			name:  "Absent",
+			input: `{"authorization_servers": ["https://gitlab.example.com"]}`,
+			want:  nil,
+		},
+		{
+			name:    "InvalidType",
+			input:   `{"resource": 42, "authorization_servers": ["https://gitlab.example.com"]}`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var meta protectedResourceMetadata
+			err := json.Unmarshal([]byte(tt.input), &meta)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, meta.Resource)
+		})
+	}
 }

@@ -30,25 +30,25 @@ export type SpawnModelDisplay = {
 };
 
 export const resolveSpawnModelDisplay = ({
-	configs,
-	modelConfigId,
+	models,
+	modelId,
 	reasoningEffort,
 }: {
-	configs: readonly TypesGen.ChatModelConfig[] | undefined;
-	modelConfigId?: string;
+	models: readonly TypesGen.ChatModel[] | undefined;
+	modelId?: string;
 	reasoningEffort?: string;
 }): SpawnModelDisplay => {
 	const requestedRank = effortRank(reasoningEffort);
 	const requested = requestedRank >= 0 ? effortScale[requestedRank] : undefined;
-	const config = modelConfigId
-		? configs?.find((c) => c.id === modelConfigId)
+	const model = modelId
+		? models?.find((model) => model.id === modelId)
 		: undefined;
-	if (!config) {
+	if (!model) {
 		return {};
 	}
 
-	const modelLabel = config.display_name.trim() || config.model.trim();
-	const effortConfig = config.model_config?.reasoning_effort;
+	const modelLabel = model.display_name.trim() || model.model.trim();
+	const effortConfig = model.model_config?.reasoning_effort;
 	if (!effortConfig) {
 		return { modelLabel };
 	}

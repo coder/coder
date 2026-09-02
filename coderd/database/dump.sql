@@ -284,7 +284,13 @@ CREATE TYPE api_key_scope AS ENUM (
     'mcp_server_config:read',
     'mcp_server_config:update',
     'mcp_server_config:delete',
-    'mcp_server_config:share'
+    'mcp_server_config:share',
+    'chat_model_config:*',
+    'chat_model_config:create',
+    'chat_model_config:read',
+    'chat_model_config:update',
+    'chat_model_config:delete',
+    'chat_model_config:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -344,6 +350,11 @@ CREATE TYPE chat_message_role AS ENUM (
     'user',
     'assistant',
     'tool'
+);
+
+CREATE TYPE chat_message_search_tsv_config AS ENUM (
+    'simple',
+    'english'
 );
 
 CREATE TYPE chat_message_visibility AS ENUM (
@@ -611,7 +622,9 @@ CREATE TYPE resource_type AS ENUM (
     'user_ai_budget_override',
     'oauth2_provider_settings',
     'chat_instruction_settings',
-    'mcp_server_config'
+    'mcp_server_config',
+    'chat_model_config',
+    'chat_operational_settings'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1471,6 +1484,7 @@ BEGIN
 
         cmp := NEW;
         cmp.search_tsv := OLD.search_tsv;
+        cmp.search_tsv_config := OLD.search_tsv_config;
         IF OLD IS NOT DISTINCT FROM cmp THEN
             RETURN NEW;
         END IF;
@@ -1488,7 +1502,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv as it is not relevant to chatd''s processing loop.';
+COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv and search_tsv_config as they are not relevant to chatd''s processing loop.';
 
 CREATE FUNCTION sync_chat_retry_state() RETURNS trigger
     LANGUAGE plpgsql
@@ -1540,7 +1554,7 @@ BEGIN
         SELECT DISTINCT n.chat_id
         FROM chat_message_history_new_rows n
         JOIN chat_message_history_old_rows o ON o.id = n.id
-        WHERE (to_jsonb(o) - 'search_tsv') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv')
+        WHERE (to_jsonb(o) - 'search_tsv' - 'search_tsv_config') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv' - 'search_tsv_config')
     ) AS affected
     WHERE c.id = affected.chat_id
       AND (
@@ -1551,7 +1565,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv.';
+COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config.';
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -2045,12 +2059,15 @@ CREATE TABLE chat_messages (
     provider_response_id text,
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
-    search_tsv tsvector
+    search_tsv tsvector,
+    search_tsv_config chat_message_search_tsv_config
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
+
+COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -2077,9 +2094,23 @@ CREATE TABLE chat_model_configs (
     compression_threshold integer NOT NULL,
     options jsonb DEFAULT '{}'::jsonb NOT NULL,
     ai_provider_id uuid,
+    organization_id uuid NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT chat_model_configs_ai_provider_required_when_active CHECK (((deleted = true) OR (ai_provider_id IS NOT NULL))),
     CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
-    CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
+    CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0)),
+    CONSTRAINT chat_model_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT chat_model_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
+);
+
+CREATE TABLE chat_organization_model_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    context text NOT NULL,
+    model_config_id uuid NOT NULL,
+    reasoning_effort text,
+    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
 );
 
 CREATE SEQUENCE chat_queued_messages_position_seq
@@ -2132,6 +2163,19 @@ CREATE SEQUENCE chat_usage_limit_config_id_seq
     CACHE 1;
 
 ALTER SEQUENCE chat_usage_limit_config_id_seq OWNED BY chat_usage_limit_config.id;
+
+CREATE TABLE chat_user_model_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    context text NOT NULL,
+    mode text NOT NULL,
+    model_config_id uuid,
+    reasoning_effort text,
+    CONSTRAINT chat_user_model_overrides_context_check CHECK ((context = ANY (ARRAY['root'::text, 'general'::text, 'explore'::text]))),
+    CONSTRAINT chat_user_model_overrides_mode_check CHECK ((mode = ANY (ARRAY['model'::text, 'chat_default'::text, 'deployment_default'::text]))),
+    CONSTRAINT chat_user_model_overrides_model_requires_config_check CHECK (((mode = 'model'::text) = (model_config_id IS NOT NULL)))
+);
 
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3527,7 +3571,8 @@ CREATE TABLE templates (
     cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL,
     disable_module_cache boolean DEFAULT false NOT NULL,
     time_til_autostop_notify bigint DEFAULT 0 NOT NULL,
-    agents_allowed boolean DEFAULT true NOT NULL
+    agents_allowed boolean DEFAULT true NOT NULL,
+    allow_workspace_renames boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -3553,6 +3598,8 @@ COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to
 COMMENT ON COLUMN templates.time_til_autostop_notify IS 'How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.';
 
 COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
+
+COMMENT ON COLUMN templates.allow_workspace_renames IS 'Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -3588,6 +3635,7 @@ CREATE VIEW template_with_names AS
     templates.disable_module_cache,
     templates.time_til_autostop_notify,
     templates.agents_allowed,
+    templates.allow_workspace_renames,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -4389,7 +4437,16 @@ ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_organization_id_id_key UNIQUE (organization_id, id);
+
+ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_id_context_key UNIQUE (organization_id, context);
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
@@ -4399,6 +4456,12 @@ ALTER TABLE ONLY chat_usage_limit_config
 
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_user_organization_context_key UNIQUE (user_id, organization_id, context);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -4874,7 +4937,9 @@ CREATE INDEX idx_chat_model_configs_ai_provider_id ON chat_model_configs USING b
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
-CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
+CREATE INDEX idx_chat_model_configs_organization_id ON chat_model_configs USING btree (organization_id);
+
+CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree (organization_id) WHERE ((is_default = true) AND (deleted = false));
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
@@ -5257,10 +5322,28 @@ ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_model_config_fke FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_organization_model_config_fkey FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;

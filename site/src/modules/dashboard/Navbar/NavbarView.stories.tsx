@@ -1,13 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import type { TasksFilter } from "#/api/typesGenerated";
 import { AuthProvider } from "#/contexts/auth/AuthProvider";
-import { AISettingsIndexRedirect } from "#/router";
+import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
+import { AISettingsIndexRedirect } from "#/pages/AISettingsPage/AISettingsIndexRedirect";
 import {
+	MockAppearanceConfig,
 	MockBuildInfo,
+	MockDefaultOrganization,
+	MockEntitlements,
 	MockNoPermissions,
-	MockTasks,
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
@@ -18,25 +20,29 @@ import {
 } from "#/testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
-const tasksFilter: TasksFilter = {
-	owner: MockUserOwner.username,
-};
-
-const memberTasksFilter: TasksFilter = {
-	owner: MockUserMember.username,
-};
+const AISettingsIndexRedirectWithProviders = () => (
+	<AuthProvider>
+		<DashboardContext.Provider
+			value={{
+				entitlements: MockEntitlements,
+				experiments: [],
+				appearance: MockAppearanceConfig,
+				buildInfo: MockBuildInfo,
+				organizations: [MockDefaultOrganization],
+				showOrganizations: false,
+				canViewOrganizationSettings: false,
+			}}
+		>
+			<AISettingsIndexRedirect />
+		</DashboardContext.Provider>
+	</AuthProvider>
+);
 
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
 	parameters: {
 		pixel: { matrix: pixelWithTablet },
 		layout: "fullscreen",
-		queries: [
-			{
-				key: ["tasks", tasksFilter],
-				data: [],
-			},
-		],
 	},
 	component: NavbarView,
 	args: {
@@ -51,6 +57,7 @@ const meta: Meta<typeof NavbarView> = {
 			canViewHealth: true,
 		},
 		canCreateChat: true,
+		canViewLicenses: false,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
@@ -102,11 +109,55 @@ export const ForOrgAdmin: Story = {
 	},
 };
 
+export const ForTemplateUpdateOnlyAdmin: Story = {
+	decorators: [withAuthProvider],
+	parameters: {
+		pixel: { matrix: pixelWithDesktop },
+		user: MockUserMember,
+		permissions: {
+			...MockNoPermissions,
+			updateAnyTemplate: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: [
+				{ path: "/", useStoryElement: true },
+				{
+					path: "/ai/settings",
+					element: <AISettingsIndexRedirectWithProviders />,
+				},
+				{
+					path: "/ai/settings/templates",
+					element: <h1>Templates</h1>,
+				},
+			],
+		}),
+	},
+	args: {
+		user: MockUserMember,
+		adminPermissions: {
+			canViewAISettings: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		const aiSettingsLink = body.getByRole("menuitem", { name: "AI" });
+		await expect(aiSettingsLink).toHaveAttribute("href", "/ai/settings");
+		await userEvent.click(aiSettingsLink);
+		await expect(
+			await canvas.findByRole("heading", { name: "Templates" }),
+		).toBeInTheDocument();
+	},
+};
+
 export const ForMCPUpdateOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
 		pixel: { matrix: pixelWithDesktop },
-		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {
 			...MockNoPermissions,
@@ -118,14 +169,7 @@ export const ForMCPUpdateOnlyAdmin: Story = {
 				{ path: "/", useStoryElement: true },
 				{
 					path: "/ai/settings",
-					// Route elements render outside story decorators, so the
-					// redirect needs its own AuthProvider; it reads the query
-					// data seeded by withAuthProvider.
-					element: (
-						<AuthProvider>
-							<AISettingsIndexRedirect />
-						</AuthProvider>
-					),
+					element: <AISettingsIndexRedirectWithProviders />,
 				},
 				{
 					path: "/ai/settings/mcp-servers",
@@ -159,7 +203,6 @@ export const ForMCPDeleteOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
 		pixel: { matrix: pixelWithDesktop },
-		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {
 			...MockNoPermissions,
@@ -171,11 +214,7 @@ export const ForMCPDeleteOnlyAdmin: Story = {
 				{ path: "/", useStoryElement: true },
 				{
 					path: "/ai/settings",
-					element: (
-						<AuthProvider>
-							<AISettingsIndexRedirect />
-						</AuthProvider>
-					),
+					element: <AISettingsIndexRedirectWithProviders />,
 				},
 				{
 					path: "/ai/settings/mcp-servers",
@@ -207,7 +246,6 @@ export const ForMCPCreateOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
 		pixel: { matrix: pixelWithDesktop },
-		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {
 			...MockNoPermissions,
@@ -219,14 +257,7 @@ export const ForMCPCreateOnlyAdmin: Story = {
 				{ path: "/", useStoryElement: true },
 				{
 					path: "/ai/settings",
-					// Route elements render outside story decorators, so the
-					// redirect needs its own AuthProvider; it reads the query
-					// data seeded by withAuthProvider.
-					element: (
-						<AuthProvider>
-							<AISettingsIndexRedirect />
-						</AuthProvider>
-					),
+					element: <AISettingsIndexRedirectWithProviders />,
 				},
 				{
 					path: "/ai/settings/mcp-servers/add",
@@ -269,7 +300,7 @@ export const ForSingleOrgOSSAdmin: Story = {
 	},
 };
 
-export const ForMember: Story = {
+export const ForUserWithoutOrganization: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},
@@ -277,22 +308,11 @@ export const ForMember: Story = {
 	},
 };
 
-export const ForMemberWithAgentsAccess: Story = {
+export const ForMember: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: true,
-	},
-};
-
-export const IdleTasks: Story = {
-	parameters: {
-		queries: [
-			{
-				key: ["tasks", tasksFilter],
-				data: MockTasks,
-			},
-		],
 	},
 };
 

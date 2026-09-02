@@ -1,5 +1,7 @@
+import { useFormik } from "formik";
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
+import * as Yup from "yup";
 import {
 	permittedOrganizations,
 	provisionerDaemons,
@@ -7,8 +9,8 @@ import {
 import type { Organization } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
@@ -17,24 +19,47 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
+import {
+	displayNameValidator,
+	getFormHelpers,
+	iconValidator,
+	nameValidator,
+} from "#/utils/formUtils";
 import type {
+	CustomizationsFormValues,
 	SelectedBaseMeta,
 	TemplateBuilderWizardState,
 } from "./wizardState";
 
+export const TEMPLATE_CUSTOMIZATIONS_FORM_ID = "template-customizations-form";
+
+const MAX_DESCRIPTION_CHAR_LIMIT = 128;
+
+const validationSchema = Yup.object({
+	name: nameValidator("Template ID"),
+	display_name: displayNameValidator("Display name"),
+	description: Yup.string().max(
+		MAX_DESCRIPTION_CHAR_LIMIT,
+		"Please enter a description that is less than or equal to 128 characters.",
+	),
+	icon: iconValidator,
+	// An organization is always required: the page is gated on the create-
+	// template permission, so there is always at least one permitted org, and
+	// it is auto-selected when only one is available.
+	organization_id: Yup.string().required("Select an organization to continue."),
+});
+
 interface TemplateCustomizationsStepProps {
 	state: TemplateBuilderWizardState;
-	onChangeField: (
-		field: "organizationId" | "name" | "displayName" | "description" | "icon",
-		value: string,
-	) => void;
+	onCreate: (values: CustomizationsFormValues) => void;
 	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
 }
 
 export const TemplateCustomizationsStep: FC<
 	TemplateCustomizationsStepProps
-> = ({ state, onChangeField, onProvisionerStatusChange }) => {
+> = ({ state, onCreate, onProvisionerStatusChange }) => {
 	const permittedOrgsQuery = useQuery(
 		permittedOrganizations({
 			object: { resource_type: "template" },
@@ -43,6 +68,23 @@ export const TemplateCustomizationsStep: FC<
 	);
 	const orgOptions = permittedOrgsQuery.data ?? [];
 
+	const form = useFormik<CustomizationsFormValues>({
+		initialValues: {
+			organization_id: "",
+			name: state.name,
+			display_name: state.displayName,
+			description: state.description,
+			icon: state.icon,
+		},
+		validationSchema,
+		onSubmit: (values) => onCreate(values),
+	});
+	const getFieldHelpers = getFormHelpers(form);
+	const descriptionField = getFieldHelpers("description");
+	const iconField = getFieldHelpers("icon");
+	const organizationField = getFieldHelpers("organization_id");
+
+	// Display object for the autocomplete; the Formik field only stores the id.
 	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
 
 	const { data: provisioners } = useQuery({
@@ -62,17 +104,22 @@ export const TemplateCustomizationsStep: FC<
 	useEffect(() => {
 		if (orgOptions.length === 1 && !selectedOrg) {
 			setSelectedOrg(orgOptions[0]);
-			onChangeField("organizationId", orgOptions[0].id);
+			void form.setFieldValue("organization_id", orgOptions[0].id);
 		}
-	}, [orgOptions, selectedOrg, onChangeField]);
+	}, [orgOptions, selectedOrg, form]);
 
 	const handleOrgChange = (org: Organization | null) => {
 		setSelectedOrg(org);
-		onChangeField("organizationId", org?.id ?? "");
+		void form.setFieldValue("organization_id", org?.id ?? "");
 	};
 
 	return (
-		<div className="min-w-[654px]">
+		<form
+			id={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
+			onSubmit={form.handleSubmit}
+			noValidate
+			className="min-w-[654px]"
+		>
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
 				Add additional configurations.
@@ -87,15 +134,12 @@ export const TemplateCustomizationsStep: FC<
 				{/* Two-column form grid */}
 				<div className="grid grid-cols-2 gap-x-6 gap-y-6 content-start">
 					{/* Left column */}
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-display-name">Display name</Label>
-						<Input
-							id="template-display-name"
-							value={state.displayName}
-							onChange={(e) => onChangeField("displayName", e.target.value)}
-							placeholder="My Template"
-						/>
-					</div>
+					<FormField
+						field={getFieldHelpers("display_name")}
+						label="Display name"
+						id="template-display-name"
+						placeholder="My Template"
+					/>
 
 					{/* Right column */}
 					{orgOptions.length > 0 && (
@@ -113,6 +157,11 @@ export const TemplateCustomizationsStep: FC<
 								onChange={handleOrgChange}
 								options={orgOptions}
 							/>
+							{organizationField.error && (
+								<span className="text-xs text-content-destructive">
+									{organizationField.helperText}
+								</span>
+							)}
 						</div>
 					)}
 
@@ -120,54 +169,57 @@ export const TemplateCustomizationsStep: FC<
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="template-description">Description</Label>
 						<Textarea
+							{...form.getFieldProps("description")}
 							id="template-description"
-							value={state.description}
-							onChange={(e) => onChangeField("description", e.target.value)}
 							placeholder="Describe what this template is for"
 							rows={3}
+							aria-invalid={descriptionField.error}
+							className={cn(
+								descriptionField.error && "border-border-destructive",
+							)}
 						/>
+						{descriptionField.error && (
+							<span className="text-xs text-content-destructive">
+								{descriptionField.helperText}
+							</span>
+						)}
 						<p className="text-xs text-content-secondary">
 							Used by both humans and Agents to identify templates.
 						</p>
 
 						<IconField
-							value={state.icon}
+							value={form.values.icon}
+							error={iconField.error}
+							helperText={iconField.helperText}
 							onChange={(e) => {
 								const target = e.target as HTMLInputElement;
-								onChangeField("icon", target.value);
+								void form.setFieldValue("icon", target.value);
 							}}
-							onPickEmoji={(value) => onChangeField("icon", value)}
+							onPickEmoji={(value) => {
+								void form.setFieldValue("icon", value);
+							}}
 						/>
 					</div>
 
 					{/* Right column */}
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-name">
-							ID
-							<span className="text-xs font-bold text-content-destructive ml-1">
-								*
-							</span>
-						</Label>
-						<Input
-							id="template-name"
-							value={state.name}
-							onChange={(e) => onChangeField("name", e.target.value)}
-							placeholder="my-template"
-							aria-required
-						/>
-						<p className="text-xs text-content-secondary">
-							Used to identify the template in URLs and the API.
-						</p>
-					</div>
+					<FormField
+						field={getFieldHelpers("name", {
+							helperText: "Used to identify the template in URLs and the API.",
+						})}
+						label="ID"
+						required
+						id="template-name"
+						placeholder="my-template"
+					/>
 				</div>
 			</div>
-		</div>
+		</form>
 	);
 };
 
 const ProvisionerWarning: FC = () => {
 	return (
-		<Alert severity="warning" prominent className="my-4">
+		<Alert severity="error" prominent className="my-4">
 			This organization does not have any provisioners. Before you create a
 			template, you&apos;ll need to configure a provisioner.{" "}
 			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>

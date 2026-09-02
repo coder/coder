@@ -26,15 +26,15 @@ export const NoLicense: Story = {
 		// The hero tracks the panel, so the trial pitch only appears here.
 		await expect(
 			canvas.getByRole("heading", {
-				name: "Start a 30-day trial of Coder Premium",
+				name: "Start an unlimited 30-day Coder trial",
 				level: 2,
 			}),
 		).toBeInTheDocument();
 		await expect(canvas.getByLabelText(/^Business email/)).toBeVisible();
-		// The acknowledgement gates submission.
+		// The button stays enabled and surfaces validation errors on submit.
 		await expect(
 			canvas.getByRole("button", { name: "Start a trial" }),
-		).toBeDisabled();
+		).toBeEnabled();
 		// Requesting a trial replaces the old contact-sales upsell.
 		await expect(
 			canvas.queryByRole("link", { name: /contact sales/i }),

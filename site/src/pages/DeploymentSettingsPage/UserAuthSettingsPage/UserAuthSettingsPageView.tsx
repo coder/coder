@@ -1,10 +1,7 @@
 import type { JSX } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
-import {
-	Badges,
-	DisabledBadge,
-	EnabledBadge,
-} from "#/components/Badges/Badges";
+import { BadgeGroup } from "#/components/Badge/Badge";
+import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -39,20 +36,22 @@ export const UserAuthSettingsPageView = ({
 					<SettingsHeaderTitle>User Authentication</SettingsHeaderTitle>
 				</SettingsHeader>
 
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/users/oidc-auth")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
 						Login with OpenID Connect
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Set up authentication to login with OpenID Connect.
+						Set up authentication to login with OpenID Connect.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/users/oidc-auth")}
+							context="about OpenID Connect login"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Badges>{oidcEnabled ? <EnabledBadge /> : <DisabledBadge />}</Badges>
+				<BadgeGroup>
+					{oidcEnabled ? <EnabledBadge /> : <DisabledBadge />}
+				</BadgeGroup>
 
 				{oidcEnabled && (
 					<OptionsTable
@@ -64,20 +63,22 @@ export const UserAuthSettingsPageView = ({
 			</div>
 
 			<div>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/users/github-auth")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
 						Login with GitHub
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Set up authentication to login with GitHub.
+						Set up authentication to login with GitHub.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/users/github-auth")}
+							context="about GitHub login"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Badges>{githubEnabled ? <EnabledBadge /> : <DisabledBadge />}</Badges>
+				<BadgeGroup>
+					{githubEnabled ? <EnabledBadge /> : <DisabledBadge />}
+				</BadgeGroup>
 
 				{githubEnabled && (
 					<OptionsTable

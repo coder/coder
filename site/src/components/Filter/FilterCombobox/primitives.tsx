@@ -160,7 +160,7 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 				}
 			}}
 			className={cn(
-				"group/combobox-content w-[var(--radix-popover-trigger-width)] overflow-hidden p-0 max-h-[min(24rem,var(--radix-popper-available-height))]",
+				"group/combobox-content w-(--radix-popover-trigger-width) p-0 max-h-[min(24rem,var(--radix-popper-available-height))]",
 				className,
 			)}
 			{...props}
@@ -208,7 +208,7 @@ export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
 			className={cn(
-				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-content-secondary outline-none data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
+				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
 				className,
 			)}
 			{...props}
@@ -399,7 +399,7 @@ export const FilterComboboxChipsInput: FC<FilterComboboxChipsInputProps> = ({
 			value={inputValue}
 			onValueChange={(next) => onInputValueChange?.(next)}
 			className={cn(
-				"h-6 min-w-16 flex-1 border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-none placeholder:text-content-secondary",
+				"h-6 min-w-16 flex-1 border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
 				className,
 			)}
 			{...props}

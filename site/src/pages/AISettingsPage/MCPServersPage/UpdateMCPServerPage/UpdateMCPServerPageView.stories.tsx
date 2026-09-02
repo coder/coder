@@ -45,9 +45,9 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.getByRole("button", {
-				name: `Organization ${MockDefaultOrganization.display_name}`,
-			}),
+			canvas.getByLabelText(
+				`Organization ${MockDefaultOrganization.display_name}`,
+			),
 		).toBeVisible();
 		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("Coder");
 		await userEvent.click(
@@ -58,6 +58,10 @@ export const Default: Story = {
 		);
 
 		const updateButton = canvas.getByRole("button", { name: "Update server" });
+		await expect(updateButton).toBeDisabled();
+		const displayName = canvas.getByLabelText(/display name/i);
+		await userEvent.clear(displayName);
+		await userEvent.type(displayName, "Coder v2");
 		await expect(updateButton).toBeEnabled();
 		await userEvent.click(updateButton);
 
@@ -65,7 +69,7 @@ export const Default: Story = {
 			expect(onUpdateServer).toHaveBeenCalledWith(
 				"mcp-coder",
 				expect.objectContaining({
-					display_name: "Coder",
+					display_name: "Coder v2",
 					slug: "coder",
 				}),
 			);
@@ -111,9 +115,6 @@ export const DeleteOnly: Story = {
 		await expect(
 			canvas.getByRole("button", { name: "Update server" }),
 		).toBeDisabled();
-		const serverActions = canvas.getByRole("button", {
-			name: "Server actions",
-		});
 		const enabledSwitch = canvas.getByRole("switch", {
 			name: "Server enabled",
 		});
@@ -121,15 +122,49 @@ export const DeleteOnly: Story = {
 		await expect(enabledSwitch).toHaveAccessibleDescription(
 			"You do not have permission to update this server.",
 		);
-		serverActions.focus();
-		await userEvent.tab();
-		await expect(enabledSwitch).toHaveFocus();
+		enabledSwitch.focus();
 		await expect(await body.findByRole("tooltip")).toHaveTextContent(
 			"You do not have permission to update this server.",
 		);
-		await userEvent.click(serverActions);
+		await expect(canvas.getByRole("button", { name: "Delete" })).toBeEnabled();
+	},
+};
+
+export const ShareOnlyAccess: Story = {
+	args: {
+		canShareServer: true,
+		onUpdateServer: undefined,
+		onDeleteServer: undefined,
+		onToggleEnabled: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
+		expect(
+			canvas.queryByRole("button", { name: "Delete" }),
+		).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Manage permissions" }),
+		);
 		await expect(
-			await body.findByRole("menuitem", { name: "Remove" }),
-		).toBeEnabled();
+			await body.findByRole("dialog", { name: "Server permissions" }),
+		).toHaveAttribute("data-state", "open");
+	},
+};
+
+export const NoShareReadOnlyAccess: Story = {
+	args: {
+		canShareServer: false,
+		onUpdateServer: undefined,
+		onDeleteServer: undefined,
+		onToggleEnabled: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
+		expect(
+			canvas.queryByRole("button", { name: "Manage permissions" }),
+		).not.toBeInTheDocument();
 	},
 };

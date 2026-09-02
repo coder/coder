@@ -1,4 +1,6 @@
-# Improving Agent Resiliency
+---
+title: Improving Agent Resiliency
+---
 
 Coder's agent can automatically lower the scheduling priority
 and raise the OOM (out-of-memory) kill score of user processes

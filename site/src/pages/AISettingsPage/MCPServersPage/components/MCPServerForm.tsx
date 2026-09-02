@@ -1,10 +1,11 @@
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { MCPServerFormDialogs } from "./MCPServerFormDialogs";
 import { MCPServerFormFields } from "./MCPServerFormFields";
 import { MCPServerFormHeader } from "./MCPServerFormHeader";
+import { MCPServerSharingDialog } from "./MCPServerSharingDialog";
 import {
 	buildCreateMCPServerConfigRequest,
 	buildInitialMCPServerFormValues,
@@ -21,6 +22,8 @@ type MCPServerFormCreateProps = {
 	isSaving: boolean;
 	isDeleting?: false;
 	canSelectUserOIDC: boolean;
+	organizationPicker?: ReactNode;
+	canShareServer?: false;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
@@ -36,6 +39,8 @@ type MCPServerFormEditProps = {
 	isSaving: boolean;
 	isDeleting: boolean;
 	canSelectUserOIDC: boolean;
+	organizationPicker?: ReactNode;
+	canShareServer?: boolean;
 	onCreateServer?: undefined;
 	onUpdateServer?: (
 		serverId: string,
@@ -54,6 +59,8 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	isSaving,
 	isDeleting = false,
 	canSelectUserOIDC,
+	organizationPicker,
+	canShareServer = false,
 	onCreateServer,
 	onUpdateServer,
 	onDeleteServer,
@@ -66,6 +73,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	const [showAuth, setShowAuth] = useState(false);
 	const [showBehavior, setShowBehavior] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const [sharingOpen, setSharingOpen] = useState(false);
 
 	const form = useFormik<MCPServerFormValues>({
 		initialValues: buildInitialMCPServerFormValues(server),
@@ -90,7 +98,10 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	const isDisabled = isSaving || isDeleting;
 	const areFieldsDisabled =
 		isDisabled || (isEditing && onUpdateServer === undefined);
-	const canSubmit = canSubmitMCPServerForm(form.values, areFieldsDisabled);
+	// Editing requires a change before submitting, matching the provider form.
+	const canSubmit =
+		canSubmitMCPServerForm(form.values, areFieldsDisabled) &&
+		(!isEditing || form.dirty);
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,
 	);
@@ -110,6 +121,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				onRequestDelete={
 					onDeleteServer ? () => setConfirmingDelete(true) : undefined
 				}
+				onShareServer={canShareServer ? () => setSharingOpen(true) : undefined}
 				onToggleEnabled={onToggleEnabled}
 			/>
 			<div className="flex flex-col gap-6 pt-6">
@@ -120,6 +132,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					canSubmit={canSubmit}
 					isEditing={isEditing}
 					canSelectUserOIDC={canSelectUserOIDC}
+					organizationPicker={organizationPicker}
 					onCancel={onCancel}
 					showDetails={showDetails}
 					setShowDetails={setShowDetails}
@@ -129,6 +142,15 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					setShowBehavior={setShowBehavior}
 				/>
 			</div>
+			{server && canShareServer && (
+				<MCPServerSharingDialog
+					open={sharingOpen}
+					onOpenChange={setSharingOpen}
+					organizationId={server.organization_id}
+					serverId={server.id}
+					serverName={server.display_name || server.slug}
+				/>
+			)}
 			<MCPServerFormDialogs
 				server={server}
 				confirmingDelete={confirmingDelete}

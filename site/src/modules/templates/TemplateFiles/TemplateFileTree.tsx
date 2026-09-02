@@ -161,9 +161,9 @@ interface TreeNodeProps {
 }
 
 const nodeClasses =
-	"flex-grow flex h-8 cursor-pointer select-none items-center gap-2 " +
+	"grow flex h-8 cursor-pointer select-none items-center gap-2 " +
 	"border-none bg-transparent px-4 text-sm text-left " +
-	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset";
+	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset";
 
 const FileNode: FC<TreeNodeProps> = ({
 	label,

@@ -238,8 +238,8 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	onManageAIBudget,
 	onRemove,
 }) => {
-	const budgetFromOtherGroup =
-		effectiveBudgetGroup(member.spend, group).kind === "other";
+	const budgetFromOtherOrganization =
+		effectiveBudgetGroup(member.spend, group).kind === "otherOrg";
 
 	return (
 		<TableRow key={member.id}>
@@ -288,7 +288,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 							{showAIBudget && (
 								<DropdownMenuItem
 									onClick={onManageAIBudget}
-									disabled={budgetFromOtherGroup}
+									disabled={budgetFromOtherOrganization}
 								>
 									Manage AI budget
 								</DropdownMenuItem>

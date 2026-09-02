@@ -199,13 +199,13 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
 					!isWaiting && "text-content-disabled",
 				)}
 			>
-				<span className="min-w-0 flex-shrink overflow-hidden text-ellipsis">
+				<span className="min-w-0 shrink overflow-hidden text-ellipsis">
 					{baseName}
 				</span>
-				<span className="flex-shrink-0">.{fileExtension}</span>
+				<span className="shrink-0">.{fileExtension}</span>
 			</span>
 
-			<span className="flex-shrink-0 text-sm whitespace-nowrap">
+			<span className="shrink-0 text-sm whitespace-nowrap">
 				{file.blob ? (
 					humanBlobSize(file.blob.size)
 				) : isWaiting ? (

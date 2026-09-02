@@ -15,9 +15,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 // keyIDs extracts the IDs from a slice of AIProviderKey responses, in
@@ -563,8 +563,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-fixture"),    //nolint:gosec // test fixture
-					AccessKeySecret: ptr.Ref("bedrock-fixture"), //nolint:gosec // test fixture
+					AccessKey:       new("AKIA-fixture"),    //nolint:gosec // test fixture
+					AccessKeySecret: new("bedrock-fixture"), //nolint:gosec // test fixture
 				},
 			},
 		})
@@ -693,8 +693,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-leak"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("bedrock-supersecret"),
+					AccessKey:       new("AKIA-leak"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("bedrock-supersecret"),
 				},
 			},
 		})
@@ -799,8 +799,8 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		// Omitting the original ID from the mutation list deletes it;
 		// the two APIKey-bearing entries add fresh rows.
 		replacement := []codersdk.AIProviderKeyMutation{
-			{APIKey: ptr.Ref("sk-openai-rotated-eeeeeeeeeeeeeeeeeee")},     //nolint:gosec // test fixture
-			{APIKey: ptr.Ref("sk-openai-rotated-second-ffffffffffffffff")}, //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-rotated-eeeeeeeeeeeeeeeeeee")},     //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-rotated-second-ffffffffffffffff")}, //nolint:gosec // test fixture
 		}
 		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &replacement,
@@ -839,7 +839,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		// implicitly removed.
 		patch := []codersdk.AIProviderKeyMutation{
 			{ID: &keepID},
-			{APIKey: ptr.Ref("sk-openai-added-cccccccccccccccccccccc")}, //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-added-cccccccccccccccccccccc")}, //nolint:gosec // test fixture
 		}
 		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &patch,
@@ -964,8 +964,8 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("bedrock-test-secret"),
+					AccessKey:       new("AKIA-test"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("bedrock-test-secret"),
 				},
 			},
 		})
@@ -993,15 +993,15 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("bedrock-test-secret"),
+					AccessKey:       new("AKIA-test"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("bedrock-test-secret"),
 				},
 			},
 		})
 		require.NoError(t, err)
 
 		rejected := []codersdk.AIProviderKeyMutation{
-			{APIKey: ptr.Ref("sk-bedrock-no")}, //nolint:gosec // test fixture, not a real credential
+			{APIKey: new("sk-bedrock-no")}, //nolint:gosec // test fixture, not a real credential
 		}
 		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &rejected,
@@ -1070,7 +1070,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.NoError(t, err)
 
 		rejected := []codersdk.AIProviderKeyMutation{
-			{APIKey: ptr.Ref("sk-copilot-no")}, //nolint:gosec // test fixture, not a real credential
+			{APIKey: new("sk-copilot-no")}, //nolint:gosec // test fixture, not a real credential
 		}
 		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &rejected,
@@ -1164,7 +1164,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
 
 		patch := []codersdk.AIProviderKeyMutation{
-			{APIKey: ptr.Ref("sk-not-allowed")}, //nolint:gosec // test fixture, not a real credential
+			{APIKey: new("sk-not-allowed")}, //nolint:gosec // test fixture, not a real credential
 		}
 		_, err = memberClient.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &patch,
@@ -1193,7 +1193,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		existingID := provider.APIKeys[0].ID
 
 		muts := []codersdk.AIProviderKeyMutation{
-			{ID: &existingID, APIKey: ptr.Ref("sk-conflict")}, //nolint:gosec // test fixture
+			{ID: &existingID, APIKey: new("sk-conflict")}, //nolint:gosec // test fixture
 		}
 		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &muts,
@@ -1344,7 +1344,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		// Keep one, drop one, add one.
 		mutations := []codersdk.AIProviderKeyMutation{
 			{ID: &keepID},
-			{APIKey: ptr.Ref("sk-openai-audit-3-uuuuuuuuuuuuuuuuuuuu")}, //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-audit-3-uuuuuuuuuuuuuuuuuuuu")}, //nolint:gosec // test fixture
 		}
 		updatedProvider, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &mutations,
@@ -1466,8 +1466,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("secret-old"),
+					AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("secret-old"),
 				},
 			},
 		})
@@ -1520,8 +1520,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("secret-old"),
+					AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("secret-old"),
 				},
 			},
 		})
@@ -1533,8 +1533,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref(""),
-					AccessKeySecret: ptr.Ref(""),
+					AccessKey:       new(""),
+					AccessKeySecret: new(""),
 				},
 			},
 		})
@@ -1569,8 +1569,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("secret-old"),
+					AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("secret-old"),
 				},
 			},
 		})
@@ -1582,8 +1582,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-new"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("secret-new"),
+					AccessKey:       new("AKIA-new"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("secret-new"),
 				},
 			},
 		})
@@ -1620,8 +1620,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("secret-old"),
+					AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("secret-old"),
 				},
 			},
 		})
@@ -1633,8 +1633,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref(""),
-					AccessKeySecret: ptr.Ref(""),
+					AccessKey:       new(""),
+					AccessKeySecret: new(""),
 					RoleARN:         "arn:aws:iam::123456789012:role/target",
 				},
 			},
@@ -1886,5 +1886,232 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, externalIDReadOnlyMsg, sdkErr.Message)
+	})
+}
+
+func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(t *testing.T, proxyEnabled bool) *codersdk.Client {
+		t.Helper()
+		return coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+				values.AI.BridgeProxyConfig.Enabled = serpent.Bool(proxyEnabled)
+			}),
+		})
+	}
+
+	t.Run("CreateGetListReturnsWarning", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(t, true)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		wantWarnings := []string{`Hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+		require.Nil(t, first.Status, "first provider in database order should not get a warning")
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "second",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v2",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, second.Status)
+		require.Equal(t, wantWarnings, second.Status.Warnings)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		got, err := client.AIProvider(ctx, second.ID.String())
+		require.NoError(t, err)
+		require.NotNil(t, got.Status)
+		require.Equal(t, wantWarnings, got.Status.Warnings)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		winner, err := client.AIProvider(ctx, first.ID.String())
+		require.NoError(t, err)
+		require.Nil(t, winner.Status, "first provider in database order should not get a warning on get")
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		providers, err := client.AIProviders(ctx)
+		require.NoError(t, err)
+		require.Len(t, providers, 2)
+		var firstListed, secondListed codersdk.AIProvider
+		for _, p := range providers {
+			switch p.Name {
+			case "first":
+				firstListed = p
+			case "second":
+				secondListed = p
+			}
+		}
+		require.Nil(t, firstListed.Status, "first provider in database order should not get a warning in list")
+		require.NotNil(t, secondListed.Status)
+		require.Equal(t, wantWarnings, secondListed.Status.Warnings)
+	})
+
+	t.Run("UpdateReturnsWarningOnEnable", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(t, true)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		wantWarnings := []string{`Hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "second",
+			Enabled: false,
+			BaseURL: "https://api.openai.com/v2",
+		})
+		require.NoError(t, err)
+		require.Nil(t, second.Status)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		updated, err := client.UpdateAIProvider(ctx, second.ID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: new(true),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Status)
+		require.Equal(t, wantWarnings, updated.Status.Warnings)
+	})
+
+	t.Run("UpdateBaseURLReturnsWarning", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(t, true)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		wantWarnings := []string{`Hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+		require.Nil(t, first.Status)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "second",
+			Enabled: true,
+			BaseURL: "https://api.openai-compat.com/v1",
+		})
+		require.NoError(t, err)
+		require.Nil(t, second.Status, "distinct hostnames should not collide")
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		updated, err := client.UpdateAIProvider(ctx, second.ID.String(), codersdk.UpdateAIProviderRequest{
+			BaseURL: new("https://api.openai.com/v2"),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Status)
+		require.Equal(t, wantWarnings, updated.Status.Warnings)
+	})
+
+	t.Run("ProxyDisabledReturnsNoWarning", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(t, false)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "second",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v2",
+		})
+		require.NoError(t, err)
+		require.Nil(t, second.Status)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		providers, err := client.AIProviders(ctx)
+		require.NoError(t, err)
+		for _, provider := range providers {
+			require.Nil(t, provider.Status)
+		}
+	})
+
+	t.Run("NoWarningWhenNoCollision", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(t, true)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+		require.Nil(t, first.Status)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "second",
+			Enabled: true,
+			BaseURL: "https://api.anthropic.com/v1",
+		})
+		require.NoError(t, err)
+		require.Nil(t, second.Status)
+	})
+
+	t.Run("UpdateSelfNoWarning", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(t, true)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		updated, err := client.UpdateAIProvider(ctx, first.ID.String(), codersdk.UpdateAIProviderRequest{
+			BaseURL: new("https://api.openai.com/v2"),
+		})
+		require.NoError(t, err)
+		require.Nil(t, updated.Status, "update-self should not trigger a warning")
 	})
 }

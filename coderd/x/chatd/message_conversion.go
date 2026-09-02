@@ -76,6 +76,16 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content))
 	}
 
+	// Usage sums runtime_ms across rows, so the batch window is billed
+	// once on a dedicated record instead of an arbitrary member row.
+	stamp, ok, err := batchUsageMessage(input.modelConfigID, contentVersion, input.step.BatchRuntime, input.step.BatchBilledCalls)
+	if err != nil {
+		return stepMessagesForCommit{}, err
+	}
+	if ok {
+		messages = append(messages, stamp)
+	}
+
 	return stepMessagesForCommit{
 		Messages:       messages,
 		VisibleIndexes: visibleMessageIndexes(messages),
@@ -225,6 +235,54 @@ func nullInt64IfNonZero(value int64) sql.NullInt64 {
 	return sql.NullInt64{Int64: value, Valid: true}
 }
 
+// toolBatchUsagePartType marks the dedicated billing record for a local
+// tool batch. Internal to chatd: the row is persisted with model
+// visibility so it never reaches the API or SSE, and prompt replay drops
+// it because the part converts to no provider content.
+const toolBatchUsagePartType codersdk.ChatMessagePartType = "tool-batch-usage"
+
+// toolBatchUsagePayload is the audit payload stored on the usage record.
+// It duplicates the row's runtime_ms so the billed window survives in
+// content for debugging, alongside how many call intervals produced it.
+type toolBatchUsagePayload struct {
+	BilledMs    int64 `json:"billed_ms"`
+	BilledCalls int   `json:"billed_calls"`
+}
+
+// batchUsageMessage builds the single model-invisible row that carries a
+// local tool batch's billed runtime. Usage sums runtime_ms across rows,
+// so a dedicated record keeps real tool results free of batch-level
+// runtime. Completed and interrupted batches share this helper. Returns
+// false when the batch bills no whole millisecond.
+func batchUsageMessage(
+	modelConfigID uuid.UUID,
+	contentVersion int16,
+	runtime time.Duration,
+	billedCalls int,
+) (chatstate.Message, bool, error) {
+	runtimeMs := runtime.Milliseconds()
+	if runtimeMs <= 0 {
+		return chatstate.Message{}, false, nil
+	}
+	payload, err := json.Marshal(toolBatchUsagePayload{
+		BilledMs:    runtimeMs,
+		BilledCalls: billedCalls,
+	})
+	if err != nil {
+		return chatstate.Message{}, false, xerrors.Errorf("marshal tool batch usage payload: %w", err)
+	}
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:   toolBatchUsagePartType,
+		Result: payload,
+	}})
+	if err != nil {
+		return chatstate.Message{}, false, xerrors.Errorf("marshal tool batch usage part: %w", err)
+	}
+	msg := baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityModel, modelConfigID, contentVersion, content)
+	msg.RuntimeMs = sql.NullInt64{Int64: runtimeMs, Valid: true}
+	return msg, true, nil
+}
+
 func visibleMessageIndexes(messages []chatstate.Message) []int {
 	indexes := make([]int, 0, len(messages))
 	for i, msg := range messages {
@@ -326,6 +384,80 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
 }
 
+type buildClearMessagesInput struct {
+	modelConfigID  uuid.UUID
+	toolCallID     string
+	contentVersion int16
+}
+
+// buildClearMessages produces the manual context-clear boundary
+// triplet, mirroring the compaction triplet shape: a hidden
+// model-only user-role row (the boundary anchor the prompt query keys
+// on), a user-visible synthetic chat_cleared tool call, and its tool
+// result. The hidden row carries a short sentinel rather than empty
+// content so the next prompt never sends an empty user message.
+func buildClearMessages(input buildClearMessagesInput) ([]chatstate.Message, error) {
+	contentVersion := input.contentVersion
+	if contentVersion == 0 {
+		contentVersion = chatprompt.CurrentContentVersion
+	}
+
+	sentinelContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("Previous conversation context was cleared by the user."),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear sentinel: %w", err)
+	}
+	payload := json.RawMessage(`{"source":"manual"}`)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall(input.toolCallID, "chat_cleared", payload),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear tool call: %w", err)
+	}
+	toolContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult(input.toolCallID, "chat_cleared", payload, false, false),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear tool result: %w", err)
+	}
+
+	messages := []chatstate.Message{
+		{
+			Role:           database.ChatMessageRoleUser,
+			Content:        sentinelContent,
+			Visibility:     database.ChatMessageVisibilityModel,
+			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
+			ContentVersion: contentVersion,
+		},
+		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
+		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),
+	}
+	for i := range messages {
+		messages[i].Compressed = true
+	}
+	return messages, nil
+}
+
+// hasClearableMessageAfter reports whether any active, uncompressed
+// model-visible conversation message follows the boundary index.
+// System prompts and user-only rows do not make a chat clearable.
+func hasClearableMessageAfter(messages []database.ChatMessage, index int) bool {
+	for i := index + 1; i < len(messages); i++ {
+		msg := messages[i]
+		if msg.Deleted || msg.Compressed {
+			continue
+		}
+		if msg.Role == database.ChatMessageRoleSystem {
+			continue
+		}
+		if msg.Visibility == database.ChatMessageVisibilityModel || msg.Visibility == database.ChatMessageVisibilityBoth {
+			return true
+		}
+	}
+	return false
+}
+
 // Hook model-context messages use the user role but must not reset
 // per-turn guards.
 func lastUserPromptIndex(messages []database.ChatMessage) int {
@@ -371,7 +503,7 @@ func compactionStatusFromHistory(
 	thresholdPercent int32,
 	contextLimit int64,
 ) compactionStatus {
-	boundaryIndex := latestCompactionBoundaryIndex(messages)
+	boundaryIndex := latestContextBoundaryIndex(messages)
 	if requirement == compactionRequirementNeeded {
 		if boundaryIndex == -1 {
 			return compactionStatusNeeded
@@ -396,16 +528,19 @@ func compactionStatusFromHistory(
 	return compactionStatusNotNeeded
 }
 
-func latestCompactionBoundaryIndex(messages []database.ChatMessage) int {
+// latestContextBoundaryIndex finds the latest compressed
+// chat_summarized or chat_cleared boundary. Compaction and clear
+// eligibility both stop here so neither reaches across the other.
+func latestContextBoundaryIndex(messages []database.ChatMessage) int {
 	for i := len(messages) - 1; i >= 0; i-- {
-		if isCompactionBoundaryMessage(messages[i]) {
+		if isContextBoundaryMessage(messages[i]) {
 			return i
 		}
 	}
 	return -1
 }
 
-func isCompactionBoundaryMessage(msg database.ChatMessage) bool {
+func isContextBoundaryMessage(msg database.ChatMessage) bool {
 	if msg.Deleted || !msg.Compressed {
 		return false
 	}
@@ -414,7 +549,7 @@ func isCompactionBoundaryMessage(msg database.ChatMessage) bool {
 		return false
 	}
 	for _, part := range parts {
-		if part.ToolName == "chat_summarized" &&
+		if (part.ToolName == "chat_summarized" || part.ToolName == "chat_cleared") &&
 			(part.Type == codersdk.ChatMessagePartTypeToolCall || part.Type == codersdk.ChatMessagePartTypeToolResult) {
 			return true
 		}
@@ -631,13 +766,8 @@ type partialMessageConversionState struct {
 	toolResults     map[string]*partialToolResult
 	toolResultOrder []string
 	answered        map[string]bool
-	// modelStreamedAssistant records whether any assistant part came
-	// from the model stream itself (text, reasoning, tool calls,
-	// sources). Tool execution also publishes assistant-role file
-	// parts for attachments; those alone must not attract the
-	// attempt's runtime, because tool batches are not billable. The
-	// buffer episode only carries a runtime when a provider stream
-	// was opened, so this is a second gate rather than the only one.
+	// modelStreamedAssistant distinguishes streamed content from tool
+	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
 }
 

@@ -29,8 +29,8 @@ const RECENT_CHATS_COUNT = 10;
 // !block overrides Radix ScrollArea viewport's display:table so truncated text can shrink.
 const SCROLL_AREA_PROPS = {
 	className:
-		"h-[300px] w-full [&_[data-radix-scroll-area-viewport]>div]:!block",
-	scrollBarClassName: "w-[0.375rem]",
+		"h-[300px] w-full [&_[data-radix-scroll-area-viewport]>div]:block!",
+	scrollBarClassName: "w-1.5",
 	viewportClassName: "pr-3",
 	viewportTabIndex: -1,
 };

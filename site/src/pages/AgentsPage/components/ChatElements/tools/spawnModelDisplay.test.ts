@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { ChatModelConfig } from "#/api/typesGenerated";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import type { ChatModel } from "#/api/typesGenerated";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import { resolveSpawnModelDisplay } from "./spawnModelDisplay";
 
-const config = (overrides: Partial<ChatModelConfig>): ChatModelConfig => ({
-	...MockChatModelConfig,
+const config = (overrides: Partial<ChatModel>): ChatModel => ({
+	...MockChatModel,
 	...overrides,
 });
 
@@ -26,15 +26,15 @@ const noEffortModel = config({
 describe("resolveSpawnModelDisplay", () => {
 	it("returns nothing without explicit args", () => {
 		expect(
-			resolveSpawnModelDisplay({ configs: [sonnet], modelConfigId: undefined }),
+			resolveSpawnModelDisplay({ models: [sonnet], modelId: undefined }),
 		).toEqual({});
 	});
 
 	it("resolves model and explicit effort", () => {
 		expect(
 			resolveSpawnModelDisplay({
-				configs: [sonnet],
-				modelConfigId: "cfg-sonnet",
+				models: [sonnet],
+				modelId: "cfg-sonnet",
 				reasoningEffort: "low",
 			}),
 		).toEqual({ modelLabel: "Claude Sonnet 4.6", effortLabel: "low" });
@@ -43,8 +43,8 @@ describe("resolveSpawnModelDisplay", () => {
 	it("falls back to the config default effort when not requested", () => {
 		expect(
 			resolveSpawnModelDisplay({
-				configs: [sonnet],
-				modelConfigId: "cfg-sonnet",
+				models: [sonnet],
+				modelId: "cfg-sonnet",
 			}),
 		).toEqual({ modelLabel: "Claude Sonnet 4.6", effortLabel: "medium" });
 	});
@@ -52,8 +52,8 @@ describe("resolveSpawnModelDisplay", () => {
 	it("clamps a requested effort above the config max", () => {
 		expect(
 			resolveSpawnModelDisplay({
-				configs: [sonnet],
-				modelConfigId: "cfg-sonnet",
+				models: [sonnet],
+				modelId: "cfg-sonnet",
 				reasoningEffort: "max",
 			}),
 		).toEqual({ modelLabel: "Claude Sonnet 4.6", effortLabel: "high" });
@@ -62,8 +62,8 @@ describe("resolveSpawnModelDisplay", () => {
 	it("omits effort for models without effort settings", () => {
 		expect(
 			resolveSpawnModelDisplay({
-				configs: [noEffortModel],
-				modelConfigId: "cfg-plain",
+				models: [noEffortModel],
+				modelId: "cfg-plain",
 				reasoningEffort: "high",
 			}),
 		).toEqual({ modelLabel: "GPT-4.1" });
@@ -72,8 +72,8 @@ describe("resolveSpawnModelDisplay", () => {
 	it("shows nothing when the config is unknown", () => {
 		expect(
 			resolveSpawnModelDisplay({
-				configs: [sonnet],
-				modelConfigId: "deleted-config",
+				models: [sonnet],
+				modelId: "deleted-config",
 				reasoningEffort: "xhigh",
 			}),
 		).toEqual({});
@@ -82,7 +82,7 @@ describe("resolveSpawnModelDisplay", () => {
 	it("shows nothing for effort-only spawns", () => {
 		expect(
 			resolveSpawnModelDisplay({
-				configs: [sonnet],
+				models: [sonnet],
 				reasoningEffort: "high",
 			}),
 		).toEqual({});
@@ -91,14 +91,14 @@ describe("resolveSpawnModelDisplay", () => {
 	it("omits an effective effort of none", () => {
 		expect(
 			resolveSpawnModelDisplay({
-				configs: [sonnet],
-				modelConfigId: "cfg-sonnet",
+				models: [sonnet],
+				modelId: "cfg-sonnet",
 				reasoningEffort: "none",
 			}),
 		).toEqual({ modelLabel: "Claude Sonnet 4.6" });
 		expect(
 			resolveSpawnModelDisplay({
-				configs: [sonnet],
+				models: [sonnet],
 				reasoningEffort: "none",
 			}),
 		).toEqual({});
@@ -107,13 +107,13 @@ describe("resolveSpawnModelDisplay", () => {
 	it("ignores values outside the global scale", () => {
 		expect(
 			resolveSpawnModelDisplay({
-				configs: [sonnet],
-				modelConfigId: "cfg-sonnet",
+				models: [sonnet],
+				modelId: "cfg-sonnet",
 				reasoningEffort: "ultra",
 			}),
 		).toEqual({ modelLabel: "Claude Sonnet 4.6", effortLabel: "medium" });
 		expect(
-			resolveSpawnModelDisplay({ configs: [sonnet], reasoningEffort: "ultra" }),
+			resolveSpawnModelDisplay({ models: [sonnet], reasoningEffort: "ultra" }),
 		).toEqual({});
 	});
 
@@ -125,17 +125,17 @@ describe("resolveSpawnModelDisplay", () => {
 		});
 		expect(
 			resolveSpawnModelDisplay({
-				configs: [blankName],
-				modelConfigId: "cfg-blank",
+				models: [blankName],
+				modelId: "cfg-blank",
 			}),
 		).toEqual({ modelLabel: "o4-mini" });
 	});
 
-	it("returns nothing while configs are still loading", () => {
+	it("returns nothing while models are still loading", () => {
 		expect(
 			resolveSpawnModelDisplay({
-				configs: undefined,
-				modelConfigId: "cfg-sonnet",
+				models: undefined,
+				modelId: "cfg-sonnet",
 			}),
 		).toEqual({});
 	});
