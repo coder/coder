@@ -84,7 +84,7 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 
 			{sensitiveVariables && sensitiveVariables.length > 0 && (
 				<div
-					className="flex items-start gap-2 mt-4 text-xs text-content-secondary"
+					className="flex items-end gap-2 mt-4 text-xs text-content-secondary"
 					data-testid="module-sensitive-variables"
 				>
 					<InfoIcon className="size-icon-sm shrink-0 mt-0.5" />
