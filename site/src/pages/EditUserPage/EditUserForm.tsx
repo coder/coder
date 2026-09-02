@@ -13,11 +13,9 @@ import { IconField } from "#/components/IconField/IconField";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
-	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -80,10 +78,7 @@ export const EditUserForm: FC<EditUserFormProps> = ({
 				<SettingsHeader>
 					<SettingsHeaderTitle>Edit {heading}</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Change how this user appears across Coder.{" "}
-						<SettingsHeaderDocsLink
-							href={docs("/admin/users#edit-a-users-profile")}
-						/>
+						Change how this user appears across Coder.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
