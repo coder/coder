@@ -218,6 +218,8 @@ VERSION      := $(shell ./scripts/version.sh)
 
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
+# CI test jobs set this to "none": nothing reads the statement log there.
+TEST_POSTGRES_LOG_STATEMENT ?= all
 
 # Limit parallel Make jobs in pre-commit/pre-push. Defaults to
 # nproc/4 (min 2) since test, lint, and build targets have internal
@@ -1687,7 +1689,7 @@ test-postgres-docker:
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off \
-		-c log_statement=all
+		-c log_statement=$(TEST_POSTGRES_LOG_STATEMENT)
 	while ! pg_isready -h 127.0.0.1
 	do
 		echo "$$(date) - waiting for database to start"
