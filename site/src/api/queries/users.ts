@@ -34,7 +34,7 @@ import { getAuthorizationKey } from "./authCheck";
 import { invalidateGroupMembersAISpend } from "./groups";
 import { cachedQuery } from "./util";
 
-const usersQueryKey = ["users"] as const;
+export const usersQueryKey = ["users"] as const;
 
 export function usersKey(req: UsersRequest) {
 	return [...usersQueryKey, req] as const;
