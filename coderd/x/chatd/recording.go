@@ -248,6 +248,7 @@ func (p *Server) storeRecordingArtifact(
 			storedName,
 			verifiedMediaType,
 			data,
+			p.limits().MaxAttachmentsPerChat,
 		)
 		return err
 	}, database.DefaultTXOptions().WithID("store_recording_artifact"))

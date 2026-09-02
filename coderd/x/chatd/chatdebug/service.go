@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -33,6 +34,7 @@ type Service struct {
 	pubsub       pubsub.Pubsub
 	clock        quartz.Clock
 	alwaysEnable bool
+	textLimits   TextLimits
 	// staleAfterNanos stores the stale threshold as nanoseconds in an
 	// atomic.Int64 so SetStaleAfter and FinalizeStale can be called
 	// from concurrent goroutines without a data race.
@@ -46,8 +48,36 @@ type Service struct {
 	thresholdChanged chan struct{}
 }
 
+// TextLimits bounds the text chatdebug persists for a run.
+type TextLimits struct {
+	// MaxTextRunes caps each message part, tool argument, and tool result field.
+	MaxTextRunes int
+	// MaxBodyBytes caps accumulated streamed model output and each recorded provider HTTP request or response body.
+	MaxBodyBytes int
+}
+
+// withDefaults substitutes the codersdk defaults for any field that is
+// not positive.
+func (l TextLimits) withDefaults() TextLimits {
+	if l.MaxTextRunes <= 0 {
+		l.MaxTextRunes = codersdk.DefaultChatDebugMaxTextRunes
+	}
+	if l.MaxBodyBytes <= 0 {
+		l.MaxBodyBytes = codersdk.DefaultChatDebugMaxBodyBytes
+	}
+	return l
+}
+
 // ServiceOption configures optional Service behavior.
 type ServiceOption func(*Service)
+
+// WithTextLimits overrides the default text truncation limits applied
+// to persisted debug payloads. Zero fields keep their defaults.
+func WithTextLimits(limits TextLimits) ServiceOption {
+	return func(s *Service) {
+		s.textLimits = limits
+	}
+}
 
 // WithStaleThreshold overrides the default stale-row finalization
 // threshold. Callers that already have a configurable in-flight chat
@@ -187,6 +217,12 @@ func (s *Service) thresholdChan() <-chan struct{} {
 	s.thresholdMu.Lock()
 	defer s.thresholdMu.Unlock()
 	return s.thresholdChanged
+}
+
+// limits returns the effective text limits. Services built as bare
+// literals in tests have zero limits, so defaults are applied here too.
+func (s *Service) limits() TextLimits {
+	return s.textLimits.withDefaults()
 }
 
 // staleThreshold returns the current stale timeout.

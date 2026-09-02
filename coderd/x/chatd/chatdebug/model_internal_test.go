@@ -937,6 +937,10 @@ func objectPartsToSeq(parts []fantasy.ObjectStreamPart) fantasy.ObjectStreamResp
 	}
 }
 
+func defaultTextLimits() TextLimits {
+	return TextLimits{}.withDefaults()
+}
+
 func partsToSeq(parts []fantasy.StreamPart) fantasy.StreamResponse {
 	return func(yield func(fantasy.StreamPart) bool) {
 		for _, part := range parts {
@@ -1134,7 +1138,7 @@ func TestWrapStreamSeq_CompletedNotDowngradedByCtxCancel(t *testing.T) {
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "hello"},
 		{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: fantasy.Usage{InputTokens: 5, OutputTokens: 1, TotalTokens: 6}},
 	}
-	seq := wrapStreamSeq(ctx, handle, partsToSeq(parts))
+	seq := wrapStreamSeq(ctx, handle, defaultTextLimits(), partsToSeq(parts))
 
 	//nolint:revive // Intentionally consuming iterator to trigger side-effects.
 	for range seq {
@@ -1193,7 +1197,7 @@ func TestWrapStreamSeq_DroppedStreamFinalizedOnCtxCancel(t *testing.T) {
 	}
 
 	// Create the wrapped stream but never iterate it.
-	_ = wrapStreamSeq(ctx, handle, partsToSeq(parts))
+	_ = wrapStreamSeq(ctx, handle, defaultTextLimits(), partsToSeq(parts))
 
 	// Cancel the context; the AfterFunc safety net should finalize
 	// the step as interrupted.

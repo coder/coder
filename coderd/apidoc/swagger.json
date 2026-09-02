@@ -1279,7 +1279,7 @@
 						}
 					},
 					"413": {
-						"description": "Request body exceeds 256 KiB",
+						"description": "Request body exceeds twice the configured chat prompt limit (256 KiB by default)",
 						"schema": {
 							"$ref": "#/definitions/codersdk.Response"
 						}
@@ -17616,6 +17616,12 @@
 				"debug_logging_enabled": {
 					"type": "boolean"
 				},
+				"debug_max_body_bytes": {
+					"type": "integer"
+				},
+				"debug_max_text_runes": {
+					"type": "integer"
+				},
 				"hook_allow_insecure": {
 					"type": "boolean"
 				},
@@ -17630,6 +17636,31 @@
 				},
 				"hook_url": {
 					"$ref": "#/definitions/serpent.URL"
+				},
+				"max_attachments_per_chat": {
+					"type": "integer"
+				},
+				"max_concurrent_recording_uploads": {
+					"type": "integer"
+				},
+				"max_dynamic_tools_per_chat": {
+					"type": "integer"
+				},
+				"max_generation_retries": {
+					"type": "integer"
+				},
+				"max_prompt_bytes": {
+					"type": "integer"
+				},
+				"max_queued_messages_per_chat": {
+					"type": "integer"
+				},
+				"max_steps_per_turn": {
+					"description": "Limits bound chat turns and stored payloads. Defaults are the\nDefaultChat* constants; the zero value means \"use the default\" so\ncallers can leave them unset.",
+					"type": "integer"
+				},
+				"max_tool_output_bytes": {
+					"type": "integer"
 				}
 			}
 		},

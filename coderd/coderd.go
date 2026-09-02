@@ -882,6 +882,7 @@ func New(options *Options) *API {
 	api.agentProvider = stn
 
 	{ // Chat daemon and git sync worker initialization.
+		api.chatLimits = chatd.LimitsFromConfig(options.DeploymentValues.AI.Chat)
 		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 		if maxChatsPerAcquire > math.MaxInt32 {
 			maxChatsPerAcquire = math.MaxInt32
@@ -961,6 +962,7 @@ func New(options *Options) *API {
 				MCPHTTPClient:                  api.mcpHTTPClient,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
+				Limits:                         api.chatLimits,
 			})
 			if !options.ChatWorkerDisabled {
 				api.chatDaemon.Start()
@@ -2329,6 +2331,9 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// chatLimits are the resolved deployment chat limits shared by the
+	// chat daemon and the chat HTTP handlers.
+	chatLimits chatd.Limits
 	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.

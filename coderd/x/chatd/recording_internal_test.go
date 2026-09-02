@@ -802,7 +802,7 @@ func TestStopAndStoreRecording_LinkFailureRollsBackInsert(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
-	for i := range codersdk.MaxChatFileIDs {
+	for i := range codersdk.DefaultChatMaxAttachmentsPerChat {
 		insertLinkedChatFile(
 			ctx,
 			t,

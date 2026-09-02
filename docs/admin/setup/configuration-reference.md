@@ -498,6 +498,96 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 - YAML key: `chat.debugLoggingEnabled`
 - Default value: `false`
 
+### Debug max body bytes
+
+Maximum number of bytes of streamed model output and of each recorded provider HTTP request or response body kept in chat debug run records.
+
+- Environment variable: `CODER_CHAT_DEBUG_MAX_BODY_BYTES`
+- CLI flag: [`--chat-debug-max-body-bytes`](../../reference/cli/server.md#--chat-debug-max-body-bytes)
+- YAML key: `chat.debugMaxBodyBytes`
+- Default value: `50000`
+
+### Debug max text runes
+
+Maximum number of characters of each message part, tool argument, and tool result kept in chat debug run records. Longer text is truncated.
+
+- Environment variable: `CODER_CHAT_DEBUG_MAX_TEXT_RUNES`
+- CLI flag: [`--chat-debug-max-text-runes`](../../reference/cli/server.md#--chat-debug-max-text-runes)
+- YAML key: `chat.debugMaxTextRunes`
+- Default value: `10000`
+
+### Max attachments per chat
+
+Maximum number of files that can be attached to a single chat over its lifetime, counting uploads and files the agent attaches from the workspace.
+
+- Environment variable: `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`
+- CLI flag: [`--chat-max-attachments-per-chat`](../../reference/cli/server.md#--chat-max-attachments-per-chat)
+- YAML key: `chat.maxAttachmentsPerChat`
+- Default value: `50`
+
+### Max concurrent recording uploads
+
+Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload can buffer about 110 MB in memory, so this bounds the daemon's peak memory use for recordings.
+
+- Environment variable: `CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`
+- CLI flag: [`--chat-max-concurrent-recording-uploads`](../../reference/cli/server.md#--chat-max-concurrent-recording-uploads)
+- YAML key: `chat.maxConcurrentRecordingUploads`
+- Default value: `25`
+
+### Max dynamic tools per chat
+
+Maximum number of client-provided dynamic tools a chat can be created with.
+
+- Environment variable: `CODER_CHAT_MAX_DYNAMIC_TOOLS_PER_CHAT`
+- CLI flag: [`--chat-max-dynamic-tools-per-chat`](../../reference/cli/server.md#--chat-max-dynamic-tools-per-chat)
+- YAML key: `chat.maxDynamicToolsPerChat`
+- Default value: `250`
+
+### Max generation retries
+
+Maximum number of times a chat turn retries a model call that failed with a transient provider error, such as a rate limit or an overloaded response, before the turn fails.
+
+- Environment variable: `CODER_CHAT_MAX_GENERATION_RETRIES`
+- CLI flag: [`--chat-max-generation-retries`](../../reference/cli/server.md#--chat-max-generation-retries)
+- YAML key: `chat.maxGenerationRetries`
+- Default value: `25`
+
+### Max prompt bytes
+
+Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt.
+
+- Environment variable: `CODER_CHAT_MAX_PROMPT_BYTES`
+- CLI flag: [`--chat-max-prompt-bytes`](../../reference/cli/server.md#--chat-max-prompt-bytes)
+- YAML key: `chat.maxPromptBytes`
+- Default value: `131072`
+
+### Max queued messages per chat
+
+Maximum number of user messages that can wait in a chat's queue while a turn is running.
+
+- Environment variable: `CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`
+- CLI flag: [`--chat-max-queued-messages-per-chat`](../../reference/cli/server.md#--chat-max-queued-messages-per-chat)
+- YAML key: `chat.maxQueuedMessagesPerChat`
+- Default value: `20`
+
+### Max steps per turn
+
+Maximum number of model and tool steps a single agent chat turn may run before Coder stops the turn.
+
+- Environment variable: `CODER_CHAT_MAX_STEPS_PER_TURN`
+- CLI flag: [`--chat-max-steps-per-turn`](../../reference/cli/server.md#--chat-max-steps-per-turn)
+- YAML key: `chat.maxStepsPerTurn`
+- Default value: `1200`
+
+### Max tool output bytes
+
+Maximum number of bytes of workspace command output the execute and process tools return to the model. Longer output is truncated.
+
+- Environment variable: `CODER_CHAT_MAX_TOOL_OUTPUT_BYTES`
+- CLI flag: [`--chat-max-tool-output-bytes`](../../reference/cli/server.md#--chat-max-tool-output-bytes)
+- YAML key: `chat.maxToolOutputBytes`
+- Default value: `32768`
+
 ## Client
 
 These options change the behavior of how clients interact with the Coder. Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.

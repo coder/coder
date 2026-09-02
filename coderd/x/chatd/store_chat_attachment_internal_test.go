@@ -51,7 +51,7 @@ func TestStoreChatAttachment_Success(t *testing.T) {
 	)
 	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
 		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 		FileIds:      []uuid.UUID{fileID},
 	}).Return(int32(0), nil)
 
@@ -94,7 +94,7 @@ func TestStoreChatAttachment_UsesDetectNameForClassification(t *testing.T) {
 	)
 	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
 		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 		FileIds:      []uuid.UUID{fileID},
 	}).Return(int32(0), nil)
 
@@ -138,7 +138,7 @@ func TestStoreChatAttachment_AllowsUnsupportedPromptInputType(t *testing.T) {
 	)
 	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
 		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 		FileIds:      []uuid.UUID{fileID},
 	}).Return(int32(0), nil)
 
@@ -236,12 +236,12 @@ func TestStoreChatAttachment_StrictCapError(t *testing.T) {
 	tx.EXPECT().InsertChatFile(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatFileParams{})).Return(database.InsertChatFileRow{ID: fileID}, nil)
 	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
 		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 		FileIds:      []uuid.UUID{fileID},
 	}).Return(int32(1), nil)
 
 	attachment, err := server.storeChatAttachment(context.Background(), chatSnapshot, "build.log", "build.log", []byte("build output"))
-	require.ErrorContains(t, err, fmt.Sprintf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs))
+	require.ErrorContains(t, err, fmt.Sprintf("chat already has the maximum of %d linked files", codersdk.DefaultChatMaxAttachmentsPerChat))
 	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
 }
 
@@ -269,7 +269,7 @@ func TestStoreChatAttachment_LinkError(t *testing.T) {
 	tx.EXPECT().InsertChatFile(gomock.Any(), gomock.Any()).Return(database.InsertChatFileRow{ID: fileID}, nil)
 	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
 		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 		FileIds:      []uuid.UUID{fileID},
 	}).Return(int32(0), context.DeadlineExceeded)
 
@@ -293,7 +293,7 @@ func TestStoreChatAttachment_SerializesCapCheck(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 
-	for i := range codersdk.MaxChatFileIDs - 1 {
+	for i := range codersdk.DefaultChatMaxAttachmentsPerChat - 1 {
 		insertLinkedChatFile(
 			ctx,
 			t,
@@ -380,7 +380,7 @@ WHERE datname = current_database()
 				successes++
 				continue
 			}
-			require.ErrorContains(t, err, fmt.Sprintf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs))
+			require.ErrorContains(t, err, fmt.Sprintf("chat already has the maximum of %d linked files", codersdk.DefaultChatMaxAttachmentsPerChat))
 			capRejections++
 		case <-ctx.Done():
 			require.Failf(t, "attachment store did not finish", "context ended: %v", ctx.Err())
@@ -391,11 +391,11 @@ WHERE datname = current_database()
 
 	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, files, codersdk.MaxChatFileIDs)
+	require.Len(t, files, codersdk.DefaultChatMaxAttachmentsPerChat)
 
 	var fileCount int
 	require.NoError(t, rawDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_files").Scan(&fileCount))
-	require.Equal(t, codersdk.MaxChatFileIDs, fileCount)
+	require.Equal(t, codersdk.DefaultChatMaxAttachmentsPerChat, fileCount)
 }
 
 func expectStoreChatAttachmentInTx(t *testing.T, db, tx *dbmock.MockStore) {

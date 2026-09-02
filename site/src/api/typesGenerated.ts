@@ -2110,6 +2110,21 @@ export interface ChatConfig {
 	readonly hook_enabled: boolean;
 	readonly hook_allow_insecure: boolean;
 	/**
+	 * Limits bound chat turns and stored payloads. Defaults are the
+	 * DefaultChat* constants; the zero value means "use the default" so
+	 * callers can leave them unset.
+	 */
+	readonly max_steps_per_turn: number;
+	readonly max_generation_retries: number;
+	readonly max_queued_messages_per_chat: number;
+	readonly max_attachments_per_chat: number;
+	readonly max_prompt_bytes: number;
+	readonly max_dynamic_tools_per_chat: number;
+	readonly max_tool_output_bytes: number;
+	readonly max_concurrent_recording_uploads: number;
+	readonly debug_max_text_runes: number;
+	readonly debug_max_body_bytes: number;
+	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
 	 */
@@ -4714,11 +4729,112 @@ export const DefaultChatAutoArchiveDays = 0;
 
 // From codersdk/chats.go
 /**
+ * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
+ * of a chat turn or the payloads chatd stores and can be raised or
+ * lowered per deployment.
+ * DefaultChatDebugMaxBodyBytes bounds accumulated streamed model
+ * output and each recorded provider HTTP body in chat debug runs.
+ */
+export const DefaultChatDebugMaxBodyBytes = 50000;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
+ * of a chat turn or the payloads chatd stores and can be raised or
+ * lowered per deployment.
+ * DefaultChatDebugMaxTextRunes bounds each text, argument, and result
+ * field kept in chat debug run records.
+ */
+export const DefaultChatDebugMaxTextRunes = 10000;
+
+// From codersdk/chats.go
+/**
  * DefaultChatDebugRetentionDays is the default chat debug run retention
  * window, in days, applied when no site config row exists. Set the
  * config value to zero to disable the purge.
  */
 export const DefaultChatDebugRetentionDays = 30;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
+ * of a chat turn or the payloads chatd stores and can be raised or
+ * lowered per deployment.
+ * DefaultChatMaxAttachmentsPerChat is the number of files that may be
+ * linked to one chat over its lifetime. Lowering it does not unlink
+ * existing files.
+ */
+export const DefaultChatMaxAttachmentsPerChat = 50;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
+ * of a chat turn or the payloads chatd stores and can be raised or
+ * lowered per deployment.
+ * DefaultChatMaxConcurrentRecordingUploads is the number of virtual
+ * desktop recordings chatd stores concurrently.
+ */
+export const DefaultChatMaxConcurrentRecordingUploads = 25;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
+ * of a chat turn or the payloads chatd stores and can be raised or
+ * lowered per deployment.
+ * DefaultChatMaxDynamicToolsPerChat is the number of client-provided
+ * dynamic tools a chat may be created with.
+ */
+export const DefaultChatMaxDynamicToolsPerChat = 250;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
+ * of a chat turn or the payloads chatd stores and can be raised or
+ * lowered per deployment.
+ * DefaultChatMaxGenerationRetries is the number of times a turn
+ * retries a model call that failed with a transient provider error.
+ */
+export const DefaultChatMaxGenerationRetries = 25;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
+ * of a chat turn or the payloads chatd stores and can be raised or
+ * lowered per deployment.
+ * DefaultChatMaxPromptBytes bounds the deployment system prompt, plan
+ * mode instructions, and per-user custom prompts.
+ */
+export const DefaultChatMaxPromptBytes = 131072;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
+ * of a chat turn or the payloads chatd stores and can be raised or
+ * lowered per deployment.
+ * DefaultChatMaxQueuedMessagesPerChat is the number of user messages
+ * that may wait in a chat's queue while a turn is running.
+ */
+export const DefaultChatMaxQueuedMessagesPerChat = 20;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
+ * of a chat turn or the payloads chatd stores and can be raised or
+ * lowered per deployment.
+ * DefaultChatMaxStepsPerTurn is the number of model and tool steps a
+ * single turn may run before it is stopped.
+ */
+export const DefaultChatMaxStepsPerTurn = 1200;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
+ * of a chat turn or the payloads chatd stores and can be raised or
+ * lowered per deployment.
+ * DefaultChatMaxToolOutputBytes is the number of bytes of command
+ * output the execute and process tools return to the model.
+ */
+export const DefaultChatMaxToolOutputBytes = 32768;
 
 // From codersdk/chats.go
 /**
@@ -6183,15 +6299,6 @@ export const MaxAIModelPricesBytes = 1048576; // 1 MiB
  * $1,000,000 per member per budget period.
  */
 export const MaxAISpendLimitMicros = 1000000000000;
-
-// From codersdk/chats.go
-/**
- * MaxChatFileIDs is the maximum number of file IDs that can be
- * associated with a single chat. This limit prevents unbounded
- * growth in the chat_file_links table. It is easier to raise
- * this limit than to lower it.
- */
-export const MaxChatFileIDs = 50;
 
 // From codersdk/chats.go
 /**

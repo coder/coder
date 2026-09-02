@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
@@ -783,6 +784,44 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 		dv := mk(1*time.Hour, 48*time.Hour)
 		err := dv.Validate()
 		require.NoError(t, err)
+	})
+}
+
+func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
+	t.Parallel()
+
+	mk := func() *codersdk.DeploymentValues {
+		dv := &codersdk.DeploymentValues{}
+		dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
+		dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+		return dv
+	}
+
+	t.Run("ZeroMeansDefault", func(t *testing.T) {
+		t.Parallel()
+		require.NoError(t, mk().Validate())
+	})
+
+	t.Run("Negative", func(t *testing.T) {
+		t.Parallel()
+		dv := mk()
+		dv.AI.Chat.MaxStepsPerTurn = serpent.Int64(-1)
+		require.ErrorContains(t, dv.Validate(), "--chat-max-steps-per-turn (-1)")
+	})
+
+	t.Run("AboveInt32", func(t *testing.T) {
+		t.Parallel()
+		dv := mk()
+		dv.AI.Chat.DebugMaxBodyBytes = serpent.Int64(math.MaxInt32 + 1)
+		require.ErrorContains(t, dv.Validate(), "--chat-debug-max-body-bytes")
+	})
+
+	t.Run("Positive", func(t *testing.T) {
+		t.Parallel()
+		dv := mk()
+		dv.AI.Chat.MaxStepsPerTurn = serpent.Int64(10)
+		dv.AI.Chat.MaxPromptBytes = serpent.Int64(math.MaxInt32)
+		require.NoError(t, dv.Validate())
 	})
 }
 

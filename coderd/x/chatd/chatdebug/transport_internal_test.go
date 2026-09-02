@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -347,7 +348,7 @@ func TestRecordingTransport_TruncatesLargeRequestBodies(t *testing.T) {
 	ctx, sink := newTestSinkContext(t)
 	client := &http.Client{Transport: &RecordingTransport{Base: server.Client().Transport}}
 
-	large := strings.Repeat("x", maxRecordedRequestBodyBytes+1024)
+	large := strings.Repeat("x", codersdk.DefaultChatDebugMaxBodyBytes+1024)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, strings.NewReader(large))
 	require.NoError(t, err)
 
@@ -891,7 +892,7 @@ func TestRecordingTransport_TruncatesLargeResponses(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		_, _ = rw.Write([]byte(strings.Repeat("x", maxRecordedResponseBodyBytes+1024)))
+		_, _ = rw.Write([]byte(strings.Repeat("x", codersdk.DefaultChatDebugMaxBodyBytes+1024)))
 	}))
 	defer server.Close()
 
@@ -911,6 +912,58 @@ func TestRecordingTransport_TruncatesLargeResponses(t *testing.T) {
 	require.Len(t, attempts, 1)
 	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
 	require.Equal(t, []byte("[TRUNCATED]"), attempts[0].ResponseBody)
+}
+
+func TestRecordingTransport_MaxBodyBytesCapsRequestAndResponse(t *testing.T) {
+	t.Parallel()
+
+	const maxBodyBytes = 64
+	// Bodies must be valid JSON to survive redaction unchanged.
+	jsonOfSize := func(size int) string {
+		return `{"k":"` + strings.Repeat("x", size-8) + `"}`
+	}
+
+	for _, tc := range []struct {
+		name     string
+		payload  string
+		wantBody []byte
+	}{
+		{name: "at cap is kept", payload: jsonOfSize(maxBodyBytes), wantBody: []byte(jsonOfSize(maxBodyBytes))},
+		{name: "over cap is truncated", payload: jsonOfSize(maxBodyBytes + 1), wantBody: []byte("[TRUNCATED]")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := tc.payload
+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				rw.Header().Set("Content-Type", "application/json")
+				_, _ = io.Copy(io.Discard, req.Body)
+				_, _ = rw.Write([]byte(payload))
+			}))
+			defer server.Close()
+
+			ctx, sink := newTestSinkContext(t)
+			client := &http.Client{Transport: &RecordingTransport{
+				Base:         server.Client().Transport,
+				MaxBodyBytes: maxBodyBytes,
+			}}
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, strings.NewReader(payload))
+			require.NoError(t, err)
+
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			_, err = io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+
+			attempts := sink.snapshot()
+			require.Len(t, attempts, 1)
+			require.Equal(t, attemptStatusCompleted, attempts[0].Status)
+			require.Equal(t, tc.wantBody, attempts[0].RequestBody)
+			require.Equal(t, tc.wantBody, attempts[0].ResponseBody)
+		})
+	}
 }
 
 func TestRecordingTransport_TransportError(t *testing.T) {
@@ -1191,6 +1244,7 @@ func TestRecordingBody_SSEConcurrentReadCloseNoDeadlock(t *testing.T) {
 			inner:         io.NopCloser(strings.NewReader(string(ssePayload))),
 			contentLength: -1,
 			contentType:   "text/event-stream",
+			maxBodyBytes:  codersdk.DefaultChatDebugMaxBodyBytes,
 			sink:          sink,
 			startedAt:     time.Now(),
 			base:          Attempt{Number: sink.nextAttemptNumber()},
@@ -1474,7 +1528,7 @@ func TestRecordingTransport_TruncatedUnknownLengthMarksCompleted(t *testing.T) {
 	t.Parallel()
 
 	ctx, sink := newTestSinkContext(t)
-	largeBody := strings.Repeat("x", maxRecordedResponseBodyBytes+1024)
+	largeBody := strings.Repeat("x", codersdk.DefaultChatDebugMaxBodyBytes+1024)
 	client := &http.Client{
 		Transport: &RecordingTransport{
 			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -1496,7 +1550,7 @@ func TestRecordingTransport_TruncatedUnknownLengthMarksCompleted(t *testing.T) {
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.Len(t, body, maxRecordedResponseBodyBytes+1024)
+	require.Len(t, body, codersdk.DefaultChatDebugMaxBodyBytes+1024)
 	require.NoError(t, resp.Body.Close())
 
 	attempts := sink.snapshot()

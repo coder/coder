@@ -595,7 +595,7 @@ func loadGenerationState(
 	return chat, messages, nil
 }
 
-func (*taskStarter) recordGenerationRetry(
+func (s *taskStarter) recordGenerationRetry(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
@@ -609,7 +609,7 @@ func (*taskStarter) recordGenerationRetry(
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		decision.generationAttempt = chat.GenerationAttempt
-		if chat.GenerationAttempt <= 0 || chat.GenerationAttempt >= int64(chatretry.MaxAttempts) {
+		if chat.GenerationAttempt <= 0 || chat.GenerationAttempt >= int64(s.server.limits().MaxGenerationRetries) {
 			decision.retry = false
 			return errRetryStateDecisionOnly
 		}
