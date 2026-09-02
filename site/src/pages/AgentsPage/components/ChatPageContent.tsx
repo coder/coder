@@ -270,6 +270,7 @@ interface ChatPageInputProps {
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	chatRuntime?: ExternalChatRuntime;
+	runtimeUnavailable?: boolean;
 	runtimeCommands?: readonly TypesGen.ChatRuntimeCommand[];
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
@@ -340,6 +341,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	planModeEnabled,
 	onPlanModeToggle,
 	chatRuntime,
+	runtimeUnavailable,
 	runtimeCommands,
 	isModelCatalogLoading = false,
 	inputRef,
@@ -604,6 +606,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
 			runtime={chatRuntime}
+			runtimeUnavailable={runtimeUnavailable}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={chatOrganizationId}

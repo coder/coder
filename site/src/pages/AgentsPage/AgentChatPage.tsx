@@ -35,6 +35,7 @@ import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
 	chatQueueConvergence,
+	chatRuntimeAvailability,
 	clearChat,
 	compactChat,
 	createChatMessage,
@@ -114,6 +115,7 @@ import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import {
+	availableExternalChatRuntimes,
 	filterModelOptionsForRuntime,
 	isExternalChatRuntime,
 } from "./utils/chatRuntimes";
@@ -1181,6 +1183,17 @@ const AgentChatPage: FC = () => {
 		? chatRecordRuntime
 		: undefined;
 	const isRuntimeChat = chatRuntime !== undefined;
+	const runtimeAvailabilityQuery = useQuery({
+		...chatRuntimeAvailability(),
+		enabled: isRuntimeChat && experiments.includes("agents-runtime-config"),
+	});
+	const runtimeUnavailable =
+		chatRuntime !== undefined &&
+		runtimeAvailabilityQuery.isSuccess &&
+		!availableExternalChatRuntimes(
+			runtimeAvailabilityQuery.data,
+			chatOrganizationId,
+		).includes(chatRuntime);
 
 	// Destructure mutation results directly so the React Compiler
 	// tracks stable primitives/functions instead of the whole result
@@ -2085,6 +2098,7 @@ const AgentChatPage: FC = () => {
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelDataPending}
 			chatRuntime={chatRuntime}
+			runtimeUnavailable={runtimeUnavailable}
 			planModeEnabled={isRuntimeChat ? false : planModeEnabled}
 			onPlanModeToggle={isRuntimeChat ? undefined : handlePlanModeToggle}
 			compressionThreshold={compressionThreshold}

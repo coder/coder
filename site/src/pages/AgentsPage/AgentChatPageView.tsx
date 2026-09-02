@@ -157,6 +157,7 @@ interface AgentChatPageViewProps {
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	chatRuntime?: ExternalChatRuntime;
+	runtimeUnavailable?: boolean;
 	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
@@ -357,6 +358,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	planModeEnabled,
 	onPlanModeToggle,
 	chatRuntime,
+	runtimeUnavailable,
 	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
@@ -1034,6 +1036,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									planModeEnabled={planModeEnabled}
 									onPlanModeToggle={onPlanModeToggle}
 									chatRuntime={chatRuntime}
+									runtimeUnavailable={runtimeUnavailable}
 									isModelCatalogLoading={isModelCatalogLoading}
 									workspaceOptions={workspaceOptions}
 									chatOrganizationId={organizationId}

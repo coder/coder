@@ -16,6 +16,7 @@ import {
 	chatListKey,
 	chatMessagesKey,
 	chatPromptsKey,
+	chatRuntimeAvailability,
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
 	toChatListParams,
@@ -3661,6 +3662,50 @@ const runtimeCommands: readonly TypesGen.ChatRuntimeCommand[] = [
 		input_hint: "<model name>",
 	},
 ];
+
+const runtimeDisabledWarning =
+	"Claude Code is disabled for this organization. Messages sent here will fail until an administrator enables it again.";
+
+const runtimeAvailabilityStory = (
+	availability: readonly TypesGen.ChatRuntimeAvailability[],
+): Story => ({
+	parameters: {
+		experiments: ["agents-runtime-config"],
+		queries: [
+			...buildQueries(runtimeCommandChat(runtimeCommands), {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			{ key: chatRuntimeAvailability().queryKey, data: availability },
+		],
+	},
+});
+
+/** An open chat whose runtime an administrator has since disabled warns
+ *  before a send is wasted. */
+export const RuntimeDisabledForOrganizationWarns: Story = {
+	...runtimeAvailabilityStory([
+		{ organization_id: "other-org-id", runtime: "claude_code" },
+		{ organization_id: baseChatFields.organization_id, runtime: "codex" },
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByTestId("chat-message-input");
+		expect(await canvas.findByText(runtimeDisabledWarning)).toBeVisible();
+	},
+};
+
+export const RuntimeEnabledForOrganizationHasNoWarning: Story = {
+	...runtimeAvailabilityStory([
+		{ organization_id: baseChatFields.organization_id, runtime: "claude_code" },
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByTestId("chat-message-input");
+		expect(canvas.queryByText(runtimeDisabledWarning)).not.toBeInTheDocument();
+	},
+};
 
 /** A runtime chat's "/" menu lists the commands the runtime advertised in
  *  place of the coder built-ins; choosing one that takes input inserts the

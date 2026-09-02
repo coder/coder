@@ -209,6 +209,8 @@ interface AgentChatInputProps {
 	// AI Gateway is disabled deployment-wide, independent of provider/model
 	// configuration. Forces the setup notice regardless of the counts above.
 	aiGatewayDisabled?: boolean;
+	// The chat's external runtime is no longer enabled for its organization.
+	runtimeUnavailable?: boolean;
 	// Commands offered by the "/" trigger menu ahead of personal skills.
 	slashCommands?: readonly ChatComposerCommand[];
 }
@@ -432,6 +434,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelCount,
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
+	runtimeUnavailable = false,
 	slashCommands,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
@@ -1113,6 +1116,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
 					className="mb-2"
 				/>
+			)}
+			{runtimeInfo && runtimeUnavailable && (
+				<Alert severity="warning" className="mb-2">
+					<AlertDescription>
+						{runtimeInfo.label} is disabled for this organization. Messages sent
+						here will fail until an administrator enables it again.
+					</AlertDescription>
+				</Alert>
 			)}
 			{showAgentSetupNotice && (
 				<div className="relative z-0 -mb-10">
