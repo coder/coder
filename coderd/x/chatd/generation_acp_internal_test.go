@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -157,11 +158,9 @@ func TestWaitForACPAdapter(t *testing.T) {
 	})
 }
 
-func acpTextMessage(t *testing.T, id int64, role database.ChatMessageRole, text string) database.ChatMessage {
+func acpMessage(t *testing.T, id int64, role database.ChatMessageRole, part codersdk.ChatMessagePart) database.ChatMessage {
 	t.Helper()
-	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText(text),
-	})
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
 	require.NoError(t, err)
 	return database.ChatMessage{
 		ID:             id,
@@ -171,75 +170,96 @@ func acpTextMessage(t *testing.T, id int64, role database.ChatMessageRole, text 
 	}
 }
 
+func acpTextMessage(t *testing.T, id int64, role database.ChatMessageRole, text string) database.ChatMessage {
+	t.Helper()
+	return acpMessage(t, id, role, codersdk.ChatMessageText(text))
+}
+
+func withModelConfig(msg database.ChatMessage, id uuid.UUID) database.ChatMessage {
+	msg.ModelConfigID = uuid.NullUUID{UUID: id, Valid: true}
+	return msg
+}
+
 func TestACPTurnFromHistory(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	logger := slog.Logger{}
 
-	t.Run("SingleUserMessage", func(t *testing.T) {
-		t.Parallel()
-		turn, err := acpTurnFromHistory(ctx, logger, testHarness, []database.ChatMessage{
-			acpTextMessage(t, 1, database.ChatMessageRoleUser, "hello"),
-		})
-		require.NoError(t, err)
-		require.True(t, turn.generate)
-		require.Equal(t, "hello", turn.prompt)
-		require.Empty(t, turn.reseed)
+	selected, superseded := uuid.New(), uuid.New()
+	hookNotice := acpMessage(t, 2, database.ChatMessageRoleSystem, codersdk.ChatMessagePart{
+		Type: codersdk.ChatMessagePartTypeHookNotice,
+		Text: "hook ran",
+	})
+	filePart := acpMessage(t, 1, database.ChatMessageRoleUser, codersdk.ChatMessagePart{
+		Type: codersdk.ChatMessagePartTypeFile, FileName: "img.png", MediaType: "image/png",
 	})
 
-	t.Run("TrailingUserRunJoined", func(t *testing.T) {
-		t.Parallel()
-		turn, err := acpTurnFromHistory(ctx, logger, testHarness, []database.ChatMessage{
-			acpTextMessage(t, 1, database.ChatMessageRoleUser, "first"),
-			acpTextMessage(t, 2, database.ChatMessageRoleAssistant, "reply"),
-			acpTextMessage(t, 3, database.ChatMessageRoleUser, "second"),
-			acpTextMessage(t, 4, database.ChatMessageRoleUser, "third"),
+	tests := []struct {
+		name    string
+		history []database.ChatMessage
+		want    acpTurn
+		// wantErr rows run per harness, since the classified message
+		// names the runtime.
+		wantErr string
+	}{
+		{
+			name: "EmptyHistory",
+		},
+		{
+			name:    "SingleUserMessage",
+			history: []database.ChatMessage{acpTextMessage(t, 1, database.ChatMessageRoleUser, "hello")},
+			want:    acpTurn{generate: true, prompt: "hello"},
+		},
+		{
+			name: "TrailingUserRunJoined",
+			history: []database.ChatMessage{
+				acpTextMessage(t, 1, database.ChatMessageRoleUser, "first"),
+				acpTextMessage(t, 2, database.ChatMessageRoleAssistant, "reply"),
+				withModelConfig(acpTextMessage(t, 3, database.ChatMessageRoleUser, "second"), superseded),
+				withModelConfig(acpTextMessage(t, 4, database.ChatMessageRoleUser, "third"), selected),
+			},
+			want: acpTurn{
+				generate:      true,
+				prompt:        "second\n\nthird",
+				reseed:        []chatacp.ReseedTurn{{Role: "User", Text: "first"}, {Role: "Assistant", Text: "reply"}},
+				modelConfigID: selected,
+			},
+		},
+		{
+			name: "HistoryEndsWithAssistant",
+			history: []database.ChatMessage{
+				acpTextMessage(t, 1, database.ChatMessageRoleUser, "hello"),
+				acpTextMessage(t, 2, database.ChatMessageRoleAssistant, "done"),
+			},
+		},
+		{
+			name: "TrailingHookNoticeStillGenerates",
+			history: []database.ChatMessage{
+				withModelConfig(acpTextMessage(t, 1, database.ChatMessageRoleUser, "hello"), selected),
+				withModelConfig(hookNotice, superseded),
+			},
+			want: acpTurn{generate: true, prompt: "hello", modelConfigID: selected},
+		},
+		{
+			name:    "NonTextUserMessageErrors",
+			history: []database.ChatMessage{filePart},
+			wantErr: "no text content",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if tc.wantErr == "" {
+				turn, err := acpTurnFromHistory(ctx, logger, testHarness, tc.history)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, turn)
+				return
+			}
+			for _, harness := range testHarnesses {
+				_, err := acpTurnFromHistory(ctx, logger, harness, tc.history)
+				require.ErrorContains(t, err, tc.wantErr)
+				require.Equal(t, harness.DisplayName+" chats currently support text messages only.", chaterror.Classify(err).Message)
+			}
 		})
-		require.NoError(t, err)
-		require.True(t, turn.generate)
-		require.Equal(t, "second\n\nthird", turn.prompt)
-		require.Len(t, turn.reseed, 2)
-		require.Equal(t, "User", turn.reseed[0].Role)
-		require.Equal(t, "first", turn.reseed[0].Text)
-		require.Equal(t, "Assistant", turn.reseed[1].Role)
-		require.Equal(t, "reply", turn.reseed[1].Text)
-	})
-
-	t.Run("HistoryEndsWithAssistant", func(t *testing.T) {
-		t.Parallel()
-		turn, err := acpTurnFromHistory(ctx, logger, testHarness, []database.ChatMessage{
-			acpTextMessage(t, 1, database.ChatMessageRoleUser, "hello"),
-			acpTextMessage(t, 2, database.ChatMessageRoleAssistant, "done"),
-		})
-		require.NoError(t, err)
-		require.False(t, turn.generate)
-	})
-
-	t.Run("EmptyHistory", func(t *testing.T) {
-		t.Parallel()
-		turn, err := acpTurnFromHistory(ctx, logger, testHarness, nil)
-		require.NoError(t, err)
-		require.False(t, turn.generate)
-	})
-
-	t.Run("NonTextUserMessageErrors", func(t *testing.T) {
-		t.Parallel()
-		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-			{Type: codersdk.ChatMessagePartTypeFile, FileName: "img.png", MediaType: "image/png"},
-		})
-		require.NoError(t, err)
-		for _, harness := range testHarnesses {
-			_, err = acpTurnFromHistory(ctx, logger, harness, []database.ChatMessage{
-				{
-					ID:             1,
-					Role:           database.ChatMessageRoleUser,
-					Content:        content,
-					ContentVersion: chatprompt.CurrentContentVersion,
-				},
-			})
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "no text content")
-			require.Equal(t, harness.DisplayName+" chats currently support text messages only.", chaterror.Classify(err).Message)
-		}
-	})
+	}
 }

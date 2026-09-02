@@ -994,6 +994,8 @@ TODO(PR author): Document the experiment-gated external runtime dispatch, ACP tu
 
 TODO(PR author): Document how ACP available_commands updates are captured per turn, persisted in runtime_state, exposed as Chat.runtime_commands, and omitted from watch event payloads.
 
+TODO(PR author): Document how lifecycle hooks interact with external runtimes: session_start runs before the ACP dispatch, hook user_message notices are user-visible system rows that the ACP prompt skips, and hook model_context rows are model-visible only and are not forwarded to the adapter.
+
 ## Runner cleanup
 
 When the manager cleans up a runner, the runner must cancel all goroutines it has spawned and unsubscribe from pubsub.

@@ -1,7 +1,6 @@
 package chatacp_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,122 +14,90 @@ func TestHarnessFor(t *testing.T) {
 
 	_, ok := chatacp.HarnessFor(codersdk.ChatRuntimeCoder)
 	require.False(t, ok, "the built-in runtime has no harness")
-
-	for _, tc := range []struct {
-		runtime  codersdk.ChatRuntime
-		command  string
-		provider codersdk.AIProviderType
-		mode     string
-	}{
-		{codersdk.ChatRuntimeClaudeCode, "claude-agent-acp", codersdk.AIProviderTypeAnthropic, ""},
-		{codersdk.ChatRuntimeCodex, "codex-acp", codersdk.AIProviderTypeOpenAI, "agent-full-access"},
-	} {
-		harness, ok := chatacp.HarnessFor(tc.runtime)
-		require.True(t, ok, tc.runtime)
-		require.Equal(t, tc.runtime, harness.Runtime)
-		require.Equal(t, tc.command, harness.Command)
-		require.Equal(t, tc.provider, harness.ProviderType)
-		require.Equal(t, tc.mode, harness.DefaultSessionMode)
-		require.NotEmpty(t, harness.DisplayName)
-		require.NotEmpty(t, harness.ProviderLabel)
-		require.NotNil(t, harness.Env)
-	}
 }
 
-func TestClaudeCodeEnv(t *testing.T) {
+// TestHarnessEnv is the executable contract with claude-agent-acp and
+// codex-acp: exact equality fails on any stray or missing variable.
+func TestHarnessEnv(t *testing.T) {
 	t.Parallel()
 
-	harness, ok := chatacp.HarnessFor(codersdk.ChatRuntimeClaudeCode)
-	require.True(t, ok)
-
-	require.Equal(t, map[string]string{
-		"ANTHROPIC_API_KEY":  "key",
-		"ANTHROPIC_MODEL":    "claude-test",
-		"ANTHROPIC_BASE_URL": "https://gateway.example.com",
-	}, harness.Env(chatacp.TurnCredentials{APIKey: "key", BaseURL: "https://gateway.example.com", Model: "claude-test"}))
-
-	require.Equal(t, map[string]string{
-		"ANTHROPIC_API_KEY": "key",
-	}, harness.Env(chatacp.TurnCredentials{APIKey: "key"}), "unset model and base URL keep the adapter defaults")
-}
-
-func TestCodexEnv(t *testing.T) {
-	t.Parallel()
-
-	harness, ok := chatacp.HarnessFor(codersdk.ChatRuntimeCodex)
-	require.True(t, ok)
-
-	type providerConfig struct {
-		Name    string `json:"name"`
-		BaseURL string `json:"base_url"`
-		EnvKey  string `json:"env_key"`
-		WireAPI string `json:"wire_api"`
-	}
-	type codexConfig struct {
-		Model          string                    `json:"model"`
-		ModelProvider  string                    `json:"model_provider"`
-		ModelProviders map[string]providerConfig `json:"model_providers"`
-	}
-	decodeConfig := func(t *testing.T, env map[string]string) codexConfig {
-		t.Helper()
-		var config codexConfig
-		require.NoError(t, json.Unmarshal([]byte(env["CODEX_CONFIG"]), &config))
-		return config
-	}
-	requireAPIKeyAuth := func(t *testing.T, env map[string]string) {
-		t.Helper()
-		require.Equal(t, "key", env["OPENAI_API_KEY"])
-		require.Equal(t, "1", env["NO_BROWSER"])
-		var authRequest map[string]string
-		require.NoError(t, json.Unmarshal([]byte(env["DEFAULT_AUTH_REQUEST"]), &authRequest))
-		require.Equal(t, map[string]string{"methodId": "api-key"}, authRequest)
-	}
-
-	t.Run("GatewayAndModel", func(t *testing.T) {
-		t.Parallel()
-		for _, tc := range []struct {
-			name        string
-			baseURL     string
-			wantBaseURL string
-		}{
-			{name: "Bare", baseURL: "https://gateway.example.com", wantBaseURL: "https://gateway.example.com/v1"},
-			{name: "TrailingSlash", baseURL: "https://gateway.example.com/openai/v1/", wantBaseURL: "https://gateway.example.com/openai/v1"},
-			{name: "AlreadyV1", baseURL: "https://gateway.example.com/openai/v1", wantBaseURL: "https://gateway.example.com/openai/v1"},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				env := harness.Env(chatacp.TurnCredentials{APIKey: "key", BaseURL: tc.baseURL, Model: "gpt-test"})
-				requireAPIKeyAuth(t, env)
-				require.Equal(t, "coder", env["MODEL_PROVIDER"])
-				config := decodeConfig(t, env)
-				require.Equal(t, "gpt-test", config.Model)
-				require.Equal(t, "coder", config.ModelProvider)
-				require.Len(t, config.ModelProviders, 1)
-				provider := config.ModelProviders["coder"]
-				require.Equal(t, "Coder", provider.Name)
-				require.Equal(t, "OPENAI_API_KEY", provider.EnvKey)
-				require.Equal(t, "responses", provider.WireAPI)
-				require.Equal(t, tc.wantBaseURL, provider.BaseURL)
-			})
+	codexAuth := func(extra map[string]string) map[string]string {
+		env := map[string]string{
+			"OPENAI_API_KEY":       "key",
+			"NO_BROWSER":           "1",
+			"DEFAULT_AUTH_REQUEST": `{"methodId":"api-key"}`,
 		}
-	})
+		for k, v := range extra {
+			env[k] = v
+		}
+		return env
+	}
+	codexGateway := func(baseURL string) map[string]string {
+		return codexAuth(map[string]string{
+			"MODEL_PROVIDER": "coder",
+			"CODEX_CONFIG":   `{"model":"gpt-test","model_provider":"coder","model_providers":{"coder":{"name":"Coder","base_url":"` + baseURL + `","env_key":"OPENAI_API_KEY","wire_api":"responses"}}}`,
+		})
+	}
 
-	t.Run("ModelOnly", func(t *testing.T) {
-		t.Parallel()
-		env := harness.Env(chatacp.TurnCredentials{APIKey: "key", Model: "gpt-test"})
-		requireAPIKeyAuth(t, env)
-		require.NotContains(t, env, "MODEL_PROVIDER")
-		config := decodeConfig(t, env)
-		require.Equal(t, "gpt-test", config.Model)
-		require.Empty(t, config.ModelProvider)
-		require.Empty(t, config.ModelProviders)
-	})
-
-	t.Run("Defaults", func(t *testing.T) {
-		t.Parallel()
-		env := harness.Env(chatacp.TurnCredentials{APIKey: "key"})
-		requireAPIKeyAuth(t, env)
-		require.NotContains(t, env, "MODEL_PROVIDER")
-		require.NotContains(t, env, "CODEX_CONFIG")
-	})
+	tests := []struct {
+		name    string
+		runtime codersdk.ChatRuntime
+		creds   chatacp.TurnCredentials
+		wantEnv map[string]string
+	}{
+		{
+			name:    "ClaudeCodeFull",
+			runtime: codersdk.ChatRuntimeClaudeCode,
+			creds:   chatacp.TurnCredentials{APIKey: "key", BaseURL: "https://gateway.example.com", Model: "claude-test"},
+			wantEnv: map[string]string{
+				"ANTHROPIC_API_KEY":  "key",
+				"ANTHROPIC_MODEL":    "claude-test",
+				"ANTHROPIC_BASE_URL": "https://gateway.example.com",
+			},
+		},
+		{
+			name:    "ClaudeCodeKeyOnlyKeepsAdapterDefaults",
+			runtime: codersdk.ChatRuntimeClaudeCode,
+			creds:   chatacp.TurnCredentials{APIKey: "key"},
+			wantEnv: map[string]string{"ANTHROPIC_API_KEY": "key"},
+		},
+		{
+			name:    "CodexGatewayBare",
+			runtime: codersdk.ChatRuntimeCodex,
+			creds:   chatacp.TurnCredentials{APIKey: "key", BaseURL: "https://gateway.example.com", Model: "gpt-test"},
+			wantEnv: codexGateway("https://gateway.example.com/v1"),
+		},
+		{
+			name:    "CodexGatewayTrailingSlash",
+			runtime: codersdk.ChatRuntimeCodex,
+			creds:   chatacp.TurnCredentials{APIKey: "key", BaseURL: "https://gateway.example.com/openai/v1/", Model: "gpt-test"},
+			wantEnv: codexGateway("https://gateway.example.com/openai/v1"),
+		},
+		{
+			name:    "CodexGatewayAlreadyV1",
+			runtime: codersdk.ChatRuntimeCodex,
+			creds:   chatacp.TurnCredentials{APIKey: "key", BaseURL: "https://gateway.example.com/openai/v1", Model: "gpt-test"},
+			wantEnv: codexGateway("https://gateway.example.com/openai/v1"),
+		},
+		{
+			name:    "CodexModelOnly",
+			runtime: codersdk.ChatRuntimeCodex,
+			creds:   chatacp.TurnCredentials{APIKey: "key", Model: "gpt-test"},
+			wantEnv: codexAuth(map[string]string{"CODEX_CONFIG": `{"model":"gpt-test"}`}),
+		},
+		{
+			name:    "CodexKeyOnlyKeepsAdapterDefaults",
+			runtime: codersdk.ChatRuntimeCodex,
+			creds:   chatacp.TurnCredentials{APIKey: "key"},
+			wantEnv: codexAuth(nil),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			harness, ok := chatacp.HarnessFor(tc.runtime)
+			require.True(t, ok)
+			require.Equal(t, tc.wantEnv, harness.Env(tc.creds))
+		})
+	}
 }

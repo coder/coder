@@ -197,25 +197,37 @@ type acpTurn struct {
 // everything before it becomes reseed context for the lossy
 // new-session fallback. generate is false when history ends with
 // assistant or tool output, meaning the turn already generated and
-// only FinishTurn remains.
+// only FinishTurn remains. System rows (hook notices) are never model
+// input: they neither end the trailing run nor reach the adapter.
 func acpTurnFromHistory(ctx context.Context, logger slog.Logger, harness chatacp.Harness, history []database.ChatMessage) (acpTurn, error) {
 	firstTrailingUser := len(history)
+scan:
 	for i := len(history) - 1; i >= 0; i-- {
-		if history[i].Role != database.ChatMessageRoleUser {
-			break
+		switch history[i].Role {
+		case database.ChatMessageRoleUser:
+			firstTrailingUser = i
+		case database.ChatMessageRoleSystem:
+		default:
+			break scan
 		}
-		firstTrailingUser = i
 	}
 	if firstTrailingUser == len(history) {
 		return acpTurn{}, nil
 	}
 
 	var prompt strings.Builder
+	var modelConfigID uuid.UUID
 	for _, msg := range history[firstTrailingUser:] {
+		if msg.Role != database.ChatMessageRoleUser {
+			continue
+		}
 		text, err := chatMessageText(msg)
 		if err != nil {
 			return acpTurn{}, xerrors.Errorf("parse user message %d: %w", msg.ID, err)
 		}
+		// The newest trailing user message carries the model selection
+		// for this turn; picks on earlier queued messages are superseded.
+		modelConfigID = msg.ModelConfigID.UUID
 		if text == "" {
 			continue
 		}
@@ -234,7 +246,7 @@ func acpTurnFromHistory(ctx context.Context, logger slog.Logger, harness chatacp
 		)
 	}
 
-	reseed := make([]chatacp.ReseedTurn, 0, firstTrailingUser)
+	var reseed []chatacp.ReseedTurn
 	for _, msg := range history[:firstTrailingUser] {
 		var role string
 		switch msg.Role {
@@ -256,13 +268,6 @@ func acpTurnFromHistory(ctx context.Context, logger slog.Logger, harness chatacp
 			continue
 		}
 		reseed = append(reseed, chatacp.ReseedTurn{Role: role, Text: text})
-	}
-
-	// The newest trailing user message carries the model selection for
-	// this turn; picks on earlier queued messages are superseded.
-	var modelConfigID uuid.UUID
-	if last := history[len(history)-1]; last.ModelConfigID.Valid {
-		modelConfigID = last.ModelConfigID.UUID
 	}
 
 	return acpTurn{
