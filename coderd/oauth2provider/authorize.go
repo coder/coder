@@ -77,15 +77,11 @@ func grantableScopes(appScope string) []string {
 }
 
 // firstScopeOutsideAllowlist returns the first scope in granted that the
-// allowlist does not confer, or "" when it confers all of them. The check is
-// coverage rather than membership: an app allowed `coder:workspaces.access`
-// covers `workspace:read`. Both slices must already be canonical, and an
-// undecidable comparison refuses rather than grants.
-//
-// phase names the endpoint that asked, since a client refused a code at
-// /oauth2/authorize and an issued code dying at /oauth2/tokens are different
-// incidents with different remedies. It takes appID rather than the app so the
-// log cannot name an allowlist the comparison did not use.
+// allowlist does not confer, or "" when it confers all of them. It compares
+// what the scopes grant, not their names: `coder:workspaces.access` covers
+// `workspace:read`. Pass both slices through canonicalScopes first, since RBAC
+// expands `coder:all` but not the bare `all` alias. A comparison it cannot
+// decide refuses.
 func firstScopeOutsideAllowlist(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, allowlist, granted []string) (string, error) {
 	allowedNames := make([]rbac.ScopeName, 0, len(allowlist))
 	for _, a := range allowlist {

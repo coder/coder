@@ -251,8 +251,7 @@ func requirePersistableScope(t *testing.T, scope string) {
 }
 
 // Rejection reasons from authorize.go for the package's black-box tests, which
-// cannot reach the sentinels. The tokens.go sentinels are in the file that
-// declares them.
+// cannot reach the sentinels.
 var (
 	ReasonUnknownScope        = errUnknownScope.Error()
 	ReasonNoGrantableScope    = errNoGrantableScope.Error()

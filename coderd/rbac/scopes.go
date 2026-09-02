@@ -363,13 +363,12 @@ func ScopesCover(canonicalAllowed []ScopeName, canonicalRequested ScopeName) (bo
 }
 
 // FirstScopeNotCovered returns the first requested scope the allowed set does
-// not confer, or "" when it confers all of them. It answers the same question
-// as calling ScopesCover per requested scope, but expands the allowed side once
-// instead of once per question, which matters because an allowlist is
-// client-supplied text with nothing bounding its length.
+// not confer, or "" when it confers all of them. Same answer as calling
+// ScopesCover per scope, but it expands the allowed side once rather than once
+// per call, and an allowlist is client-supplied text of any length.
 //
-// An undecidable comparison returns the scope it could not decide along with
-// the error, so the caller can name it.
+// When a comparison cannot be decided, the returned scope is the one that
+// failed, alongside the error.
 func FirstScopeNotCovered(canonicalAllowed, canonicalRequested []ScopeName) (ScopeName, error) {
 	grants := make([]namedScope, 0, len(canonicalAllowed))
 	for _, name := range canonicalAllowed {

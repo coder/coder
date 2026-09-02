@@ -199,9 +199,6 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		requireCodeConsumed(ctx, t, db, code)
 	})
 
-	// A narrowing takes effect at the next authorization rather than cutting
-	// short a session already running. That is a Coder policy choice: §6 caps
-	// what a refresh may request, it does not oblige the server to keep issuing.
 	t.Run("RefreshIgnoresAllowlistNarrowing", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

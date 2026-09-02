@@ -86,8 +86,6 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 	})
 }
 
-// Rejection reasons from tokens.go, exported for the same reason as the
-// authorize.go block in authorize_internal_test.go.
 var (
 	ReasonUnmintableScope = errUnmintableScope.Error()
 	ReasonStaleScope      = errStaleScope.Error()

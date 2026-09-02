@@ -49,16 +49,12 @@ var (
 )
 
 // checkScopeStillCovered rechecks a grant's scope against the app's registered
-// scopes as they stand now, since they can change inside an authorization
-// code's ten minute life. The writer is the client itself, through its RFC 7592
-// registration; no administrator surface touches the column.
+// scopes as they stand now, which can change during a code's ten minute life.
+// Only the client can change them, through its RFC 7592 registration.
 //
-// Refresh deliberately does not call this. That is a Coder policy choice, not
-// something the RFC requires: §6 caps what a refresh may request at the scope
-// originally granted, and §3.3 would permit issuing narrower. Withdrawing
-// scope from a session already running would break it mid-flight, so a
-// narrowing takes effect at the next authorization. An operator who needs to
-// cut a live session revokes the token; the registration alone will not.
+// Refresh deliberately does not call this. A narrowed registration is applied
+// at the next authorization rather than mid-session, so tightening an app's
+// scopes does not break integrations that are already running.
 func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string) error {
 	if noScopeAllowlist(app.Scope) {
 		return nil
@@ -66,11 +62,9 @@ func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app databas
 
 	allowlist := grantableScopes(app.Scope.String)
 	if len(allowlist) == 0 {
-		// Names what the app registered, as in negotiateScope, but tokenized
-		// rather than echoed raw: the column admits whitespace around and
-		// between the names, and RFC 6749 §5.2 excludes those bytes from
-		// error_description. A registration that holds only whitespace names
-		// nothing, so the reason stands alone.
+		// app.Scope may separate names with tabs or newlines, which RFC 6749 §5.2
+		// forbids in error_description, so name the scopes rejoined with single
+		// spaces. Whitespace alone names nothing, so the reason stands alone.
 		registered := strings.Fields(app.Scope.String)
 		if len(registered) == 0 {
 			return errNoGrantableScope
@@ -300,18 +294,15 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
-		// Not invalid_scope: RFC 6749 §5.2 scopes that to what the client
-		// requested, and these are stored state the client cannot change by
-		// asking differently. The grant is what is unusable, and re-authorizing
-		// is the only way out, so invalid_grant.
+		// invalid_grant, not invalid_scope: RFC 6749 §5.2 reserves invalid_scope
+		// for the scope the client asked for, but these come from the stored
+		// grant. The client cannot fix it by asking differently, only by
+		// authorizing again.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
 			errors.Is(err, errNoGrantableScope) {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
 			return
 		}
-		// This server failing to compare, not a defect in the grant, so it
-		// answers server_error with a fixed description as the authorization
-		// endpoint does; the comparison already logged the detail.
 		if errors.Is(err, errCoverageUndecidable) {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated")
 			return
@@ -458,11 +449,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		return codersdk.OAuth2TokenResponse{}, errInvalidResource
 	}
 
-	// Mintability is decided before coverage. A stored name outside the enum is
-	// not something RBAC can expand, so the coverage comparison would report it
-	// as undecidable instead of naming the value an operator has to fix.
+	// Check the scope names first. RBAC cannot expand a name that is not a real
+	// scope, so the allowlist check below would answer "could not be determined"
+	// instead of naming the scope to fix.
 	//
-	// Without this the key defaults to coder:all, discarding the negotiation.
+	// The minted key needs this list: apikey.Generate defaults to coder:all when
+	// it is empty.
 	scopes, err := scopeStringToAPIKeyScopes(dbCode.Scope)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
