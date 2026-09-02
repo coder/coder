@@ -17890,22 +17890,48 @@ func TestChatLimitsFromDeploymentConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		values := coderdtest.DeploymentValues(t)
-		values.AI.Chat.MaxPromptBytes = serpent.Int64(64)
+		// A limit smaller than the JSON envelope must still reject on
+		// prompt length, not on body size.
+		values.AI.Chat.MaxPromptBytes = serpent.Int64(16)
 		client := newChatClientWithDeploymentValues(t, values)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               strings.Repeat("a", 65),
+			SystemPrompt:               strings.Repeat("a", 17),
 			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
-		require.Contains(t, sdkErr.Detail, "Maximum length is 64 bytes")
+		require.Contains(t, sdkErr.Detail, "Maximum length is 16 bytes")
 
 		require.NoError(t, client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               strings.Repeat("a", 64),
+			SystemPrompt:               strings.Repeat("a", 16),
 			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		}))
+	})
+
+	t.Run("MaxPromptBytesDoesNotBoundChatCreation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		values := coderdtest.DeploymentValues(t)
+		values.AI.Chat.MaxPromptBytes = serpent.Int64(16)
+		client := newChatClientWithDeploymentValues(t, values)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: strings.Repeat("a", 1024),
+			}},
+			UnsafeDynamicTools: []codersdk.DynamicTool{{
+				Name:        "lookup",
+				Description: strings.Repeat("d", 1024),
+			}},
+		})
+		require.NoError(t, err)
 	})
 
 	t.Run("MaxDynamicToolsPerChat", func(t *testing.T) {

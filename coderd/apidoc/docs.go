@@ -1458,7 +1458,7 @@ const docTemplate = `{
                         }
                     },
                     "413": {
-                        "description": "Request body exceeds twice the configured chat prompt limit (256 KiB by default)",
+                        "description": "Request body exceeds 256 KiB",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -19589,9 +19589,11 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "debug_max_body_bytes": {
+                    "description": "DebugMaxBodyBytes bounds accumulated streamed model output and each\nrecorded provider HTTP body in chat debug runs.",
                     "type": "integer"
                 },
                 "debug_max_text_runes": {
+                    "description": "DebugMaxTextRunes bounds each text, argument, and result field kept\nin chat debug records.",
                     "type": "integer"
                 },
                 "hook_allow_insecure": {
@@ -19610,28 +19612,35 @@ const docTemplate = `{
                     "$ref": "#/definitions/serpent.URL"
                 },
                 "max_attachments_per_chat": {
+                    "description": "MaxAttachmentsPerChat bounds the files linked to one chat.",
                     "type": "integer"
                 },
                 "max_concurrent_recording_uploads": {
+                    "description": "MaxConcurrentRecordingUploads bounds the virtual desktop recordings\nchatd stores concurrently.",
                     "type": "integer"
                 },
                 "max_dynamic_tools_per_chat": {
+                    "description": "MaxDynamicToolsPerChat bounds the client-provided dynamic tools a\nchat is created with.",
                     "type": "integer"
                 },
                 "max_generation_retries": {
+                    "description": "MaxGenerationRetries bounds how many times a turn retries a model\ncall that failed with a transient provider error.",
                     "type": "integer"
                 },
                 "max_prompt_bytes": {
+                    "description": "MaxPromptBytes bounds the deployment system prompt, plan mode\ninstructions, and per-user custom prompts.",
                     "type": "integer"
                 },
                 "max_queued_messages_per_chat": {
+                    "description": "MaxQueuedMessagesPerChat bounds the user messages waiting in a\nchat's queue while a turn runs.",
                     "type": "integer"
                 },
                 "max_steps_per_turn": {
-                    "description": "Limits bound chat turns and stored payloads. Defaults are the\nDefaultChat* constants; the zero value means \"use the default\" so\ncallers can leave them unset.",
+                    "description": "MaxStepsPerTurn bounds the model and tool steps one turn may run.",
                     "type": "integer"
                 },
                 "max_tool_output_bytes": {
+                    "description": "MaxToolOutputBytes bounds the command output the execute and\nprocess tools return to the model.",
                     "type": "integer"
                 }
             }

@@ -5231,6 +5231,8 @@ type AIBridgeProxyConfig struct {
 	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
+// ChatConfig configures Coder Agents chats. A zero limit selects the
+// matching DefaultChat* constant.
 type ChatConfig struct {
 	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
 	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
@@ -5239,19 +5241,34 @@ type ChatConfig struct {
 	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
 	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
 	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
-	// Limits bound chat turns and stored payloads. Defaults are the
-	// DefaultChat* constants; the zero value means "use the default" so
-	// callers can leave them unset.
-	MaxStepsPerTurn               serpent.Int64 `json:"max_steps_per_turn" typescript:",notnull"`
-	MaxGenerationRetries          serpent.Int64 `json:"max_generation_retries" typescript:",notnull"`
-	MaxQueuedMessagesPerChat      serpent.Int64 `json:"max_queued_messages_per_chat" typescript:",notnull"`
-	MaxAttachmentsPerChat         serpent.Int64 `json:"max_attachments_per_chat" typescript:",notnull"`
-	MaxPromptBytes                serpent.Int64 `json:"max_prompt_bytes" typescript:",notnull"`
-	MaxDynamicToolsPerChat        serpent.Int64 `json:"max_dynamic_tools_per_chat" typescript:",notnull"`
-	MaxToolOutputBytes            serpent.Int64 `json:"max_tool_output_bytes" typescript:",notnull"`
+	// MaxStepsPerTurn bounds the model and tool steps one turn may run.
+	MaxStepsPerTurn serpent.Int64 `json:"max_steps_per_turn" typescript:",notnull"`
+	// MaxGenerationRetries bounds how many times a turn retries a model
+	// call that failed with a transient provider error.
+	MaxGenerationRetries serpent.Int64 `json:"max_generation_retries" typescript:",notnull"`
+	// MaxQueuedMessagesPerChat bounds the user messages waiting in a
+	// chat's queue while a turn runs.
+	MaxQueuedMessagesPerChat serpent.Int64 `json:"max_queued_messages_per_chat" typescript:",notnull"`
+	// MaxAttachmentsPerChat bounds the files linked to one chat.
+	MaxAttachmentsPerChat serpent.Int64 `json:"max_attachments_per_chat" typescript:",notnull"`
+	// MaxPromptBytes bounds the deployment system prompt, plan mode
+	// instructions, and per-user custom prompts.
+	MaxPromptBytes serpent.Int64 `json:"max_prompt_bytes" typescript:",notnull"`
+	// MaxDynamicToolsPerChat bounds the client-provided dynamic tools a
+	// chat is created with.
+	MaxDynamicToolsPerChat serpent.Int64 `json:"max_dynamic_tools_per_chat" typescript:",notnull"`
+	// MaxToolOutputBytes bounds the command output the execute and
+	// process tools return to the model.
+	MaxToolOutputBytes serpent.Int64 `json:"max_tool_output_bytes" typescript:",notnull"`
+	// MaxConcurrentRecordingUploads bounds the virtual desktop recordings
+	// chatd stores concurrently.
 	MaxConcurrentRecordingUploads serpent.Int64 `json:"max_concurrent_recording_uploads" typescript:",notnull"`
-	DebugMaxTextRunes             serpent.Int64 `json:"debug_max_text_runes" typescript:",notnull"`
-	DebugMaxBodyBytes             serpent.Int64 `json:"debug_max_body_bytes" typescript:",notnull"`
+	// DebugMaxTextRunes bounds each text, argument, and result field kept
+	// in chat debug records.
+	DebugMaxTextRunes serpent.Int64 `json:"debug_max_text_runes" typescript:",notnull"`
+	// DebugMaxBodyBytes bounds accumulated streamed model output and each
+	// recorded provider HTTP body in chat debug runs.
+	DebugMaxBodyBytes serpent.Int64 `json:"debug_max_body_bytes" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`

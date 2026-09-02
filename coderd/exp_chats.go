@@ -68,6 +68,14 @@ import (
 const (
 	chatStreamBatchSize = 256
 
+	// maxChatRequestBodyBytes caps JSON bodies that carry dynamic tool
+	// schemas or tool results, which are unrelated to the prompt limit.
+	maxChatRequestBodyBytes = 256 * 1024
+	// chatPromptRequestEnvelopeBytes covers the JSON field names and
+	// quoting around a prompt so a small prompt limit cannot reject
+	// structurally valid bodies.
+	chatPromptRequestEnvelopeBytes = 1024
+
 	chatContextLimitModelConfigKey                = "context_limit"
 	chatContextCompressionThresholdModelConfigKey = "context_compression_threshold"
 	defaultChatContextCompressionThreshold        = int32(70)
@@ -1186,7 +1194,7 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 // @Produce json
 // @Param request body codersdk.CreateChatRequest true "Create chat request"
 // @Success 201 {object} codersdk.Chat
-// @Failure 413 {object} codersdk.Response "Request body exceeds twice the configured chat prompt limit (256 KiB by default)"
+// @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
 // @Router /api/v2/chats [post]
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1198,7 +1206,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	// Limit memory used to decode dynamic tool schemas.
 	var req codersdk.CreateChatRequest
-	if !httpapi.ReadLimit(ctx, rw, r, api.chatRequestBodyLimit(), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, maxChatRequestBodyBytes, &req) {
 		return
 	}
 
@@ -4435,7 +4443,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var req codersdk.UpdateChatSystemPromptRequest
-	if !httpapi.ReadLimit(ctx, rw, r, api.chatRequestBodyLimit(), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.chatPromptRequestBodyLimit(), &req) {
 		return
 	}
 	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
@@ -4589,7 +4597,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var req codersdk.UpdateChatPlanModeInstructionsRequest
-	if !httpapi.ReadLimit(ctx, rw, r, api.chatRequestBodyLimit(), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.chatPromptRequestBodyLimit(), &req) {
 		return
 	}
 
@@ -5935,7 +5943,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var params codersdk.UserChatCustomPrompt
-	if !httpapi.ReadLimit(ctx, rw, r, api.chatRequestBodyLimit(), &params) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.chatPromptRequestBodyLimit(), &params) {
 		return
 	}
 
@@ -6608,12 +6616,13 @@ func createChatInputFromParts(
 	return content, pasteData, nil
 }
 
-// chatRequestBodyLimit bounds JSON bodies that carry prompt-sized text
-// (chat creation, prompt settings, tool results). It allows twice the
-// prompt limit so payloads padded with characters that sanitize away
-// still decode, while keeping memory use proportional to the limit.
-func (api *API) chatRequestBodyLimit() int64 {
-	return int64(2 * api.chatLimits.MaxPromptBytes)
+// chatPromptRequestBodyLimit bounds JSON bodies that carry a prompt. It
+// allows twice the prompt limit so payloads padded with characters that
+// sanitize away still decode, plus the envelope allowance. The product
+// is computed in int64 because the limit may be up to MaxInt32 and int
+// is 32 bits on some release targets.
+func (api *API) chatPromptRequestBodyLimit() int64 {
+	return 2*int64(api.chatLimits.MaxPromptBytes) + chatPromptRequestEnvelopeBytes
 }
 
 func (api *API) writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
@@ -8139,7 +8148,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// Cap the raw request body to prevent excessive memory use.
 	var req codersdk.SubmitToolResultsRequest
 
-	if !httpapi.ReadLimit(ctx, rw, r, api.chatRequestBodyLimit(), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, maxChatRequestBodyBytes, &req) {
 		return
 	}
 

@@ -2101,6 +2101,10 @@ export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 ];
 
 // From codersdk/deployment.go
+/**
+ * ChatConfig configures Coder Agents chats. A zero limit selects the
+ * matching DefaultChat* constant.
+ */
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
@@ -2110,19 +2114,52 @@ export interface ChatConfig {
 	readonly hook_enabled: boolean;
 	readonly hook_allow_insecure: boolean;
 	/**
-	 * Limits bound chat turns and stored payloads. Defaults are the
-	 * DefaultChat* constants; the zero value means "use the default" so
-	 * callers can leave them unset.
+	 * MaxStepsPerTurn bounds the model and tool steps one turn may run.
 	 */
 	readonly max_steps_per_turn: number;
+	/**
+	 * MaxGenerationRetries bounds how many times a turn retries a model
+	 * call that failed with a transient provider error.
+	 */
 	readonly max_generation_retries: number;
+	/**
+	 * MaxQueuedMessagesPerChat bounds the user messages waiting in a
+	 * chat's queue while a turn runs.
+	 */
 	readonly max_queued_messages_per_chat: number;
+	/**
+	 * MaxAttachmentsPerChat bounds the files linked to one chat.
+	 */
 	readonly max_attachments_per_chat: number;
+	/**
+	 * MaxPromptBytes bounds the deployment system prompt, plan mode
+	 * instructions, and per-user custom prompts.
+	 */
 	readonly max_prompt_bytes: number;
+	/**
+	 * MaxDynamicToolsPerChat bounds the client-provided dynamic tools a
+	 * chat is created with.
+	 */
 	readonly max_dynamic_tools_per_chat: number;
+	/**
+	 * MaxToolOutputBytes bounds the command output the execute and
+	 * process tools return to the model.
+	 */
 	readonly max_tool_output_bytes: number;
+	/**
+	 * MaxConcurrentRecordingUploads bounds the virtual desktop recordings
+	 * chatd stores concurrently.
+	 */
 	readonly max_concurrent_recording_uploads: number;
+	/**
+	 * DebugMaxTextRunes bounds each text, argument, and result field kept
+	 * in chat debug records.
+	 */
 	readonly debug_max_text_runes: number;
+	/**
+	 * DebugMaxBodyBytes bounds accumulated streamed model output and each
+	 * recorded provider HTTP body in chat debug runs.
+	 */
 	readonly debug_max_body_bytes: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this

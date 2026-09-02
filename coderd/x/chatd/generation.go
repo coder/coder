@@ -609,7 +609,7 @@ func (s *taskStarter) recordGenerationRetry(
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		decision.generationAttempt = chat.GenerationAttempt
-		if chat.GenerationAttempt <= 0 || chat.GenerationAttempt >= int64(s.server.limits().MaxGenerationRetries) {
+		if chat.GenerationAttempt <= 0 || chat.GenerationAttempt > int64(s.server.limits().MaxGenerationRetries) {
 			decision.retry = false
 			return errRetryStateDecisionOnly
 		}
