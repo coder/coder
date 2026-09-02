@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -305,17 +306,20 @@ func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueue
 	}, nil
 }
 
+// resolveQueuedMessageModelConfigID mirrors the send path: a queued
+// selection survives promotion only while the chat can still use it.
+// Built-in chats fall back to the organization default; external
+// runtimes fall back to no selection (the runtime default chain) and
+// must never inherit the organization default.
 func (tx *Tx) resolveQueuedMessageModelConfigID(
 	chat database.Chat,
 	queued database.ChatQueuedMessage,
 ) (uuid.NullUUID, error) {
 	//nolint:gocritic // Queue promotion needs daemon access to deployment model configuration.
 	ctx := dbauthz.AsChatd(tx.ctx)
+	harness, external := chatacp.HarnessFor(codersdk.ChatRuntime(chat.Runtime))
 	if queued.ModelConfigID.Valid {
 		config, err := tx.store.GetEnabledChatModelConfigByID(ctx, queued.ModelConfigID.UUID)
-		if err == nil && config.OrganizationID == chat.OrganizationID {
-			return queued.ModelConfigID, nil
-		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return uuid.NullUUID{}, xerrors.Errorf(
 				"get chat model config %s: %w",
@@ -323,6 +327,25 @@ func (tx *Tx) resolveQueuedMessageModelConfigID(
 				err,
 			)
 		}
+		if err == nil && config.OrganizationID == chat.OrganizationID {
+			if !external {
+				return queued.ModelConfigID, nil
+			}
+			provider, err := tx.store.GetAIProviderByID(ctx, config.AIProviderID.UUID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return uuid.NullUUID{}, xerrors.Errorf(
+					"get ai provider for chat model config %s: %w",
+					queued.ModelConfigID.UUID,
+					err,
+				)
+			}
+			if err == nil && provider.Type == database.AIProviderType(harness.ProviderType) {
+				return queued.ModelConfigID, nil
+			}
+		}
+	}
+	if external {
+		return uuid.NullUUID{}, nil
 	}
 
 	configs, err := tx.store.GetEnabledChatModelConfigsByOrganization(ctx, chat.OrganizationID)

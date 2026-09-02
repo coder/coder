@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -173,6 +174,58 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		require.Equal(t, chatstate.StateE1, f.classify(ctx, t, created.Chat.ID))
 	})
 
+	// External runtime chats resolve their default at turn time from the
+	// runtime config, so promotion must never stamp the organization
+	// default on them.
+	for _, harness := range chatacp.Harnesses() {
+		runtime := database.ChatRuntime(harness.Runtime)
+		providerType := database.AIProviderType(harness.ProviderType)
+		otherProviderType := database.AIProviderTypeAnthropic
+		if providerType == otherProviderType {
+			otherProviderType = database.AIProviderTypeOpenai
+		}
+		harnessModel := func(t *testing.T, f *testFixture, providerType database.AIProviderType) database.ChatModelConfig {
+			t.Helper()
+			provider := dbgen.AIProvider(t, f.DB, database.AIProvider{Type: providerType})
+			return dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
+				OrganizationID: f.Org.ID,
+				AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			})
+		}
+
+		t.Run(string(runtime)+" without selection stays unstamped", func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			promoted := promoteQueuedMessage(t, f, runtime, uuid.NullUUID{})
+			require.False(t, promoted.ModelConfigID.Valid)
+		})
+
+		t.Run(string(runtime)+" keeps harness provider selection", func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			selected := harnessModel(t, f, providerType)
+			promoted := promoteQueuedMessage(t, f, runtime, uuid.NullUUID{UUID: selected.ID, Valid: true})
+			require.Equal(t, uuid.NullUUID{UUID: selected.ID, Valid: true}, promoted.ModelConfigID)
+		})
+
+		t.Run(string(runtime)+" drops other provider selection", func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			selected := harnessModel(t, f, otherProviderType)
+			promoted := promoteQueuedMessage(t, f, runtime, uuid.NullUUID{UUID: selected.ID, Valid: true})
+			require.False(t, promoted.ModelConfigID.Valid)
+		})
+
+		t.Run(string(runtime)+" drops disabled selection", func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			selected := harnessModel(t, f, providerType)
+			setChatModelConfigEnabled(t, f.DB, selected, false)
+			promoted := promoteQueuedMessage(t, f, runtime, uuid.NullUUID{UUID: selected.ID, Valid: true})
+			require.False(t, promoted.ModelConfigID.Valid)
+		})
+	}
+
 	t.Run("database error rejects promotion", func(t *testing.T) {
 		t.Parallel()
 		f := newTestFixture(t)
@@ -226,13 +279,38 @@ func promoteQueuedMessageWithModel(
 	modelConfigID uuid.UUID,
 ) database.ChatMessage {
 	t.Helper()
+	promoted := promoteQueuedMessage(t, f, database.ChatRuntimeCoder, uuid.NullUUID{UUID: modelConfigID, Valid: true})
+	require.True(t, promoted.ModelConfigID.Valid)
+	return promoted
+}
+
+// promoteQueuedMessage queues one message carrying modelConfigID on a
+// fresh chat of the given runtime, fails the initial turn, promotes the
+// queued message, and returns the promoted history row.
+func promoteQueuedMessage(
+	t *testing.T,
+	f *testFixture,
+	runtime database.ChatRuntime,
+	modelConfigID uuid.NullUUID,
+) database.ChatMessage {
+	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	message := userTextMessage("queued model resolution", f.User.ID, modelConfigID)
+	created, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+		OrganizationID: f.Org.ID,
+		OwnerID:        f.User.ID,
+		Runtime:        runtime,
+		Title:          "queued model resolution",
+		ClientType:     database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			userTextMessage("hello", f.User.ID, f.Model.ID),
+		},
+	})
+	require.NoError(t, err)
+	message := userTextMessage("queued model resolution", f.User.ID, uuid.Nil)
 	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
 		ChatID:        created.Chat.ID,
 		Content:       message.Content.RawMessage,
-		ModelConfigID: message.ModelConfigID,
+		ModelConfigID: modelConfigID,
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
@@ -252,9 +330,7 @@ func promoteQueuedMessageWithModel(
 		return err
 	}))
 	require.NotNil(t, result.InsertedMessage)
-	promoted := requireChatMessageByID(ctx, t, f, result.InsertedMessage.ID)
-	require.True(t, promoted.ModelConfigID.Valid)
-	return promoted
+	return requireChatMessageByID(ctx, t, f, result.InsertedMessage.ID)
 }
 
 func setChatModelConfigEnabled(
