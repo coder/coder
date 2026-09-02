@@ -131,6 +131,7 @@ const ActiveRoleSelectorDialog: React.FC<{
 						onCancel={onCancel}
 						onConfirm={() => onUpdateRoles([...selectedRoles])}
 						confirmLoading={isUpdatingRoles}
+						confirmDisabled={loading || Boolean(error)}
 					/>
 				</DialogFooter>
 			</DialogContent>

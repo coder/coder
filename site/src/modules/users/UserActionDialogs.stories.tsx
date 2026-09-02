@@ -52,6 +52,9 @@ export const EditRolesLoading: Story = {
 		// selectable role is available yet.
 		await within(dialog).findByText("Member");
 		await expect(within(dialog).queryAllByRole("checkbox")).toHaveLength(0);
+		await expect(
+			within(dialog).getByRole("button", { name: "Confirm" }),
+		).toBeDisabled();
 	},
 };
 
@@ -68,6 +71,9 @@ export const EditRolesError: Story = {
 		const dialog = await within(document.body).findByRole("dialog");
 		await within(dialog).findByText("Failed to fetch assignable roles.");
 		await expect(within(dialog).queryAllByRole("checkbox")).toHaveLength(0);
+		await expect(
+			within(dialog).getByRole("button", { name: "Confirm" }),
+		).toBeDisabled();
 		await expect(within(dialog).queryByText("Member")).not.toBeInTheDocument();
 	},
 };
