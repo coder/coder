@@ -3,7 +3,6 @@ package chatd
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -62,122 +61,68 @@ func TestWaitForACPAdapter(t *testing.T) {
 	t.Parallel()
 
 	adapterMissing := xerrors.New("exit status 1")
+	// Every failed non-final probe arms exactly one poll timer, so the
+	// clock choreography follows from wantProbes alone.
+	tests := []struct {
+		name string
+		// succeedOnProbe is the probe that finds the adapter; 0 never does.
+		succeedOnProbe int
+		// settledAfterProbes marks the scripts settled once that many
+		// probes have run; -1 keeps them running.
+		settledAfterProbes int
+		wantProbes         int
+		wantErr            bool
+	}{
+		{name: "RetriesWhileScriptsRun", succeedOnProbe: 3, settledAfterProbes: -1, wantProbes: 3},
+		{name: "SettledScriptsFailImmediately", settledAfterProbes: 0, wantProbes: 1, wantErr: true},
+		{name: "DeadlineBoundsUnsettledScripts", settledAfterProbes: -1, wantProbes: int(acpWorkspaceReadyTimeout/acpWorkspacePollInterval) + 1, wantErr: true},
+		{name: "ScriptsSettlingAfterFailedProbeReprobes", succeedOnProbe: 2, settledAfterProbes: 1, wantProbes: 2},
+	}
+	for _, harness := range testHarnesses {
+		t.Run(string(harness.Runtime), func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range tests {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitShort)
+					clock := quartz.NewMock(t)
+					deadline := clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
+					trap := clock.Trap().NewTimer("chatworker", "chatacp-preflight")
+					defer trap.Close()
 
-	t.Run("RetriesWhileScriptsRun", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		clock := quartz.NewMock(t)
-		deadline := clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
-		trap := clock.Trap().NewTimer("chatworker", "chatacp-preflight")
-		defer trap.Close()
+					probes := 0
+					probe := func(context.Context) error {
+						probes++
+						if probes == tc.succeedOnProbe {
+							return nil
+						}
+						return adapterMissing
+					}
+					settled := func(context.Context) bool {
+						return tc.settledAfterProbes >= 0 && probes >= tc.settledAfterProbes
+					}
 
-		probes := 0
-		probe := func(context.Context) error {
-			probes++
-			if probes >= 3 {
-				return nil
+					done := make(chan error, 1)
+					go func() {
+						done <- waitForACPAdapter(ctx, clock, harness, deadline, probe, settled)
+					}()
+					for range tc.wantProbes - 1 {
+						trap.MustWait(ctx).MustRelease(ctx)
+						clock.Advance(acpWorkspacePollInterval).MustWait(ctx)
+					}
+					err := testutil.RequireReceive(ctx, t, done)
+					require.Equal(t, tc.wantProbes, probes)
+					if !tc.wantErr {
+						require.NoError(t, err)
+						return
+					}
+					classified := chaterror.Classify(err)
+					require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+					require.Contains(t, classified.Message, "the "+harness.DisplayName+" adapter ("+harness.Command+")")
+				})
 			}
-			return adapterMissing
-		}
-
-		done := make(chan error, 1)
-		go func() {
-			done <- waitForACPAdapter(ctx, clock, testHarness, deadline, probe,
-				func(context.Context) bool { return false })
-		}()
-
-		for range 2 {
-			call := trap.MustWait(ctx)
-			call.MustRelease(ctx)
-			clock.Advance(acpWorkspacePollInterval).MustWait(ctx)
-		}
-		require.NoError(t, testutil.RequireReceive(ctx, t, done))
-		require.Equal(t, 3, probes)
-	})
-
-	t.Run("SettledScriptsFailImmediately", func(t *testing.T) {
-		t.Parallel()
-		for _, harness := range testHarnesses {
-			t.Run(string(harness.Runtime), func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitShort)
-				clock := quartz.NewMock(t)
-				deadline := clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
-
-				probes := 0
-				err := waitForACPAdapter(ctx, clock, harness, deadline,
-					func(context.Context) error { probes++; return adapterMissing },
-					func(context.Context) bool { return true })
-				require.Error(t, err)
-				require.Equal(t, 1, probes)
-				classified := chaterror.Classify(err)
-				require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
-				require.Contains(t, classified.Message, "the "+harness.DisplayName+" adapter ("+harness.Command+")")
-			})
-		}
-	})
-
-	t.Run("DeadlineBoundsUnsettledScripts", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		clock := quartz.NewMock(t)
-		deadline := clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
-		trap := clock.Trap().NewTimer("chatworker", "chatacp-preflight")
-		defer trap.Close()
-
-		done := make(chan error, 1)
-		go func() {
-			done <- waitForACPAdapter(ctx, clock, testHarness, deadline,
-				func(context.Context) error { return adapterMissing },
-				func(context.Context) bool { return false })
-		}()
-
-		elapsed := time.Duration(0)
-		for elapsed < acpWorkspaceReadyTimeout {
-			call := trap.MustWait(ctx)
-			call.MustRelease(ctx)
-			clock.Advance(acpWorkspacePollInterval).MustWait(ctx)
-			elapsed += acpWorkspacePollInterval
-		}
-		err := testutil.RequireReceive(ctx, t, done)
-		require.Error(t, err)
-		classified := chaterror.Classify(err)
-		require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
-	})
-
-	t.Run("ScriptsSettlingAfterFailedProbeReprobes", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		clock := quartz.NewMock(t)
-		deadline := clock.Now("chatworker", "chatacp-readiness").Add(acpWorkspaceReadyTimeout)
-		trap := clock.Trap().NewTimer("chatworker", "chatacp-preflight")
-		defer trap.Close()
-
-		probes := 0
-		probe := func(context.Context) error {
-			probes++
-			if probes >= 2 {
-				return nil
-			}
-			return adapterMissing
-		}
-		settledCalls := 0
-		settled := func(context.Context) bool {
-			settledCalls++
-			return settledCalls > 1
-		}
-
-		done := make(chan error, 1)
-		go func() {
-			done <- waitForACPAdapter(ctx, clock, testHarness, deadline, probe, settled)
-		}()
-
-		call := trap.MustWait(ctx)
-		call.MustRelease(ctx)
-		clock.Advance(acpWorkspacePollInterval).MustWait(ctx)
-		require.NoError(t, testutil.RequireReceive(ctx, t, done))
-		require.Equal(t, 2, probes)
-	})
+		})
+	}
 }
 
 func acpMessage(t *testing.T, id int64, role database.ChatMessageRole, part codersdk.ChatMessagePart) database.ChatMessage {
