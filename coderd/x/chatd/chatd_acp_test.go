@@ -284,56 +284,6 @@ func replyingFakeAgent(text string) *chatacptest.FakeAgent {
 	return agent
 }
 
-func TestACPChatTurn(t *testing.T) {
-	t.Parallel()
-
-	forEachHarness(t, func(t *testing.T, harness chatacp.Harness) {
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
-		fakeAgent := replyingFakeAgent("Hello from the agent")
-
-		created := createACPChat(ctx, t, db, ps, setup, "hello agent")
-		_ = newActiveTestServer(t, db, ps, acpConfigOverrides(t, setup, fakeAgent, primaryCredentials(acpTestPinnedModel)))
-
-		chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
-		require.Equal(t, database.ChatStatusWaiting, chat.Status)
-		require.False(t, chat.LastError.Valid)
-
-		modes := fakeAgent.Modes()
-		require.Len(t, modes, 1)
-		require.Equal(t, acp.SessionModeId("acceptEdits"), modes[0].ModeId)
-
-		prompts := fakeAgent.Prompts()
-		require.Len(t, prompts, 1)
-		require.Equal(t, "hello agent", prompts[0].Prompt[0].Text.Text)
-		sessions := fakeAgent.NewSessions()
-		require.Len(t, sessions, 1)
-		require.Equal(t, "/home/coder/project", sessions[0].Cwd)
-
-		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.Chat.ID})
-		require.NoError(t, err)
-		require.Len(t, messages, 2)
-		require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
-		parts, err := chatprompt.ParseContent(messages[1])
-		require.NoError(t, err)
-		require.Len(t, parts, 1)
-		require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
-		require.Equal(t, "Hello from the agent", parts[0].Text)
-		require.Equal(t, int64(11), messages[1].InputTokens.Int64)
-		require.Equal(t, int64(7), messages[1].OutputTokens.Int64)
-
-		state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
-		require.Equal(t, "session-new", state.SessionID)
-		require.Equal(t, "/home/coder/project", state.Cwd)
-		require.Equal(t, []codersdk.ChatRuntimeCommand{
-			{Name: "review", Description: "Review the current diff", InputHint: "pr number"},
-			{Name: "init", Description: "Create a project guide"},
-		}, state.AvailableCommands)
-	})
-}
-
 func TestACPChatResumesSession(t *testing.T) {
 	t.Parallel()
 
@@ -447,10 +397,11 @@ func TestACPChatMissingRuntimeConfigFails(t *testing.T) {
 	})
 }
 
-// TestACPChatTurnCredentials is the behavior matrix over acpTurnConfig:
-// which credentials, model, session mode, and message stamp result from
-// the organization config and the message's model selection.
-func TestACPChatTurnCredentials(t *testing.T) {
+// TestACPChatTurn is the end-to-end turn contract and the behavior
+// matrix over acpTurnConfig: which credentials, model, session mode, and
+// message stamp result from the organization config and the message's
+// model selection.
+func TestACPChatTurn(t *testing.T) {
 	t.Parallel()
 
 	forEachHarness(t, func(t *testing.T, harness chatacp.Harness) {
@@ -565,7 +516,12 @@ func TestACPChatTurnCredentials(t *testing.T) {
 				chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 				require.Equal(t, database.ChatStatusWaiting, chat.Status)
 				require.False(t, chat.LastError.Valid)
-				require.Len(t, fakeAgent.Prompts(), 1)
+				prompts := fakeAgent.Prompts()
+				require.Len(t, prompts, 1)
+				require.Equal(t, "hello", prompts[0].Prompt[0].Text.Text)
+				sessions := fakeAgent.NewSessions()
+				require.Len(t, sessions, 1)
+				require.Equal(t, "/home/coder/project", sessions[0].Cwd)
 
 				modes := fakeAgent.Modes()
 				if tc.wantMode == "" {
@@ -579,10 +535,23 @@ func TestACPChatTurnCredentials(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, messages, 2)
 				require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
+				parts, err := chatprompt.ParseContent(messages[1])
+				require.NoError(t, err)
+				require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("reply")}, parts)
+				require.Equal(t, int64(11), messages[1].InputTokens.Int64)
+				require.Equal(t, int64(7), messages[1].OutputTokens.Int64)
 				require.Equal(t, wantStamp, messages[1].ModelConfigID)
 				// The applied selection groups token analytics; these turns
 				// carry no cost.
 				require.False(t, messages[1].TotalCostMicros.Valid)
+
+				state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
+				require.Equal(t, "session-new", state.SessionID)
+				require.Equal(t, "/home/coder/project", state.Cwd)
+				require.Equal(t, []codersdk.ChatRuntimeCommand{
+					{Name: "review", Description: "Review the current diff", InputHint: "pr number"},
+					{Name: "init", Description: "Create a project guide"},
+				}, state.AvailableCommands)
 			})
 		}
 	})
