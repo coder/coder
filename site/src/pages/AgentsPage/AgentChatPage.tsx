@@ -1333,53 +1333,24 @@ const AgentChatPage: FC = () => {
 		? filterModelOptionsForRuntime(modelOptions, chatRuntime)
 		: modelOptions;
 	// Validate explicit and historical choices against organization options.
-	// Prefer the usable organization default before another organization model.
-	const effectiveSelectedModel = (() => {
-		if (isRuntimeChat) {
-			// Empty selects the runtime default, but an untouched picker reuses
-			// the chat's last model until the user explicitly clears it.
-			const resolvedSelectedModel = resolveModelOptionId(
-				selectedModel,
-				selectableModelOptions,
-			);
-			if (resolvedSelectedModel) {
-				return resolvedSelectedModel;
-			}
-			if (clearedModelToDefault) {
-				return "";
-			}
-			return resolveModelOptionId(
-				chatLastModelConfigID,
-				selectableModelOptions,
-			);
-		}
-
-		const resolvedSelectedModel = resolveModelOptionId(
-			selectedModel,
-			modelOptions,
-		);
-		if (resolvedSelectedModel) {
-			return resolvedSelectedModel;
-		}
-
-		const resolvedChatModel = resolveModelOptionId(
-			chatLastModelConfigID,
-			modelOptions,
-		);
-		if (resolvedChatModel) {
-			return resolvedChatModel;
-		}
-
-		return (
-			getUsableDefaultModelIDForOrganization(
-				models,
-				modelOptions,
-				chatOrganizationId,
-			) ||
-			modelOptions[0]?.id ||
-			""
-		);
-	})();
+	// An untouched picker reuses the chat's last model. Runtime chats fall
+	// back to the runtime default (empty) once the user clears the picker;
+	// coder chats prefer the usable organization default before another
+	// organization model.
+	const effectiveSelectedModel =
+		resolveModelOptionId(selectedModel, selectableModelOptions) ||
+		(isRuntimeChat && clearedModelToDefault
+			? ""
+			: resolveModelOptionId(chatLastModelConfigID, selectableModelOptions)) ||
+		(isRuntimeChat
+			? ""
+			: getUsableDefaultModelIDForOrganization(
+					models,
+					modelOptions,
+					chatOrganizationId,
+				) ||
+				modelOptions[0]?.id ||
+				"");
 	const hasModelOptions = selectableModelOptions.length > 0;
 	const hasResolvedModelData =
 		!isModelDataPending &&
