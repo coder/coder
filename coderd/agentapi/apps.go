@@ -167,22 +167,33 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)
 
-	// Get the latest status for the workspace app to detect no-op updates
-	// nolint:gocritic // This is a system restricted operation.
-	latestAppStatus, err := a.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get latest workspace app status.",
-			Detail:  err.Error(),
-		})
-	}
-	// If no rows found, latestAppStatus will be a zero-value struct (ID == uuid.Nil)
+	// Serialize writes per app so the duplicate check doesn't act on a stale
+	// read while a concurrent report commits.
+	var (
+		latestAppStatus database.WorkspaceAppStatus
+		inserted        bool
+	)
+	err = a.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, database.GenLockID("workspace_app_status_writes:"+app.ID.String())); err != nil {
+			return xerrors.Errorf("acquire lock: %w", err)
+		}
 
-	// Skip duplicate reports (e.g. the watcher re-reporting idle) so
-	// workspace_app_statuses doesn't grow unboundedly.
-	if !isDuplicateAppStatus(latestAppStatus, dbState, cleaned, req.Uri) {
 		// nolint:gocritic // This is a system restricted operation.
-		_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+		latest, err := tx.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get latest workspace app status: %w", err)
+		}
+		// If no rows were found, latest is a zero-value struct (ID == uuid.Nil).
+		latestAppStatus = latest
+
+		// Skip duplicate reports (e.g. the watcher re-reporting idle) so
+		// workspace_app_statuses doesn't grow unboundedly.
+		if isDuplicateAppStatus(latestAppStatus, dbState, cleaned, req.Uri) {
+			return nil
+		}
+
+		// nolint:gocritic // This is a system restricted operation.
+		_, err = tx.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 			ID:          uuid.New(),
 			CreatedAt:   dbtime.Now(),
 			WorkspaceID: ws.ID,
@@ -196,20 +207,25 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 			},
 		})
 		if err != nil {
+			return xerrors.Errorf("insert workspace app status: %w", err)
+		}
+		inserted = true
+		return nil
+	}, &database.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update workspace app status.",
+			Detail:  err.Error(),
+		})
+	}
+
+	if inserted && a.PublishWorkspaceUpdateFn != nil {
+		err = a.PublishWorkspaceUpdateFn(ctx, a.AgentID, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
+		if err != nil {
 			return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to insert workspace app status.",
+				Message: "Failed to publish workspace update.",
 				Detail:  err.Error(),
 			})
-		}
-
-		if a.PublishWorkspaceUpdateFn != nil {
-			err = a.PublishWorkspaceUpdateFn(ctx, a.AgentID, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
-			if err != nil {
-				return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to publish workspace update.",
-					Detail:  err.Error(),
-				})
-			}
 		}
 	}
 
