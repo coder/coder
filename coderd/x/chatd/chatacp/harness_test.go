@@ -9,11 +9,40 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// TestHarnessFor pins which runtimes exist and how each pairs with its
+// adapter and provider; the behavior tests derive fixtures from these
+// rows, so nothing else would notice a swapped pairing.
 func TestHarnessFor(t *testing.T) {
 	t.Parallel()
 
 	_, ok := chatacp.HarnessFor(codersdk.ChatRuntimeCoder)
 	require.False(t, ok, "the built-in runtime has no harness")
+
+	want := []chatacp.Harness{
+		{
+			Runtime:       codersdk.ChatRuntimeClaudeCode,
+			DisplayName:   "Claude Code",
+			Command:       "claude-agent-acp",
+			ProviderType:  codersdk.AIProviderTypeAnthropic,
+			ProviderLabel: "Anthropic",
+		},
+		{
+			Runtime:            codersdk.ChatRuntimeCodex,
+			DisplayName:        "Codex",
+			Command:            "codex-acp",
+			ProviderType:       codersdk.AIProviderTypeOpenAI,
+			ProviderLabel:      "OpenAI",
+			DefaultSessionMode: "agent-full-access",
+		},
+	}
+	require.Len(t, chatacp.Harnesses(), len(want))
+	for _, tc := range want {
+		harness, ok := chatacp.HarnessFor(tc.Runtime)
+		require.True(t, ok, tc.Runtime)
+		require.NotNil(t, harness.Env, tc.Runtime)
+		harness.Env = nil
+		require.Equal(t, tc, harness)
+	}
 }
 
 // TestHarnessEnv is the executable contract with claude-agent-acp and
