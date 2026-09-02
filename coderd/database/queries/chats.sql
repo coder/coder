@@ -898,7 +898,7 @@ FROM chats_expanded;
 -- Returns the inserted rows in input array order. Ids are allocated before the
 -- insert and the k-th smallest is assigned to input index k, so callers may
 -- index the result positionally.
-WITH batch AS (
+WITH selection AS (
     SELECT
         (
             SELECT val
@@ -909,6 +909,19 @@ WITH batch AS (
             LIMIT 1
         ) AS last_model_config_id,
         (
+            SELECT NULLIF((@model_config_id::uuid[])[ord::int], '00000000-0000-0000-0000-000000000000'::uuid)
+            FROM UNNEST(@role::chat_message_role[])
+                WITH ORDINALITY AS t(role, ord)
+            WHERE role = 'user'::chat_message_role
+            ORDER BY ord DESC
+            LIMIT 1
+        ) AS last_user_model_config_id,
+        EXISTS (
+            SELECT 1
+            FROM UNNEST(@role::chat_message_role[]) AS t(role)
+            WHERE role = 'user'::chat_message_role
+        ) AS has_user_row,
+        (
             SELECT NULLIF(val, '')::chat_reasoning_effort
             FROM UNNEST(@reasoning_effort::text[])
                 WITH ORDINALITY AS t(val, ord)
@@ -917,18 +930,33 @@ WITH batch AS (
             LIMIT 1
         ) AS last_reasoning_effort
 ),
+batch AS (
+    SELECT
+        CASE
+            -- On external runtime chats a user message without a selection
+            -- means the runtime default, so the newest user row is
+            -- authoritative and clears the remembered pick. Built-in chats
+            -- keep the newest selection because their rows always carry one.
+            WHEN chats.runtime != 'coder'::chat_runtime AND selection.has_user_row
+                THEN selection.last_user_model_config_id
+            ELSE COALESCE(selection.last_model_config_id, chats.last_model_config_id)
+        END AS last_model_config_id,
+        COALESCE(selection.last_reasoning_effort, chats.last_reasoning_effort) AS last_reasoning_effort
+    FROM chats, selection
+    WHERE chats.id = @chat_id::uuid
+),
 updated_chat AS (
     UPDATE
         chats
     SET
-        last_model_config_id = COALESCE(batch.last_model_config_id, chats.last_model_config_id),
-        last_reasoning_effort = COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
+        last_model_config_id = batch.last_model_config_id,
+        last_reasoning_effort = batch.last_reasoning_effort
     FROM batch
     WHERE
         chats.id = @chat_id::uuid
         AND (
-            chats.last_model_config_id IS DISTINCT FROM COALESCE(batch.last_model_config_id, chats.last_model_config_id)
-            OR chats.last_reasoning_effort IS DISTINCT FROM COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
+            chats.last_model_config_id IS DISTINCT FROM batch.last_model_config_id
+            OR chats.last_reasoning_effort IS DISTINCT FROM batch.last_reasoning_effort
         )
 ),
 allocated AS MATERIALIZED (
@@ -1813,7 +1841,6 @@ inserted AS (
 SELECT
     (SELECT COUNT(*)::int FROM genuinely_new) -
     (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files;
-
 
 -- name: UpdateChatStatus :one
 WITH updated_chat AS (

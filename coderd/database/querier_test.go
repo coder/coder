@@ -12761,7 +12761,7 @@ func TestInsertChatMessages(t *testing.T) {
 		return modelConfig
 	}
 
-	setupChat := func(t *testing.T) (database.Store, context.Context, database.User, database.Chat, string, database.ChatModelConfig) {
+	setupChatWithRuntime := func(t *testing.T, runtime database.ChatRuntime) (database.Store, context.Context, database.User, database.Chat, string, database.ChatModelConfig) {
 		t.Helper()
 
 		store, _ := dbtestutil.NewDB(t)
@@ -12792,7 +12792,7 @@ func TestInsertChatMessages(t *testing.T) {
 		)
 
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
-			Runtime:           database.ChatRuntimeCoder,
+			Runtime:           runtime,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
@@ -12804,14 +12804,18 @@ func TestInsertChatMessages(t *testing.T) {
 
 		return store, ctx, user, chat, provider, modelConfigA
 	}
+	setupChat := func(t *testing.T) (database.Store, context.Context, database.User, database.Chat, string, database.ChatModelConfig) {
+		t.Helper()
+		return setupChatWithRuntime(t, database.ChatRuntimeCoder)
+	}
 
-	insertMessage := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, content string) {
+	insertMessageWithRole := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, role database.ChatMessageRole, content string) {
 		t.Helper()
 		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 			ChatID:              chatID,
 			CreatedBy:           []uuid.UUID{userID},
 			ModelConfigID:       []uuid.UUID{modelConfigID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+			Role:                []database.ChatMessageRole{role},
 			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
 			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
 			Content:             []string{fmt.Sprintf("%q", content)},
@@ -12826,6 +12830,10 @@ func TestInsertChatMessages(t *testing.T) {
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
+	}
+	insertMessage := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, content string) {
+		t.Helper()
+		insertMessageWithRole(t, store, ctx, chatID, userID, modelConfigID, database.ChatMessageRoleUser, content)
 	}
 
 	t.Run("ModelSwitchUpdatesLastModelConfigID", func(t *testing.T) {
@@ -12859,6 +12867,45 @@ func TestInsertChatMessages(t *testing.T) {
 		insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigA.ID, "same model")
 
 		gotChat, err := store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: modelConfigA.ID, Valid: true}, gotChat.LastModelConfigID)
+	})
+
+	// A user message without a selection on a built-in chat keeps the
+	// remembered model; the send path always resolves one for those rows.
+	t.Run("CoderUnselectedUserKeepsLastModelConfigID", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, _, modelConfigA := setupChat(t)
+
+		insertMessage(t, store, ctx, chat.ID, user.ID, uuid.Nil, "default")
+
+		gotChat, err := store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: modelConfigA.ID, Valid: true}, gotChat.LastModelConfigID)
+	})
+
+	// On external runtime chats an unselected user message means the
+	// runtime default, so it must clear the remembered pick, while rows
+	// the runtime generates never touch it.
+	t.Run("RuntimeUnselectedUserClearsLastModelConfigID", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, _, modelConfigA := setupChatWithRuntime(t, database.ChatRuntimeCodex)
+
+		insertMessage(t, store, ctx, chat.ID, user.ID, uuid.Nil, "default")
+
+		gotChat, err := store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.False(t, gotChat.LastModelConfigID.Valid)
+
+		insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigA.ID, "pick again")
+		gotChat, err = store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: modelConfigA.ID, Valid: true}, gotChat.LastModelConfigID)
+
+		insertMessageWithRole(t, store, ctx, chat.ID, uuid.Nil, uuid.Nil, database.ChatMessageRoleAssistant, "reply")
+		gotChat, err = store.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, uuid.NullUUID{UUID: modelConfigA.ID, Valid: true}, gotChat.LastModelConfigID)
 	})

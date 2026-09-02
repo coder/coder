@@ -10926,7 +10926,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 }
 
 const insertChatMessages = `-- name: InsertChatMessages :many
-WITH batch AS (
+WITH selection AS (
     SELECT
         (
             SELECT val
@@ -10937,26 +10937,54 @@ WITH batch AS (
             LIMIT 1
         ) AS last_model_config_id,
         (
+            SELECT NULLIF(($1::uuid[])[ord::int], '00000000-0000-0000-0000-000000000000'::uuid)
+            FROM UNNEST($2::chat_message_role[])
+                WITH ORDINALITY AS t(role, ord)
+            WHERE role = 'user'::chat_message_role
+            ORDER BY ord DESC
+            LIMIT 1
+        ) AS last_user_model_config_id,
+        EXISTS (
+            SELECT 1
+            FROM UNNEST($2::chat_message_role[]) AS t(role)
+            WHERE role = 'user'::chat_message_role
+        ) AS has_user_row,
+        (
             SELECT NULLIF(val, '')::chat_reasoning_effort
-            FROM UNNEST($2::text[])
+            FROM UNNEST($3::text[])
                 WITH ORDINALITY AS t(val, ord)
             WHERE val != ''
             ORDER BY ord DESC
             LIMIT 1
         ) AS last_reasoning_effort
 ),
+batch AS (
+    SELECT
+        CASE
+            -- On external runtime chats a user message without a selection
+            -- means the runtime default, so the newest user row is
+            -- authoritative and clears the remembered pick. Built-in chats
+            -- keep the newest selection because their rows always carry one.
+            WHEN chats.runtime != 'coder'::chat_runtime AND selection.has_user_row
+                THEN selection.last_user_model_config_id
+            ELSE COALESCE(selection.last_model_config_id, chats.last_model_config_id)
+        END AS last_model_config_id,
+        COALESCE(selection.last_reasoning_effort, chats.last_reasoning_effort) AS last_reasoning_effort
+    FROM chats, selection
+    WHERE chats.id = $4::uuid
+),
 updated_chat AS (
     UPDATE
         chats
     SET
-        last_model_config_id = COALESCE(batch.last_model_config_id, chats.last_model_config_id),
-        last_reasoning_effort = COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
+        last_model_config_id = batch.last_model_config_id,
+        last_reasoning_effort = batch.last_reasoning_effort
     FROM batch
     WHERE
-        chats.id = $3::uuid
+        chats.id = $4::uuid
         AND (
-            chats.last_model_config_id IS DISTINCT FROM COALESCE(batch.last_model_config_id, chats.last_model_config_id)
-            OR chats.last_reasoning_effort IS DISTINCT FROM COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
+            chats.last_model_config_id IS DISTINCT FROM batch.last_model_config_id
+            OR chats.last_reasoning_effort IS DISTINCT FROM batch.last_reasoning_effort
         )
 ),
 allocated AS MATERIALIZED (
@@ -10968,7 +10996,7 @@ allocated AS MATERIALIZED (
         (ROW_NUMBER() OVER (ORDER BY id))::int AS ord
     FROM (
         SELECT nextval('chat_messages_id_seq') AS id
-        FROM generate_series(1, cardinality($4::chat_message_role[]))
+        FROM generate_series(1, cardinality($2::chat_message_role[]))
     ) s
 ),
 inserted AS (
@@ -10994,11 +11022,11 @@ inserted AS (
     )
     SELECT
         allocated.id,
-        $3::uuid,
+        $4::uuid,
         NULLIF(($5::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
         NULLIF(($1::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
-        NULLIF(($2::text[])[allocated.ord], '')::chat_reasoning_effort,
-        ($4::chat_message_role[])[allocated.ord],
+        NULLIF(($3::text[])[allocated.ord], '')::chat_reasoning_effort,
+        ($2::chat_message_role[])[allocated.ord],
         ($6::text[])[allocated.ord]::jsonb,
         ($7::smallint[])[allocated.ord],
         ($8::chat_message_visibility[])[allocated.ord],
@@ -11021,9 +11049,9 @@ ORDER BY id
 
 type InsertChatMessagesParams struct {
 	ModelConfigID       []uuid.UUID             `db:"model_config_id" json:"model_config_id"`
+	Role                []ChatMessageRole       `db:"role" json:"role"`
 	ReasoningEffort     []string                `db:"reasoning_effort" json:"reasoning_effort"`
 	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
-	Role                []ChatMessageRole       `db:"role" json:"role"`
 	CreatedBy           []uuid.UUID             `db:"created_by" json:"created_by"`
 	Content             []string                `db:"content" json:"content"`
 	ContentVersion      []int16                 `db:"content_version" json:"content_version"`
@@ -11073,9 +11101,9 @@ type InsertChatMessagesRow struct {
 func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]InsertChatMessagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, insertChatMessages,
 		pq.Array(arg.ModelConfigID),
+		pq.Array(arg.Role),
 		pq.Array(arg.ReasoningEffort),
 		arg.ChatID,
-		pq.Array(arg.Role),
 		pq.Array(arg.CreatedBy),
 		pq.Array(arg.Content),
 		pq.Array(arg.ContentVersion),

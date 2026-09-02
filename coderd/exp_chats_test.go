@@ -2195,6 +2195,52 @@ func TestChatRuntimeRequests(t *testing.T) {
 		require.Equal(t, "Runtime chats support text content only.", sdkErr.Message)
 	})
 
+	// Default is a real choice on runtime chats: sending without a model
+	// must forget the previous explicit pick so a reload or another tab
+	// does not silently resend it past the admin pin.
+	t.Run("DefaultSendClearsLastModelConfigID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		harness, ok := chatacp.HarnessFor(codersdk.ChatRuntimeCodex)
+		require.True(t, ok)
+		model := createAdditionalChatModel(t, client, string(harness.ProviderType), "runtime-default-"+uuid.NewString())
+		runtimeChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			Runtime:        database.ChatRuntimeCodex,
+			Title:          "runtime default send",
+		})
+		waitNotRunning := func() codersdk.Chat {
+			var got codersdk.Chat
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				var err error
+				got, err = client.GetChat(ctx, runtimeChat.ID)
+				return err == nil && got.Status != codersdk.ChatStatusRunning
+			}, testutil.IntervalFast)
+			return got
+		}
+		send := func(modelConfigID *uuid.UUID) {
+			_, err := client.CreateChatMessage(ctx, runtimeChat.ID, codersdk.CreateChatMessageRequest{
+				ModelConfigID: modelConfigID,
+				Content:       []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "runtime send"}},
+			})
+			require.NoError(t, err)
+		}
+
+		waitNotRunning()
+		send(&model.ID)
+		got, err := client.GetChat(ctx, runtimeChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, &model.ID, got.LastModelConfigID)
+
+		waitNotRunning()
+		send(nil)
+		got, err = client.GetChat(ctx, runtimeChat.ID)
+		require.NoError(t, err)
+		require.Nil(t, got.LastModelConfigID)
+	})
+
 	t.Run("RejectsInvalidModelConfigsConsistently", func(t *testing.T) {
 		t.Parallel()
 
