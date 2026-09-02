@@ -146,7 +146,15 @@ const EditUserPage: FC = () => {
 			<UserActionDialogs
 				action={action}
 				onClose={() => setAction(undefined)}
-				onDeleted={() => {
+				onDeleted={(deletedUser) => {
+					queryClient.removeQueries({
+						queryKey: userKey(deletedUser.id),
+						exact: true,
+					});
+					queryClient.removeQueries({
+						queryKey: userKey(deletedUser.username),
+						exact: true,
+					});
 					navigate("..", { relative: "path" });
 				}}
 			/>
