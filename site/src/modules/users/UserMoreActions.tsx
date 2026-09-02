@@ -18,6 +18,8 @@ type UserMoreActionsProps = {
 	onAction: (action: UserAdminAction) => void;
 	canViewActivity?: boolean;
 	oidcRoleSyncEnabled?: boolean;
+	/** Hide the Edit item when the menu is already on the edit page. */
+	showEdit?: boolean;
 };
 
 export const UserMoreActions: FC<UserMoreActionsProps> = ({
@@ -26,6 +28,7 @@ export const UserMoreActions: FC<UserMoreActionsProps> = ({
 	onAction,
 	canViewActivity,
 	oidcRoleSyncEnabled,
+	showEdit = true,
 }) => {
 	return (
 		<DropdownMenu>
@@ -58,9 +61,11 @@ export const UserMoreActions: FC<UserMoreActionsProps> = ({
 					</DropdownMenuItem>
 				)}
 
-				<DropdownMenuItem asChild>
-					<Link to={user.username}>Edit</Link>
-				</DropdownMenuItem>
+				{showEdit && (
+					<DropdownMenuItem asChild>
+						<Link to={user.username}>Edit</Link>
+					</DropdownMenuItem>
+				)}
 
 				<DropdownMenuItem
 					disabled={user.login_type === "oidc" && oidcRoleSyncEnabled}
