@@ -1684,6 +1684,7 @@ None
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "docs_url": "string",
   "logo_url": "string",
   "service_banner": {
@@ -1708,6 +1709,7 @@ None
 |------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
 | `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
+| `codernauts_enabled`   | boolean                                                 | false    |              |                                                                     |
 | `docs_url`             | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
@@ -7501,6 +7503,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
+    "disable_user_secret_file_path": true,
     "disable_workspace_agent_context_sync": true,
     "disable_workspace_sharing": true,
     "docs_url": {
@@ -8133,6 +8136,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
+  "disable_user_secret_file_path": true,
   "disable_workspace_agent_context_sync": true,
   "disable_workspace_sharing": true,
   "docs_url": {
@@ -8532,6 +8536,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                           |
 | `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                           |
 | `disable_path_apps`                            | boolean                                                                                              | false    |              |                                                                           |
+| `disable_user_secret_file_path`                | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                           |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
@@ -14030,6 +14035,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "agents": [
+    {
+      "default": true,
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
   "description": "string",
   "icon": "string",
   "id": "string",
@@ -14055,6 +14067,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Name            | Type                                                                                      | Required | Restrictions | Description |
 |-----------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `agents`        | array of [codersdk.TemplateBuilderBaseAgent](#codersdktemplatebuilderbaseagent)           | false    |              |             |
 | `description`   | string                                                                                    | false    |              |             |
 | `icon`          | string                                                                                    | false    |              |             |
 | `id`            | string                                                                                    | false    |              |             |
@@ -14063,12 +14076,37 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `prerequisites` | string                                                                                    | false    |              |             |
 | `variables`     | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
 
+## codersdk.TemplateBuilderBaseAgent
+
+```json
+{
+  "default": true,
+  "display_name": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                     |
+|----------------|---------|----------|--------------|---------------------------------------------------------------------------------|
+| `default`      | boolean | false    |              | Default reports whether modules attach to this agent when they do not name one. |
+| `display_name` | string  | false    |              |                                                                                 |
+| `name`         | string  | false    |              |                                                                                 |
+
 ## codersdk.TemplateBuilderBasesResponse
 
 ```json
 {
   "bases": [
     {
+      "agents": [
+        {
+          "default": true,
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
       "description": "string",
       "icon": "string",
       "id": "string",
@@ -14102,6 +14140,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "agent_name": "string",
   "id": "string",
   "variables": {
     "property1": "string",
@@ -14112,11 +14151,12 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `id`               | string | false    |              |             |
-| `variables`        | object | false    |              |             |
-| » `[any property]` | string | false    |              |             |
+| Name               | Type   | Required | Restrictions | Description                                                                 |
+|--------------------|--------|----------|--------------|-----------------------------------------------------------------------------|
+| `agent_name`       | string | false    |              | Agent name targets a base coder_agent by name. Empty uses the base default. |
+| `id`               | string | false    |              |                                                                             |
+| `variables`        | object | false    |              |                                                                             |
+| » `[any property]` | string | false    |              |                                                                             |
 
 ## codersdk.TemplateBuilderComposeRequest
 
@@ -14129,6 +14169,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "modules": [
     {
+      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
@@ -14178,6 +14219,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "icon": "string",
   "modules": [
     {
+      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
@@ -15249,6 +15291,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -15264,6 +15307,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
 | `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
+| `codernauts_enabled`   | boolean                                                 | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 
@@ -16969,6 +17013,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`          | string  | false    |              |                                                                                                                                                                                                                                      |
 | `name`        | string  | false    |              |                                                                                                                                                                                                                                      |
 | `updated_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
+
+## codersdk.UserSecretsCapabilities
+
+```json
+{
+  "file_path_delivery_enabled": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description                                                                                                                       |
+|------------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `file_path_delivery_enabled` | boolean | false    |              | File path delivery enabled reports whether Coder writes stored file paths into workspaces. Stored paths are preserved either way. |
 
 ## codersdk.UserSkill
 

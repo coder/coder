@@ -1920,6 +1920,14 @@ func (m queryMetricsStore) GetChildChatsByParentIDs(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetCodernautsEnabled(ctx context.Context) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCodernautsEnabled(ctx)
+	m.queryLatencies.WithLabelValues("GetCodernautsEnabled").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCodernautsEnabled").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetConnectionLogsOffset(ctx, arg)
@@ -3453,6 +3461,14 @@ func (m queryMetricsStore) GetUserSecretByUserIDAndName(ctx context.Context, arg
 	r0, r1 := m.s.GetUserSecretByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserSecretByUserIDAndName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSecretByUserIDAndName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg database.GetUserSecretByUserIDAndNameForUpdateParams) (database.UserSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserSecretByUserIDAndNameForUpdate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserSecretByUserIDAndNameForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSecretByUserIDAndNameForUpdate").Inc()
 	return r0, r1
 }
 
@@ -5160,6 +5176,14 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	return r0
 }
 
+func (m queryMetricsStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.SyncAgentChatsContextMCPResources(ctx, agentID)
+	m.queryLatencies.WithLabelValues("SyncAgentChatsContextMCPResources").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SyncAgentChatsContextMCPResources").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
 	start := time.Now()
 	r0 := m.s.TouchChatDebugRunUpdatedAt(ctx, arg)
@@ -6453,6 +6477,14 @@ func (m queryMetricsStore) UpsertChatWorkspaceTTL(ctx context.Context, workspace
 	r0 := m.s.UpsertChatWorkspaceTTL(ctx, workspaceTtl)
 	m.queryLatencies.WithLabelValues("UpsertChatWorkspaceTTL").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatWorkspaceTTL").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertCodernautsEnabled(ctx context.Context, enabled bool) error {
+	start := time.Now()
+	r0 := m.s.UpsertCodernautsEnabled(ctx, enabled)
+	m.queryLatencies.WithLabelValues("UpsertCodernautsEnabled").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertCodernautsEnabled").Inc()
 	return r0
 }
 

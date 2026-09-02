@@ -452,6 +452,28 @@ it by the scope originally granted, so narrowing an application's registered
 scopes takes effect at the next authorization rather than cutting short a
 session already in progress.
 
+### "unsupported_response_type" returned to your callback
+
+Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.
+`GET /.well-known/oauth-authorization-server` reports it in `response_types_supported`.
+
+`response_type=token`, the implicit grant, redirects to your registered callback with `error=unsupported_response_type`, an `error_description` of `Only response_type=code is supported`, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
+A value Coder does not recognize at all, or an omitted `response_type`, fails query parameter validation instead and is answered on Coder rather than redirected: `GET` renders an "Invalid Query Parameters" page and `POST` returns a 400 with a JSON `invalid_request` body.
+
+Earlier releases answered `response_type=token` on Coder as well: `GET` rendered an "Unsupported Response Type" page and `POST` returned a 400 with a JSON body.
+An integration that watched for either now has to read the error from its own callback.
+
+### "invalid_request" for `code_challenge_method`
+
+Coder supports the `S256` challenge method only.
+`plain` sends the verifier itself as the challenge, so anything that can observe the authorization request can complete the exchange, which is what PKCE exists to prevent.
+Omitting the parameter is allowed and means `S256`.
+
+An unsupported method redirects to your registered callback with `error=invalid_request`, an `error_description` that names the method, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
 ### "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
@@ -495,9 +517,7 @@ As an experimental feature, the current implementation has limitations:
 - A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
 - A client cannot narrow the token's scope on refresh; the `scope` parameter is ignored and the refreshed token always keeps the scope originally granted
 - No client credentials grant support
-- Implicit grant (`response_type=token`) is not supported; OAuth 2.1
-  deprecated this flow due to token leakage risks, and requests return
-  `unsupported_response_type`
+- Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 
 ## Standards Compliance

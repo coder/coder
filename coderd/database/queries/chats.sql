@@ -1648,6 +1648,84 @@ WHERE agent_id = @agent_id::uuid
     AND context_dirty_since IS NULL
 RETURNING id, owner_id;
 
+-- name: SyncAgentChatsContextMCPResources :many
+-- MCP resources bypass context drift and are live-synced on each push.
+-- Changed chats are locked in ID order so concurrent clear-then-copy re-pins
+-- cannot interleave with the replacement.
+WITH agent_mcp AS (
+    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    FROM workspace_agent_context_resources
+    WHERE workspace_agent_id = @agent_id::uuid
+        AND body_kind IN ('mcp_config', 'mcp_server')
+),
+changed AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.agent_id = @agent_id::uuid
+        AND chats.archived = false
+        AND chats.context_aggregate_hash IS NOT NULL
+        AND (
+            EXISTS (
+                SELECT 1 FROM agent_mcp m
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM chat_context_resources ccr
+                    WHERE ccr.chat_id = chats.id
+                        AND ccr.source = m.source
+                        AND ccr.body_kind = m.body_kind
+                        AND ccr.content_hash = m.content_hash
+                        AND ccr.status = m.status
+                        AND ccr.error = m.error
+                )
+            )
+            OR EXISTS (
+                SELECT 1 FROM chat_context_resources ccr
+                WHERE ccr.chat_id = chats.id
+                    AND ccr.body_kind IN ('mcp_config', 'mcp_server')
+                    AND NOT EXISTS (
+                        SELECT 1 FROM agent_mcp m
+                        WHERE m.source = ccr.source
+                            AND m.body_kind = ccr.body_kind
+                            AND m.content_hash = ccr.content_hash
+                            AND m.status = ccr.status
+                            AND m.error = ccr.error
+                    )
+            )
+        )
+),
+locked AS (
+    SELECT id FROM chats
+    WHERE id IN (SELECT id FROM changed)
+    ORDER BY id
+    FOR UPDATE
+),
+deleted AS (
+    DELETE FROM chat_context_resources
+    USING locked
+    WHERE chat_context_resources.chat_id = locked.id
+        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
+        AND chat_context_resources.source NOT IN (SELECT source FROM agent_mcp)
+),
+upserted AS (
+    INSERT INTO chat_context_resources (
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    )
+    SELECT
+        locked.id, m.source, m.body_kind, m.body, m.content_hash,
+        m.size_bytes, m.status, m.error, m.source_path
+    FROM locked
+    CROSS JOIN agent_mcp m
+    ON CONFLICT (chat_id, source) DO UPDATE SET
+        body_kind = EXCLUDED.body_kind,
+        body = EXCLUDED.body,
+        content_hash = EXCLUDED.content_hash,
+        size_bytes = EXCLUDED.size_bytes,
+        status = EXCLUDED.status,
+        error = EXCLUDED.error,
+        source_path = EXCLUDED.source_path,
+        updated_at = now()
+)
+SELECT id FROM locked;
+
 -- name: InsertAgentContextResourcesIntoChat :exec
 -- Copies an agent's current context resources onto a single chat. Pair
 -- with DeleteChatContextResourcesByChatID (clear-then-copy, in a

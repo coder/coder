@@ -41,8 +41,6 @@ import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -699,9 +697,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				workspace={workspace.name}
 				agent={agent.name}
 				folder={agent.expanded_directory}
-			>
-				<VSCodeIcon />
-			</VSCodeIconLink>,
+			/>,
 		);
 	}
 
@@ -715,9 +711,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				workspace={workspace.name}
 				agent={agent.name}
 				folder={agent.expanded_directory}
-			>
-				<VSCodeInsidersIcon />
-			</VSCodeIconLink>,
+			/>,
 		);
 	}
 
@@ -838,14 +832,14 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 	);
 };
 
-type VSCodeIconLinkProps = PropsWithChildren<{
+type VSCodeIconLinkProps = {
 	variant: "vscode" | "vscode-insiders";
 	label: string;
 	owner: string;
 	workspace: string;
 	agent: string;
 	folder?: string;
-}>;
+};
 
 // Generates an API key on click instead of on page load, since
 // key generation is a POST request that should only fire when
@@ -857,7 +851,6 @@ const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
 	workspace,
 	agent,
 	folder,
-	children,
 }) => {
 	const generateKeyMutation = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -884,7 +877,12 @@ const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
 				}
 			}}
 		>
-			{children}
+			<ExternalImage
+				src={
+					variant === "vscode" ? "/icon/code.svg" : "/icon/code-insiders.svg"
+				}
+				alt=""
+			/>
 		</BaseIconLink>
 	);
 };

@@ -157,7 +157,10 @@ export const AddSetAsDefault: Story = {
 export const LeaveWithUnsavedChanges: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
+		// Dirty the form through a plain input. The model identifier
+		// autocomplete only commits to Formik on blur, which races the
+		// leaving click and would skip the unsaved-changes blocker.
+		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
 		await userEvent.click(
 			canvas.getByRole("link", { name: /back to models/i }),
 		);

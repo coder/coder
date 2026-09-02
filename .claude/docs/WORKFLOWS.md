@@ -148,22 +148,26 @@ no matter how long they take.
 git config core.hooksPath scripts/githooks
 ```
 
-Two hooks run automatically:
+Two hooks run automatically. Both skip their checks unless the
+developer opts in via git config or is allowlisted in the hook:
 
 - **pre-commit**: Classifies staged files by type and runs either
   the full `make pre-commit` or the lightweight `make pre-commit-light`
   depending on whether Go, TypeScript, SQL, proto, or Makefile
-  changes are present. Falls back to the full target when
-  `CODER_HOOK_RUN_ALL=1` is set. A markdown-only commit takes
+  changes are present. Allowlisted in `scripts/githooks/pre-commit`.
+  Runs only for developers who opt in with
+  `git config coder.pre-commit true`. Falls back to the full target
+  when `CODER_HOOK_RUN_ALL=1` is set. A markdown-only commit takes
   seconds; a Go change takes several minutes.
 - **pre-push**: Classifies changed files (vs remote branch or
   merge-base) and runs `make pre-push` when Go, TypeScript, SQL,
   proto, or Makefile changes are detected. Skips tests entirely
   for lightweight changes. Allowlisted in
   `scripts/githooks/pre-push`. Runs only for developers who opt
-  in. Falls back to `make pre-push` when the diff range can't
-  be determined or `CODER_HOOK_RUN_ALL=1` is set. Allow at least
-  15 minutes for a full run.
+  in with `git config coder.pre-push true`. Falls back to
+  `make pre-push` when the diff range can't be determined or
+  `CODER_HOOK_RUN_ALL=1` is set. Allow at least 15 minutes for a
+  full run.
 
 `git commit` and `git push` will appear to hang while hooks run.
 This is normal. Do not interrupt, retry, or reduce the timeout.
