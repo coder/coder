@@ -178,10 +178,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 	// If no rows found, latestAppStatus will be a zero-value struct (ID == uuid.Nil)
 
-	// Agents may re-report an identical status (e.g. the MCP screen watcher
-	// reports idle on every stable event). Skip storing duplicates so
-	// workspace_app_statuses doesn't grow unboundedly. Notifications and
-	// activity bumps below still run to preserve keep-alive behavior.
+	// Skip duplicate reports (e.g. the watcher re-reporting idle) so
+	// workspace_app_statuses doesn't grow unboundedly.
 	if !isDuplicateAppStatus(latestAppStatus, dbState, cleaned, req.Uri) {
 		// nolint:gocritic // This is a system restricted operation.
 		_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
