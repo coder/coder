@@ -6165,11 +6165,7 @@ func (api *API) putChatRuntimeConfig(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if _, ok := chatacp.HarnessFor(req.Runtime); !ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid runtime.",
-			Detail:  fmt.Sprintf("Only external runtimes can be configured, got %q.", req.Runtime),
-		})
+	if !requireExternalChatRuntime(ctx, rw, req.Runtime) {
 		return
 	}
 	if req.OrganizationID == uuid.Nil || req.TemplateID == uuid.Nil {
@@ -6222,6 +6218,20 @@ func (api *API) putChatRuntimeConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatRuntimeConfig(config))
 }
 
+// requireExternalChatRuntime rejects runtime config writes for anything
+// without an ACP harness, the built-in runtime included. It reports
+// whether the handler may continue.
+func requireExternalChatRuntime(ctx context.Context, rw http.ResponseWriter, runtime codersdk.ChatRuntime) bool {
+	if _, ok := chatacp.HarnessFor(runtime); ok {
+		return true
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Invalid runtime.",
+		Detail:  fmt.Sprintf("Only external runtimes can be configured, got %q.", runtime),
+	})
+	return false
+}
+
 // @Summary Delete chat runtime config
 // @ID delete-chat-runtime-config
 // @Security CoderSessionToken
@@ -6244,16 +6254,13 @@ func (api *API) deleteChatRuntimeConfig(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	runtime := database.ChatRuntime(r.URL.Query().Get("runtime"))
-	if !runtime.Valid() {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "runtime query parameter is invalid.",
-		})
+	runtime := codersdk.ChatRuntime(r.URL.Query().Get("runtime"))
+	if !requireExternalChatRuntime(ctx, rw, runtime) {
 		return
 	}
 	if err := api.Database.DeleteChatRuntimeConfig(ctx, database.DeleteChatRuntimeConfigParams{
 		OrganizationID: orgID,
-		Runtime:        runtime,
+		Runtime:        database.ChatRuntime(runtime),
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting chat runtime config.",

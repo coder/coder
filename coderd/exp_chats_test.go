@@ -1921,14 +1921,27 @@ func TestChatRuntimeConfigAndAvailability(t *testing.T) {
 		CreatedBy:      user.UserID,
 	})
 
-	_, err := client.UpsertChatRuntimeConfig(ctx, codersdk.UpsertChatRuntimeConfigRequest{
-		OrganizationID: user.OrganizationID,
-		Runtime:        codersdk.ChatRuntimeCoder,
-		TemplateID:     template.ID,
-		Enabled:        true,
-	})
-	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-	require.Equal(t, "Invalid runtime.", sdkErr.Message)
+	// Runtime configs exist for external runtimes only; both write
+	// handlers share the check.
+	for name, do := range map[string]func(codersdk.ChatRuntime) error{
+		"Upsert": func(runtime codersdk.ChatRuntime) error {
+			_, err := client.UpsertChatRuntimeConfig(ctx, codersdk.UpsertChatRuntimeConfigRequest{
+				OrganizationID: user.OrganizationID,
+				Runtime:        runtime,
+				TemplateID:     template.ID,
+				Enabled:        true,
+			})
+			return err
+		},
+		"Delete": func(runtime codersdk.ChatRuntime) error {
+			return client.DeleteChatRuntimeConfig(ctx, user.OrganizationID, runtime)
+		},
+	} {
+		for _, runtime := range []codersdk.ChatRuntime{codersdk.ChatRuntimeCoder, "unknown"} {
+			sdkErr := requireSDKError(t, do(runtime), http.StatusBadRequest)
+			require.Equal(t, "Invalid runtime.", sdkErr.Message, "%s %s", name, runtime)
+		}
+	}
 
 	externalRuntimes := []codersdk.ChatRuntime{codersdk.ChatRuntimeClaudeCode, codersdk.ChatRuntimeCodex}
 	wantAvailability := []codersdk.ChatRuntimeAvailability{}
