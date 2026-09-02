@@ -1,4 +1,6 @@
-# Slack Notifications
+---
+title: Slack Notifications
+---
 
 [Slack](https://slack.com/) is a popular messaging platform designed for teams
 and businesses, enabling real-time collaboration through channels, direct
@@ -178,7 +180,7 @@ To build the server to receive webhooks and interact with Slack:
 
 ## Enable Interactivity in Slack
 
-Slack requires the bot to acknowledge when a user clicks on a URL action button.
+Slack requires the bot to acknowledge when a user selects a URL action button.
 This is handled by setting up interactivity.
 
 Under "Interactivity & Shortcuts" in your Slack app settings, set the Request

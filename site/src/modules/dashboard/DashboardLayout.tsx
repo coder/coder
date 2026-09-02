@@ -40,7 +40,7 @@ export const DashboardLayout: FC = () => {
 					tabIndex={-1}
 					className={cn(
 						"relative flex flex-col flex-1 min-h-0",
-						"focus:outline-none",
+						"focus:outline-hidden",
 					)}
 				>
 					<Suspense fallback={<Loader />}>

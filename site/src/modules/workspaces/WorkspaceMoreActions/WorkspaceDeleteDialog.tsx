@@ -62,8 +62,6 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		(workspace.latest_build.status === "failed" ||
 			workspace.latest_build.status === "canceled");
 
-	const hasTask = Boolean(workspace.task_id);
-
 	return (
 		<ConfirmDialog
 			type="delete"
@@ -117,27 +115,6 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							<span id={errorId} className="text-xs text-content-destructive">
 								{userConfirmationText} does not match the name of this workspace
 							</span>
-						)}
-
-						{hasTask && (
-							<div className={warnBoxClassName}>
-								<div>
-									<p className="m-0 text-sm font-semibold">
-										This workspace is related to a task
-									</p>
-									<span className="mt-1 block text-xs text-content-secondary">
-										Deleting this workspace will also delete{" "}
-										<Link
-											href={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
-											size="sm"
-											showExternalIcon={false}
-										>
-											this task
-										</Link>
-										.
-									</span>
-								</div>
-							</div>
 						)}
 
 						{canOrphan && (

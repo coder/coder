@@ -172,7 +172,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		// We should probably at least return more truncated user data here.
 		// nolint:gocritic
 		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
-			GroupID:       group.Group.ID,
+			GroupID:       group.ID,
 			IncludeSystem: false,
 		})
 		if err != nil {
@@ -181,7 +181,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		// nolint:gocritic
 		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
-			GroupID:       group.Group.ID,
+			GroupID:       group.ID,
 			IncludeSystem: false,
 		})
 		if err != nil {
@@ -325,7 +325,7 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 
 	for _, tu := range tus {
 		users = append(users, codersdk.TemplateUser{
-			User: db2sdk.User(tu.User, orgIDsByUserIDs[tu.User.ID]),
+			User: db2sdk.User(tu.User, orgIDsByUserIDs[tu.ID]),
 			Role: convertToTemplateRole(tu.Actions),
 		})
 	}

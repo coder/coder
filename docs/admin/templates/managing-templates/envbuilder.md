@@ -1,4 +1,6 @@
-# Envbuilder
+---
+title: Envbuilder
+---
 
 Envbuilder shifts environment definition from template administrators to
 developers. Instead of baking tools into template images, developers define

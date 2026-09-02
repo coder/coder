@@ -18,8 +18,8 @@ interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
 	urlTransform?: UrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
-	 * preprocessing (remend) and useTransition-based render
-	 * scheduling. Pass true only for live-streaming output. */
+	 * preprocessing (remend). Pass true only for live-streaming
+	 * output. */
 	streaming?: boolean;
 }
 
@@ -193,8 +193,8 @@ const createComponents = (
 		img: ({ src, alt }: MarkdownComponentProps) => (
 			<MarkdownImage src={src} alt={alt} />
 		),
-		// Horizontal rule: reset browser default inset/ridge border
-		// (preflight is disabled) to a clean 1px solid line.
+		// Horizontal rule: render a clean 1px solid line using theme
+		// tokens instead of the default border.
 		hr: () => (
 			<hr className="my-6 border-0 border-t border-solid border-border-default" />
 		),
@@ -295,6 +295,11 @@ export const Response = ({
 				rehypePlugins={chatRehypePlugins}
 				mode={streaming ? "streaming" : "static"}
 				parseIncompleteMarkdown={streaming}
+				// Streamdown 2.6 caps table height at 300px by
+				// default, even with controls disabled. Chat tables
+				// should grow with their content instead of
+				// scrolling internally.
+				tableMaxHeight={0}
 			>
 				{children}
 			</Streamdown>

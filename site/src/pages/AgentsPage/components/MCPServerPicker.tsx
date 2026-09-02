@@ -1,5 +1,6 @@
 import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
+import { mcpServerOAuth2ConnectPath } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -21,6 +22,7 @@ import { cn } from "#/utils/cn";
 // ── Types ──────────────────────────────────────────────────────
 
 interface MCPServerPickerProps {
+	organizationId: string;
 	/** All MCP server configs from the API. Will be filtered to enabled only. */
 	servers: readonly TypesGen.MCPServerConfig[];
 	/** Currently selected server IDs. */
@@ -91,17 +93,32 @@ export const getDefaultMCPSelection = (
 	return ids;
 };
 
+const legacyMCPSelectionStorageKey = "agents.selected-mcp-server-ids";
+
 /** localStorage key for persisting the user's MCP server selection. */
-export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
+export const mcpSelectionStorageKey = (organizationId: string) =>
+	`${legacyMCPSelectionStorageKey}.${organizationId}`;
 
 /**
  * Read the persisted MCP selection from localStorage, filtered to only
  * include IDs that still exist in the current server list.
  * Returns `null` when nothing is stored (caller should fall back to defaults).
+ *
+ * When `readLegacy` is set (the default organization inherits selections
+ * that predate organization scoping), a selection found under the legacy
+ * unscoped key is rewritten under the organization-scoped key, so the
+ * storage schema heals itself on first successful read.
  */ export const getSavedMCPSelection = (
+	organizationId: string,
 	servers: readonly TypesGen.MCPServerConfig[],
+	readLegacy = false,
 ): string[] | null => {
-	const raw = localStorage.getItem(mcpSelectionStorageKey);
+	let raw = localStorage.getItem(mcpSelectionStorageKey(organizationId));
+	let fromLegacy = false;
+	if (raw === null && readLegacy) {
+		raw = localStorage.getItem(legacyMCPSelectionStorageKey);
+		fromLegacy = raw !== null;
+	}
 	if (raw === null) {
 		return null;
 	}
@@ -135,16 +152,24 @@ export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
 				restored.push(id);
 			}
 		}
+		if (fromLegacy) {
+			saveMCPSelection(organizationId, restored);
+			localStorage.removeItem(legacyMCPSelectionStorageKey);
+		}
 		return restored;
 	} catch {
 		return null;
 	}
 };
 
-/**
- * Persist the current MCP selection to localStorage.
- */ export const saveMCPSelection = (ids: readonly string[]): void => {
-	localStorage.setItem(mcpSelectionStorageKey, JSON.stringify(ids));
+export const saveMCPSelection = (
+	organizationId: string,
+	ids: readonly string[],
+): void => {
+	localStorage.setItem(
+		mcpSelectionStorageKey(organizationId),
+		JSON.stringify(ids),
+	);
 };
 
 // ── Overlapping icon stack for the trigger ─────────────────────
@@ -184,6 +209,7 @@ const TriggerIconStack: FC<{
 // ── Component ──────────────────────────────────────────────────
 
 export const MCPServerPicker: FC<MCPServerPickerProps> = ({
+	organizationId,
 	servers,
 	selectedServerIds,
 	onSelectionChange,
@@ -254,7 +280,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 
 	const handleConnect = (server: TypesGen.MCPServerConfig) => {
 		setConnectingServerId(server.id);
-		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
+		const connectUrl = mcpServerOAuth2ConnectPath(organizationId, server.id);
 		popupRef.current = window.open(
 			connectUrl,
 			"_blank",
@@ -284,7 +310,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-52 p-0">
 				<TooltipProvider delayDuration={300}>
-					<div className="max-h-64 overflow-y-auto py-1 [scrollbar-width:thin]">
+					<div className="max-h-64 overflow-y-auto py-1 scrollbar-thin">
 						{enabledServers.map((server) => {
 							const isForceOn = server.availability === "force_on";
 							const isSelected =

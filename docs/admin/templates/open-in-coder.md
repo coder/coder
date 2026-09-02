@@ -1,4 +1,6 @@
-# Open in Coder
+---
+title: Open in Coder
+---
 
 You can embed an "Open in Coder" button into your git repos or internal wikis to
 let developers quickly launch a new workspace.
@@ -128,9 +130,8 @@ The dialog shows:
 - All prefilled `param.*` values from the URL
 - **Confirm and Create** and **Cancel** buttons
 
-The workspace is only created if the user explicitly clicks **Confirm and
-Create**. Clicking **Cancel** falls back to the standard creation form where
-all parameters can be reviewed manually.
+The workspace is only created if the user explicitly selects **Confirm and Create**.
+Selecting **Cancel** falls back to the standard creation form where all parameters can be reviewed manually.
 
 ![Consent dialog for automatic workspace creation](../../images/templates/auto-create-consent-dialog.png)
 

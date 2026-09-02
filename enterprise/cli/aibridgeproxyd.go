@@ -140,8 +140,8 @@ func refreshProxyProviders(db database.Store) aibridgeproxyd.RefreshProvidersFun
 }
 
 // classifyProviderRow evaluates a single ai_providers row for routing.
-// seenHost is mutated to track the first provider that claimed each
-// hostname so later duplicates can be flagged as errors.
+// seenHost tracks the first provider per hostname so later duplicates
+// are flagged as proxy-excluded.
 func classifyProviderRow(row database.AIProvider, seenHost map[string]string) aibridgeproxyd.ReloadedProvider {
 	out := aibridgeproxyd.ReloadedProvider{
 		ProviderOutcome: aibridged.ProviderOutcome{
@@ -158,21 +158,15 @@ func classifyProviderRow(row database.AIProvider, seenHost map[string]string) ai
 		out.Err = xerrors.New("base url is empty")
 		return out
 	}
-	u, err := url.Parse(row.BaseUrl)
-	if err != nil {
-		out.Status = aibridged.ProviderStatusError
-		out.Err = xerrors.Errorf("invalid base url %q: %w", row.BaseUrl, err)
-		return out
-	}
-	host := strings.ToLower(u.Hostname())
+	host := aibridged.BaseURLHostname(row.BaseUrl)
 	if host == "" {
 		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("base url %q has no hostname", row.BaseUrl)
 		return out
 	}
 	if claimedBy, taken := seenHost[host]; taken {
-		out.Status = aibridged.ProviderStatusError
-		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q", host, claimedBy)
+		out.Status = aibridged.ProviderStatusProxyExcluded
+		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, claimedBy, row.Name)
 		return out
 	}
 	seenHost[host] = row.Name

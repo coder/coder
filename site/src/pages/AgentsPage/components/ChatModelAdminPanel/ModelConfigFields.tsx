@@ -32,6 +32,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDebouncedValue } from "#/hooks/debounce";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { cn } from "#/utils/cn";
@@ -324,7 +325,7 @@ const SegmentedField: FC<
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"flex w-full items-center gap-0.75 rounded-lg border border-solid border-border p-2",
+					"flex w-full items-center rounded-lg border border-solid border-border p-2",
 					fieldError && "border-content-destructive",
 				)}
 			>
@@ -338,7 +339,7 @@ const SegmentedField: FC<
 							aria-checked={isActive}
 							disabled={disabled}
 							className={cn(
-								"flex h-6 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+								"flex h-6 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 								isActive
 									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
@@ -683,14 +684,25 @@ export const PricingEstimateFields: FC<{
 	const aibridgeEntitled = Boolean(useFeatureVisibility().aibridge);
 	const normalizedProvider = normalizeProvider(provider);
 	const trimmedModel = model.trim();
+	// Debounce the pair so the lookup never mixes a new provider with the
+	// previous model identifier.
+	const debouncedLookup = useDebouncedValue(
+		{ provider: normalizedProvider, model: trimmedModel },
+		500,
+	);
+	const entitledWithProvider = aibridgeEntitled && normalizedProvider !== "";
 	const livePricesQuery = useQuery({
-		...aiModelPrices(normalizedProvider, trimmedModel),
-		enabled:
-			aibridgeEntitled && normalizedProvider !== "" && trimmedModel !== "",
+		...aiModelPrices(debouncedLookup.provider, debouncedLookup.model),
+		enabled: entitledWithProvider && debouncedLookup.model !== "",
 	});
+	const debouncePending =
+		entitledWithProvider &&
+		(debouncedLookup.provider !== normalizedProvider ||
+			debouncedLookup.model !== trimmedModel);
 	const livePriceLoading =
-		livePricesQuery.fetchStatus !== "idle" && !livePricesQuery.isSuccess;
-	const livePrice = livePricesQuery.data?.[0];
+		debouncePending ||
+		(livePricesQuery.fetchStatus !== "idle" && !livePricesQuery.isSuccess);
+	const livePrice = debouncePending ? undefined : livePricesQuery.data?.[0];
 
 	const knownModel =
 		findKnownModelByCanonicalId(normalizedProvider, trimmedModel) ??
@@ -709,7 +721,7 @@ export const PricingEstimateFields: FC<{
 			}
 		: knownModel;
 
-	if (livePricesQuery.isError) {
+	if (!debouncePending && livePricesQuery.isError) {
 		return (
 			<p className="m-0 flex items-center gap-1.5 text-xs text-content-secondary sm:col-span-full">
 				<InfoIcon className="size-3.5 shrink-0" />
@@ -735,13 +747,15 @@ export const PricingEstimateFields: FC<{
 			{priceEstimateFields.map(([label, key]) => {
 				const cost = costs?.[key];
 				const fieldId = `${fieldIdPrefix}-${label.toLowerCase().replace(/\s+/g, "-")}`;
-				const displayValue =
-					cost === undefined ? "" : formatPricePerMillionTokens(cost).slice(1);
+				const price =
+					cost === undefined ? undefined : formatPricePerMillionTokens(cost);
 				return (
 					<div key={label} className="flex min-w-0 flex-col gap-1.5">
 						<FieldLabel htmlFor={fieldId} label={label} />
 						<InputGroup className="cursor-not-allowed bg-surface-secondary">
-							<InputGroupAddon align="inline-start">$</InputGroupAddon>
+							<InputGroupAddon align="inline-start">
+								{price?.belowThreshold ? "<$" : "$"}
+							</InputGroupAddon>
 							{livePriceLoading ? (
 								<Skeleton
 									aria-label={`${label} price loading`}
@@ -751,9 +765,17 @@ export const PricingEstimateFields: FC<{
 								<InputGroupInput
 									id={fieldId}
 									className="min-w-0 cursor-not-allowed text-content-secondary"
-									value={displayValue}
+									value={price?.value ?? ""}
+									aria-describedby={
+										price?.belowThreshold ? `${fieldId}-threshold` : undefined
+									}
 									readOnly
 								/>
+							)}
+							{price?.belowThreshold && !livePriceLoading && (
+								<span id={`${fieldId}-threshold`} className="sr-only">
+									{`less than $${price.value} USD per million tokens`}
+								</span>
 							)}
 							<InputGroupAddon align="inline-end">
 								<span className="text-xs text-content-disabled">

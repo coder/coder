@@ -20,7 +20,7 @@ By configuring Artifactory as a Remote Terraform Repository, you can:
 
 1. In Artifactory, go to **Administration > Repositories > Remote**
 
-1. Click **New Remote Repository** and select **Terraform** as the package type
+1. Select **New Remote Repository** and select **Terraform** as the package type
 
 1. Configure the repository with these settings:
 
@@ -30,7 +30,7 @@ By configuring Artifactory as a Remote Terraform Repository, you can:
    | URL                    | `https://registry.coder.com` |
    | Terraform Registry URL | `https://registry.coder.com` |
 
-1. Click **Create Remote Repository**
+1. Select **Create Remote Repository**
 
 ## Step 2: Verify the Repository Configuration
 

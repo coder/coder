@@ -82,7 +82,6 @@ type Options struct {
 	Entitlements      *entitlements.Set
 	Telemetry         telemetry.Reporter
 	Logger            slog.Logger
-	HideAITasks       bool
 	AIGatewayEnabled  bool
 }
 
@@ -267,7 +266,6 @@ type htmlState struct {
 	Regions        string
 	DocsURL        string
 
-	TasksTabVisible  string
 	AIGatewayEnabled string
 	Permissions      string
 	Organizations    string
@@ -516,12 +514,6 @@ func (h *Handler) populateHTMLState(
 			}
 		})
 	}
-	wg.Go(func() {
-		data, err := json.Marshal(!h.opts.HideAITasks)
-		if err == nil {
-			state.TasksTabVisible = html.EscapeString(string(data))
-		}
-	})
 	wg.Go(func() {
 		data, err := json.Marshal(h.opts.AIGatewayEnabled)
 		if err == nil {
@@ -798,6 +790,12 @@ type RenderOAuthAllowData struct {
 	DashboardURL string
 	CSRFToken    string
 	Username     string
+	// Scopes are the permissions listed for the user to approve.
+	Scopes []string
+	// Unrestricted states full account access, which the page says in prose
+	// rather than by name. A field of its own because an empty Scopes is the
+	// opposite grant: deciding by list length would call it full access.
+	Unrestricted bool
 }
 
 // RenderOAuthAllowPage renders the static page for a user to "Allow" an create
@@ -807,6 +805,25 @@ type RenderOAuthAllowData struct {
 // This has to be done statically because Golang has to handle the full request.
 // It cannot defer to the FE typescript easily.
 func RenderOAuthAllowPage(rw http.ResponseWriter, r *http.Request, data RenderOAuthAllowData) {
+	// The page would otherwise promise "these permissions" above an empty list.
+	// Guarded here rather than in the template, which branches on Unrestricted
+	// alone. No caller produces this today.
+	if !data.Unrestricted && len(data.Scopes) == 0 {
+		RenderStaticErrorPage(rw, r, ErrorPageData{
+			Status:      http.StatusInternalServerError,
+			HideStatus:  false,
+			Title:       "Internal Server Error",
+			Description: "The authorization request carries no permissions to approve.",
+			Actions: []Action{
+				{
+					URL:  data.DashboardURL,
+					Text: "Back to site",
+				},
+			},
+		})
+		return
+	}
+
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	// Prevent the consent page from being framed to mitigate

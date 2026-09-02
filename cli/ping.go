@@ -19,7 +19,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -47,10 +46,10 @@ func (s *pingSummary) addResult(r *ipnstate.PingResult) {
 	}
 	s.Successful++
 	if s.Min == nil || r.LatencySeconds < s.Min.Seconds() {
-		s.Min = ptr.Ref(time.Duration(r.LatencySeconds * float64(time.Second)))
+		s.Min = new(time.Duration(r.LatencySeconds * float64(time.Second)))
 	}
 	if s.Max == nil || r.LatencySeconds > s.Max.Seconds() {
-		s.Max = ptr.Ref(time.Duration(r.LatencySeconds * float64(time.Second)))
+		s.Max = new(time.Duration(r.LatencySeconds * float64(time.Second)))
 	}
 	s.latencySum += r.LatencySeconds
 
@@ -63,10 +62,10 @@ func (s *pingSummary) addResult(r *ipnstate.PingResult) {
 // Write finalizes the summary and writes it
 func (s *pingSummary) Write(w io.Writer) {
 	if s.Successful > 0 {
-		s.Avg = ptr.Ref(time.Duration(s.latencySum / float64(s.Successful) * float64(time.Second)))
+		s.Avg = new(time.Duration(s.latencySum / float64(s.Successful) * float64(time.Second)))
 	}
 	if s.Successful > 1 {
-		s.Variance = ptr.Ref(time.Duration((s.m2 / float64(s.Successful-1)) * float64(time.Second)))
+		s.Variance = new(time.Duration((s.m2 / float64(s.Successful-1)) * float64(time.Second)))
 	}
 	out, err := cliui.DisplayTable([]*pingSummary{s}, "", nil)
 	if err != nil {

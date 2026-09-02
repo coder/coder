@@ -1,17 +1,35 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import {
+	MockDefaultOrganization,
+	MockOrganizationPermissions,
+} from "#/testHelpers/entities";
 import { withToaster } from "#/testHelpers/storybook";
+import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
 	MockOpenAIProviderState,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";
 
+const withOrganizationModels = (Story: React.FC) => (
+	<OrganizationModelsContext.Provider
+		value={{
+			organization: MockDefaultOrganization,
+			accessibleOrganizations: [MockDefaultOrganization],
+			permissions: MockOrganizationPermissions,
+			requestedOrganizationDenied: false,
+		}}
+	>
+		<Story />
+	</OrganizationModelsContext.Provider>
+);
+
 const meta: Meta<typeof ModelForm> = {
 	title: "pages/AISettingsPage/ModelsPage/ModelForm",
 	component: ModelForm,
-	decorators: [withToaster],
+	decorators: [withToaster, withOrganizationModels],
 	args: {
 		providerStates: [MockOpenAIProviderState, MockAnthropicProviderState],
 		selectedProviderState: MockOpenAIProviderState,

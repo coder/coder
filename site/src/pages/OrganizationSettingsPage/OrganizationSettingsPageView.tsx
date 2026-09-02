@@ -36,7 +36,7 @@ export const OrganizationSettingsPageView: FC<
 	isTogglingWorkspaceSharing = false,
 }) => {
 	return (
-		<div className="w-full max-w-screen-2xl pb-10">
+		<div className="w-full max-w-(--breakpoint-2xl) pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Settings</SettingsHeaderTitle>
 			</SettingsHeader>

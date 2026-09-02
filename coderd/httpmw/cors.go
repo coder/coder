@@ -80,6 +80,7 @@ func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler
 			// Use permissive CORS for OAuth2, MCP, and well-known endpoints
 			if strings.HasPrefix(r.URL.Path, "/oauth2/") ||
 				strings.HasPrefix(r.URL.Path, "/api/experimental/mcp/") ||
+				strings.HasPrefix(r.URL.Path, "/api/v2/mcp/") ||
 				strings.HasPrefix(r.URL.Path, "/.well-known/oauth-") {
 				permissiveCors(next).ServeHTTP(w, r)
 				return

@@ -872,10 +872,10 @@ func requireSecretAPIError(t *testing.T, err error, status int, detailContains s
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	assert.Equal(t, status, sdkErr.StatusCode())
-	combined := sdkErr.Message + " " + sdkErr.Response.Detail
+	combined := sdkErr.Message + " " + sdkErr.Detail
 	assert.Containsf(t, combined, detailContains,
 		"expected response to contain %q; got Message=%q Detail=%q",
-		detailContains, sdkErr.Message, sdkErr.Response.Detail)
+		detailContains, sdkErr.Message, sdkErr.Detail)
 }
 
 func TestDeleteUserSecret(t *testing.T) {

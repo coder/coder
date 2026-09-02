@@ -2345,7 +2345,8 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			taskAppID    uuid.NullUUID
 			taskAgentID  uuid.NullUUID
 		)
-		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
+		// Agents and their apps are only inserted when the workspace is running.
+		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 && workspaceBuild.Transition == database.WorkspaceTransitionStart {
 			task := tasks[0]
 			if task == nil {
 				return xerrors.Errorf("update ai task: task is nil")
@@ -2978,6 +2979,9 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 
 		return nil
 	}, nil)
+	if database.IsUniqueViolation(err, database.UniqueIndexUniquePresetName) {
+		return xerrors.Errorf("duplicate preset name, must be unique per template: %q", protoPreset.Name)
+	}
 	if err != nil {
 		return xerrors.Errorf("insert preset and parameters: %w", err)
 	}
@@ -3035,7 +3039,15 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		agentNames = make(map[string]struct{})
 		appSlugs   = make(map[string]struct{})
 	)
-	for _, prAgent := range protoResource.Agents {
+
+	// Agents can't connect to compute that these transitions tore down, so any
+	// agent Terraform still reports for them would only surface as unhealthy.
+	protoAgents := protoResource.Agents
+	if transition == database.WorkspaceTransitionStop || transition == database.WorkspaceTransitionDelete {
+		protoAgents = nil
+	}
+
+	for _, prAgent := range protoAgents {
 		// Similar logic is duplicated in terraform/resources.go.
 		if prAgent.Name == "" {
 			return xerrors.Errorf("agent name cannot be empty")

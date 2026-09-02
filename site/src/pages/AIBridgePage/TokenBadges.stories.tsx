@@ -40,19 +40,3 @@ export const WithMetadata: Story = {
 		},
 	},
 };
-
-export const SizeXs: Story = {
-	args: {
-		size: "xs",
-		inputTokens: 1234,
-		outputTokens: 567,
-	},
-};
-
-export const SizeMd: Story = {
-	args: {
-		size: "md",
-		inputTokens: 1234,
-		outputTokens: 567,
-	},
-};

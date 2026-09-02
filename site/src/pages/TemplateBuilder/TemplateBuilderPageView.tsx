@@ -47,8 +47,12 @@ import {
 	WIZARD_STEPS,
 } from "./steps";
 import { TemplateAlternatives } from "./TemplateAlternatives";
-import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
+	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
+	TemplateCustomizationsStep,
+} from "./TemplateCustomizationsStep";
+import {
+	type CustomizationsFormValues,
 	initWizardState,
 	type SelectedBaseMeta,
 	type TemplateBuilderWizardState,
@@ -60,7 +64,10 @@ interface TemplateBuilderPageViewProps {
 	error: unknown;
 	basesData: TemplateBuilderBasesResponse | undefined;
 	preselectedBase?: SelectedBaseMeta;
-	onCreateTemplate: (state: TemplateBuilderWizardState) => void;
+	onCreateTemplate: (
+		state: TemplateBuilderWizardState,
+		customizations: CustomizationsFormValues,
+	) => void;
 	createError: Error | null;
 	isCreating: boolean;
 	onClearCreateError?: () => void;
@@ -128,7 +135,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	// Reset scroll whenever the active step changes, including on browser
 	// back/forward (popstate) where button click handlers would not fire.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll must reset when step changes
 	useEffect(() => {
 		window.scrollTo(0, 0);
 	}, [currentStep.id]);
@@ -165,10 +171,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	};
 
 	const handleNext = () => {
-		if (isLastStep) {
-			onCreateTemplate(state);
-			return;
-		}
 		navigateToStep(nextIndex);
 	};
 
@@ -186,6 +188,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			onClearCreateError?.();
 		}
 		navigateToStep(nearestVisible(target, state));
+	};
+
+	const handleCreate = (values: CustomizationsFormValues) => {
+		onCreateTemplate(state, values);
 	};
 
 	const handleProvisionerStatusChange = useCallback(
@@ -257,7 +263,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	// Runs after the scroll-reset effect above (declared earlier, so it fires
 	// first). Scrolls the requested module into view once module-settings
 	// has rendered.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: run on step change
 	useEffect(() => {
 		if (currentStep.id !== "module-settings") {
 			return;
@@ -305,6 +310,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							handleProvisionerStatusChange,
 							handleDeselectModule,
 							registerModuleRef,
+							handleCreate,
 						)}
 					</div>
 
@@ -317,9 +323,19 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Back
 							</Button>
 						)}
-						<Button onClick={handleNext} disabled={!canContinue}>
-							{isLastStep ? "Create Template" : "Continue"}
-						</Button>
+						{isLastStep ? (
+							<Button
+								type="submit"
+								form={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
+								disabled={state.hasProvisioners === false}
+							>
+								Create Template
+							</Button>
+						) : (
+							<Button onClick={handleNext} disabled={!canContinue}>
+								Continue
+							</Button>
+						)}
 					</div>
 
 					{currentStep.id === "base-infra" && <TemplateAlternatives />}
@@ -361,6 +377,7 @@ function renderStepContent(
 	onProvisionerStatusChange: (value: boolean | undefined) => void,
 	onRemoveModule: (moduleId: string) => void,
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void,
+	onCreate: (values: CustomizationsFormValues) => void,
 ): ReactNode {
 	switch (stepId) {
 		case "base-infra":
@@ -416,13 +433,7 @@ function renderStepContent(
 					{createError != null && <ErrorAlert error={createError} />}
 					<TemplateCustomizationsStep
 						state={state}
-						onChangeField={(field, value) =>
-							dispatch({
-								type: "SET_CUSTOMIZATION",
-								field,
-								value,
-							})
-						}
+						onCreate={onCreate}
 						onProvisionerStatusChange={onProvisionerStatusChange}
 					/>
 				</>
@@ -455,7 +466,7 @@ function computeCanContinue(
 				moduleVarMap,
 			);
 		case "customizations":
-			return state.name.trim() !== "" && state.hasProvisioners !== false;
+			return state.hasProvisioners !== false;
 		default:
 			return true;
 	}

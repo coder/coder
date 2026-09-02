@@ -48,7 +48,7 @@ const DrawerOverlay: React.FC<
 
 const drawerContentVariants = cva(
 	cn(
-		"fixed z-50 flex h-auto flex-col bg-surface-tertiary outline-none will-change-transform",
+		"fixed z-50 flex h-auto flex-col bg-surface-tertiary outline-hidden will-change-transform",
 		"data-[state=open]:animate-in data-[state=closed]:animate-out",
 		"data-[state=open]:duration-500 data-[state=closed]:duration-300",
 	),

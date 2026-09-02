@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -12,15 +12,6 @@ import {
 	PopoverContent,
 } from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
-
-// Prevent zero-height anchors when the browser returns a degenerate caret rect.
-const MIN_ANCHOR_HEIGHT_PX = 16;
-
-export type CaretAnchorRect = {
-	top: number;
-	left: number;
-	height: number;
-};
 
 type SkillSource = "personal" | "workspace";
 
@@ -67,7 +58,8 @@ export const createSkillMenuItem = (
 
 type SkillsTriggerMenuProps = {
 	open: boolean;
-	anchorRect: CaretAnchorRect | null;
+	// The composer box the menu is pinned above and sized to match.
+	anchor: HTMLElement | null;
 	query: string;
 	commands?: readonly SkillMenuItem[];
 	personalSkills: readonly SkillMenuItem[];
@@ -160,7 +152,7 @@ const SkillCommandItem = ({
 
 export const SkillsTriggerMenu = ({
 	open,
-	anchorRect,
+	anchor,
 	query,
 	commands = [],
 	personalSkills,
@@ -186,15 +178,7 @@ export const SkillsTriggerMenu = ({
 			? "Loading workspace skills..."
 			: undefined,
 	].filter((item) => item !== undefined);
-	const shouldRender = open && anchorRect;
-	// Radix keeps closing content mounted through its exit animation.
-	// Unmounting the anchor then would reposition the closing menu to
-	// the viewport origin, so keep it at the last known caret rect.
-	const [lastAnchorRect, setLastAnchorRect] = useState(anchorRect);
-	if (anchorRect && anchorRect !== lastAnchorRect) {
-		setLastAnchorRect(anchorRect);
-	}
-	const renderedAnchorRect = anchorRect ?? lastAnchorRect;
+	const shouldRender = open && anchor !== null;
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
@@ -239,25 +223,12 @@ export const SkillsTriggerMenu = ({
 				}
 			}}
 		>
-			{renderedAnchorRect && (
-				<PopoverAnchor asChild>
-					<span
-						aria-hidden="true"
-						style={{
-							position: "fixed",
-							top: renderedAnchorRect.top,
-							left: renderedAnchorRect.left,
-							width: 1,
-							height: Math.max(renderedAnchorRect.height, MIN_ANCHOR_HEIGHT_PX),
-							pointerEvents: "none",
-						}}
-					/>
-				</PopoverAnchor>
-			)}
+			{anchor && <PopoverAnchor virtualRef={{ current: anchor }} />}
 			<PopoverContent
 				align="start"
-				side="bottom"
-				className="w-80 overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
+				side="top"
+				sideOffset={8}
+				className="w-(--radix-popper-anchor-width) overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}

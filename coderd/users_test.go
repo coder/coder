@@ -29,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -85,12 +84,12 @@ func TestFirstUser(t *testing.T) {
 
 	t.Run("Trial", func(t *testing.T) {
 		t.Parallel()
-		trialGenerated := make(chan struct{})
+		trialGenerated := make(chan codersdk.LicensorTrialRequest, 1)
 		entitlementsRefreshed := make(chan struct{})
 
 		client := coderdtest.New(t, &coderdtest.Options{
-			TrialGenerator: func(context.Context, codersdk.LicensorTrialRequest) error {
-				close(trialGenerated)
+			TrialGenerator: func(_ context.Context, req codersdk.LicensorTrialRequest) error {
+				trialGenerated <- req
 				return nil
 			},
 			RefreshEntitlements: func(context.Context) error {
@@ -112,7 +111,9 @@ func TestFirstUser(t *testing.T) {
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
 
-		_ = testutil.TryReceive(ctx, t, trialGenerated)
+		trialReq := testutil.TryReceive(ctx, t, trialGenerated)
+
+		require.Equal(t, codersdk.LicensorTrialSourceNewUser, trialReq.Source)
 		_ = testutil.TryReceive(ctx, t, entitlementsRefreshed)
 	})
 }
@@ -958,7 +959,7 @@ func TestPostUsers(t *testing.T) {
 			Email:           "another@user.org",
 			Username:        "someone-else",
 			Password:        "SomeSecurePassword!",
-			UserStatus:      ptr.Ref(codersdk.UserStatusActive),
+			UserStatus:      new(codersdk.UserStatusActive),
 		})
 		require.NoError(t, err)
 
@@ -2500,7 +2501,7 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 
 		// When: user dismisses the task notification alert
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: ptr.Ref(true),
+			TaskNotificationAlertDismissed: new(true),
 		})
 		require.NoError(t, err)
 
@@ -2518,14 +2519,14 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 
 		// Given: user has dismissed the task notification alert
 		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: ptr.Ref(true),
+			TaskNotificationAlertDismissed: new(true),
 		})
 		require.NoError(t, err)
 
 		// When: the task notification alert dismissal is cleared
 		// (e.g., when user enables a task notification in the UI settings)
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: ptr.Ref(false),
+			TaskNotificationAlertDismissed: new(false),
 		})
 		require.NoError(t, err)
 
@@ -2604,7 +2605,7 @@ func TestThinkingDisplayMode(t *testing.T) {
 
 		// Send an update that omits thinking_display_mode (zero value).
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: ptr.Ref(true),
+			TaskNotificationAlertDismissed: new(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ThinkingDisplayModePreview, updated.ThinkingDisplayMode)
@@ -3246,11 +3247,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 	require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(allUsers[:limit]), "first page, limit=%d", limit)
 	count += len(page.Users)
 
-	for {
-		if len(page.Users) == 0 {
-			break
-		}
-
+	for len(page.Users) != 0 {
 		afterCursor := page.Users[len(page.Users)-1].ID
 		// Assert each page is the next expected page
 		// This is using a cursor, and only works if all users created_at

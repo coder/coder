@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	buildEditDiff,
 	buildWriteFileDiff,
-	COLLAPSED_OUTPUT_HEIGHT,
 	COLLAPSED_REPORT_HEIGHT,
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
@@ -1036,10 +1035,6 @@ describe("humanizeMCPToolName", () => {
 });
 
 describe("constants", () => {
-	it("COLLAPSED_OUTPUT_HEIGHT is 54", () => {
-		expect(COLLAPSED_OUTPUT_HEIGHT).toBe(54);
-	});
-
 	it("COLLAPSED_REPORT_HEIGHT is 72", () => {
 		expect(COLLAPSED_REPORT_HEIGHT).toBe(72);
 	});

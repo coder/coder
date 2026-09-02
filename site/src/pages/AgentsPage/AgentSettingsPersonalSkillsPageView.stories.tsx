@@ -58,6 +58,21 @@ export const DownloadingSkill: Story = {
 	args: {
 		downloadingSkillName: "review-sql",
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const row = canvas.getByRole("row", { name: /review-sql/ });
+		await userEvent.click(
+			within(row).getByRole("button", { name: "Open menu" }),
+		);
+		const menu = await body.findByRole("menu");
+		await expect(
+			within(menu).getByRole("menuitem", { name: "Download" }),
+		).toHaveAttribute("aria-disabled", "true");
+		await expect(
+			within(menu).getByRole("menuitem", { name: "Edit" }),
+		).not.toHaveAttribute("aria-disabled");
+	},
 };
 
 export const ExportingAll: Story = {
@@ -66,16 +81,43 @@ export const ExportingAll: Story = {
 	},
 };
 
-export const DownloadsSkill: Story = {
+export const RowMenuActions: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const row = canvas.getByRole("row", { name: /review-sql/ });
-		await userEvent.click(
-			within(row).getByRole("button", { name: "Download" }),
-		);
+		const trigger = within(row).getByRole("button", { name: "Open menu" });
 
+		await userEvent.click(trigger);
+		await userEvent.click(
+			within(await body.findByRole("menu")).getByRole("menuitem", {
+				name: "Download",
+			}),
+		);
 		await waitFor(() => {
 			expect(args.onDownload).toHaveBeenCalledWith(
+				expect.objectContaining({ name: "review-sql" }),
+			);
+		});
+
+		await userEvent.click(trigger);
+		await userEvent.click(
+			within(await body.findByRole("menu")).getByRole("menuitem", {
+				name: "Edit",
+			}),
+		);
+		await waitFor(() => {
+			expect(args.onEdit).toHaveBeenCalledWith("review-sql");
+		});
+
+		await userEvent.click(trigger);
+		await userEvent.click(
+			within(await body.findByRole("menu")).getByRole("menuitem", {
+				name: /Delete/,
+			}),
+		);
+		await waitFor(() => {
+			expect(args.onDelete).toHaveBeenCalledWith(
 				expect.objectContaining({ name: "review-sql" }),
 			);
 		});
@@ -110,6 +152,19 @@ export const ListError: Story = {
 	args: {
 		skills: [],
 		error: new Error("Failed to load personal skills."),
+	},
+};
+
+export const RefetchErrorKeepsRows: Story = {
+	args: {
+		error: new Error("Failed to load personal skills."),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("row", { name: /review-sql/ })).toBeVisible();
+		await expect(
+			canvas.getByText("Failed to load personal skills."),
+		).toBeVisible();
 	},
 };
 

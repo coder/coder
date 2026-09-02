@@ -22,6 +22,30 @@ import (
 	"github.com/coder/quartz"
 )
 
+// TestToolInputSchemaMapPreservesEmptyProperties verifies that a tool
+// schema with an empty "properties" object (for example
+// {"type": "object", "properties": {}}) keeps "properties" in the wire
+// copy. Dropping it collapses the schema to nil by the time coderd
+// rebuilds the tool definition, and a nil properties serializes to JSON
+// null, which OpenAI rejects with "None is not of type 'object'".
+func TestToolInputSchemaMapPreservesEmptyProperties(t *testing.T) {
+	t.Parallel()
+
+	out := toolInputSchemaMap(map[string]any{
+		"type":       "object",
+		"properties": map[string]any{},
+	})
+	require.NotNil(t, out, "schema must not collapse to nil")
+	properties, ok := out["properties"].(map[string]any)
+	require.True(t, ok, "properties must be preserved as a map, got %T", out["properties"])
+	require.NotNil(t, properties, "properties must not be nil")
+
+	// Verify it serializes to {} not null or absent.
+	bs, err := json.Marshal(out)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"type":"object","properties":{}}`, string(bs))
+}
+
 func TestSplitToolName(t *testing.T) {
 	t.Parallel()
 

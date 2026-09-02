@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -736,23 +737,26 @@ type DeploymentValues struct {
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
+	DisableWorkspaceAgentContextSync        serpent.Bool                         `json:"disable_workspace_agent_context_sync,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer                     serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
-	AllowWorkspaceRenames                   serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
-	Healthcheck                             HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
-	Retention                               RetentionConfig                      `json:"retention,omitempty" typescript:",notnull"`
-	CLIUpgradeMessage                       serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
-	TermsOfServiceURL                       serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
-	Notifications                           NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
-	AdditionalCSPPolicy                     serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
-	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
-	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
-	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
-	AI                                      AIConfig                             `json:"ai,omitempty"`
-	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
-	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
+	// Deprecated: Use the per-template allow_workspace_renames setting instead.
+	AllowWorkspaceRenames   serpent.Bool          `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
+	Healthcheck             HealthcheckConfig     `json:"healthcheck,omitempty" typescript:",notnull"`
+	Retention               RetentionConfig       `json:"retention,omitempty" typescript:",notnull"`
+	CLIUpgradeMessage       serpent.String        `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
+	TermsOfServiceURL       serpent.String        `json:"terms_of_service_url,omitempty" typescript:",notnull"`
+	Notifications           NotificationsConfig   `json:"notifications,omitempty" typescript:",notnull"`
+	AdditionalCSPPolicy     serpent.StringArray   `json:"additional_csp_policy,omitempty" typescript:",notnull"`
+	WorkspaceHostnameSuffix serpent.String        `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
+	Prebuilds               PrebuildsConfig       `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
+	EnableAITasks           serpent.Bool          `json:"enable_ai_tasks,omitempty" typescript:",notnull"`
+	MCPAllowedPrivateCIDRs  serpent.StringArray   `json:"mcp_allowed_private_cidrs,omitempty" typescript:",notnull"`
+	AI                      AIConfig              `json:"ai,omitempty"`
+	StatsCollection         StatsCollectionConfig `json:"stats_collection,omitempty" typescript:",notnull"`
+	TemplateBuilder         TemplateBuilderConfig `json:"template_builder,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1548,6 +1552,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 communicating directly.`,
 			YAML: "cluster",
 		}
+		deploymentGroupMCP = serpent.Group{
+			Name: "MCP",
+			YAML: "mcp",
+		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
 			Description: `Configure logging, tracing, stat collection, and metrics exporting.`,
@@ -2273,6 +2281,16 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGatewayProxy,
 		YAML:        "upstream_proxy_ca",
 	}
+	mcpAllowedPrivateCIDRs := serpent.Option{
+		Name:        "MCP Allowed Private CIDRs",
+		Description: "MCP server destinations in private or reserved IP ranges are blocked by default for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and revocation exchanges, and runtime MCP connections from coderd. This option exempts specific CIDRs.",
+		Flag:        "mcp-allowed-private-cidrs",
+		Env:         "CODER_MCP_ALLOWED_PRIVATE_CIDRS",
+		Value:       &c.MCPAllowedPrivateCIDRs,
+		Default:     "",
+		Group:       &deploymentGroupMCP,
+		YAML:        "allowed_private_cidrs",
+	}
 	aiGatewayProxyAllowedPrivateCIDRs := serpent.Option{
 		Name:        "AI Gateway Proxy Allowed Private CIDRs",
 		Description: "Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.",
@@ -2294,6 +2312,7 @@ communicating directly.`,
 		YAML:        "api_dump_dir",
 	}
 	opts := serpent.OptionSet{
+		mcpAllowedPrivateCIDRs,
 		{
 			Name:        "Access URL",
 			Description: `The URL that users will use to access the Coder deployment.`,
@@ -3782,6 +3801,15 @@ communicating directly.`,
 			YAML:  "disableChatSharing",
 		},
 		{
+			Name:        "Disable Workspace Agent Context Sync",
+			Description: "Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.",
+			Flag:        "disable-workspace-agent-context-sync",
+			Env:         "CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC",
+
+			Value: &c.DisableWorkspaceAgentContextSync,
+			YAML:  "disableWorkspaceAgentContextSync",
+		},
+		{
 			Name:        "Session Duration",
 			Description: "The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.",
 			Flag:        "session-duration",
@@ -3952,13 +3980,14 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name: "Allow Workspace Renames",
-			Description: "Allow users to rename their workspaces. " +
+			Description: "Deprecated: use the per-template \"Allow workspace renames\" setting instead. " +
+				"While set, it force-enables renames for every template in the deployment. " +
 				"WARNING: Renaming a workspace can cause Terraform resources that depend on the " +
-				"workspace name to be destroyed and recreated, potentially causing data loss. " +
-				"Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.",
+				"workspace name to be destroyed and recreated, potentially causing data loss.",
 			Flag:    "allow-workspace-renames",
 			Env:     "CODER_ALLOW_WORKSPACE_RENAMES",
 			Default: "false",
+			Hidden:  true,
 			Value:   &c.AllowWorkspaceRenames,
 			YAML:    "allowWorkspaceRenames",
 		},
@@ -4320,14 +4349,17 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 		},
 		{
-			Name:        "Hide AI Tasks",
-			Description: "Hide AI tasks from the dashboard.",
-			Flag:        "hide-ai-tasks",
-			Env:         "CODER_HIDE_AI_TASKS",
+			Name:        "Enable AI Tasks",
+			Description: "Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI and its URLs are unavailable, the task RBAC permissions are stripped from built-in roles, and the CLI task commands are hidden.",
+			Flag:        "enable-ai-tasks",
+			Env:         "CODER_ENABLE_AI_TASKS",
 			Default:     "false",
-			Value:       &c.HideAITasks,
-			Group:       &deploymentGroupClient,
-			YAML:        "hideAITasks",
+			Value:       &c.EnableAITasks,
+			YAML:        "enableAITasks",
+			// Hidden keeps Tasks out of the generated CLI and configuration
+			// reference documentation while the feature is withdrawn from the
+			// product.
+			Hidden: true,
 		},
 		// Chat Options
 		{
@@ -4973,7 +5005,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Template Builder Registry URL",
-			Description: "The base URL of the module registry used by the template builder for module source paths.",
+			Description: "The module registry host the template builder uses for module source paths (for example, \"registry.coder.com\" or \"mirror.internal:8443\"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.",
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,
@@ -5112,6 +5144,33 @@ type TemplateBuilderConfig struct {
 	RegistryURL serpent.String `json:"registry_url,omitempty"`
 }
 
+// NormalizeTemplateBuilderRegistryURL canonicalizes a configured template
+// builder registry value into the bare host used verbatim in a Terraform module
+// source. An empty value returns empty (the caller defaults it). An accidental
+// http(s):// scheme and trailing slashes are stripped so a value pasted as a URL
+// still resolves to a host; any other scheme, a path, query, fragment, or
+// embedded credentials is rejected so a misconfiguration fails at server start
+// rather than rendering broken or unsafe module sources. It does not otherwise
+// canonicalize the host.
+func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return "", nil
+	}
+	v = strings.TrimPrefix(v, "https://")
+	v = strings.TrimPrefix(v, "http://")
+	v = strings.TrimRight(v, "/")
+	// net/url isolates a bare host:port only in authority form. Requiring the
+	// parsed host to equal the whole remainder rejects a leftover path, query,
+	// fragment, non-http scheme, or embedded credentials, and never echoes the
+	// input.
+	u, err := url.Parse("//" + v)
+	if err != nil || u.Host != v || u.Hostname() == "" || u.User != nil {
+		return "", xerrors.New(`template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port`)
+	}
+	return v, nil
+}
+
 type SupportConfig struct {
 	Links serpent.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
@@ -5181,6 +5240,14 @@ func (c *DeploymentValues) Validate() error {
 			if hookTimeout <= 0 || hookTimeout > 5*time.Second {
 				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
 			}
+		}
+	}
+
+	// Gated on the builder being enabled and run here rather than as a per-option
+	// serpent validator, which only fires in Set and so misses the YAML path.
+	if !c.TemplateBuilder.Disabled.Value() {
+		if _, err := NormalizeTemplateBuilderRegistryURL(c.TemplateBuilder.RegistryURL.Value()); err != nil {
+			return err
 		}
 	}
 

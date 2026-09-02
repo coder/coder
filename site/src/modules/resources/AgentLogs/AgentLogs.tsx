@@ -1,5 +1,14 @@
-import type { JSX } from "react";
-import { FixedSizeList as List } from "react-window";
+import {
+	type CSSProperties,
+	type FC,
+	type JSX,
+	type ReactNode,
+	type Ref,
+	useCallback,
+	useLayoutEffect,
+	useRef,
+} from "react";
+import { VariableSizeList as List } from "react-window";
 import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -24,32 +33,95 @@ const fallbackLog: WorkspaceAgentLogSource = {
 };
 
 type AgentLogsProps = Omit<
-	React.ComponentPropsWithRef<typeof List>,
+	React.ComponentPropsWithoutRef<typeof List>,
 	"children" | "itemSize" | "itemCount" | "itemKey"
 > & {
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
 	overflowed: boolean;
 	showSourceIcons?: boolean;
+	ref?: Ref<List>;
 };
 
-export const AgentLogs: React.FC<AgentLogsProps> = ({
+export const AgentLogs: FC<AgentLogsProps> = ({
 	logs,
 	sources,
 	overflowed,
 	className,
 	showSourceIcons = true,
+	ref,
 	...listProps
 }) => {
 	const logSourceById = Object.fromEntries(sources.map((s) => [s.id, s]));
 	const getLogSource = (id: string) => logSourceById[id] || fallbackLog;
 
+	const listRef = useRef<List>(null);
+	const mergeListRef = useCallback(
+		(instance: List | null) => {
+			listRef.current = instance;
+			if (typeof ref === "function") {
+				ref(instance);
+			} else if (ref) {
+				ref.current = instance;
+			}
+		},
+		[ref],
+	);
+
+	// A log line's real height depends on its content (long lines wrap, so a
+	// single log entry can span multiple visual rows). A fixed itemSize makes
+	// react-window compute the total scroll height as itemCount * itemSize,
+	// which drifts further from reality with every taller-than-expected row.
+	// With enough rows the estimated height falls short of the real content
+	// and the list can no longer scroll to the last line (coder/coder#25692).
+	// Measuring each row and feeding the true height back keeps the total
+	// height accurate regardless of how many rows there are.
+	const sizeMapRef = useRef<Map<number, number>>(new Map());
+	const pendingResetIndexRef = useRef<number | null>(null);
+	// resetAfterIndex tells react-window to recompute offsets from the first
+	// row whose height changed. The list ref is assigned after the child rows
+	// commit, so on the initial mount we can't reset from within a row's
+	// measurement effect; instead we record the lowest changed index and flush
+	// it from a parent layout effect once the ref is available.
+	const flushPendingReset = useCallback(() => {
+		const index = pendingResetIndexRef.current;
+		if (index !== null && listRef.current) {
+			pendingResetIndexRef.current = null;
+			listRef.current.resetAfterIndex(index);
+		}
+	}, []);
+	const setRowHeight = useCallback(
+		(index: number, height: number) => {
+			if (sizeMapRef.current.get(index) === height) {
+				return;
+			}
+			sizeMapRef.current.set(index, height);
+			pendingResetIndexRef.current =
+				pendingResetIndexRef.current === null
+					? index
+					: Math.min(pendingResetIndexRef.current, index);
+			flushPendingReset();
+		},
+		[flushPendingReset],
+	);
+	const getRowHeight = useCallback(
+		(index: number) => sizeMapRef.current.get(index) ?? AGENT_LOG_LINE_HEIGHT,
+		[],
+	);
+
+	// Flush measurements taken before the list ref existed (initial mount).
+	useLayoutEffect(() => {
+		flushPendingReset();
+	});
+
 	return (
 		<div className="bg-surface-secondary relative">
 			<List
 				{...listProps}
+				ref={mergeListRef}
 				itemCount={logs.length}
-				itemSize={AGENT_LOG_LINE_HEIGHT}
+				itemSize={getRowHeight}
+				estimatedItemSize={AGENT_LOG_LINE_HEIGHT}
 				itemKey={(index) => logs[index]?.id || index}
 				// We need the div selector to be able to apply the padding
 				// top from startupLogs
@@ -125,26 +197,31 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					}
 
 					return (
-						<AgentLogLine
-							line={log}
+						<MeasuredLogRow
+							index={index}
 							style={style}
-							sourceIcon={
-								showSourceIcons ? (
-									<Tooltip>
-										<TooltipTrigger asChild>{icon}</TooltipTrigger>
-										<TooltipContent side="bottom">
-											{logSource.display_name}
-											{assignedIcon && (
-												<i>
-													<br />
-													No icon specified!
-												</i>
-											)}
-										</TooltipContent>
-									</Tooltip>
-								) : null
-							}
-						/>
+							onMeasure={setRowHeight}
+						>
+							<AgentLogLine
+								line={log}
+								sourceIcon={
+									showSourceIcons ? (
+										<Tooltip>
+											<TooltipTrigger asChild>{icon}</TooltipTrigger>
+											<TooltipContent side="bottom">
+												{logSource.display_name}
+												{assignedIcon && (
+													<i>
+														<br />
+														No icon specified!
+													</i>
+												)}
+											</TooltipContent>
+										</Tooltip>
+									) : null
+								}
+							/>
+						</MeasuredLogRow>
 					);
 				}}
 			</List>
@@ -176,6 +253,50 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					</TooltipContent>
 				</Tooltip>
 			)}
+		</div>
+	);
+};
+
+interface MeasuredLogRowProps {
+	index: number;
+	// react-window's positioning style for the row (absolute top/left/width).
+	style: CSSProperties;
+	onMeasure: (index: number, height: number) => void;
+	children: ReactNode;
+}
+
+// Wraps a log line and reports its rendered height back to the virtualized
+// list. The height is left to the content (`height: auto`) so wrapped or
+// multi-line output is measured accurately instead of being assumed to be a
+// single fixed-height row.
+const MeasuredLogRow: FC<MeasuredLogRowProps> = ({
+	index,
+	style,
+	onMeasure,
+	children,
+}) => {
+	const rowRef = useRef<HTMLDivElement>(null);
+
+	useLayoutEffect(() => {
+		const el = rowRef.current;
+		if (!el) {
+			return;
+		}
+		const report = () => {
+			const height = el.getBoundingClientRect().height;
+			if (height > 0) {
+				onMeasure(index, height);
+			}
+		};
+		report();
+		const observer = new ResizeObserver(report);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [index, onMeasure]);
+
+	return (
+		<div ref={rowRef} style={{ ...style, height: "auto" }}>
+			{children}
 		</div>
 	);
 };

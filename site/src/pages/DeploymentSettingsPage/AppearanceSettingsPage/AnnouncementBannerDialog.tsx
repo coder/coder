@@ -64,7 +64,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 			{/* Banner preview. Rendered outside DialogContent so its fixed
 			    positioning is relative to the viewport, not the dialog's
 			    transformed containing block. */}
-			<div className="pointer-events-none fixed top-0 right-0 left-0 z-[60]">
+			<div className="pointer-events-none fixed top-0 right-0 left-0 z-60">
 				<AnnouncementBannerView
 					message={bannerForm.values.message}
 					backgroundColor={bannerForm.values.background_color}

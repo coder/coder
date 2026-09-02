@@ -270,22 +270,26 @@ const (
 	OAuth2TokenEndpointAuthMethodNone              OAuth2TokenEndpointAuthMethod = "none"
 )
 
-// AllOAuth2TokenEndpointAuthMethods returns every accepted token endpoint auth
-// method. Valid() is defined in terms of it, so what registration accepts
-// cannot drift from what this function reports.
+// AllOAuth2TokenEndpointAuthMethods returns every token endpoint auth method
+// registration accepts. Valid() checks against it, so the two cannot drift.
 //
-// Discovery metadata does not yet derive from it:
-// coderd/oauth2provider/metadata.go's TokenEndpointAuthMethodsSupported is
-// hardcoded to {client_secret_basic, client_secret_post} and does not
-// advertise "none", even though "none" is accepted here. A follow-up PR
-// wires the token endpoint to honor "none"; only once that lands should
-// discovery advertise it too.
+// See AdvertisedOAuth2TokenEndpointAuthMethods for what discovery publishes.
 func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 	return []OAuth2TokenEndpointAuthMethod{
 		OAuth2TokenEndpointAuthMethodClientSecretBasic,
 		OAuth2TokenEndpointAuthMethodClientSecretPost,
 		OAuth2TokenEndpointAuthMethodNone,
 	}
+}
+
+// AdvertisedOAuth2TokenEndpointAuthMethods returns the token endpoint auth
+// methods published in discovery metadata (RFC 8414
+// token_endpoint_auth_methods_supported). It is separate from
+// AllOAuth2TokenEndpointAuthMethods so a method the token endpoint stops
+// honoring can be dropped from discovery without also being rejected at
+// registration.
+func AdvertisedOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
+	return AllOAuth2TokenEndpointAuthMethods()
 }
 
 func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
@@ -295,9 +299,8 @@ func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
 // OAuth2ClientType is how a client authenticates at the token endpoint
 // (RFC 7591 §2, OAuth 2.1 §2.1). A confidential client authenticates with a
 // secret; a public client authenticates with PKCE alone. It is derived from
-// the requested token_endpoint_auth_method and stored on the app. A
-// follow-up PR wires the token endpoint to read it when deciding whether to
-// require a client secret.
+// the requested token_endpoint_auth_method, stored on the app, and read by
+// the token endpoint to decide whether a client secret is required.
 type OAuth2ClientType string
 
 const (

@@ -21,7 +21,6 @@ import { useFilter } from "#/components/Filter/Filter";
 import { useStatusFilterMenu } from "#/components/Filter/UsersFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
-import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
 import { pageTitle } from "#/utils/page";
@@ -33,7 +32,6 @@ const UsersPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { entitlements } = useDashboard();
-	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
 
 	const groupsByUserIdQuery = useQuery(groupsByUserId());
 
@@ -113,7 +111,6 @@ const UsersPage: React.FC = () => {
 				}}
 				usersQuery={usersQuery}
 				groupsByUserId={groupsByUserIdQuery.data}
-				showAISeatColumn={showAISeatColumn}
 				onEditUserRoles={setUserToEditRoles}
 				isUpdatingUserRoles={updateUserRolesMutation.isPending}
 				onResetUserPassword={(user) => {

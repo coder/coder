@@ -67,6 +67,20 @@ WHERE
 	id = $1
 FOR UPDATE;
 
+-- name: GetProvisionerJobsByIDs :many
+-- Fetches provisioner jobs by their IDs without computing queue position or
+-- queue size. Callers that do not need the queue position should prefer this
+-- over GetProvisionerJobsByIDsWithQueuePosition, whose window functions over
+-- pending jobs and provisioner daemons are comparatively expensive.
+SELECT
+	*
+FROM
+	provisioner_jobs
+WHERE
+	id = ANY(@ids :: uuid [ ])
+ORDER BY
+	created_at;
+
 -- name: GetProvisionerJobsByIDsWithQueuePosition :many
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs

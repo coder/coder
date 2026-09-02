@@ -222,7 +222,7 @@ func (d *Detector) run(t time.Time) Stats {
 
 		err := reapJob(ctx, log, d.db, d.pubsub, job)
 		if err != nil {
-			if !(xerrors.As(err, &acquireLockError{}) || xerrors.As(err, &jobIneligibleError{})) {
+			if (!xerrors.As(err, &acquireLockError{}) && !xerrors.As(err, &jobIneligibleError{})) {
 				log.Error(ctx, "error forcefully terminating provisioner job", slog.F("type", job.Type), slog.Error(err))
 			}
 			continue

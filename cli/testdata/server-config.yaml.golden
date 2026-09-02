@@ -1,3 +1,10 @@
+mcp:
+  # MCP server destinations in private or reserved IP ranges are blocked by default
+  # for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and
+  # revocation exchanges, and runtime MCP connections from coderd. This option
+  # exempts specific CIDRs.
+  # (default: <unset>, type: string-array)
+  allowed_private_cidrs: []
 networking:
   # The URL that users will use to access the Coder deployment.
   # (default: <unset>, type: url)
@@ -566,6 +573,13 @@ disableWorkspaceSharing: false
 # their chats.
 # (default: <unset>, type: bool)
 disableChatSharing: false
+# Stop persisting workspace agent context snapshots (instructions, skills, and MCP
+# state used for pinned chat context). When set, coderd rejects agent context
+# pushes as unimplemented and agents stop sending them; chats cannot pin workspace
+# context. Use this to shed the database write load of context sync on large
+# deployments.
+# (default: <unset>, type: bool)
+disableWorkspaceAgentContextSync: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
@@ -597,9 +611,6 @@ client:
   # 'webgl', or 'dom'.
   # (default: canvas, type: string)
   webTerminalRenderer: canvas
-  # Hide AI tasks from the dashboard.
-  # (default: false, type: bool)
-  hideAITasks: false
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []
@@ -631,10 +642,10 @@ userQuietHoursSchedule:
   # change their quiet hours schedule and the site default is always used.
   # (default: true, type: bool)
   allowCustomQuietHours: true
-# Allow users to rename their workspaces. WARNING: Renaming a workspace can cause
-# Terraform resources that depend on the workspace name to be destroyed and
-# recreated, potentially causing data loss. Only enable this if your templates do
-# not use workspace names in resource identifiers, or if you understand the risks.
+# Deprecated: use the per-template "Allow workspace renames" setting instead.
+# While set, it force-enables renames for every template in the deployment.
+# WARNING: Renaming a workspace can cause Terraform resources that depend on the
+# workspace name to be destroyed and recreated, potentially causing data loss.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
 # Configure how emails are sent.
@@ -794,6 +805,11 @@ workspace_prebuilds:
   # limit; disabled when set to zero.
   # (default: 3, type: int)
   failure_hard_limit: 3
+# Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI
+# and its URLs are unavailable, the task RBAC permissions are stripped from
+# built-in roles, and the CLI task commands are hidden.
+# (default: false, type: bool)
+enableAITasks: false
 # Configure the background chat processing daemon.
 chat:
   # How many pending chats a worker should acquire per polling cycle.
@@ -1184,7 +1200,9 @@ templateBuilder:
   # disabled, all /api/v2/templatebuilder/* endpoints return 404.
   # (default: <unset>, type: bool)
   disabled: false
-  # The base URL of the module registry used by the template builder for module
-  # source paths.
+  # The module registry host the template builder uses for module source paths (for
+  # example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme
+  # and trailing slash are stripped; a path, query, fragment, or credentials is
+  # rejected.
   # (default: registry.coder.com, type: string)
   registryURL: registry.coder.com

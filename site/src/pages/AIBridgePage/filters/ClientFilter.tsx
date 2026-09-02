@@ -56,9 +56,10 @@ export type ClientFilterMenu = ReturnType<typeof useClientFilterMenu>;
 
 interface ClientFilterProps {
 	menu: ClientFilterMenu;
+	width?: number;
 }
 
-export const ClientFilter: React.FC<ClientFilterProps> = ({ menu }) => {
+export const ClientFilter: React.FC<ClientFilterProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Select client"
@@ -67,6 +68,7 @@ export const ClientFilter: React.FC<ClientFilterProps> = ({ menu }) => {
 			options={menu.searchOptions}
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
+			width={width}
 			selectFilterSearch={
 				<ComboboxInput
 					placeholder="Search client..."

@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -1197,10 +1198,23 @@ func TestTemplateVersionResources(t *testing.T) {
 		resources, err := client.TemplateVersionResources(ctx, version.ID)
 		require.NoError(t, err)
 		require.NotNil(t, resources)
+		// An import plans both transitions, so every resource is recorded twice.
+		// Resources are only sorted by name, and the two "some" rows tie, so
+		// they're matched on transition rather than by index.
 		require.Len(t, resources, 4)
-		require.Equal(t, "some", resources[2].Name)
-		require.Equal(t, "example", resources[2].Type)
-		require.Len(t, resources[2].Agents, 1)
+		start, ok := slice.Find(resources, func(r codersdk.WorkspaceResource) bool {
+			return r.Name == "some" && r.Transition == codersdk.WorkspaceTransitionStart
+		})
+		require.True(t, ok)
+		require.Equal(t, "example", start.Type)
+		require.Len(t, start.Agents, 1)
+
+		stop, ok := slice.Find(resources, func(r codersdk.WorkspaceResource) bool {
+			return r.Name == "some" && r.Transition == codersdk.WorkspaceTransitionStop
+		})
+		require.True(t, ok)
+		// A stopped workspace has no agents, so the stop plan doesn't report any.
+		require.Empty(t, stop.Agents)
 	})
 }
 

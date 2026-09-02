@@ -13,6 +13,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -57,6 +58,27 @@ func TestPushContextState(t *testing.T) {
 			},
 		)
 	}
+
+	t.Run("DisabledReturnsUnimplemented", func(t *testing.T) {
+		t.Parallel()
+
+		// No InTx or query expectations: a disabled push must return
+		// before touching the store. The Unimplemented dRPC code is
+		// load-bearing; the agent's DRPCPusher translates it into
+		// ErrPushUnimplemented, which stops its RunPush loop instead
+		// of retrying with backoff.
+		api, _ := makeAPI(t)
+		api.Disabled = true
+
+		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+			Version:       1,
+			AggregateHash: []byte{0x01, 0x02},
+			Initial:       true,
+		})
+		require.Error(t, err)
+		require.Nil(t, resp)
+		require.EqualValues(t, drpcerr.Unimplemented, drpcerr.Code(err))
+	})
 
 	t.Run("AcceptsInitialPush", func(t *testing.T) {
 		t.Parallel()

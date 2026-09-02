@@ -41,7 +41,10 @@ var (
 	errConflictingClientAuth = xerrors.New("conflicting client authentication")
 )
 
-func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
+// extractTokenRequest parses and validates the /oauth2/tokens form. It takes
+// the app because whether client_secret is required depends on the client
+// type.
+func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
 	if err != nil {
@@ -93,7 +96,9 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2
 				Detail: "Parameter \"client_id\" is required and cannot be empty",
 			})
 		}
-		if req.ClientSecret == "" {
+		// Public clients have no secret; PKCE is their proof of possession
+		// (RFC 7591 §2, OAuth 2.1 §2.1).
+		if !app.IsPublic() && req.ClientSecret == "" {
 			p.Errors = append(p.Errors, codersdk.ValidationError{
 				Field:  "client_secret",
 				Detail: "Parameter \"client_secret\" is required and cannot be empty",
@@ -147,7 +152,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			return
 		}
 
-		req, validationErrs, err := extractTokenRequest(r, callbackURL)
+		req, validationErrs, err := extractTokenRequest(r, callbackURL, app)
 		if err != nil {
 			if errors.Is(err, errConflictingClientAuth) {
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
@@ -236,23 +241,17 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 	}
 }
 
-// revokeOAuth2CodeOnPKCEFailure deletes a code that failed PKCE verification
-// so it cannot be replayed with further code_verifier guesses (RFC 6749
-// §10.5). Deletion failure does not change the response returned to the
-// caller: surfacing it as a different error would let a caller distinguish
-// "delete succeeded" from "delete failed," defeating the point of revoking
-// the code in the first place. It is instead noted on the request's log line
-// so operators can see it happened.
+// revokeOAuth2CodeOnPKCEFailure deletes a code that failed PKCE verification so
+// it cannot be replayed with further code_verifier guesses (RFC 6749 §10.5).
 //
-// A code that is already gone satisfies the goal, so sql.ErrNoRows is not a
-// failure worth logging. It surfaces because the authorization check reads
-// the code before deleting it, and that read reports a missing row when a
-// concurrent attempt already revoked the code or it was reaped after expiry.
+// A failed delete is logged on the request's log line rather than returned: a
+// distinct error would tell a caller whether its code is still redeemable.
+// sql.ErrNoRows is not logged, since a code that is already gone satisfies the
+// goal.
 //
-// The delete runs on a context detached from the request. The request context
-// is canceled when the client disconnects, so a caller that fails PKCE and
-// then drops the connection would otherwise leave its own code redeemable for
-// the rest of its lifetime, which is the replay this function prevents.
+// The delete uses a context detached from the request, which is canceled when
+// the client disconnects. Otherwise a caller could fail PKCE, drop the
+// connection, and keep its code redeemable.
 func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeID uuid.UUID) {
 	revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
@@ -266,32 +265,37 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 }
 
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
-	// Validate the client secret.
-	secret, err := ParseFormattedSecret(req.ClientSecret)
-	if err != nil {
-		return codersdk.OAuth2TokenResponse{}, errBadSecret
-	}
-	//nolint:gocritic // OAuth2 system context — users cannot read secrets
-	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
-	if errors.Is(err, sql.ErrNoRows) {
-		return codersdk.OAuth2TokenResponse{}, errBadSecret
-	}
-	if err != nil {
-		return codersdk.OAuth2TokenResponse{}, err
-	}
+	// A public client has no secret to validate, and its token references
+	// none. PKCE and the dbCode.AppID check are what bind the exchange to the
+	// client instead.
+	var appSecretID uuid.NullUUID
+	if !app.IsPublic() {
+		secret, err := ParseFormattedSecret(req.ClientSecret)
+		if err != nil {
+			return codersdk.OAuth2TokenResponse{}, errBadSecret
+		}
+		//nolint:gocritic // OAuth2 system context, users cannot read secrets
+		dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
+		if errors.Is(err, sql.ErrNoRows) {
+			return codersdk.OAuth2TokenResponse{}, errBadSecret
+		}
+		if err != nil {
+			return codersdk.OAuth2TokenResponse{}, err
+		}
 
-	equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret)
-	if !equalSecret {
-		return codersdk.OAuth2TokenResponse{}, errBadSecret
-	}
+		equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret)
+		if !equalSecret {
+			return codersdk.OAuth2TokenResponse{}, errBadSecret
+		}
 
-	// The secret must belong to the app identified by the request's
-	// client_id, which is otherwise unauthenticated at this point (it is
-	// parsed straight from the request with no verification). Without this
-	// check, a valid secret for one app could issue a token attributed to a
-	// different app.
-	if dbSecret.AppID != app.ID {
-		return codersdk.OAuth2TokenResponse{}, errBadSecret
+		// The secret must belong to the app named by client_id, which arrives
+		// unverified in the request. Otherwise a valid secret for one app
+		// could issue a token for another.
+		if dbSecret.AppID != app.ID {
+			return codersdk.OAuth2TokenResponse{}, errBadSecret
+		}
+
+		appSecretID = uuid.NullUUID{UUID: dbSecret.ID, Valid: true}
 	}
 
 	// Validate the authorization code.
@@ -299,7 +303,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
-	//nolint:gocritic // OAuth2 system context — no authenticated user during token exchange
+	//nolint:gocritic // OAuth2 system context, no authenticated user during token exchange
 	dbCode, err := db.GetOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(code.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return codersdk.OAuth2TokenResponse{}, errBadCode
@@ -312,8 +316,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
 
-	// The code must belong to the app identified by the request's
-	// client_id, for the same reason as the secret check above.
+	// Likewise the code must belong to the app named by client_id. A public
+	// client runs no secret check, so this is the only thing tying the
+	// exchange to that app.
 	if dbCode.AppID != app.ID {
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
@@ -331,20 +336,17 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		}
 	}
 
-	// PKCE is mandatory for all authorization code flows (OAuth 2.1). Verify
-	// the code verifier against the stored challenge. extractTokenRequest
-	// already rejected a malformed verifier as invalid_request, so
-	// req.CodeVerifier is guaranteed to meet RFC 7636 §4.1's bounds here; a
-	// mismatch below is a wrong-but-well-formed verifier, RFC 7636 §4.6's
-	// invalid_grant case.
+	// PKCE is mandatory for all authorization code flows (OAuth 2.1).
+	// extractTokenRequest already rejected a malformed verifier as
+	// invalid_request, so a mismatch here is a wrong but well-formed verifier,
+	// RFC 7636 §4.6's invalid_grant case.
 	//
-	// RFC 6749 §10.5 requires codes to be single-use. A code that survives a
-	// failed PKCE check would otherwise let a leaked code (the exact threat
-	// PKCE defends against) be replayed with different code_verifier guesses
-	// for the rest of its lifetime, unthrottled.
+	// The code is revoked on failure because RFC 6749 §10.5 requires codes to be
+	// single-use: one that survived would let a leaked code be replayed with
+	// unthrottled verifier guesses.
 	if !dbCode.CodeChallenge.Valid || dbCode.CodeChallenge.String == "" {
-		// Code was issued without a challenge, which should not happen
-		// with authorize endpoint enforcement, but defend in depth.
+		// The authorize endpoint requires a challenge, so this is defense in
+		// depth.
 		revokeOAuth2CodeOnPKCEFailure(ctx, db, dbCode.ID)
 		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
 	}
@@ -432,7 +434,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			HashPrefix:  []byte(refreshToken.Prefix),
 			RefreshHash: refreshToken.Hashed,
 			AppID:       dbCode.AppID,
-			AppSecretID: uuid.NullUUID{UUID: dbSecret.ID, Valid: true},
+			AppSecretID: appSecretID,
 			APIKeyID:    newKey.ID,
 			UserID:      dbCode.UserID,
 			Audience:    dbCode.ResourceUri,
@@ -462,7 +464,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, errBadToken
 	}
-	//nolint:gocritic // OAuth2 system context — no authenticated user during refresh
+	//nolint:gocritic // OAuth2 system context, no authenticated user during refresh
 	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(token.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return codersdk.OAuth2TokenResponse{}, errBadToken
@@ -499,7 +501,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	}
 
 	// Grab the user roles so we can perform the refresh as the user.
-	//nolint:gocritic // OAuth2 system context — need to read the previous API key
+	//nolint:gocritic // OAuth2 system context, need to read the previous API key
 	prevKey, err := db.GetAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), dbToken.APIKeyID)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err

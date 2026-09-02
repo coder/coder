@@ -11,6 +11,7 @@ import {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { dollarsToMicros, microsToDollars } from "#/utils/currency";
 import type { GroupPageOutletContext } from "./GroupPage";
 import GroupSettingsPageView from "./GroupSettingsPageView";
@@ -23,19 +24,25 @@ const GroupSettingsPage: FC = () => {
 		organization?: string;
 		groupName: string;
 	};
-	const { group: groupData } = useOutletContext<GroupPageOutletContext>();
+	const { group: groupData, permissions } =
+		useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
 	const patchGroupMutation = useMutation(patchGroup(queryClient, organization));
 	const navigate = useNavigate();
 
 	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
+	const canUpdateGroup = permissions.canUpdateGroup;
 	const budgetQuery = useQuery({
 		...groupAIBudget(groupData.id),
-		enabled: aibridgeVisible,
+		enabled: aibridgeVisible && canUpdateGroup,
 	});
 	const saveBudgetMutation = useMutation(
 		saveGroupAIBudget(queryClient, groupData.id),
 	);
+
+	if (!canUpdateGroup) {
+		return <RequirePermission isFeatureVisible={false} />;
+	}
 
 	if (aibridgeVisible && budgetQuery.isLoading) {
 		return (

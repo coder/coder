@@ -23,7 +23,6 @@ import (
 	"tailscale.com/util/dnsname"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
@@ -420,7 +419,7 @@ func NewTunnelSrcCoordController(
 func (c *TunnelSrcCoordController) New(client CoordinatorClient) CloserWaiter {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	b := c.BasicCoordinationController.NewCoordination(client)
+	b := c.NewCoordination(client)
 	c.coordination = b
 	// resync destinations on reconnect
 	for dest := range c.dests {
@@ -1131,7 +1130,7 @@ func (t *TunnelAllWorkspaceUpdatesController) CurrentState() (WorkspaceUpdate, e
 			Status: w.Status,
 		})
 		for _, a := range w.agents {
-			out.UpsertedAgents = append(out.UpsertedAgents, ptr.Ref(a.Clone()))
+			out.UpsertedAgents = append(out.UpsertedAgents, new(a.Clone()))
 		}
 	}
 	return out, nil
@@ -1245,7 +1244,7 @@ func (w *WorkspaceUpdate) Clone() WorkspaceUpdate {
 		}
 	}
 	for i, a := range w.UpsertedAgents {
-		clone.UpsertedAgents[i] = ptr.Ref(a.Clone())
+		clone.UpsertedAgents[i] = new(a.Clone())
 	}
 	for i, ws := range w.DeletedWorkspaces {
 		clone.DeletedWorkspaces[i] = &Workspace{
@@ -1255,7 +1254,7 @@ func (w *WorkspaceUpdate) Clone() WorkspaceUpdate {
 		}
 	}
 	for i, a := range w.DeletedAgents {
-		clone.DeletedAgents[i] = ptr.Ref(a.Clone())
+		clone.DeletedAgents[i] = new(a.Clone())
 	}
 	return clone
 }

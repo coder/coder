@@ -28,7 +28,7 @@ export const ModelFormProviderSelect: FC<{
 	// whose provider was disabled afterwards still renders.
 	const selectableProviderStates = providerStates.filter(
 		(ps) =>
-			ps.providerConfig?.enabled !== false ||
+			ps.providerDescriptor.enabled ||
 			(isEditing && ps.key === selectedProviderKey),
 	);
 	return (

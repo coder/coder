@@ -1,4 +1,6 @@
-# AI Governance Cost Control
+---
+title: AI Governance Cost Control
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is
@@ -77,7 +79,7 @@ member can spend $200 USD and the group has a total spend limit of $2,000 USD.
 
 Budget values behave as follows:
 
-- An empty field means no limit. The field displays `unlimited`.
+- An empty field means no budget is set. The field displays `no budget`.
 - `$0 USD` blocks every request routed via AI Gateway from members whose
   effective group is this group.
 - The maximum is `$1,000,000 USD` per member per budget period.
@@ -189,23 +191,43 @@ snapshot that ships with every Coder release, so no configuration is required.
 Spend accumulates only from the moment v2.36 is deployed. Upgrading mid-month
 therefore produces a partial first period.
 
-To see which models are priced in the release version you run, consult the
-price book for your Coder version:
+To see the prices this deployment uses, list them. The `source` column reports
+whether each is a default price or a custom price set on this deployment:
+
+```sh
+coder exp ai-model-prices list
+```
+
+A custom price takes precedence over its default, so it is the one listed. To
+see the default for such a model, filter to it:
+
+```sh
+coder exp ai-model-prices list --source default
+```
+
+Default prices come from the price book that ships with each Coder release. To
+see the price book for a release:
 
 ```text
 https://github.com/coder/coder/blob/release/<VERSION>/coderd/aibridge/prices/data/prices.json
 ```
 
-Replace `<VERSION>` with your Coder minor version, for example `2.36`.
+Replace `<VERSION>` with a Coder minor version, for example `2.36`.
+
+To use your own price for any of these models, see
+[Configure model prices](#configure-model-prices).
 
 > [!IMPORTANT]
-> Approximate spend can differ from provider-reported amounts, and some usage might not count toward spend:
+> Spend is an approximation. It can differ from what the provider bills, and
+> some usage does not count toward it at all:
 >
-> - Approximate spend excludes negotiated discounts, committed-use pricing, and
->   provider-specific billing rules.
-> - Requests to models that are missing from the price table record token usage
->   but add nothing to a user's spend. A user who only calls unpriced models is
->   effectively unlimited.
+> - Default prices are list prices. A custom price brings spend closer to the
+>   rates a deployment actually pays, though billing rules that are not a
+>   per-token rate, such as committed-use discounts, cannot be represented.
+> - A model with no price adds nothing to spend. Its token usage is still
+>   recorded, but it never counts toward a limit, so a user who calls only
+>   unpriced models is effectively unlimited. Setting a price for the model
+>   closes the gap.
 
 Monitor `coder_ai_gateway_cost_control_unpriced_token_usage_records_total`,
 labeled by `provider`, `provider_type`, and `model`, to detect unpriced usage.
@@ -214,18 +236,34 @@ value means spend is under-counted. Because the price book ships with the
 release, a newly launched model is unpriced until you upgrade Coder or set a
 price for it yourself.
 
-### Set model prices
+### Configure model prices
 
-Use the experimental `coder exp ai-model-prices` command to set prices for
-models the price book does not cover. It requires the AI Governance add-on and
-the `ai_model_price:update` permission. Run
-`coder exp ai-model-prices --help` for the full reference.
+Use the experimental `coder exp ai-model-prices` command to set model prices
+for your deployment. It requires AI Governance, which is included with a
+Premium license, and the Owner
+[role](../../admin/users/groups-roles.md) or a custom role granting
+`ai_model_price:update`. Run `coder exp ai-model-prices --help` for the full
+reference.
 
 List the prices this deployment holds, optionally narrowed to one provider or
-model:
+model. The `source` column reports whether a price is a default price
+(`default`) or one set on this deployment (`custom`):
 
 ```sh
 coder exp ai-model-prices list --provider anthropic
+```
+
+List only the prices you have set:
+
+```sh
+coder exp ai-model-prices list --source custom
+```
+
+A listing reports one price per model, so an overridden model's default is not
+shown. To see every price a model holds, both at once:
+
+```sh
+coder exp ai-model-prices list --source all
 ```
 
 Price a single model. Prices are micro-units per million tokens, so `3000000`
@@ -249,7 +287,12 @@ coder exp ai-model-prices update prices.json
 >
 > - Prices are not retroactive. Usage recorded before you set a price stays
 >   unpriced, so past spend does not change.
-> - You can only set prices for models the price book does not cover.
+> - A price you set takes precedence over the default and stays in effect
+>   across upgrades, so it does not pick up later price books.
+> - A price is keyed by provider type and model, so every configured provider
+>   of that type shares it.
+> - `openai-compat` providers cannot be priced. They pass through to any
+>   upstream vendor, so a single price would be wrong for most of them.
 > - This command is experimental and can change without notice.
 
 ## Monitor spend

@@ -13,7 +13,9 @@ export interface EditFilesFileEntry {
 
 // Validates that the edit has at least the shape of an object with
 // string-typed text fields. Accepts both current field names
-// (old_text/new_text) and deprecated names (search/replace).
+// (old_text/new_text) and old names (search/replace): tool-call args
+// persisted from older chats use the old names and are immutable, so
+// this branch must stay to keep their diffs rendering.
 const normalizeEdit = (
 	e: unknown,
 ): { search: string; replace: string } | null => {
@@ -507,9 +509,6 @@ export const getWriteFileDiff = (
 	}
 	return buildWriteFileDiff(path, content);
 };
-
-/** Height that fits roughly 3 lines of monospace text-xs output. */
-export const COLLAPSED_OUTPUT_HEIGHT = 54;
 
 /** Height for the collapsed report preview (~3 lines of rendered markdown). */
 export const COLLAPSED_REPORT_HEIGHT = 72;

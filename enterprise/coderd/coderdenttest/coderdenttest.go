@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -553,7 +552,7 @@ func MustClaimPrebuild(
 		TemplateVersionID:       version.ID,
 		Name:                    workspaceName,
 		TemplateVersionPresetID: presetID,
-		AutostartSchedule:       ptr.Ref(startSchedule),
+		AutostartSchedule:       &startSchedule,
 	})
 	require.NoError(t, err)
 	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)

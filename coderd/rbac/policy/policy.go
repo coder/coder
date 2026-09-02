@@ -85,6 +85,22 @@ var chatActions = map[Action]ActionDefinition{
 	ActionShare:  "share a chat with other users or groups",
 }
 
+var mcpServerConfigActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new MCP server config",
+	ActionRead:   "read MCP server config",
+	ActionUpdate: "update MCP server config",
+	ActionShare:  "share MCP server config with other users or groups",
+	ActionDelete: "delete MCP server config",
+}
+
+var chatModelConfigActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat model config",
+	ActionRead:   "read chat model configs",
+	ActionUpdate: "update a chat model config",
+	ActionDelete: "delete a chat model config",
+	ActionShare:  "share a chat model config with other users or groups",
+}
+
 // RBACPermissions is indexed by the type
 var RBACPermissions = map[string]PermissionDefinition{
 	// Wildcard is every object, and the action "*" provides all actions.
@@ -113,6 +129,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"chat": {
 		Actions: chatActions,
+	},
+	"chat_model_config": {
+		Actions: chatModelConfigActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {
@@ -452,5 +471,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "upsert boundary usage statistics",
 			ActionDelete: "delete boundary usage statistics",
 		},
+	},
+	"mcp_server_config": {
+		Name:    "MCPServerConfig",
+		Actions: mcpServerConfigActions,
 	},
 }

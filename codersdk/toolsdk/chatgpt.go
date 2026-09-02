@@ -102,7 +102,7 @@ type SearchQuery struct {
 func parseSearchQuery(query string) (SearchQuery, error) {
 	parts := strings.Split(query, "/")
 	queryType := SearchQueryType(parts[0])
-	if !(queryType == SearchQueryTypeTemplates || queryType == SearchQueryTypeWorkspaces) {
+	if queryType != SearchQueryTypeTemplates && queryType != SearchQueryTypeWorkspaces {
 		return SearchQuery{}, xerrors.Errorf("invalid query: %s", query)
 	}
 	queryString := ""

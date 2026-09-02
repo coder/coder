@@ -2377,10 +2377,11 @@ func TestTasksNotification(t *testing.T) {
 					startedAt sql.NullTime
 					readyAt   sql.NullTime
 				)
-				if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateReady {
+				switch tc.agentLifecycle {
+				case database.WorkspaceAgentLifecycleStateReady:
 					startedAt = sql.NullTime{Time: clock.Now(), Valid: true}
 					readyAt = sql.NullTime{Time: clock.Now(), Valid: true}
-				} else if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateStarting {
+				case database.WorkspaceAgentLifecycleStateStarting:
 					startedAt = sql.NullTime{Time: clock.Now(), Valid: true}
 				}
 

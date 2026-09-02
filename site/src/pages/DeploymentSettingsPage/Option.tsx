@@ -1,6 +1,6 @@
 import { WrenchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
-import { DisabledBadge, EnabledBadge } from "#/components/Badges/Badges";
+import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 import { cn } from "#/utils/cn";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
@@ -22,7 +22,7 @@ interface OptionValueProps {
 export const OptionValue: FC<OptionValueProps> = (props) => {
 	const { children: value } = props;
 	const optionClassName =
-		"text-sm font-mono [overflow-wrap:anywhere] select-all [&_ul]:p-4";
+		"text-sm font-mono wrap-anywhere select-all [&_ul]:p-4";
 
 	if (typeof value === "boolean") {
 		return (

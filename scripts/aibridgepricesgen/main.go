@@ -17,13 +17,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"sort"
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/aibridge/prices/pricebook"
 	"github.com/coder/coder/v2/coderd/aibridge/prices/providers"
 )
 
@@ -61,21 +61,6 @@ func (c *upstreamCost) hasPricing() bool {
 	}
 	return c.Input != nil || c.Output != nil ||
 		c.CacheRead != nil || c.CacheWrite != nil
-}
-
-// Pointer fields preserve the distinction between "not populated by upstream"
-// (null) and "explicitly zero" (0).
-//
-// NOTE: the JSON contract for the price seed lives in three places that must
-// stay in sync: the tags here, the corresponding struct in the price seeder,
-// and the column extraction in the batch SQL upsert.
-type priceRow struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	InputPrice      *int64 `json:"input_price"`
-	OutputPrice     *int64 `json:"output_price"`
-	CacheReadPrice  *int64 `json:"cache_read_price"`
-	CacheWritePrice *int64 `json:"cache_write_price"`
 }
 
 func main() {
@@ -131,8 +116,8 @@ func runPrices(upstream map[string]upstreamProvider) error {
 	if err := validate(rows); err != nil {
 		return err
 	}
-	if err := write(os.Stdout, rows); err != nil {
-		return err
+	if err := pricebook.Write(os.Stdout, rows); err != nil {
+		return xerrors.Errorf("encode: %w", err)
 	}
 	_, _ = fmt.Fprintf(os.Stderr, "aibridgepricesgen: wrote %d prices for %d provider(s)\n", len(rows), len(providers.Supported))
 	return nil
@@ -158,9 +143,9 @@ func runCatalog(upstream map[string]upstreamProvider) error {
 // providers. If any configured provider is absent from the upstream payload,
 // every missing provider is reported and the function returns an error so the
 // caller doesn't ship an incomplete seed.
-func convert(upstream map[string]upstreamProvider, providerIDs []string) ([]priceRow, error) {
+func convert(upstream map[string]upstreamProvider, providerIDs []string) ([]pricebook.Row, error) {
 	var (
-		rows    []priceRow
+		rows    []pricebook.Row
 		missing []string
 	)
 	for _, providerID := range providerIDs {
@@ -173,7 +158,7 @@ func convert(upstream map[string]upstreamProvider, providerIDs []string) ([]pric
 			if !m.Cost.hasPricing() {
 				continue
 			}
-			rows = append(rows, priceRow{
+			rows = append(rows, pricebook.Row{
 				Provider:        providerID,
 				Model:           modelID,
 				InputPrice:      toMicros(m.Cost.Input),
@@ -200,7 +185,7 @@ func convert(upstream map[string]upstreamProvider, providerIDs []string) ([]pric
 // changes that produce structurally valid but semantically broken seed
 // data, e.g. a renamed `cost` key that leaves every row with all-null
 // prices.
-func validate(rows []priceRow) error {
+func validate(rows []pricebook.Row) error {
 	for _, r := range rows {
 		if r.InputPrice != nil || r.OutputPrice != nil {
 			return nil
@@ -222,13 +207,4 @@ func toMicros(price *float64) *int64 {
 	}
 	micros := int64(math.Round(*price * 1_000_000))
 	return &micros
-}
-
-func write(w io.Writer, rows []priceRow) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(rows); err != nil {
-		return xerrors.Errorf("encode: %w", err)
-	}
-	return nil
 }

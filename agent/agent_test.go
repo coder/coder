@@ -310,13 +310,13 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, string(agentssh.MagicSessionTypeVSCode))
+		session.Setenv(agentssh.AppNameEnvironmentVariable, string(codersdk.AppFamilyVSCode))
 		defer session.Close()
 
-		command := "sh -c 'echo $" + agentssh.MagicSessionTypeEnvironmentVariable + "'"
+		command := "sh -c 'echo $" + agentssh.AppNameEnvironmentVariable + "'"
 		expected := ""
 		if runtime.GOOS == "windows" {
-			expected = "%" + agentssh.MagicSessionTypeEnvironmentVariable + "%"
+			expected = "%" + agentssh.AppNameEnvironmentVariable + "%"
 			command = "cmd.exe /c echo " + expected
 		}
 		output, err := session.Output(command)
@@ -338,7 +338,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, string(agentssh.MagicSessionTypeVSCode))
+		session.Setenv(agentssh.AppNameEnvironmentVariable, string(codersdk.AppFamilyVSCode))
 		defer session.Close()
 		stdin, err := session.StdinPipe()
 		require.NoError(t, err)
@@ -4344,9 +4344,10 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		for _, m := range mf.GetMetric() {
 			assert.Equal(t, expected[i].Name, mf.GetName())
 			assert.Equal(t, expected[i].Type.String(), mf.GetType().String())
-			if expected[i].Type == proto.Stats_Metric_GAUGE {
+			switch expected[i].Type {
+			case proto.Stats_Metric_GAUGE:
 				assert.NoError(t, expected[i].CheckFn(m.GetGauge().GetValue()), "check fn for %s failed", expected[i].Name)
-			} else if expected[i].Type == proto.Stats_Metric_COUNTER {
+			case proto.Stats_Metric_COUNTER:
 				assert.NoError(t, expected[i].CheckFn(m.GetCounter().GetValue()), "check fn for %s failed", expected[i].Name)
 			}
 			for j, lbl := range expected[i].Labels {

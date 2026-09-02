@@ -634,3 +634,21 @@ func TestOAuth2ErrorResponses(t *testing.T) {
 		)
 	})
 }
+
+// TestOAuth2RegisterPublicClient exercises the RegisterPublicClient helper
+// end-to-end against a real server: registering with token_endpoint_auth_
+// method "none" issues no client secret. A bug in the helper's request
+// shape or assertions would otherwise ride uncaught until a later PR's test
+// happened to call it.
+func TestOAuth2RegisterPublicClient(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: false,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+
+	resp := oauth2providertest.RegisterPublicClient(t, client, "test-public-client", "https://example.com/callback")
+	require.NotEmpty(t, resp.ClientID)
+}

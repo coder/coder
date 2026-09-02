@@ -233,7 +233,7 @@ export const TabLink = ({ value, className, ...linkProps }: TabLinkProps) => {
 			className={cn(
 				"text-sm text-content-secondary no-underline font-medium py-3 px-1 hover:text-content-primary rounded-md",
 				"focus-visible:ring-offset-1 focus-visible:ring-offset-surface-primary",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link focus-visible:rounded-sm",
+				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:rounded-sm",
 				isActive ? "text-content-primary" : "",
 				className,
 			)}

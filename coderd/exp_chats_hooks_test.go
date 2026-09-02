@@ -75,7 +75,7 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 				opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
 			})
 			user := coderdtest.CreateFirstUser(t, client.Client)
-			model := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+			model := createAdditionalChatModel(t, client, "openai", "gpt-4.1")
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats", codersdk.CreateChatRequest{
@@ -130,7 +130,7 @@ func TestChatLifecycleHooksExperimentDisabled(t *testing.T) {
 		opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
 	})
 	user := coderdtest.CreateFirstUser(t, client.Client)
-	model := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+	model := createAdditionalChatModel(t, client, "openai", "gpt-4.1")
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -168,7 +168,7 @@ func TestChatPromptHookContextHiddenFromAPI(t *testing.T) {
 		opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
 	})
 	user := coderdtest.CreateFirstUser(t, client.Client)
-	model := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+	model := createAdditionalChatModel(t, client, "openai", "gpt-4.1")
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -275,7 +275,7 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 		opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
 	})
 	user := coderdtest.CreateFirstUser(t, client.Client)
-	model := createChatModelConfigWithBaseURL(t, client, modelURL)
+	model := createChatModelWithBaseURL(t, client, modelURL)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -410,7 +410,7 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 		opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
 	})
 	user := coderdtest.CreateFirstUser(t, client.Client)
-	model := createChatModelConfigWithBaseURL(t, client, modelURL)
+	model := createChatModelWithBaseURL(t, client, modelURL)
 
 	uploadFile := func(name string) uuid.UUID {
 		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 16)...)
@@ -513,7 +513,7 @@ func TestChatHookNoticeMessagesInResponses(t *testing.T) {
 		opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
 	})
 	user := coderdtest.CreateFirstUser(t, client.Client)
-	model := createChatModelConfigWithBaseURL(t, client, modelURL)
+	model := createChatModelWithBaseURL(t, client, modelURL)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,

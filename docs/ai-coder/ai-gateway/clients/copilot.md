@@ -1,4 +1,6 @@
-# GitHub Copilot
+---
+title: GitHub Copilot
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../../ai-governance.md), which is
@@ -42,7 +44,7 @@ Copilot CLI is built on Node.js and uses the `NODE_EXTRA_CA_CERTS` environment v
 export NODE_EXTRA_CA_CERTS="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
-See [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trusting-the-ca-certificate) for details on how to obtain the certificate file.
+Refer to [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
 
 When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, combine the MITM CA certificate and the TLS certificate into a single file:
 
@@ -62,7 +64,7 @@ For installation instructions, see [Installing the GitHub Copilot extension in V
 ### Proxy configuration
 
 You can configure the proxy using environment variables or VS Code settings.
-For environment variables, see [AI Gateway Proxy client configuration](../ai-gateway-proxy/setup.md#configuring-the-proxy).
+For environment variables, visit [AI Gateway Proxy client configuration](../ai-gateway-proxy/setup.md#configure-the-proxy).
 
 Alternatively, you can configure the proxy directly in VS Code settings:
 
@@ -92,11 +94,11 @@ For more details, see [Configuring proxy settings for Copilot](https://docs.gith
 Add the AI Gateway Proxy CA certificate to your operating system's trust store.
 By default, VS Code loads system certificates, controlled by the `http.systemCertificates` setting.
 
-See [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trusting-the-ca-certificate) for details on how to obtain the certificate file.
+Check out [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
 
 When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, add the TLS certificate to the system trust store as well.
 
-### Using Coder Remote extension
+### Coder Remote extension
 
 When connecting to a Coder workspace with the [Coder extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote), the Copilot extension runs inside the Coder workspace and not on your local machine.
 This means proxy and certificate configuration must be done in the Coder workspace environment.
@@ -119,7 +121,7 @@ Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_API_TOKEN
 
 #### CA certificate trust
 
-Since the Copilot extension runs inside the Coder workspace, add the [AI Gateway Proxy CA certificate](../ai-gateway-proxy/setup.md#trusting-the-ca-certificate) to the Coder workspace's system trust store.
+Since the Copilot extension runs inside the Coder workspace, add the [AI Gateway Proxy CA certificate](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) to the Coder workspace's system trust store.
 See [System trust store](../ai-gateway-proxy/setup.md#system-trust-store) for instructions on how to do this on Linux.
 
 Restart VS Code for changes to take effect.
@@ -155,10 +157,10 @@ Alternatively, you can configure the IDE to accept the certificate:
 
 1. Open Settings (`Ctrl+Alt+S` for Windows or `Cmd+,` for macOS)
 1. Navigate to `Appearance & Behavior` > `System Settings` > `Server Certificates`
-1. Under `Accepted certificates`, click `+` and select the CA certificate file
+1. Under `Accepted certificates`, select `+` and select the CA certificate file
 1. Check `Accept non-trusted certificates automatically`
 1. Restart the IDE for changes to take effect
 
 For more details, see [Trusted root certificates](https://www.jetbrains.com/help/idea/ssl-certificates.html) in the JetBrains documentation.
 
-See [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trusting-the-ca-certificate) for details on how to obtain the certificate file.
+See [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.

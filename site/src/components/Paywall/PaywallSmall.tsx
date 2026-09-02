@@ -4,7 +4,6 @@ import {
 	PaywallContent,
 	PaywallCTALink,
 	PaywallDescription,
-	PaywallDocumentationLink,
 	PaywallFeature,
 	PaywallFeatures,
 	PaywallGuidance,
@@ -16,7 +15,6 @@ import {
 	PREMIUM_DEFAULT_HERO,
 	PREMIUM_FEATURES,
 	PREMIUM_PAGE_PATH,
-	PREMIUM_PRICING_LINK,
 } from "./Paywall";
 
 const PaywallSmall = ({
@@ -25,6 +23,7 @@ const PaywallSmall = ({
 	canViewPremium,
 	className,
 	features = PREMIUM_FEATURES,
+	onCTAClick,
 	...props
 }: PaywallProps) => {
 	return (
@@ -35,7 +34,7 @@ const PaywallSmall = ({
 			)}
 			{...props}
 		>
-			<PaywallSupergraphic className="bg-[length:auto_140%] bg-[position:50%_50%]" />
+			<PaywallSupergraphic className="bg-size-[auto_140%] bg-position-[50%_50%]" />
 			<PaywallContent className="ml-8 items-start text-left">
 				<PaywallHeading className={cn(compact && "justify-start mb-[18px]")}>
 					<PaywallTitle className={cn(compact && "text-lg leading-none")}>
@@ -50,9 +49,6 @@ const PaywallSmall = ({
 				>
 					{description}
 				</PaywallDescription>
-				<PaywallDocumentationLink href={PREMIUM_PRICING_LINK}>
-					Learn more about premium
-				</PaywallDocumentationLink>
 			</PaywallContent>
 			<PaywallStack className={cn(compact && "gap-4")}>
 				<PaywallFeatures className={cn(compact && "pr-0")}>
@@ -66,7 +62,11 @@ const PaywallSmall = ({
 					))}
 				</PaywallFeatures>
 				{canViewPremium ? (
-					<PaywallCTALink to={PREMIUM_PAGE_PATH} className="w-full ml-0 mr-8">
+					<PaywallCTALink
+						to={PREMIUM_PAGE_PATH}
+						className="w-full ml-0 mr-8"
+						onClick={onCTAClick}
+					>
 						Start trial for free
 					</PaywallCTALink>
 				) : (

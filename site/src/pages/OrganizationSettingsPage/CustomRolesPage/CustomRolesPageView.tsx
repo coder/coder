@@ -2,7 +2,7 @@ import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { AssignableRoles, Organization, Role } from "#/api/typesGenerated";
-import { PremiumBadge } from "#/components/Badges/Badges";
+import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -10,7 +10,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
@@ -25,6 +24,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { PremiumPaywallSmall } from "#/modules/paywall/PremiumPaywallSmall";
 import type { Permissions } from "#/modules/permissions";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
@@ -65,9 +65,15 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	return (
 		<div className="flex flex-col gap-8">
 			{!isCustomRolesEnabled && (
-				<PaywallSmall
+				<PremiumPaywallSmall
+					source="custom_roles"
 					message="Custom Roles"
-					description="Create custom roles to grant users a tailored set of granular permissions."
+					description="Build roles with the exact permissions your team needs."
+					features={[
+						"Configure roles per organization",
+						"Go beyond the built-in role set",
+						"Assign custom roles to any user",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}

@@ -51,7 +51,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace := httpmw.WorkspaceParam(r)
 
-	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, allLatestBuildRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -190,7 +190,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, workspaceBuilds)
+	data, err := api.workspaceBuildsData(ctx, workspaceBuilds, allLatestBuildRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -281,7 +281,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, allLatestBuildRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -1110,39 +1110,86 @@ type workspaceBuildsData struct {
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 }
 
-func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
+// provisionerJobsByIDs fetches provisioner jobs by ID, shaped as
+// GetProvisionerJobsByIDsWithQueuePositionRow so callers can treat the result
+// uniformly. When the selection requests the queue position it uses
+// GetProvisionerJobsByIDsWithQueuePosition, whose queue position and size are
+// computed with window functions over pending jobs and provisioner daemons and
+// are comparatively expensive. Otherwise, it uses the cheaper
+// GetProvisionerJobsByIDs and leaves QueuePosition and QueueSize zero.
+func (api *API) provisionerJobsByIDs(ctx context.Context, jobIDs []uuid.UUID, cfg jobRelated) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	if cfg.QueuePosition {
+		return api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             jobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+	}
+
+	provisionerJobs, err := api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
+	if err != nil {
+		return nil, err
+	}
+	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0, len(provisionerJobs))
+	for _, job := range provisionerJobs {
+		jobs = append(jobs, database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ID:             job.ID,
+			CreatedAt:      job.CreatedAt,
+			ProvisionerJob: job,
+		})
+	}
+	return jobs, nil
+}
+
+func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild, cfg latestBuildRelated) (workspaceBuildsData, error) {
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
-		IDs:             jobIDs,
-		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
-	}
-	pendingJobIDs := []uuid.UUID{}
-	for _, job := range jobs {
-		if job.ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
-			pendingJobIDs = append(pendingJobIDs, job.ProvisionerJob.ID)
+
+	var (
+		jobs                   []database.GetProvisionerJobsByIDsWithQueuePositionRow
+		pendingJobProvisioners []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+	)
+	if cfg.Job != nil {
+		var err error
+		jobs, err = api.provisionerJobsByIDs(ctx, jobIDs, *cfg.Job)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
+		}
+		pendingJobIDs := []uuid.UUID{}
+		for _, job := range jobs {
+			if job.ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
+				pendingJobIDs = append(pendingJobIDs, job.ProvisionerJob.ID)
+			}
+		}
+
+		pendingJobProvisioners, err = api.Database.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, pendingJobIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get provisioner daemons: %w", err)
 		}
 	}
 
-	pendingJobProvisioners, err := api.Database.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, pendingJobIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get provisioner daemons: %w", err)
+	var templateVersions []database.TemplateVersion
+	if cfg.TemplateVersion {
+		templateVersionIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+		for _, build := range workspaceBuilds {
+			templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
+		}
+
+		var err error
+		// nolint:gocritic // Getting template versions by ID is a system function.
+		templateVersions, err = api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
+		}
 	}
 
-	templateVersionIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
-	for _, build := range workspaceBuilds {
-		templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
-	}
-
-	// nolint:gocritic // Getting template versions by ID is a system function.
-	templateVersions, err := api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
+	if cfg.Resources == nil {
+		return workspaceBuildsData{
+			jobs:               jobs,
+			templateVersions:   templateVersions,
+			provisionerDaemons: pendingJobProvisioners,
+		}, nil
 	}
 
 	// nolint:gocritic // Getting workspace resources by job ID is a system function.
@@ -1164,19 +1211,36 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
 
-	// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
-	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
+	var (
+		metadata []database.WorkspaceResourceMetadatum
+		agents   []database.WorkspaceAgent
+		egRes    errgroup.Group
+	)
+	if cfg.Resources.Metadata {
+		egRes.Go(func() (err error) {
+			// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
+			metadata, err = api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("fetching resource metadata: %w", err)
+			}
+			return nil
+		})
+	}
+	if cfg.Resources.Agents != nil {
+		egRes.Go(func() (err error) {
+			// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
+			agents, err = api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get workspace agents: %w", err)
+			}
+			return nil
+		})
+	}
+	if err := egRes.Wait(); err != nil {
+		return workspaceBuildsData{}, err
 	}
 
-	// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
-	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
-	}
-
-	if len(resources) == 0 {
+	if cfg.Resources.Agents == nil || len(agents) == 0 {
 		return workspaceBuildsData{
 			jobs:               jobs,
 			templateVersions:   templateVersions,
@@ -1185,6 +1249,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 			provisionerDaemons: pendingJobProvisioners,
 		}, nil
 	}
+	agentsCfg := cfg.Resources.Agents
 
 	agentIDs := make([]uuid.UUID, 0)
 	for _, agent := range agents {
@@ -1198,35 +1263,44 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	)
 
 	var eg errgroup.Group
-	eg.Go(func() (err error) {
-		// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
-		apps, err = api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
-		return err
-	})
-	eg.Go(func() (err error) {
-		// nolint:gocritic // Getting workspace scripts by agent IDs is a system function.
-		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
-		return err
-	})
-	eg.Go(func() error {
-		// nolint:gocritic // Getting workspace agent log sources by agent IDs is a system function.
-		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
-		return err
-	})
-	err = eg.Wait()
-	if err != nil {
+	if agentsCfg.Apps != nil {
+		eg.Go(func() (err error) {
+			// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
+			apps, err = api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+			return err
+		})
+	}
+	if agentsCfg.Scripts {
+		eg.Go(func() (err error) {
+			// nolint:gocritic // Getting workspace scripts by agent IDs is a system function.
+			scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+			return err
+		})
+	}
+	if agentsCfg.LogSources {
+		eg.Go(func() error {
+			var err error
+			// nolint:gocritic // Getting workspace agent log sources by agent IDs is a system function.
+			logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+			return err
+		})
+	}
+	if err := eg.Wait(); err != nil {
 		return workspaceBuildsData{}, err
 	}
 
-	appIDs := make([]uuid.UUID, 0)
-	for _, app := range apps {
-		appIDs = append(appIDs, app.ID)
-	}
+	var statuses []database.WorkspaceAppStatus
+	if cfg.appStatuses() {
+		appIDs := make([]uuid.UUID, 0)
+		for _, app := range apps {
+			appIDs = append(appIDs, app.ID)
+		}
 
-	// nolint:gocritic // Getting workspace app statuses by app IDs is a system function.
-	statuses, err := api.Database.GetWorkspaceAppStatusesByAppIDs(dbauthz.AsSystemRestricted(ctx), appIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace app statuses: %w", err)
+		// nolint:gocritic // Getting workspace app statuses by app IDs is a system function.
+		statuses, err = api.Database.GetWorkspaceAppStatusesByAppIDs(dbauthz.AsSystemRestricted(ctx), appIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get workspace app statuses: %w", err)
+		}
 	}
 
 	return workspaceBuildsData{

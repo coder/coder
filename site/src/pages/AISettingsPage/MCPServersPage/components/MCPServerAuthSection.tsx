@@ -17,17 +17,29 @@ import {
 	SECRET_PLACEHOLDER,
 } from "./mcpServerFormLogic";
 
-interface MCPServerAuthSectionProps {
+interface MCPServerAuthFieldsProps {
 	form: FormikContextType<MCPServerFormValues>;
 	formId: string;
 	disabled: boolean;
+}
+
+interface MCPServerAuthSectionProps extends MCPServerAuthFieldsProps {
+	canSelectUserOIDC: boolean;
 }
 
 export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 	form,
 	formId,
 	disabled,
+	canSelectUserOIDC,
 }) => {
+	const authTypeOptions = AUTH_TYPE_OPTIONS.filter(
+		(option) =>
+			option.value !== "user_oidc" ||
+			canSelectUserOIDC ||
+			form.initialValues.authType === "user_oidc",
+	);
+
 	return (
 		<>
 			<Field
@@ -44,7 +56,7 @@ export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						{AUTH_TYPE_OPTIONS.map((option) => (
+						{authTypeOptions.map((option) => (
 							<SelectItem key={option.value} value={option.value}>
 								{option.label}
 							</SelectItem>
@@ -70,7 +82,7 @@ export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 	);
 };
 
-const OAuth2Fields: FC<MCPServerAuthSectionProps> = ({
+const OAuth2Fields: FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,
@@ -144,7 +156,7 @@ const OAuth2Fields: FC<MCPServerAuthSectionProps> = ({
 	</div>
 );
 
-const APIKeyFields: FC<MCPServerAuthSectionProps> = ({
+const APIKeyFields: FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,
@@ -212,7 +224,7 @@ const SecretInput: FC<{
 	/>
 );
 
-const CustomHeadersFields: FC<MCPServerAuthSectionProps> = ({
+const CustomHeadersFields: FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,

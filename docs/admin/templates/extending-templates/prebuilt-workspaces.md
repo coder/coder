@@ -1,4 +1,6 @@
-# Prebuilt workspaces
+---
+title: Prebuilt workspaces
+---
 
 Prebuilt workspaces (prebuilds) reduce workspace creation time with an automatically-maintained pool of
 ready-to-use workspaces for specific parameter presets.
@@ -126,7 +128,7 @@ Configure scheduling by adding a `scheduling` block within your `prebuilds` conf
 ```tf
 data "coder_workspace_preset" "goland" {
    name = "GoLand: Large"
-   parameters {
+   parameters = {
      jetbrains_ide = "GO"
      cpus          = 8
      memory        = 16
@@ -244,11 +246,11 @@ To invalidate presets:
 
 1. Navigate to **Templates** and select your template.
 1. Go to the **Prebuilds** tab.
-1. Click **Invalidate Prebuilds**.
+1. Select **Invalidate Prebuilds**.
 1. Confirm the action in the dialog.
 
 Once presets are invalidated, the **next reconciliation loop** run will delete the old prebuilt workspaces and create new ones to maintain the desired instance count.
-The process typically completes within a few reconciliation cycles (the interval is controlled by `CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`, which defaults to 15 seconds).
+The process typically completes within a few reconciliation cycles (the interval is controlled by `CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`, which defaults to 1 minute, or `1m0s`).
 
 > [!NOTE]
 > Preset invalidation only affects unclaimed prebuilt workspaces owned by the `prebuilds` system user.
@@ -326,7 +328,7 @@ Human-initiated jobs are prioritized above prebuild jobs in the provisioner queu
 To expedite fixing a broken template by ensuring maximum provisioner availability, cancel all pending prebuild jobs:
 
 ```sh
-coder provisioner jobs list --status=pending --initiator=prebuilds | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
+coder provisioner jobs list --status=pending --initiator=prebuilds --output json | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
 ```
 
 This will clear the provisioner queue of all jobs that were not initiated by a human being, which increases the probability that a provisioner will be available when the next human operator needs it. It does not cancel running provisioner jobs, so there may still be some delay in processing new provisioner jobs until a provisioner completes its current job.
@@ -338,7 +340,7 @@ At this stage, most prebuild related impact will have been mitigated. There may 
 If you need to expedite the processing of human-related jobs at the cost of some infrastructure housekeeping, you can run:
 
 ```sh
-coder provisioner jobs list --status=running --initiator=prebuilds | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
+coder provisioner jobs list --status=running --initiator=prebuilds --output json | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
 ```
 
 This should be done as a last resort. It will cancel running prebuild jobs (orphaning any resources that have already been deployed) and immediately make room for human-initiated jobs. Orphaned infrastructure will need to be manually cleaned up by a human operator. The process to identify and clear these orphaned resources will likely require administrative access to the infrastructure that hosts Coder workspaces. Furthermore, the ability to identify such orphaned resources will depend on metadata that should be included in the workspace template.

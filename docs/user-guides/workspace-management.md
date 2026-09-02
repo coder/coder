@@ -45,6 +45,10 @@ coder show <workspace-name>
 | Reserved names   | Cannot use `new` or `create`               |
 | Uniqueness       | Must be unique within your workspaces      |
 
+Renaming a workspace after you create it is off by default. A template admin can
+allow it per template. Refer to
+[Workspace renaming](../admin/templates/managing-templates/index.md#workspace-renaming).
+
 ## Workspace filtering
 
 In the Coder UI, you can filter your workspaces using pre-defined filters or

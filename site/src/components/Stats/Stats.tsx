@@ -38,8 +38,8 @@ export const StatsItem: FC<StatsItemProps> = ({
 			)}
 			{...attrs}
 		>
-			<span className="block break-words">{label}:</span>
-			<span className="flex items-center break-words text-content-primary [&_a]:text-content-primary [&_a]:no-underline [&_a]:font-semibold [&_a:hover]:no-underline">
+			<span className="block wrap-break-word">{label}:</span>
+			<span className="flex items-center wrap-break-word text-content-primary [&_a]:text-content-primary [&_a]:no-underline [&_a]:font-semibold [&_a:hover]:no-underline">
 				{value}
 			</span>
 		</div>

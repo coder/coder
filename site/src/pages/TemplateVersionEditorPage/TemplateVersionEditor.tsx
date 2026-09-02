@@ -543,7 +543,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												"[&_.logs-header]:border-0 [&_.logs-header]:px-4 [&_.logs-header]:py-2 [&_.logs-header]:font-mono",
 												"[&_.logs-header:first-of-type]:pt-4 [&_.logs-header:last-child]:pb-4",
 												"[&_.logs-line]:pl-4",
-												"[&_.logs-container]:!border-0",
+												"[&_.logs-container]:border-0!",
 											)}
 											hideTimestamps
 											logs={buildLogs}
@@ -632,7 +632,7 @@ const useLeaveSiteWarning = (enabled: boolean) => {
 
 const tabClassName = (isActive: boolean) =>
 	cn(
-		"p-3 text-[10px] uppercase tracking-[0.5px] font-medium bg-transparent [font-family:inherit] border-0",
+		"p-3 text-[10px] uppercase tracking-[0.5px] font-medium bg-transparent font-[inherit] border-0",
 		"text-content-secondary transition-all duration-150",
 		"flex gap-2 items-center justify-center relative",
 		"[&_svg]:max-w-3 [&_svg]:max-h-3",

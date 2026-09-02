@@ -424,19 +424,18 @@ func (a *agent) init() {
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
-		ReportConnection: func(id uuid.UUID, magicType agentssh.MagicSessionType, ip string) func(code int, reason string) {
+		ReportConnection: func(id uuid.UUID, appName string, ip string) func(code int, reason string) {
 			var connectionType proto.Connection_Type
-			switch magicType {
-			case agentssh.MagicSessionTypeSSH:
+			// Connection_Type is a fixed enum, stored as a database enum in
+			// the connection log, so it can only hold a family.
+			switch codersdk.AppNameFamily(appName) {
+			case codersdk.AppFamilySSH:
 				connectionType = proto.Connection_SSH
-			case agentssh.MagicSessionTypeVSCode:
+			case codersdk.AppFamilyVSCode:
 				connectionType = proto.Connection_VSCODE
-			case agentssh.MagicSessionTypeJetBrains:
+			case codersdk.AppFamilyJetBrains:
 				connectionType = proto.Connection_JETBRAINS
-			case agentssh.MagicSessionTypeUnknown:
-				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			default:
-				a.logger.Error(a.hardCtx, "unhandled magic session type when reporting connection", slog.F("magic_type", magicType))
 				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			}
 
@@ -2162,11 +2161,11 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		stats.TxPackets += int64(counts.TxPackets)
 	}
 
-	// The count of active sessions.
-	sshStats := a.sshServer.ConnStats()
-	stats.SessionCountSsh = sshStats.Sessions
-	stats.SessionCountVscode = sshStats.VSCode
-	stats.SessionCountJetbrains = sshStats.JetBrains
+	// The count of active sessions; types without a protocol field are dropped.
+	sessionCounts := a.sshServer.SessionCounts()
+	stats.SessionCountSsh = sessionCounts[string(codersdk.AppFamilySSH)]
+	stats.SessionCountVscode = sessionCounts[string(codersdk.AppFamilyVSCode)]
+	stats.SessionCountJetbrains = sessionCounts[string(codersdk.AppFamilyJetBrains)]
 
 	stats.SessionCountReconnectingPty = a.reconnectingPTYServer.ConnCount()
 

@@ -114,17 +114,25 @@ export const deriveLiveStatus = ({
 	chatStatus,
 }: DeriveLiveStatusParams): LiveStatusModel => {
 	const hasAccumulatedOutput = getHasAccumulatedOutput(streamState);
+	// The stream is cleared on error, so leftover blocks are stale.
+	const showOutput = chatStatus === "error" ? false : hasAccumulatedOutput;
 
 	if (retryState) {
-		return toRetryingLiveStatus(retryState, { hasAccumulatedOutput });
+		return toRetryingLiveStatus(retryState, {
+			hasAccumulatedOutput: showOutput,
+		});
 	}
 
 	if (streamError) {
-		return toFailedLiveStatus(streamError, { hasAccumulatedOutput });
+		return toFailedLiveStatus(streamError, {
+			hasAccumulatedOutput: showOutput,
+		});
 	}
 
 	if (reconnectState) {
-		return toReconnectingLiveStatus(reconnectState, { hasAccumulatedOutput });
+		return toReconnectingLiveStatus(reconnectState, {
+			hasAccumulatedOutput: showOutput,
+		});
 	}
 
 	// The interrupt outranks stream leftovers: while the worker drains and
@@ -138,13 +146,15 @@ export const deriveLiveStatus = ({
 		return { phase: "starting", hasAccumulatedOutput };
 	}
 
-	if (streamState !== null) {
+	if (streamState !== null && chatStatus !== "error") {
 		return { phase: "streaming", hasAccumulatedOutput };
 	}
 
 	if (persistedError) {
-		return toFailedLiveStatus(persistedError, { hasAccumulatedOutput });
+		return toFailedLiveStatus(persistedError, {
+			hasAccumulatedOutput: showOutput,
+		});
 	}
 
-	return { phase: "idle", hasAccumulatedOutput };
+	return { phase: "idle", hasAccumulatedOutput: showOutput };
 };

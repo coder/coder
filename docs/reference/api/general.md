@@ -311,6 +311,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
+    "disable_workspace_agent_context_sync": true,
     "disable_workspace_sharing": true,
     "docs_url": {
       "forceQuery": true,
@@ -325,6 +326,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "scheme": "string",
       "user": {}
     },
+    "enable_ai_tasks": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -371,7 +373,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "refresh": 0,
       "threshold_database": 0
     },
-    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "host_prefix": true,
@@ -387,6 +388,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       ],
       "stackdriver": "string"
     },
+    "mcp_allowed_private_cidrs": [
+      "string"
+    ],
     "metrics_cache_refresh_interval": 0,
     "notifications": {
       "dispatch_timeout": 0,

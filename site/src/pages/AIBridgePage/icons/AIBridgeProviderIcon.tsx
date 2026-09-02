@@ -9,7 +9,7 @@ export const AIBridgeProviderIcon = ({
 }: {
 	provider: string;
 } & React.ComponentProps<"svg">) => {
-	const iconClassName = "flex-shrink-0";
+	const iconClassName = "shrink-0";
 	switch (provider) {
 		case "openai":
 			return (

@@ -121,9 +121,10 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 				r.model = args[2]
 			}
 
-			if annotationName == "@Success" {
+			switch annotationName {
+			case "@Success":
 				c.successes = append(c.successes, r)
-			} else if annotationName == "@Failure" {
+			case "@Failure":
 				c.failures = append(c.failures, r)
 			}
 		case "@Param":
@@ -320,7 +321,7 @@ func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
 		text := strings.TrimSpace(line.Text)
 
 		if inSwaggerBlock {
-			if !strings.HasPrefix(text, "// @") && !strings.HasPrefix(text, "// nolint:") {
+			if text != "//" && !strings.HasPrefix(text, "// @") && !strings.HasPrefix(text, "// nolint:") && !strings.HasPrefix(text, "//nolint:") {
 				assert.Fail(t, "Go function comment must be placed before swagger comments")
 				return
 			}
@@ -368,7 +369,8 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 		comment.router == "/api/v2/users/login" ||
 		comment.router == "/api/v2/users/otp/request" ||
 		comment.router == "/api/v2/users/otp/change-password" ||
-		comment.router == "/api/v2/init-script/{os}/{arch}" {
+		comment.router == "/api/v2/init-script/{os}/{arch}" ||
+		comment.router == "/api/v2/chats/files/{file}/download" {
 		return // endpoints do not require authorization
 	}
 	if comment.router == "/api/v2/ai-gateway/serve" {
@@ -427,8 +429,10 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 			(comment.router == "/api/v2/workspaces/{workspace}/acl" && comment.method == "patch") ||
 			(comment.router == "/api/v2/init-script/{os}/{arch}" && comment.method == "get") ||
 			(comment.router == "/api/v2/organizations/{organization}/ai/spend/export" && comment.method == "get") ||
-			(comment.router == "/api/v2/templatebuilder/compose" && comment.method == "post") {
-			return // Exception: HTTP 200 is returned without response entity
+			(comment.router == "/api/v2/templatebuilder/compose" && comment.method == "post") ||
+			(comment.router == "/api/v2/chats/files/{file}" && comment.method == "get") ||
+			(comment.router == "/api/v2/chats/files/{file}/download" && comment.method == "get") {
+			return // Exception: HTTP 200 is returned without a response model
 		}
 
 		assert.Truef(t, comment.produce == "", "Response model is undefined, so we can't predict the content type: %v", comment)

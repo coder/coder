@@ -2,50 +2,114 @@
 title: Licensing & Usage
 ---
 
-Coder Agents is licensed differently depending on whether your deployment holds a Community license or an AI Premium license with a purchased Agent Time allocation.
+Coder Agents licensing controls concurrent agent activity and Agent Time usage across your deployment.
 
 ## Community licenses
 
 Community licenses support up to five concurrently active agents deployment-wide.
 Coder doesn't limit how long those agents can run or how many tasks they complete over time.
-Agents will queue when more than five agents are active at a time.
+Agents queue when more than five agents are active at a time.
 With this agent pool, individuals and small teams can experiment with Coder Agents at no cost.
 
-## AI Premium licenses and Agent Time
+## Premium licenses and Agent Hours
 
-AI Premium licenses include a customizable amount of Agent Time.
+A Premium license includes a preset amount of Agent Time.
 Agent Time is shared across the deployment, allowing unlimited agents to run concurrently while consuming from a shared pool of purchased working hours.
-This usage-based model is designed for enterprise workloads, where large development teams, background automation, and API-triggered tasks can create highly variable bursts of agent activity without being constrained by a concurrency limit.
+This usage-based model supports enterprise workloads where large development teams, background automation, and API-triggered tasks can create variable bursts of agent activity.
 
-## How Agent Time is measured
+## Agent Time measurement
 
-Agent Time is the cumulative duration during which an AI agent is actively processing a task for the user.
-It is measured per interaction step and summed across the duration of a conversation.
+Agent Time is the cumulative duration of model invocations that produce Coder Agents chat messages.
+Coder measures each invocation from immediately before the request to the model provider opens until the response stream is fully consumed.
 
-**Includes:**
+Agent Time includes:
 
-- Large language model inference time
-- Tool execution (such as file operations, terminal commands, and workspace provisioning)
-- Automated error recovery attempts
+- Assistant generation steps in top-level and subagent chats.
+- Context compaction (summarization) model calls.
+- Model-provider tool execution within a model response.
+- The time streamed or spent executing tools before an interrupt, kept on the partial assistant messages.
 
-**Excludes:**
+Agent Time excludes:
 
-- Time the customer spends composing or reviewing messages
-- Time between conversation turns when the agent is not processing
-- Tool execution delegated to external systems outside the agent's direct control
+- Time spent composing or reviewing messages.
+- Time between conversation turns while an agent waits for user input.
+- Time a parent agent spends waiting for a subagent, because the subagent records its own model invocations.
+- Model calls that don't produce chat messages, such as title generation.
+- Failed or retried model calls, which persist no content and record no runtime.
+- Client-executed tools and chats handed off to external coding agents, since that work happens outside the server.
 
-Agent Time does not accrue when a conversation is inactive or awaiting user input.
-Agent Time is measured with millisecond precision and is rounded down to the nearest minute for billing purposes.
+Coder records Agent Time in milliseconds and sums it across all Coder Agents chats in the deployment.
 
 ## Concurrency and usage limits
 
-Coder handles concurrency and usage limits differently, depending on the license you use for Coder.
+Coder handles concurrency and usage limits differently depending on the license you use.
 
 ### Community concurrency limit
 
-When a Community license deployment reaches its limit of five concurrently active agents, any additional agents are placed in a queue.
-As soon as an active agent completes its task, the next queued agent begins its work, so no work is lost and no action is required from the user.
+When a Community license deployment reaches its limit of five concurrently active agents, Coder places additional agents in a queue.
+When an active agent completes its task, the next queued agent begins its work.
 
-### AI Premium Agent Time exhaustion
+### Agent Hours exhaustion
 
-Coder sends deployment administrators an in-app soft warning message as the deployment approaches its maximum allotted Agent Time, so they can purchase additional Agent Time before the concurrency fallback takes effect.
+Coder sends deployment administrators an in-app soft warning as the deployment approaches its maximum allotted Agent Time, so they can purchase additional Agent Time before the concurrency fallback takes effect.
+
+## Agent Time usage reporting
+
+Coder reports Agent Time usage to Tallyman, a Coder-managed server used for billing and reporting.
+Coder sends the total Coder Agents runtime consumed per UTC hour, in milliseconds, with your deployment ID.
+Coder doesn't send user-identifiable information or additional chat data to Tallyman.
+Coder also shares the reported usage with [Metronome](https://metronome.com), a Stripe product and Coder partner for usage-based billing and reporting.
+
+Your Coder deployment must be able to make outbound HTTPS requests to `https://tallyman-prod.coder.com` to report usage.
+Coder generates one `hb_agent_runtime_v1` event for each UTC hour shortly after the hour ends, then checks for unpublished events approximately every 17 minutes.
+In steady state, each hour's usage typically reaches Tallyman within about 25 minutes of the hour closing.
+You can monitor these requests in `coderd` logs.
+
+A successful request produces a debug log similar to the following example when you enable debug logging with [`CODER_LOG_FILTER=.*`](../../reference/cli/server.md#-l---log-filter):
+
+```sh
+[debu] published usage events to tallyman accepted=1 rejected=0
+```
+
+Coder sends the license JWT and deployment ID as request headers.
+The request body contains one `hb_agent_runtime_v1` event for each UTC hour.
+The `runtime_ms` value is the total Agent Time recorded during that hour.
+Idle hours have a value of `0`.
+If the deployment was offline, Coder backfills missed hours for up to seven days, batching up to 100 events per request.
+Hours missing beyond seven days aren't reported.
+
+The following example reports 1 hour of Agent Time:
+
+```txt
+POST /api/v1/events/ingest HTTP/1.1
+Host: tallyman-prod.coder.com
+Content-Type: application/json
+Coder-License-Key: <license-jwt>
+Coder-Deployment-ID: 8a4e92f1-3b7c-4d5e-9f12-abc123def456
+
+{
+  "events": [
+    {
+      "id": "hb_agent_runtime_v1:2026-08-18_14:00:00",
+      "event_type": "hb_agent_runtime_v1",
+      "event_data": {
+        "runtime_ms": 3600000
+      },
+      "created_at": "2026-08-18T14:00:00Z"
+    }
+  ]
+}
+```
+
+The event ID contains the start of the UTC hour.
+The `created_at` value also identifies the start of that hour, rather than the time when Coder sends the request.
+Coder sends raw milliseconds without rounding or converting the value to hours.
+
+A failed request produces a warning similar to the following example:
+
+```sh
+[warn] failed to send publish request to tallyman count=1 error="Post \"https://tallyman-prod.coder.com/api/v1/events/ingest\": dial tcp: lookup tallyman-prod.coder.com: no such host"
+```
+
+> [!NOTE]
+> Air-gapped deployments and deployments with legal restrictions around usage reporting can [contact us](https://coder.com/contact) to discuss alternative methods.

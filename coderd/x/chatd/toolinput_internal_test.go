@@ -40,20 +40,22 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 			Tools:            []fantasy.AgentTool{fetch},
 			BuiltinToolNames: map[string]bool{"fetch": true},
 		}
-		allowed, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
+		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
 		require.Len(t, rejected, 1)
 		require.Equal(t, "call_ambiguous", rejected[0].ToolCallID)
 		require.Len(t, allowed, 1)
 		require.Equal(t, "call_clean", allowed[0].ToolCallID)
+		require.Equal(t, []int{1}, allowedIndexes, "allowed indexes point at positions in the input slice")
 	})
 
 	t.Run("non-builtin", func(t *testing.T) {
 		t.Parallel()
 
 		prepared := generationPrepared{Tools: []fantasy.AgentTool{fetch}}
-		allowed, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
+		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
 		require.Empty(t, rejected)
 		require.Len(t, allowed, 2)
+		require.Equal(t, []int{0, 1}, allowedIndexes)
 	})
 
 	// Execution resolves a deprecated name to its canonical tool, so
@@ -85,7 +87,7 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 			Tools:            []fantasy.AgentTool{tool},
 			BuiltinToolNames: map[string]bool{canonical: true},
 		}
-		_, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{aliased})
+		_, _, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{aliased})
 		require.Len(t, rejected, 1)
 	})
 }
@@ -133,8 +135,9 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 		Type: database.AIProviderTypeOpenai,
 	}, "test-key")
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})

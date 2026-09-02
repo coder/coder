@@ -66,10 +66,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		// while the experiment is enabled we will not report
 		// session stats from the agent. This is because it is
 		// being handled by the CLI and the postWorkspaceUsage route.
-		req.Stats.SessionCountSsh = 0
-		req.Stats.SessionCountJetbrains = 0
-		req.Stats.SessionCountVscode = 0
-		req.Stats.SessionCountReconnectingPty = 0
+		workspacestats.ClearSessionCounts(req.Stats)
 	}
 
 	err := a.StatsReporter.ReportAgentStats(

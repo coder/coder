@@ -1,6 +1,5 @@
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
-import { Link as RouterLink } from "react-router";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
@@ -9,7 +8,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 
 // Allocation sentinel for unlimited agent runtime hours
 // (AgentRuntimeHoursUnlimitedAllocation in enterprise/coderd/license).
@@ -89,7 +90,7 @@ const CardContainer: FC<{
 const totalAgentHoursTooltip =
 	"Total agent runtime hours used out of the hours included in this license.";
 const concurrentChatsTooltip =
-	"Number of Coder Agents chats that can run at the same time.";
+	"Number of agents that can run at the same time.";
 const concurrentChatsHardLimitTooltip = `${concurrentChatsTooltip} You've reached your limit: concurrent chats are now capped at ${maxConcurrentChatsOverHardLimit} (down from unlimited).`;
 
 // The value is already floored to tenths, so no rounding happens here.
@@ -116,7 +117,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 				<div className="mt-3 flex flex-wrap gap-x-12 gap-y-3 text-xs">
 					<div>
 						<MetricLabel
-							label="Max concurrent chats"
+							label="Max concurrent agents"
 							tooltip={concurrentChatsTooltip}
 						/>
 						<div className="mt-0.5 text-sm font-medium text-content-primary">
@@ -135,7 +136,9 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 					)}
 				</div>
 				<Button asChild className="mt-4 w-full">
-					<a href="mailto:sales@coder.com">Upgrade</a>
+					<a href={CONTACT_SALES_LINK} target="_blank" rel="noreferrer">
+						Upgrade
+					</a>
 				</Button>
 			</CardContainer>
 		);
@@ -193,7 +196,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 				</div>
 				<div>
 					<MetricLabel
-						label="Concurrent chats"
+						label="Concurrent agents"
 						tooltip={
 							isHardLimitExceeded
 								? concurrentChatsHardLimitTooltip
@@ -214,15 +217,9 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 					</div>
 				</div>
 			</div>
-			<div className="mt-4 flex items-center gap-2 text-sm">
-				<Link asChild size="lg" showExternalIcon={false}>
-					<RouterLink to="/deployment/groups">Manage usage</RouterLink>
-				</Link>
-				<span className="text-content-secondary" aria-hidden>
-					|
-				</span>
-				<Link asChild size="lg" showExternalIcon={false}>
-					<RouterLink to="/ai/settings/coder-agents">Agent settings</RouterLink>
+			<div className="mt-4 text-sm">
+				<Link href={docs("/ai-coder/agents/licensing-usage")} size="lg">
+					View docs
 				</Link>
 			</div>
 		</CardContainer>

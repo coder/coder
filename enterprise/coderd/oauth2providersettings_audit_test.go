@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -59,13 +58,13 @@ func TestOAuth2ProviderSettingsAuditDiff(t *testing.T) {
 
 	//nolint:gocritic // Updating OAuth2 provider settings is owner-only.
 	_, err := ownerClient.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: ptr.Ref(true),
+		DynamicClientRegistrationEnabled: new(true),
 	})
 	require.NoError(t, err)
 
 	//nolint:gocritic // Updating OAuth2 provider settings is owner-only.
 	_, err = ownerClient.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: ptr.Ref(false),
+		DynamicClientRegistrationEnabled: new(false),
 	})
 	require.NoError(t, err)
 
@@ -80,22 +79,27 @@ func TestOAuth2ProviderSettingsAuditDiff(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(rows), "expected exactly two rows")
-	// GetAuditLogsOffset returns entries sorted by time in descending order.
-	enableLog := rows[1].AuditLog
-	disableLog := rows[0].AuditLog
-
-	var enableDiff audit.Map
-	require.NoError(t, json.Unmarshal(enableLog.Diff, &enableDiff))
-	if assert.Contains(t, enableDiff, "dynamic_client_registration_enabled", "tracked field missing from enableDiff") {
-		assert.Equal(t, false, enableDiff["dynamic_client_registration_enabled"].Old)
-		assert.Equal(t, true, enableDiff["dynamic_client_registration_enabled"].New)
+	require.Len(t, rows, 2, "expected exactly two rows")
+	// Both updates use the same action, so identify them by the new value.
+	var enableDiff, disableDiff audit.Map
+	for _, row := range rows {
+		var diff audit.Map
+		require.NoError(t, json.Unmarshal(row.AuditLog.Diff, &diff))
+		require.Contains(t, diff, "dynamic_client_registration_enabled", "tracked field missing from diff")
+		enabled, ok := diff["dynamic_client_registration_enabled"].New.(bool)
+		require.True(t, ok, "expected bool new value in diff")
+		if enabled {
+			enableDiff = diff
+		} else {
+			disableDiff = diff
+		}
 	}
+	require.NotNil(t, enableDiff, "missing audit log for enabling registration")
+	require.NotNil(t, disableDiff, "missing audit log for disabling registration")
 
-	var disableDiff audit.Map
-	require.NoError(t, json.Unmarshal(disableLog.Diff, &disableDiff))
-	if assert.Contains(t, disableDiff, "dynamic_client_registration_enabled", "tracked field missing from disableDiff") {
-		assert.Equal(t, true, disableDiff["dynamic_client_registration_enabled"].Old)
-		assert.Equal(t, false, disableDiff["dynamic_client_registration_enabled"].New)
-	}
+	assert.Equal(t, false, enableDiff["dynamic_client_registration_enabled"].Old)
+	assert.Equal(t, true, enableDiff["dynamic_client_registration_enabled"].New)
+
+	assert.Equal(t, true, disableDiff["dynamic_client_registration_enabled"].Old)
+	assert.Equal(t, false, disableDiff["dynamic_client_registration_enabled"].New)
 }

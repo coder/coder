@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"strings"
 	"sync"
@@ -25,15 +24,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// effectiveMCPServerConfigs loads the MCP server configs for a turn:
-// the chat's stored selection plus every enabled Force On config.
-// Force On inclusion is enforced at generation time, not just at
-// write time, so chats persisted before enforcement existed (or
-// before an admin marked a server Force On) cannot dodge the policy
-// (Cure53 CDM-02-010). Explore chats are exempt: their spawn-time
-// snapshot is immutable by design and must never widen after spawn;
-// Force On servers reach the snapshot through the parent chat's
-// enforced ID list.
+// effectiveMCPServerConfigs loads the chat's stored selection plus
+// owner-readable Force On configs at generation time, so stored lists
+// predating enforcement cannot dodge the policy (Cure53 CDM-02-010).
+// Explore chats keep their immutable spawn-time snapshot instead.
 func (server *Server) effectiveMCPServerConfigs(
 	ctx context.Context,
 	logger slog.Logger,
@@ -42,7 +36,7 @@ func (server *Server) effectiveMCPServerConfigs(
 	var configs []database.MCPServerConfig
 	if len(chat.MCPServerIDs) > 0 {
 		var err error
-		configs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
+		configs, err = enabledMCPServerConfigsForChatOrg(ctx, server.db, chat.OrganizationID, chat.MCPServerIDs)
 		if err != nil {
 			// Best-effort for the user-selected set, matching prior
 			// behavior: a load failure degrades the turn rather than
@@ -54,11 +48,11 @@ func (server *Server) effectiveMCPServerConfigs(
 	if isExploreSubagentMode(chat.Mode) {
 		return configs, nil
 	}
-	forced, err := server.db.GetForcedMCPServerConfigs(ctx)
+	forced, err := forcedMCPServerConfigsForOwner(ctx, server.db, chat.OrganizationID, chat.OwnerID)
 	if err != nil {
 		// Fail closed: running the turn without the forced set would
 		// silently bypass a security policy.
-		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+		return nil, err
 	}
 	seen := make(map[uuid.UUID]struct{}, len(configs))
 	for _, cfg := range configs {
@@ -82,18 +76,19 @@ func (server *Server) prepareGeneration(
 		slog.F("owner_id", chat.OwnerID),
 	)
 
+	prepStart := server.clock.Now()
+	defer func() {
+		if prepDuration := server.clock.Since(prepStart); prepDuration >= slowPrepareThreshold {
+			logger.Warn(ctx, "slow generation preparation",
+				slog.F("duration", prepDuration),
+			)
+		}
+	}()
+
 	var (
-		model            chatprovider.Model
-		modelConfig      database.ChatModelConfig
-		modelRoute       aiGatewayModelRoute
-		modelOpts        modelBuildOptions
-		callConfig       codersdk.ChatModelCallConfig
-		promptRows       []database.ChatMessage
-		mcpConfigs       []database.MCPServerConfig
-		mcpTokens        []database.MCPServerUserToken
-		debugEnabled     bool
-		resolvedProvider string
-		debugModel       string
+		promptRows []database.ChatMessage
+		mcpConfigs []database.MCPServerConfig
+		mcpTokens  []database.MCPServerUserToken
 	)
 
 	var g errgroup.Group
@@ -118,22 +113,21 @@ func (server *Server) prepareGeneration(
 	if err != nil {
 		return generationPrepared{}, xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
-	modelOpts = modelBuildOptions{ActiveAPIKeyID: apiKeyID}
+	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	model, modelConfig, modelRoute, debugEnabled, resolvedProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
+	requestedEffort := chatRequestedEffort(chat)
+	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose:         "standard_turn",
+		chat:            chat,
+		requestedEffort: requestedEffort,
+		buildOptions:    modelOpts,
+	})
 	if err != nil {
 		return generationPrepared{}, err
 	}
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return generationPrepared{}, xerrors.Errorf("parse model call config: %w", err)
-		}
-	}
-
-	if callConfig.MaxOutputTokens == nil {
-		maxOutputTokens := int64(32_000)
-		callConfig.MaxOutputTokens = &maxOutputTokens
-	}
+	// The chat config keeps driving compaction, sanitization, and debug
+	// attribution even when computer use swaps the resolved call below.
+	modelConfig := resolved.dbConfig
 
 	// Computer-use turns swap in a specialized model, so the substitution
 	// must happen before anything model-sensitive runs: file-part
@@ -147,28 +141,30 @@ func (server *Server) prepareGeneration(
 		if err != nil {
 			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
 		}
-		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, cuModelProvider)
-		if keyErr != nil {
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
-		}
-		modelRoute = computerUseRoute
-		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
-			ctx,
-			chat,
-			computerUseRoute,
-			computerUseProvider,
-			cuModelProvider,
-			cuModelName,
-			modelOpts,
-		)
+		cuResolved, cuErr := server.resolveModelCall(ctx, modelCallSpec{
+			purpose: "computer_use",
+			chat:    chat,
+			fixedModel: &fixedModelCall{
+				providerType: cuModelProvider,
+				modelName:    cuModelName,
+				callConfig:   resolved.callConfig,
+			},
+			requestedEffort: requestedEffort,
+			buildOptions:    modelOpts,
+		})
 		if cuErr != nil {
-			return generationPrepared{}, cuErr
+			return generationPrepared{}, xerrors.Errorf(
+				"resolve computer use model for provider %q model %q: %w",
+				computerUseProvider,
+				cuModelName,
+				cuErr,
+			)
 		}
-		model = cuModel
-		debugEnabled = cuDebugEnabled
-		resolvedProvider = cuResolvedProvider
-		debugModel = cuResolvedModel
+		resolved = cuResolved
 	}
+	model := resolved.model
+	callConfig := resolved.callConfig
+	modelRoute := resolved.route
 
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
@@ -197,8 +193,6 @@ func (server *Server) prepareGeneration(
 			ctx,
 			chat,
 			advisorCfg,
-			model,
-			callConfig,
 			modelOpts,
 			logger,
 		)
@@ -278,6 +272,7 @@ func (server *Server) prepareGeneration(
 		prompt             []fantasy.Message
 		instruction        string
 		mcpTools           []fantasy.AgentTool
+		mcpSummaries       []mcpclient.ConnectSummary
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
 		workspaceSkills    []chattool.SkillMeta
@@ -291,7 +286,7 @@ func (server *Server) prepareGeneration(
 	// (e.g. Bedrock and Anthropic) can still reject the other's
 	// provider-executed blocks, so a mid-chat provider switch must not replay
 	// them.
-	promptRows = server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows, modelConfig.ID)
+	promptRows = server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows, chat.OwnerID, modelConfig.ID)
 
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
@@ -316,6 +311,29 @@ func (server *Server) prepareGeneration(
 		if resolveErr != nil {
 			cleanup()
 			return generationPrepared{}, resolveErr
+		}
+	}
+
+	// Build the debug context before the connect phase so its
+	// outcomes can be recorded with run-creation context even when a
+	// later preparation step fails.
+	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
+	debugSvc := server.existingDebugService()
+	var debug *generationDebug
+	if resolved.debugEnabled {
+		if debugSvc == nil {
+			cleanup()
+			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
+		}
+		debug = &generationDebug{
+			Enabled:             true,
+			Service:             debugSvc,
+			Provider:            resolved.resolvedProvider,
+			Model:               resolved.resolvedModel,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			TriggerLabel:        triggerLabel,
+			ModelConfig:         modelConfig,
 		}
 	}
 
@@ -351,7 +369,7 @@ func (server *Server) prepareGeneration(
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
-			mcpTools, mcpCleanup = mcpclient.ConnectAll(
+			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
 				logger,
 				mcpConnectConfigs,
@@ -359,6 +377,7 @@ func (server *Server) prepareGeneration(
 				chat.OwnerID,
 				server.oidcTokenSource,
 				chatprovider.CoderHeaders(chat),
+				server.mcpHTTPClient,
 			)
 			return nil
 		})
@@ -380,9 +399,16 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
-	if err := g2.Wait(); err != nil {
+	g2Err := g2.Wait()
+	// Record connect outcomes before acting on any preparation error:
+	// ConnectAll has already run, so a failure below (or in g2 itself)
+	// would otherwise discard this attempt's outcomes.
+	if debug != nil && input.RecordMCPConnectSummaries != nil && len(mcpSummaries) > 0 {
+		input.RecordMCPConnectSummaries(ctx, chat, debug, mcpSummaries)
+	}
+	if g2Err != nil {
 		cleanup()
-		return generationPrepared{}, err
+		return generationPrepared{}, g2Err
 	}
 
 	if mcpCleanup != nil {
@@ -593,12 +619,6 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	var requestedEffort *string
-	if chat.LastReasoningEffort.Valid {
-		requestedEffort = new(string(chat.LastReasoningEffort.ChatReasoningEffort))
-	}
-	providerOptions := chatprovider.ProviderOptionsForCall(model, callConfig, requestedEffort)
-
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
 		activeToolNames = allowedExploreToolNames(tools)
@@ -656,26 +676,6 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
-	debugSvc := server.existingDebugService()
-	var debug *generationDebug
-	if debugEnabled {
-		if debugSvc == nil {
-			cleanup()
-			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
-		}
-		debug = &generationDebug{
-			Enabled:             true,
-			Service:             debugSvc,
-			Provider:            resolvedProvider,
-			Model:               debugModel,
-			TriggerMessageID:    triggerMessageID,
-			HistoryTipMessageID: historyTipMessageID,
-			TriggerLabel:        triggerLabel,
-			ModelConfig:         modelConfig,
-		}
-	}
-
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
 	effectiveThreshold := modelConfig.CompressionThreshold
 	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
@@ -711,10 +711,11 @@ func (server *Server) prepareGeneration(
 		DebugSvc:             debugSvc,
 		ChatID:               chat.ID,
 		HistoryTipMessageID:  historyTipMessageID,
-		ResolvedProvider:     resolvedProvider,
-		ResolvedModel:        debugModel,
+		ResolvedProvider:     resolved.resolvedProvider,
+		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
+		SummaryCall:          compactionSummaryCall(resolved),
 	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
@@ -737,10 +738,9 @@ func (server *Server) prepareGeneration(
 		ProviderTools:        providerTools,
 		ModelRoute:           modelRoute,
 		ModelBuildOptions:    modelOpts,
-		ResolvedProvider:     resolvedProvider,
+		ResolvedProvider:     resolved.resolvedProvider,
 		ModelConfigID:        modelConfig.ID,
-		ModelConfig:          callConfig,
-		ProviderOptions:      providerOptions,
+		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
 		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
@@ -860,18 +860,19 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{}
 	}
 
-	// resolvedProvider/resolvedModel describe the model the fallback handle was
-	// built from; they only feed the status-label fallback candidate's labels.
 	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {
 		logger.Warn(ctx, "derive final turn status label: ensure synthetic API key", slog.Error(err))
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	model, dbConfig, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
+	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose:      "turn_status_label",
+		chat:         chat,
+		buildOptions: modelOpts,
+	})
 	if err != nil {
-		// Return what we have; generateFinalTurnStatusLabel falls back to a
-		// generic label when StatusLabelModel is nil.
+		// Preserve the text and IDs for the generic-label fallback.
 		logger.Warn(ctx, "derive final turn status label: resolve model", slog.Error(err))
 		return runChatResult{
 			FinalAssistantText:  finalAssistantText,
@@ -882,12 +883,7 @@ func (server *Server) deriveFinalTurnRunResult(
 
 	return runChatResult{
 		FinalAssistantText:  finalAssistantText,
-		StatusLabelModel:    model,
-		FallbackProvider:    resolvedProvider,
-		FallbackRoute:       modelRoute,
-		FallbackModel:       resolvedModel,
-		ModelBuildOptions:   modelOpts,
-		StatusLabelOptions:  dbConfig.Options,
+		StatusLabelCall:     &resolved,
 		TriggerMessageID:    triggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 	}
@@ -909,4 +905,23 @@ func latestAssistantText(messages []database.ChatMessage) string {
 		return strings.TrimSpace(textFromParts(parts))
 	}
 	return ""
+}
+
+// ACLs are deliberately not re-checked: revocation blocks new selection but
+// leaves already-selected servers usable, like template ACLs for running
+// workspaces. Disabling or deleting the config cuts off existing chats.
+func enabledMCPServerConfigsForChatOrg(
+	ctx context.Context,
+	db database.Store,
+	organizationID uuid.UUID,
+	ids []uuid.UUID,
+) ([]database.MCPServerConfig, error) {
+	configs, err := db.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
+		OrganizationID: organizationID,
+		IDs:            ids,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get enabled MCP server configs for organization: %w", err)
+	}
+	return configs, nil
 }

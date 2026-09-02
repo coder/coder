@@ -61,6 +61,7 @@ import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
@@ -209,6 +210,12 @@ export interface AttachedWorkspaceInfo {
 	statusIcon: React.ReactNode;
 	statusLabel: string;
 }
+// Shared pill sizing: flex-basis sets a ~8ch floor (shrink-0 enforces
+// it), grow expands into free row space, and max-w-max caps at the
+// label's natural width. Below the floor the +N overflow takes over.
+const pillSizingClasses =
+	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
+
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
@@ -232,7 +239,7 @@ const BadgeDismissButton: FC<{
 		aria-label={ariaLabel}
 	>
 		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
-			<XIcon className="!size-2.5" />
+			<XIcon className="size-2.5!" />
 		</span>
 	</button>
 );
@@ -244,6 +251,8 @@ const ToolBadge: FC<{
 	onRemovePlanning?: () => void;
 	isDisabled?: boolean;
 	className?: string;
+	// The overflow popover auto-focuses badges; suppress the tooltip there.
+	disableTooltip?: boolean;
 }> = ({
 	badge,
 	onRemoveWorkspace,
@@ -251,6 +260,7 @@ const ToolBadge: FC<{
 	onRemovePlanning,
 	isDisabled,
 	className,
+	disableTooltip,
 }) => {
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
@@ -300,7 +310,12 @@ const ToolBadge: FC<{
 						)}
 					</span>
 				</TooltipTrigger>
-				<TooltipContent>{badge.statusLabel}</TooltipContent>
+				{/* Hidden below md: touch focus would stick the tooltip open. */}
+				{!disableTooltip && (
+					<TooltipContent className="hidden md:block">
+						{badge.statusLabel}
+					</TooltipContent>
+				)}
 			</Tooltip>
 		);
 	}
@@ -428,8 +443,23 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		"main",
 	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
-	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
-	const mcpPopupRef = useRef<Window | null>(null);
+	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
+		useMCPOAuthFlow({
+			organizationId: chatOrganizationId,
+			onAuthComplete: onMCPAuthComplete,
+			onFlowSuccess: (serverID) => {
+				if (
+					onMCPSelectionChange &&
+					selectedMCPServerIds &&
+					mcpServers?.some(
+						(server) => server.id === serverID && server.enabled,
+					) &&
+					!selectedMCPServerIds.includes(serverID)
+				) {
+					onMCPSelectionChange([...selectedMCPServerIds, serverID]);
+				}
+			},
+		});
 	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
 		useState<TypesGen.MCPServerConfig | null>(null);
 	const queryClient = useQueryClient();
@@ -506,41 +536,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		[],
 	);
 
-	// Listen for OAuth2 completion postMessage from popup.
-	useEffect(() => {
-		const handler = (event: MessageEvent) => {
-			if (event.origin !== location.origin) return;
-			if (
-				event.data?.type === "mcp-oauth2-complete" &&
-				typeof event.data.serverID === "string"
-			) {
-				setMcpConnectingId(null);
-				onMCPAuthComplete?.(event.data.serverID);
-				mcpPopupRef.current = null;
-			}
-		};
-		window.addEventListener("message", handler);
-		return () => window.removeEventListener("message", handler);
-	}, [onMCPAuthComplete]);
-
-	// Poll for popup close and clean up on unmount.
-	useEffect(() => {
-		if (!mcpConnectingId || !mcpPopupRef.current) return;
-		const interval = setInterval(() => {
-			if (mcpPopupRef.current?.closed) {
-				setMcpConnectingId(null);
-				mcpPopupRef.current = null;
-			}
-		}, 500);
-		return () => {
-			clearInterval(interval);
-			if (mcpPopupRef.current && !mcpPopupRef.current.closed) {
-				mcpPopupRef.current.close();
-				mcpPopupRef.current = null;
-			}
-		};
-	}, [mcpConnectingId]);
-
 	const handleMcpToggle = (serverId: string, checked: boolean) => {
 		if (!onMCPSelectionChange || !selectedMCPServerIds) return;
 		if (checked) {
@@ -550,16 +545,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				selectedMCPServerIds.filter((id) => id !== serverId),
 			);
 		}
-	};
-
-	const handleMcpConnect = (server: TypesGen.MCPServerConfig) => {
-		setMcpConnectingId(server.id);
-		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
-		mcpPopupRef.current = window.open(
-			connectUrl,
-			"_blank",
-			"width=900,height=600",
-		);
 	};
 
 	const handleMcpDisconnectConfirm = () => {
@@ -614,16 +599,22 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const shouldOverflowPlanningBadge =
 		planModeEnabled && contextUsage !== undefined;
 
+	let workspacePillBadge: ToolBadgeData | undefined;
+	if (workspace && workspaceAgent && chatId) {
+		workspacePillBadge = attachedWorkspace
+			? { kind: "attached-workspace", ...attachedWorkspace }
+			: { kind: "workspace", name: workspace.name };
+	}
+
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
 	if (shouldOverflowPlanningBadge) {
 		allBadges.push({ kind: "planning" });
 	}
-	// When workspace data is available, WorkspacePill handles
-	// the display (including app dropdown). Otherwise fall back
-	// to the simple attached-workspace ToolBadge.
-	if (!(workspace && workspaceAgent && chatId) && attachedWorkspace) {
+	if (workspacePillBadge) {
+		allBadges.push(workspacePillBadge);
+	} else if (attachedWorkspace) {
 		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
@@ -1095,7 +1086,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			{showAgentSetupNotice && (
-				<div className="relative z-0 mb-[-2.5rem]">
+				<div className="relative z-0 -mb-10">
 					{(aiGatewayDisabled ||
 						(providerCount !== undefined && modelCount !== undefined)) &&
 					canConfigureAgentSetup ? (
@@ -1121,7 +1112,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
@@ -1183,6 +1174,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					workspaceSkills={workspaceSkills}
 					autoFocus
 					slashCommands={slashCommands}
+					skillsMenuAnchor={composerElement}
 				/>
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
@@ -1216,7 +1208,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					/>
 				)}
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-					<div className="flex min-w-0 items-center gap-1">
+					{/* flex-1 routes free row space to the growing pills. */}
+					<div className="flex min-w-0 flex-1 items-center gap-1">
 						{/* Plus menu */}
 						<Popover
 							modal={false}
@@ -1232,7 +1225,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
 									disabled={
 										isDisabled &&
 										!showAgentSetupNotice &&
@@ -1389,7 +1382,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																	variant="outline"
 																	size="sm"
 																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																	onClick={() => handleMcpConnect(server)}
+																	onClick={() => connectMCPServer(server.id)}
 																	disabled={
 																		isDisabled || mcpConnectingId !== null
 																	}
@@ -1445,7 +1438,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className="md:shrink"
+								className={cn(pillSizingClasses, "md:h-auto")}
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1469,30 +1462,41 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}
-						{/* Badge row; all badges and the pill always
-						 * render so the DOM structure never changes.
-						 * Overflow badges use invisible + order-1 to
-						 * hide and reorder via CSS. The pill is invisible
-						 * when there's no overflow but still occupies
-						 * layout space, preventing measurement flicker. */}
-						{workspace && workspaceAgent && chatId && (
-							<span className="ml-1 sm:ml-0">
-								<WorkspacePill
-									workspace={workspace}
-									agent={workspaceAgent}
-									chatId={chatId}
-									sshCommand={sshCommand}
-									folder={folder}
-									onRemoveWorkspace={removeWorkspaceHandler}
-								/>
-							</span>
-						)}
+						{/* Badges and the +N pill stay mounted for measurement:
+						 * overflowed badges are display:none, the pill merely
+						 * invisible so its width stays readable. */}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
 						>
 							{allBadges.map((badge, i) => {
 								const isOverflow = overflowCount > 0 && i >= visibleCount;
+								if (
+									badge === workspacePillBadge &&
+									workspace &&
+									workspaceAgent &&
+									chatId
+								) {
+									return (
+										<span
+											key="workspace-pill"
+											className={cn(
+												"flex min-w-0 text-xs",
+												pillSizingClasses,
+												isOverflow && "hidden",
+											)}
+										>
+											<WorkspacePill
+												workspace={workspace}
+												agent={workspaceAgent}
+												chatId={chatId}
+												sshCommand={sshCommand}
+												folder={folder}
+												onRemoveWorkspace={removeWorkspaceHandler}
+											/>
+										</span>
+									);
+								}
 								return (
 									<ToolBadge
 										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
@@ -1503,14 +1507,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											onPlanModeToggle ? handleDisablePlanMode : undefined
 										}
 										isDisabled={isDisabled}
-										className={isOverflow ? "invisible order-1" : undefined}
+										className={isOverflow ? "hidden" : undefined}
 									/>
 								);
 							})}
-							{/* Pill; always in the DOM so it permanently
-							 * reserves layout space. Invisible when nothing
-							 * overflows. CSS order keeps it before order-1
-							 * (overflow) badges. */}
 							<Popover
 								open={overflowPopoverOpen && overflowCount > 0}
 								onOpenChange={setOverflowPopoverOpen}
@@ -1528,27 +1528,72 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										+{overflowCount}
 									</button>
 								</PopoverTrigger>
+								{/* Anchored above the +N pill; hugs the toolbar row. */}
 								<PopoverContent
 									side="top"
 									align="start"
-									className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									onInteractOutside={(event) => {
+										// The workspace pill portals its menu outside
+										// this popover; dismissing would unmount the
+										// open menu. Ignore focus shifts and pointer
+										// presses inside the menu.
+										if (event.detail.originalEvent.type !== "pointerdown") {
+											event.preventDefault();
+											return;
+										}
+										if (
+											event.target instanceof Element &&
+											event.target.closest('[role="menu"]')
+										) {
+											event.preventDefault();
+										}
+									}}
 								>
-									{overflowBadges.map((badge) => (
-										<ToolBadge
-											key={
-												badge.kind === "mcp"
-													? badge.server.id
-													: `${badge.kind}-overflow`
-											}
-											badge={badge}
-											onRemoveWorkspace={removeWorkspaceHandler}
-											onRemoveMcp={handleRemoveMcp}
-											onRemovePlanning={
-												onPlanModeToggle ? handleDisablePlanMode : undefined
-											}
-											isDisabled={isDisabled}
-										/>
-									))}
+									{overflowBadges.map((badge, i) => {
+										if (
+											badge === workspacePillBadge &&
+											workspace &&
+											workspaceAgent &&
+											chatId
+										) {
+											return (
+												<span
+													key="workspace-pill-overflow"
+													className="flex min-w-0 text-xs"
+												>
+													<WorkspacePill
+														workspace={workspace}
+														agent={workspaceAgent}
+														chatId={chatId}
+														sshCommand={sshCommand}
+														folder={folder}
+														onRemoveWorkspace={removeWorkspaceHandler}
+														inOverflowPopover
+													/>
+												</span>
+											);
+										}
+										return (
+											<ToolBadge
+												// Non-MCP badges can share a kind, so keys
+												// are position-qualified.
+												key={
+													badge.kind === "mcp"
+														? badge.server.id
+														: `${badge.kind}-overflow-${visibleCount + i}`
+												}
+												badge={badge}
+												onRemoveWorkspace={removeWorkspaceHandler}
+												onRemoveMcp={handleRemoveMcp}
+												onRemovePlanning={
+													onPlanModeToggle ? handleDisablePlanMode : undefined
+												}
+												isDisabled={isDisabled}
+												disableTooltip
+											/>
+										);
+									})}
 								</PopoverContent>
 							</Popover>
 						</div>
@@ -1560,7 +1605,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
 									onClick={
 										speech.isRecording
 											? handleCancelRecording
@@ -1571,7 +1616,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										speech.isRecording ? "Cancel voice input" : "Voice input"
 									}
 								>
-									{speech.isRecording ? <XIcon /> : <MicIcon />}
+									{speech.isRecording ? (
+										<XIcon />
+									) : (
+										<MicIcon strokeWidth={1.5} />
+									)}
 								</Button>
 								{speech.error && !speech.isRecording && (
 									<span
@@ -1586,11 +1635,21 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{contextUsage !== undefined && (
-							<ContextUsageIndicator
-								usage={contextUsage}
-								onRefreshContext={onRefreshContext}
-								isRefreshingContext={isRefreshingContext}
-							/>
+							<div
+								className={cn(
+									"flex",
+									speech.isSupported &&
+										!isStreaming &&
+										!speech.error &&
+										"-ml-2",
+								)}
+							>
+								<ContextUsageIndicator
+									usage={contextUsage}
+									onRefreshContext={onRefreshContext}
+									isRefreshingContext={isRefreshingContext}
+								/>
+							</div>
 						)}
 						{isStreaming && onInterrupt && (
 							<Tooltip>
@@ -1598,7 +1657,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<Button
 										size="icon"
 										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
+										className="size-7 rounded-full transition-colors [&>svg]:size-3! [&>svg]:p-0"
 										onClick={onInterrupt}
 										disabled={isInterruptPending}
 									>
@@ -1625,7 +1684,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<Button
 										size="icon"
 										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
+										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
 										onClick={
 											speech.isRecording ? handleAcceptRecording : handleSubmit
 										}

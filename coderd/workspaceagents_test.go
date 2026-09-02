@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
+	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
@@ -57,7 +58,6 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -588,67 +588,67 @@ func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
 		},
 		{
 			name:       "WorkingToIdleBumps",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateWorking),
+			prevState:  new(codersdk.WorkspaceAppStatusStateWorking),
 			newState:   codersdk.WorkspaceAppStatusStateIdle,
 			shouldBump: true,
 		},
 		{
 			name:       "WorkingToCompleteBumps",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateWorking),
+			prevState:  new(codersdk.WorkspaceAppStatusStateWorking),
 			newState:   codersdk.WorkspaceAppStatusStateComplete,
 			shouldBump: true,
 		},
 		{
 			name:       "CompleteToIdleNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateComplete),
+			prevState:  new(codersdk.WorkspaceAppStatusStateComplete),
 			newState:   codersdk.WorkspaceAppStatusStateIdle,
 			shouldBump: false,
 		},
 		{
 			name:       "CompleteToCompleteNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateComplete),
+			prevState:  new(codersdk.WorkspaceAppStatusStateComplete),
 			newState:   codersdk.WorkspaceAppStatusStateComplete,
 			shouldBump: false,
 		},
 		{
 			name:       "FailureToIdleNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateFailure),
+			prevState:  new(codersdk.WorkspaceAppStatusStateFailure),
 			newState:   codersdk.WorkspaceAppStatusStateIdle,
 			shouldBump: false,
 		},
 		{
 			name:       "FailureToFailureNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateFailure),
+			prevState:  new(codersdk.WorkspaceAppStatusStateFailure),
 			newState:   codersdk.WorkspaceAppStatusStateFailure,
 			shouldBump: false,
 		},
 		{
 			name:       "CompleteToWorkingBumps",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateComplete),
+			prevState:  new(codersdk.WorkspaceAppStatusStateComplete),
 			newState:   codersdk.WorkspaceAppStatusStateWorking,
 			shouldBump: true,
 		},
 		{
 			name:       "FailureToCompleteNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateFailure),
+			prevState:  new(codersdk.WorkspaceAppStatusStateFailure),
 			newState:   codersdk.WorkspaceAppStatusStateComplete,
 			shouldBump: false,
 		},
 		{
 			name:       "WorkingToFailureBumps",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateWorking),
+			prevState:  new(codersdk.WorkspaceAppStatusStateWorking),
 			newState:   codersdk.WorkspaceAppStatusStateFailure,
 			shouldBump: true,
 		},
 		{
 			name:       "IdleToIdleNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateIdle),
+			prevState:  new(codersdk.WorkspaceAppStatusStateIdle),
 			newState:   codersdk.WorkspaceAppStatusStateIdle,
 			shouldBump: false,
 		},
 		{
 			name:       "IdleToWorkingBumps",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateIdle),
+			prevState:  new(codersdk.WorkspaceAppStatusStateIdle),
 			newState:   codersdk.WorkspaceAppStatusStateWorking,
 			shouldBump: true,
 		},
@@ -671,7 +671,7 @@ func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
 
 			// Configure template with activity_bump to enable deadline bumping.
 			_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
-				ActivityBumpMillis: ptr.Ref(time.Hour.Milliseconds()),
+				ActivityBumpMillis: new(time.Hour.Milliseconds()),
 			})
 			require.NoError(t, err)
 
@@ -3191,9 +3191,9 @@ func TestUserTailnetTelemetry(t *testing.T) {
 				codersdk.CoderDesktopTelemetryHeader: string(fullHeader),
 			},
 			expected: telemetry.UserTailnetConnection{
-				DeviceOS:            ptr.Ref("Windows"),
-				DeviceID:            ptr.Ref("device001"),
-				CoderDesktopVersion: ptr.Ref("0.22.1"),
+				DeviceOS:            new("Windows"),
+				DeviceID:            new("device001"),
+				CoderDesktopVersion: new("0.22.1"),
 			},
 		},
 		{
@@ -3374,6 +3374,54 @@ func TestWorkspaceAgentPushContextState(t *testing.T) {
 	require.False(t, resp.GetAccepted())
 }
 
+// TestWorkspaceAgentPushContextStateDisabled verifies the
+// --disable-workspace-agent-context-sync kill switch end to end over a
+// real dRPC connection: the handler's Unimplemented code must survive
+// the transport and be translated by the agent's DRPCPusher into
+// ErrPushUnimplemented, which is what terminates the agent's RunPush
+// loop instead of retrying with backoff. Nothing may be persisted.
+func TestWorkspaceAgentPushContextStateDisabled(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.DisableWorkspaceAgentContextSync = true
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	require.Len(t, r.Agents, 1)
+	agentID := r.Agents[0].ID
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	aAPI, _, err := agentClient.ConnectRPC210(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := aAPI.DRPCConn().Close()
+		require.NoError(t, cErr)
+	}()
+
+	// Push through the same adapter the agent's RunPush loop uses so
+	// the test breaks if either side of the Unimplemented contract
+	// changes.
+	pusher := agentcontext.NewDRPCPusher(aAPI)
+	resp, err := pusher.PushContextState(ctx, &agentcontext.PushRequest{
+		Version: 1,
+		Initial: true,
+	})
+	require.ErrorIs(t, err, agentcontext.ErrPushUnimplemented)
+	require.Nil(t, resp)
+
+	// The rejected push must not have persisted anything.
+	_, err = db.GetLatestWorkspaceAgentContextSnapshot(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // Test assertions read agent-pushed rows directly from the store.
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
 func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
 	mp, err := aAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
 	require.NoError(t, err)
@@ -3382,8 +3430,8 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 	return manifest
 }
 
-func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC210(ctx)
+func postStartup(ctx context.Context, t testing.TB, client *agentsdk.Client, startup *agentproto.Startup) error {
+	aAPI, _, err := client.ConnectRPC211WithRole(ctx, "")
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()

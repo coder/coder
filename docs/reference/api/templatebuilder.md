@@ -169,6 +169,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
+    "allow_workspace_renames": true,
     "autostart_requirement": {
       "days_of_week": [
         "monday"

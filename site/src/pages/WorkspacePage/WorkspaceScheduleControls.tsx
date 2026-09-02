@@ -204,7 +204,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	const display = (
 		<ScheduleSettingsLink
 			data-testid="schedule-controls-autostop"
-			className={cn(danger && "!text-content-destructive")}
+			className={cn(danger && "text-content-destructive!")}
 		>
 			{message}
 		</ScheduleSettingsLink>
@@ -279,7 +279,7 @@ const ScheduleSettingsLink: React.FC<LinkProps> = ({
 	return (
 		<Link
 			className={cn(
-				"[&::first-letter]:uppercase p-0 hover:no-underline text-content-link text-xs",
+				"first-letter:uppercase p-0 hover:no-underline text-content-link text-xs",
 				className,
 			)}
 			showExternalIcon={false}

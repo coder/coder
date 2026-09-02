@@ -1,6 +1,5 @@
 import {
 	BanIcon,
-	CloudIcon,
 	PlayIcon,
 	PowerIcon,
 	RotateCcwIcon,
@@ -41,7 +40,7 @@ export const UpdateButton: FC<ActionButtonProps> = ({
 					disabled={loading}
 					onClick={() => handleAction()}
 				>
-					{requireActiveVersion ? <PlayIcon /> : <CloudIcon />}
+					{requireActiveVersion ? <PlayIcon /> : <RotateCcwIcon />}
 					{loading ? (
 						<>Updating&hellip;</>
 					) : isRunning ? (

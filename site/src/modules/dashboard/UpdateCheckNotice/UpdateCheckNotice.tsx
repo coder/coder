@@ -22,7 +22,7 @@ export const UpdateCheckNotice: FC<UpdateCheckNoticeProps> = ({
 			data-testid="update-check-notice"
 			role="status"
 			className={cn(
-				"fixed right-6 z-50 flex max-w-[420px] items-start gap-4 rounded border border-solid border-highlight-sky bg-surface-primary p-4 text-sm text-content-primary shadow",
+				"fixed right-6 z-50 flex max-w-[420px] items-start gap-4 rounded border border-solid border-highlight-sky bg-surface-primary p-4 text-sm text-content-primary shadow-sm",
 				// 60px keeps a 24px gap above the 36px deployment banner.
 				aboveDeploymentBanner ? "bottom-[60px]" : "bottom-6",
 			)}

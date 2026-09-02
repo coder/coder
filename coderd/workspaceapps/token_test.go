@@ -316,7 +316,7 @@ func Test_FromRequest(t *testing.T) {
 
 		// Add an expired cookie
 		expired := token
-		expired.RegisteredClaims.Expiry = jwt.NewNumericDate(time.Now().Add(time.Hour * -1))
+		expired.Expiry = jwt.NewNumericDate(time.Now().Add(time.Hour * -1))
 		expiredStr, err := jwtutils.Sign(ctx, signer, expired)
 		require.NoError(t, err)
 		r.AddCookie(&http.Cookie{

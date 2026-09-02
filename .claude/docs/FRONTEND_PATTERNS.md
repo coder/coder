@@ -27,6 +27,12 @@ function actually exercises the interaction. Jest/RTL tests are for pure logic
   not only the happy path.
 - Assert both sides of an invariant: the item that changed and a neighboring
   item that must not change.
+- When a component depends on the current time or date, accept it as a prop or
+  via context instead of reading `new Date()` or `Date.now()` internally, so
+  stories render deterministically without mocking globals.
+- `renderHook` suites for stateful UI hooks are interaction tests, not pure
+  logic. Cover that behavior through the story of the component that uses the
+  hook.
 
 **Incorrect (interaction test in Jest/RTL):**
 
@@ -61,19 +67,21 @@ export const SelectModel: Story = {
 - Use generated types from `api/typesGenerated.ts` for all API data. Never
   re-declare a type that the backend already generates.
 - If a component requires a prop to function, make the prop required.
+- Avoid `@ts-ignore` and `biome-ignore` suppression comments. Seek a
+  better-typed alternative first, and document why when one is unavoidable.
 
 **Incorrect:**
 
 ```tsx
-const config = data as unknown as ChatModelConfig;
+const config = data as unknown as ChatModel;
 ```
 
 **Correct:**
 
 ```tsx
-import type { ChatModelConfig } from "api/typesGenerated";
+import type { ChatModel } from "api/typesGenerated";
 
-const config: ChatModelConfig = parseConfig(data);
+const config: ChatModel = parseConfig(data);
 ```
 
 ## FE3: Reuse before building, and keep PRs single-purpose
@@ -84,6 +92,8 @@ const config: ChatModelConfig = parseConfig(data);
   of existing ones.
 - Use existing wrapped primitives (Combobox, dialogs, tables) instead of
   hand-assembling the underlying pieces they already wrap.
+- Do not introduce a new React hook when an existing hook, a plain function,
+  or component state can express the logic.
 - Delete dead code and unreachable branches instead of carrying them along.
 - Keep the PR scoped to one change. Move unrelated cleanups, renames, and
   drive-by refactors to separate PRs.
@@ -121,6 +131,9 @@ Every view that renders server data must handle this matrix:
 - When a mutation partially fails, the UI must reflect what succeeded and what
   did not (see FE7 for cache invalidation).
 - Render a visible fallback ("Untitled", "N/A") for nullable display data.
+- Never use `key={String(booleanState)}` to force a remount. When the boolean
+  flips, React synchronously unmounts and remounts the subtree, discarding its
+  state and killing exit animations.
 
 ## FE6: Accessibility is behavior, not decoration
 
@@ -133,6 +146,9 @@ Every view that renders server data must handle this matrix:
 - Preserve focus position across dialogs and route transitions.
 - When visually hiding an interactive element, also remove it from the tab
   order and accessibility tree, or conditionally render it out of the DOM.
+- Generate IDs for form elements, labels, and ARIA attributes with
+  `React.useId()`. Hard-coded string IDs collide when a component renders more
+  than once on a page.
 
 ## FE7: React Query discipline
 
@@ -156,17 +172,17 @@ with `useState` + `useEffect`.
 
 ```tsx
 parameters: {
-  queries: [{ key: ["chat-model-configs"], data: [MockChatModelConfig] }],
+  queries: [{ key: ["chat-models"], data: [MockChatModel] }],
 },
 ```
 
 **Correct (imported constant):**
 
 ```tsx
-import { chatModelConfigsKey } from "api/queries/chats";
+import { chatModelsKey } from "api/queries/chats";
 
 parameters: {
-  queries: [{ key: chatModelConfigsKey, data: [MockChatModelConfig] }],
+  queries: [{ key: chatModelsKey, data: [MockChatModel] }],
 },
 ```
 
@@ -192,12 +208,15 @@ Decide where logic goes before reaching for `useEffect`:
 ## FE9: Fixtures and mocks follow repo conventions
 
 - Represent entities with shared `Mock*` constants in `site/src/testHelpers/`
-  (for example `MockChatModelConfig` in `testHelpers/chatModels.ts`). When a
+  (for example `MockChatModel` in `testHelpers/chatModels.ts`). When a
   story needs a variant, spread the base fixture into a named local constant.
 - Compose story query wiring (`{ key, data }`) inline per story so each story
   is readable on its own. Share the entity fixture, not a pre-wired query
   object.
 - Query keys in mocks follow FE7: import the constant.
+- Never replace browser globals with `Object.defineProperty` in tests or
+  stories. Use `vi.stubGlobal` in unit tests and `spyOn` from
+  `storybook/test` in stories.
 
 ## FE10: Tests assert observable behavior
 

@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -1088,7 +1087,7 @@ func TestFeatureComparison(t *testing.T) {
 			Name: "EntitledVsGracePeriodLimits",
 			A:    codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
 			// Entitled should still win here
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](50)},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(100)), Actual: new(int64(50))},
 			Expected: 1,
 		},
 		{
@@ -1126,8 +1125,8 @@ func TestFeatureComparison(t *testing.T) {
 		// --
 		{
 			Name:     "EntitledVsGracePeriodCapable",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](200)},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](300), Actual: ptr.Ref[int64](200)},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: -1,
 		},
 		// UserLimits
@@ -1136,77 +1135,77 @@ func TestFeatureComparison(t *testing.T) {
 			// is not exceeded. This is the edge case that we should use the graceful period
 			// instead of the entitled.
 			Name:     "UserLimitExceeded",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: -1,
 		},
 		{
 			Name:     "UserLimitExceededNoEntitled",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: 3,
 		},
 		{
 			Name:     "HigherLimit",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(110)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(110)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
 			Expected: 10, // Diff in the limit #
 		},
 		{
 			Name:     "HigherActual",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(300))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
 			Expected: 100, // Diff in the actual #
 		},
 		{
 			Name:     "LimitExists",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: new(int64(200))},
 			Expected: 1,
 		},
 		{
 			Name:     "LimitExistsGrace",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: nil, Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(100)), Actual: new(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: nil, Actual: new(int64(200))},
 			Expected: 1,
 		},
 		{
 			Name:     "ActualExists",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: nil},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: nil},
 			Expected: 1,
 		},
 		{
 			Name:     "NotNils",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
 			Expected: 1,
 		},
 		{
 			Name:     "EnabledVsDisabled",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Enabled: true, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Enabled: true, Limit: new(int64(300)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: 1,
 		},
 		{
 			Name:     "NotNils",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
 			Expected: 1,
 		},
 		{
 			Name:     "SoftHardLimitsIgnored",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), SoftLimit: ptr.Ref(int64(80)), HardLimit: ptr.Ref(int64(120))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), SoftLimit: new(int64(80)), HardLimit: new(int64(120))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100))},
 			Expected: 0,
 		},
 		{
 			Name: "NewerIssuedAtWinsOverSoftHardLimits",
 			A: codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
-				Limit:       ptr.Ref(int64(50)),
-				SoftLimit:   ptr.Ref(int64(40)),
-				HardLimit:   ptr.Ref(int64(60)),
+				Limit:       new(int64(50)),
+				SoftLimit:   new(int64(40)),
+				HardLimit:   new(int64(60)),
 				UsagePeriod: &codersdk.UsagePeriod{
 					IssuedAt: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 					Start:    time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
@@ -1215,9 +1214,9 @@ func TestFeatureComparison(t *testing.T) {
 			},
 			B: codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
-				Limit:       ptr.Ref(int64(100)),
-				SoftLimit:   ptr.Ref(int64(80)),
-				HardLimit:   ptr.Ref(int64(120)),
+				Limit:       new(int64(100)),
+				SoftLimit:   new(int64(80)),
+				HardLimit:   new(int64(120)),
 				UsagePeriod: &codersdk.UsagePeriod{
 					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -1242,7 +1241,7 @@ func TestFeatureComparison(t *testing.T) {
 			B: codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
 				Enabled:     true,
-				Limit:       ptr.Ref(int64(100)),
+				Limit:       new(int64(100)),
 				UsagePeriod: &codersdk.UsagePeriod{
 					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),

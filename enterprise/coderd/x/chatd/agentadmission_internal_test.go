@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/entitlements"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -31,8 +30,8 @@ func TestAgentCapacityUnlock(t *testing.T) {
 			feature: &codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
 				Enabled:     true,
-				Limit:       ptr.Ref(int64(100)),
-				Actual:      ptr.Ref(int64(40)),
+				Limit:       new(int64(100)),
+				Actual:      new(int64(40)),
 			},
 			unlocked: true,
 		},
@@ -41,8 +40,8 @@ func TestAgentCapacityUnlock(t *testing.T) {
 			feature: &codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
 				Enabled:     true,
-				Limit:       ptr.Ref(int64(100)),
-				Actual:      ptr.Ref(int64(100)),
+				Limit:       new(int64(100)),
+				Actual:      new(int64(100)),
 			},
 			unlocked: true,
 		},
@@ -51,8 +50,8 @@ func TestAgentCapacityUnlock(t *testing.T) {
 			feature: &codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
 				Enabled:     true,
-				Limit:       ptr.Ref(int64(100)),
-				Actual:      ptr.Ref(int64(150)),
+				Limit:       new(int64(100)),
+				Actual:      new(int64(150)),
 			},
 			unlocked: true,
 		},
@@ -61,9 +60,9 @@ func TestAgentCapacityUnlock(t *testing.T) {
 			feature: &codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
 				Enabled:     true,
-				Limit:       ptr.Ref(int64(100)),
-				HardLimit:   ptr.Ref(int64(120)),
-				Actual:      ptr.Ref(int64(119)),
+				Limit:       new(int64(100)),
+				HardLimit:   new(int64(120)),
+				Actual:      new(int64(119)),
 			},
 			unlocked: true,
 		},
@@ -72,9 +71,9 @@ func TestAgentCapacityUnlock(t *testing.T) {
 			feature: &codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
 				Enabled:     true,
-				Limit:       ptr.Ref(int64(100)),
-				HardLimit:   ptr.Ref(int64(120)),
-				Actual:      ptr.Ref(int64(120)),
+				Limit:       new(int64(100)),
+				HardLimit:   new(int64(120)),
+				Actual:      new(int64(120)),
 			},
 		},
 		{
@@ -82,9 +81,9 @@ func TestAgentCapacityUnlock(t *testing.T) {
 			feature: &codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
 				Enabled:     true,
-				Limit:       ptr.Ref(int64(100)),
-				HardLimit:   ptr.Ref(int64(120)),
-				Actual:      ptr.Ref(int64(121)),
+				Limit:       new(int64(100)),
+				HardLimit:   new(int64(120)),
+				Actual:      new(int64(121)),
 			},
 		},
 		{
@@ -92,9 +91,9 @@ func TestAgentCapacityUnlock(t *testing.T) {
 			feature: &codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
 				Enabled:     true,
-				Limit:       ptr.Ref(int64(100)),
-				HardLimit:   ptr.Ref(int64(100)),
-				Actual:      ptr.Ref(int64(100)),
+				Limit:       new(int64(100)),
+				HardLimit:   new(int64(100)),
+				Actual:      new(int64(100)),
 			},
 		},
 		{
@@ -102,7 +101,7 @@ func TestAgentCapacityUnlock(t *testing.T) {
 			feature: &codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
 				Enabled:     false,
-				Limit:       ptr.Ref(int64(0)),
+				Limit:       new(int64(0)),
 			},
 		},
 		{name: "NoFeature"},
@@ -132,15 +131,15 @@ func TestAgentCapacityUnlockTracksEntitlementUpdates(t *testing.T) {
 		ents.Features[codersdk.FeatureAgentRuntimeHours] = codersdk.Feature{
 			Entitlement: codersdk.EntitlementEntitled,
 			Enabled:     true,
-			HardLimit:   ptr.Ref(int64(120)),
-			Actual:      ptr.Ref(int64(119)),
+			HardLimit:   new(int64(120)),
+			Actual:      new(int64(119)),
 		}
 	})
 	require.True(t, unlock.Unlocked())
 
 	set.Modify(func(ents *codersdk.Entitlements) {
 		feature := ents.Features[codersdk.FeatureAgentRuntimeHours]
-		feature.Actual = ptr.Ref(int64(120))
+		feature.Actual = new(int64(120))
 		ents.Features[codersdk.FeatureAgentRuntimeHours] = feature
 	})
 	require.False(t, unlock.Unlocked())
