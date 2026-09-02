@@ -45,34 +45,44 @@ var (
 	errUnmintableScope = xerrors.New("scope is not a valid API key scope")
 	// errStaleScope means the app's registered scopes narrowed after the code
 	// was issued and no longer cover the code's scope.
-	errStaleScope = xerrors.New("scope is no longer allowed by this app's registered scopes")
+	errStaleScope = xerrors.New("scope is no longer allowed by this app's registered scopes; authorize again to obtain a code within the current scopes")
 )
 
-// scopeStillCoveredByAllowlist rechecks a grant's scope against the app's
-// registered scopes as they stand now, since an admin can narrow them inside an
-// authorization code's ten minute life.
+// checkScopeStillCovered rechecks a grant's scope against the app's registered
+// scopes as they stand now, which can change during a code's ten minute life.
+// Only the client can change them, through its RFC 7592 registration.
 //
-// Refresh deliberately does not call this: RFC 6749 §6 bounds a refresh by the
-// scope originally granted, so a narrowing applies at the next authorization
-// instead of dropping capability from a live session.
-func scopeStillCoveredByAllowlist(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string) error {
+// Refresh deliberately does not call this. A narrowed registration is applied
+// at the next authorization rather than mid-session, so tightening an app's
+// scopes does not break integrations that are already running.
+func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string) error {
 	if noScopeAllowlist(app.Scope) {
 		return nil
 	}
 
 	allowlist := grantableScopes(app.Scope.String)
 	if len(allowlist) == 0 {
-		// Echoes the stored value, as in negotiateScope.
-		return xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
+		// app.Scope may separate names with tabs or newlines, which RFC 6749 §5.2
+		// forbids in error_description, so name the scopes rejoined with single
+		// spaces. Whitespace alone names nothing, so the reason stands alone.
+		registered := strings.Fields(app.Scope.String)
+		if len(registered) == 0 {
+			return errNoGrantableScope
+		}
+		return xerrors.Errorf("'%s': %w", strings.Join(registered, " "), errNoGrantableScope)
 	}
 
 	// Canonicalized because the row may have been written by an older server.
-	outside, err := firstScopeOutsideAllowlist(ctx, logger, app, allowlist, canonicalScopes(strings.Fields(granted)))
+	outside, err := firstScopeOutsideAllowlist(ctx, logger, "redeem", app.ID, allowlist, canonicalScopes(strings.Fields(granted)))
 	if err != nil {
 		return err
 	}
 	if outside != "" {
-		return xerrors.Errorf("%q: %w", outside, errStaleScope)
+		logger.Warn(ctx, "oauth2 code redemption refused by the app's registered scopes",
+			slog.F("app_id", app.ID.String()),
+			slog.F("allowlist", strings.Join(allowlist, " ")),
+			slog.F("scope", outside))
+		return xerrors.Errorf("'%s': %w", outside, errStaleScope)
 	}
 	return nil
 }
@@ -284,18 +294,15 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
-		// Not invalid_scope: RFC 6749 §5.2 scopes that to what the client
-		// requested, and these are stored state the client cannot change by
-		// asking differently. The grant is what is unusable, and re-authorizing
-		// is the only way out, so invalid_grant.
+		// invalid_grant, not invalid_scope: RFC 6749 §5.2 reserves invalid_scope
+		// for the scope the client asked for, but these come from the stored
+		// grant. The client cannot fix it by asking differently, only by
+		// authorizing again.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
 			errors.Is(err, errNoGrantableScope) {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
 			return
 		}
-		// This server failing to compare, not a defect in the grant, so it
-		// answers server_error with a fixed description as the authorization
-		// endpoint does; the comparison already logged the detail.
 		if errors.Is(err, errCoverageUndecidable) {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated")
 			return
@@ -442,17 +449,18 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		return codersdk.OAuth2TokenResponse{}, errInvalidResource
 	}
 
-	// Mintability is decided before coverage. A stored name outside the enum is
-	// not something RBAC can expand, so the coverage comparison would report it
-	// as undecidable instead of naming the value an operator has to fix.
+	// Check the scope names first. RBAC cannot expand a name that is not a real
+	// scope, so the allowlist check below would answer "could not be determined"
+	// instead of naming the scope to fix.
 	//
-	// Without this the key defaults to coder:all, discarding the negotiation.
+	// The minted key needs this list: apikey.Generate defaults to coder:all when
+	// it is empty.
 	scopes, err := scopeStringToAPIKeyScopes(dbCode.Scope)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	if err := scopeStillCoveredByAllowlist(ctx, logger, app, dbCode.Scope); err != nil {
+	if err := checkScopeStillCovered(ctx, logger, app, dbCode.Scope); err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
