@@ -413,10 +413,12 @@ page. It does not yet restrict what the issued token can do (see
 Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.
 `GET /.well-known/oauth-authorization-server` reports it in `response_types_supported`.
 
-Any other value, including the `token` of the implicit grant, redirects to your registered callback with `error=unsupported_response_type`, an `error_description` of `Only response_type=code is supported`, and the `state` you sent.
+`response_type=token`, the implicit grant, redirects to your registered callback with `error=unsupported_response_type`, an `error_description` of `Only response_type=code is supported`, and the `state` you sent.
 This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
 
-Earlier releases answered on Coder instead: `GET` rendered an "Unsupported Response Type" page and `POST` returned a 400 with a JSON body.
+A value Coder does not recognize at all, or an omitted `response_type`, fails query parameter validation instead and is answered on Coder rather than redirected: `GET` renders an "Invalid Query Parameters" page and `POST` returns a 400 with a JSON `invalid_request` body.
+
+Earlier releases answered `response_type=token` on Coder as well: `GET` rendered an "Unsupported Response Type" page and `POST` returned a 400 with a JSON body.
 An integration that watched for either now has to read the error from its own callback.
 
 ### "invalid_request" for `code_challenge_method`
