@@ -1,5 +1,3 @@
-import type * as TypesGen from "#/api/typesGenerated";
-
 /**
  * A command offered by the "/" trigger menu. Selecting one inserts
  * "/name" into the composer; inputHint is placeholder text for the
@@ -60,17 +58,3 @@ export const resolveChatSlashCommandAvailability = (
 export const chatSlashCommandTriggerText = (
 	command: ChatSlashCommand,
 ): string => `/${command.name}`;
-
-/**
- * Commands an external runtime advertised for the chat. They are sent
- * as message text ("/name args") and interpreted by the runtime, so the
- * built-in client-side commands do not apply alongside them.
- */
-export const runtimeSlashCommands = (
-	commands: readonly TypesGen.ChatRuntimeCommand[] | undefined,
-): readonly ChatComposerCommand[] =>
-	(commands ?? []).map((command) => ({
-		name: command.name,
-		description: command.description,
-		inputHint: command.input_hint || undefined,
-	}));

@@ -12,10 +12,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
 import type { ExternalChatRuntime } from "../utils/chatRuntimes";
 import { getProviderForModelOption } from "../utils/modelOptions";
-import {
-	CHAT_SLASH_COMMANDS,
-	runtimeSlashCommands,
-} from "../utils/slashCommands";
+import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
 	type AttachedWorkspaceInfo,
@@ -511,6 +508,17 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
 
+	// Built-ins operate on coder-side context, which external runtimes do
+	// not use; those chats get the commands the runtime advertised, sent
+	// as message text ("/name args").
+	const slashCommands = chatRuntime
+		? (runtimeCommands ?? []).map((command) => ({
+				name: command.name,
+				description: command.description,
+				inputHint: command.input_hint || undefined,
+			}))
+		: CHAT_SLASH_COMMANDS;
+
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
@@ -620,15 +628,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			aiGatewayDisabled={aiGatewayDisabled}
 			// Commands act on the whole chat, so they only make sense
 			// for new sends: hide them while editing a history message.
-			// Built-ins operate on coder-side context, which external
-			// runtimes do not use; they get the runtime's own commands.
-			slashCommands={
-				isEditing
-					? undefined
-					: chatRuntime
-						? runtimeSlashCommands(runtimeCommands)
-						: CHAT_SLASH_COMMANDS
-			}
+			slashCommands={isEditing ? undefined : slashCommands}
 		/>
 	);
 
