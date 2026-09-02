@@ -62,9 +62,11 @@ function toSelectedBaseAgent(
 	};
 }
 
-/** Name of the base agent modules attach to when they do not name one. */
-function defaultBaseAgentName(base: SelectedBaseMeta): string | undefined {
-	return base.agents.find((a) => a.default)?.name;
+/** Name of the default agent modules attach to when they do not name one. */
+export function defaultAgentName(
+	agents: SelectedBaseAgent[],
+): string | undefined {
+	return agents.find((a) => a.default)?.name;
 }
 
 /**
@@ -235,7 +237,9 @@ export function wizardReducer(
 			// stays undefined otherwise so agent_name is left unset and the backend
 			// uses the sole agent.
 			const agentDefault =
-				base && base.agents.length > 1 ? defaultBaseAgentName(base) : undefined;
+				base && base.agents.length > 1
+					? defaultAgentName(base.agents)
+					: undefined;
 			return {
 				...state,
 				modules: action.modules.map((incoming) =>

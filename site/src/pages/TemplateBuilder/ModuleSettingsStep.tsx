@@ -17,7 +17,7 @@ import {
 } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
-import type { SelectedBaseAgent } from "./wizardState";
+import { defaultAgentName, type SelectedBaseAgent } from "./wizardState";
 
 interface ModuleSettingsStepProps {
 	baseId: string;
@@ -75,31 +75,6 @@ function variableToField(
 			onBlur: () => {},
 			error: false,
 		},
-	};
-}
-
-/**
- * Builds the synthetic radio field that lets the user pick which base agent a
- * module attaches to. Only shown for bases with more than one agent.
- */
-function agentField(
-	moduleId: string,
-	agents: SelectedBaseAgent[],
-	value: string | undefined,
-	onChange: (agentName: string) => void,
-): ConfigurationFieldDefinition {
-	return {
-		type: "radio",
-		id: `mod-${moduleId}-agent`,
-		label: "Agent",
-		description: "Choose which agent this module attaches to.",
-		required: true,
-		value: value ?? agents.find((a) => a.default)?.name,
-		onChange,
-		options: agents.map((a) => ({
-			value: a.name,
-			label: a.default ? `${a.displayName} (default)` : a.displayName,
-		})),
 	};
 }
 
@@ -185,11 +160,19 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 
 					const requiredFields = requiredVars.map(toField);
 					if (showAgentSelector) {
-						requiredFields.unshift(
-							agentField(mod.id, agents, moduleAgents[mod.id], (agentName) =>
-								onChangeModuleAgent(mod.id, agentName),
-							),
-						);
+						requiredFields.unshift({
+							type: "radio",
+							id: `mod-${mod.id}-agent`,
+							label: "Agent",
+							description: "Choose which agent this module attaches to.",
+							required: true,
+							value: moduleAgents[mod.id] ?? defaultAgentName(agents),
+							onChange: (agentName) => onChangeModuleAgent(mod.id, agentName),
+							options: agents.map((a) => ({
+								value: a.name,
+								label: a.default ? `${a.displayName} (default)` : a.displayName,
+							})),
+						});
 					}
 					const optionalFields = optionalVars.map(toField);
 

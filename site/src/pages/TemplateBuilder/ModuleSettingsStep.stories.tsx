@@ -6,25 +6,17 @@ import type { SelectedBaseAgent } from "./wizardState";
 
 const baseId = "docker";
 
-function makeModule(
-	overrides: Partial<TemplateBuilderModule> &
-		Pick<TemplateBuilderModule, "id" | "display_name">,
-): TemplateBuilderModule {
-	return {
-		description: "",
-		icon: "",
-		category: "IDE",
-		version: "1.0.0",
-		compatible_os: ["linux"],
-		conflicts_with: [],
-		variables: [],
-		...overrides,
-	};
-}
-
-const modules = [
-	makeModule({ id: "code-server", display_name: "code-server" }),
-];
+const codeServer: TemplateBuilderModule = {
+	id: "code-server",
+	display_name: "code-server",
+	description: "",
+	icon: "",
+	category: "IDE",
+	version: "1.0.0",
+	compatible_os: ["linux"],
+	conflicts_with: [],
+	variables: [],
+};
 
 const twoAgents: SelectedBaseAgent[] = [
 	{ name: "main", displayName: "Main", default: true },
@@ -53,7 +45,7 @@ const meta: Meta<typeof ModuleSettingsStep> = {
 		queries: [
 			{
 				key: ["templateBuilder", "modules", baseId],
-				data: { modules },
+				data: { modules: [codeServer] },
 			},
 		],
 	},
