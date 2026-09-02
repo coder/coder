@@ -1149,6 +1149,50 @@ func TestGenerationTask_RecordRetryStateUsesDurableGenerationAttempt(t *testing.
 	require.Equal(t, chatretry.Delay(2).Milliseconds(), retryPayload.DelayMs)
 }
 
+func TestGenerationTask_RecordRetryStateHonorsConfiguredRetries(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
+	starter.server.chatLimits.MaxGenerationRetries = 1
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+	input := chatWorkerTaskStartInput{
+		ChatID:         chat.ID,
+		WorkerID:       workerID,
+		RunnerID:       runnerID,
+		HistoryVersion: acquired.HistoryVersion,
+		Status:         database.ChatStatusRunning,
+	}
+	classified := chaterror.ClassifiedError{
+		Message:   "OpenAI is temporarily unavailable.",
+		Kind:      codersdk.ChatErrorKindTimeout,
+		Provider:  "openai",
+		Retryable: true,
+	}
+
+	// The configured value is a retry count, so the first failure
+	// still gets its one retry and the second failure does not.
+	attempt, err := starter.beginGenerationAttempt(testutil.Context(t, testutil.WaitLong), machine, input)
+	require.NoError(t, err)
+	attempt.closeEpisode()
+	decision, err := starter.recordGenerationRetry(testutil.Context(t, testutil.WaitLong), machine, input, classified)
+	require.NoError(t, err)
+	require.True(t, decision.retry)
+	require.Equal(t, int64(1), decision.generationAttempt)
+
+	attempt, err = starter.beginGenerationAttempt(testutil.Context(t, testutil.WaitLong), machine, input)
+	require.NoError(t, err)
+	attempt.closeEpisode()
+	decision, err = starter.recordGenerationRetry(testutil.Context(t, testutil.WaitLong), machine, input, classified)
+	require.NoError(t, err)
+	require.False(t, decision.retry)
+	require.Equal(t, int64(2), decision.generationAttempt)
+}
+
 func TestGenerationTask_RecordRetryStateClearedByNextAttempt(t *testing.T) {
 	t.Parallel()
 
