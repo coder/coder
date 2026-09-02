@@ -416,11 +416,22 @@ function renderStepContent(
 					baseId={state.selectedBase.id}
 					selectedModuleIds={state.modules.map((m) => m.id)}
 					moduleVariables={moduleVarMap}
+					agents={state.selectedBase.agents}
+					moduleAgents={Object.fromEntries(
+						state.modules.map((m) => [m.id, m.agent_name]),
+					)}
 					onChangeModuleVariables={(moduleId, variables) =>
 						dispatch({
 							type: "SET_MODULE_VARIABLES",
 							moduleId,
 							variables,
+						})
+					}
+					onChangeModuleAgent={(moduleId, agentName) =>
+						dispatch({
+							type: "SET_MODULE_AGENT",
+							moduleId,
+							agentName,
 						})
 					}
 					onRemoveModule={onRemoveModule}
