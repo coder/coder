@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { BadgeGroup } from "./Badge";
 import {
 	AlphaBadge,
-	BadgeGroup,
 	DeprecatedBadge,
 	DisabledBadge,
 	EnabledBadge,

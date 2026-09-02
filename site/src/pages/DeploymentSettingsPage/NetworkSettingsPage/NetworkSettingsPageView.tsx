@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
+import { BadgeGroup } from "#/components/Badge/Badge";
 import {
-	BadgeGroup,
 	DisabledBadge,
 	EnabledBadge,
 } from "#/components/Badge/PresetBadges";

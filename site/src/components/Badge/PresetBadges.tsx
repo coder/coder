@@ -1,7 +1,6 @@
-import type { ComponentPropsWithRef, FC, PropsWithChildren } from "react";
 import { Badge } from "./Badge";
 
-export const EnabledBadge: FC = () => {
+export const EnabledBadge: React.FC = () => {
 	return (
 		<Badge className="option-enabled" variant="green">
 			Enabled
@@ -9,7 +8,7 @@ export const EnabledBadge: FC = () => {
 	);
 };
 
-export const DisabledBadge: FC<ComponentPropsWithRef<"div">> = ({
+export const DisabledBadge: React.FC<React.ComponentPropsWithRef<"div">> = ({
 	...props
 }) => {
 	return (
@@ -19,26 +18,20 @@ export const DisabledBadge: FC<ComponentPropsWithRef<"div">> = ({
 	);
 };
 
-export const EnterpriseBadge: FC = () => {
+export const EnterpriseBadge: React.FC = () => {
 	return <Badge variant="purple">Enterprise</Badge>;
 };
 
-export const PremiumBadge: FC<PropsWithChildren> = ({
+export const PremiumBadge: React.FC<React.PropsWithChildren> = ({
 	children = "Premium",
 }) => {
 	return <Badge variant="magenta">{children}</Badge>;
 };
 
-export const AlphaBadge: FC = () => {
+export const AlphaBadge: React.FC = () => {
 	return <Badge variant="purple">Alpha</Badge>;
 };
 
-export const DeprecatedBadge: FC = () => {
+export const DeprecatedBadge: React.FC = () => {
 	return <Badge variant="warning">Deprecated</Badge>;
-};
-
-export const BadgeGroup: FC<PropsWithChildren> = ({ children }) => {
-	return (
-		<div className="flex flex-row items-center gap-2 mb-4">{children}</div>
-	);
 };

@@ -6,8 +6,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Badge } from "./Badge";
-import { BadgeGroup } from "./PresetBadges";
+import { Badge, BadgeGroup } from "./Badge";
 
 const meta: Meta<typeof Badge> = {
 	title: "components/Badge",
