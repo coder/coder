@@ -8,7 +8,6 @@ const meta: Meta<typeof GroupSettingsPageView> = {
 	title: "pages/OrganizationGroupsPage/GroupSettingsPageView",
 	component: GroupSettingsPageView,
 	args: {
-		onCancel: fn(),
 		onSubmit: fn(),
 		group: MockGroup,
 		showAISettings: false,

@@ -140,7 +140,6 @@ interface UpdateGroupFormProps {
 	initialBudgetDollars: number | null;
 	errors: unknown;
 	onSubmit: (data: FormData) => void;
-	onCancel: () => void;
 	isLoading: boolean;
 }
 
@@ -150,7 +149,6 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 	initialBudgetDollars,
 	errors,
 	onSubmit,
-	onCancel,
 	isLoading,
 }) => {
 	const form = useFormik<FormData>({
@@ -342,7 +340,6 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 };
 
 type SettingsGroupPageViewProps = {
-	onCancel: () => void;
 	onSubmit: (data: FormData) => void;
 	group: Group;
 	showAISettings: boolean;
@@ -352,7 +349,6 @@ type SettingsGroupPageViewProps = {
 };
 
 const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
-	onCancel,
 	onSubmit,
 	group,
 	showAISettings,
@@ -365,7 +361,6 @@ const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
 			group={group}
 			showAISettings={showAISettings}
 			initialBudgetDollars={initialBudgetDollars}
-			onCancel={onCancel}
 			errors={formErrors}
 			isLoading={isUpdating}
 			onSubmit={onSubmit}
