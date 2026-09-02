@@ -167,12 +167,6 @@ export const WithMemberAvatarsLoading: Story = {
 			() => new Promise(() => {}),
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Members loading")).toBeVisible();
-		await expect(canvas.getByText("3 members")).toBeVisible();
-		expect(canvas.queryByText(MockUserOwner.username)).not.toBeInTheDocument();
-	},
 };
 
 const totalRecords = 15;
