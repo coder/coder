@@ -16588,6 +16588,9 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "Returns HTML authorization page"
+                    },
+                    "302": {
+                        "description": "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
                     }
                 },
                 "security": [
@@ -16643,7 +16646,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "302": {
-                        "description": "Returns redirect with authorization code"
+                        "description": "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
                     }
                 },
                 "security": [
