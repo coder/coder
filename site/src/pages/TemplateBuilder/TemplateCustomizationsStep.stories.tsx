@@ -29,6 +29,7 @@ const baseState: TemplateBuilderWizardState = {
 		iconUrl: "/icon/docker.svg",
 		hasParameters: false,
 		hasPrerequisites: false,
+		agents: [],
 	},
 	name: "docker",
 	displayName: "Docker Containers",

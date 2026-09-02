@@ -37,6 +37,7 @@ describe("shouldSkip", () => {
 				name: "Docker",
 				hasParameters: false,
 				hasPrerequisites: false,
+				agents: [],
 			},
 		});
 		expect(stepById("base-parameters").shouldSkip(noParams)).toBe(true);
@@ -49,6 +50,7 @@ describe("shouldSkip", () => {
 				name: "AWS Linux",
 				hasParameters: true,
 				hasPrerequisites: false,
+				agents: [],
 			},
 		});
 		expect(stepById("base-parameters").shouldSkip(withParams)).toBe(false);
@@ -131,6 +133,46 @@ describe("stepModuleSettingsRequired", () => {
 		});
 		expect(stepModuleSettingsRequired(state)).toBe(true);
 	});
+
+	it("returns true for a multi-agent base with a selected module and no vars", () => {
+		const state = stateWith({
+			selectedBase: {
+				id: "gpu-base",
+				name: "GPU Base",
+				hasParameters: false,
+				hasPrerequisites: false,
+				agents: [
+					{ name: "main", displayName: "Main", default: true },
+					{ name: "gpu", displayName: "GPU", default: false },
+				],
+			},
+			selectedModules: [
+				{
+					id: "a",
+					name: "A",
+					iconUrl: "/a.svg",
+					hasConfigurableVars: false,
+				},
+			],
+		});
+		expect(stepModuleSettingsRequired(state)).toBe(true);
+	});
+
+	it("returns false for a multi-agent base with no modules selected", () => {
+		const state = stateWith({
+			selectedBase: {
+				id: "gpu-base",
+				name: "GPU Base",
+				hasParameters: false,
+				hasPrerequisites: false,
+				agents: [
+					{ name: "main", displayName: "Main", default: true },
+					{ name: "gpu", displayName: "GPU", default: false },
+				],
+			},
+		});
+		expect(stepModuleSettingsRequired(state)).toBe(false);
+	});
 });
 
 describe("findNextVisibleIndex", () => {
@@ -141,6 +183,7 @@ describe("findNextVisibleIndex", () => {
 				name: "Docker",
 				hasParameters: false,
 				hasPrerequisites: false,
+				agents: [],
 			},
 		});
 		// From base-infra (index 0), next visible should be module-select (index 2).
@@ -165,6 +208,7 @@ describe("findNextVisibleIndex", () => {
 				name: "AWS Linux",
 				hasParameters: true,
 				hasPrerequisites: false,
+				agents: [],
 			},
 			selectedModules: [
 				{
@@ -192,6 +236,7 @@ describe("findPrevVisibleIndex", () => {
 				name: "Docker",
 				hasParameters: false,
 				hasPrerequisites: false,
+				agents: [],
 			},
 		});
 		// From module-select (index 2), prev visible should be base-infra (index 0).
@@ -227,6 +272,7 @@ describe("nearestVisible", () => {
 				name: "Docker",
 				hasParameters: false,
 				hasPrerequisites: false,
+				agents: [],
 			},
 		};
 		// Index 1 (base-parameters) is skipped, nearest backward is 0 (base-infra).
@@ -246,6 +292,7 @@ describe("furthestAllowedIndex", () => {
 				name: "Docker",
 				hasParameters: false,
 				hasPrerequisites: false,
+				agents: [],
 			},
 		});
 		expect(furthestAllowedIndex(withBase)).toBe(WIZARD_STEPS.length - 1);

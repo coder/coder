@@ -6,6 +6,7 @@ import {
 	initWizardState,
 	moduleHasConfigurableVars,
 	type SelectedBaseMeta,
+	type SelectedModuleMeta,
 	type TemplateBuilderWizardState,
 	toComposeRequest,
 	toCreateTemplateRequest,
@@ -21,6 +22,33 @@ function reduce(
 	return actions.reduce(wizardReducer, state);
 }
 
+const multiAgentBase: SelectedBaseMeta = {
+	id: "gpu-base",
+	name: "GPU Base",
+	hasParameters: false,
+	hasPrerequisites: false,
+	agents: [
+		{ name: "main", displayName: "Main", default: true },
+		{ name: "gpu", displayName: "GPU", default: false },
+	],
+};
+
+const singleAgentBase: SelectedBaseMeta = {
+	id: "docker",
+	name: "Docker",
+	hasParameters: false,
+	hasPrerequisites: false,
+	agents: [{ name: "main", displayName: "Main", default: true }],
+};
+
+function stateWithBase(base: SelectedBaseMeta): TemplateBuilderWizardState {
+	return { ...initialWizardState, baseTemplateId: base.id, selectedBase: base };
+}
+
+function moduleMeta(id: string): SelectedModuleMeta {
+	return { id, name: id, iconUrl: "/icon.svg", hasConfigurableVars: false };
+}
+
 describe("wizardReducer", () => {
 	describe("SET_BASE", () => {
 		it("sets the selected base", () => {
@@ -32,6 +60,7 @@ describe("wizardReducer", () => {
 						name: "Docker",
 						hasParameters: false,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 			]);
@@ -50,6 +79,7 @@ describe("wizardReducer", () => {
 						iconUrl: "/icon/docker.png",
 						hasParameters: false,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 			]);
@@ -70,6 +100,7 @@ describe("wizardReducer", () => {
 						iconUrl: "/icon/docker.png",
 						hasParameters: false,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 				{
@@ -81,6 +112,7 @@ describe("wizardReducer", () => {
 						iconUrl: "/icon/aws.svg",
 						hasParameters: false,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 			]);
@@ -101,6 +133,7 @@ describe("wizardReducer", () => {
 						iconUrl: "/icon/docker.png",
 						hasParameters: false,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 				{
@@ -117,6 +150,7 @@ describe("wizardReducer", () => {
 						iconUrl: "/icon/docker.png",
 						hasParameters: false,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 			]);
@@ -132,6 +166,7 @@ describe("wizardReducer", () => {
 						name: "Docker",
 						hasParameters: true,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 				{
@@ -145,6 +180,7 @@ describe("wizardReducer", () => {
 						name: "AWS Linux",
 						hasParameters: true,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 			]);
@@ -161,6 +197,7 @@ describe("wizardReducer", () => {
 						name: "Docker",
 						hasParameters: true,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 				{
@@ -174,6 +211,7 @@ describe("wizardReducer", () => {
 						name: "Docker",
 						hasParameters: true,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 			]);
@@ -295,6 +333,87 @@ describe("wizardReducer", () => {
 			const codeServer = state.modules.find((m) => m.id === "code-server");
 			expect(codeServer?.variables).toEqual({ port: "8080" });
 		});
+
+		it("seeds the base default agent for modules on a multi-agent base", () => {
+			const state = reduce(
+				[
+					{
+						type: "SET_MODULES",
+						modules: [{ id: "code-server" }],
+						meta: [moduleMeta("code-server")],
+					},
+				],
+				stateWithBase(multiAgentBase),
+			);
+			expect(state.modules[0].agent_name).toBe("main");
+		});
+
+		it("preserves an existing agent choice across re-selection", () => {
+			const state = reduce(
+				[
+					{
+						type: "SET_MODULES",
+						modules: [{ id: "code-server" }],
+						meta: [moduleMeta("code-server")],
+					},
+					{
+						type: "SET_MODULE_AGENT",
+						moduleId: "code-server",
+						agentName: "gpu",
+					},
+					{
+						type: "SET_MODULES",
+						modules: [{ id: "code-server" }, { id: "npm-config" }],
+						meta: [moduleMeta("code-server"), moduleMeta("npm-config")],
+					},
+				],
+				stateWithBase(multiAgentBase),
+			);
+			const codeServer = state.modules.find((m) => m.id === "code-server");
+			const npmConfig = state.modules.find((m) => m.id === "npm-config");
+			expect(codeServer?.agent_name).toBe("gpu");
+			expect(npmConfig?.agent_name).toBe("main");
+		});
+
+		it("leaves agent_name unset on a single-agent base", () => {
+			const state = reduce(
+				[
+					{
+						type: "SET_MODULES",
+						modules: [{ id: "code-server" }],
+						meta: [moduleMeta("code-server")],
+					},
+				],
+				stateWithBase(singleAgentBase),
+			);
+			expect(state.modules[0].agent_name).toBeUndefined();
+		});
+	});
+
+	describe("SET_MODULE_AGENT", () => {
+		it("sets the agent target for the named module only", () => {
+			const state = reduce(
+				[
+					{
+						type: "SET_MODULES",
+						modules: [{ id: "code-server" }, { id: "npm-config" }],
+						meta: [moduleMeta("code-server"), moduleMeta("npm-config")],
+					},
+					{
+						type: "SET_MODULE_AGENT",
+						moduleId: "code-server",
+						agentName: "gpu",
+					},
+				],
+				stateWithBase(multiAgentBase),
+			);
+			expect(
+				state.modules.find((m) => m.id === "code-server")?.agent_name,
+			).toBe("gpu");
+			expect(state.modules.find((m) => m.id === "npm-config")?.agent_name).toBe(
+				"main",
+			);
+		});
 	});
 
 	describe("SET_MODULE_VARIABLES", () => {
@@ -365,6 +484,7 @@ describe("wizardReducer", () => {
 						iconUrl: "/icon/docker.png",
 						hasParameters: false,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 				{ type: "SET_HAS_PROVISIONERS", value: true },
@@ -389,6 +509,7 @@ describe("wizardReducer", () => {
 						name: "Docker",
 						hasParameters: true,
 						hasPrerequisites: false,
+						agents: [],
 					},
 				},
 				{
@@ -575,6 +696,21 @@ describe("toSelectedBaseMeta", () => {
 		expect(meta.name).toBe("Docker Containers");
 		expect(meta.id).toBe("docker");
 	});
+
+	it("maps agents and falls back displayName to name", () => {
+		const meta = toSelectedBaseMeta(
+			makeBase({
+				agents: [
+					{ name: "main", display_name: "Main", default: true },
+					{ name: "gpu", display_name: "", default: false },
+				],
+			}),
+		);
+		expect(meta.agents).toEqual([
+			{ name: "main", displayName: "Main", default: true },
+			{ name: "gpu", displayName: "gpu", default: false },
+		]);
+	});
 });
 
 describe("baseCustomizationDefaults", () => {
@@ -586,6 +722,7 @@ describe("baseCustomizationDefaults", () => {
 			iconUrl: "/icon/aws.svg",
 			hasParameters: false,
 			hasPrerequisites: false,
+			agents: [],
 		};
 		expect(baseCustomizationDefaults(base)).toEqual({
 			name: "aws-linux",
@@ -601,6 +738,7 @@ describe("baseCustomizationDefaults", () => {
 			name: "Scratch",
 			hasParameters: false,
 			hasPrerequisites: false,
+			agents: [],
 		};
 		expect(baseCustomizationDefaults(base)).toEqual({
 			name: "scratch",
@@ -632,6 +770,7 @@ describe("initWizardState", () => {
 				iconUrl: "/icon/docker.png",
 				hasParameters: false,
 				hasPrerequisites: false,
+				agents: [],
 			},
 		});
 		expect(state.baseTemplateId).toBe("docker");

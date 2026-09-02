@@ -1,10 +1,21 @@
 import type {
 	TemplateBuilderBase,
+	TemplateBuilderBaseAgent,
 	TemplateBuilderComposeModule,
 	TemplateBuilderComposeRequest,
 	TemplateBuilderCreateTemplateRequest,
 	TemplateBuilderModule,
 } from "#/api/typesGenerated";
+
+/**
+ * UI-only view of a base coder_agent. displayName is guaranteed non-empty:
+ * it falls back to name when the API omits display_name.
+ */
+export type SelectedBaseAgent = {
+	name: string;
+	displayName: string;
+	default: boolean;
+};
 
 /**
  * UI-only metadata for the selected base template.
@@ -18,6 +29,7 @@ export type SelectedBaseMeta = {
 	os?: string;
 	hasParameters: boolean;
 	hasPrerequisites: boolean;
+	agents: SelectedBaseAgent[];
 };
 
 /**
@@ -26,6 +38,7 @@ export type SelectedBaseMeta = {
 export function toSelectedBaseMeta(
 	base: TemplateBuilderBase,
 ): SelectedBaseMeta {
+	const agents = base.agents.map(toSelectedBaseAgent);
 	return {
 		id: base.id,
 		name: base.name,
@@ -35,7 +48,23 @@ export function toSelectedBaseMeta(
 		hasParameters:
 			base.variables?.length > 0 && base.variables?.some((v) => !v.sensitive),
 		hasPrerequisites: Boolean(base.prerequisites?.length),
+		agents,
 	};
+}
+
+function toSelectedBaseAgent(
+	agent: TemplateBuilderBaseAgent,
+): SelectedBaseAgent {
+	return {
+		name: agent.name,
+		displayName: agent.display_name || agent.name,
+		default: agent.default,
+	};
+}
+
+/** Name of the base agent modules attach to when they do not name one. */
+function defaultBaseAgentName(base: SelectedBaseMeta): string | undefined {
+	return base.agents.find((a) => a.default)?.name;
 }
 
 /**
@@ -142,6 +171,11 @@ export type WizardAction =
 			variables: Record<string, string>;
 	  }
 	| {
+			type: "SET_MODULE_AGENT";
+			moduleId: string;
+			agentName: string;
+	  }
+	| {
 			type: "SET_CUSTOMIZATION";
 			field: "name" | "displayName" | "description" | "icon";
 			value: string;
@@ -178,17 +212,37 @@ export function wizardReducer(
 		case "SET_MODULES": {
 			// Preserve existing variable values for modules that remain selected.
 			const existingById = new Map(state.modules.map((m) => [m.id, m]));
+			const base = state.selectedBase;
+			const defaultAgent = base ? defaultBaseAgentName(base) : undefined;
 			const merged = action.modules.map((incoming) => {
 				const existing = existingById.get(incoming.id);
+				let next = incoming;
 				if (existing?.variables && !incoming.variables) {
-					return { ...incoming, variables: existing.variables };
+					next = { ...next, variables: existing.variables };
 				}
-				return incoming;
+				// Only multi-agent bases carry a per-module agent choice; single-agent
+				// bases leave agent_name unset so the backend uses the sole agent.
+				if (base && base.agents.length > 1) {
+					next = {
+						...next,
+						agent_name:
+							incoming.agent_name ?? existing?.agent_name ?? defaultAgent,
+					};
+				}
+				return next;
 			});
 			return {
 				...state,
 				modules: merged,
 				selectedModules: action.meta,
+			};
+		}
+		case "SET_MODULE_AGENT": {
+			return {
+				...state,
+				modules: state.modules.map((m) =>
+					m.id === action.moduleId ? { ...m, agent_name: action.agentName } : m,
+				),
 			};
 		}
 		case "SET_MODULE_VARIABLES": {
