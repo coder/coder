@@ -494,7 +494,8 @@ func TestWriteChatFileErrorUnavailable(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	rec := httptest.NewRecorder()
-	handled := writeChatFileError(ctx, rec, xerrors.Errorf("link files: %w", chatstate.ErrChatFileUnavailable))
+	api := &API{}
+	handled := api.writeChatFileError(ctx, rec, xerrors.Errorf("link files: %w", chatstate.ErrChatFileUnavailable))
 	require.True(t, handled)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 

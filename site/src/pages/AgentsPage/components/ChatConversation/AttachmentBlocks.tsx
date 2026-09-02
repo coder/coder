@@ -6,7 +6,6 @@ import {
 	FileTextIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
-import { MaxChatFileIDs } from "#/api/typesGenerated";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -227,7 +226,8 @@ const fileAttachmentFailureLabels: AttachmentFailureLabels = {
 	failed: "Attachment failed to load",
 };
 
-const expiredAttachmentExplanation = `A chat keeps its ${MaxChatFileIDs} most recent attachments, and older attachments are removed. Attachments that no chat references are deleted after this deployment's retention window.`;
+const expiredAttachmentExplanation =
+	"A chat keeps only its most recent attachments, and older attachments are removed. Attachments that no chat references are deleted after this deployment's retention window.";
 
 const AttachmentFallbackTile: FC<{
 	state: AttachmentFailure;

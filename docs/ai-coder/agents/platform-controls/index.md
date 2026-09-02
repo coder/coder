@@ -152,6 +152,28 @@ Budget controls in the Coder UI, the group budget endpoints, and the AI spend st
 
 Refer to [Spend management](./spend-management.md) for details.
 
+### Turn and payload limits
+
+Coder bounds each chat turn and the data a chat can carry with deployment-wide
+limits. The defaults suit most deployments, and administrators can change any
+of them with a server flag, environment variable, or YAML key:
+
+| Limit                                                 | Default          | Setting                                                                                                                           |
+|-------------------------------------------------------|------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| Model and tool steps per turn                         | 1200             | [`CODER_CHAT_MAX_STEPS_PER_TURN`](../../../admin/setup/configuration-reference.md#max-steps-per-turn)                             |
+| Retries of a transient model error per turn           | 25               | [`CODER_CHAT_MAX_GENERATION_RETRIES`](../../../admin/setup/configuration-reference.md#max-generation-retries)                     |
+| Queued messages per chat                              | 20               | [`CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-queued-messages-per-chat)         |
+| Attachments per chat                                  | 50               | [`CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-attachments-per-chat)                 |
+| System, plan mode, and custom prompt size             | 128 KiB          | [`CODER_CHAT_MAX_PROMPT_BYTES`](../../../admin/setup/configuration-reference.md#max-prompt-bytes)                                 |
+| Dynamic tools per chat                                | 250              | [`CODER_CHAT_MAX_DYNAMIC_TOOLS_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-dynamic-tools-per-chat)             |
+| Command output returned to the model                  | 32 KiB           | [`CODER_CHAT_MAX_TOOL_OUTPUT_BYTES`](../../../admin/setup/configuration-reference.md#max-tool-output-bytes)                       |
+| Concurrent virtual desktop recording uploads          | 25               | [`CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`](../../../admin/setup/configuration-reference.md#max-concurrent-recording-uploads) |
+| Text kept per part in debug records                   | 10000 characters | [`CODER_CHAT_DEBUG_MAX_TEXT_RUNES`](../../../admin/setup/configuration-reference.md#debug-max-text-runes)                         |
+| Streamed output and HTTP bodies kept in debug records | 50000 bytes      | [`CODER_CHAT_DEBUG_MAX_BODY_BYTES`](../../../admin/setup/configuration-reference.md#debug-max-body-bytes)                         |
+
+The concurrent agent pools described above are licensing limits, not
+deployment settings.
+
 ### Git providers
 
 Coder Agents leverages your existing

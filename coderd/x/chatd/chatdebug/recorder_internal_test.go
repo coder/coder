@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -59,6 +60,29 @@ func TestAttemptSinkContext(t *testing.T) {
 	sink := &attemptSink{}
 	ctx = withAttemptSink(ctx, sink)
 	require.Same(t, sink, attemptSinkFromContext(ctx))
+}
+
+func TestServiceTextLimits(t *testing.T) {
+	t.Parallel()
+
+	defaults := TextLimits{
+		MaxTextRunes: codersdk.DefaultChatDebugMaxTextRunes,
+		MaxBodyBytes: codersdk.DefaultChatDebugMaxBodyBytes,
+	}
+
+	t.Run("unset uses defaults", func(t *testing.T) {
+		t.Parallel()
+		svc := NewService(dbmock.NewMockStore(gomock.NewController(t)), testutil.Logger(t), nil)
+		require.Equal(t, defaults, svc.limits())
+		require.Equal(t, defaults, (&Service{}).limits())
+	})
+
+	t.Run("option overrides only set fields", func(t *testing.T) {
+		t.Parallel()
+		svc := NewService(dbmock.NewMockStore(gomock.NewController(t)), testutil.Logger(t), nil,
+			WithTextLimits(TextLimits{MaxTextRunes: 7}))
+		require.Equal(t, TextLimits{MaxTextRunes: 7, MaxBodyBytes: codersdk.DefaultChatDebugMaxBodyBytes}, svc.limits())
+	})
 }
 
 func TestWrapModel_NilModel(t *testing.T) {

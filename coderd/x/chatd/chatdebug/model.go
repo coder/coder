@@ -95,18 +95,10 @@ type normalizedMessage struct {
 	Parts []normalizedMessagePart `json:"parts"`
 }
 
-// MaxMessagePartTextLength is the rune limit for bounded text stored
-// in request message parts. Longer text is truncated with an ellipsis.
-const MaxMessagePartTextLength = 10_000
-
-// maxStreamDebugTextBytes caps accumulated streamed text persisted in
-// debug responses.
-const maxStreamDebugTextBytes = 50_000
-
 // normalizedMessagePart captures the type and bounded metadata for a
 // single part within a prompt message. Text-like payloads are truncated
-// to MaxMessagePartTextLength runes so request payloads stay bounded
-// while still giving the debug panel readable content.
+// to TextLimits.MaxTextRunes so request payloads stay bounded while
+// still giving the debug panel readable content.
 type normalizedMessagePart struct {
 	Type       string `json:"type"`
 	Text       string `json:"text,omitempty"`
@@ -131,8 +123,8 @@ type normalizedTool struct {
 }
 
 // normalizedContentPart captures one piece of the model response.
-// Text payloads are bounded to MaxMessagePartTextLength runes;
-// TextLength stores the original rune count for truncation detection.
+// Text payloads are bounded to TextLimits.MaxTextRunes; TextLength
+// stores the original rune count for truncation detection.
 // Tool-call arguments are similarly bounded, and file data is never
 // stored.
 type normalizedContentPart struct {
@@ -211,8 +203,9 @@ func (d *debugModel) Generate(
 		return d.inner.Generate(ctx, call)
 	}
 
+	limits := d.svc.limits()
 	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationGenerate,
-		normalizeCall(call))
+		normalizeCall(limits, call))
 	if handle == nil {
 		return d.inner.Generate(ctx, call)
 	}
@@ -234,7 +227,7 @@ func (d *debugModel) Generate(
 		return nil, err
 	}
 
-	handle.finish(ctx, StatusCompleted, normalizeResponse(resp), &resp.Usage, nil, nil)
+	handle.finish(ctx, StatusCompleted, normalizeResponse(limits, resp), &resp.Usage, nil, nil)
 	return resp, nil
 }
 
@@ -249,8 +242,9 @@ func (d *debugModel) Stream(
 		return d.inner.Stream(ctx, call)
 	}
 
+	limits := d.svc.limits()
 	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationStream,
-		normalizeCall(call))
+		normalizeCall(limits, call))
 	if handle == nil {
 		return d.inner.Stream(ctx, call)
 	}
@@ -266,7 +260,7 @@ func (d *debugModel) Stream(
 		return nil, err
 	}
 
-	return wrapStreamSeq(ctx, handle, seq), nil
+	return wrapStreamSeq(ctx, handle, limits, seq), nil
 }
 
 func (d *debugModel) GenerateObject(
@@ -281,7 +275,7 @@ func (d *debugModel) GenerateObject(
 	}
 
 	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationGenerate,
-		normalizeObjectCall(call))
+		normalizeObjectCall(d.svc.limits(), call))
 	if handle == nil {
 		return d.inner.GenerateObject(ctx, call)
 	}
@@ -322,7 +316,7 @@ func (d *debugModel) StreamObject(
 	}
 
 	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationStream,
-		normalizeObjectCall(call))
+		normalizeObjectCall(d.svc.limits(), call))
 	if handle == nil {
 		return d.inner.StreamObject(ctx, call)
 	}
@@ -405,6 +399,7 @@ func launchHeartbeat(ctx context.Context, svc *Service, stepID, runID, chatID uu
 func wrapStreamSeq(
 	ctx context.Context,
 	handle *stepHandle,
+	limits TextLimits,
 	seq iter.Seq[fantasy.StreamPart],
 ) fantasy.StreamResponse {
 	// mu and finalized guard both the normal finalization path
@@ -533,7 +528,7 @@ func wrapStreamSeq(
 					streamComplete.Store(true)
 				}
 
-				content, currentText, currentTextIdx = appendNormalizedStreamContent(
+				content, currentText, currentTextIdx = appendNormalizedStreamContent(limits,
 					content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 
 				if part.Type == fantasy.StreamPartTypeError || part.Error != nil {
@@ -729,21 +724,21 @@ func wrapObjectStreamSeq(
 
 // normalizeMessages converts a fantasy.Prompt into a slice of
 // normalizedMessage values with bounded part metadata.
-func normalizeMessages(prompt fantasy.Prompt) []normalizedMessage {
+func normalizeMessages(limits TextLimits, prompt fantasy.Prompt) []normalizedMessage {
 	msgs := make([]normalizedMessage, 0, len(prompt))
 	for _, m := range prompt {
 		msgs = append(msgs, normalizedMessage{
 			Role:  string(m.Role),
-			Parts: normalizeMessageParts(m.Content),
+			Parts: normalizeMessageParts(limits, m.Content),
 		})
 	}
 	return msgs
 }
 
-// boundText truncates s to MaxMessagePartTextLength runes, appending
-// an ellipsis if truncation occurs.
-func boundText(s string) string {
-	return stringutil.Truncate(s, MaxMessagePartTextLength, stringutil.TruncateWithEllipsis)
+// boundText truncates s to limits.MaxTextRunes runes, appending an
+// ellipsis if truncation occurs.
+func boundText(limits TextLimits, s string) string {
+	return stringutil.Truncate(s, limits.MaxTextRunes, stringutil.TruncateWithEllipsis)
 }
 
 // safeMarshalJSON marshals value to JSON. On failure it returns a
@@ -767,6 +762,7 @@ func safeMarshalJSON(label string, value any) json.RawMessage {
 // appendStreamContentText accumulates a delta into the current
 // text/reasoning run.
 func appendStreamContentText(
+	limits TextLimits,
 	content []normalizedContentPart,
 	currentText *strings.Builder,
 	currentTextIdx int,
@@ -778,7 +774,7 @@ func appendStreamContentText(
 		return content, currentText, currentTextIdx
 	}
 
-	remaining := maxStreamDebugTextBytes
+	remaining := limits.MaxBodyBytes
 	if streamDebugBytes != nil {
 		remaining -= *streamDebugBytes
 	}
@@ -826,6 +822,7 @@ func appendStreamContentText(
 // per tool call ID so that parallel or sequential tool invocations
 // remain distinguishable in interrupted stream debug payloads.
 func appendStreamToolInput(
+	limits TextLimits,
 	content []normalizedContentPart,
 	argBuilders map[string]*strings.Builder,
 	part fantasy.StreamPart,
@@ -835,7 +832,7 @@ func appendStreamToolInput(
 		return content
 	}
 
-	remaining := maxStreamDebugTextBytes
+	remaining := limits.MaxBodyBytes
 	if streamDebugBytes != nil {
 		remaining -= *streamDebugBytes
 	}
@@ -915,6 +912,7 @@ func materializeStreamContent(
 }
 
 func appendNormalizedStreamContent(
+	limits TextLimits,
 	content []normalizedContentPart,
 	currentText *strings.Builder,
 	currentTextIdx int,
@@ -924,9 +922,9 @@ func appendNormalizedStreamContent(
 ) ([]normalizedContentPart, *strings.Builder, int) {
 	switch part.Type {
 	case fantasy.StreamPartTypeTextDelta:
-		return appendStreamContentText(content, currentText, currentTextIdx, "text", part.Delta, streamDebugBytes)
+		return appendStreamContentText(limits, content, currentText, currentTextIdx, "text", part.Delta, streamDebugBytes)
 	case fantasy.StreamPartTypeReasoningStart, fantasy.StreamPartTypeReasoningDelta:
-		return appendStreamContentText(content, currentText, currentTextIdx, "reasoning", part.Delta, streamDebugBytes)
+		return appendStreamContentText(limits, content, currentText, currentTextIdx, "reasoning", part.Delta, streamDebugBytes)
 	case fantasy.StreamPartTypeToolInputStart,
 		fantasy.StreamPartTypeToolInputDelta,
 		fantasy.StreamPartTypeToolInputEnd:
@@ -934,14 +932,14 @@ func appendNormalizedStreamContent(
 		// tool_call summary. Attribute each chunk to its tool call
 		// so interrupted streams can reconstruct which partial input
 		// belonged to which invocation.
-		content = appendStreamToolInput(content, argBuilders, part, streamDebugBytes)
+		content = appendStreamToolInput(limits, content, argBuilders, part, streamDebugBytes)
 		return content, currentText, currentTextIdx
 	case fantasy.StreamPartTypeToolCall:
 		content = append(content, normalizedContentPart{
 			Type:        canonicalContentType(string(part.Type)),
 			ToolCallID:  part.ID,
 			ToolName:    part.ToolCallName,
-			Arguments:   boundText(part.ToolCallInput),
+			Arguments:   boundText(limits, part.ToolCallInput),
 			InputLength: utf8.RuneCountInString(part.ToolCallInput),
 		})
 		return content, currentText, currentTextIdx
@@ -950,7 +948,7 @@ func appendNormalizedStreamContent(
 			Type:       canonicalContentType(string(part.Type)),
 			ToolCallID: part.ID,
 			ToolName:   part.ToolCallName,
-			Result:     boundText(part.ToolCallInput),
+			Result:     boundText(limits, part.ToolCallInput),
 		})
 		return content, currentText, currentTextIdx
 	case fantasy.StreamPartTypeSource:
@@ -966,28 +964,28 @@ func appendNormalizedStreamContent(
 	}
 }
 
-func normalizeToolResultOutput(output fantasy.ToolResultOutputContent) string {
+func normalizeToolResultOutput(limits TextLimits, output fantasy.ToolResultOutputContent) string {
 	switch v := output.(type) {
 	case fantasy.ToolResultOutputContentText:
-		return boundText(v.Text)
+		return boundText(limits, v.Text)
 	case *fantasy.ToolResultOutputContentText:
 		if v == nil {
 			return ""
 		}
-		return boundText(v.Text)
+		return boundText(limits, v.Text)
 	case fantasy.ToolResultOutputContentError:
 		if v.Error == nil {
 			return ""
 		}
-		return boundText(v.Error.Error())
+		return boundText(limits, v.Error.Error())
 	case *fantasy.ToolResultOutputContentError:
 		if v == nil || v.Error == nil {
 			return ""
 		}
-		return boundText(v.Error.Error())
+		return boundText(limits, v.Error.Error())
 	case fantasy.ToolResultOutputContentMedia:
 		if v.Text != "" {
-			return boundText(v.Text)
+			return boundText(limits, v.Text)
 		}
 		if v.MediaType == "" {
 			return "[media output]"
@@ -998,7 +996,7 @@ func normalizeToolResultOutput(output fantasy.ToolResultOutputContent) string {
 			return ""
 		}
 		if v.Text != "" {
-			return boundText(v.Text)
+			return boundText(limits, v.Text)
 		}
 		if v.MediaType == "" {
 			return "[media output]"
@@ -1008,7 +1006,7 @@ func normalizeToolResultOutput(output fantasy.ToolResultOutputContent) string {
 		if output == nil {
 			return ""
 		}
-		return boundText(string(safeMarshalJSON("tool result output", output)))
+		return boundText(limits, string(safeMarshalJSON("tool result output", output)))
 	}
 }
 
@@ -1029,10 +1027,9 @@ func isNilInterfaceValue(v any) bool {
 }
 
 // normalizeMessageParts extracts type and bounded metadata from each
-// MessagePart. Text-like payloads are bounded to
-// MaxMessagePartTextLength runes so the debug panel can display
-// readable content.
-func normalizeMessageParts(parts []fantasy.MessagePart) []normalizedMessagePart {
+// MessagePart. Text-like payloads are bounded to limits.MaxTextRunes
+// so the debug panel can display readable content.
+func normalizeMessageParts(limits TextLimits, parts []fantasy.MessagePart) []normalizedMessagePart {
 	result := make([]normalizedMessagePart, 0, len(parts))
 	for _, p := range parts {
 		if isNilInterfaceValue(p) {
@@ -1043,16 +1040,16 @@ func normalizeMessageParts(parts []fantasy.MessagePart) []normalizedMessagePart 
 		}
 		switch v := p.(type) {
 		case fantasy.TextPart:
-			np.Text = boundText(v.Text)
+			np.Text = boundText(limits, v.Text)
 			np.TextLength = utf8.RuneCountInString(v.Text)
 		case *fantasy.TextPart:
-			np.Text = boundText(v.Text)
+			np.Text = boundText(limits, v.Text)
 			np.TextLength = utf8.RuneCountInString(v.Text)
 		case fantasy.ReasoningPart:
-			np.Text = boundText(v.Text)
+			np.Text = boundText(limits, v.Text)
 			np.TextLength = utf8.RuneCountInString(v.Text)
 		case *fantasy.ReasoningPart:
-			np.Text = boundText(v.Text)
+			np.Text = boundText(limits, v.Text)
 			np.TextLength = utf8.RuneCountInString(v.Text)
 		case fantasy.FilePart:
 			np.Filename = v.Filename
@@ -1063,17 +1060,17 @@ func normalizeMessageParts(parts []fantasy.MessagePart) []normalizedMessagePart 
 		case fantasy.ToolCallPart:
 			np.ToolCallID = v.ToolCallID
 			np.ToolName = v.ToolName
-			np.Arguments = boundText(v.Input)
+			np.Arguments = boundText(limits, v.Input)
 		case *fantasy.ToolCallPart:
 			np.ToolCallID = v.ToolCallID
 			np.ToolName = v.ToolName
-			np.Arguments = boundText(v.Input)
+			np.Arguments = boundText(limits, v.Input)
 		case fantasy.ToolResultPart:
 			np.ToolCallID = v.ToolCallID
-			np.Result = normalizeToolResultOutput(v.Output)
+			np.Result = normalizeToolResultOutput(limits, v.Output)
 		case *fantasy.ToolResultPart:
 			np.ToolCallID = v.ToolCallID
-			np.Result = normalizeToolResultOutput(v.Output)
+			np.Result = normalizeToolResultOutput(limits, v.Output)
 		}
 		result = append(result, np)
 	}
@@ -1131,16 +1128,16 @@ func normalizeTools(tools []fantasy.Tool) []normalizedTool {
 
 // normalizeContentParts converts the response content into a slice
 // of normalizedContentPart values. Text payloads are bounded to
-// MaxMessagePartTextLength runes per part; tool-call arguments are
-// similarly bounded. File data is never stored.
+// limits.MaxTextRunes per part; tool-call arguments are similarly
+// bounded. File data is never stored.
 //
 // Unlike the stream path which caps total accumulated text at
-// maxStreamDebugTextBytes, the Generate path bounds each part
+// limits.MaxBodyBytes, the Generate path bounds each part
 // individually. This is intentional: stream deltas are many small
 // fragments that accumulate unboundedly, while Generate responses
 // contain a fixed number of discrete content parts, each
-// independently bounded by MaxMessagePartTextLength.
-func normalizeContentParts(content fantasy.ResponseContent) []normalizedContentPart {
+// independently bounded by limits.MaxTextRunes.
+func normalizeContentParts(limits TextLimits, content fantasy.ResponseContent) []normalizedContentPart {
 	result := make([]normalizedContentPart, 0, len(content))
 	for _, c := range content {
 		if isNilInterfaceValue(c) {
@@ -1151,26 +1148,26 @@ func normalizeContentParts(content fantasy.ResponseContent) []normalizedContentP
 		}
 		switch v := c.(type) {
 		case fantasy.TextContent:
-			np.Text = boundText(v.Text)
+			np.Text = boundText(limits, v.Text)
 			np.TextLength = utf8.RuneCountInString(v.Text)
 		case *fantasy.TextContent:
-			np.Text = boundText(v.Text)
+			np.Text = boundText(limits, v.Text)
 			np.TextLength = utf8.RuneCountInString(v.Text)
 		case fantasy.ReasoningContent:
-			np.Text = boundText(v.Text)
+			np.Text = boundText(limits, v.Text)
 			np.TextLength = utf8.RuneCountInString(v.Text)
 		case *fantasy.ReasoningContent:
-			np.Text = boundText(v.Text)
+			np.Text = boundText(limits, v.Text)
 			np.TextLength = utf8.RuneCountInString(v.Text)
 		case fantasy.ToolCallContent:
 			np.ToolCallID = v.ToolCallID
 			np.ToolName = v.ToolName
-			np.Arguments = boundText(v.Input)
+			np.Arguments = boundText(limits, v.Input)
 			np.InputLength = utf8.RuneCountInString(v.Input)
 		case *fantasy.ToolCallContent:
 			np.ToolCallID = v.ToolCallID
 			np.ToolName = v.ToolName
-			np.Arguments = boundText(v.Input)
+			np.Arguments = boundText(limits, v.Input)
 			np.InputLength = utf8.RuneCountInString(v.Input)
 		case fantasy.FileContent:
 			np.MediaType = v.MediaType
@@ -1187,12 +1184,12 @@ func normalizeContentParts(content fantasy.ResponseContent) []normalizedContentP
 		case fantasy.ToolResultContent:
 			np.ToolCallID = v.ToolCallID
 			np.ToolName = v.ToolName
-			np.Result = normalizeToolResultOutput(v.Result)
+			np.Result = normalizeToolResultOutput(limits, v.Result)
 		case *fantasy.ToolResultContent:
 			if v != nil {
 				np.ToolCallID = v.ToolCallID
 				np.ToolName = v.ToolName
-				np.Result = normalizeToolResultOutput(v.Result)
+				np.Result = normalizeToolResultOutput(limits, v.Result)
 			}
 		}
 		result = append(result, np)
@@ -1233,9 +1230,9 @@ func normalizeWarnings(warnings []fantasy.CallWarning) []normalizedWarning {
 
 // --------------- normalize functions ---------------
 
-func normalizeCall(call fantasy.Call) normalizedCallPayload {
+func normalizeCall(limits TextLimits, call fantasy.Call) normalizedCallPayload {
 	payload := normalizedCallPayload{
-		Messages: normalizeMessages(call.Prompt),
+		Messages: normalizeMessages(limits, call.Prompt),
 		Tools:    normalizeTools(call.Tools),
 		Options: normalizedCallOptions{
 			MaxOutputTokens:  call.MaxOutputTokens,
@@ -1253,9 +1250,9 @@ func normalizeCall(call fantasy.Call) normalizedCallPayload {
 	return payload
 }
 
-func normalizeObjectCall(call fantasy.ObjectCall) normalizedObjectCallPayload {
+func normalizeObjectCall(limits TextLimits, call fantasy.ObjectCall) normalizedObjectCallPayload {
 	return normalizedObjectCallPayload{
-		Messages: normalizeMessages(call.Prompt),
+		Messages: normalizeMessages(limits, call.Prompt),
 		Options: normalizedCallOptions{
 			MaxOutputTokens:  call.MaxOutputTokens,
 			Temperature:      call.Temperature,
@@ -1271,13 +1268,13 @@ func normalizeObjectCall(call fantasy.ObjectCall) normalizedObjectCallPayload {
 	}
 }
 
-func normalizeResponse(resp *fantasy.Response) normalizedResponsePayload {
+func normalizeResponse(limits TextLimits, resp *fantasy.Response) normalizedResponsePayload {
 	if resp == nil {
 		return normalizedResponsePayload{}
 	}
 
 	return normalizedResponsePayload{
-		Content:      normalizeContentParts(resp.Content),
+		Content:      normalizeContentParts(limits, resp.Content),
 		FinishReason: string(resp.FinishReason),
 		Usage:        normalizeUsage(resp.Usage),
 		Warnings:     normalizeWarnings(resp.Warnings),

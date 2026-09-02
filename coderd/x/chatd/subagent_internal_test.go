@@ -3694,7 +3694,7 @@ func insertLinkedChatFile(
 
 	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
 		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 		FileIds:      []uuid.UUID{file.ID},
 	})
 	require.NoError(t, err)

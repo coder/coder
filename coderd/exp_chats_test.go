@@ -5430,7 +5430,7 @@ func TestGetChat(t *testing.T) {
 
 		rejected, err := store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
 			ChatID:       chat.ID,
-			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 			FileIds:      []uuid.UUID{fileRow.ID},
 		})
 		require.NoError(t, err)
@@ -5449,7 +5449,7 @@ func TestGetChat(t *testing.T) {
 
 		// Fill up to the cap by inserting more files via the
 		// chatd DB path, then verify the oldest file is evicted.
-		for i := 1; i < codersdk.MaxChatFileIDs; i++ {
+		for i := 1; i < codersdk.DefaultChatMaxAttachmentsPerChat; i++ {
 			extra, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
 				OwnerID:        firstUser.UserID,
 				OrganizationID: firstUser.OrganizationID,
@@ -5460,16 +5460,16 @@ func TestGetChat(t *testing.T) {
 			require.NoError(t, err)
 			_, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
 				ChatID:       chat.ID,
-				MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+				MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 				FileIds:      []uuid.UUID{extra.ID},
 			})
 			require.NoError(t, err)
 		}
 
-		// Chat should now have exactly MaxChatFileIDs files.
+		// Chat should now have exactly DefaultChatMaxAttachmentsPerChat files.
 		chatResult, err = client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
+		require.Len(t, chatResult.Files, codersdk.DefaultChatMaxAttachmentsPerChat)
 
 		// Adding one more file evicts the oldest one.
 		overflow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
@@ -5482,30 +5482,30 @@ func TestGetChat(t *testing.T) {
 		require.NoError(t, err)
 		rejected, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
 			ChatID:       chat.ID,
-			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 			FileIds:      []uuid.UUID{overflow.ID},
 		})
 		require.NoError(t, err)
 		require.Equal(t, int32(0), rejected, "linking past the cap should evict, not reject")
 		chatResult, err = client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
+		require.Len(t, chatResult.Files, codersdk.DefaultChatMaxAttachmentsPerChat)
 		require.NotEqual(t, fileRow.ID, chatResult.Files[0].ID, "the oldest file should be evicted")
 		require.Equal(t, overflow.ID, chatResult.Files[len(chatResult.Files)-1].ID)
 
 		// Re-appending an already-linked ID at cap is a no-op.
 		rejected, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
 			ChatID:       chat.ID,
-			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 			FileIds:      []uuid.UUID{overflow.ID},
 		})
 		require.NoError(t, err)
 		require.Equal(t, int32(0), rejected, "dedup of existing ID should be a no-op")
 
-		// Count should still be exactly MaxChatFileIDs.
+		// Count should still be exactly DefaultChatMaxAttachmentsPerChat.
 		chatResult, err = client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
+		require.Len(t, chatResult.Files, codersdk.DefaultChatMaxAttachmentsPerChat)
 	})
 
 	t.Run("GetChatEmbedsChildren", func(t *testing.T) {
@@ -8601,7 +8601,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.NoError(t, err)
 		rejected, err := store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
 			ChatID:       chat.ID,
-			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 			FileIds:      []uuid.UUID{fileRow.ID},
 		})
 		require.NoError(t, err)
@@ -8705,15 +8705,15 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
 
-		// Upload MaxChatFileIDs files.
-		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
-		for i := range codersdk.MaxChatFileIDs {
+		// Upload DefaultChatMaxAttachmentsPerChat files.
+		fileIDs := make([]uuid.UUID, 0, codersdk.DefaultChatMaxAttachmentsPerChat)
+		for i := range codersdk.DefaultChatMaxAttachmentsPerChat {
 			resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("file%d.png", i), bytes.NewReader(pngData))
 			require.NoError(t, err)
 			fileIDs = append(fileIDs, resp.ID)
 		}
 
-		// Create a chat using all MaxChatFileIDs files.
+		// Create a chat using all DefaultChatMaxAttachmentsPerChat files.
 		parts := []codersdk.ChatInputPart{
 			{Type: codersdk.ChatInputPartTypeText, Text: "max files"},
 		}
@@ -8722,7 +8722,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		}
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
 		require.NoError(t, err)
-		require.Len(t, chat.Files, codersdk.MaxChatFileIDs, "all files should be linked on creation")
+		require.Len(t, chat.Files, codersdk.DefaultChatMaxAttachmentsPerChat, "all files should be linked on creation")
 
 		// Upload one more file.
 		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
@@ -8746,7 +8746,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 			return ids
 		}
 		linked := chatFileIDs()
-		require.Len(t, linked, codersdk.MaxChatFileIDs, "file count should not exceed the cap")
+		require.Len(t, linked, codersdk.DefaultChatMaxAttachmentsPerChat, "file count should not exceed the cap")
 		require.Contains(t, linked, extraResp.ID)
 		require.NotContains(t, linked, fileIDs[0], "the oldest file should be evicted")
 
@@ -8770,9 +8770,9 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
 
-		// Upload MaxChatFileIDs + 1 files.
-		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs+1)
-		for i := range codersdk.MaxChatFileIDs + 1 {
+		// Upload one more file than the attachment cap allows.
+		fileIDs := make([]uuid.UUID, 0, codersdk.DefaultChatMaxAttachmentsPerChat+1)
+		for i := range codersdk.DefaultChatMaxAttachmentsPerChat + 1 {
 			resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("create%d.png", i), bytes.NewReader(pngData))
 			require.NoError(t, err)
 			fileIDs = append(fileIDs, resp.ID)
@@ -9412,13 +9412,13 @@ func TestPatchChatMessage(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 
-		// Create a chat with MaxChatFileIDs files already linked.
+		// Create a chat with DefaultChatMaxAttachmentsPerChat files already linked.
 		parts := []codersdk.ChatInputPart{
 			{Type: codersdk.ChatInputPartTypeText, Text: "fill to cap"},
 		}
 		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
-		for i := range codersdk.MaxChatFileIDs {
+		fileIDs := make([]uuid.UUID, 0, codersdk.DefaultChatMaxAttachmentsPerChat)
+		for i := range codersdk.DefaultChatMaxAttachmentsPerChat {
 			up, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("cap-%d.png", i), bytes.NewReader(pngData))
 			require.NoError(t, err)
 			fileIDs = append(fileIDs, up.ID)
@@ -9426,7 +9426,7 @@ func TestPatchChatMessage(t *testing.T) {
 		}
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
 		require.NoError(t, err)
-		require.Len(t, chat.Files, codersdk.MaxChatFileIDs)
+		require.Len(t, chat.Files, codersdk.DefaultChatMaxAttachmentsPerChat)
 
 		// Find the user message.
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
@@ -9453,7 +9453,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
+		require.Len(t, chatResult.Files, codersdk.DefaultChatMaxAttachmentsPerChat,
 			"file count should not exceed the cap")
 		linked := make([]uuid.UUID, 0, len(chatResult.Files))
 		for _, f := range chatResult.Files {
@@ -16777,6 +16777,60 @@ func TestSubmitToolResults(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Contains(t, sdkErr.Message, "archived")
+	})
+}
+
+func TestChatLimitsFromDeploymentConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MaxPromptBytes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		values := coderdtest.DeploymentValues(t)
+		values.AI.Chat.MaxPromptBytes = serpent.Int64(64)
+		client := newChatClientWithDeploymentValues(t, values)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               strings.Repeat("a", 65),
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "Maximum length is 64 bytes")
+
+		require.NoError(t, client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               strings.Repeat("a", 64),
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		}))
+	})
+
+	t.Run("MaxDynamicToolsPerChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		values := coderdtest.DeploymentValues(t)
+		values.AI.Chat.MaxDynamicToolsPerChat = serpent.Int64(2)
+		client := newChatClientWithDeploymentValues(t, values)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		tools := make([]codersdk.DynamicTool, 3)
+		for i := range tools {
+			tools[i] = codersdk.DynamicTool{Name: fmt.Sprintf("tool-%d", i)}
+		}
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			UnsafeDynamicTools: tools,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Too many dynamic tools.", sdkErr.Message)
+		require.Equal(t, "Maximum 2 dynamic tools per chat.", sdkErr.Detail)
 	})
 }
 

@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // attemptStatusCompleted is the status recorded when a response body
@@ -23,19 +25,15 @@ const attemptStatusCompleted = "completed"
 // or body read error occurs.
 const attemptStatusFailed = "failed"
 
-// maxRecordedRequestBodyBytes caps in-memory request capture when GetBody
-// is available.
-const maxRecordedRequestBodyBytes = 50_000
-
-// maxRecordedResponseBodyBytes caps in-memory response capture.
-const maxRecordedResponseBodyBytes = 50_000
-
 // RecordingTransport captures HTTP request/response data for debug steps.
 // When the request context carries an attemptSink, it records each round
 // trip. Otherwise it delegates directly.
 type RecordingTransport struct {
 	// Base is the underlying transport. nil defaults to http.DefaultTransport.
 	Base http.RoundTripper
+	// MaxBodyBytes caps in-memory capture of each request and response
+	// body. Zero defaults to codersdk.DefaultChatDebugMaxBodyBytes.
+	MaxBodyBytes int
 }
 
 var _ http.RoundTripper = (*RecordingTransport)(nil)
@@ -55,6 +53,11 @@ func (t *RecordingTransport) RoundTrip(req *http.Request) (*http.Response, error
 		return base.RoundTrip(req)
 	}
 
+	maxBodyBytes := t.MaxBodyBytes
+	if maxBodyBytes <= 0 {
+		maxBodyBytes = codersdk.DefaultChatDebugMaxBodyBytes
+	}
+
 	requestHeaders := RedactHeaders(req.Header)
 
 	// Capture method and URL/path from the request.
@@ -66,7 +69,7 @@ func (t *RecordingTransport) RoundTrip(req *http.Request) (*http.Response, error
 		reqPath = req.URL.Path
 	}
 
-	requestBody, err := captureRequestBody(req)
+	requestBody, err := captureRequestBody(req, maxBodyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -100,6 +103,7 @@ func (t *RecordingTransport) RoundTrip(req *http.Request) (*http.Response, error
 		startedAt:     startedAt,
 		contentLength: resp.ContentLength,
 		contentType:   resp.Header.Get("Content-Type"),
+		maxBodyBytes:  maxBodyBytes,
 		base: Attempt{
 			Number:          attemptNumber,
 			Method:          method,
@@ -153,7 +157,7 @@ func redactURL(u *url.URL) string {
 	return clone.String()
 }
 
-func captureRequestBody(req *http.Request) ([]byte, error) {
+func captureRequestBody(req *http.Request, maxBodyBytes int) ([]byte, error) {
 	if req == nil || req.Body == nil {
 		return nil, nil
 	}
@@ -161,7 +165,7 @@ func captureRequestBody(req *http.Request) ([]byte, error) {
 	if req.GetBody != nil {
 		clone, err := req.GetBody()
 		if err == nil {
-			limited, readErr := io.ReadAll(io.LimitReader(clone, maxRecordedRequestBodyBytes+1))
+			limited, readErr := io.ReadAll(io.LimitReader(clone, int64(maxBodyBytes)+1))
 			_ = clone.Close()
 			// Some SDKs return the active body from GetBody instead of an
 			// independent reader. Restore the request body from GetBody so
@@ -173,7 +177,7 @@ func captureRequestBody(req *http.Request) ([]byte, error) {
 			if readErr != nil {
 				return nil, nil
 			}
-			if len(limited) > maxRecordedRequestBodyBytes {
+			if len(limited) > maxBodyBytes {
 				return []byte("[TRUNCATED]"), nil
 			}
 			// Request bodies have no completeness pre-check to reuse; always decode fresh.
@@ -210,6 +214,7 @@ type recordingBody struct {
 	inner         io.ReadCloser
 	contentLength int64
 	contentType   string // from resp.Header.Get (case-insensitive)
+	maxBodyBytes  int
 	sink          *attemptSink
 	base          Attempt
 	startedAt     time.Time
@@ -234,7 +239,7 @@ type recordingBody struct {
 func (r *recordingBody) accumulateReadLocked(data []byte, n int, err error) {
 	r.bytesRead += int64(n)
 	if n > 0 && !r.truncated {
-		remaining := maxRecordedResponseBodyBytes - r.buf.Len()
+		remaining := r.maxBodyBytes - r.buf.Len()
 		if remaining > 0 {
 			toWrite := n
 			if toWrite > remaining {
@@ -375,7 +380,7 @@ func (r *recordingBody) Close() error {
 		recordReusingDecodedJSON(nil)
 	// Truncated unknown-length bodies: the caller consumed the
 	// response successfully but the recording buffer exceeded
-	// maxRecordedResponseBodyBytes. This is not a transport
+	// maxBodyBytes. This is not a transport
 	// failure - mark as completed with the truncated capture.
 	case contentLength < 0 && truncated:
 		r.record(nil)

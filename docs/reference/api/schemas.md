@@ -1010,6 +1010,8 @@ title: Schemas
   "chat": {
     "acquire_batch_size": 0,
     "debug_logging_enabled": true,
+    "debug_max_body_bytes": 0,
+    "debug_max_text_runes": 0,
     "hook_allow_insecure": true,
     "hook_enabled": true,
     "hook_secret": "string",
@@ -1027,6 +1029,14 @@ title: Schemas
       "scheme": "string",
       "user": {}
     },
+    "max_attachments_per_chat": 0,
+    "max_concurrent_recording_uploads": 0,
+    "max_dynamic_tools_per_chat": 0,
+    "max_generation_retries": 0,
+    "max_prompt_bytes": 0,
+    "max_queued_messages_per_chat": 0,
+    "max_steps_per_turn": 0,
+    "max_tool_output_bytes": 0,
     "stream_silence_timeout": 0
   }
 }
@@ -2500,6 +2510,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "acquire_batch_size": 0,
   "debug_logging_enabled": true,
+  "debug_max_body_bytes": 0,
+  "debug_max_text_runes": 0,
   "hook_allow_insecure": true,
   "hook_enabled": true,
   "hook_secret": "string",
@@ -2517,22 +2529,40 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "scheme": "string",
     "user": {}
   },
+  "max_attachments_per_chat": 0,
+  "max_concurrent_recording_uploads": 0,
+  "max_dynamic_tools_per_chat": 0,
+  "max_generation_retries": 0,
+  "max_prompt_bytes": 0,
+  "max_queued_messages_per_chat": 0,
+  "max_steps_per_turn": 0,
+  "max_tool_output_bytes": 0,
   "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                     | Type                       | Required | Restrictions | Description |
-|--------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`     | integer                    | false    |              |             |
-| `debug_logging_enabled`  | boolean                    | false    |              |             |
-| `hook_allow_insecure`    | boolean                    | false    |              |             |
-| `hook_enabled`           | boolean                    | false    |              |             |
-| `hook_secret`            | string                     | false    |              |             |
-| `hook_timeout`           | integer                    | false    |              |             |
-| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
-| `stream_silence_timeout` | integer                    | false    |              |             |
+| Name                               | Type                       | Required | Restrictions | Description                                                                                                                                                   |
+|------------------------------------|----------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `acquire_batch_size`               | integer                    | false    |              |                                                                                                                                                               |
+| `debug_logging_enabled`            | boolean                    | false    |              |                                                                                                                                                               |
+| `debug_max_body_bytes`             | integer                    | false    |              |                                                                                                                                                               |
+| `debug_max_text_runes`             | integer                    | false    |              |                                                                                                                                                               |
+| `hook_allow_insecure`              | boolean                    | false    |              |                                                                                                                                                               |
+| `hook_enabled`                     | boolean                    | false    |              |                                                                                                                                                               |
+| `hook_secret`                      | string                     | false    |              |                                                                                                                                                               |
+| `hook_timeout`                     | integer                    | false    |              |                                                                                                                                                               |
+| `hook_url`                         | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                                               |
+| `max_attachments_per_chat`         | integer                    | false    |              |                                                                                                                                                               |
+| `max_concurrent_recording_uploads` | integer                    | false    |              |                                                                                                                                                               |
+| `max_dynamic_tools_per_chat`       | integer                    | false    |              |                                                                                                                                                               |
+| `max_generation_retries`           | integer                    | false    |              |                                                                                                                                                               |
+| `max_prompt_bytes`                 | integer                    | false    |              |                                                                                                                                                               |
+| `max_queued_messages_per_chat`     | integer                    | false    |              |                                                                                                                                                               |
+| `max_steps_per_turn`               | integer                    | false    |              | Limits bound chat turns and stored payloads. Defaults are the DefaultChat* constants; the zero value means "use the default" so callers can leave them unset. |
+| `max_tool_output_bytes`            | integer                    | false    |              |                                                                                                                                                               |
+| `stream_silence_timeout`           | integer                    | false    |              |                                                                                                                                                               |
 
 ## codersdk.ChatContext
 
@@ -7298,6 +7328,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "chat": {
         "acquire_batch_size": 0,
         "debug_logging_enabled": true,
+        "debug_max_body_bytes": 0,
+        "debug_max_text_runes": 0,
         "hook_allow_insecure": true,
         "hook_enabled": true,
         "hook_secret": "string",
@@ -7315,6 +7347,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "scheme": "string",
           "user": {}
         },
+        "max_attachments_per_chat": 0,
+        "max_concurrent_recording_uploads": 0,
+        "max_dynamic_tools_per_chat": 0,
+        "max_generation_retries": 0,
+        "max_prompt_bytes": 0,
+        "max_queued_messages_per_chat": 0,
+        "max_steps_per_turn": 0,
+        "max_tool_output_bytes": 0,
         "stream_silence_timeout": 0
       }
     },
@@ -7910,6 +7950,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "chat": {
       "acquire_batch_size": 0,
       "debug_logging_enabled": true,
+      "debug_max_body_bytes": 0,
+      "debug_max_text_runes": 0,
       "hook_allow_insecure": true,
       "hook_enabled": true,
       "hook_secret": "string",
@@ -7927,6 +7969,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       },
+      "max_attachments_per_chat": 0,
+      "max_concurrent_recording_uploads": 0,
+      "max_dynamic_tools_per_chat": 0,
+      "max_generation_retries": 0,
+      "max_prompt_bytes": 0,
+      "max_queued_messages_per_chat": 0,
+      "max_steps_per_turn": 0,
+      "max_tool_output_bytes": 0,
       "stream_silence_timeout": 0
     }
   },
