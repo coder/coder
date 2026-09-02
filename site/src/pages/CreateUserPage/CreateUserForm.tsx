@@ -24,13 +24,11 @@ import {
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
-	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { RoleSelector } from "#/modules/roles/RoleSelector";
 import { cn } from "#/utils/cn";
-import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -138,10 +136,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = (props) => {
 					<SettingsHeader>
 						<SettingsHeaderTitle>New user</SettingsHeaderTitle>
 						<SettingsHeaderDescription>
-							Add a user to this Coder deployment.{" "}
-							<SettingsHeaderDocsLink
-								href={docs("/admin/users#create-a-user")}
-							/>
+							Add a user to this Coder deployment.
 						</SettingsHeaderDescription>
 					</SettingsHeader>
 					<Alert severity="error" prominent>
@@ -246,8 +241,7 @@ const CreateUserFormFields: FC<CreateUserFormFieldsProps> = ({
 				<SettingsHeader>
 					<SettingsHeaderTitle>New user</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Add a user to this Coder deployment.{" "}
-						<SettingsHeaderDocsLink href={docs("/admin/users#create-a-user")} />
+						Add a user to this Coder deployment.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 				<div className="border border-solid p-6 rounded-lg">

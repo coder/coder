@@ -14,7 +14,6 @@ import {
 	MockUserAdminRole,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { docs } from "#/utils/docs";
 import { CreateUserForm } from "./CreateUserForm";
 
 const meta: Meta<typeof CreateUserForm> = {
@@ -45,9 +44,6 @@ export const Ready: Story = {
 		await expect(
 			canvas.getByText(/add a user to this coder deployment/i),
 		).toBeVisible();
-		await expect(
-			canvas.getByRole("link", { name: /view docs/i }),
-		).toHaveAttribute("href", docs("/admin/users#create-a-user"));
 		await expect(canvas.getByText("Unique identifier.")).toBeVisible();
 		await expect(
 			canvas.getByText("Friendly name. Defaults to the username if blank."),
