@@ -16,15 +16,7 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { DeprecatedBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -45,6 +37,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
@@ -85,21 +78,17 @@ const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
 
 const TemplateHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is a template?</HelpPopoverTitle>
-				<HelpPopoverText>
-					With templates you can create a common configuration for your
-					workspaces using Terraform.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/admin/templates")}>
-						Manage templates
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+		<InfoTooltip>
+			<TooltipTitle>What is a template?</TooltipTitle>
+			<TooltipMessage>
+				With templates you can create a common configuration for your workspaces
+				using Terraform.
+				<br />
+				<Link size="sm" href={docs("/admin/templates")}>
+					Manage templates
+				</Link>
+			</TooltipMessage>
+		</InfoTooltip>
 	);
 };
 

@@ -54,7 +54,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 								version <strong>{version.name}</strong>
 							</span>
 							{version.message && (
-								<InfoTooltip>
+								<InfoTooltip size="small">
 									<TooltipTitle>Message</TooltipTitle>
 									<TooltipMessage>{version.message}</TooltipMessage>
 								</InfoTooltip>
