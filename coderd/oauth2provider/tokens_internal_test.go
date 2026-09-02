@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -25,6 +26,61 @@ var (
 	confidentialApp = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypeConfidential}
 	publicApp       = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypePublic}
 )
+
+func TestScopeStringToAPIKeyScopes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EveryNameKept", func(t *testing.T) {
+		t.Parallel()
+
+		scopes, err := scopeStringToAPIKeyScopes("workspace:ssh template:read")
+		require.NoError(t, err)
+		require.Equal(t, database.APIKeyScopes{
+			database.ApiKeyScopeWorkspaceSsh,
+			database.ApiKeyScopeTemplateRead,
+		}, scopes)
+	})
+
+	// The catalog and the api_key_scope enum are maintained separately. A name
+	// negotiable at authorization but unmintable at exchange leaves the client
+	// holding a code it can never redeem.
+	t.Run("EveryCatalogNameMintable", func(t *testing.T) {
+		t.Parallel()
+
+		// ExternalScopeNames omits the aliases IsExternalScope accepts, and the
+		// catalog cannot enumerate them, so a new alias has to be added here.
+		names := append(rbac.ExternalScopeNames(), "all", "application_connect")
+		require.NotEmpty(t, names)
+		for _, name := range names {
+			require.Truef(t, rbac.IsExternalScope(rbac.ScopeName(name)),
+				"scope %q is not negotiable, so this loop is not driving the catalog", name)
+
+			canonical := string(rbac.CanonicalScopeName(rbac.ScopeName(name)))
+			scopes, err := scopeStringToAPIKeyScopes(canonical)
+			require.NoErrorf(t, err, "scope %q can be negotiated but not minted", name)
+			require.Equal(t, database.APIKeyScopes{database.APIKeyScope(canonical)}, scopes)
+		}
+	})
+
+	t.Run("UnknownNameRejectsTheWholeList", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := scopeStringToAPIKeyScopes("workspace:ssh not_a_real_scope")
+		require.ErrorIs(t, err, errUnmintableScope)
+		require.Contains(t, err.Error(), "not_a_real_scope")
+	})
+
+	// Unreachable through the NOT NULL column, but pinned: apikey.Generate reads
+	// an empty list as unrestricted, so anything but an error widens the grant.
+	t.Run("EmptyRejected", func(t *testing.T) {
+		t.Parallel()
+
+		for _, scope := range []string{"", "   "} {
+			_, err := scopeStringToAPIKeyScopes(scope)
+			require.ErrorIs(t, err, errUnmintableScope, "scope %q", scope)
+		}
+	})
+}
 
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
 // to ensure RFC 6749 compliance where scopes are space-delimited
