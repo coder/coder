@@ -21258,7 +21258,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "permission_mode": {
-                    "description": "PermissionMode optionally sets the permission mode the runtime\nagent runs with (e.g. acceptEdits). Empty means the runtime\ndefault.",
+                    "description": "PermissionMode optionally sets the permission mode the runtime\nagent runs with (e.g. acceptEdits). Empty means the runtime's\nleast restrictive mode: bypassPermissions for Claude Code and\nagent-full-access for Codex. Modes that prompt are auto-declined.",
                     "type": "string"
                 },
                 "runtime": {

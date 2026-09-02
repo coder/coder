@@ -20,11 +20,12 @@ func TestHarnessFor(t *testing.T) {
 
 	want := []chatacp.Harness{
 		{
-			Runtime:       codersdk.ChatRuntimeClaudeCode,
-			DisplayName:   "Claude Code",
-			Command:       "claude-agent-acp",
-			ProviderType:  codersdk.AIProviderTypeAnthropic,
-			ProviderLabel: "Anthropic",
+			Runtime:            codersdk.ChatRuntimeClaudeCode,
+			DisplayName:        "Claude Code",
+			Command:            "claude-agent-acp",
+			ProviderType:       codersdk.AIProviderTypeAnthropic,
+			ProviderLabel:      "Anthropic",
+			DefaultSessionMode: "bypassPermissions",
 		},
 		{
 			Runtime:            codersdk.ChatRuntimeCodex,
@@ -40,6 +41,9 @@ func TestHarnessFor(t *testing.T) {
 		harness, ok := chatacp.HarnessFor(tc.Runtime)
 		require.True(t, ok, tc.Runtime)
 		require.NotNil(t, harness.Env, tc.Runtime)
+		// An empty default would leave the adapter in a mode that prompts,
+		// and every prompt is auto-declined.
+		require.NotEmpty(t, harness.DefaultSessionMode, tc.Runtime)
 		harness.Env = nil
 		require.Equal(t, tc, harness)
 	}

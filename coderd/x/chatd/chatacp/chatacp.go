@@ -71,7 +71,7 @@ type TurnInput struct {
 	// so the agent regains conversation context. It is lossy.
 	ReseedContext string
 	// PermissionMode selects the adapter session mode (e.g.
-	// acceptEdits). Empty keeps the adapter default.
+	// bypassPermissions). Empty keeps the adapter default.
 	PermissionMode string
 	// AgentName names the agent in notes streamed into the chat, such
 	// as the permission-denied note.
@@ -485,9 +485,11 @@ func (c *turnCollector) completeToolCallLocked(id string, status acp.ToolCallSta
 		chatprompt.PartFromContentWithLogger(context.Background(), c.logger, content))
 }
 
-// RequestPermission auto-denies: v1 runs the adapter in a permission
-// mode that avoids prompts (e.g. acceptEdits); anything that still
-// prompts is declined with a visible note.
+// RequestPermission auto-denies: v1 runs the adapter in its least
+// restrictive mode by default (bypassPermissions for Claude Code,
+// agent-full-access for Codex) so nothing prompts; a stricter mode
+// configured by an administrator gets its prompts declined with a
+// visible note.
 func (c *turnCollector) RequestPermission(_ context.Context, params acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
 	note := "\n\n" + c.agentName + permissionDeniedNote + "\n\n"
 	c.mu.Lock()

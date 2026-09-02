@@ -32,8 +32,10 @@ type Harness struct {
 	// ProviderLabel names that provider in user-facing copy.
 	ProviderLabel string
 	// DefaultSessionMode is the ACP session mode applied when the
-	// organization config leaves permission_mode empty. Empty keeps the
-	// adapter default.
+	// organization config leaves permission_mode empty. Every harness
+	// defaults to its least restrictive mode: the workspace already
+	// isolates the agent, and the modes that prompt cannot be answered
+	// because chatd auto-declines permission requests.
 	DefaultSessionMode string
 	// Env builds the adapter process environment for one turn.
 	Env func(TurnCredentials) map[string]string
@@ -49,7 +51,7 @@ var harnesses = []Harness{
 		Command:            "claude-agent-acp",
 		ProviderType:       codersdk.AIProviderTypeAnthropic,
 		ProviderLabel:      "Anthropic",
-		DefaultSessionMode: "",
+		DefaultSessionMode: "bypassPermissions",
 		Env:                claudeCodeEnv,
 	},
 	{
@@ -60,8 +62,7 @@ var harnesses = []Harness{
 		Command:       "codex-acp",
 		ProviderType:  codersdk.AIProviderTypeOpenAI,
 		ProviderLabel: "OpenAI",
-		// Codex's restrictive modes enable its own sandbox, which has no
-		// place inside a workspace that already isolates the agent.
+		// Codex's restrictive modes also enable its own sandbox.
 		DefaultSessionMode: "agent-full-access",
 		Env:                codexEnv,
 	},

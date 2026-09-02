@@ -3419,8 +3419,9 @@ export interface ChatRuntimeConfig {
 	readonly model?: string;
 	/**
 	 * PermissionMode optionally sets the permission mode the runtime
-	 * agent runs with (e.g. acceptEdits). Empty means the runtime
-	 * default.
+	 * agent runs with (e.g. acceptEdits). Empty means the runtime's
+	 * least restrictive mode: bypassPermissions for Claude Code and
+	 * agent-full-access for Codex. Modes that prompt are auto-declined.
 	 */
 	readonly permission_mode?: string;
 	readonly created_at: string;

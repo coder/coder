@@ -129,8 +129,9 @@ type ChatRuntimeConfig struct {
 	// empty falls through to the runtime agent's own default.
 	Model string `json:"model,omitempty"`
 	// PermissionMode optionally sets the permission mode the runtime
-	// agent runs with (e.g. acceptEdits). Empty means the runtime
-	// default.
+	// agent runs with (e.g. acceptEdits). Empty means the runtime's
+	// least restrictive mode: bypassPermissions for Claude Code and
+	// agent-full-access for Codex. Modes that prompt are auto-declined.
 	PermissionMode string    `json:"permission_mode,omitempty"`
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt      time.Time `json:"updated_at" format:"date-time"`
