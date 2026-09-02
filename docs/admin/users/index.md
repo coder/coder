@@ -74,13 +74,11 @@ To create a user with the web UI:
 
 1. Log in as a user admin.
 2. Go to **Users** > **New user**.
-3. In the window that opens, provide the **username**, **email**, and
-   **password** for the user (they can opt to change their password after their
-   initial login).
-4. Select **Submit** to create the user.
+3. Enter the **Username**, **Email**, and **Password**.
+4. Select **Save**.
 
-The new user will appear in the **Users** list. Use the toggle to change their
-**Roles** if desired.
+The new user appears in the **Users** list.
+You can assign roles on this page before you save, or later from the user's actions menu.
 
 To create a user via the Coder CLI, run:
 

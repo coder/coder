@@ -1,18 +1,17 @@
-import { cn } from "cn";
 import { useFormik } from "formik";
-import { CheckIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
+import { Link } from "react-router";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FormFooter } from "#/components/Form/Form";
+import { FormFields, FormFooter } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
-import { FullPageForm } from "#/components/FullPageForm/FullPageForm";
 import { Label } from "#/components/Label/Label";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import {
@@ -21,8 +20,16 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { RoleSelector } from "#/modules/roles/RoleSelector";
+import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -52,7 +59,7 @@ const loginTypeOptions = {
 
 const validationSchema = Yup.object({
 	username: nameValidator("Username"),
-	name: displayNameValidator("Full name"),
+	name: displayNameValidator("Name"),
 	email: Yup.string()
 		.trim()
 		.when("service_account", {
@@ -89,7 +96,7 @@ type CreateUserFormProps = {
 	isLoading: boolean;
 	onSubmit: (user: CreateUserFormData) => void;
 	onCancel: () => void;
-	authMethods?: TypesGen.AuthMethods;
+	authMethods: TypesGen.AuthMethods;
 	showOrganizations: boolean;
 	serviceAccountsEnabled: boolean;
 	availableRoles?: TypesGen.AssignableRoles[];
@@ -100,6 +107,11 @@ type CreateUserFormProps = {
 // Stable reference for empty org options to avoid re-render loops
 // in the render-time state adjustment pattern.
 const emptyOrgs: TypesGen.Organization[] = [];
+
+const createOrgMemberCheck = {
+	object: { resource_type: "organization_member" },
+	action: "create",
+} as const;
 
 export const CreateUserForm: FC<CreateUserFormProps> = ({
 	error,
@@ -113,14 +125,15 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	rolesLoading,
 	rolesError,
 }) => {
-	const availableLoginTypes = [
-		authMethods?.password.enabled && "password",
-		authMethods?.oidc.enabled && "oidc",
-		authMethods?.github.enabled && "github",
-		serviceAccountsEnabled && "none",
-	].filter(Boolean) as Array<keyof typeof loginTypeOptions>;
-
-	const defaultLoginType = availableLoginTypes[0];
+	const availableLoginTypes = (
+		["password", "oidc", "github", "none"] as const
+	).filter((key) => {
+		if (key === "none") {
+			return serviceAccountsEnabled;
+		}
+		return authMethods[key].enabled;
+	});
+	const defaultLoginType = availableLoginTypes[0] ?? "password";
 
 	const form = useFormik<CreateUserFormData>({
 		initialValues: {
@@ -137,7 +150,6 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 		},
 		validationSchema,
 		onSubmit,
-		enableReinitialize: true,
 	});
 
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
@@ -145,10 +157,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	);
 
 	const permittedOrgsQuery = useQuery({
-		...permittedOrganizations({
-			object: { resource_type: "organization_member" },
-			action: "create",
-		}),
+		...permittedOrganizations(createOrgMemberCheck),
 		enabled: showOrganizations,
 	});
 	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
@@ -181,190 +190,184 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	});
 
 	return (
-		<FullPageForm title="Create user" size="condensed">
-			{isApiError(error) && !hasApiFieldErrors(error) && (
-				<ErrorAlert error={error} className="mb-8" />
-			)}
-			<form
-				onSubmit={form.handleSubmit}
-				autoComplete="off"
-				className="border border-border border-solid rounded-md p-4"
-			>
-				<div className="flex flex-col gap-6">
-					{showOrganizations && (
-						<div className="flex flex-col gap-2 max-w-sm">
-							<Label htmlFor="organization">Organization</Label>
-							<OrganizationAutocomplete
-								id="organization"
-								required
-								value={selectedOrg}
-								options={orgOptions}
-								onChange={(newValue) => {
-									setSelectedOrg(newValue);
-									void form.setFieldValue("organization", newValue?.id ?? "");
-								}}
-							/>
-						</div>
-					)}
-
-					{/* Login type — "none" is presented as "Service account" */}
-					<div className="flex flex-col gap-2 max-w-sm">
-						<Label htmlFor="login_type">Login type</Label>
-						<Select
-							value={form.values.login_type}
-							onValueChange={async (value) => {
-								const isServiceAccount = value === "none";
-								await Promise.all([
-									form.setFieldValue("login_type", value),
-									form.setFieldValue("service_account", isServiceAccount),
-									value !== "email"
-										? form.setFieldValue("email", "")
-										: Promise.resolve(),
-									value !== "password"
-										? form.setFieldValue("password", "")
-										: Promise.resolve(),
-								]);
-							}}
-						>
-							<SelectTrigger
-								id="login_type"
-								data-testid="login-type-input"
-								aria-invalid={loginTypeField.error}
-								aria-describedby={
-									loginTypeField.error
-										? "login_type-error"
-										: "login_type-helper"
-								}
-								className={cn(
-									loginTypeField.error && "border-border-destructive",
-								)}
-							>
-								<SelectValue placeholder="Select a login type…" />
-							</SelectTrigger>
-
-							<SelectContent className="max-w-sm">
-								{availableLoginTypes.map((key) => {
-									const opt = loginTypeOptions[key];
-									return (
-										<SelectPrimitive.Item
-											key={key}
-											value={key}
-											className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50"
-										>
-											<span className="absolute right-2 top-2 flex items-center justify-center">
-												<SelectPrimitive.ItemIndicator>
-													<CheckIcon className="size-icon-sm" />
-												</SelectPrimitive.ItemIndicator>
-											</span>
-											<div className="flex flex-col py-0.5">
-												<SelectPrimitive.ItemText>
-													{opt.label}
-												</SelectPrimitive.ItemText>
-												<span className="text-xs text-content-secondary whitespace-normal wrap-break-word">
-													{opt.description}
-												</span>
-											</div>
-										</SelectPrimitive.Item>
-									);
-								})}
-							</SelectContent>
-						</Select>
-						{loginTypeField.helperText && (
-							<span
-								id="login_type-helper"
-								className="text-xs text-content-secondary"
-							>
-								{loginTypeField.helperText}
-							</span>
+		<div>
+			<Button variant="subtle" asChild className="-ml-3">
+				<Link to="/deployment/users">
+					<ArrowLeftIcon />
+					<span>Back to users</span>
+				</Link>
+			</Button>
+			<div className="pt-6">
+				<SettingsHeader>
+					<SettingsHeaderTitle>New user</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Add a user to this Coder deployment.{" "}
+						<SettingsHeaderDocsLink href={docs("/admin/users#create-a-user")} />
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+				<div className="border border-solid p-6 rounded-lg">
+					<form
+						onSubmit={form.handleSubmit}
+						autoComplete="off"
+						className="flex flex-col gap-6"
+					>
+						{isApiError(error) && !hasApiFieldErrors(error) && (
+							<ErrorAlert error={error} />
 						)}
-					</div>
+						<FormFields>
+							{showOrganizations && (
+								<div className="flex flex-col gap-2">
+									<Label htmlFor="organization">Organization</Label>
+									<OrganizationAutocomplete
+										id="organization"
+										required
+										value={selectedOrg}
+										options={orgOptions}
+										onChange={(newValue) => {
+											setSelectedOrg(newValue);
+											void form.setFieldValue(
+												"organization",
+												newValue?.id ?? "",
+											);
+										}}
+									/>
+								</div>
+							)}
 
-					<FormField
-						field={getFieldHelpers("username")}
-						label="Username"
-						id="username"
-						name="username"
-						value={form.values.username}
-						onChange={onChangeTrimmed(form)}
-						onBlur={form.handleBlur}
-						autoComplete="username"
-						autoFocus
-						className="max-w-sm"
-					/>
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="login_type">Login type</Label>
+								<Select
+									value={form.values.login_type}
+									onValueChange={async (value) => {
+										const isServiceAccount = value === "none";
+										await Promise.all([
+											form.setFieldValue("login_type", value),
+											form.setFieldValue("service_account", isServiceAccount),
+											isServiceAccount
+												? form.setFieldValue("email", "")
+												: Promise.resolve(),
+											value !== "password"
+												? form.setFieldValue("password", "")
+												: Promise.resolve(),
+										]);
+									}}
+								>
+									<SelectTrigger
+										id="login_type"
+										data-testid="login-type-input"
+										aria-invalid={loginTypeField.error}
+										aria-describedby={
+											loginTypeField.error
+												? "login_type-error"
+												: "login_type-helper"
+										}
+										className={cn(
+											loginTypeField.error && "border-border-destructive",
+										)}
+									>
+										<SelectValue placeholder="Select a login type…" />
+									</SelectTrigger>
 
-					<FormField
-						field={getFieldHelpers("name")}
-						label={
-							<>
-								Full name{" "}
-								<span className="font-normal text-content-secondary">
-									(optional)
-								</span>
-							</>
-						}
-						id="name"
-						name="name"
-						value={form.values.name}
-						onChange={form.handleChange}
-						onBlur={form.handleBlur}
-						autoComplete="name"
-					/>
-
-					{!isServiceAccount && (
-						<FormField
-							field={getFieldHelpers("email")}
-							label={
-								<>
-									Email{" "}
-									<span className="text-xs font-bold text-content-destructive">
-										*
+									<SelectContent>
+										{availableLoginTypes.map((key) => {
+											const opt = loginTypeOptions[key];
+											return (
+												<SelectPrimitive.Item
+													key={key}
+													value={key}
+													className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50"
+												>
+													<span className="absolute right-2 top-2 flex items-center justify-center">
+														<SelectPrimitive.ItemIndicator>
+															<CheckIcon className="size-icon-sm" />
+														</SelectPrimitive.ItemIndicator>
+													</span>
+													<div className="flex flex-col py-0.5">
+														<SelectPrimitive.ItemText>
+															{opt.label}
+														</SelectPrimitive.ItemText>
+														<span className="text-xs text-content-secondary whitespace-normal wrap-break-word">
+															{opt.description}
+														</span>
+													</div>
+												</SelectPrimitive.Item>
+											);
+										})}
+									</SelectContent>
+								</Select>
+								{loginTypeField.helperText && (
+									<span
+										id="login_type-helper"
+										className="text-xs text-content-secondary"
+									>
+										{loginTypeField.helperText}
 									</span>
-								</>
-							}
-							id="email"
-							name="email"
-							value={form.values.email}
-							onChange={onChangeTrimmed(form)}
-							onBlur={form.handleBlur}
-							autoComplete="email"
-							type="email"
-						/>
-					)}
+								)}
+							</div>
 
-					{isPasswordLogin && (
-						<FormField
-							field={getFieldHelpers("password")}
-							label="Password"
-							id="password"
-							name="password"
-							value={form.values.password}
-							onChange={form.handleChange}
-							onBlur={form.handleBlur}
-							autoComplete="new-password"
-							type="password"
-							data-testid="password-input"
-						/>
-					)}
+							<FormField
+								field={getFieldHelpers("username", {
+									helperText: "Unique identifier.",
+								})}
+								label="Username"
+								required
+								onChange={onChangeTrimmed(form)}
+								autoComplete="username"
+								autoFocus
+							/>
 
-					<RoleSelector
-						loading={rolesLoading}
-						error={rolesError}
-						availableRoles={availableRoles}
-						selectedRoles={form.values.roles}
-						onChange={(roles) => form.setFieldValue("roles", roles)}
-					/>
+							<FormField
+								field={getFieldHelpers("name", {
+									helperText:
+										"Friendly name. Defaults to the username if blank.",
+								})}
+								label="Name"
+								autoComplete="name"
+							/>
+
+							{!isServiceAccount && (
+								<FormField
+									field={getFieldHelpers("email")}
+									label="Email"
+									required
+									autoComplete="email"
+									type="email"
+								/>
+							)}
+
+							{isPasswordLogin && (
+								<FormField
+									field={getFieldHelpers("password")}
+									label="Password"
+									required
+									autoComplete="new-password"
+									type="password"
+									// The login type select's visible value is also "Password".
+									data-testid="password-input"
+								/>
+							)}
+
+							<RoleSelector
+								loading={rolesLoading}
+								error={rolesError}
+								availableRoles={availableRoles}
+								selectedRoles={form.values.roles}
+								onChange={(roles) => form.setFieldValue("roles", roles)}
+							/>
+						</FormFields>
+
+						<FormFooter className="mt-0">
+							<Button onClick={onCancel} variant="outline">
+								Cancel
+							</Button>
+							<Button type="submit" disabled={isLoading}>
+								<Spinner loading={isLoading} />
+								Save
+							</Button>
+						</FormFooter>
+					</form>
 				</div>
-
-				<FormFooter className="mt-8">
-					<Button onClick={onCancel} variant="outline">
-						Cancel
-					</Button>
-					<Button type="submit" disabled={isLoading}>
-						<Spinner loading={isLoading} />
-						Save
-					</Button>
-				</FormFooter>
-			</form>
-		</FullPageForm>
+			</div>
+		</div>
 	);
 };
