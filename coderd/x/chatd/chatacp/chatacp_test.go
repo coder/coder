@@ -797,15 +797,19 @@ func TestRunTurnCancelTimeout(t *testing.T) {
 	t.Cleanup(func() { close(release) })
 
 	turnCtx, cancelTurn := context.WithCancel(ctx)
-	done := make(chan error, 1)
+	type result struct {
+		outcome chatacp.TurnOutcome
+		err     error
+	}
+	done := make(chan result, 1)
 	go func() {
-		_, err := chatacp.RunTurn(turnCtx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
+		outcome, err := chatacp.RunTurn(turnCtx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
 			Cwd:        "/home/coder",
 			PromptText: "hang",
 			Logger:     testLogger(t),
 			Clock:      clock,
 		})
-		done <- err
+		done <- result{outcome: outcome, err: err}
 	}()
 
 	testutil.RequireReceive(ctx, t, promptStarted)
@@ -813,5 +817,27 @@ func TestRunTurnCancelTimeout(t *testing.T) {
 	call := trap.MustWait(ctx)
 	call.MustRelease(ctx)
 	clock.Advance(call.Duration).MustWait(ctx)
-	require.ErrorIs(t, testutil.RequireReceive(ctx, t, done), context.Canceled)
+	got := testutil.RequireReceive(ctx, t, done)
+	require.ErrorIs(t, got.err, context.Canceled)
+	// The session was established before the prompt hung, so the
+	// caller must still record it for the next turn to resume.
+	require.Equal(t, chatacp.TurnOutcome{SessionID: "session-new"}, got.outcome)
+}
+
+func TestRunTurnPromptErrorKeepsSession(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	agent := &chatacptest.FakeAgent{}
+	agent.OnPrompt = func(context.Context, *acp.AgentSideConnection, acp.PromptRequest) (acp.PromptResponse, error) {
+		return acp.PromptResponse{}, xerrors.New("adapter crashed")
+	}
+
+	outcome, err := chatacp.RunTurn(ctx, &chatacptest.PipeTransport{Agent: agent}, chatacp.TurnInput{
+		Cwd:        "/home/coder",
+		PromptText: "hello",
+		Logger:     testLogger(t),
+	})
+	require.ErrorContains(t, err, "prompt:")
+	require.Equal(t, chatacp.TurnOutcome{SessionID: "session-new"}, outcome)
 }

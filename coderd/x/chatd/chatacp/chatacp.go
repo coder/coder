@@ -148,6 +148,9 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 	if err != nil {
 		return TurnOutcome{}, err
 	}
+	// The session exists in the workspace from here on, so failures
+	// still report it and the next turn can resume instead of reseeding.
+	outcome := TurnOutcome{SessionID: string(session), Resumed: resumed}
 
 	if input.PermissionMode != "" {
 		if _, err := conn.SetSessionMode(ctx, acp.SetSessionModeRequest{
@@ -155,12 +158,12 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 			ModeId:    acp.SessionModeId(input.PermissionMode),
 		}); err != nil {
 			if ctx.Err() != nil {
-				return TurnOutcome{}, xerrors.Errorf("set session mode: %w", err)
+				return outcome, xerrors.Errorf("set session mode: %w", err)
 			}
 			// Mode support varies by adapter version; running the turn
 			// under a mode the administrator did not choose would hide
 			// the misconfiguration behind auto-denied permissions.
-			return TurnOutcome{}, &SessionModeError{Mode: input.PermissionMode, err: err}
+			return outcome, &SessionModeError{Mode: input.PermissionMode, err: err}
 		}
 	}
 
@@ -207,20 +210,17 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 		case result = <-resultCh:
 			timer.Stop()
 		case <-timer.C:
-			return TurnOutcome{}, xerrors.Errorf("acp turn: %w", ctx.Err())
+			return outcome, xerrors.Errorf("acp turn: %w", ctx.Err())
 		}
 	}
 	if result.err != nil {
-		return TurnOutcome{}, xerrors.Errorf("prompt: %w", result.err)
+		return outcome, xerrors.Errorf("prompt: %w", result.err)
 	}
 
-	return TurnOutcome{
-		SessionID:         string(session),
-		Resumed:           resumed,
-		Content:           collector.finalize(),
-		Usage:             result.resp.Usage,
-		AvailableCommands: collector.availableCommands(),
-	}, nil
+	outcome.Content = collector.finalize()
+	outcome.Usage = result.resp.Usage
+	outcome.AvailableCommands = collector.availableCommands()
+	return outcome, nil
 }
 
 // establishSession resumes the previous ACP session when possible and
