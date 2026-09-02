@@ -1117,15 +1117,34 @@ var (
 	ErrNothingToClear = xerrors.New("nothing to clear")
 )
 
-func (p *Server) requireRuntimeExperiment(runtime database.ChatRuntime) error {
-	if runtime == database.ChatRuntimeCoder || p.experiments.Enabled(codersdk.ExperimentAgentsRuntimeConfig) {
-		return nil
+// externalHarness resolves the ACP harness for a chat runtime. The
+// built-in runtime has none; an external runtime needs both a harness
+// and the runtime-config experiment, and either gap is a classified
+// configuration error.
+func (p *Server) externalHarness(runtime database.ChatRuntime) (chatacp.Harness, bool, error) {
+	if runtime == database.ChatRuntimeCoder {
+		return chatacp.Harness{}, false, nil
 	}
-	return xerrors.Errorf(
-		"chat runtime %q requires the %q experiment",
-		runtime,
-		codersdk.ExperimentAgentsRuntimeConfig,
-	)
+	harness, ok := chatacp.HarnessFor(codersdk.ChatRuntime(runtime))
+	if !ok {
+		return chatacp.Harness{}, false, chaterror.WithClassification(
+			xerrors.Errorf("unsupported chat runtime %q", runtime),
+			chaterror.ClassifiedError{
+				Kind:    codersdk.ChatErrorKindConfig,
+				Message: "This chat uses an unsupported runtime.",
+			},
+		)
+	}
+	if !p.experiments.Enabled(codersdk.ExperimentAgentsRuntimeConfig) {
+		return chatacp.Harness{}, false, chaterror.WithClassification(
+			xerrors.Errorf("chat runtime %q requires the %q experiment", runtime, codersdk.ExperimentAgentsRuntimeConfig),
+			chaterror.ClassifiedError{
+				Kind:    codersdk.ChatErrorKindConfig,
+				Message: "This chat uses an external runtime, but the agents-runtime-config experiment is disabled.",
+			},
+		)
+	}
+	return harness, true, nil
 }
 
 // CreateOptions controls chat creation in the shared chat mutation path.
@@ -1323,11 +1342,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.Runtime == "" {
 		opts.Runtime = database.ChatRuntimeCoder
 	}
-	harness, isExternal := chatacp.HarnessFor(codersdk.ChatRuntime(opts.Runtime))
-	if opts.Runtime != database.ChatRuntimeCoder && !isExternal {
-		return database.Chat{}, xerrors.Errorf("unsupported chat runtime %q", opts.Runtime)
-	}
-	if err := p.requireRuntimeExperiment(opts.Runtime); err != nil {
+	harness, isExternal, err := p.externalHarness(opts.Runtime)
+	if err != nil {
 		return database.Chat{}, err
 	}
 	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'

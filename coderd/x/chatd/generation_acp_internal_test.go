@@ -36,6 +36,39 @@ var testHarnesses = []chatacp.Harness{
 	mustHarness(codersdk.ChatRuntimeCodex),
 }
 
+func TestExternalHarness(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		runtime      database.ChatRuntime
+		experiments  codersdk.Experiments
+		wantExternal bool
+		wantMessage  string
+	}{
+		{name: "CoderNeedsNoExperiment", runtime: database.ChatRuntimeCoder},
+		{name: "ExternalWithExperiment", runtime: database.ChatRuntimeCodex, experiments: codersdk.Experiments{codersdk.ExperimentAgentsRuntimeConfig}, wantExternal: true},
+		{name: "ExternalWithoutExperiment", runtime: database.ChatRuntimeClaudeCode, wantMessage: "This chat uses an external runtime, but the agents-runtime-config experiment is disabled."},
+		{name: "UnknownRuntime", runtime: database.ChatRuntime("unknown"), experiments: codersdk.Experiments{codersdk.ExperimentAgentsRuntimeConfig}, wantMessage: "This chat uses an unsupported runtime."},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := &Server{experiments: tc.experiments}
+			harness, isExternal, err := server.externalHarness(tc.runtime)
+			require.Equal(t, tc.wantExternal, isExternal)
+			if tc.wantMessage != "" {
+				classified := chaterror.Classify(err)
+				require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+				require.Equal(t, tc.wantMessage, classified.Message)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantExternal, harness.Runtime == codersdk.ChatRuntime(tc.runtime))
+		})
+	}
+}
+
 func TestWaitForACPAdapter(t *testing.T) {
 	t.Parallel()
 

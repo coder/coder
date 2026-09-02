@@ -15,7 +15,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
@@ -442,11 +441,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
-		if err := s.server.requireRuntimeExperiment(chat.Runtime); err != nil {
-			err = chaterror.WithClassification(err, chaterror.ClassifiedError{
-				Kind:    codersdk.ChatErrorKindConfig,
-				Message: "This chat uses an external runtime, but the agents-runtime-config experiment is disabled.",
-			})
+		harness, isExternal, err := s.server.externalHarness(chat.Runtime)
+		if err != nil {
 			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 		}
 		if s.server.hooks.Enabled() {
@@ -462,19 +458,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				continue
 			}
 		}
-		if chat.Runtime != database.ChatRuntimeCoder {
-			harness, ok := chatacp.HarnessFor(codersdk.ChatRuntime(chat.Runtime))
-			if ok {
-				return s.startACPGeneration(ctx, machine, input, harness, chat, messages)
-			}
-			err := chaterror.WithClassification(
-				xerrors.Errorf("unsupported chat runtime %q", chat.Runtime),
-				chaterror.ClassifiedError{
-					Kind:    codersdk.ChatErrorKindConfig,
-					Message: "This chat uses an unsupported runtime.",
-				},
-			)
-			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+		if isExternal {
+			return s.startACPGeneration(ctx, machine, input, harness, chat, messages)
 		}
 		prepareInput := generationPrepareInput{
 			Chat:                      chat,
