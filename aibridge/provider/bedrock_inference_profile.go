@@ -88,12 +88,12 @@ func modelIDFromARN(modelARN string) (string, error) {
 // IDs used for capability detection, usage recording, and pricing. Identifiers
 // that are not application inference profile ARNs are returned unchanged and
 // cost no AWS call.
-func resolveBedrockModels(ctx context.Context, cfg config.AWSBedrock, awsCfg aws.Config, resolve func(ctx context.Context, awsCfg aws.Config, profileARN string) (string, error)) (model, smallFastModel string, err error) {
+func resolveBedrockModels(ctx context.Context, cfg config.AWSBedrock, awsCfg aws.Config) (model, smallFastModel string, err error) {
 	resolveOne := func(configured string) (string, error) {
 		if !isApplicationInferenceProfileARN(configured) {
 			return configured, nil
 		}
-		return resolve(ctx, awsCfg, configured)
+		return resolveInferenceProfile(ctx, awsCfg, configured)
 	}
 
 	model, err = resolveOne(cfg.Model)

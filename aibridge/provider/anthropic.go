@@ -90,7 +90,7 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 		// Bedrock rejects outright on models that only accept adaptive thinking.
 		resolveCtx, cancel := context.WithTimeout(ctx, inferenceProfileResolutionTimeout)
 		defer cancel()
-		model, smallFastModel, err := resolveBedrockModels(resolveCtx, runtimeCfg, awsCfg, resolveInferenceProfile)
+		model, smallFastModel, err := resolveBedrockModels(resolveCtx, runtimeCfg, awsCfg)
 		if err != nil {
 			return nil, xerrors.Errorf("resolve bedrock models: %w", err)
 		}
