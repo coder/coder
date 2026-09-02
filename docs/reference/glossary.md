@@ -9,6 +9,7 @@ Each entry gives a short definition and, where it helps, links to the page that 
 > Several Coder terms share the word "agent" but mean different things:
 >
 > - [Coder Agents](#coder-agents) is the AI product for delegating development work to coding agents.
+> - [Agent Relay](#agent-relay) connects a cloud-hosted AI agent provider's hosted sessions to self-hosted workspaces. It is not Coder Agents.
 > - A [workspace agent](#workspace-agent) is the process that runs inside a workspace to provide SSH, port forwarding, the web terminal, and other services.
 > - [`coder_agent`](#coder_agent) is the Terraform resource in a template that declares a workspace agent.
 
@@ -25,6 +26,13 @@ A process-level firewall that enforces domain and verb allowlists on AI agent pr
 It was previously named Agent Boundaries and uses a sandbox backend, `nsjail` by default or `landjail`.
 This feature requires a Premium license.
 Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
+
+### Agent Relay
+
+A feature that connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted [workspaces](#workspace).
+The provider's orchestration and AI inference stay cloud-hosted; a worker process inside the workspace executes the agent's tool calls.
+In [early access](../install/releases/feature-stages.md#early-access-features).
+Refer to [Agent Relay](../ai-coder/agent-relay/index.md).
 
 ### AI Gateway
 
