@@ -1745,7 +1745,7 @@ func wrapTransportWithUserAgentHeader(transport http.RoundTripper, inv *serpent.
 
 // clientSessionIDEnv is the environment variable a spawning client (Toolbox,
 // the VS Code plugin) can set so the CLI it launches reuses an existing client
-// session ID instead of generating a new one, per the connection-log RFC.
+// session ID instead of generating a new one.
 const clientSessionIDEnv = "CODER_TRACE_SESSION_ID"
 
 // annotationClientSessionID marks commands that establish a client session and

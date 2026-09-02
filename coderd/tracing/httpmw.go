@@ -23,9 +23,9 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw/patternmatcher"
 )
 
-// SessionIDBaggageKey is the W3C baggage key clients use to propagate the
-// per-session correlation ID described in the connection-log RFC. The value is
-// a 16-byte identifier encoded as a 32-character hexadecimal string.
+// SessionIDBaggageKey is the W3C baggage key clients use to propagate their
+// per-session correlation ID. The value is a 16-byte identifier encoded as a
+// 32-character hexadecimal string.
 const SessionIDBaggageKey = "client_session_id"
 
 // Middleware adds tracing to http routes.
@@ -126,7 +126,7 @@ func sessionIDFromQueryString(q url.Values) string {
 }
 
 // NewSessionID generates a new client session ID: 16 random bytes encoded as a
-// 32-character lowercase hexadecimal string, the encoding the RFC mandates.
+// 32-character lowercase hexadecimal string, to match OpenTelemetry's identifiers.
 func NewSessionID() (string, error) {
 	var b [16]byte
 	if _, err := cryptorand.Read(b[:]); err != nil {
@@ -136,7 +136,7 @@ func NewSessionID() (string, error) {
 }
 
 // ValidSessionID reports whether s is a 32-character lowercase hexadecimal
-// string (a 16-byte value), the encoding the RFC mandates for the session ID.
+// string (a 16-byte value).
 // Only lowercase is accepted so that case-sensitive searches correlate
 // reliably. Validating also guards against logging arbitrary client-controlled
 // baggage values.
