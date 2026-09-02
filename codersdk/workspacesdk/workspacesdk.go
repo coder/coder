@@ -241,9 +241,9 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)
 
 	ip := tailnet.TailscaleServicePrefix.RandomAddr()
-	var header http.Header
+	var headerFunc func() http.Header
 	if headerTransport, ok := c.client.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
-		header = headerTransport.Header
+		headerFunc = headerTransport.Headers
 	}
 	var telemetrySink tailnet.TelemetrySink
 	if options.EnableTelemetry {
@@ -256,7 +256,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
-		DERPHeader:          &header,
+		DERPHeaderFunc:      headerFunc,
 		DERPTLSConfig:       c.client.DERPTLSConfig(),
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,

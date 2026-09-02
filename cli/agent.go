@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -57,6 +58,7 @@ func workspaceAgent() *serpent.Command {
 		blockReversePortForwarding      bool
 		blockLocalPortForwarding        bool
 		agentHeaderCommand              string
+		agentHeaderCommandInterval      time.Duration
 		agentHeader                     []string
 		devcontainers                   bool
 		devcontainerProjectDiscovery    bool
@@ -169,21 +171,6 @@ func workspaceAgent() *serpent.Command {
 			sinks = append(sinks, sloghuman.Sink(logWriter))
 			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
 
-			// Handle interrupt signals to allow for graceful shutdown,
-			// note that calling stopNotify disables the signal handler
-			// and the next interrupt will terminate the program (you
-			// probably want cancel instead).
-			//
-			// Note that we also handle these signals in the
-			// process that runs as PID 1, mainly to forward it to the agent child
-			// so that it can shutdown gracefully.
-			ctx, stopNotify := logSignalNotifyContext(ctx, logger, StopSignals...)
-			defer stopNotify()
-
-			// DumpHandler does signal handling, so we call it after the
-			// reaper.
-			go DumpHandler(ctx, "agent")
-
 			version := buildinfo.Version()
 			logger.Info(ctx, "agent is starting now",
 				slog.F("url", agentAuth.agentURL),
@@ -202,12 +189,30 @@ func workspaceAgent() *serpent.Command {
 			client.SDK.HTTPClient.Timeout = 30 * time.Second
 			// Attach header transport so we process --agent-header and
 			// --agent-header-command flags
-			headerTransport, err := headerTransport(ctx, &agentAuth.agentURL, agentHeader, agentHeaderCommand)
+			// Set up before the stop-signal context below: header refreshes
+			// must continue through graceful shutdown, which keeps talking
+			// to coderd after the signal arrives.
+			headerTransport, err := headerTransport(ctx, logger, quartz.NewReal(), &agentAuth.agentURL, agentHeader, agentHeaderCommand, agentHeaderCommandInterval)
 			if err != nil {
 				return xerrors.Errorf("configure header transport: %w", err)
 			}
 			headerTransport.Transport = client.SDK.HTTPClient.Transport
 			client.SDK.HTTPClient.Transport = headerTransport
+
+			// Handle interrupt signals to allow for graceful shutdown,
+			// note that calling stopNotify disables the signal handler
+			// and the next interrupt will terminate the program (you
+			// probably want cancel instead).
+			//
+			// Note that we also handle these signals in the
+			// process that runs as PID 1, mainly to forward it to the agent child
+			// so that it can shutdown gracefully.
+			ctx, stopNotify := logSignalNotifyContext(ctx, logger, StopSignals...)
+			defer stopNotify()
+
+			// DumpHandler does signal handling, so we call it after the
+			// reaper.
+			go DumpHandler(ctx, "agent")
 
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
@@ -429,6 +434,13 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_HEADER_COMMAND",
 			Value:       serpent.StringOf(&agentHeaderCommand),
 			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.",
+		},
+		{
+			Flag:        "agent-header-command-interval",
+			Env:         "CODER_AGENT_HEADER_COMMAND_INTERVAL",
+			Default:     "0",
+			Value:       serpent.DurationOf(&agentHeaderCommandInterval),
+			Description: "Re-run the agent header command at this interval so that refreshed values (e.g. short-lived tokens) are picked up. The default of 0 runs it once at startup.",
 		},
 		{
 			Flag:        "agent-header",

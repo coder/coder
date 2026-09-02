@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -378,14 +379,17 @@ func TestDERPHeaders(t *testing.T) {
 		workspace          = runAgent(t, client, memberUser.ID, newOptions.Database)
 	)
 
-	// Inject custom /derp handler so we can inspect the headers.
+	// Inject custom /derp handler so we can inspect the headers. Each case
+	// below sends a distinct X-Case value so that requests from one case
+	// cannot satisfy another.
 	var (
 		expectedHeaders = map[string]string{
 			"X-Test-Header":     "test-value",
 			"Cool-Header":       "Dean was Here!",
 			"X-Process-Testing": "very-wow",
 		}
-		derpCalled atomic.Int64
+		derpMu     sync.Mutex
+		derpCalled = map[string]int{}
 	)
 	setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/derp") {
@@ -396,44 +400,63 @@ func TestDERPHeaders(t *testing.T) {
 					break
 				}
 			}
+			// Only count if all the headers are set, because the agent
+			// calls derp also.
 			if ok {
-				// Only increment if all the headers are set, because the agent
-				// calls derp also.
-				derpCalled.Add(1)
+				derpMu.Lock()
+				derpCalled[r.Header.Get("X-Case")]++
+				derpMu.Unlock()
 			}
 		}
 
 		coderAPI.RootHandler.ServeHTTP(w, r)
 	}))
 
-	// Connect with the headers set as args.
-	args := []string{
-		"-v",
-		"--no-feature-warning",
-		"--no-version-warning",
-		"ping", workspace.Name,
-		"-n", "1",
-		"--header-command", "printf X-Process-Testing=very-wow",
+	// With an interval the transport serves headers through a refreshing
+	// getter instead of a fixed map; DERP must receive them either way.
+	for _, tc := range []struct {
+		name     string
+		interval string
+	}{
+		{name: "Once", interval: "0"},
+		{name: "Interval", interval: "1h"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// Connect with the headers set as args.
+			args := []string{
+				"-v",
+				"--no-feature-warning",
+				"--no-version-warning",
+				"ping", workspace.Name,
+				"-n", "1",
+				"--header-command", "printf X-Process-Testing=very-wow",
+				"--header-command-interval", tc.interval,
+				"--header", "X-Case=" + tc.name,
+			}
+			for k, v := range expectedHeaders {
+				if k != "X-Process-Testing" {
+					args = append(args, "--header", fmt.Sprintf("%s=%s", k, v))
+				}
+			}
+			inv, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, member, root)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err)
+			})
+
+			stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
+			<-cmdDone
+
+			derpMu.Lock()
+			defer derpMu.Unlock()
+			require.Positive(t, derpCalled[tc.name], "expected /derp to be called at least once with the headers")
+		})
 	}
-	for k, v := range expectedHeaders {
-		if k != "X-Process-Testing" {
-			args = append(args, "--header", fmt.Sprintf("%s=%s", k, v))
-		}
-	}
-	inv, root := clitest.New(t, args...)
-	clitest.SetupConfig(t, member, root)
-	stdout := expecter.NewAttachedToInvocation(t, inv)
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	cmdDone := tGo(t, func() {
-		err := inv.WithContext(ctx).Run()
-		assert.NoError(t, err)
-	})
-
-	stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
-	<-cmdDone
-
-	require.Greater(t, derpCalled.Load(), int64(0), "expected /derp to be called at least once")
 }
 
 func TestHandlersOK(t *testing.T) {

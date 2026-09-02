@@ -144,6 +144,16 @@ Additional HTTP headers added to all requests. Provide as key=value. Can be spec
 
 An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.
 
+### --header-command-interval
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>duration</code>                       |
+| Environment | <code>$CODER_HEADER_COMMAND_INTERVAL</code> |
+| Default     | <code>0</code>                              |
+
+Re-run the header command at this interval while the process runs, so that long-lived commands such as ssh pick up refreshed values (e.g. short-lived tokens). Set it comfortably below the lifetime of the credentials the command returns. The default of 0 runs it once at startup.
+
 ### --force-tty
 
 |             |                               |

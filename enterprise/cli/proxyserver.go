@@ -197,7 +197,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 
 			// Attach header transport so we process --header and
 			// --header-command flags
-			headerTransport, err := r.HeaderTransport(ctx, primaryAccessURL.Value())
+			headerTransport, err := r.HeaderTransport(ctx, logger, primaryAccessURL.Value())
 			if err != nil {
 				return xerrors.Errorf("configure header transport: %w", err)
 			}
