@@ -2096,9 +2096,19 @@ func testRuntimeRejectsInvalidModelConfigs(
 ) {
 	t.Helper()
 
+	memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, user.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+	harnessProvider := func(t *testing.T) uuid.NullUUID {
+		t.Helper()
+		return uuid.NullUUID{UUID: createAIProviderForTest(t, client, provider, "test-api-key").ID, Valid: true}
+	}
+
 	invalidModelConfigs := []struct {
 		name          string
 		modelConfigID func(t *testing.T) uuid.UUID
+		// asMember sends the requests as an organization member; the
+		// owner's site-wide permissions would satisfy any model ACL.
+		asMember bool
 	}{
 		{
 			name: "Unknown",
@@ -2129,6 +2139,28 @@ func testRuntimeRejectsInvalidModelConfigs(
 				return config.ID
 			},
 		},
+		{
+			name: "OtherOrganization",
+			modelConfigID: func(t *testing.T) uuid.UUID {
+				return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+					OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+					AIProviderID:   harnessProvider(t),
+					Model:          "other-org-" + uuid.NewString(),
+				}).ID
+			},
+		},
+		{
+			name:     "ACLRestricted",
+			asMember: true,
+			modelConfigID: func(t *testing.T) uuid.UUID {
+				return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+					OrganizationID: user.OrganizationID,
+					AIProviderID:   harnessProvider(t),
+					Model:          "private-" + uuid.NewString(),
+					GroupACL:       database.ChatACL{},
+				}).ID
+			},
+		},
 	}
 
 	for _, tc := range invalidModelConfigs {
@@ -2137,9 +2169,13 @@ func testRuntimeRejectsInvalidModelConfigs(
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			modelConfigID := tc.modelConfigID(t)
+			client, ownerID := client, user.UserID
+			if tc.asMember {
+				client, ownerID = memberClient, member.ID
+			}
 			chat := dbgen.Chat(t, db, database.Chat{
 				OrganizationID: user.OrganizationID,
-				OwnerID:        user.UserID,
+				OwnerID:        ownerID,
 				Runtime:        database.ChatRuntime(runtime),
 				Title:          "runtime model validation " + uuid.NewString(),
 			})

@@ -504,8 +504,9 @@ func TestACPChatModelSelection(t *testing.T) {
 
 		setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
 		selected := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "selected-model",
-			AIProviderID: uuid.NullUUID{UUID: setup.providerID, Valid: true},
+			OrganizationID: setup.org.ID,
+			Model:          "selected-model",
+			AIProviderID:   uuid.NullUUID{UUID: setup.providerID, Valid: true},
 		})
 
 		recorder := &acpEnvRecorder{}
@@ -538,8 +539,9 @@ func TestACPChatModelSelectionUnavailableFallsBack(t *testing.T) {
 
 		setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
 		disabled := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "disabled-model",
-			AIProviderID: uuid.NullUUID{UUID: setup.providerID, Valid: true},
+			OrganizationID: setup.org.ID,
+			Model:          "disabled-model",
+			AIProviderID:   uuid.NullUUID{UUID: setup.providerID, Valid: true},
 		}, func(p *database.InsertChatModelConfigParams) {
 			p.Enabled = false
 		})
@@ -621,8 +623,9 @@ func TestACPChatSelectionCredentials(t *testing.T) {
 				p.APIKey = "second-provider-key"
 			})
 			selected := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-				Model:        "second-model",
-				AIProviderID: uuid.NullUUID{UUID: second.ID, Valid: true},
+				OrganizationID: setup.org.ID,
+				Model:          "second-model",
+				AIProviderID:   uuid.NullUUID{UUID: second.ID, Valid: true},
 			})
 
 			recorder := &acpEnvRecorder{}
@@ -654,8 +657,9 @@ func TestACPChatSelectionCredentials(t *testing.T) {
 				p.APIKey = ""
 			})
 			selected := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-				Model:        "keyless-model",
-				AIProviderID: uuid.NullUUID{UUID: keyless.ID, Valid: true},
+				OrganizationID: setup.org.ID,
+				Model:          "keyless-model",
+				AIProviderID:   uuid.NullUUID{UUID: keyless.ID, Valid: true},
 			})
 
 			recorder := &acpEnvRecorder{}
@@ -665,11 +669,11 @@ func TestACPChatSelectionCredentials(t *testing.T) {
 			chat := waitForTerminalChat(ctx, t, db, created.Chat.ID)
 			require.Equal(t, database.ChatStatusWaiting, chat.Status)
 
-			requireTurnEnv(t, harness, recorder.last(t), primaryCredentials("keyless-model"))
+			requireTurnEnv(t, harness, recorder.last(t), primaryCredentials(acpTestPinnedModel))
 			messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.Chat.ID})
 			require.NoError(t, err)
 			require.Len(t, messages, 2)
-			require.Equal(t, uuid.NullUUID{UUID: selected.ID, Valid: true}, messages[1].ModelConfigID)
+			require.False(t, messages[1].ModelConfigID.Valid)
 		})
 	})
 }
@@ -684,19 +688,27 @@ func TestACPModelSelectionValidation(t *testing.T) {
 
 		setup := seedACPChatDependencies(t, db, harness, database.WorkspaceTransitionStart)
 		validCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "valid-model",
-			AIProviderID: uuid.NullUUID{UUID: setup.providerID, Valid: true},
+			OrganizationID: setup.org.ID,
+			Model:          "valid-model",
+			AIProviderID:   uuid.NullUUID{UUID: setup.providerID, Valid: true},
 		})
 		otherCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "other-provider-model",
-			AIProviderID: uuid.NullUUID{UUID: setup.otherProviderID, Valid: true},
-			IsDefault:    true,
+			OrganizationID: setup.org.ID,
+			Model:          "other-provider-model",
+			AIProviderID:   uuid.NullUUID{UUID: setup.otherProviderID, Valid: true},
+			IsDefault:      true,
 		})
 		disabledCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "disabled-model",
-			AIProviderID: uuid.NullUUID{UUID: setup.providerID, Valid: true},
+			OrganizationID: setup.org.ID,
+			Model:          "disabled-model",
+			AIProviderID:   uuid.NullUUID{UUID: setup.providerID, Valid: true},
 		}, func(p *database.InsertChatModelConfigParams) {
 			p.Enabled = false
+		})
+		otherOrgCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+			Model:          "other-org-model",
+			AIProviderID:   uuid.NullUUID{UUID: setup.providerID, Valid: true},
 		})
 
 		created := createACPChat(setupCtx, t, db, ps, setup, "hello")
@@ -730,9 +742,10 @@ func TestACPModelSelectionValidation(t *testing.T) {
 		})
 
 		for name, id := range map[string]uuid.UUID{
-			"OtherProviderRejected": otherCfg.ID,
-			"DisabledRejected":      disabledCfg.ID,
-			"UnknownRejected":       uuid.New(),
+			"OtherProviderRejected":     otherCfg.ID,
+			"OtherOrganizationRejected": otherOrgCfg.ID,
+			"DisabledRejected":          disabledCfg.ID,
+			"UnknownRejected":           uuid.New(),
 		} {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
@@ -764,10 +777,10 @@ func TestACPModelSelectionValidation(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			require.NoError(t, replica.ValidateACPModelConfigID(ctx, harness, validCfg.ID))
-			require.ErrorIs(t, replica.ValidateACPModelConfigID(ctx, harness, otherCfg.ID), chatd.ErrInvalidModelConfigID)
-			require.ErrorIs(t, replica.ValidateACPModelConfigID(ctx, harness, disabledCfg.ID), chatd.ErrInvalidModelConfigID)
-			require.ErrorIs(t, replica.ValidateACPModelConfigID(ctx, harness, uuid.New()), chatd.ErrInvalidModelConfigID)
+			require.NoError(t, replica.ValidateACPModelConfigID(ctx, harness, setup.org.ID, validCfg.ID))
+			for _, id := range []uuid.UUID{otherCfg.ID, otherOrgCfg.ID, disabledCfg.ID, uuid.New()} {
+				require.ErrorIs(t, replica.ValidateACPModelConfigID(ctx, harness, setup.org.ID, id), chatd.ErrInvalidModelConfigID)
+			}
 		})
 	})
 }

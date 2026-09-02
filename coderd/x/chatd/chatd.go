@@ -1361,7 +1361,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.ModelConfigID != uuid.Nil {
 		var err error
 		if isExternal {
-			_, _, err = fetchACPModelConfig(chatdModelConfigLookupContext(ctx), p.db, harness, opts.ModelConfigID)
+			_, _, err = fetchACPModelConfig(ctx, p.db, opts.OrganizationID, harness, opts.ModelConfigID)
 		} else {
 			err = requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID)
 		}
@@ -1708,9 +1708,7 @@ func resolveSendMessageModelConfigID(
 				chat.Runtime,
 			)
 		}
-		if _, _, err := fetchACPModelConfig(
-			chatdModelConfigLookupContext(ctx), store, harness, requested,
-		); err != nil {
+		if _, _, err := fetchACPModelConfig(ctx, store, chat.OrganizationID, harness, requested); err != nil {
 			return uuid.Nil, err
 		}
 		return requested, nil
@@ -1777,7 +1775,10 @@ func validateCreateModelConfigID(
 }
 
 // fetchACPModelConfig loads an explicitly selected model config for an
-// external runtime chat together with its provider. Only enabled,
+// external runtime chat together with its provider. The config is read
+// as the caller, so the organization scope and model ACLs that govern
+// built-in chats apply here too; only the provider row, which chat
+// owners cannot read, is loaded with metadata access. Only enabled,
 // non-deleted configs on an enabled provider of the harness type are
 // selectable: the runtime injects that provider's credentials into the
 // adapter, so other provider types cannot be honored. Failures wrap
@@ -1785,12 +1786,16 @@ func validateCreateModelConfigID(
 func fetchACPModelConfig(
 	ctx context.Context,
 	store database.Store,
+	organizationID uuid.UUID,
 	harness chatacp.Harness,
 	id uuid.UUID,
 ) (database.ChatModelConfig, database.AIProvider, error) {
 	config, err := store.GetEnabledChatModelConfigByID(ctx, id)
+	if err == nil && config.OrganizationID != organizationID {
+		err = sql.ErrNoRows
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
 			return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
 				"%w: %s", ErrInvalidModelConfigID, id,
 			)
@@ -1799,12 +1804,8 @@ func fetchACPModelConfig(
 			"get model config %s: %w", id, err,
 		)
 	}
-	if !config.AIProviderID.Valid {
-		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
-			"%w: model config %s has no provider", ErrInvalidModelConfigID, id,
-		)
-	}
-	provider, err := store.GetAIProviderByID(ctx, config.AIProviderID.UUID)
+	//nolint:gocritic // The harness only needs the provider type; chat owners cannot read provider rows.
+	provider, err := store.GetAIProviderByID(dbauthz.AsAIProviderMetadataReader(ctx), config.AIProviderID.UUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
@@ -1823,21 +1824,13 @@ func fetchACPModelConfig(
 	return config, provider, nil
 }
 
-// chatdModelConfigLookupContext scopes external runtime model selection
-// lookups to the daemon: fetchACPModelConfig reads the AI provider row,
-// which chat owners cannot read themselves.
-func chatdModelConfigLookupContext(ctx context.Context) context.Context {
-	//nolint:gocritic // External runtime model validation needs
-	// daemon-scoped provider reads.
-	return dbauthz.AsChatd(ctx)
-}
-
 // ValidateACPModelConfigID checks that an explicit model selection for
-// an external runtime chat references an enabled model config on the
-// harness provider. It returns an error wrapping ErrInvalidModelConfigID
-// when the selection is not usable.
-func (p *Server) ValidateACPModelConfigID(ctx context.Context, harness chatacp.Harness, id uuid.UUID) error {
-	_, _, err := fetchACPModelConfig(chatdModelConfigLookupContext(ctx), p.db, harness, id)
+// an external runtime chat in the organization references an enabled
+// model config the caller may use on the harness provider. It returns
+// an error wrapping ErrInvalidModelConfigID when the selection is not
+// usable.
+func (p *Server) ValidateACPModelConfigID(ctx context.Context, harness chatacp.Harness, organizationID uuid.UUID, id uuid.UUID) error {
+	_, _, err := fetchACPModelConfig(ctx, p.db, organizationID, harness, id)
 	return err
 }
 

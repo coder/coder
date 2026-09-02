@@ -96,11 +96,7 @@ func (s *taskStarter) startACPGeneration(
 		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
 
-	env := harness.Env(chatacp.TurnCredentials{
-		APIKey:  cfg.apiKey,
-		BaseURL: cfg.baseURL,
-		Model:   cfg.model,
-	})
+	env := harness.Env(cfg.TurnCredentials)
 
 	transportFn := s.server.acpTransportFn
 	if transportFn == nil {
@@ -297,10 +293,8 @@ func chatMessageText(msg database.ChatMessage) (string, error) {
 }
 
 type acpTurnConfig struct {
-	model          string
+	chatacp.TurnCredentials
 	permissionMode string
-	apiKey         string
-	baseURL        string
 	// modelConfigID is the applied explicit selection, stamped on the
 	// turn's assistant messages. Zero when the runtime default chain
 	// (admin pin, then adapter default) applied.
@@ -340,28 +334,6 @@ func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, cha
 		)
 	}
 
-	out := acpTurnConfig{
-		model:          cfg.Model,
-		permissionMode: cmp.Or(cfg.PermissionMode, harness.DefaultSessionMode),
-	}
-
-	var selectedProviderID uuid.UUID
-	if selection != uuid.Nil {
-		modelConfig, provider, err := fetchACPModelConfig(ctx, p.db, harness, selection)
-		if err != nil {
-			// The selection was valid at send time; losing it mid-flight
-			// (config deleted or disabled, provider changed) falls back
-			// to the runtime default chain and leaves the assistant
-			// messages unstamped.
-			p.logger.Warn(ctx, "acp turn: selected model config unavailable, using runtime default",
-				slog.F("chat_id", chat.ID), slog.F("model_config_id", selection), slog.Error(err))
-		} else {
-			out.model = modelConfig.Model
-			out.modelConfigID = selection
-			selectedProviderID = provider.ID
-		}
-	}
-
 	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 	if err != nil {
 		return acpTurnConfig{}, xerrors.Errorf("get ai providers: %w", err)
@@ -376,22 +348,21 @@ func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, cha
 	if err != nil {
 		return acpTurnConfig{}, xerrors.Errorf("configure %s providers: %w", harness.ProviderType, err)
 	}
-	var fallbackKey, fallbackBaseURL string
+	// The runtime default chain pairs the admin model pin with the first
+	// harness provider key; an explicit selection uses its own provider's.
+	var defaultCreds chatacp.TurnCredentials
+	credsByProvider := make(map[uuid.UUID]chatacp.TurnCredentials, len(configuredProviders))
 	for _, configured := range configuredProviders {
 		if configured.APIKey == "" {
 			continue
 		}
-		if configured.ProviderID == selectedProviderID {
-			out.apiKey = configured.APIKey
-			out.baseURL = configured.BaseURL
-			return out, nil
-		}
-		if fallbackKey == "" {
-			fallbackKey = configured.APIKey
-			fallbackBaseURL = configured.BaseURL
+		creds := chatacp.TurnCredentials{APIKey: configured.APIKey, BaseURL: configured.BaseURL}
+		credsByProvider[configured.ProviderID] = creds
+		if defaultCreds.APIKey == "" {
+			defaultCreds = creds
 		}
 	}
-	if fallbackKey == "" {
+	if defaultCreds.APIKey == "" {
 		return acpTurnConfig{}, chaterror.WithClassification(
 			xerrors.Errorf("no %s provider key configured", harness.ProviderType),
 			chaterror.ClassifiedError{
@@ -401,15 +372,35 @@ func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, cha
 			},
 		)
 	}
-	if selectedProviderID != uuid.Nil {
-		// The selected provider yielded no usable key; keep the model
-		// but borrow another same-type provider's credentials. A
-		// visible auth failure beats silently ignoring the selection.
-		p.logger.Warn(ctx, "acp turn: selected model's provider has no usable key, using fallback provider credentials",
-			slog.F("chat_id", chat.ID), slog.F("model_config_id", selection))
+
+	defaultCreds.Model = cfg.Model
+	out := acpTurnConfig{
+		TurnCredentials: defaultCreds,
+		permissionMode:  cmp.Or(cfg.PermissionMode, harness.DefaultSessionMode),
 	}
-	out.apiKey = fallbackKey
-	out.baseURL = fallbackBaseURL
+	if selection == uuid.Nil {
+		return out, nil
+	}
+	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
+	if err != nil {
+		return acpTurnConfig{}, err
+	}
+	modelConfig, provider, err := fetchACPModelConfig(modelCtx, p.db, chat.OrganizationID, harness, selection)
+	if err == nil {
+		if creds, ok := credsByProvider[provider.ID]; ok {
+			creds.Model = modelConfig.Model
+			out.TurnCredentials = creds
+			out.modelConfigID = selection
+			return out, nil
+		}
+		err = xerrors.Errorf("provider %s has no usable key", provider.ID)
+	}
+	// The selection was valid at send time; losing it mid-flight (config
+	// deleted or disabled, provider changed or left without a key) falls
+	// back to the runtime default chain and leaves the assistant messages
+	// unstamped. A model is never paired with another provider's key.
+	p.logger.Warn(ctx, "acp turn: selected model config unavailable, using runtime default",
+		slog.F("chat_id", chat.ID), slog.F("model_config_id", selection), slog.Error(err))
 	return out, nil
 }
 

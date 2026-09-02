@@ -1089,7 +1089,7 @@ func (api *API) validateExplicitChatModelConfigAvailable(
 		return 0, nil
 	}
 	if harness, ok := chatacp.HarnessFor(codersdk.ChatRuntime(runtime)); ok {
-		err := api.chatDaemon.ValidateACPModelConfigID(ctx, harness, modelConfigID)
+		err := api.chatDaemon.ValidateACPModelConfigID(ctx, harness, organizationID, modelConfigID)
 		if err == nil {
 			return 0, nil
 		}
