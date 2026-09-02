@@ -85,9 +85,6 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 
 		// Resolution only calls AWS for application inference profile ARNs, so
 		// deployments configured with plain model IDs need no extra permission.
-		// A failure here fails provider construction: serving the provider with
-		// an unresolved profile would silently misshape every request, which
-		// Bedrock rejects outright on models that only accept adaptive thinking.
 		resolveCtx, cancel := context.WithTimeout(ctx, inferenceProfileResolutionTimeout)
 		defer cancel()
 		model, smallFastModel, err := resolveBedrockModels(resolveCtx, runtimeCfg, awsCfg)
