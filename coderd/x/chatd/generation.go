@@ -442,14 +442,12 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
-		if chat.Runtime != database.ChatRuntimeCoder {
-			if err := s.server.requireRuntimeExperiment(chat.Runtime); err != nil {
-				err = chaterror.WithClassification(err, chaterror.ClassifiedError{
-					Kind:    codersdk.ChatErrorKindConfig,
-					Message: "This chat uses an external runtime, but the agents-runtime-config experiment is disabled.",
-				})
-				return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
-			}
+		if err := s.server.requireRuntimeExperiment(chat.Runtime); err != nil {
+			err = chaterror.WithClassification(err, chaterror.ClassifiedError{
+				Kind:    codersdk.ChatErrorKindConfig,
+				Message: "This chat uses an external runtime, but the agents-runtime-config experiment is disabled.",
+			})
+			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 		}
 		if s.server.hooks.Enabled() {
 			result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)

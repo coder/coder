@@ -57,7 +57,7 @@ type TurnInput struct {
 	// acceptEdits). Empty keeps the adapter default.
 	PermissionMode string
 	// AgentName names the agent in notes streamed into the chat, such
-	// as the permission-denied note. Defaults to "The agent".
+	// as the permission-denied note.
 	AgentName string
 	// Publish streams preview parts into the chat's message part
 	// buffer.
@@ -98,7 +98,7 @@ func RunTurn(ctx context.Context, transport Transport, input TurnInput) (TurnOut
 	collector := &turnCollector{
 		publish:   input.Publish,
 		logger:    input.Logger,
-		agentName: cmp.Or(input.AgentName, "The agent"),
+		agentName: input.AgentName,
 	}
 	conn := acp.NewClientSideConnection(collector, process.Stdin(), process.Stdout())
 	// Without an explicit logger the SDK logs through slog.Default(),

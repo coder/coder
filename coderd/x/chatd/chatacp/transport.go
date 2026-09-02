@@ -14,8 +14,6 @@ import (
 type Process interface {
 	Stdin() io.WriteCloser
 	Stdout() io.Reader
-	// Wait blocks until the process exits.
-	Wait() error
 	// Close terminates the process and releases the channel.
 	Close() error
 }
@@ -48,7 +46,6 @@ type sshProcess struct {
 
 func (p *sshProcess) Stdin() io.WriteCloser { return p.stdin }
 func (p *sshProcess) Stdout() io.Reader     { return p.stdout }
-func (p *sshProcess) Wait() error           { return p.session.Wait() }
 
 func (p *sshProcess) Close() error {
 	_ = p.stdin.Close()

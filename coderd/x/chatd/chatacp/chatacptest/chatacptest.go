@@ -199,23 +199,16 @@ func (t *PipeTransport) Start(_ context.Context) (chatacp.Process, error) {
 	return &pipeProcess{
 		stdin:  clientWrites,
 		stdout: clientReads,
-		conn:   conn,
 	}, nil
 }
 
 type pipeProcess struct {
 	stdin  io.WriteCloser
 	stdout *io.PipeReader
-	conn   *acp.AgentSideConnection
 }
 
 func (p *pipeProcess) Stdin() io.WriteCloser { return p.stdin }
 func (p *pipeProcess) Stdout() io.Reader     { return p.stdout }
-
-func (p *pipeProcess) Wait() error {
-	<-p.conn.Done()
-	return nil
-}
 
 func (p *pipeProcess) Close() error {
 	_ = p.stdin.Close()

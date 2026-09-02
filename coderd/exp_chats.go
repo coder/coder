@@ -1296,7 +1296,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if resp := runtimeChatTextOnlyError(req.Content, "content"); resp != nil {
+		if resp := runtimeChatTextOnlyError(req.Content); resp != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 			return
 		}
@@ -2697,7 +2697,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if resp := runtimeChatTextOnlyError(req.Content, "content"); resp != nil {
+		if resp := runtimeChatTextOnlyError(req.Content); resp != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 			return
 		}
@@ -2913,7 +2913,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if chat.Runtime != database.ChatRuntimeCoder {
-		if resp := runtimeChatTextOnlyError(req.Content, "content"); resp != nil {
+		if resp := runtimeChatTextOnlyError(req.Content); resp != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 			return
 		}
@@ -4322,9 +4322,7 @@ func (api *API) createChatRuntimeWorkspace(
 	ownerID uuid.UUID,
 ) (codersdk.Workspace, bool) {
 	ctx := r.Context()
-	//nolint:gocritic // Members cannot read deployment config; the
-	// runtime config only names the template backing runtime chats.
-	config, err := api.Database.GetChatRuntimeConfig(dbauthz.AsSystemRestricted(ctx), database.GetChatRuntimeConfigParams{
+	config, err := api.Database.GetChatRuntimeConfig(ctx, database.GetChatRuntimeConfigParams{
 		OrganizationID: organizationID,
 		Runtime:        runtime,
 	})
@@ -6970,14 +6968,14 @@ func (api *API) requireChatRuntimeExperiment(ctx context.Context, rw http.Respon
 // runtimeChatTextOnlyError rejects non-text input parts for chats on
 // external runtimes. Runtime prompt paths forward only text parts to
 // the adapter, so accepting attachments here would silently drop them.
-func runtimeChatTextOnlyError(parts []codersdk.ChatInputPart, fieldName string) *codersdk.Response {
+func runtimeChatTextOnlyError(parts []codersdk.ChatInputPart) *codersdk.Response {
 	for i, part := range parts {
 		if strings.EqualFold(strings.TrimSpace(string(part.Type)), string(codersdk.ChatInputPartTypeText)) {
 			continue
 		}
 		return &codersdk.Response{
 			Message: "Runtime chats support text content only.",
-			Detail:  fmt.Sprintf("%s[%d] has type %q. Attachments are not supported on runtime chats.", fieldName, i, part.Type),
+			Detail:  fmt.Sprintf("content[%d] has type %q. Attachments are not supported on runtime chats.", i, part.Type),
 		}
 	}
 	return nil
