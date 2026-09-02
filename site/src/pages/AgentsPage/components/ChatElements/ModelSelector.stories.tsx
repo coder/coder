@@ -50,7 +50,7 @@ const anthropicModels: ModelSelectorOption[] = [
 const allModels: ModelSelectorOption[] = [...openAIModels, ...anthropicModels];
 
 const unsetHint =
-	"Uses the model your administrator configured for this runtime. If none is set, Claude Code keeps the model from your previous message until you pick one.";
+	"Uses the model your administrator pinned for this runtime. If none is pinned, Claude Code uses its own default model.";
 
 const effortModel: ModelSelectorOption = {
 	...MockModelSelectorOption,
