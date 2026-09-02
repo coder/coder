@@ -3813,11 +3813,11 @@ communicating directly.`,
 		{
 			Name:        "Disable User Secret File Path",
 			Description: "Disable Coder-managed file path delivery for user secrets. Stored paths remain until users clear them and resume if this setting is turned off.",
-			Flag:        "user-secrets-disable-file-path",
-			Env:         "CODER_USER_SECRETS_DISABLE_FILE_PATH",
+			Flag:        "disable-user-secret-file-path",
+			Env:         "CODER_DISABLE_USER_SECRET_FILE_PATH",
 
 			Value: &c.DisableUserSecretFilePath,
-			YAML:  "userSecretsDisableFilePath",
+			YAML:  "disableUserSecretFilePath",
 		},
 		{
 			Name:        "Session Duration",

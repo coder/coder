@@ -77,9 +77,9 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 
 Disable Coder-managed file path delivery for user secrets. Stored paths remain until users clear them and resume if this setting is turned off.
 
-- Environment variable: `CODER_USER_SECRETS_DISABLE_FILE_PATH`
-- CLI flag: [`--user-secrets-disable-file-path`](../../reference/cli/server.md#--user-secrets-disable-file-path)
-- YAML key: `userSecretsDisableFilePath`
+- Environment variable: `CODER_DISABLE_USER_SECRET_FILE_PATH`
+- CLI flag: [`--disable-user-secret-file-path`](../../reference/cli/server.md#--disable-user-secret-file-path)
+- YAML key: `disableUserSecretFilePath`
 
 ### Disable workspace agent context sync
 

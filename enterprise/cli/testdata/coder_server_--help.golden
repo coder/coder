@@ -49,7 +49,7 @@ OPTIONS:
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
 
-      --user-secrets-disable-file-path bool, $CODER_USER_SECRETS_DISABLE_FILE_PATH
+      --disable-user-secret-file-path bool, $CODER_DISABLE_USER_SECRET_FILE_PATH
           Disable Coder-managed file path delivery for user secrets. Stored
           paths remain until users clear them and resume if this setting is
           turned off.

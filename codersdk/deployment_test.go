@@ -1428,7 +1428,7 @@ func TestRetentionConfigParsing(t *testing.T) {
 	}
 }
 
-func TestUserSecretsDisableFilePath(t *testing.T) {
+func TestDisableUserSecretFilePath(t *testing.T) {
 	t.Parallel()
 
 	dv := codersdk.DeploymentValues{}
@@ -1444,19 +1444,19 @@ func TestUserSecretsDisableFilePath(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, opt.Flag, "option must be registered")
-	assert.Equal(t, "user-secrets-disable-file-path", opt.Flag)
-	assert.Equal(t, "CODER_USER_SECRETS_DISABLE_FILE_PATH", opt.Env)
-	assert.Equal(t, "userSecretsDisableFilePath", opt.YAML)
+	assert.Equal(t, "disable-user-secret-file-path", opt.Flag)
+	assert.Equal(t, "CODER_DISABLE_USER_SECRET_FILE_PATH", opt.Env)
+	assert.Equal(t, "disableUserSecretFilePath", opt.YAML)
 
 	require.NoError(t, opts.ParseEnv([]serpent.EnvVar{
-		{Name: "CODER_USER_SECRETS_DISABLE_FILE_PATH", Value: "true"},
+		{Name: "CODER_DISABLE_USER_SECRET_FILE_PATH", Value: "true"},
 	}))
 	require.True(t, dv.DisableUserSecretFilePath.Value(), "env must set the value")
 
 	yamlDV := codersdk.DeploymentValues{}
 	yamlOpts := yamlDV.Options()
 	var node yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("userSecretsDisableFilePath: true\n"), &node))
+	require.NoError(t, yaml.Unmarshal([]byte("disableUserSecretFilePath: true\n"), &node))
 	require.NoError(t, node.Decode(&yamlOpts))
 	require.True(t, yamlDV.DisableUserSecretFilePath.Value(), "yaml must set the value")
 
