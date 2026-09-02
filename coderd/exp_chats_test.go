@@ -2057,20 +2057,42 @@ func TestChatRuntimeRequests(t *testing.T) {
 		},
 	})
 
-	t.Run("SendRejectsCoderRuntimeOptions", func(t *testing.T) {
+	t.Run("RejectsCoderRuntimeOperations", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		planMode := codersdk.ChatPlanModePlan
-		_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "runtime send",
-			}},
-			PlanMode: &planMode,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "plan_mode and mcp_server_ids are not supported on runtime chats.", sdkErr.Message)
+		tests := []struct {
+			name        string
+			do          func() error
+			wantMessage string
+		}{
+			{
+				name: "SendWithPlanMode",
+				do: func() error {
+					_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+						Content:  []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "runtime send"}},
+						PlanMode: &planMode,
+					})
+					return err
+				},
+				wantMessage: "plan_mode and mcp_server_ids are not supported on runtime chats.",
+			},
+			{
+				name:        "Compact",
+				do:          func() error { _, err := client.CompactChat(ctx, chat.ID); return err },
+				wantMessage: "Context compaction is not supported on runtime chats.",
+			},
+			{
+				name:        "Clear",
+				do:          func() error { _, err := client.ClearChat(ctx, chat.ID); return err },
+				wantMessage: "Context clearing is not supported on runtime chats.",
+			},
+		}
+		for _, tc := range tests {
+			sdkErr := requireSDKError(t, tc.do(), http.StatusBadRequest)
+			require.Equal(t, tc.wantMessage, sdkErr.Message, tc.name)
+		}
 	})
 
 	t.Run("GetHydratesRuntimeCommands", func(t *testing.T) {

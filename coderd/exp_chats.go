@@ -1078,6 +1078,11 @@ func (api *API) validateUserChatModelConfigAvailable(
 	return validateUserChatModelConfigAvailability(modelConfig, reason)
 }
 
+// validateExplicitChatModelConfigAvailable validates a caller-supplied
+// model config ID. A nil ID keeps the chat's current model and is
+// validated by the daemon's fallback resolution instead. External
+// runtimes validate the selection through chatd's harness policy rather
+// than the user availability check.
 func (api *API) validateExplicitChatModelConfigAvailable(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -3441,6 +3446,14 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if chat.Runtime != database.ChatRuntimeCoder {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Context compaction is not supported on runtime chats.",
+			Detail:  "The runtime manages its own context.",
+		})
+		return
+	}
+
 	updated, err := api.chatDaemon.CompactChat(ctx, chat)
 	if err != nil {
 		if writeCommonChatMutationError(ctx, rw, err, "Cannot compact an archived chat.") {
@@ -3506,6 +3519,14 @@ func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
 	if apiKey.UserID != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may clear the chat context.",
+		})
+		return
+	}
+
+	if chat.Runtime != database.ChatRuntimeCoder {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Context clearing is not supported on runtime chats.",
+			Detail:  "The runtime manages its own context.",
 		})
 		return
 	}
