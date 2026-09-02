@@ -585,9 +585,15 @@ export const RuntimeAvailabilityError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByRole("alert", {}, { timeout: 5000 }),
-		).toHaveTextContent("Runtime availability could not be loaded");
+		// The loading alert renders first, so wait for the alert text to
+		// change instead of asserting on whichever alert appears first.
+		await waitFor(
+			() =>
+				expect(canvas.getByRole("alert")).toHaveTextContent(
+					"Runtime availability could not be loaded",
+				),
+			{ timeout: 5000 },
+		);
 	},
 };
 
