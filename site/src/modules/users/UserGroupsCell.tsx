@@ -53,6 +53,9 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 						align="start"
 						sideOffset={8}
 						className="w-auto min-w-[240px] max-w-sm max-h-[400px] p-0"
+						onClick={(event) => event.stopPropagation()}
+						onKeyDown={(event) => event.stopPropagation()}
+						onKeyUp={(event) => event.stopPropagation()}
 					>
 						<ul className="m-0 list-none flex flex-col flex-nowrap gap-0 px-0.5 py-1 text-sm">
 							{userGroups.map((group) => {

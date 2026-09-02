@@ -45,9 +45,7 @@ export const Example: Story = {
 			canvas.queryByRole("button", { name: /open menu/i }),
 		).not.toBeInTheDocument();
 		await expect(
-			canvas.queryByRole("button", {
-				name: (accessibleName) => accessibleName.includes(MockUserOwner.email),
-			}),
+			canvas.queryByRole("link", { name: MockUserOwner.username }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -94,9 +92,7 @@ export const Editable: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const ownerRow = canvas.getByRole("button", {
-			name: (accessibleName) => accessibleName.includes(MockUserOwner.email),
-		});
+		const ownerRow = canvas.getByRole("row", { name: MockUserOwner.email });
 		await userEvent.click(
 			within(ownerRow).getByRole("button", { name: /open menu/i }),
 		);
@@ -126,11 +122,8 @@ export const OpensEditOnRowClick: Story = {
 	parameters: editUserRouting,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", {
-				name: (accessibleName) => accessibleName.includes(MockUserOwner.email),
-			}),
-		);
+		const ownerRow = canvas.getByRole("row", { name: MockUserOwner.email });
+		await userEvent.click(ownerRow);
 		await expect(
 			await canvas.findByText(`Editing ${MockUserOwner.username}`),
 		).toBeVisible();
@@ -143,9 +136,7 @@ export const NestedControlsDoNotOpenEdit: Story = {
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
-		const ownerRow = canvas.getByRole("button", {
-			name: (accessibleName) => accessibleName.includes(MockUserOwner.email),
-		});
+		const ownerRow = canvas.getByRole("row", { name: MockUserOwner.email });
 
 		await step(
 			"clicking the groups popover keeps the user on the table",
@@ -154,9 +145,11 @@ export const NestedControlsDoNotOpenEdit: Story = {
 					within(ownerRow).getByRole("button", { name: /view 1 group/i }),
 				);
 				const groupsPopover = await body.findByRole("dialog");
-				await expect(
-					await within(groupsPopover).findByText(MockGroup.display_name),
-				).toBeInTheDocument();
+				const groupName = await within(groupsPopover).findByText(
+					MockGroup.display_name,
+				);
+				await userEvent.click(groupName);
+				await expect(groupName).toBeInTheDocument();
 				await userEvent.keyboard("{Escape}");
 			},
 		);

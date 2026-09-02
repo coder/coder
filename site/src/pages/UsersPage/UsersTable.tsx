@@ -2,7 +2,7 @@ import { cn } from "cn";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import type { SyntheticEvent } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import type { GroupsByUserId } from "#/api/queries/groups";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -22,7 +22,6 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
-import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import type { UserAdminAction } from "#/modules/users/UserActionDialogs";
 import { UserGroupsCell } from "#/modules/users/UserGroupsCell";
 import {
@@ -131,9 +130,6 @@ const UserRow: React.FC<UserRowProps> = ({
 	onAction,
 }) => {
 	const navigate = useNavigate();
-	const clickableProps = useClickableTableRow({
-		onClick: () => navigate(user.username),
-	});
 
 	// Nested controls must not activate the row (click, Enter, or Space).
 	const stopRowActivation = (event: SyntheticEvent) => {
@@ -143,11 +139,21 @@ const UserRow: React.FC<UserRowProps> = ({
 	return (
 		<TableRow
 			data-testid={`user-${user.id}`}
-			{...(canEditUsers ? clickableProps : {})}
+			hover={canEditUsers}
+			onClick={canEditUsers ? () => navigate(user.username) : undefined}
 		>
 			<TableCell>
 				<AvatarData
-					title={user.username}
+					title={
+						canEditUsers ? (
+							<Link to={user.username} onClick={stopRowActivation}>
+								{user.username}
+							</Link>
+						) : (
+							user.username
+						)
+					}
+					imgFallbackText={user.username}
 					subtitle={user.is_service_account ? "Service Account" : user.email}
 					src={user.avatar_url}
 				/>
