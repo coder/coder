@@ -281,11 +281,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 				) : membersQuery.isLoading ? (
 					<div className="flex items-center gap-2">
 						{AVATAR_SKELETON_KEYS.slice(0, skeletonCount).map((key) => (
-							<Skeleton
-								key={key}
-								variant="circular"
-								className="size-(--avatar-default)"
-							/>
+							<Skeleton key={key} className="size-(--avatar-default)" />
 						))}
 					</div>
 				) : (
