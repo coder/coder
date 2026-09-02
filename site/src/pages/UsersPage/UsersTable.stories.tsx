@@ -92,7 +92,9 @@ export const Editable: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const ownerRow = canvas.getByRole("row", { name: MockUserOwner.email });
+		const ownerRow = canvas.getByRole("row", {
+			name: (accessibleName) => accessibleName.includes(MockUserOwner.email),
+		});
 		await userEvent.click(
 			within(ownerRow).getByRole("button", { name: /open menu/i }),
 		);
@@ -122,8 +124,23 @@ export const OpensEditOnRowClick: Story = {
 	parameters: editUserRouting,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const ownerRow = canvas.getByRole("row", { name: MockUserOwner.email });
+		const ownerRow = canvas.getByRole("row", {
+			name: (accessibleName) => accessibleName.includes(MockUserOwner.email),
+		});
 		await userEvent.click(ownerRow);
+		await expect(
+			await canvas.findByText(`Editing ${MockUserOwner.username}`),
+		).toBeVisible();
+	},
+};
+
+export const OpensEditOnUsernameLinkKeyboardActivation: Story = {
+	args: { ...Editable.args },
+	parameters: editUserRouting,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("link", { name: MockUserOwner.username }).focus();
+		await userEvent.keyboard("{Enter}");
 		await expect(
 			await canvas.findByText(`Editing ${MockUserOwner.username}`),
 		).toBeVisible();
@@ -136,7 +153,9 @@ export const NestedControlsDoNotOpenEdit: Story = {
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
-		const ownerRow = canvas.getByRole("row", { name: MockUserOwner.email });
+		const ownerRow = canvas.getByRole("row", {
+			name: (accessibleName) => accessibleName.includes(MockUserOwner.email),
+		});
 
 		await step(
 			"clicking the groups popover keeps the user on the table",
