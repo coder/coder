@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { workspacesKey } from "#/api/queries/workspaces";
 import {
 	MockTemplate,
@@ -41,7 +41,26 @@ const meta: Meta<typeof TemplatePageHeader> = {
 export default meta;
 type Story = StoryObj<typeof TemplatePageHeader>;
 
-export const Example: Story = {};
+export const Example: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+
+		const menu = within(document.body);
+		await expect(
+			menu.getByRole("menuitem", { name: "Settings" }),
+		).toHaveAttribute("href", `/templates/${MockTemplate.name}/settings`);
+		await expect(
+			menu.getByRole("menuitem", { name: "Edit files" }),
+		).toHaveAttribute(
+			"href",
+			`/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+		);
+		await expect(
+			menu.getByRole("menuitem", { name: "Duplicate…" }),
+		).toHaveAttribute("href", `/templates/new?fromTemplate=${MockTemplate.id}`);
+	},
+};
 
 export const CanNotUpdate: Story = {
 	args: {
