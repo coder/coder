@@ -19,22 +19,11 @@ import (
 	"github.com/coder/quartz"
 )
 
+var testHarnesses = chatacp.Harnesses()
+
 // testHarness is any harness row for helpers whose behavior does not
 // depend on the runtime; harness-specific copy is checked per harness.
-var testHarness = mustHarness(codersdk.ChatRuntimeClaudeCode)
-
-func mustHarness(runtime codersdk.ChatRuntime) chatacp.Harness {
-	harness, ok := chatacp.HarnessFor(runtime)
-	if !ok {
-		panic("no harness for runtime " + string(runtime))
-	}
-	return harness
-}
-
-var testHarnesses = []chatacp.Harness{
-	mustHarness(codersdk.ChatRuntimeClaudeCode),
-	mustHarness(codersdk.ChatRuntimeCodex),
-}
+var testHarness = testHarnesses[0]
 
 func TestExternalHarness(t *testing.T) {
 	t.Parallel()

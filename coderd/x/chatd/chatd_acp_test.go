@@ -45,10 +45,8 @@ func primaryCredentials(model string) chatacp.TurnCredentials {
 // behavior is verified for a single adapter by accident.
 func forEachHarness(t *testing.T, fn func(t *testing.T, harness chatacp.Harness)) {
 	t.Helper()
-	for _, runtime := range []codersdk.ChatRuntime{codersdk.ChatRuntimeClaudeCode, codersdk.ChatRuntimeCodex} {
-		harness, ok := chatacp.HarnessFor(runtime)
-		require.True(t, ok)
-		t.Run(string(runtime), func(t *testing.T) {
+	for _, harness := range chatacp.Harnesses() {
+		t.Run(string(harness.Runtime), func(t *testing.T) {
 			t.Parallel()
 			fn(t, harness)
 		})

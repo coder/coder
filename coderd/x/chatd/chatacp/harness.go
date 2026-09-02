@@ -2,6 +2,7 @@ package chatacp
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -64,6 +65,12 @@ var harnesses = []Harness{
 		DefaultSessionMode: "agent-full-access",
 		Env:                codexEnv,
 	},
+}
+
+// Harnesses returns every external runtime chatd can drive, so tests
+// and callers enumerate the supported set from one table.
+func Harnesses() []Harness {
+	return slices.Clone(harnesses)
 }
 
 // HarnessFor returns the harness for an external runtime. The built-in

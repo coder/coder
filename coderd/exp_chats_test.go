@@ -1943,9 +1943,9 @@ func TestChatRuntimeConfigAndAvailability(t *testing.T) {
 		}
 	}
 
-	externalRuntimes := []codersdk.ChatRuntime{codersdk.ChatRuntimeClaudeCode, codersdk.ChatRuntimeCodex}
 	wantAvailability := []codersdk.ChatRuntimeAvailability{}
-	for _, runtime := range externalRuntimes {
+	for _, harness := range chatacp.Harnesses() {
+		runtime := harness.Runtime
 		config, err := client.UpsertChatRuntimeConfig(ctx, codersdk.UpsertChatRuntimeConfigRequest{
 			OrganizationID: user.OrganizationID,
 			Runtime:        runtime,
@@ -1969,21 +1969,19 @@ func TestChatRuntimeConfigAndAvailability(t *testing.T) {
 
 	configs, err := client.ListChatRuntimeConfigs(ctx)
 	require.NoError(t, err)
-	require.Len(t, configs, len(externalRuntimes))
-	gotRuntimes := make([]codersdk.ChatRuntime, 0, len(configs))
+	gotAvailability := make([]codersdk.ChatRuntimeAvailability, 0, len(configs))
 	for _, config := range configs {
-		require.Equal(t, user.OrganizationID, config.OrganizationID)
 		require.Equal(t, template.ID, config.TemplateID)
-		gotRuntimes = append(gotRuntimes, config.Runtime)
+		gotAvailability = append(gotAvailability, codersdk.ChatRuntimeAvailability{OrganizationID: config.OrganizationID, Runtime: config.Runtime})
 	}
-	require.ElementsMatch(t, externalRuntimes, gotRuntimes)
+	require.ElementsMatch(t, wantAvailability, gotAvailability)
 
 	availability, err := client.ChatRuntimeAvailability(ctx)
 	require.NoError(t, err)
 	require.ElementsMatch(t, wantAvailability, availability)
 
-	for _, runtime := range externalRuntimes {
-		require.NoError(t, client.DeleteChatRuntimeConfig(ctx, user.OrganizationID, runtime))
+	for _, harness := range chatacp.Harnesses() {
+		require.NoError(t, client.DeleteChatRuntimeConfig(ctx, user.OrganizationID, harness.Runtime))
 	}
 	configs, err = client.ListChatRuntimeConfigs(ctx)
 	require.NoError(t, err)
@@ -2023,10 +2021,10 @@ func TestChatRuntimeRequests(t *testing.T) {
 		}
 		ctx := testutil.Context(t, testutil.WaitLong)
 		for _, tc := range tests {
-			for _, runtime := range []codersdk.ChatRuntime{codersdk.ChatRuntimeClaudeCode, codersdk.ChatRuntimeCodex} {
+			for _, harness := range chatacp.Harnesses() {
 				req := codersdk.CreateChatRequest{
 					OrganizationID: user.OrganizationID,
-					Runtime:        runtime,
+					Runtime:        harness.Runtime,
 					Content: []codersdk.ChatInputPart{{
 						Type: codersdk.ChatInputPartTypeText,
 						Text: "runtime create",
@@ -2035,7 +2033,7 @@ func TestChatRuntimeRequests(t *testing.T) {
 				tc.mutate(&req)
 				_, err := client.CreateChat(ctx, req)
 				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-				require.Equal(t, tc.wantMessage, sdkErr.Message, "%s on %s", tc.name, runtime)
+				require.Equal(t, tc.wantMessage, sdkErr.Message, "%s on %s", tc.name, harness.Runtime)
 			}
 		}
 
