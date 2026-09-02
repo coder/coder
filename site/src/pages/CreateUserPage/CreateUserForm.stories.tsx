@@ -5,6 +5,7 @@ import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import {
 	assignableRole,
 	MockAuditorRole,
+	MockAuthMethodsAll,
 	MockAuthMethodsPasswordOnly,
 	MockOrganization,
 	MockOrganization2,
@@ -52,6 +53,46 @@ export const Ready: Story = {
 			canvas.getByText("Friendly name. Defaults to the username if blank."),
 		).toBeVisible();
 		await expect(canvas.queryByText(/optional/i)).not.toBeInTheDocument();
+	},
+};
+
+export const NoAvailableLoginTypes: Story = {
+	args: {
+		authMethods: {
+			password: { enabled: false },
+			github: { enabled: false, default_provider_configured: false },
+			oidc: { enabled: false, signInText: "", iconUrl: "" },
+		},
+		serviceAccountsEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(
+				"No authentication methods are available for new users.",
+			),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: /save/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const KeepsEmailForExternalLogin: Story = {
+	args: {
+		authMethods: MockAuthMethodsAll,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const email = canvas.getByLabelText(/email/i);
+		await userEvent.type(email, "someone@coder.com");
+		await userEvent.click(canvas.getByTestId("login-type-input"));
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: /openID connect/i,
+			}),
+		);
+		await expect(email).toHaveValue("someone@coder.com");
 	},
 };
 
