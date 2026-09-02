@@ -1,0 +1,112 @@
+package coderd_test
+
+import (
+	"net/http"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
+)
+
+func TestUserSecretsCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                    string
+		disableFilePath         bool
+		filePathDeliveryEnabled bool
+	}{
+		{name: "FilePathDeliveryEnabled", disableFilePath: false, filePathDeliveryEnabled: true},
+		{name: "FilePathDeliveryDisabled", disableFilePath: true, filePathDeliveryEnabled: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				dv.DisableUserSecretFilePath = serpent.Bool(tt.disableFilePath)
+			})
+			ownerClient := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
+			owner := coderdtest.CreateFirstUser(t, ownerClient)
+			memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			capabilities, err := memberClient.UserSecretsCapabilities(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, tt.filePathDeliveryEnabled, capabilities.FilePathDeliveryEnabled)
+
+			// The same member may not read the deployment configuration that
+			// holds the underlying option.
+			_, err = memberClient.DeploymentConfig(ctx)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		})
+	}
+}
+
+func TestUserSecretFilePathDisabledHandlers(t *testing.T) {
+	t.Parallel()
+
+	auditor := audit.NewMock()
+	dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+		dv.DisableUserSecretFilePath = true
+	})
+	db, ps := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db, Pubsub: ps, DeploymentValues: dv, Auditor: auditor,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name: "file-secret", Value: "value", EnvName: "FILE_SECRET", FilePath: "/tmp/file-secret",
+	})
+	requireSecretValidationContainsError(t, err, http.StatusBadRequest, "file_path", "disabled")
+
+	legacy := dbgen.UserSecret(t, db, database.UserSecret{UserID: owner.UserID, Name: "legacy"},
+		func(p *database.CreateUserSecretParams) {
+			p.EnvName, p.FilePath, p.Enabled = "", "/tmp/legacy", true
+		})
+
+	description := "updated"
+	updated, err := client.UpdateUserSecret(ctx, codersdk.Me, legacy.Name, codersdk.UpdateUserSecretRequest{
+		Description: &description,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/legacy", updated.FilePath)
+	assert.True(t, updated.Enabled)
+
+	empty := ""
+	_, err = client.UpdateUserSecret(ctx, codersdk.Me, legacy.Name, codersdk.UpdateUserSecretRequest{FilePath: &empty})
+	requireSecretValidationContainsError(t, err, http.StatusBadRequest, "env_name", "Add env_name")
+
+	// Changing the path of the still-enabled legacy row is rejected.
+	auditor.ResetLogs()
+	newPath := "/tmp/other"
+	_, err = client.UpdateUserSecret(ctx, codersdk.Me, legacy.Name, codersdk.UpdateUserSecretRequest{
+		FilePath: &newPath,
+	})
+	requireSecretValidationContainsError(t, err, http.StatusBadRequest, "file_path", "disabled")
+
+	logs := auditor.AuditLogs()
+	require.Len(t, logs, 1)
+	assert.Equal(t, database.AuditActionWrite, logs[0].Action)
+	assert.EqualValues(t, http.StatusBadRequest, logs[0].StatusCode)
+	assert.Equal(t, legacy.ID, logs[0].ResourceID)
+	assert.JSONEq(t, "{}", string(logs[0].Diff))
+
+	disabled := false
+	updated, err = client.UpdateUserSecret(ctx, codersdk.Me, legacy.Name, codersdk.UpdateUserSecretRequest{Enabled: &disabled})
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/legacy", updated.FilePath)
+}

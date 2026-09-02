@@ -13,7 +13,7 @@ import (
 func (r *RootCmd) stop() *serpent.Command {
 	var bflags buildFlags
 	cmd := &serpent.Command{
-		Annotations: workspaceCommand,
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
 		Use:         "stop <workspace>",
 		Short:       "Stop a workspace",
 		Middleware: serpent.Chain(
