@@ -16,14 +16,24 @@ DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
 MotionGlobalConfig.skipAnimations = isPixel();
 
-// Radix keeps exit-animating layers mounted (with body pointer-events locked)
-// until their CSS animation ends, which races play functions under pixel.
-// Freezing CSS animations makes open/close synchronous; vitest, Storybook
-// dev, and the app keep their animations.
+// Two Radix modal-layer behaviors race play functions under pixel, so both
+// are neutralized there only; vitest, Storybook dev, and the app keep their
+// animations and layer behavior.
+// 1. Exit-animating layers stay mounted (with body pointer-events locked and
+//    background aria-hidden) until their CSS animation ends, so animations
+//    are disabled outright and open/close becomes synchronous. Near-zero
+//    durations are not enough: the cleanup then lands one frame after a
+//    play's next query.
+// 2. Opening a modal locks body pointer-events in an effect but re-renders
+//    the dialog content with inline pointer-events auto one commit later; a
+//    play's first interaction can land inside that window, so dialog
+//    surfaces are pre-granted pointer-events auto.
 if (isPixel()) {
 	const style = document.createElement("style");
-	style.textContent =
-		"*, *::before, *::after { animation: none !important; transition: none !important; }";
+	style.textContent = `
+		*, *::before, *::after { animation: none !important; transition: none !important; }
+		[role="dialog"], [role="alertdialog"] { pointer-events: auto !important; }
+	`;
 	document.head.appendChild(style);
 }
 
