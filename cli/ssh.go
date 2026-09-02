@@ -211,11 +211,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			return completions
 		},
 		Handler: func(inv *serpent.Invocation) (retErr error) {
-			// The client session ID is resolved once per invocation by
-			// clientSessionIDMiddleware and carried on the invocation context.
-			// It is attached as client_session_id baggage to every request and
-			// forwarded as tailnet telemetry so coderd and agent middleware can
-			// correlate this session.
+			// Get the session ID to additionally propagate it to tailnet telemetry.
 			sessionID := clientSessionIDFromContext(inv.Context())
 
 			client, err := r.InitClient(inv)
