@@ -183,13 +183,16 @@ export function wizardReducer(
 			if (!baseChanged) {
 				return { ...state, selectedBase: action.base };
 			}
-			// Changing the base clears base variable values and re-seeds the
-			// customization fields with defaults derived from the new base.
+			// Changing the base clears base variable values and the selected
+			// modules (modules are base-specific), and re-seeds the customization
+			// fields with defaults derived from the new base.
 			return {
 				...state,
 				baseTemplateId: action.base.id,
 				selectedBase: action.base,
 				baseVariableValues: {},
+				modules: [],
+				selectedModules: [],
 				...baseCustomizationDefaults(action.base),
 			};
 		}
