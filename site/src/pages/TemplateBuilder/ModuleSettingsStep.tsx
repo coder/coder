@@ -11,10 +11,7 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
-import {
-	type ConfigurationFieldDefinition,
-	ConfigurationFieldLabel,
-} from "./ConfigurationField";
+import { type ConfigurationFieldDefinition } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 import { getModuleFieldPlaceholder } from "./moduleFieldPlaceholders";
@@ -38,7 +35,7 @@ function variableToField(
 	onChange: (name: string, value: string) => void,
 ): ConfigurationFieldDefinition {
 	const id = `mod-${moduleId}-${variable.name}`;
-	const label = <ConfigurationFieldLabel variable={variable} />;
+	const label = variable.name;
 
 	if (variable.type === "bool") {
 		return {

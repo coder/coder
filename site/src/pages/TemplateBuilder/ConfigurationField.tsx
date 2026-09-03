@@ -1,5 +1,4 @@
 import type { FC, PropsWithChildren, ReactNode } from "react";
-import type { TemplateBuilderModuleVariable } from "#/api/typesGenerated";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
@@ -339,10 +338,4 @@ export const ConfigurationFieldContainer: FC<PropsWithChildren> = ({
 			{children}
 		</div>
 	);
-};
-
-export const ConfigurationFieldLabel: FC<{
-	variable: TemplateBuilderModuleVariable;
-}> = ({ variable }) => {
-	return <>{variable.name}</>;
 };
