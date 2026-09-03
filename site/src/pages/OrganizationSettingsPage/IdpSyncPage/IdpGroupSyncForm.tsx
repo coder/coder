@@ -28,6 +28,10 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import {
+	StackLabel,
+	StackLabelHelperText,
+} from "#/components/StackLabel/StackLabel";
+import {
 	MultiSelectCombobox,
 	type Option,
 } from "#/components/MultiSelectCombobox/MultiSelectCombobox";
@@ -203,7 +207,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 							</p>
 						))}
 				</div>
-				<div className="flex flex-row items-center gap-3">
+				<div className="flex items-start">
 					<Spinner size="sm" loading={form.isSubmitting} className="w-9">
 						<Switch
 							id={`${id}-auto-create-missing-groups`}
@@ -214,12 +218,15 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 							}}
 						/>
 					</Spinner>
-					<span className="flex flex-row items-center gap-1">
-						<Label htmlFor={`${id}-auto-create-missing-groups`}>
+					<Label htmlFor={`${id}-auto-create-missing-groups`}>
+						<StackLabel>
 							Auto create missing groups
-						</Label>
-						<AutoCreateMissingGroupsHelpPopover />
-					</span>
+							<StackLabelHelperText>
+								Create groups from the IdP when they do not already exist in
+								Coder.
+							</StackLabelHelperText>
+						</StackLabel>
+					</Label>
 				</div>
 				<div className="flex flex-row gap-2 justify-between items-start">
 					<div className="grid items-center gap-1 w-72">
@@ -422,20 +429,6 @@ const GroupRow: FC<GroupRowProps> = ({
 				</Button>
 			</TableCell>
 		</TableRow>
-	);
-};
-
-const AutoCreateMissingGroupsHelpPopover: FC = () => {
-	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverText>
-					Enabling auto create missing groups will automatically create groups
-					returned by the OIDC provider if they do not exist in Coder.
-				</HelpPopoverText>
-			</HelpPopoverContent>
-		</HelpPopover>
 	);
 };
 
