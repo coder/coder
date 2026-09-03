@@ -810,7 +810,7 @@ func (s *taskStarter) persistACPRuntimeState(ctx context.Context, chatID uuid.UU
 	rows, err := s.opts.Store.UpdateChatRuntimeState(persistCtx, database.UpdateChatRuntimeStateParams{
 		ID:                chatID,
 		RuntimeState:      pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
-		ExpectedUpdatedAt: observed.UpdatedAtText(),
+		ExpectedUpdatedAt: sql.NullString{String: observed.UpdatedAtText(), Valid: true},
 	})
 	if err != nil {
 		s.opts.Logger.Warn(persistCtx, "persist acp runtime state", slog.F("chat_id", chatID), slog.Error(err))

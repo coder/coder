@@ -835,48 +835,67 @@ func TestEditMessageResetsRuntimeSession(t *testing.T) {
 	for _, runtime := range runtimes {
 		t.Run(string(runtime), func(t *testing.T) {
 			t.Parallel()
-			f := newTestFixture(t)
-			ctx := testutil.Context(t, testutil.WaitShort)
-			created, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
-				OrganizationID:  f.Org.ID,
-				OwnerID:         f.User.ID,
-				Runtime:         runtime,
-				Title:           "edit resets session",
-				ClientType:      database.ChatClientTypeApi,
-				InitialMessages: []chatstate.Message{userTextMessage("hello", f.User.ID, f.Model.ID)},
-			})
-			require.NoError(t, err)
-			_, err = f.DB.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
-				ID:           created.Chat.ID,
-				RuntimeState: pqtype.NullRawMessage{RawMessage: json.RawMessage(seededState), Valid: true},
-			})
-			require.NoError(t, err)
-
-			rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")})
-			require.NoError(t, err)
-			m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-				_, err := tx.EditMessage(chatstate.EditMessageInput{
-					MessageID: created.InitialMessages[0].ID,
-					CreatedBy: f.User.ID,
-					Content:   rawContent,
-				})
-				return err
-			}))
-
-			chat := f.readChat(ctx, t, created.Chat.ID)
-			state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
-			if runtime == database.ChatRuntimeCoder {
-				require.JSONEq(t, seededState, string(chat.RuntimeState.RawMessage))
-				return
-			}
-			require.Empty(t, state.SessionID)
-			require.Empty(t, state.Cwd)
-			require.Nil(t, state.Usage)
-			require.Equal(t, []codersdk.ChatRuntimeCommand{{Name: "review"}}, state.AvailableCommands)
-			require.True(t, state.UpdatedAt.After(chatacp.ParseRuntimeState([]byte(seededState)).UpdatedAt))
+			assertEditResetsRuntimeSession(t, runtime, seededState)
 		})
 	}
+
+	// State that no longer parses must still be replaced, or the chat can
+	// never be edited again.
+	t.Run("MalformedState", func(t *testing.T) {
+		t.Parallel()
+		const malformed = `{"session_id":1,"updated_at":"2024-01-02T03:04:05Z"}`
+		for _, harness := range chatacp.Harnesses() {
+			t.Run(string(harness.Runtime), func(t *testing.T) {
+				t.Parallel()
+				assertEditResetsRuntimeSession(t, database.ChatRuntime(harness.Runtime), malformed)
+			})
+		}
+	})
+}
+
+func assertEditResetsRuntimeSession(t *testing.T, runtime database.ChatRuntime, seededState string) {
+	t.Helper()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+		OrganizationID:  f.Org.ID,
+		OwnerID:         f.User.ID,
+		Runtime:         runtime,
+		Title:           "edit resets session",
+		ClientType:      database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{userTextMessage("hello", f.User.ID, f.Model.ID)},
+	})
+	require.NoError(t, err)
+	_, err = f.DB.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
+		ID:           created.Chat.ID,
+		RuntimeState: pqtype.NullRawMessage{RawMessage: json.RawMessage(seededState), Valid: true},
+	})
+	require.NoError(t, err)
+
+	rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")})
+	require.NoError(t, err)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.EditMessage(chatstate.EditMessageInput{
+			MessageID: created.InitialMessages[0].ID,
+			CreatedBy: f.User.ID,
+			Content:   rawContent,
+		})
+		return err
+	}))
+
+	chat := f.readChat(ctx, t, created.Chat.ID)
+	state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
+	if runtime == database.ChatRuntimeCoder {
+		require.JSONEq(t, seededState, string(chat.RuntimeState.RawMessage))
+		return
+	}
+	require.Empty(t, state.SessionID)
+	require.Empty(t, state.Cwd)
+	require.Nil(t, state.Usage)
+	seeded := chatacp.ParseRuntimeState([]byte(seededState))
+	require.Equal(t, seeded.AvailableCommands, state.AvailableCommands)
+	require.True(t, state.UpdatedAt.After(seeded.UpdatedAt))
 }
 
 // TestTransitionAbandon_RejectsUnowned verifies that calling Abandon

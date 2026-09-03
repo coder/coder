@@ -1528,9 +1528,10 @@ type sqlcQuerier interface {
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
-	// Writes only while the stored state's updated_at is still the one the
-	// caller observed (empty for no state), so a concurrent write is never
-	// silently overwritten.
+	// With expected_updated_at set, writes only while the stored state's
+	// updated_at is still the one the caller observed (empty for no state),
+	// so a concurrent write is never silently overwritten. NULL writes
+	// unconditionally for callers that hold the row lock.
 	UpdateChatRuntimeState(ctx context.Context, arg UpdateChatRuntimeStateParams) (int64, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	// The history_version fence lets background summary writes ignore worker-only

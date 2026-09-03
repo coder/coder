@@ -16218,7 +16218,8 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 }
 
 // TestUpdateChatRuntimeState verifies the write is conditional on the
-// stored state's updated_at, so a stale writer changes nothing.
+// stored state's updated_at, so a stale writer changes nothing, and that
+// a NULL expectation writes unconditionally.
 func TestUpdateChatRuntimeState(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -16242,7 +16243,7 @@ func TestUpdateChatRuntimeState(t *testing.T) {
 		rows, err := db.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
 			ID:                chat.ID,
 			RuntimeState:      pqtype.NullRawMessage{RawMessage: json.RawMessage(state), Valid: true},
-			ExpectedUpdatedAt: expectedUpdatedAt,
+			ExpectedUpdatedAt: sql.NullString{String: expectedUpdatedAt, Valid: true},
 		})
 		require.NoError(t, err)
 		return rows
@@ -16265,6 +16266,14 @@ func TestUpdateChatRuntimeState(t *testing.T) {
 	require.JSONEq(t, first, stored())
 	require.EqualValues(t, 1, write(second, "2024-01-02T03:04:05Z"))
 	require.JSONEq(t, second, stored())
+	// A NULL expectation overwrites whatever is stored.
+	rows, err := db.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
+		ID:           chat.ID,
+		RuntimeState: pqtype.NullRawMessage{RawMessage: json.RawMessage(first), Valid: true},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
+	require.JSONEq(t, first, stored())
 }
 
 func TestUpdateChatSummary(t *testing.T) {

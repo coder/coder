@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
@@ -227,7 +228,7 @@ func TestPersistACPRuntimeStateSkipsResetSession(t *testing.T) {
 	rows, err := db.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
 		ID:                chat.ID,
 		RuntimeState:      pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
-		ExpectedUpdatedAt: first.UpdatedAtText(),
+		ExpectedUpdatedAt: sql.NullString{String: first.UpdatedAtText(), Valid: true},
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, rows)
