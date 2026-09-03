@@ -776,18 +776,19 @@ func New(options *Options) *API {
 		Telemetry:             api.Telemetry.Enabled(),
 	}
 	api.SiteHandler, err = site.New(&site.Options{
-		CacheDir:          siteCacheDir,
-		Database:          options.Database,
-		Authorizer:        options.Authorizer,
-		SiteFS:            site.FS(),
-		OAuth2Configs:     oauthConfigs,
-		DocsURL:           options.DeploymentValues.DocsURL.String(),
-		AppearanceFetcher: &api.AppearanceFetcher,
-		BuildInfo:         buildInfo,
-		Entitlements:      options.Entitlements,
-		Telemetry:         options.Telemetry,
-		Logger:            options.Logger.Named("site"),
-		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
+		CacheDir:                  siteCacheDir,
+		Database:                  options.Database,
+		Authorizer:                options.Authorizer,
+		SiteFS:                    site.FS(),
+		OAuth2Configs:             oauthConfigs,
+		DocsURL:                   options.DeploymentValues.DocsURL.String(),
+		AppearanceFetcher:         &api.AppearanceFetcher,
+		BuildInfo:                 buildInfo,
+		Entitlements:              options.Entitlements,
+		Telemetry:                 options.Telemetry,
+		Logger:                    options.Logger.Named("site"),
+		AIGatewayEnabled:          options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
+		UserSecretFilePathEnabled: !options.DeploymentValues.DisableUserSecretFilePath.Value(),
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))

@@ -2,8 +2,9 @@
  * Copied from shadc/ui on 03/05/2025
  * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
  */
+
+import { cn } from "cn";
 import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 interface ScrollAreaProps
 	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {

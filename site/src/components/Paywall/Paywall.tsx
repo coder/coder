@@ -1,10 +1,10 @@
+import { cn } from "cn";
 import { ArrowRightIcon, CheckIcon } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
 import { type LinkProps, Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
-import { cn } from "#/utils/cn";
 
 export const PREMIUM_FEATURES = [
 	"High availability & workspace proxies",

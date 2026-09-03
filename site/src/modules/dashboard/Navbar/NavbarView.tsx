@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { NavLink, useLocation } from "react-router";
 import { API } from "#/api/api";
@@ -8,7 +9,6 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
-import { cn } from "#/utils/cn";
 import {
 	type AdminSettingsPermissions,
 	canViewAdminSettings,

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FormikContextType, getIn } from "formik";
 import { InfoIcon } from "lucide-react";
 import { type FC, Fragment, type ReactNode, useId } from "react";
@@ -35,7 +36,6 @@ import {
 import { useDebouncedValue } from "#/hooks/debounce";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { cn } from "#/utils/cn";
 import { microsToDollars } from "#/utils/currency";
 import {
 	findKnownModelByCanonicalId,

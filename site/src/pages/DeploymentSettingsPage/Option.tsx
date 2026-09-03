@@ -1,7 +1,7 @@
+import { cn } from "cn";
 import { WrenchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
-import { cn } from "#/utils/cn";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
 	return (

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import type {
@@ -17,7 +18,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import {
 	agentConnectionMessages,
 	agentScriptMessages,

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
@@ -33,7 +34,6 @@ import {
 	StackLabelHelperText,
 } from "#/components/StackLabel/StackLabel";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,

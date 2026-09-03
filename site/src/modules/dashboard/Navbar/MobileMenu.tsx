@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronRightIcon,
 	CircleHelpIcon,
@@ -26,7 +27,6 @@ import {
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
-import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 import {
 	AdminSettingsItems,
