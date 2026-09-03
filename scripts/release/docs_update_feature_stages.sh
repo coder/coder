@@ -57,14 +57,21 @@ table="$(
 		exit 0
 	fi
 
-	# The last column spells out the command: a flag in the opt-in set is
-	# enabled by `--experiments=*` as well as by name; every other flag must be
-	# named. Spelling it out keeps the table readable when the opt-in set is
-	# empty, which it is today.
-	echo "| Feature | Flag | Description | Enable with |"
-	echo "| ------- | ---- | ----------- | ----------- |"
-	jq -r '.experiments[] | "| \(.displayName) | `\(.id)` | \(.description) | \(if .safe then "`--experiments=*` or `--experiments=\(.id)`" else "`--experiments=\(.id)`" end) |"' "${experiments_json}"
+	echo "| Feature | Flag | Description |"
+	echo "| ------- | ---- | ----------- |"
+	jq -r '.experiments[] | "| \(.displayName) | `\(.id)` | \(.description) |"' "${experiments_json}"
+	echo
+	# Which flags `--experiments=*` enables is decided per version in
+	# codersdk.ExperimentsSafe and is usually a very short list, so it is
+	# stated as a sentence rather than repeated down a column.
+	safe=$(jq -r '[.experiments[] | select(.safe) | "`\(.id)`"] | join(", ")' "${experiments_json}")
+	if [[ -z "${safe}" ]]; then
+		echo "In this version, \`--experiments=*\` enables no experiments; enable each experiment by name."
+	else
+		echo "In this version, \`--experiments=*\` enables only: ${safe}. Enable any other experiment by name."
+	fi
 )"
+
 
 # Collect beta features from the current docs/manifest.json. Keying on the
 # route path also dedupes routes that appear under more than one parent.
