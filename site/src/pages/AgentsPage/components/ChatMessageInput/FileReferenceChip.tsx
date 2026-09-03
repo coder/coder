@@ -6,7 +6,7 @@ import { cn } from "#/utils/cn";
 import { getFileReferenceDisplay } from "./fileReferenceDisplay";
 
 const fileReferenceChipVariants = cva(
-	"inline-flex min-h-5 max-w-[300px] select-none items-center gap-1 rounded-md border border-border-default bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-[13px] font-normal leading-none text-inherit shadow-xs transition-colors",
+	"inline-flex min-h-5 max-w-[300px] select-none items-center gap-1 rounded-md border border-border-default bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-sm font-normal leading-none text-inherit shadow-xs transition-colors",
 	{
 		variants: {
 			interactive: {
@@ -26,7 +26,7 @@ const fileReferenceChipVariants = cva(
 );
 
 const fileReferenceTriggerVariants = cva(
-	"inline-flex min-w-0 items-center gap-1 border-0 bg-transparent p-0 font-sans text-[13px] font-normal leading-none text-inherit",
+	"inline-flex min-w-0 items-center gap-1 border-0 bg-transparent p-0 font-sans text-sm font-normal leading-none text-inherit",
 	{
 		variants: {
 			interactive: {

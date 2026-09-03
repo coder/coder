@@ -71,7 +71,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							{latestStatus.message || capitalize(latestStatus.state)}
 						</span>
 					</div>
-					<time className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
+					<time className="text-xs text-content-secondary first-letter:uppercase block pl-6.5">
 						{timeFrom(new Date(latestStatus.created_at), comparisonDate)}
 					</time>
 				</div>
@@ -150,7 +150,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 										/>
 										{status.message || capitalize(status.state)}
 									</span>
-									<span className="text-2xs text-content-secondary first-letter:uppercase block pl-[26px]">
+									<span className="text-2xs text-content-secondary first-letter:uppercase block pl-6.5">
 										{formattedTimestamp}
 									</span>
 								</div>

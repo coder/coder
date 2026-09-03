@@ -173,6 +173,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 													}}
 												>
 													{t.error && (
+														// biome-ignore lint: design-token: raw alert color; needs semantic token decision
 														<CircleAlertIcon className="size-icon-sm text-[#F87171] mr-1" />
 													)}
 													<Blocks count={t.visibleResources} />

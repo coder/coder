@@ -75,7 +75,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 					"[&_.recharts-sector]:outline-hidden",
 					"[&_.recharts-surface]:outline-hidden",
 					"[&_.recharts-text]:fill-content-secondary [&_.recharts-text]:font-medium",
-					"[&_.recharts-cartesian-axis-line]:stroke-[hsl(var(--border-default))]",
+					"[&_.recharts-cartesian-axis-line]:stroke-border",
 					className,
 				)}
 				{...props}

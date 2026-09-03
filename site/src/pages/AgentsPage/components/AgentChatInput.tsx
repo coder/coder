@@ -1160,7 +1160,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onFilePaste={onAttach ? handleFilePaste : undefined}
 					onPaste={resetPromptCycle}
 					aria-label="Chat message"
-					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
 					initialEditorState={initialEditorState}
@@ -1381,7 +1381,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																<Button
 																	variant="outline"
 																	size="sm"
-																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
+																	className="h-6 shrink-0 px-2 text-2xs leading-none"
 																	onClick={() => connectMCPServer(server.id)}
 																	disabled={
 																		isDisabled || mcpConnectingId !== null

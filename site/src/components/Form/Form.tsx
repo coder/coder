@@ -86,7 +86,7 @@ export const FormSection: FC<FormSectionProps> = ({
 			ref={ref}
 			className={cn(
 				"flex items-start flex-col gap-4 lg:gap-6",
-				direction === "horizontal" && "lg:flex-row lg:gap-[120px]",
+				direction === "horizontal" && "lg:flex-row lg:gap-30",
 				classes.root,
 			)}
 		>

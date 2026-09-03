@@ -579,7 +579,7 @@ const FileCard: FC<{
 		>
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
 				{badgeLabel ? (
-					<span className="text-[10px] font-semibold tracking-wide text-content-secondary">
+					<span className="text-2xs font-semibold tracking-wide text-content-secondary">
 						{badgeLabel}
 					</span>
 				) : (

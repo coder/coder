@@ -120,7 +120,7 @@ const ReasoningDisclosure = memo<{
 							)}
 						>
 							<Response
-								className="text-[11px] text-content-secondary"
+								className="text-xs text-content-secondary"
 								urlTransform={urlTransform}
 								streaming={isStreaming}
 							>

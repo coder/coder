@@ -337,7 +337,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 															onCheckedChange={(nextChecked) =>
 																setPRStatus(status, nextChecked === true)
 															}
-															className="m-0 my-[3px]"
+															className="m-0 my-0.75"
 														/>
 														<label
 															htmlFor={checkboxId}
@@ -371,7 +371,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 																	nextChecked === true,
 																)
 															}
-															className="m-0 my-[3px]"
+															className="m-0 my-0.75"
 														/>
 														<label
 															htmlFor={optionId}
@@ -402,7 +402,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 															onCheckedChange={(nextChecked) =>
 																setSource(option.value, nextChecked === true)
 															}
-															className="m-0 my-[3px]"
+															className="m-0 my-0.75"
 														/>
 														<label
 															htmlFor={optionId}

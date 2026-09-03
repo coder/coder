@@ -156,7 +156,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 							data-lpignore="true"
 							data-form-type="other"
 							data-bwignore
-							className="h-9 font-mono text-[13px]"
+							className="h-9 font-mono text-sm"
 							placeholder="sk-..."
 							value={apiKey}
 							onFocus={handleApiKeyFocus}

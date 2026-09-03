@@ -49,7 +49,7 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 export const SidebarCaption: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 	return (
 		<span
-			className="text-[10px] leading-tight py-3 px-4 uppercase font-medium text-content-primary tracking-widest"
+			className="text-2xs leading-tight py-3 px-4 uppercase font-medium text-content-primary tracking-widest"
 			{...props}
 		/>
 	);

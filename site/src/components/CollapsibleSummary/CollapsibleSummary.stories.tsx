@@ -48,6 +48,7 @@ export const SmallSize: Story = {
 
 export const CustomClassName: Story = {
 	args: {
+		// biome-ignore lint: design-token: story demonstrates a custom className passthrough; illustrative only
 		className: "text-blue-500 font-bold",
 	},
 };

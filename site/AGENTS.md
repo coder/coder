@@ -45,7 +45,7 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 - Changes to core components are cross-cutting. Coordinate visual or API expansion with design when needed.
 - Keep component files near 500 lines or less. Extract coherent sections when a file becomes difficult to navigate.
 - Use semantic theme colors and existing Tailwind tokens. Do not use the `dark:` prefix.
-- `pnpm lint:design` (part of `pnpm lint`) enforces design tokens: use the semantic color tokens, the `--text-*` type scale, and the 4px spacing scale instead of arbitrary values like `text-[13px]` or `p-[7px]`. Pre-existing occurrences are grandfathered in `scripts/design-tokens-baseline.json`; regenerate it with `pnpm lint:design --update` only for an approved exception.
+- Design tokens are enforced by a Biome plugin (`scripts/biome-plugins/design-tokens.grit`), which runs as part of `pnpm check`/`pnpm lint` and in the editor. Use the semantic color tokens, the `--text-*` type scale, and the 4px spacing scale instead of arbitrary values like `text-[13px]` or `p-[7px]`. For an approved exception, suppress the specific line with `// biome-ignore lint: <reason>`.
 
 ## TypeScript and data flow
 

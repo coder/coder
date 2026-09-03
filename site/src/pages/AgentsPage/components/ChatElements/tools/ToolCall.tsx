@@ -67,7 +67,7 @@ const PolicyProvider: FC<{ hookRewritten: boolean; children: ReactNode }> = ({
 				<div role="group" aria-labelledby={badgeId}>
 					<span
 						id={badgeId}
-						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid border-border-default px-1 text-[11px] leading-4 text-content-secondary"
+						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid border-border-default px-1 text-xs leading-4 text-content-secondary"
 					>
 						<ShieldIcon aria-hidden className="size-3 shrink-0" />
 						Modified by policy
@@ -287,10 +287,7 @@ const Label: FC<ToolCallLabelProps> = ({
 	shimmerWhenActive = true,
 }) => {
 	const { active } = useToolCallContext();
-	const labelClassName = cn(
-		"min-w-0 truncate text-[13px] leading-6",
-		className,
-	);
+	const labelClassName = cn("min-w-0 truncate text-sm leading-6", className);
 	if (active && shimmerWhenActive && typeof children === "string") {
 		return (
 			<Shimmer as="span" className={labelClassName}>

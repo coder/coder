@@ -632,7 +632,7 @@ const useLeaveSiteWarning = (enabled: boolean) => {
 
 const tabClassName = (isActive: boolean) =>
 	cn(
-		"p-3 text-[10px] uppercase tracking-[0.5px] font-medium bg-transparent font-[inherit] border-0",
+		"p-3 text-2xs uppercase tracking-[0.5px] font-medium bg-transparent font-[inherit] border-0",
 		"text-content-secondary transition-all duration-150",
 		"flex gap-2 items-center justify-center relative",
 		"[&_svg]:max-w-3 [&_svg]:max-h-3",

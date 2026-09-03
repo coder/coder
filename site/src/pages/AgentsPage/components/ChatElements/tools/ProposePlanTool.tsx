@@ -125,13 +125,13 @@ export const ProposePlanTool: React.FC<{
 			) : (
 				!fetchLoading &&
 				!effectiveError && (
-					<p className="text-[13px] text-content-secondary italic">
+					<p className="text-sm text-content-secondary italic">
 						No plan content.
 					</p>
 				)
 			)}
 			{fetchLoading && (
-				<TranscriptRow className="gap-2 text-[13px] text-content-secondary">
+				<TranscriptRow className="gap-2 text-sm text-content-secondary">
 					<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
 					Loading plan…
 				</TranscriptRow>

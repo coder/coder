@@ -51,7 +51,7 @@ export const SidebarCaption: FC<HTMLAttributes<HTMLDivElement>> = ({
 	return (
 		<div
 			className={cn(
-				"text-[10px] uppercase font-medium text-content-secondary",
+				"text-2xs uppercase font-medium text-content-secondary",
 				"px-6 py-3 tracking-[0.5px]",
 			)}
 			{...attrs}

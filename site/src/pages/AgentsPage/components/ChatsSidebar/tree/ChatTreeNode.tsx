@@ -160,7 +160,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 	const hoverLayout =
 		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
 	const activeLayout =
-		"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
+		"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-2.75 has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-2.75";
 	const sharedMenuItemProps = {
 		isArchived: chat.archived,
 		isPinned: chat.pin_order > 0,
@@ -255,7 +255,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 										<span
 											className={cn(
-												"block flex-1 truncate text-[13px] text-content-primary",
+												"block flex-1 truncate text-sm text-content-primary",
 												!isActive &&
 													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100",
 											)}
@@ -276,7 +276,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 										)}
 										{hasLinkedDiffStatus && hasLineStats && (
 											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+												className="inline-flex shrink-0 items-center gap-0.5 text-sm leading-4 tabular-nums"
 												title={`${filesChangedLabel}, +${additions} -${deletions}`}
 											>
 												<span className="text-git-added-bright">
@@ -289,7 +289,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 										)}
 										<div
 											className={cn(
-												"min-w-0 overflow-hidden text-[13px] leading-4",
+												"min-w-0 overflow-hidden text-sm leading-4",
 												errorReason
 													? "line-clamp-1 whitespace-normal text-content-destructive wrap-anywhere"
 													: "truncate text-content-secondary",
@@ -382,7 +382,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 									</DropdownMenuTrigger>
 									<DropdownMenuContent
 										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
+										className="[&_[role=menuitem]]:text-sm"
 										// The dropdown is portaled to the body, but React
 										// portals bubble events through the React tree, so a
 										// right-click inside the menu would still reach the
@@ -403,7 +403,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 						</div>
 					</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
+				<ContextMenuContent className="[&_[role=menuitem]]:text-sm">
 					<ChatActionsMenuItems
 						{...sharedMenuItemProps}
 						Item={ContextMenuItem}

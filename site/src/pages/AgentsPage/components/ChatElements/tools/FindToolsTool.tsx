@@ -41,7 +41,7 @@ export const FindToolsTool: FC<FindToolsToolProps> = ({
 		>
 			<ToolCall.Header iconName="find_tools" label={label} />
 			<ToolCall.Content>
-				<ul className="mt-1.5 space-y-2 pl-6 text-[13px] text-content-secondary">
+				<ul className="mt-1.5 space-y-2 pl-6 text-sm text-content-secondary">
 					{matches.map((match) => (
 						<li key={match.name}>
 							<div className="font-medium text-content-primary">

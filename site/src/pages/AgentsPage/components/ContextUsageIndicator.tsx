@@ -212,7 +212,7 @@ const HOVER_CLOSE_DELAY_MS = 150;
 // section spans more than one directory.
 const ContextDirLabel: FC<{ dir: string }> = ({ dir }) => (
 	<span
-		className="flex items-center gap-1 text-[11px] text-content-secondary"
+		className="flex items-center gap-1 text-xs text-content-secondary"
 		title={dir}
 	>
 		<FolderIcon className="size-3 shrink-0" />
