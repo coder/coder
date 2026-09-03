@@ -37,7 +37,7 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 			className={cn(
 				"h-full w-[240px] overflow-y-auto",
 				"flex flex-col",
-				"px-3 pt-6 pb-6",
+				"px-3 pb-6",
 				className,
 			)}
 		>

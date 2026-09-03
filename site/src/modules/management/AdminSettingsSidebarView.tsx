@@ -206,7 +206,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 				type="button"
 				onClick={toggle}
 				className={cn(
-					"group flex items-center bg-transparent border-none cursor-pointer p-0",
+					"group flex items-center bg-transparent border-none cursor-pointer p-0 my-3",
 					collapsed
 						? "w-10 h-10 justify-center rounded-md"
 						: "w-full px-3 rounded-md h-10",
@@ -222,7 +222,8 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 					)}
 				/>
 			</button>
-			<div className={cn("h-px bg-border mb-1", collapsed && "w-10")} />
+			{/* Full-bleed divider: cancels the nav's horizontal padding. */}
+			<div className="h-px bg-border -mx-3 mb-3" />
 
 			{canViewDeploymentSettings(permissions) && (
 				<SidebarAccordion
