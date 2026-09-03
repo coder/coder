@@ -257,14 +257,6 @@ them, and `$model`, `$effort` and `$chat_kind` do not apply. The
 and does honor the filters. How to read: the primary user-perceived
 responsiveness metric for streaming.
 
-**Turn rate and stage sample rate** - completed `chat_turn` per second
-plus one rate series per other stage. Dimensions: `scope="turn"` and
-`$chat_kind`, split by `stage`, with `$model`/`$effort` applied to the
-model-carrying stages only. How to read: throughput and shape - a stage
-rate above the turn rate means the stage repeats within a turn
-(generation steps, provider attempts, tool calls); `provider_attempt`
-rising faster than `stream` indicates retries.
-
 **Background provider calls ($stat)** - rate and selected `$stat`
 duration of background-scope `provider_attempt` samples: detached
 title/summary/quickgen requests that are excluded from every other

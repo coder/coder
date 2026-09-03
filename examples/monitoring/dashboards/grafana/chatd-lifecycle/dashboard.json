@@ -2774,7 +2774,7 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 8,
+        "w": 12,
         "x": 0,
         "y": 111
       },
@@ -2841,124 +2841,6 @@
         }
       ],
       "title": "Time to first token",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Completed chat turns per second and the per-stage sample rate from the histogram _count series. Stage rates above the turn rate mean the stage repeats within a turn (generation steps, tool calls, provider attempts); rates near zero mean the stage rarely fires.\n\n$model and $effort apply only to the stages that carry those labels (generation_step, prepare, provider_attempt, time_to_first_token, stream, thinking, tool_call, compaction). The stages recorded before a model is resolved (chat_turn, queue_wait, capacity_wait, acquisition, mcp_connect, commit) are always matched without them, so they stay populated under any selection.\n\n$chat_kind selects root chats, subagent chats spawned by a parent agent, or both. It is a turn property carried by every turn-scoped stage, so unlike $model and $effort it applies to every stage in this panel.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 8,
-        "x": 8,
-        "y": 111
-      },
-      "id": 7,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "sum(rate(coderd_chatd_stage_duration_seconds_count{stage=\"chat_turn\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval]))",
-          "range": true,
-          "refId": "A",
-          "legendFormat": "chat turns"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"queue_wait|capacity_wait|acquisition|mcp_connect|commit\", scope=\"turn\", chat_kind=~\"$chat_kind\"}[$__rate_interval]))",
-          "range": true,
-          "refId": "B",
-          "legendFormat": "{{stage}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "sum by (stage) (rate(coderd_chatd_stage_duration_seconds_count{stage=~\"generation_step|prepare|provider_attempt|time_to_first_token|stream|thinking|tool_call|compaction\", scope=\"turn\", chat_kind=~\"$chat_kind\", model=~\"$model\", effort=~\"$effort\"}[$__rate_interval]))",
-          "range": true,
-          "refId": "C",
-          "legendFormat": "{{stage}}"
-        }
-      ],
-      "title": "Turn rate and stage sample rate",
       "type": "timeseries"
     },
     {
@@ -3038,8 +2920,8 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 8,
-        "x": 16,
+        "w": 12,
+        "x": 12,
         "y": 111
       },
       "id": 8,
