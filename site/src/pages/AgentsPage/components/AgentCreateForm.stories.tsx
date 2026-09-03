@@ -2459,23 +2459,17 @@ const runtimeAvailableParameters = (runtime: ExternalChatRuntime) =>
 	runtimeParameters([{ organization_id: MockDefaultOrganization.id, runtime }]);
 const claudeCodeAvailableParameters = runtimeAvailableParameters("claude_code");
 
-// The default catalog carries one model per runtime provider family. The
-// coder default (GPT-4o) is carried into Codex because it is an OpenAI
-// model, while Claude Code starts from the runtime default.
+// The default catalog carries one model per runtime provider family.
 const runtimeModelFixtures = {
 	claude_code: {
 		modelName: "Claude Sonnet 4",
 		modelConfigID: claudeModelConfigID,
 		otherModelName: "GPT-4o",
-		carriedModelName: "Default",
-		carriedModelConfigID: undefined,
 	},
 	codex: {
 		modelName: "GPT-4o",
 		modelConfigID: modelID,
 		otherModelName: "Claude Sonnet 4",
-		carriedModelName: "GPT-4o",
-		carriedModelConfigID: modelID,
 	},
 } satisfies Record<
 	ExternalChatRuntime,
@@ -2483,8 +2477,6 @@ const runtimeModelFixtures = {
 		modelName: string;
 		modelConfigID: string;
 		otherModelName: string;
-		carriedModelName: string;
-		carriedModelConfigID: string | undefined;
 	}
 >;
 
@@ -2503,7 +2495,9 @@ const chooseRuntime = async (
 	);
 };
 
-export const ClaudeCodeCarriesCompatibleCoderModel: Story = {
+/** A coder pick that the runtime could accept is still dropped in favor of
+ * the runtime default, and comes back when the runtime is deselected. */
+export const ClaudeCodeResetsCompatibleCoderModel: Story = {
 	args: defaultArgs,
 	parameters: claudeCodeAvailableParameters,
 	beforeEach: () => {
@@ -2516,9 +2510,7 @@ export const ClaudeCodeCarriesCompatibleCoderModel: Story = {
 		).toBeVisible();
 
 		await chooseRuntime(canvas, "Claude Code");
-		expect(
-			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
-		).toBeVisible();
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
 
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		const enabledItem = await screen.findByRole("menuitemcheckbox", {
@@ -2561,7 +2553,7 @@ export const RuntimeMenuSwitchesBetweenRuntimes: Story = {
 
 		await chooseRuntime(canvas, "Codex");
 		expect(canvas.queryByText("Claude Code")).not.toBeInTheDocument();
-		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
 	},
 };
 
@@ -2634,20 +2626,29 @@ export const RuntimeSelectionConfirmsAttachmentRemoval: Story = {
 	},
 };
 
+/** An untouched picker sends no model even when the coder pick belongs to
+ * the runtime's provider family, so the administrator pin applies. */
 const runtimeSubmissionStory = (runtime: ExternalChatRuntime): Story => ({
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
 	parameters: runtimeAvailableParameters(runtime),
+	beforeEach: () => {
+		localStorage.setItem(
+			lastModelConfigIDStorageKey,
+			runtimeModelFixtures[runtime].modelConfigID,
+		);
+	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		await chooseRuntime(canvas, externalChatRuntimes[runtime].label);
 		expect(
 			canvas.getByRole("combobox", {
-				name: runtimeModelFixtures[runtime].carriedModelName,
+				name: runtimeModelFixtures[runtime].modelName,
 			}),
 		).toBeVisible();
+		await chooseRuntime(canvas, externalChatRuntimes[runtime].label);
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
 
 		await submitMessage(canvasElement, "build me a server");
 		await waitFor(() => {
@@ -2655,9 +2656,7 @@ const runtimeSubmissionStory = (runtime: ExternalChatRuntime): Story => ({
 		});
 		const options = getCreateOptions(args.onCreateChat);
 		expect(options.runtime).toBe(runtime);
-		expect(options.model).toBe(
-			runtimeModelFixtures[runtime].carriedModelConfigID,
-		);
+		expect(options.model).toBeUndefined();
 		expect(options.workspaceId).toBeUndefined();
 	},
 });
@@ -2674,12 +2673,12 @@ const runtimeModelPickStory = (runtime: ExternalChatRuntime): Story => ({
 	parameters: runtimeAvailableParameters(runtime),
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const { modelName, modelConfigID, otherModelName, carriedModelName } =
+		const { modelName, modelConfigID, otherModelName } =
 			runtimeModelFixtures[runtime];
 		await chooseRuntime(canvas, externalChatRuntimes[runtime].label);
 
 		await userEvent.click(
-			await canvas.findByRole("combobox", { name: carriedModelName }),
+			await canvas.findByRole("combobox", { name: "Default" }),
 		);
 		const body = within(document.body);
 		expect(

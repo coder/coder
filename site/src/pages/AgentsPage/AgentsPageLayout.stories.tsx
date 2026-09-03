@@ -499,16 +499,6 @@ export const OrganizationScopedMCPServers: Story = {
 	},
 };
 
-// The coder default model (OpenAI) is carried into a runtime only when it
-// belongs to that runtime's provider family.
-const carriedRuntimeModelConfigID: Record<
-	ExternalChatRuntime,
-	string | undefined
-> = {
-	claude_code: undefined,
-	codex: defaultModelID,
-};
-
 const createsRuntimeChatStory = (runtime: ExternalChatRuntime): Story => ({
 	parameters: {
 		experiments: ["agents-runtime-config"],
@@ -547,9 +537,6 @@ const createsRuntimeChatStory = (runtime: ExternalChatRuntime): Story => ({
 			content: [{ type: "text", text: "Build a server" }],
 			client_type: "ui",
 			runtime,
-			...(carriedRuntimeModelConfigID[runtime]
-				? { model_config_id: carriedRuntimeModelConfigID[runtime] }
-				: {}),
 		});
 	},
 });

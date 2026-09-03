@@ -571,12 +571,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const applyRuntimeChange = (nextRuntime: ExternalChatRuntime | undefined) => {
 		if (nextRuntime) {
 			resetAttachments();
-			setRuntimeSelectedModel(
-				resolveModelOptionId(
-					selectedModel,
-					filterModelOptionsForRuntime(modelOptions, nextRuntime),
-				),
-			);
+			// Start from the runtime default even when the coder pick would be
+			// admissible, so the administrator's pinned model is not bypassed.
+			setRuntimeSelectedModel("");
 		}
 		setRuntimePick(
 			nextRuntime ? { runtime: nextRuntime, organizationId } : null,
