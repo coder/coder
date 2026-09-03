@@ -264,6 +264,33 @@ func TestTemplateBuilderModules(t *testing.T) {
 		require.True(t, found, "code-server module must be in the catalog")
 	})
 
+	t.Run("AgentNameHiddenForSingleAgentBase", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// docker declares a single agent, so agent_name is not a choice and the
+		// modules that declare it should not expose it.
+		resp, err := client.TemplateBuilderModules(ctx, "docker")
+		require.NoError(t, err)
+
+		var found bool
+		for _, m := range resp.Modules {
+			if m.ID != "zed" {
+				continue
+			}
+			found = true
+			for _, v := range m.Variables {
+				require.NotEqual(t, "agent_name", v.Name,
+					"agent_name must be hidden for a single-agent base")
+			}
+		}
+		require.True(t, found, "zed module must be in the catalog")
+	})
+
 	t.Run("UnknownBaseReturns400", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

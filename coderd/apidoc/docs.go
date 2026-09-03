@@ -28167,10 +28167,6 @@ const docTemplate = `{
         "codersdk.TemplateBuilderComposeModule": {
             "type": "object",
             "properties": {
-                "agent_name": {
-                    "description": "AgentName targets a base coder_agent by name. Empty uses the base default.",
-                    "type": "string"
-                },
                 "id": {
                     "type": "string"
                 },
