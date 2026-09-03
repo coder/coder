@@ -93,8 +93,12 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 				<button
 					type="button"
 					className={cn(
-						"flex w-full items-center gap-2 h-10 pr-0 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors",
-						Icon ? "pl-1" : "pl-0",
+						"flex items-center gap-2 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors",
+						// Rows bleed into the sidebar's horizontal padding so the
+						// hover surface is not cramped; content keeps its position.
+						Icon
+							? "w-[calc(100%+1.5rem)] -mx-3 pl-4 pr-3"
+							: "w-[calc(100%+0.75rem)] pl-0 -mr-3 pr-3",
 					)}
 				>
 					{Icon && <Icon className={iconClass} />}

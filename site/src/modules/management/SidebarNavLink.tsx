@@ -27,7 +27,9 @@ export const SidebarNavLink: FC<SidebarNavLinkProps> = ({
 	nested = false,
 	activeOverride,
 }) => {
-	const sizeClass = nested ? "h-8 px-2" : "h-10 px-2 -mx-2";
+	const sizeClass = nested
+		? "h-8 pl-2 -mr-3 pr-3"
+		: "h-10 pl-2 -ml-2 -mr-3 pr-3";
 	const baseClass = cn(
 		"flex items-center rounded-md text-sm font-medium text-content-secondary no-underline hover:bg-surface-secondary transition-colors",
 		sizeClass,
