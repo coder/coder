@@ -328,6 +328,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							onRemoveModule={handleDeselectModule}
 							registerModuleRef={registerModuleRef}
 							onCreate={handleCreate}
+							showValidationErrors={showContinueError}
 						/>
 					</div>
 
@@ -354,7 +355,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 					</div>
 
 					{showContinueError && !canContinue && (
-						<p className="flex justify-end mt-2 mb-0 text-sm text-content-destructive">
+						<p className="flex justify-end mt-2 mb-0 text-xs text-content-destructive">
 							{continueErrorMessage(currentStep.id)}
 						</p>
 					)}
@@ -399,6 +400,7 @@ interface StepContentProps {
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
 	onCreate: (values: CustomizationsFormValues) => void;
+	showValidationErrors: boolean;
 }
 
 const StepContent: FC<StepContentProps> = ({
@@ -411,6 +413,7 @@ const StepContent: FC<StepContentProps> = ({
 	onRemoveModule,
 	registerModuleRef,
 	onCreate,
+	showValidationErrors,
 }) => {
 	switch (stepId) {
 		case "base-infra":
@@ -429,6 +432,7 @@ const StepContent: FC<StepContentProps> = ({
 					onChangeValues={(values) =>
 						dispatch({ type: "SET_BASE_VARIABLES", values })
 					}
+					showErrors={showValidationErrors}
 				/>
 			);
 		case "module-select":
@@ -458,6 +462,7 @@ const StepContent: FC<StepContentProps> = ({
 					}
 					onRemoveModule={onRemoveModule}
 					registerModuleRef={registerModuleRef}
+					showErrors={showValidationErrors}
 				/>
 			);
 		case "customizations":
