@@ -37,13 +37,10 @@ const meta: Meta<typeof IdpSyncPageView> = {
 	title: "pages/IdpSyncPage",
 	component: IdpSyncPageView,
 	args: {
-		tab: "groups",
 		groupSyncSettings: MockGroupSyncSettings,
 		roleSyncSettings: MockRoleSyncSettings,
-		claimFieldValues: [
-			...Object.keys(MockGroupSyncSettings.mapping),
-			...Object.keys(MockRoleSyncSettings.mapping),
-		],
+		groupClaimFieldValues: Object.keys(MockGroupSyncSettings.mapping),
+		roleClaimFieldValues: Object.keys(MockRoleSyncSettings.mapping),
 		groups: [MockGroup, MockGroup2],
 		groupsMap,
 		organization: MockOrganization,
@@ -77,17 +74,30 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("heading", { name: "Sync field" }),
+			canvas.getByRole("heading", { name: "Group sync", level: 2 }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: "Role sync", level: 2 }),
+		).toBeVisible();
+		await expect(
+			canvas.getAllByRole("heading", { name: "Sync field", level: 3 }),
+		).toHaveLength(2);
+		await expect(
+			canvas.getByRole("heading", { name: "Group mapping", level: 3 }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: "Role mapping", level: 3 }),
 		).toBeVisible();
 		await expect(
 			canvas.getByRole("switch", { name: /auto create missing groups/i }),
 		).toBeVisible();
 		await expect(
-			canvas.getByRole("heading", { name: "Group mapping" }),
-		).toBeVisible();
+			canvas.getAllByRole("button", { name: /export policy/i }),
+		).toHaveLength(2);
 		await expect(
 			canvas.queryByRole("heading", { name: "Legacy group sync" }),
 		).not.toBeInTheDocument();
+		await expect(canvas.queryByRole("tab")).not.toBeInTheDocument();
 	},
 };
 
@@ -112,51 +122,40 @@ export const MultipleOverflowGroups: Story = {
 export const WithLegacyMapping: Story = {
 	args: {
 		groupSyncSettings: MockLegacyMappingGroupSyncSettings,
-		claimFieldValues: Object.keys(
+		groupClaimFieldValues: Object.keys(
 			MockLegacyMappingGroupSyncSettings.legacy_group_name_mapping,
 		),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("heading", { name: "Legacy group sync" }),
+			canvas.getByRole("heading", { name: "Legacy group sync", level: 3 }),
 		).toBeVisible();
 	},
 };
 
-export const GroupsTabMissingClaims: Story = {
+export const MissingGroupClaims: Story = {
 	args: {
-		claimFieldValues: [],
+		groupClaimFieldValues: [],
 	},
 	play: async ({ canvasElement }) => {
 		await hoverUnknownClaimWarning(canvasElement);
 	},
 };
 
-export const RolesTab: Story = {
+export const MissingRoleClaims: Story = {
 	args: {
-		tab: "roles",
+		roleClaimFieldValues: [],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("heading", { name: "Sync field" }),
-		).toBeVisible();
-		await expect(
-			canvas.getByRole("heading", { name: "Role mapping" }),
-		).toBeVisible();
-		await expect(
-			canvas.queryByRole("heading", { name: "Group mapping" }),
-		).not.toBeInTheDocument();
-	},
-};
-
-export const RolesTabMissingClaims: Story = {
-	args: {
-		tab: "roles",
-		claimFieldValues: [],
-	},
-	play: async ({ canvasElement }) => {
-		await hoverUnknownClaimWarning(canvasElement);
+		const roleRow = canvas.getByRole("row", { name: /idp-role-1/ });
+		const warning = within(roleRow).getByRole("button", {
+			name: "Unknown claim value",
+		});
+		await userEvent.hover(warning);
+		await screen.findByRole("tooltip", {
+			name: /has not be seen in the specified claim field/i,
+		});
 	},
 };

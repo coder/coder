@@ -122,201 +122,212 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 	};
 
 	return (
-		<form onSubmit={form.handleSubmit}>
+		<form aria-label="Role sync" onSubmit={form.handleSubmit}>
 			<fieldset
 				disabled={form.isSubmitting}
-				className="flex flex-col border-none gap-12"
+				className="flex flex-col border-none gap-6"
 			>
-				<div>
-					<SettingsHeader>
-						<SettingsHeaderTitle level="h2" hierarchy="secondary">
-							Sync field
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							If empty, role sync is deactivated.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
-					<div className="flex flex-col gap-2">
-						<div className="flex flex-row items-end gap-2">
-							<div className="flex flex-col gap-2">
-								<Label htmlFor={`${id}-sync-field`}>Role sync field</Label>
-								<Input
-									id={`${id}-sync-field`}
-									value={form.values.field}
-									onChange={(event) => {
-										void form.setFieldValue("field", event.target.value);
-										onSyncFieldChange(event.target.value);
+				<SettingsHeader
+					className="pb-0"
+					actions={
+						<ExportPolicyButton
+							syncSettings={roleSyncSettings}
+							filename={`${organization.name}_roles-policy.json`}
+						/>
+					}
+				>
+					<SettingsHeaderTitle level="h2" hierarchy="secondary">
+						Role sync
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Assign roles from IdP claims.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+				<div className="flex flex-col gap-8">
+					<div className="flex flex-col gap-4">
+						<SettingsHeader className="pb-0">
+							<SettingsHeaderTitle level="h3" hierarchy="tertiary">
+								Sync field
+							</SettingsHeaderTitle>
+							<SettingsHeaderDescription>
+								If empty, role sync is deactivated.
+							</SettingsHeaderDescription>
+						</SettingsHeader>
+						<div className="flex flex-col gap-2">
+							<div className="flex flex-row items-end gap-2">
+								<div className="flex flex-col gap-2">
+									<Label htmlFor={`${id}-sync-field`}>Role sync field</Label>
+									<Input
+										id={`${id}-sync-field`}
+										value={form.values.field}
+										onChange={(event) => {
+											void form.setFieldValue("field", event.target.value);
+											onSyncFieldChange(event.target.value);
+										}}
+										className="w-72"
+									/>
+								</div>
+								<Button
+									type="submit"
+									disabled={form.isSubmitting || !form.dirty}
+									onClick={(event) => {
+										event.preventDefault();
+										form.handleSubmit();
 									}}
-									className="w-72"
-								/>
-							</div>
-							<Button
-								type="submit"
-								disabled={form.isSubmitting || !form.dirty}
-								onClick={(event) => {
-									event.preventDefault();
-									form.handleSubmit();
-								}}
-							>
-								<Spinner loading={form.isSubmitting} />
-								Save
-							</Button>
-						</div>
-						{form.errors.field && (
-							<p className="text-content-destructive text-sm m-0">
-								{form.errors.field}
-							</p>
-						)}
-					</div>
-				</div>
-				<div>
-					<SettingsHeader
-						actions={
-							<ExportPolicyButton
-								syncSettings={roleSyncSettings}
-								filename={`${organization.name}_roles-policy.json`}
-							/>
-						}
-					>
-						<SettingsHeaderTitle level="h2" hierarchy="secondary">
-							Role mapping
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Map IdP roles to Coder roles.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
-					<div className="flex flex-row gap-2 justify-between items-start">
-						<div className="grid items-center gap-1 w-72">
-							<Label className="text-sm" htmlFor={`${id}-idp-role-name`}>
-								IdP role name
-							</Label>
-							{claimFieldValues ? (
-								<Combobox
-									open={open}
-									onOpenChange={setOpen}
-									value={idpRoleName}
-									onValueChange={(value) => setIdpRoleName(value ?? "")}
 								>
-									<ComboboxTrigger asChild>
-										<ComboboxButton
-											className="w-72"
-											selectedOption={
-												idpRoleName
-													? { label: idpRoleName, value: idpRoleName }
-													: undefined
-											}
-											placeholder="Select IdP role"
-										/>
-									</ComboboxTrigger>
-									<ComboboxContent className="w-72">
-										<ComboboxInput
-											value={comboInputValue}
-											onValueChange={setComboInputValue}
-											placeholder="Search..."
-											onKeyDown={handleKeyDown}
-										/>
-										<ComboboxList>
-											{claimFieldValues
-												.filter((value) =>
-													value
-														.toLowerCase()
-														.includes(comboInputValue.toLowerCase()),
-												)
-												.map((value) => (
-													<ComboboxItem
-														key={value}
-														value={value}
-														onSelect={() => setComboInputValue("")}
-													>
-														{value}
-													</ComboboxItem>
-												))}
-										</ComboboxList>
-									</ComboboxContent>
-								</Combobox>
-							) : (
-								<Input
-									id={`${id}-idp-role-name`}
-									value={idpRoleName}
-									className="w-72"
-									onChange={(event) => {
-										setIdpRoleName(event.target.value);
-									}}
-								/>
+									<Spinner loading={form.isSubmitting} />
+									Save
+								</Button>
+							</div>
+							{form.errors.field && (
+								<p className="text-content-destructive text-sm m-0">
+									{form.errors.field}
+								</p>
 							)}
 						</div>
-						<div className="grid items-center gap-1 flex-1">
-							<Label className="text-sm" htmlFor={`${id}-coder-role`}>
-								Coder role
-							</Label>
-							<MultiSelectCombobox
-								inputProps={{
-									id: `${id}-coder-role`,
-								}}
-								className="min-w-60 max-w-3xl"
-								value={coderRoles}
-								onChange={setCoderRoles}
-								options={roles.map((role) => ({
-									label: role.display_name || role.name,
-									value: role.name,
-								}))}
-								hidePlaceholderWhenSelected
-								placeholder="Select role"
-								emptyIndicator={
-									<p className="text-center text-md text-content-primary">
-										All roles selected
-									</p>
-								}
-							/>
-						</div>
-						<div className="grid grid-rows-[28px_auto]">
-							<div />
-							<Button
-								type="submit"
-								className="min-w-fit"
-								disabled={!idpRoleName || coderRoles.length === 0}
-								onClick={() => {
-									const newSyncSettings = {
-										...form.values,
-										mapping: {
-											...form.values.mapping,
-											[idpRoleName]: coderRoles.map((role) => role.value),
-										},
-									};
-									void form.setFieldValue("mapping", newSyncSettings.mapping);
-									form.handleSubmit();
-									setIdpRoleName("");
-									setCoderRoles([]);
-								}}
-							>
-								<Spinner loading={form.isSubmitting}>
-									<PlusIcon />
-								</Spinner>
-								Add IdP role
-							</Button>
-						</div>
 					</div>
-					{form.errors.mapping && (
-						<p className="text-content-destructive text-sm m-0">
-							{Object.values(form.errors.mapping || {})}
-						</p>
-					)}
-					<IdpMappingTable type="Role" rowCount={roleMappingCount}>
-						{roleSyncSettings?.mapping &&
-							Object.entries(roleSyncSettings.mapping)
-								.sort(([a], [b]) =>
-									a.toLowerCase().localeCompare(b.toLowerCase()),
-								)
-								.map(([idpRole, roles]) => (
-									<RoleRow
-										key={idpRole}
-										idpRole={idpRole}
-										exists={claimFieldValues?.includes(idpRole)}
-										coderRoles={roles}
-										onDelete={handleDelete}
+					<div className="flex flex-col gap-4">
+						<SettingsHeader className="pb-0">
+							<SettingsHeaderTitle level="h3" hierarchy="tertiary">
+								Role mapping
+							</SettingsHeaderTitle>
+							<SettingsHeaderDescription>
+								Map IdP roles to Coder roles.
+							</SettingsHeaderDescription>
+						</SettingsHeader>
+						<div className="flex flex-row gap-2 justify-between items-start">
+							<div className="grid items-center gap-1 w-72">
+								<Label className="text-sm" htmlFor={`${id}-idp-role-name`}>
+									IdP role name
+								</Label>
+								{claimFieldValues ? (
+									<Combobox
+										open={open}
+										onOpenChange={setOpen}
+										value={idpRoleName}
+										onValueChange={(value) => setIdpRoleName(value ?? "")}
+									>
+										<ComboboxTrigger asChild>
+											<ComboboxButton
+												className="w-72"
+												selectedOption={
+													idpRoleName
+														? { label: idpRoleName, value: idpRoleName }
+														: undefined
+												}
+												placeholder="Select IdP role"
+											/>
+										</ComboboxTrigger>
+										<ComboboxContent className="w-72">
+											<ComboboxInput
+												value={comboInputValue}
+												onValueChange={setComboInputValue}
+												placeholder="Search..."
+												onKeyDown={handleKeyDown}
+											/>
+											<ComboboxList>
+												{claimFieldValues
+													.filter((value) =>
+														value
+															.toLowerCase()
+															.includes(comboInputValue.toLowerCase()),
+													)
+													.map((value) => (
+														<ComboboxItem
+															key={value}
+															value={value}
+															onSelect={() => setComboInputValue("")}
+														>
+															{value}
+														</ComboboxItem>
+													))}
+											</ComboboxList>
+										</ComboboxContent>
+									</Combobox>
+								) : (
+									<Input
+										id={`${id}-idp-role-name`}
+										value={idpRoleName}
+										className="w-72"
+										onChange={(event) => {
+											setIdpRoleName(event.target.value);
+										}}
 									/>
-								))}
-					</IdpMappingTable>
+								)}
+							</div>
+							<div className="grid items-center gap-1 flex-1">
+								<Label className="text-sm" htmlFor={`${id}-coder-role`}>
+									Coder role
+								</Label>
+								<MultiSelectCombobox
+									inputProps={{
+										id: `${id}-coder-role`,
+									}}
+									className="min-w-60 max-w-3xl"
+									value={coderRoles}
+									onChange={setCoderRoles}
+									options={roles.map((role) => ({
+										label: role.display_name || role.name,
+										value: role.name,
+									}))}
+									hidePlaceholderWhenSelected
+									placeholder="Select role"
+									emptyIndicator={
+										<p className="text-center text-md text-content-primary">
+											All roles selected
+										</p>
+									}
+								/>
+							</div>
+							<div className="grid grid-rows-[28px_auto]">
+								<div />
+								<Button
+									type="submit"
+									className="min-w-fit"
+									disabled={!idpRoleName || coderRoles.length === 0}
+									onClick={() => {
+										const newSyncSettings = {
+											...form.values,
+											mapping: {
+												...form.values.mapping,
+												[idpRoleName]: coderRoles.map((role) => role.value),
+											},
+										};
+										void form.setFieldValue("mapping", newSyncSettings.mapping);
+										form.handleSubmit();
+										setIdpRoleName("");
+										setCoderRoles([]);
+									}}
+								>
+									<Spinner loading={form.isSubmitting}>
+										<PlusIcon />
+									</Spinner>
+									Add IdP role
+								</Button>
+							</div>
+						</div>
+						{form.errors.mapping && (
+							<p className="text-content-destructive text-sm m-0">
+								{Object.values(form.errors.mapping || {})}
+							</p>
+						)}
+						<IdpMappingTable type="Role" rowCount={roleMappingCount}>
+							{roleSyncSettings?.mapping &&
+								Object.entries(roleSyncSettings.mapping)
+									.sort(([a], [b]) =>
+										a.toLowerCase().localeCompare(b.toLowerCase()),
+									)
+									.map(([idpRole, roles]) => (
+										<RoleRow
+											key={idpRole}
+											idpRole={idpRole}
+											exists={claimFieldValues?.includes(idpRole)}
+											coderRoles={roles}
+											onDelete={handleDelete}
+										/>
+									))}
+						</IdpMappingTable>
+					</div>
 				</div>
 			</fieldset>
 		</form>

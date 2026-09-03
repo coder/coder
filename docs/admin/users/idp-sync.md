@@ -62,7 +62,7 @@ group sync for each organization.
 1. As an Owner or Organization Admin, go to **Admin settings**, select
    **Organizations**, then **IdP Sync**:
 
-   ![IdP Sync - Group sync settings](../../images/admin/users/organizations/group-sync-empty.png)
+   ![IdP Sync - Group sync](../../images/admin/users/organizations/group-sync-empty.png)
 
 1. Enter the **Group sync field** and an optional **Regex filter**, then select
    **Save**.
@@ -225,11 +225,9 @@ role sync at the organization level.
 1. As an Owner or Organization Admin, go to **Admin settings**, select
    **Organizations**, then **IdP Sync**.
 
-1. Select the **Role sync settings** tab:
+   ![IdP Sync - Role sync](../../images/admin/users/organizations/role-sync-empty.png)
 
-   ![IdP Sync - Role sync settings](../../images/admin/users/organizations/role-sync-empty.png)
-
-1. Enter the **Role sync field**, then select **Save**.
+1. In **Role sync**, enter the **Role sync field**, then select **Save**.
 
 1. Enter the **IdP role name** and **Coder role**, then **Add IdP role**.
 

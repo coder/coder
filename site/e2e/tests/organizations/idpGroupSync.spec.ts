@@ -22,7 +22,7 @@ test.describe("IdpGroupSyncPage", () => {
 	}) => {
 		requiresLicense();
 		const org = await createOrganizationWithName(randomName());
-		await page.goto(`/organizations/${org.name}/idp-sync?tab=groups`, {
+		await page.goto(`/organizations/${org.name}/idp-sync`, {
 			waitUntil: "domcontentloaded",
 		});
 
@@ -41,7 +41,7 @@ test.describe("IdpGroupSyncPage", () => {
 		const org = await createOrganizationWithName(randomName());
 		await createGroupSyncSettings(org.id);
 
-		await page.goto(`/organizations/${org.name}/idp-sync?tab=groups`, {
+		await page.goto(`/organizations/${org.name}/idp-sync`, {
 			waitUntil: "domcontentloaded",
 		});
 
@@ -67,7 +67,7 @@ test.describe("IdpGroupSyncPage", () => {
 		const org = await createOrganizationWithName(randomName());
 		await createGroupSyncSettings(org.id);
 
-		await page.goto(`/organizations/${org.name}/idp-sync?tab=groups`, {
+		await page.goto(`/organizations/${org.name}/idp-sync`, {
 			waitUntil: "domcontentloaded",
 		});
 
@@ -85,21 +85,22 @@ test.describe("IdpGroupSyncPage", () => {
 	test("update sync field", async ({ page }) => {
 		requiresLicense();
 		const org = await createOrganizationWithName(randomName());
-		await page.goto(`/organizations/${org.name}/idp-sync?tab=groups`, {
+		await page.goto(`/organizations/${org.name}/idp-sync`, {
 			waitUntil: "domcontentloaded",
 		});
 
-		const syncField = page.getByRole("textbox", {
+		const groupForm = page.getByRole("form", { name: "Group sync" });
+		const syncField = groupForm.getByRole("textbox", {
 			name: "Group sync field",
 		});
-		const saveButton = page.getByRole("button", { name: /save/i });
+		const saveButton = groupForm.getByRole("button", { name: /^save$/i });
 
 		await expect(saveButton).toBeDisabled();
 
 		await syncField.fill("test-field");
 		await expect(saveButton).toBeEnabled();
 
-		await page.getByRole("button", { name: /save/i }).click();
+		await saveButton.click();
 
 		await expect(
 			page.getByText("IdP group sync settings updated."),
@@ -109,7 +110,7 @@ test.describe("IdpGroupSyncPage", () => {
 	test("toggle off auto create missing groups", async ({ page }) => {
 		requiresLicense();
 		const org = await createOrganizationWithName(randomName());
-		await page.goto(`/organizations/${org.name}/idp-sync?tab=groups`, {
+		await page.goto(`/organizations/${org.name}/idp-sync`, {
 			waitUntil: "domcontentloaded",
 		});
 
@@ -131,11 +132,14 @@ test.describe("IdpGroupSyncPage", () => {
 		requiresLicense();
 		const org = await createOrganizationWithName(randomName());
 		await createGroupSyncSettings(org.id);
-		await page.goto(`/organizations/${org.name}/idp-sync?tab=groups`, {
+		await page.goto(`/organizations/${org.name}/idp-sync`, {
 			waitUntil: "domcontentloaded",
 		});
 
-		const exportButton = page.getByRole("button", { name: /Export Policy/i });
+		const groupForm = page.getByRole("form", { name: "Group sync" });
+		const exportButton = groupForm.getByRole("button", {
+			name: /export policy/i,
+		});
 		await expect(exportButton).toBeEnabled();
 		await exportButton.click();
 	});
@@ -145,7 +149,7 @@ test.describe("IdpGroupSyncPage", () => {
 		const orgName = randomName();
 		await createOrganizationWithName(orgName);
 
-		await page.goto(`/organizations/${orgName}/idp-sync?tab=groups`, {
+		await page.goto(`/organizations/${orgName}/idp-sync`, {
 			waitUntil: "domcontentloaded",
 		});
 

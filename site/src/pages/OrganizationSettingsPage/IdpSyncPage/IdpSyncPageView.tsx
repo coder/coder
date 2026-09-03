@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { useSearchParams } from "react-router";
 import type {
 	Group,
 	GroupSyncSettings,
@@ -9,20 +8,14 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
-import {
-	Tabs,
-	TabsContent,
-	TabsList,
-	TabsTrigger,
-} from "#/components/Tabs/Tabs";
 import { IdpGroupSyncForm } from "./IdpGroupSyncForm";
 import { IdpRoleSyncForm } from "./IdpRoleSyncForm";
 
 interface IdpSyncPageViewProps {
-	tab: string;
 	groupSyncSettings: GroupSyncSettings | undefined;
 	roleSyncSettings: RoleSyncSettings | undefined;
-	claimFieldValues: readonly string[] | undefined;
+	groupClaimFieldValues: readonly string[] | undefined;
+	roleClaimFieldValues: readonly string[] | undefined;
 	groups: Group[] | undefined;
 	groupsMap: Map<string, string>;
 	roles: Role[] | undefined;
@@ -35,10 +28,10 @@ interface IdpSyncPageViewProps {
 }
 
 const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
-	tab,
 	groupSyncSettings,
 	roleSyncSettings,
-	claimFieldValues,
+	groupClaimFieldValues,
+	roleClaimFieldValues,
 	groups,
 	groupsMap,
 	roles,
@@ -49,7 +42,6 @@ const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	onSubmitGroupSyncSettings,
 	onSubmitRoleSyncSettings,
 }) => {
-	const [_, setSearchParams] = useSearchParams();
 	const groupMappingCount = groupSyncSettings?.mapping
 		? Object.entries(groupSyncSettings.mapping).length
 		: 0;
@@ -65,43 +57,28 @@ const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	}
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex flex-col gap-12">
 			{Boolean(error) && <ErrorAlert error={error} />}
-			<Tabs
-				value={tab}
-				onValueChange={(value: string) => {
-					setSearchParams({ tab: value });
-				}}
-			>
-				<TabsList>
-					<TabsTrigger value="groups">Group sync settings</TabsTrigger>
-					<TabsTrigger value="roles">Role sync settings</TabsTrigger>
-				</TabsList>
-				<TabsContent value="groups">
-					<IdpGroupSyncForm
-						groupSyncSettings={groupSyncSettings}
-						claimFieldValues={claimFieldValues}
-						groupMappingCount={groupMappingCount}
-						legacyGroupMappingCount={legacyGroupMappingCount}
-						groups={groups}
-						groupsMap={groupsMap}
-						organization={organization}
-						onSubmit={onSubmitGroupSyncSettings}
-						onSyncFieldChange={onGroupSyncFieldChange}
-					/>
-				</TabsContent>
-				<TabsContent value="roles">
-					<IdpRoleSyncForm
-						roleSyncSettings={roleSyncSettings}
-						claimFieldValues={claimFieldValues}
-						roleMappingCount={roleMappingCount}
-						roles={roles || []}
-						organization={organization}
-						onSubmit={onSubmitRoleSyncSettings}
-						onSyncFieldChange={onRoleSyncFieldChange}
-					/>
-				</TabsContent>
-			</Tabs>
+			<IdpGroupSyncForm
+				groupSyncSettings={groupSyncSettings}
+				claimFieldValues={groupClaimFieldValues}
+				groupMappingCount={groupMappingCount}
+				legacyGroupMappingCount={legacyGroupMappingCount}
+				groups={groups}
+				groupsMap={groupsMap}
+				organization={organization}
+				onSubmit={onSubmitGroupSyncSettings}
+				onSyncFieldChange={onGroupSyncFieldChange}
+			/>
+			<IdpRoleSyncForm
+				roleSyncSettings={roleSyncSettings}
+				claimFieldValues={roleClaimFieldValues}
+				roleMappingCount={roleMappingCount}
+				roles={roles || []}
+				organization={organization}
+				onSubmit={onSubmitRoleSyncSettings}
+				onSyncFieldChange={onRoleSyncFieldChange}
+			/>
 		</div>
 	);
 };

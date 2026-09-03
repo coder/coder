@@ -1,6 +1,6 @@
 import { type FC, useState } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router";
+import { useMutation, useQueries, useQueryClient } from "react-query";
+import { useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { groupsByOrganization } from "#/api/queries/groups";
@@ -54,17 +54,22 @@ const IdpSyncPage: FC = () => {
 		],
 	});
 
-	const [searchParams] = useSearchParams();
-	const tab = searchParams.get("tab") || "groups";
 	const groupField =
 		groupFieldOverride ?? groupIdpSyncSettingsQuery.data?.field ?? "";
 	const roleField =
 		roleFieldOverride ?? roleIdpSyncSettingsQuery.data?.field ?? "";
-	const field = tab === "groups" ? groupField : roleField;
 
-	const fieldValuesQuery = useQuery({
-		...organizationIdpSyncClaimFieldValues(organizationName, field),
-		enabled: Boolean(field),
+	const [groupFieldValuesQuery, roleFieldValuesQuery] = useQueries({
+		queries: [
+			{
+				...organizationIdpSyncClaimFieldValues(organizationName, groupField),
+				enabled: Boolean(groupField),
+			},
+			{
+				...organizationIdpSyncClaimFieldValues(organizationName, roleField),
+				enabled: Boolean(roleField),
+			},
+		],
 	});
 
 	const patchGroupSyncSettingsMutation = useMutation(
@@ -134,10 +139,10 @@ const IdpSyncPage: FC = () => {
 				/>
 			) : (
 				<IdpSyncPageView
-					tab={tab}
 					groupSyncSettings={groupIdpSyncSettingsQuery.data}
 					roleSyncSettings={roleIdpSyncSettingsQuery.data}
-					claimFieldValues={fieldValuesQuery.data}
+					groupClaimFieldValues={groupFieldValuesQuery.data}
+					roleClaimFieldValues={roleFieldValuesQuery.data}
 					groups={groupsQuery.data}
 					groupsMap={groupsMap}
 					roles={rolesQuery.data}
