@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	LayoutGridIcon,
@@ -28,7 +29,6 @@ import {
 	canShowPortForwarding,
 	usePortsData,
 } from "#/modules/resources/usePortsData";
-import { cn } from "#/utils/cn";
 import type { PortSelection } from "../../utils/rightPanelTabs";
 import { PortsMenuItem } from "../WorkspacePillPorts";
 

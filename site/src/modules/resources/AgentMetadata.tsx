@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -20,7 +21,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import type { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";

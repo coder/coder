@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 import type { ChatModel } from "#/api/typesGenerated";
@@ -11,7 +12,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
-import { cn } from "#/utils/cn";
 
 type ModelRowProps = {
 	model: ChatModel;

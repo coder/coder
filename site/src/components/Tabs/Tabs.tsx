@@ -1,4 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Tabs as TabsPrimitive } from "radix-ui";
 import {
 	type ComponentProps,
@@ -11,7 +12,6 @@ import {
 	useRef,
 } from "react";
 import { Link, type LinkProps } from "react-router";
-import { cn } from "#/utils/cn";
 
 // --- Radix tabs (stateful panels) ---
 

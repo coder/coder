@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import type { FC, PropsWithChildren, ReactNode } from "react";
 import { Link } from "#/components/Link/Link";
-import { cn } from "#/utils/cn";
 
 type SettingsHeaderProps = Readonly<
 	PropsWithChildren<{

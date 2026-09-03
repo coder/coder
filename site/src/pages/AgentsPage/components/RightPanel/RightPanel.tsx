@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
@@ -5,7 +6,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cn } from "#/utils/cn";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
 const STORAGE_KEY = "agents.right-panel-width";
