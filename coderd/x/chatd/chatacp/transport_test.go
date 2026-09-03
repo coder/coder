@@ -99,6 +99,8 @@ func TestSSHTransportStartCancel(t *testing.T) {
 
 	close(release)
 	testutil.RequireReceive(testCtx, t, closed)
-	require.NoError(t, client.Close())
+	// The server may close the connection first, so the client close
+	// result carries no signal here.
+	_ = client.Close()
 	testutil.RequireReceive(testCtx, t, serverDone)
 }
