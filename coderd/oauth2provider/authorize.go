@@ -186,32 +186,102 @@ func consentScopes(granted string) (names []string, unrestricted bool) {
 	return names, false
 }
 
+// maxErrorDescription bounds error_description: long enough for a human reason,
+// short enough for a Location header to survive the proxies in front of it.
+const maxErrorDescription = 2048
+
+// responseTypeCode is the only response type this server supports. response_type
+// is read as text rather than through the SDK enum so every unsupported value
+// takes one path, instead of splitting on whether a Go constant happens to
+// exist for it.
+const responseTypeCode = string(codersdk.OAuth2ProviderResponseTypeCode)
+
 type authorizeParams struct {
 	clientID            string
-	callback            validatedCallbackURL
+	response            authorizeResponse
 	redirectURIProvided bool
-	responseType        codersdk.OAuth2ProviderResponseType
+	responseType        string
 	scope               []string
-	state               string
 	resource            string // RFC 8707 resource indicator
 	codeChallenge       string // PKCE code challenge
 	codeChallengeMethod string // PKCE challenge method
 }
 
-func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizeParams, []codersdk.ValidationError, error) {
+// authorizeFailure is a request that will not produce an authorization code:
+// either a parameter was rejected, or the app's registration is unusable. Which
+// answer it gets is kind(), not the order a handler's checks happen to run in.
+type authorizeFailure struct {
+	// validationErrors is every field the parser rejected, reported together.
+	validationErrors []codersdk.ValidationError
+	// description joins them into the error_description the client receives.
+	description string
+	// redirect is where RFC 6749 §4.1.2.1 puts the answer. Its zero value means
+	// the answer stays on this server, because the failure names the redirect
+	// URI or the client identifier.
+	redirect authorizeResponse
+	// corruptCallback is set when the app's registered callback does not parse
+	// or uses a scheme registration rejects. That is bad server state rather
+	// than a client mistake, so it answers 500, and it is decided before any
+	// parameter is read.
+	corruptCallback error
+	// code is the OAuth2 error to answer with. Read it through errorCode, which
+	// supplies the invalid_request default.
+	code codersdk.OAuth2ErrorCode
+}
+
+func (f authorizeFailure) errorCode() codersdk.OAuth2ErrorCode {
+	if f.code == "" {
+		return codersdk.OAuth2ErrorCodeInvalidRequest
+	}
+	return f.code
+}
+
+// failureKind is where a failure is answered. The three are mutually exclusive
+// by construction here rather than by the shape of authorizeFailure, so both
+// handlers dispatch on this instead of re-deriving the precedence from fields.
+type failureKind int
+
+const (
+	// failureCorruptRegistration outranks the rest: with the registration
+	// unusable there is nothing to redirect to, whatever else the client also
+	// got wrong.
+	failureCorruptRegistration failureKind = iota
+	// failureDeliverToClient is the RFC 6749 §4.1.2.1 default.
+	failureDeliverToClient
+	// failureAnswerHere is a §4.1.2.1 carve-out: no callback this server will
+	// send the answer to.
+	failureAnswerHere
+)
+
+func (f authorizeFailure) kind() failureKind {
+	switch {
+	case f.corruptCallback != nil:
+		return failureCorruptRegistration
+	case f.redirect.canRedirect():
+		return failureDeliverToClient
+	default:
+		return failureAnswerHere
+	}
+}
+
+func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OAuth2ProviderApp) (authorizeParams, *authorizeFailure) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
 	// response_type and client_id are always required.
 	p.RequiredNotEmpty("response_type", "client_id")
 
+	response, err := newAuthorizeResponse(p, vals, app.CallbackURL)
+	if err != nil {
+		return authorizeParams{}, &authorizeFailure{corruptCallback: err}
+	}
+
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
-		callback:            validatedCallbackURL{url: p.RedirectURL(vals, callbackURL, "redirect_uri")},
+		response:            response,
 		redirectURIProvided: vals.Get("redirect_uri") != "",
-		responseType:        httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
+		responseType:        p.String(vals, "", "response_type"),
 		scope:               strings.Fields(strings.TrimSpace(p.String(vals, "", "scope"))),
-		state:               p.String(vals, "", "state"),
 		resource:            p.String(vals, "", "resource"),
 		codeChallenge:       p.String(vals, "", "code_challenge"),
 		codeChallengeMethod: p.String(vals, "", "code_challenge_method"),
@@ -220,7 +290,11 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	// PKCE is required for the authorization code flow. A malformed
 	// code_challenge is rejected here (RFC 7636 §4.4.1) rather than at token
 	// exchange, where the error would point at the code_verifier instead.
-	if params.responseType == codersdk.OAuth2ProviderResponseTypeCode {
+	//
+	// Only for the code flow: an unsupported response type must reach the
+	// handlers as unsupported_response_type rather than be recast here as a
+	// missing code_challenge.
+	if params.responseType == responseTypeCode {
 		switch {
 		case params.codeChallenge == "":
 			p.Errors = append(p.Errors, codersdk.ValidationError{
@@ -243,30 +317,143 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 		})
 	}
 
-	p.ErrorExcessParams(vals)
-	if len(p.Errors) > 0 {
-		// Create a readable error message with validation details
-		var errorDetails []string
-		for _, err := range p.Errors {
-			errorDetails = append(errorDetails, err.Error())
-		}
-		errorMsg := "Invalid query params: " + strings.Join(errorDetails, ", ")
-		return authorizeParams{}, p.Errors, xerrors.Errorf(errorMsg)
+	// RFC 6749 §3.1 and OAuth 2.1 §3.1: unrecognized parameters MUST be ignored,
+	// so an OIDC nonce or a vendor extension is not this endpoint's business.
+	// Repeats of the parameters read above are still rejected, by parseSingle.
+	if ignored := ignoredParams(p, vals); len(ignored) > 0 {
+		logger.Debug(r.Context(), "ignoring unrecognized authorization parameters",
+			slog.F("params", ignored))
 	}
-	return params, nil, nil
+
+	if len(p.Errors) > 0 {
+		// Not err.Error(): its "field: x detail: y" shape is a Coder debug
+		// formatter, and details contain commas, so a comma join cannot be split
+		// back into per-field diagnostics by the client reading it.
+		details := make([]string, len(p.Errors))
+		for i, err := range p.Errors {
+			details[i] = err.Field + ": " + err.Detail
+		}
+		failure := &authorizeFailure{
+			validationErrors: p.Errors,
+			description:      "Invalid query params: " + strings.Join(details, "; "),
+		}
+		// RFC 8707 §2 gives resource its own code, but only when nothing else
+		// failed. A client that retries on invalid_target would otherwise resend
+		// a request that is still broken in the field it did not hear about.
+		if !slices.ContainsFunc(p.Errors, func(e codersdk.ValidationError) bool {
+			return e.Field != "resource"
+		}) {
+			failure.code = codersdk.OAuth2ErrorCodeInvalidTarget
+		}
+		if !clientIDInDoubt(vals, params.clientID, app.ID) {
+			failure.redirect = response
+		}
+		return authorizeParams{}, failure
+	}
+	return params, nil
 }
 
-// validatedCallbackURL is a redirect URI extractAuthorizeParams has exact-matched
-// against the app's registered callback. Requiring one keeps the error redirects
-// below from becoming open redirects. The unexported field is a guard, not a
-// proof: no other package can fabricate one; this package still can.
-type validatedCallbackURL struct {
-	url *url.URL
+// ignoredParams returns the query parameters this endpoint does not read,
+// sorted so the log line is stable. A misspelled parameter (redirect_url for
+// redirect_uri) surfaces here instead of in the client's error.
+func ignoredParams(p *httpapi.QueryParamParser, vals url.Values) []string {
+	var ignored []string
+	for name := range vals {
+		if !p.Parsed[name] {
+			ignored = append(ignored, name)
+		}
+	}
+	slices.Sort(ignored)
+	return ignored
 }
 
-// String returns the registered callback, without the query a response adds.
-func (c validatedCallbackURL) String() string {
-	return c.url.String()
+// clientIDInDoubt reports whether the client's identity is unsettled, the
+// RFC 6749 §4.1.2.1 carve-out that keeps the answer on this server rather than
+// sending it to a registration that may not be the caller's. The other
+// carve-out, a redirect URI at fault, needs no test here because the response
+// it produced has nowhere to send.
+//
+// It reads the raw values because parseSingle collapses a repeated client_id to
+// "", which is indistinguishable from a POST carrying client_id in the form
+// body. httpmw accepts that body, so an absent query parameter still names a
+// client and its failure is deliverable.
+func clientIDInDoubt(vals url.Values, parsed string, appID uuid.UUID) bool {
+	// RFC 6749 §3.1: a parameter sent without a value is the omitted case, so
+	// ?client_id= names no candidate, and neither does a repeat of it.
+	named := slices.DeleteFunc(slices.Clone(vals["client_id"]), func(v string) bool {
+		return v == ""
+	})
+	switch {
+	case len(named) > 1:
+		// The callback was matched against one of several candidates.
+		return true
+	case len(named) == 0:
+		return false
+	default:
+		// Parsed rather than compared as text: httpmw resolves through
+		// uuid.Parse, which accepts spellings the canonical form does not match.
+		id, err := uuid.Parse(parsed)
+		return err != nil || id != appID
+	}
+}
+
+// authorizeResponse names where this request's response goes and what it carries
+// back. Building one runs both preconditions a Location header needs, so a
+// response holding a callback is what licenses a redirect. The unexported fields
+// are a guard, not a proof: no other package can fabricate one; this package
+// still can.
+type authorizeResponse struct {
+	// callback is nil when the request named a redirect URI this server will not
+	// send anything to. RFC 6749 §4.1.2.1 keeps that answer on this server.
+	callback *url.URL
+	state    string
+}
+
+// newAuthorizeResponse parses the app's registered callback, checks it,
+// exact-matches any redirect_uri the client sent against it, and reads the
+// state to echo back.
+//
+// The scheme is checked on the registered URL rather than on the match's result,
+// because p.RedirectURL returns the client's URI when the match fails, and
+// answering 500 for a scheme the client chose would blame the app for a request
+// it did not make. It is checked before the match so no parse outcome can reach
+// a Location header through a scheme nothing verified.
+//
+// A returned error means the registration itself is unusable, which is server
+// state. A mismatch is the client's mistake and joins the other parameter
+// failures in p.Errors.
+func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, registered string) (authorizeResponse, error) {
+	registeredURL, err := url.Parse(registered)
+	if err != nil {
+		return authorizeResponse{}, err
+	}
+	if err := codersdk.ValidateRedirectURIScheme(registeredURL); err != nil {
+		return authorizeResponse{}, err
+	}
+
+	callback := p.RedirectURL(vals, registeredURL, "redirect_uri")
+	response := authorizeResponse{state: p.String(vals, "", "state")}
+	// The field, not a count of errors across these two lines: reading state
+	// can fail too, and that failure belongs to the client's callback rather
+	// than to the carve-out that withholds one.
+	if !slices.ContainsFunc(p.Errors, func(e codersdk.ValidationError) bool {
+		return e.Field == "redirect_uri"
+	}) {
+		response.callback = callback
+	}
+	return response, nil
+}
+
+func (a authorizeResponse) canRedirect() bool {
+	return a.callback != nil
+}
+
+// callbackURL returns the destination, without the query a response adds. Named
+// rather than String so the type is not an implicit fmt.Stringer: the zero value
+// is routine on failure paths, and its String would panic through %v. Valid only
+// on a response that holds a callback.
+func (a authorizeResponse) callbackURL() string {
+	return a.callback.String()
 }
 
 // reservedResponseParams are the response parameters RFC 6749 §4.1.2.1 and
@@ -281,15 +468,15 @@ var reservedResponseParams = []string{"code", "error", "error_description", "sta
 // The registered query is kept (§3.1.2) except for the reserved parameters: a
 // registered error= would otherwise ride out on a success response, where a
 // client reading error first discards a valid code.
-func (c validatedCallbackURL) withQuery(state string, set func(url.Values)) *url.URL {
-	destination := *c.url
+func (a authorizeResponse) withQuery(set func(url.Values)) *url.URL {
+	destination := *a.callback
 	query := destination.Query()
 	for _, param := range reservedResponseParams {
 		query.Del(param)
 	}
 	set(query)
-	if state != "" {
-		query.Set("state", state)
+	if a.state != "" {
+		query.Set("state", a.state)
 	}
 	destination.RawQuery = query.Encode()
 	return &destination
@@ -314,21 +501,27 @@ func sanitizeErrorDescription(description string) string {
 }
 
 // errorURL returns the callback carrying an RFC 6749 §4.1.2.1 error.
-func (c validatedCallbackURL) errorURL(state string, code codersdk.OAuth2ErrorCode, description string) *url.URL {
-	return c.withQuery(state, func(query url.Values) {
+func (a authorizeResponse) errorURL(code codersdk.OAuth2ErrorCode, description string) *url.URL {
+	return a.withQuery(func(query url.Values) {
 		query.Set("error", string(code))
 		query.Set("error_description", sanitizeErrorDescription(description))
 	})
 }
 
 // codeURL returns the callback carrying the authorization code.
-func (c validatedCallbackURL) codeURL(state, code string) *url.URL {
-	return c.withQuery(state, func(query url.Values) {
+func (a authorizeResponse) codeURL(code string) *url.URL {
+	return a.withQuery(func(query url.Values) {
 		query.Set("code", code)
 	})
 }
 
-func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog.Logger, callback validatedCallbackURL, state string, code codersdk.OAuth2ErrorCode, description string) {
+func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog.Logger, response authorizeResponse, code codersdk.OAuth2ErrorCode, description string) {
+	// Descriptions echo values the client sent, so their length is the client's
+	// to choose. Cap here, ahead of both the log field and the Location header.
+	if len(description) > maxErrorDescription {
+		description = description[:maxErrorDescription] + " (truncated)"
+	}
+
 	app := httpmw.OAuth2ProviderApp(r)
 	logger.Info(r.Context(), "oauth2 authorization rejected",
 		slog.F("app_id", app.ID.String()),
@@ -337,7 +530,7 @@ func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog
 
 	// 302 rather than 307, matching the success redirect below: some external
 	// OAuth2 apps and browsers do not handle 307.
-	http.Redirect(rw, r, callback.errorURL(state, code, description).String(), http.StatusFound)
+	http.Redirect(rw, r, response.errorURL(code, description).String(), http.StatusFound)
 }
 
 // logCorruptCallback reports a registered callback URL this server should never
@@ -356,14 +549,13 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		app := httpmw.OAuth2ProviderApp(r)
 		ua := httpmw.UserAuthorization(r.Context())
 
-		callbackURL, err := url.Parse(app.CallbackURL)
-		if err != nil {
-			logCorruptCallback(r.Context(), logger, app, err)
+		errorPage := func(status int, title, description string, warnings []string) {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusInternalServerError,
+				Status:      status,
 				HideStatus:  false,
-				Title:       "Internal Server Error",
-				Description: err.Error(),
+				Title:       title,
+				Description: description,
+				Warnings:    warnings,
 				Actions: []site.Action{
 					{
 						URL:  accessURL.String(),
@@ -371,49 +563,39 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 					},
 				},
 			})
-			return
 		}
 
-		params, validationErrs, err := extractAuthorizeParams(r, callbackURL)
-		if err != nil {
-			errStr := make([]string, len(validationErrs))
-			for i, err := range validationErrs {
-				errStr[i] = err.Detail
+		params, failure := extractAuthorizeParams(r, logger, app)
+		if failure != nil {
+			switch failure.kind() {
+			case failureCorruptRegistration:
+				logCorruptCallback(r.Context(), logger, app, failure.corruptCallback)
+				errorPage(http.StatusInternalServerError, "Invalid Callback URL",
+					"The application's registered callback URL is not usable.", nil)
+
+			case failureDeliverToClient:
+				// §4.1.2.1: once the callback has been matched against the app's
+				// registration, a parameter failure is a response to the client
+				// rather than a page for the user. Without it the app never
+				// learns its request failed and waits on an authorization that
+				// will not arrive.
+				redirectAuthorizeError(rw, r, logger, failure.redirect,
+					failure.errorCode(), failure.description)
+
+			case failureAnswerHere:
+				warnings := make([]string, len(failure.validationErrors))
+				for i, err := range failure.validationErrors {
+					warnings[i] = err.Detail
+				}
+				errorPage(http.StatusBadRequest, "Invalid Query Parameters",
+					"One or more query parameters are missing or invalid.", warnings)
+
+			default:
+				logger.Error(r.Context(), "unhandled authorize failure kind",
+					slog.F("kind", int(failure.kind())))
+				errorPage(http.StatusInternalServerError, "Internal Server Error",
+					"The request could not be answered.", nil)
 			}
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				HideStatus:  false,
-				Title:       "Invalid Query Parameters",
-				Description: "One or more query parameters are missing or invalid.",
-				Warnings:    errStr,
-				Actions: []site.Action{
-					{
-						URL:  accessURL.String(),
-						Text: "Back to site",
-					},
-				},
-			})
-			return
-		}
-
-		// Checked right after the exact match against the registered callback,
-		// because every redirect below writes this URL into a Location header,
-		// and the consent page into the cancel link's href. 500, not 400:
-		// registration rejects these schemes, so a stored one is bad server state.
-		if err := codersdk.ValidateRedirectURIScheme(params.callback.url); err != nil {
-			logCorruptCallback(r.Context(), logger, app, err)
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusInternalServerError,
-				HideStatus:  false,
-				Title:       "Invalid Callback URL",
-				Description: "The application's registered callback URL has an invalid scheme.",
-				Actions: []site.Action{
-					{
-						URL:  accessURL.String(),
-						Text: "Back to site",
-					},
-				},
-			})
 			return
 		}
 
@@ -423,8 +605,8 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// In the query, not the fragment §4.2.2.1 would use: Coder advertises
 		// code alone in response_types_supported, so a client asking for token
 		// is misconfigured rather than mid-implicit-flow.
-		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
-			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
+		if params.responseType != responseTypeCode {
+			redirectAuthorizeError(rw, r, logger, params.response,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
 				"Only response_type=code is supported")
 			return
@@ -434,7 +616,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// negotiated below: the page must not render for a request POST will
 		// refuse. Only POST defaults an omitted method, since only POST stores it.
 		if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
-			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
+			redirectAuthorizeError(rw, r, logger, params.response,
 				codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
@@ -445,14 +627,13 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
 		if err != nil {
 			code, description := scopeFailureResponse(err)
-			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
-				code, description)
+			redirectAuthorizeError(rw, r, logger, params.response, code, description)
 			return
 		}
 
 		// Declining is an authorization failure like any other, so the cancel
 		// link is the same §4.1.2.1 error URL the redirects above build.
-		cancel := params.callback.errorURL(params.state,
+		cancel := params.response.errorURL(
 			codersdk.OAuth2ErrorCodeAccessDenied,
 			"The resource owner or authorization server denied the request")
 
@@ -460,8 +641,8 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
 			AppIcon: app.Icon,
 			AppName: app.Name,
-			// #nosec G203 -- The scheme is validated by
-			// codersdk.ValidateRedirectURIScheme after extractAuthorizeParams.
+			// #nosec G203 -- newAuthorizeResponse checked the scheme before this
+			// URL could exist.
 			CancelURI:    htmltemplate.URL(cancel.String()),
 			DashboardURL: accessURL.String(),
 			CSRFToken:    nosurf.Token(r),
@@ -480,32 +661,34 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		apiKey := httpmw.APIKey(r)
 		app := httpmw.OAuth2ProviderApp(r)
 
-		callbackURL, err := url.Parse(app.CallbackURL)
-		if err != nil {
-			logCorruptCallback(ctx, logger, app, err)
-			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Failed to validate query parameters")
-			return
-		}
+		params, failure := extractAuthorizeParams(r, logger, app)
+		if failure != nil {
+			switch failure.kind() {
+			case failureCorruptRegistration:
+				logCorruptCallback(ctx, logger, app, failure.corruptCallback)
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
+					codersdk.OAuth2ErrorCodeServerError,
+					"The application's registered callback URL is not usable")
 
-		params, _, err := extractAuthorizeParams(r, callbackURL)
-		if err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
-			return
-		}
+			case failureDeliverToClient:
+				redirectAuthorizeError(rw, r, logger, failure.redirect,
+					failure.errorCode(), failure.description)
 
-		// As on the GET side: every redirect below writes this URL into a
-		// Location header.
-		if err := codersdk.ValidateRedirectURIScheme(params.callback.url); err != nil {
-			logCorruptCallback(ctx, logger, app, err)
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
-				codersdk.OAuth2ErrorCodeServerError,
-				"The application's registered callback URL has an invalid scheme")
+			case failureAnswerHere:
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, failure.errorCode(), failure.description)
+
+			default:
+				logger.Error(ctx, "unhandled authorize failure kind",
+					slog.F("kind", int(failure.kind())))
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
+					codersdk.OAuth2ErrorCodeServerError, "The request could not be answered")
+			}
 			return
 		}
 
 		// As on the GET side: OAuth 2.1 removes the implicit grant.
-		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
-			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
+		if params.responseType != responseTypeCode {
+			redirectAuthorizeError(rw, r, logger, params.response,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
 				"Only response_type=code is supported")
 			return
@@ -517,7 +700,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			params.codeChallengeMethod = string(codersdk.OAuth2PKCECodeChallengeMethodS256)
 		}
 		if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
-			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
+			redirectAuthorizeError(rw, r, logger, params.response,
 				codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
@@ -525,8 +708,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
 		if err != nil {
 			code, description := scopeFailureResponse(err)
-			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
-				code, description)
+			redirectAuthorizeError(rw, r, logger, params.response, code, description)
 			return
 		}
 
@@ -564,8 +746,8 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 				ResourceUri:         sql.NullString{String: params.resource, Valid: params.resource != ""},
 				CodeChallenge:       sql.NullString{String: params.codeChallenge, Valid: params.codeChallenge != ""},
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
-				StateHash:           hashOAuth2State(params.state),
-				RedirectUri:         sql.NullString{String: params.callback.String(), Valid: params.redirectURIProvided},
+				StateHash:           hashOAuth2State(params.response.state),
+				RedirectUri:         sql.NullString{String: params.response.callbackURL(), Valid: params.redirectURIProvided},
 				// The negotiated scope, not the requested one. The exchange
 				// copies it onto the token row and the API key it mints, so
 				// this bounds the issued token.
@@ -584,7 +766,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		// (ThomasK33): Use a 302 redirect as some (external) OAuth 2 apps and browsers
 		// do not work with the 307.
-		http.Redirect(rw, r, params.callback.codeURL(params.state, code.Formatted).String(), http.StatusFound)
+		http.Redirect(rw, r, params.response.codeURL(code.Formatted).String(), http.StatusFound)
 	}
 }
 
