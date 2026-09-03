@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent } from "storybook/test";
+import { screen, userEvent, within } from "storybook/test";
 import {
 	MockGroup,
 	MockGroup2,
@@ -17,6 +17,21 @@ const groupsMap = new Map<string, string>();
 for (const group of [MockGroup, MockGroup2, MockGroup3]) {
 	groupsMap.set(group.id, group.display_name || group.name);
 }
+
+const hoverUnknownClaimWarning = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const warnings = canvas.getAllByRole("button", {
+		name: "Unknown claim value",
+	});
+	const warning = warnings[0];
+	if (!warning) {
+		throw new Error("Expected an unknown claim warning");
+	}
+	await userEvent.hover(warning);
+	await screen.findByRole("tooltip", {
+		name: /has not be seen in the specified claim field/i,
+	});
+};
 
 const meta: Meta<typeof IdpSyncPageView> = {
 	title: "pages/IdpSyncPage",
@@ -92,10 +107,7 @@ export const GroupsTabMissingClaims: Story = {
 		claimFieldValues: [],
 	},
 	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const warning = canvasElement.querySelector(".lucide-triangle-alert")!;
-		expect(warning).not.toBe(null);
-		await user.hover(warning);
+		await hoverUnknownClaimWarning(canvasElement);
 	},
 };
 
@@ -111,9 +123,6 @@ export const RolesTabMissingClaims: Story = {
 		claimFieldValues: [],
 	},
 	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const warning = canvasElement.querySelector(".lucide-triangle-alert")!;
-		expect(warning).not.toBe(null);
-		await user.hover(warning);
+		await hoverUnknownClaimWarning(canvasElement);
 	},
 };

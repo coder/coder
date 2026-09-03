@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { PlusIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
+import { PlusIcon, TrashIcon } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import * as Yup from "yup";
 import type {
@@ -25,12 +25,8 @@ import {
 } from "#/components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { TableCell, TableRow } from "#/components/Table/Table";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { ExportPolicyButton } from "./ExportPolicyButton";
+import { ExportPolicyButton } from "#/modules/idpSync/ExportPolicyButton";
+import { IdpUnseenClaimWarning } from "#/modules/idpSync/IdpUnseenClaimWarning";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";
 
@@ -129,8 +125,8 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 				<div className="flex justify-end">
 					<ExportPolicyButton
 						syncSettings={roleSyncSettings}
-						organization={organization}
-						type="roles"
+						filename={`${organization.name}_roles-policy.json`}
+						size="sm"
 					/>
 				</div>
 				<div className="grid items-center gap-1">
@@ -326,23 +322,7 @@ const RoleRow: FC<RoleRowProps> = ({
 			<TableCell>
 				<div className="flex flex-row items-center gap-2 text-content-primary">
 					{idpRole}
-					{!exists && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="size-icon-xs cursor-pointer text-content-warning" />
-							</TooltipTrigger>
-							<TooltipContent
-								align="start"
-								alignOffset={-8}
-								sideOffset={8}
-								className="p-2 text-xs text-content-secondary max-w-sm"
-							>
-								This value has not be seen in the specified claim field before.
-								You might want to check your IdP configuration and ensure that
-								this value is not misspelled.
-							</TooltipContent>
-						</Tooltip>
-					)}
+					{!exists && <IdpUnseenClaimWarning />}
 				</div>
 			</TableCell>
 
