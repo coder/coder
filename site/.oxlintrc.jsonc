@@ -102,6 +102,7 @@
 		"for-direction": "error",
 		"valid-typeof": "error",
 		"require-yield": "error",
+		"rules-of-hooks": "error",
 
 		// --- security ---
 		"jsx-no-target-blank": "error",
@@ -216,7 +217,6 @@
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
 		"prefer-template": "off", // style/useTemplate (small)
 		"no-console": "off", // suspicious/noConsole (small, coder error rule: Biome suppression to migrate)
-		"rules-of-hooks": "off", // correctness/useHookAtTopLevel (large: flags Storybook render callbacks Biome allows)
 		"exhaustive-deps": "off", // correctness/useExhaustiveDependencies (large: reimplementation; Biome suppressions to migrate)
 		"no-restricted-imports": [
 			"error",
