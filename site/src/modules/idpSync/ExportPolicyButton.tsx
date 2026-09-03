@@ -25,7 +25,7 @@ interface ExportPolicyButtonProps {
 export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 	syncSettings,
 	filename,
-	size,
+	size = "sm",
 	download = saveAs,
 }) => {
 	const [isDownloading, setIsDownloading] = useState(false);

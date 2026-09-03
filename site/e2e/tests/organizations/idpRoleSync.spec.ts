@@ -22,7 +22,7 @@ test.describe("IdpRoleSyncPage", () => {
 		page,
 	}) => {
 		const org = await createOrganizationWithName(randomName());
-		await page.goto(`/organizations/${org.name}/idp-sync`, {
+		await page.goto(`/organizations/${org.name}/idp-sync?tab=roles`, {
 			waitUntil: "domcontentloaded",
 		});
 
@@ -40,7 +40,7 @@ test.describe("IdpRoleSyncPage", () => {
 		const org = await createOrganizationWithName(randomName());
 		await createRoleSyncSettings(org.id);
 
-		await page.goto(`/organizations/${org.name}/idp-sync`, {
+		await page.goto(`/organizations/${org.name}/idp-sync?tab=roles`, {
 			waitUntil: "domcontentloaded",
 		});
 
@@ -61,7 +61,7 @@ test.describe("IdpRoleSyncPage", () => {
 		const org = await createOrganizationWithName(randomName());
 		await createRoleSyncSettings(org.id);
 
-		await page.goto(`/organizations/${org.name}/idp-sync`, {
+		await page.goto(`/organizations/${org.name}/idp-sync?tab=roles`, {
 			waitUntil: "domcontentloaded",
 		});
 		const row = page.getByTestId("role-idp-role-1");
@@ -79,7 +79,7 @@ test.describe("IdpRoleSyncPage", () => {
 
 	test("update sync field", async ({ page }) => {
 		const org = await createOrganizationWithName(randomName());
-		await page.goto(`/organizations/${org.name}/idp-sync`, {
+		await page.goto(`/organizations/${org.name}/idp-sync?tab=roles`, {
 			waitUntil: "domcontentloaded",
 		});
 
@@ -107,12 +107,11 @@ test.describe("IdpRoleSyncPage", () => {
 		page,
 	}) => {
 		const org = await createOrganizationWithName(randomName());
-		await page.goto(`/organizations/${org.name}/idp-sync`, {
+		await page.goto(`/organizations/${org.name}/idp-sync?tab=roles`, {
 			waitUntil: "domcontentloaded",
 		});
 
-		const roleForm = page.getByRole("form", { name: "Role sync" });
-		const exportButton = roleForm.getByRole("button", {
+		const exportButton = page.getByRole("button", {
 			name: /export policy/i,
 		});
 		await createRoleSyncSettings(org.id);
@@ -125,7 +124,7 @@ test.describe("IdpRoleSyncPage", () => {
 		const orgName = randomName();
 		await createOrganizationWithName(orgName);
 
-		await page.goto(`/organizations/${orgName}/idp-sync`, {
+		await page.goto(`/organizations/${orgName}/idp-sync?tab=roles`, {
 			waitUntil: "domcontentloaded",
 		});
 

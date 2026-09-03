@@ -225,9 +225,11 @@ role sync at the organization level.
 1. As an Owner or Organization Admin, go to **Admin settings**, select
    **Organizations**, then **IdP Sync**.
 
-   ![IdP Sync - Role sync](../../images/admin/users/organizations/role-sync-empty.png)
+1. Select the **Role sync settings** tab:
 
-1. In **Role sync**, enter the **Role sync field**, then select **Save**.
+   ![IdP Sync - Role sync settings](../../images/admin/users/organizations/role-sync-empty.png)
+
+1. Enter the **Role sync field**, then select **Save**.
 
 1. Enter the **IdP role name** and **Coder role**, then **Add IdP role**.
 

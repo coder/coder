@@ -1,6 +1,6 @@
 import { type FC, useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "react-query";
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { groupsByOrganization } from "#/api/queries/groups";
@@ -54,6 +54,8 @@ const IdpSyncPage: FC = () => {
 		],
 	});
 
+	const [searchParams] = useSearchParams();
+	const tab = searchParams.get("tab") === "roles" ? "roles" : "groups";
 	const groupField =
 		groupFieldOverride ?? groupIdpSyncSettingsQuery.data?.field ?? "";
 	const roleField =
@@ -139,6 +141,7 @@ const IdpSyncPage: FC = () => {
 				/>
 			) : (
 				<IdpSyncPageView
+					tab={tab}
 					groupSyncSettings={groupIdpSyncSettingsQuery.data}
 					roleSyncSettings={roleIdpSyncSettingsQuery.data}
 					groupClaimFieldValues={groupFieldValuesQuery.data}
