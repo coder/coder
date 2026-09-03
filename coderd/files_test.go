@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"io"
@@ -69,6 +70,44 @@ func TestPostFiles(t *testing.T) {
 
 		_, err := client.Upload(ctx, "application/x-zip-compressed", bytes.NewReader(archivetest.TestZipFileBytes()))
 		require.NoError(t, err)
+	})
+
+	t.Run("GzippedTar", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		var tarBytes bytes.Buffer
+		tw := tar.NewWriter(&tarBytes)
+		require.NoError(t, tw.WriteHeader(&tar.Header{Name: "main.tf", Mode: 0o600, Size: 4}))
+		_, err := tw.Write([]byte("main"))
+		require.NoError(t, err)
+		require.NoError(t, tw.Close())
+
+		var gzipped bytes.Buffer
+		gw := gzip.NewWriter(&gzipped)
+		_, err = gw.Write(tarBytes.Bytes())
+		require.NoError(t, err)
+		require.NoError(t, gw.Close())
+
+		// A gzipped tar used to be stored as-is and only blew up later, in
+		// whatever first read the archive back.
+		_, err = client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(gzipped.Bytes()))
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Detail, "gzip")
+	})
+
+	t.Run("UnreadableTar", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader([]byte("this is not a tar archive")))
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
 	t.Run("InsertAlreadyExists", func(t *testing.T) {

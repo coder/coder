@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/archive"
@@ -45,6 +46,28 @@ const (
 // @Success 201 {object} codersdk.UploadResponse "Returns newly created file"
 // @Failure 413 {object} codersdk.Response "Request body exceeds 100 MiB, or a .zip archive exceeds it once expanded"
 // @Router /api/v2/files [post]
+// validateTar reports whether data can be read as a tar archive. Only the
+// headers are walked, so the cost is proportional to the number of entries
+// rather than the size of their contents. Without this an archive that cannot
+// be read is stored and returns a hash, and the failure surfaces much later in
+// whatever first tries to read the filesystem back out.
+func validateTar(data []byte) error {
+	if len(data) > 1 && data[0] == 0x1f && data[1] == 0x8b {
+		return xerrors.New("archive is gzip compressed, upload an uncompressed tar or a .zip archive")
+	}
+
+	reader := tar.NewReader(bytes.NewReader(data))
+	for {
+		_, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
+
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -112,6 +135,16 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		contentType = tarMimeType
+	}
+
+	if contentType == tarMimeType {
+		if err := validateTar(data); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid .tar archive file.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	hashBytes := sha256.Sum256(data)
