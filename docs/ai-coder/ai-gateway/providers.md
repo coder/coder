@@ -127,20 +127,6 @@ export ANTHROPIC_BEDROCK_MANTLE_BASE_URL="<your-deployment-url>/api/v2/ai-gatewa
 export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 ```
 
-#### Application inference profiles
-
-For InvokeModel, the **model** and **small fast model** identifiers can be
-[application inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/cost-mgmt-application-inference-profiles.html)
-ARNs, which attribute Bedrock spend to a team or workload through AWS cost
-allocation tags. AI Gateway invokes the profile so AWS records the
-attribution, and resolves the model behind it to shape requests correctly and
-to price usage.
-
-Resolution calls `GetInferenceProfile`, so the identity the gateway uses must
-also permit `bedrock:GetInferenceProfile` for the profile. Providers
-configured with plain model identifiers do not need this permission. When
-resolution fails, the provider is not served and the failure is logged.
-
 #### AWS credentials
 
 Do not attach API keys to a Bedrock provider.
@@ -243,6 +229,20 @@ To enforce it, add the external ID to the target role's trust policy as an
 > it. Until you add the `sts:ExternalId` condition, the value is sent but
 > not enforced, and the role can still be assumed without it. To rotate the
 > external ID, recreate the provider.
+
+#### Application inference profiles
+
+For InvokeModel, the **model** and **small fast model** identifiers can be
+[application inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/cost-mgmt-application-inference-profiles.html)
+ARNs, which attribute Bedrock spend to a team or workload through AWS cost
+allocation tags. AI Gateway passes the profile upstream so AWS records the
+attribution, and resolves the model behind it. The underlying model is the
+identity the gateway uses internally, including to price usage.
+
+Resolution calls `GetInferenceProfile`, so the identity the gateway uses must
+also permit `bedrock:GetInferenceProfile` for the profile. Providers
+configured with plain model identifiers do not need this permission. When
+resolution fails, the provider is skipped.
 
 ### GitHub Copilot
 
