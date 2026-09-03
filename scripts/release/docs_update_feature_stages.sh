@@ -57,21 +57,12 @@ table="$(
 		exit 0
 	fi
 
-	echo "| Feature | Flag | Description |"
-	echo "| ------- | ---- | ----------- |"
-	jq -r '.experiments[] | "| \(.displayName) | `\(.id)` | \(.description) |"' "${experiments_json}"
-	echo
-	# Which flags `--experiments=*` enables is decided per version in
-	# codersdk.ExperimentsSafe and is usually a very short list, so it is
-	# stated as a sentence rather than repeated down a column.
-	safe=$(jq -r '[.experiments[] | select(.safe) | "`\(.id)`"] | join(", ")' "${experiments_json}")
-	if [[ -z "${safe}" ]]; then
-		echo "In this version, \`--experiments=*\` enables no experiments; enable each experiment by name."
-	else
-		echo "In this version, \`--experiments=*\` enables only: ${safe}. Enable any other experiment by name."
-	fi
+	# Safety is decided per version in codersdk.ExperimentsSafe: a safe
+	# experiment is enabled by `--experiments=*`, an unsafe one only by name.
+	echo "| Feature | Flag | Description | Safety |"
+	echo "| ------- | ---- | ----------- | ------ |"
+	jq -r '.experiments[] | "| \(.displayName) | `\(.id)` | \(.description) | \(if .safe then "Safe" else "Unsafe" end) |"' "${experiments_json}"
 )"
-
 
 # Collect beta features from the current docs/manifest.json. Keying on the
 # route path also dedupes routes that appear under more than one parent.
