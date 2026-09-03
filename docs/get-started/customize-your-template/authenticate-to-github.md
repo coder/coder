@@ -26,7 +26,7 @@ You already met one [data source](https://developer.hashicorp.com/terraform/lang
 
 `coder_external_auth` is a data source you add for its side effect rather than its value.
 Its presence tells Coder that a workspace requires an authenticated session with a provider before it starts.
-The `id` points at a provider configured on the Coder deployment, and the local Coder server you started in Part 1 already has a `github` provider available.
+The `id` points at a provider configured on the Coder deployment, and the local control plane you started in Part 1 already has a `github` provider available.
 
 > [!NOTE]
 > External authentication lets a workspace sign in to an outside service, such as a Git provider, before it starts.
@@ -70,7 +70,7 @@ coder templates push -d ~/coder-quickstart -y quickstart
 ## Step 2: Connect your workspace to GitHub
 
 Update the workspace you built in [Launch your first workspace](../index.md) to the version you just published.
-Because the local Coder server is already connected to GitHub, you don't configure an OAuth app; you only authorize the workspace.
+Because the local control plane is already connected to GitHub, you don't configure an OAuth app; you only authorize the workspace.
 
 <div class="tabs">
 
