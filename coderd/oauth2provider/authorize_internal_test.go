@@ -637,6 +637,19 @@ func TestCarveOutDelivery(t *testing.T) {
 			deliver: true,
 		},
 		{
+			// RFC 6749 §3.1: sent without a value is the absent case above, so
+			// httpmw resolved the same way and the failure is as deliverable.
+			name:    "ClientIDValuelessInTheQuery",
+			mutate:  func(v url.Values) { v.Set("client_id", "") },
+			deliver: true,
+		},
+		{
+			// Every value valueless, so httpmw had one candidate, not several.
+			name:    "ClientIDRepeatedAndValueless",
+			mutate:  func(v url.Values) { v["client_id"] = []string{"", ""} },
+			deliver: true,
+		},
+		{
 			// uuid.Parse accepts this and httpmw resolved through it.
 			name: "ClientIDInANonCanonicalSpelling",
 			mutate: func(v url.Values) {

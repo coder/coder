@@ -361,7 +361,11 @@ func ignoredParams(p *httpapi.QueryParamParser, vals url.Values) []string {
 // body. httpmw accepts that body, so an absent query parameter still names a
 // client and its failure is deliverable.
 func clientIDInDoubt(vals url.Values, parsed string, appID uuid.UUID) bool {
-	named := vals["client_id"]
+	// RFC 6749 §3.1: a parameter sent without a value is the omitted case, so
+	// ?client_id= names no candidate, and neither does a repeat of it.
+	named := slices.DeleteFunc(slices.Clone(vals["client_id"]), func(v string) bool {
+		return v == ""
+	})
 	switch {
 	case len(named) > 1:
 		// The callback was matched against one of several candidates.
