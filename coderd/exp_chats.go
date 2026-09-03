@@ -3117,16 +3117,17 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
-	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, afterMessageID)
-	// Defensive against future SubscribeAuthorized failure modes.
-	if !ok {
+	session := chatd.NewSession(api.chatDaemon.StreamSessionConfig(ctx, chat, r.Header, afterMessageID))
+	if session == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat streaming is not available.",
 			Detail:  "Chat stream state is not configured.",
 		})
 		return
 	}
-	defer cancelSub()
+	defer session.Close()
+	snapshot := session.InitialSnapshot()
+	events := session.Events()
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {

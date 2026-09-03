@@ -2836,9 +2836,10 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	t.Cleanup(cancel)
+	session := chatd.NewSession(replica.StreamSessionConfig(ctx, chat, nil, 0))
+	require.NotNil(t, session)
+	t.Cleanup(session.Close)
+	snapshot := session.InitialSnapshot()
 
 	// Passive server: status is always Pending.
 	require.NotEmpty(t, snapshot)
@@ -4440,9 +4441,11 @@ func TestSubscribeNoDuplicateMessageParts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	t.Cleanup(cancel)
+	session := chatd.NewSession(replica.StreamSessionConfig(ctx, chat, nil, 0))
+	require.NotNil(t, session)
+	t.Cleanup(session.Close)
+	snapshot := session.InitialSnapshot()
+	events := session.Events()
 
 	// Snapshot should have events (at minimum: status + message).
 	require.NotEmpty(t, snapshot)
@@ -4522,23 +4525,21 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		Content:        thirdContent,
 	})
 
-	// Control: Subscribe with afterMessageID=0 returns ALL messages.
-	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	cancelAll()
-
-	allMessages := filterMessageEvents(allSnapshot)
-	require.Len(t, allMessages, 3, "afterMessageID=0 should return all three messages")
-
-	// Subscribe with afterMessageID set to the second message's ID.
-	// Only the third message (inserted after msg2) should appear.
-	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
-	require.True(t, ok)
-	cancelPartial()
-
-	partialMessages := filterMessageEvents(partialSnapshot)
-	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
-	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
+	for _, tc := range []struct {
+		name    string
+		afterID int64
+		wantLen int
+	}{
+		{name: "all messages", afterID: 0, wantLen: 3},
+		{name: "only messages after msg2", afterID: msg2.ID, wantLen: 1},
+	} {
+		session := chatd.NewSession(replica.StreamSessionConfig(ctx, chat, nil, tc.afterID))
+		require.NotNil(t, session, tc.name)
+		messages := filterMessageEvents(session.InitialSnapshot())
+		session.Close()
+		require.Len(t, messages, tc.wantLen, tc.name)
+		require.Equal(t, codersdk.ChatMessageRoleUser, messages[len(messages)-1].Message.Role, tc.name)
+	}
 }
 
 // filterMessageEvents returns only the Message-type events from a
@@ -10634,9 +10635,10 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	t.Cleanup(cancel)
+	session := chatd.NewSession(creator.StreamSessionConfig(ctx, chat, nil, 0))
+	require.NotNil(t, session)
+	t.Cleanup(session.Close)
+	events := session.Events()
 
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
@@ -13933,8 +13935,9 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Advisor deltas are transient; a late subscriber misses them.
-	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
+	session := chatd.NewSession(server.StreamSessionConfig(ctx, chat, nil, 0))
+	require.NotNil(t, session)
+	liveEvents := session.Events()
 	liveCollectorDone := make(chan struct{})
 	go func() {
 		defer close(liveCollectorDone)
@@ -14027,7 +14030,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	// new snapshots, so the assertion must use the live collector.
 	require.Eventually(t, liveDeltasCaptured, testutil.WaitLong, testutil.IntervalFast,
 		"advisor nested text deltas must stream into the parent tool card")
-	cancelLive()
+	session.Close()
 	<-liveCollectorDone
 	livePartsMu.Lock()
 	collectedAdvisorDeltas := append([]string(nil), liveAdvisorDeltas...)

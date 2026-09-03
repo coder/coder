@@ -1598,63 +1598,6 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	require.Equal(t, updatedChat, currentChat)
 }
 
-func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	server := newSubscribeTestServer(t, db)
-
-	chatID := uuid.New()
-	db.EXPECT().GetChatByID(gomock.Any(), chatID).
-		Return(database.Chat{}, dbauthz.NotAuthorizedError{Err: xerrors.New("not authorized")})
-
-	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
-	require.False(t, ok)
-	require.Nil(t, snapshot)
-	require.Nil(t, events)
-	require.Nil(t, cancel)
-}
-
-func TestSubscribeSurfacesTransientLookupFailureAsInitialError(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	server := newSubscribeTestServer(t, db)
-
-	chatID := uuid.New()
-	db.EXPECT().GetChatByID(gomock.Any(), chatID).
-		Return(database.Chat{}, xerrors.New("transient lookup failure"))
-
-	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
-	require.True(t, ok)
-	require.NotNil(t, cancel)
-	require.Len(t, snapshot, 1)
-	require.Equal(t, codersdk.ChatStreamEventTypeError, snapshot[0].Type)
-	require.Equal(t, chatID, snapshot[0].ChatID)
-	require.Equal(t, "failed to load initial snapshot", snapshot[0].Error.Message)
-
-	_, open := <-events
-	require.False(t, open)
-}
-
-func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
-	t.Helper()
-
-	poller := newStreamSyncPoller(context.Background(), db, nil, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}))
-	t.Cleanup(poller.Close)
-	return &Server{
-		db:               db,
-		logger:           slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		pubsub:           dbpubsub.NewInMemory(),
-		clock:            quartz.NewReal(),
-		streamSyncPoller: poller,
-	}
-}
-
 func TestResolveUserCompactionThreshold(t *testing.T) {
 	t.Parallel()
 
