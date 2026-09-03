@@ -39,7 +39,7 @@
     },
     {
       "id": "mcp-tool-search",
-      "displayName": "Mcp Tool Search",
+      "displayName": "MCP Tool Search",
       "description": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
       "safe": false
     },
