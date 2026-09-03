@@ -1053,6 +1053,41 @@ func TestBufferedPartsToPartialMessages_SynthesizesMissingToolResults(t *testing
 	require.Equal(t, uuid.NullUUID{UUID: modelConfigID, Valid: true}, got[2].ModelConfigID)
 }
 
+// A parallel tool call re-emitted with patched input after a sibling's
+// result already flushed the assistant message must be skipped, not
+// written into the flushed slice.
+func TestBufferedPartsToPartialMessages_SkipsToolCallReemittedAfterFlush(t *testing.T) {
+	t.Parallel()
+
+	interruptedAt := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
+	parts := []messagepartbuffer.Part{
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-a", "write", json.RawMessage(`{"path":"a"}`))},
+		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-b", "bash", json.RawMessage(`{}`))},
+		{Seq: 3, Role: codersdk.ChatMessageRoleTool, MessagePart: withCreatedAt(codersdk.ChatMessageToolResult("call-a", "write", json.RawMessage(`{"ok":true}`), false, false), interruptedAt)},
+		{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-b", "bash", json.RawMessage(`{"command":"ls"}`))},
+	}
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		interruptedAt:  interruptedAt,
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+	assistantParts := parseMessageParts(t, got[0].Role, got[0].Content)
+	require.Len(t, assistantParts, 2)
+	require.Equal(t, "call-a", assistantParts[0].ToolCallID)
+	require.Equal(t, "call-b", assistantParts[1].ToolCallID)
+	require.JSONEq(t, `{}`, string(assistantParts[1].Args))
+	require.Equal(t, database.ChatMessageRoleTool, got[1].Role)
+	require.Equal(t, "call-a", parseMessageParts(t, got[1].Role, got[1].Content)[0].ToolCallID)
+	syntheticParts := parseMessageParts(t, got[2].Role, got[2].Content)
+	require.Len(t, syntheticParts, 1)
+	require.Equal(t, "call-b", syntheticParts[0].ToolCallID)
+	require.True(t, syntheticParts[0].IsError)
+}
+
 func parseMessageParts(t *testing.T, role database.ChatMessageRole, raw pqtype.NullRawMessage) []codersdk.ChatMessagePart {
 	t.Helper()
 	parts, err := chatprompt.ParseContent(database.ChatMessage{

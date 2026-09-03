@@ -699,6 +699,9 @@ type partialToolCall struct {
 	argsDelta strings.Builder
 	valid     bool
 	durable   bool
+	// flushed marks a call whose assistant message was already emitted,
+	// so index no longer addresses assistantParts.
+	flushed bool
 }
 
 type partialToolResult struct {
@@ -811,6 +814,12 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 		return
 	}
 	call := s.toolCall(part.ToolCallID)
+	if call.flushed {
+		// Adapters may re-emit a call with patched input after a
+		// parallel sibling's result already flushed the message.
+		s.logSkippedPart(buffered, "tool call part arrived after its message was flushed")
+		return
+	}
 	call.part.Type = codersdk.ChatMessagePartTypeToolCall
 	call.part.ToolCallID = part.ToolCallID
 	if part.ToolName != "" {
@@ -937,7 +946,7 @@ func (s *partialMessageConversionState) toolResult(id string) *partialToolResult
 func (s *partialMessageConversionState) finalizeToolCallPlaceholders() error {
 	for _, id := range s.toolCallOrder {
 		call := s.toolCalls[id]
-		if call == nil || call.durable || !call.valid {
+		if call == nil || call.durable || !call.valid || call.flushed {
 			continue
 		}
 		args := json.RawMessage(call.argsDelta.String())
@@ -971,6 +980,9 @@ func (s *partialMessageConversionState) flushAssistant() error {
 		part.ResultDelta = ""
 		part.ResultReset = false
 		durable = append(durable, part)
+	}
+	for _, call := range s.toolCalls {
+		call.flushed = true
 	}
 	s.assistantParts = nil
 	if len(durable) == 0 {
