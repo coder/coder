@@ -795,13 +795,13 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasygoogle.New(options...)
 	case fantasyopenai.Name:
-		override := openAIResponsesAPIOverride(openAIConfig)
+		// Resolved once here so a later mutation of the config cannot move
+		// the client off the transport NewModel records.
+		useResponses := chatopenai.UsesResponsesAPI(modelID, openAIResponsesAPIOverride(openAIConfig))
 		options := []fantasyopenai.Option{
 			fantasyopenai.WithAPIKey(apiKey),
 			fantasyopenai.WithUseResponsesAPI(),
-			fantasyopenai.WithResponsesAPIFunc(func(modelID string) bool {
-				return chatopenai.UsesResponsesAPI(modelID, override)
-			}),
+			fantasyopenai.WithResponsesAPIFunc(func(string) bool { return useResponses }),
 			fantasyopenai.WithUserAgent(userAgent),
 		}
 		if len(extraHeaders) > 0 {
