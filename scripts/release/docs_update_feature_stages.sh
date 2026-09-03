@@ -57,9 +57,13 @@ table="$(
 		exit 0
 	fi
 
-	echo "| Feature | Flag | Description | Enabled by \`--experiments=*\` |"
-	echo "| ------- | ---- | ----------- | ---------------------------- |"
-	jq -r '.experiments[] | "| \(.displayName) | `\(.id)` | \(.description) | \(if .safe then "Yes" else "No" end) |"' "${experiments_json}"
+	# The last column spells out the command: a flag in the opt-in set is
+	# enabled by `--experiments=*` as well as by name; every other flag must be
+	# named. Spelling it out keeps the table readable when the opt-in set is
+	# empty, which it is today.
+	echo "| Feature | Flag | Description | Enable with |"
+	echo "| ------- | ---- | ----------- | ----------- |"
+	jq -r '.experiments[] | "| \(.displayName) | `\(.id)` | \(.description) | \(if .safe then "`--experiments=*` or `--experiments=\(.id)`" else "`--experiments=\(.id)`" end) |"' "${experiments_json}"
 )"
 
 # Collect beta features from the current docs/manifest.json. Keying on the
