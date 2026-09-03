@@ -61,7 +61,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 			</div>
 
 			<div>
-				<h3 id={nameId} className="text-sm font-bold text-content-primary">
+				<h3 id={nameId} className="mt-0 text-sm font-bold text-content-primary">
 					{name}
 					{official && (
 						<>
