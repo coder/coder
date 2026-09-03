@@ -106,7 +106,9 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 				<div
 					className={cn(
 						"flex flex-col gap-1",
-						Icon ? "ml-6" : "ml-3 border-0 border-l border-solid border-border",
+						Icon
+							? "ml-6"
+							: "ml-3 pl-1 border-0 border-l border-solid border-border",
 					)}
 				>
 					{children}
