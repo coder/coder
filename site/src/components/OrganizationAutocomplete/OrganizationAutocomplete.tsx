@@ -31,6 +31,7 @@ type OrganizationAutocompleteProps = {
 	id?: string;
 	ariaLabel?: string;
 	required?: boolean;
+	"aria-invalid"?: boolean;
 	disabled?: boolean;
 	/**
 	 * Overrides the trigger button's width/layout classes when the default
@@ -65,6 +66,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	id,
 	ariaLabel,
 	required,
+	"aria-invalid": ariaInvalid,
 	disabled,
 	triggerClassName,
 	optionsTabbable = false,
@@ -91,9 +93,11 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					disabled={disabled}
 					aria-expanded={open}
 					aria-required={required}
+					aria-invalid={ariaInvalid}
 					data-testid="organization-autocomplete"
 					className={cn(
 						"group w-full justify-start gap-2 font-normal",
+						ariaInvalid && "border-border-destructive",
 						triggerClassName,
 					)}
 				>

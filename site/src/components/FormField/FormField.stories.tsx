@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { FormField } from "./FormField";
+import { HasReachedBottomProvider } from "./HasReachedBottomContext";
 
 interface ExampleFormFieldProps {
 	id?: string;
@@ -12,6 +13,7 @@ interface ExampleFormFieldProps {
 	required?: boolean;
 	error?: string;
 	value?: string;
+	markInvalidWhenScrolledPastEmpty?: boolean;
 }
 
 const ExampleFormField: FC<ExampleFormFieldProps> = ({
@@ -22,6 +24,7 @@ const ExampleFormField: FC<ExampleFormFieldProps> = ({
 	required,
 	error,
 	value = "",
+	markInvalidWhenScrolledPastEmpty,
 }) => {
 	const form = useFormik({
 		initialValues: { value },
@@ -43,6 +46,7 @@ const ExampleFormField: FC<ExampleFormFieldProps> = ({
 			label={label}
 			description={description}
 			required={required}
+			markInvalidWhenScrolledPastEmpty={markInvalidWhenScrolledPastEmpty}
 		/>
 	);
 };
@@ -156,5 +160,48 @@ export const RequiredWithDescription: Story = {
 			"aria-describedby",
 			"story-field-description",
 		);
+	},
+};
+
+// The short story content means the HasReachedBottomProvider marks the page as
+// scrolled to the bottom on mount, so an empty required field opted into
+// markInvalidWhenScrolledPastEmpty flips to aria-invalid.
+export const RequiredMissHighlightedAtBottom: Story = {
+	args: {
+		required: true,
+		markInvalidWhenScrolledPastEmpty: true,
+	},
+	decorators: [
+		(Story) => (
+			<HasReachedBottomProvider>
+				<Story />
+			</HasReachedBottomProvider>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("textbox", { name: /Provider name/ });
+		await waitFor(() => expect(input).toHaveAttribute("aria-invalid", "true"));
+	},
+};
+
+// A filled required field stays valid even at the bottom of the page.
+export const RequiredMissClearedWhenFilled: Story = {
+	args: {
+		required: true,
+		markInvalidWhenScrolledPastEmpty: true,
+		value: "my-template",
+	},
+	decorators: [
+		(Story) => (
+			<HasReachedBottomProvider>
+				<Story />
+			</HasReachedBottomProvider>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("textbox", { name: /Provider name/ });
+		await expect(input).not.toHaveAttribute("aria-invalid", "true");
 	},
 };

@@ -104,6 +104,10 @@ const TextField: FC<TextFieldDefinition> = ({
 		description={description}
 		required={required}
 		placeholder={placeholder}
+		// Once the user scrolls past a required field (or reaches the bottom of
+		// the page), flag it if still empty so easy-to-miss required fields
+		// stand out. Clears as soon as the field has a value.
+		markInvalidWhenScrolledPastEmpty
 	/>
 );
 

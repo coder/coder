@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useContext, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
 import {
@@ -10,6 +10,7 @@ import type { Organization } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { FormField } from "#/components/FormField/FormField";
+import { HasReachedBottomContext } from "#/components/FormField/HasReachedBottomContext";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
@@ -113,6 +114,13 @@ export const TemplateCustomizationsStep: FC<
 		void form.setFieldValue("organization_id", org?.id ?? "");
 	};
 
+	// Flag the required organization once the user reaches the bottom of the
+	// page with nothing selected. Unlike the text fields (which also flag on
+	// scroll-past via FormField), the autocomplete only uses the page-bottom
+	// signal, which is sufficient for a single control near the top.
+	const { hasReachedBottom } = useContext(HasReachedBottomContext);
+	const organizationMissed = hasReachedBottom && !selectedOrg;
+
 	return (
 		<form
 			id={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
@@ -153,6 +161,9 @@ export const TemplateCustomizationsStep: FC<
 							<OrganizationAutocomplete
 								id="organization"
 								required
+								aria-invalid={
+									Boolean(organizationField.error) || organizationMissed
+								}
 								value={selectedOrg}
 								onChange={handleOrgChange}
 								options={orgOptions}
@@ -208,6 +219,7 @@ export const TemplateCustomizationsStep: FC<
 						})}
 						label="ID"
 						required
+						markInvalidWhenScrolledPastEmpty
 						id="template-name"
 						placeholder="my-template"
 					/>

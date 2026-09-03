@@ -17,6 +17,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { HasReachedBottomProvider } from "#/components/FormField/HasReachedBottomContext";
 import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -301,17 +302,23 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
 					<div className="p-6 border border-solid rounded-lg overflow-x-auto">
-						{renderStepContent(
-							currentStep.id,
-							state,
-							dispatch,
-							moduleVarMap,
-							createError,
-							handleProvisionerStatusChange,
-							handleDeselectModule,
-							registerModuleRef,
-							handleCreate,
-						)}
+						{/*
+						 * Reset the "has reached bottom" signal on every step change so
+						 * required fields on a fresh step do not start out flagged.
+						 */}
+						<HasReachedBottomProvider key={currentStep.id}>
+							{renderStepContent(
+								currentStep.id,
+								state,
+								dispatch,
+								moduleVarMap,
+								createError,
+								handleProvisionerStatusChange,
+								handleDeselectModule,
+								registerModuleRef,
+								handleCreate,
+							)}
+						</HasReachedBottomProvider>
 					</div>
 
 					{/* Navigation controls */}
