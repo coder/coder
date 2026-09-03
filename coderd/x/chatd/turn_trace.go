@@ -12,6 +12,12 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 )
 
+// turnToken identifies one turn opened by runnerTurnSpan.Ensure. The
+// turn methods that take a token act only while that turn is the open
+// one, so a task that outlives its turn cannot finish or invalidate the
+// turn that replaced it.
+type turnToken uint64
+
 // runnerTurnSpan owns the chat_turn span of one runner. A runner is
 // created when a chat is acquired and torn down when the chat leaves
 // the running states, so the runner's lifetime bounds the turns it
@@ -22,6 +28,11 @@ import (
 // out chats, which run no turn. One runner can run several turns in
 // sequence: a finished turn is replaced by a new span, either when a
 // queued message is promoted or when the next prompt starts a task.
+//
+// A turn closes in two steps. Complete marks it finished while the
+// step that finished it is still running; Settle closes the span once
+// that step's own stage has ended, so the step is counted in the
+// turn's accounting.
 type runnerTurnSpan struct {
 	stages *chatloop.StageTracer
 
@@ -31,65 +42,84 @@ type runnerTurnSpan struct {
 	acc      *chatloop.TurnAccumulator
 	chatID   string
 	chatKind string
-	started  bool
-	ended    bool
-	// finished marks a turn that reached a terminal transition, so a
-	// further prompt opens a new span instead of extending this one.
+	// token is the identity of the open turn. It advances every time a
+	// turn span is started.
+	token turnToken
+	// open is true while a turn span exists that has not been closed.
+	open  bool
+	ended bool
+	// finished marks an open turn that reached a terminal transition
+	// and is waiting for Settle to close it.
 	finished bool
+	// pendingPromotion is the queued message the finishing transition
+	// promoted, when it promoted one. Settle opens the next turn from
+	// it.
+	pendingPromotion *turnPromotion
+}
+
+// turnPromotion records a queued message promoted by the transition
+// that finished a turn: when the message was queued and when the
+// promotion happened.
+type turnPromotion struct {
+	queuedAt   time.Time
+	promotedAt time.Time
 }
 
 func newRunnerTurnSpan(stages *chatloop.StageTracer) *runnerTurnSpan {
 	return &runnerTurnSpan{stages: stages}
 }
 
-// Ensure starts the chat_turn span on first call and returns a
-// context parented to it. triggerAt is the trigger message's
-// creation time and becomes the span's start timestamp, so the
-// acquisition stage reconstructed from the same instant falls inside
-// the turn. The acquisition stage carries no model identity: the
-// turn's model is not resolved until preparation runs.
+// Ensure returns a context parented to the open chat_turn span and the
+// token of that turn, starting the span when none is open. triggerAt is
+// the trigger message's creation time and becomes the span's start
+// timestamp, so the acquisition stage reconstructed from the same
+// instant falls inside the turn. The acquisition stage carries no model
+// identity: the turn's model is not resolved until preparation runs.
 //
-// A turn that already reached a terminal transition is replaced: the
-// prompt this call runs is a new turn, and folding it into the old
+// A turn that already reached a terminal transition is settled first:
+// the prompt this call runs is a new turn, and folding it into the old
 // span would report the two as one.
 //
 // The span is a standalone trace root. The request that triggered the
 // turn is handled by a different goroutine, and often a different
 // replica, than the worker that runs it, so no inbound span context
 // is available here to link.
-func (t *runnerTurnSpan) Ensure(ctx context.Context, chat database.Chat, triggerAt time.Time) context.Context {
+func (t *runnerTurnSpan) Ensure(ctx context.Context, chat database.Chat, triggerAt time.Time) (context.Context, turnToken) {
 	if t == nil {
-		return ctx
+		return ctx, 0
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.ended {
-		return ctx
+		return ctx, 0
 	}
-	if t.started && !t.finished {
-		return t.contextLocked(ctx)
+	if t.open && t.finished {
+		t.settleLocked(ctx)
 	}
-	if t.started {
-		t.closeLocked(nil)
+	if t.open {
+		return t.contextLocked(ctx), t.token
 	}
 	t.chatID = chat.ID.String()
 	t.chatKind = chatKindAttr(chat)
 	turnCtx := t.startLocked(ctx, triggerAt)
 	// The window between the trigger message landing in history and a
-	// worker picking the chat up is the acquisition. A rotated turn has
-	// no acquisition: its head is the queue wait of the message that
-	// opened it, and recording both would count that window twice.
+	// worker picking the chat up is the acquisition. A turn opened by a
+	// promotion has no acquisition: its head is the queue wait of the
+	// message that opened it, and recording both would count that
+	// window twice.
 	t.stages.Record(turnCtx, chatloop.StageAcquisition, chatloop.StageModel{},
-		triggerAt, time.Now(), nil,
+		triggerAt, t.stages.Now(), nil,
 		attribute.String(chatloop.AttrChatID, t.chatID))
-	return t.contextLocked(ctx)
+	return t.contextLocked(ctx), t.token
 }
 
 // startLocked opens a chat_turn span with a fresh accumulator and
 // returns the context parented to it.
 func (t *runnerTurnSpan) startLocked(ctx context.Context, startAt time.Time) context.Context {
-	t.started = true
+	t.token++
+	t.open = true
 	t.finished = false
+	t.pendingPromotion = nil
 	t.acc = chatloop.NewTurnAccumulator()
 
 	// The chat kind and the accumulator ride on the context so every
@@ -116,7 +146,7 @@ func (t *runnerTurnSpan) Context(ctx context.Context) context.Context {
 }
 
 func (t *runnerTurnSpan) contextLocked(ctx context.Context) context.Context {
-	if !t.started || t.ended {
+	if !t.open || t.ended {
 		return ctx
 	}
 	// The scope, chat kind, and accumulator are set independently of
@@ -131,47 +161,82 @@ func (t *runnerTurnSpan) contextLocked(ctx context.Context) context.Context {
 	return trace.ContextWithSpanContext(ctx, t.spanCtx)
 }
 
-// Complete marks the turn as finished normally, which is what makes
-// its accounting emittable when the span closes.
-func (t *runnerTurnSpan) Complete() {
+// Complete marks the turn identified by token as finished normally,
+// which is what makes its accounting emittable when the span closes.
+// The span stays open until Settle so the stage of the step that ran
+// the finishing transition is counted once it ends.
+//
+// A non-zero queuedAt is the creation time of a queued message the
+// finishing transition promoted. Settle opens the next turn anchored
+// at it, because the wait that message served and the work it causes
+// belong to the turn it starts rather than the one that released it.
+func (t *runnerTurnSpan) Complete(token turnToken, queuedAt time.Time) {
 	if t == nil {
 		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if !t.ownsLocked(token) {
+		return
+	}
 	t.finished = true
 	t.acc.MarkCompleted()
+	if !queuedAt.IsZero() {
+		t.pendingPromotion = &turnPromotion{queuedAt: queuedAt, promotedAt: t.stages.Now()}
+	}
 }
 
-// Invalidate drops the turn's accounting. A turn that errored or was
-// interrupted stops partway through its stages, so its totals do not
-// describe a full turn.
-func (t *runnerTurnSpan) Invalidate() {
+// Invalidate drops the accounting of the turn identified by token. A
+// turn that errored or was interrupted stops partway through its
+// stages, so its totals do not describe a full turn. The span stays
+// open: a task retried for the same prompt continues the same turn.
+func (t *runnerTurnSpan) Invalidate(token turnToken) {
 	if t == nil {
 		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.finished = true
+	if !t.ownsLocked(token) {
+		return
+	}
 	t.acc.Invalidate()
 }
 
-// Rotate closes the current turn and opens the next one, anchored at
-// startAt. It is for a queued message promoted by the transition that
-// finished the previous turn: the wait that message served and the
-// work it causes belong to the turn it opens, not to the one that
-// released it.
-func (t *runnerTurnSpan) Rotate(ctx context.Context, startAt time.Time) {
+// Settle closes the turn identified by token if Complete marked it
+// finished, and opens the next turn when the finishing transition
+// promoted a queued message. It is called after the finishing step's
+// own stage has ended. A turn that is not finished is left open.
+func (t *runnerTurnSpan) Settle(ctx context.Context, token turnToken) {
 	if t == nil {
 		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if !t.started || t.ended {
+	if !t.ownsLocked(token) || !t.finished {
 		return
 	}
+	t.settleLocked(ctx)
+}
+
+// ownsLocked reports whether token identifies the open turn.
+func (t *runnerTurnSpan) ownsLocked(token turnToken) bool {
+	return t.open && !t.ended && token == t.token
+}
+
+// settleLocked closes the open, finished turn. When the finishing
+// transition promoted a queued message, it opens the next turn anchored
+// at the moment the message was queued and records that message's
+// queue wait against the new turn.
+func (t *runnerTurnSpan) settleLocked(ctx context.Context) {
+	promotion := t.pendingPromotion
 	t.closeLocked(nil)
-	t.startLocked(ctx, startAt)
+	if promotion == nil {
+		return
+	}
+	turnCtx := t.startLocked(ctx, promotion.queuedAt)
+	t.stages.Record(turnCtx, chatloop.StageQueueWait, chatloop.StageModel{},
+		promotion.queuedAt, promotion.promotedAt, nil,
+		attribute.String(chatloop.AttrChatID, t.chatID))
 }
 
 // End closes the chat_turn span. Later calls are ignored.
@@ -181,7 +246,7 @@ func (t *runnerTurnSpan) End(err error) {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.ended || !t.started {
+	if t.ended || !t.open {
 		t.ended = true
 		return
 	}
@@ -200,6 +265,9 @@ func (t *runnerTurnSpan) closeLocked(err error) {
 	t.span = nil
 	t.spanCtx = trace.SpanContext{}
 	t.acc = nil
+	t.open = false
+	t.finished = false
+	t.pendingPromotion = nil
 }
 
 // chatKindAttr labels a chat as a subagent or a top-level chat.

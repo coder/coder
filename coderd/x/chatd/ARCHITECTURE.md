@@ -784,6 +784,8 @@ The runner is responsible for subscribing to the `chat:update:{chat_id}` pubsub 
 
 <!-- TODO: document that the runner now opens one `chat_turn` span per prompt rather than one per runner: the span is replaced when a finish transition promotes a queued message (anchored at the moment that message was queued) and when a new prompt starts a task after the previous turn finished. -->
 
+<!-- TODO: document that a turn closes in two steps: the finishing transition marks it complete from inside the generation step, and the span closes (settles) after that step's stage has ended so the step is counted; and that each task holds a turn token so a task that outlives its turn cannot complete or invalidate the turn that replaced it. -->
+
 ### Event shape
 
 Every event that the runner loop processes has the following shape:

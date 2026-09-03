@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -187,6 +188,68 @@ func TestStageSpanRoundTripperModel(t *testing.T) {
 		attribute.String(chatloop.AttrReasoningEffort, model.Effort))
 }
 
+// newStageMetricsTracer returns a stage tracer writing spans into an
+// in-memory recorder and metrics into a private registry.
+func newStageMetricsTracer(t *testing.T) (*chatloop.StageTracer, *tracetest.SpanRecorder, *prometheus.Registry) {
+	t.Helper()
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() {
+		require.NoError(t, provider.Shutdown(context.Background()))
+	})
+	registry := prometheus.NewRegistry()
+	return chatloop.NewStageTracer(provider, chatloop.NewMetrics(registry)), recorder, registry
+}
+
+// turnStageCounts returns, per stage, the number of turns that
+// observed the stage and the total occurrences they reported.
+func turnStageCounts(t *testing.T, registry *prometheus.Registry) map[string]struct{ turns, occurrences uint64 } {
+	t.Helper()
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	out := map[string]struct{ turns, occurrences uint64 }{}
+	for _, family := range families {
+		if family.GetName() != "coderd_chatd_turn_stage_count" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			var stage string
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "stage" {
+					stage = label.GetValue()
+				}
+			}
+			hist := metric.GetHistogram()
+			out[stage] = struct{ turns, occurrences uint64 }{
+				turns:       hist.GetSampleCount(),
+				occurrences: uint64(hist.GetSampleSum()),
+			}
+		}
+	}
+	return out
+}
+
+// emittedTurns returns how many turns reported their category
+// partition.
+func emittedTurns(t *testing.T, registry *prometheus.Registry) uint64 {
+	t.Helper()
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != "coderd_chatd_turn_time_seconds" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "category" && label.GetValue() == chatloop.CategoryUnattributed {
+					return metric.GetHistogram().GetSampleCount()
+				}
+			}
+		}
+	}
+	return 0
+}
+
 func TestRunnerTurnSpanStartsAtTriggerMessage(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
@@ -194,7 +257,7 @@ func TestRunnerTurnSpanStartsAtTriggerMessage(t *testing.T) {
 	chat := database.Chat{ID: uuid.New()}
 	triggerAt := time.Now().Add(-2 * time.Second)
 
-	turnCtx := turn.Ensure(t.Context(), chat, triggerAt)
+	turnCtx, _ := turn.Ensure(t.Context(), chat, triggerAt)
 	turn.End(nil)
 
 	ended := recorder.Ended()
@@ -216,7 +279,7 @@ func TestRunnerTurnSpanParentsRecordedStages(t *testing.T) {
 	turn := newRunnerTurnSpan(tracer)
 	chat := database.Chat{ID: uuid.New()}
 
-	turnCtx := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	turnCtx, _ := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
 	stepCtx, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
 	step.End(nil)
 
@@ -284,7 +347,7 @@ func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
 
 	chat := database.Chat{ID: uuid.New()}
 	turn := newRunnerTurnSpan(tracer)
-	turnCtx := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	turnCtx, _ := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
 	inflightCtx, stop := server.inflightChatContext(turnCtx, chat)
 	t.Cleanup(stop)
 
@@ -312,7 +375,7 @@ func TestRunnerTurnSpanCarriesChatKind(t *testing.T) {
 	turn := newRunnerTurnSpan(tracer)
 	chat := database.Chat{ID: uuid.New(), ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
 
-	turnCtx := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	turnCtx, _ := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
 	_, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
 	step.End(nil)
 	turn.End(nil)
@@ -341,22 +404,60 @@ func turnSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder) []sdktrace
 	return turns
 }
 
-func TestRunnerTurnSpanRotatesOnPromotion(t *testing.T) {
+func TestRunnerTurnSpanCountsFinishingStep(t *testing.T) {
 	t.Parallel()
-	tracer, recorder := newStageTestTracer(t)
+	tracer, recorder, registry := newStageMetricsTracer(t)
 	turn := newRunnerTurnSpan(tracer)
 	chat := database.Chat{ID: uuid.New()}
 
-	turnCtx := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Minute))
+	turnCtx, token := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Minute))
+	// The finishing transition runs inside the step, so Complete
+	// arrives while the step's stage is still open.
 	_, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
+	turn.Complete(token, time.Time{})
+	require.EqualValues(t, 0, emittedTurns(t, registry), "the turn must stay open until the step ends")
 	step.End(nil)
+	turn.Settle(t.Context(), token)
 
+	require.EqualValues(t, 1, emittedTurns(t, registry))
+	counts := turnStageCounts(t, registry)
+	require.EqualValues(t, 1, counts[chatloop.StageGenerationStep].turns)
+	require.EqualValues(t, 1, counts[chatloop.StageGenerationStep].occurrences)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 1)
+	for _, span := range recorder.Ended() {
+		if span.Name() == chatloop.StageGenerationStep {
+			require.False(t, span.EndTime().After(turns[0].EndTime()),
+				"the step must end inside its turn span")
+		}
+	}
+
+	// Settle closed the turn; the runner's End has nothing left.
+	turn.End(nil)
+	require.Len(t, turnSpansByStart(t, recorder), 1)
+}
+
+func TestRunnerTurnSpanSettleRotatesOnPromotion(t *testing.T) {
+	t.Parallel()
+	tracer, recorder, registry := newStageMetricsTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New()}
+
+	turnCtx, token := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Minute))
+	_, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
 	queuedAt := time.Now().Add(-30 * time.Second)
-	turn.Complete()
-	turn.Rotate(t.Context(), queuedAt)
-	// The promoted message's wait belongs to the turn it opens.
-	tracer.Record(turn.Context(t.Context()), chatloop.StageQueueWait, chatloop.StageModel{},
-		queuedAt, time.Now(), nil)
+	turn.Complete(token, queuedAt)
+	promotedBy := time.Now()
+	step.End(nil)
+	turn.Settle(t.Context(), token)
+
+	require.EqualValues(t, 1, emittedTurns(t, registry))
+	require.EqualValues(t, 1, turnStageCounts(t, registry)[chatloop.StageGenerationStep].occurrences)
+
+	// The next turn is open, anchored at the promoted message.
+	_, nextToken := turn.Ensure(t.Context(), chat, queuedAt)
+	require.NotEqual(t, token, nextToken)
 	turn.End(nil)
 
 	turns := turnSpansByStart(t, recorder)
@@ -366,6 +467,8 @@ func TestRunnerTurnSpanRotatesOnPromotion(t *testing.T) {
 	require.Contains(t, turns[1].Attributes(),
 		attribute.String(chatloop.AttrChatKind, chatloop.ChatKindRoot))
 
+	// The promoted message's wait belongs to the turn it opens and ends
+	// when the promotion happened, not when the turn settled.
 	var queueWait sdktrace.ReadOnlySpan
 	for _, span := range recorder.Ended() {
 		if span.Name() == chatloop.StageQueueWait {
@@ -374,6 +477,8 @@ func TestRunnerTurnSpanRotatesOnPromotion(t *testing.T) {
 	}
 	require.NotNil(t, queueWait)
 	require.Equal(t, turns[1].SpanContext().SpanID(), queueWait.Parent().SpanID())
+	require.Equal(t, queuedAt.UTC(), queueWait.StartTime().UTC())
+	require.False(t, queueWait.EndTime().After(promotedBy))
 
 	// The rotated turn's head is the queue wait, so it records no
 	// acquisition: both windows start at the same instant and both
@@ -388,6 +493,81 @@ func TestRunnerTurnSpanRotatesOnPromotion(t *testing.T) {
 	require.Equal(t, 1, acquisitions)
 }
 
+func TestRunnerTurnSpanInvalidateAfterPromotionDropsFinishedTurn(t *testing.T) {
+	t.Parallel()
+	tracer, recorder, registry := newStageMetricsTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New()}
+
+	_, token := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Minute))
+	queuedAt := time.Now().Add(-30 * time.Second)
+	turn.Complete(token, queuedAt)
+	// Post-commit work of the finished turn failed. The failure belongs
+	// to the finished turn, not to the one the promotion opens.
+	turn.Invalidate(token)
+	turn.Settle(t.Context(), token)
+	require.EqualValues(t, 0, emittedTurns(t, registry))
+
+	_, nextToken := turn.Ensure(t.Context(), chat, queuedAt)
+	turn.Complete(nextToken, time.Time{})
+	turn.Settle(t.Context(), nextToken)
+	require.EqualValues(t, 1, emittedTurns(t, registry))
+	require.Len(t, turnSpansByStart(t, recorder), 2)
+}
+
+func TestRunnerTurnSpanIgnoresStaleToken(t *testing.T) {
+	t.Parallel()
+	tracer, _, registry := newStageMetricsTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New()}
+
+	_, first := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Minute))
+	turn.Complete(first, time.Time{})
+	// A task for the next prompt arrives before the finishing task has
+	// settled, and opens the next turn itself.
+	_, second := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	require.NotEqual(t, first, second)
+	require.EqualValues(t, 1, emittedTurns(t, registry))
+
+	// The finishing task's late calls address a turn that is gone.
+	turn.Invalidate(first)
+	turn.Settle(t.Context(), first)
+	turn.Complete(second, time.Time{})
+	turn.Settle(t.Context(), second)
+	require.EqualValues(t, 2, emittedTurns(t, registry))
+}
+
+func TestRunnerTurnSpanRetryContinuesTurn(t *testing.T) {
+	t.Parallel()
+	tracer, recorder, registry := newStageMetricsTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New()}
+	triggerAt := time.Now().Add(-time.Minute)
+
+	_, token := turn.Ensure(t.Context(), chat, triggerAt)
+	turn.Invalidate(token)
+	turn.Settle(t.Context(), token)
+
+	// The retried task runs the same prompt, so it continues the same
+	// turn and records no second acquisition.
+	_, retried := turn.Ensure(t.Context(), chat, triggerAt)
+	require.Equal(t, token, retried)
+	turn.Complete(retried, time.Time{})
+	turn.Settle(t.Context(), retried)
+	turn.End(nil)
+
+	require.Len(t, turnSpansByStart(t, recorder), 1)
+	var acquisitions int
+	for _, span := range recorder.Ended() {
+		if span.Name() == chatloop.StageAcquisition {
+			acquisitions++
+		}
+	}
+	require.Equal(t, 1, acquisitions)
+	// The turn was invalidated, so its accounting is not emitted.
+	require.EqualValues(t, 0, emittedTurns(t, registry))
+}
+
 func TestRunnerTurnSpanEnsureOpensTurnPerPrompt(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
@@ -395,15 +575,17 @@ func TestRunnerTurnSpanEnsureOpensTurnPerPrompt(t *testing.T) {
 	chat := database.Chat{ID: uuid.New()}
 
 	firstTrigger := time.Now().Add(-2 * time.Minute)
-	turn.Ensure(t.Context(), chat, firstTrigger)
+	_, first := turn.Ensure(t.Context(), chat, firstTrigger)
 	// A second prompt on the same runner reuses the open turn until it
 	// finishes.
-	turn.Ensure(t.Context(), chat, firstTrigger)
+	_, again := turn.Ensure(t.Context(), chat, firstTrigger)
+	require.Equal(t, first, again)
 	require.Len(t, turnSpansByStart(t, recorder), 0)
 
-	turn.Complete()
+	turn.Complete(first, time.Time{})
 	secondTrigger := time.Now().Add(-time.Minute)
-	turn.Ensure(t.Context(), chat, secondTrigger)
+	_, second := turn.Ensure(t.Context(), chat, secondTrigger)
+	require.NotEqual(t, first, second)
 	turn.End(nil)
 
 	turns := turnSpansByStart(t, recorder)

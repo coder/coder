@@ -118,7 +118,10 @@ func (t *StageTracer) otelTracer() trace.Tracer {
 	return t.tracer
 }
 
-func (t *StageTracer) now() time.Time {
+// Now returns the current time from the tracer's clock. Callers that
+// record stages from explicit timestamps use it so their windows share
+// the time source of the stages measured by the tracer.
+func (t *StageTracer) Now() time.Time {
 	if t == nil || t.clock == nil {
 		return time.Now()
 	}
@@ -260,7 +263,7 @@ func (t *StageTracer) startSpan(
 	start time.Time,
 	opts []trace.SpanStartOption,
 ) (context.Context, *StageSpan) {
-	now := t.now()
+	now := t.Now()
 	if start.IsZero() || start.After(now) {
 		start = now
 	} else {
@@ -385,7 +388,7 @@ func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 		return 0, false
 	}
 	s.ended = true
-	elapsed = s.tracer.now().Sub(s.start)
+	elapsed = s.tracer.Now().Sub(s.start)
 	if err != nil {
 		s.span.RecordError(err)
 		s.span.SetStatus(codes.Error, err.Error())

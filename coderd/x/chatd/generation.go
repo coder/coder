@@ -447,7 +447,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
-		turnCtx := input.Turn.Ensure(ctx, chat, triggerMessageTime(messages))
+		turnCtx, turnToken := input.Turn.Ensure(ctx, chat, triggerMessageTime(messages))
+		input.TurnToken = turnToken
 		var again bool
 		input, again, err = s.runGenerationStep(turnCtx, machine, input, chat, messages)
 		if again {
@@ -456,8 +457,11 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			// The turn stops here, so its stage totals cover only part
 			// of a turn.
-			input.Turn.Invalidate()
+			input.Turn.Invalidate(input.TurnToken)
 		}
+		// The step's stage has ended by now, so a turn the step finished
+		// closes with that stage counted.
+		input.Turn.Settle(ctx, input.TurnToken)
 		return err
 	}
 }
@@ -1589,44 +1593,8 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
-	s.finishTurnAccounting(ctx, input, promotedQueuedAt)
+	input.Turn.Complete(input.TurnToken, promotedQueuedAt)
 	return s.completeGenerationTurn(ctx, input, committed, decision.promotedMessageID)
-}
-
-// finishTurnAccounting closes the turn that just finished and records
-// the queue wait of a message the finish transition promoted. A
-// promotion opens the next turn here, anchored at the moment the
-// message was queued, so the wait it served and the work it causes are
-// accounted to the turn it starts rather than the one that released
-// it. A zero queuedAt means the transition promoted nothing.
-func (s *taskStarter) finishTurnAccounting(
-	ctx context.Context,
-	input chatWorkerTaskStartInput,
-	queuedAt time.Time,
-) {
-	input.Turn.Complete()
-	if queuedAt.IsZero() {
-		return
-	}
-	input.Turn.Rotate(ctx, queuedAt)
-	s.recordQueueWaitStage(ctx, input, queuedAt)
-}
-
-// recordQueueWaitStage emits the queue_wait stage for a message just
-// promoted out of the queue, measured from the queued row's creation
-// to now. It is recorded against the turn span rather than the step
-// that observed the promotion, whose window does not contain the
-// queue wait. A zero queuedAt means the transition promoted nothing
-// and records no stage.
-func (s *taskStarter) recordQueueWaitStage(
-	ctx context.Context,
-	input chatWorkerTaskStartInput,
-	queuedAt time.Time,
-) {
-	s.server.stages.Record(input.Turn.Context(ctx), chatloop.StageQueueWait, chatloop.StageModel{},
-		queuedAt, time.Now(), nil,
-		attribute.String(chatloop.AttrChatID, input.ChatID.String()),
-	)
 }
 
 func (s *taskStarter) finishGenerationTurn(
@@ -1718,7 +1686,7 @@ func (s *taskStarter) finishGenerationTurn(
 			Kind: runnerActionKind(generationActionGenerateAssistant),
 		})
 	}
-	s.finishTurnAccounting(ctx, input, promotedQueuedAt)
+	input.Turn.Complete(input.TurnToken, promotedQueuedAt)
 	return s.completeGenerationTurn(ctx, input, committed, decision.promotedMessageID)
 }
 
@@ -1731,7 +1699,7 @@ func (s *taskStarter) finishGenerationError(
 ) error {
 	// The turn ends on an error, so the stages it collected describe a
 	// partial turn.
-	input.Turn.Invalidate()
+	input.Turn.Invalidate(input.TurnToken)
 	classified := chaterror.Classify(cause)
 	// Log the unsanitized cause before persisting so administrators can
 	// diagnose the failure even when the classified user-facing message
