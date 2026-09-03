@@ -539,8 +539,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	);
 	// A saved choice survives a panel losing support, so the tab returns
 	// once the workspace, app, or debug setting is available again.
+	const shownSingletonTabs = supportedSingletonTabs.filter((tabId) =>
+		visibleSingletonTabs.includes(tabId),
+	);
 	const isSingletonTabShown = (tabId: SingletonRightPanelTabId) =>
-		singletonTabSupport[tabId] && visibleSingletonTabs.includes(tabId);
+		shownSingletonTabs.includes(tabId);
 
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
@@ -608,15 +611,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tabId);
 	};
 
-	const handleOpenDesktop = () => {
-		showSingletonTab("desktop");
-	};
-
 	const desktopPanelCtx = {
 		desktopChatId,
 		// Only offer the action when the panel can render, which keeps a tool
 		// action from selecting a Desktop tab that the tab list omits.
-		onOpenDesktop: availableDesktopChatId ? handleOpenDesktop : undefined,
+		onOpenDesktop: availableDesktopChatId
+			? () => showSingletonTab("desktop")
+			: undefined,
 	};
 
 	// Ignore late readiness from a tab the user already navigated past.
@@ -864,9 +865,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		}
 		if (isSingletonTabShown(tabId)) {
 			handleCloseTab(tabId);
-			return;
+		} else {
+			showSingletonTab(tabId);
 		}
-		showSingletonTab(tabId);
 	};
 
 	const sidebarTabs = sidebarTabConfigs.map((tab) => {
@@ -1126,9 +1127,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										host={wildcardHostname}
 										isRunning={workspace?.latest_build.status === "running"}
 										supportedSingletonTabs={supportedSingletonTabs}
-										visibleSingletonTabs={supportedSingletonTabs.filter((tabId) =>
-											isSingletonTabShown(tabId),
-										)}
+										visibleSingletonTabs={shownSingletonTabs}
 										onToggleSingletonTab={handleToggleSingletonTab}
 										onNewTerminal={handleAddTerminalTab}
 										onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
