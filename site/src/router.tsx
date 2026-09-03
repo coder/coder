@@ -14,6 +14,7 @@ import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { useAuthenticated } from "./hooks/useAuthenticated";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { firstVisibleAIPage } from "./modules/management/adminNavigation";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
@@ -39,11 +40,11 @@ const DeploymentSettingsLayout = lazy(
 const DeploymentConfigProvider = lazy(
 	() => import("./modules/management/DeploymentConfigProvider"),
 );
-const OrganizationSidebarLayout = lazy(
-	() => import("./modules/management/OrganizationSidebarLayout"),
-);
 const OrganizationSettingsLayout = lazy(
 	() => import("./modules/management/OrganizationSettingsLayout"),
+);
+const AdminSettingsLayout = lazy(
+	() => import("./modules/management/AdminSettingsLayout"),
 );
 const CliAuthPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"));
 const CliInstallPage = lazy(
@@ -416,7 +417,7 @@ const AIBridgeSessionThreadsPage = lazy(
 	() => import("./pages/AIBridgePage/SessionThreadsPage/SessionThreadsPage"),
 );
 
-const LogsLayout = lazy(() => import("./pages/LogsPage/LogsLayout"));
+const LogsRedirect = lazy(() => import("./pages/LogsPage/LogsRedirect"));
 
 const AISettingsLayout = lazy(
 	() => import("./pages/AISettingsPage/AISettingsLayout"),
@@ -473,20 +474,7 @@ const AISettingsUpdateMCPServerPage = lazy(
 
 const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
-
-	if (permissions.viewAnyAIProvider) {
-		return <Navigate to="/ai/settings/providers" replace />;
-	}
-
-	if (permissions.viewAIGatewayKeys) {
-		return <Navigate to="/ai/settings/gateway-keys" replace />;
-	}
-
-	if (permissions.editDeploymentConfig) {
-		return <Navigate to="/ai/settings/models" replace />;
-	}
-
-	return <Navigate to="/ai/settings/providers" replace />;
+	return <Navigate to={firstVisibleAIPage(permissions)} replace />;
 };
 
 const GlobalLayout = () => {
@@ -608,10 +596,11 @@ export const router = createBrowserRouter(
 						element={<Navigate to="/deployment/groups" replace />}
 					/>
 
-					<Route element={<LogsLayout />}>
-						{/* /logs only redirects to the first permitted log page;
-						    the layout handles it before rendering the outlet. */}
-						<Route path="/logs" element={null} />
+					<Route path="/tasks" element={<TasksPage />} />
+
+					{/* Every admin settings area shares the unified sidebar. */}
+					<Route element={<AdminSettingsLayout />}>
+						<Route path="/logs" element={<LogsRedirect />} />
 
 						<Route path="/audit" element={<AuditPage />} />
 
@@ -627,85 +616,158 @@ export const router = createBrowserRouter(
 								element={<AIBridgeSessionThreadsPage />}
 							/>
 						</Route>
-					</Route>
 
-					<Route path="/tasks" element={<TasksPage />} />
+						<Route
+							path="/organizations"
+							element={<OrganizationSettingsLayout />}
+						>
+							<Route path="new" element={<CreateOrganizationPage />} />
 
-					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
-						<Route path="new" element={<CreateOrganizationPage />} />
+							{/* General settings for the default org can omit the organization name */}
+							<Route index element={<OrganizationRedirect />} />
 
-						{/* General settings for the default org can omit the organization name */}
-						<Route index element={<OrganizationRedirect />} />
+							<Route path=":organization">
+								<Route index element={<OrganizationMembersPage />} />
+								{groupsRouter()}
+								<Route path="roles">
+									<Route index element={<OrganizationCustomRolesPage />} />
+									<Route path="create" element={<CreateEditRolePage />} />
+									<Route path=":roleName" element={<CreateEditRolePage />} />
+								</Route>
+								<Route path="provisioners" element={<ProvisionersPage />} />
+								<Route
+									path="provisioner-jobs"
+									element={<ProvisionerJobsPage />}
+								/>
+								<Route
+									path="provisioner-keys"
+									element={<ProvisionerKeysPage />}
+								/>
+								<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
+								<Route path="settings" element={<OrganizationSettingsPage />} />
+							</Route>
+						</Route>
 
-						<Route path=":organization" element={<OrganizationSidebarLayout />}>
-							<Route index element={<OrganizationMembersPage />} />
+						<Route path="/deployment" element={<DeploymentSettingsLayout />}>
+							<Route element={<DeploymentConfigProvider />}>
+								<Route path="overview" element={<OverviewPage />} />
+								<Route path="security" element={<SecuritySettingsPage />} />
+								<Route
+									path="observability"
+									element={<ObservabilitySettingsPage />}
+								/>
+
+								<Route path="network" element={<NetworkSettingsPage />} />
+								<Route path="userauth" element={<UserAuthSettingsPage />} />
+								<Route
+									path="external-auth"
+									element={<ExternalAuthSettingsPage />}
+								/>
+
+								<Route
+									path="notifications"
+									element={<DeploymentNotificationsPage />}
+								/>
+							</Route>
+
+							<Route path="licenses">
+								<Route index element={<LicensesSettingsPage />} />
+								<Route path="add" element={<AddNewLicensePage />} />
+							</Route>
+							<Route path="appearance" element={<AppearanceSettingsPage />} />
+							<Route
+								path="workspace-proxies"
+								element={<WorkspaceProxyPage />}
+							/>
+							<Route path="oauth2-provider">
+								<Route index element={<NotFoundPage />} />
+								<Route path="apps">
+									<Route index element={<OAuth2AppsSettingsPage />} />
+									<Route path="add" element={<CreateOAuth2AppPage />} />
+									<Route path=":appId" element={<EditOAuth2AppPage />} />
+								</Route>
+							</Route>
+
+							<Route path="users">
+								<Route index element={<UsersPage />} />
+								<Route path="create" element={<CreateUserPage />} />
+								<Route path=":user" element={<EditUserPage />} />
+							</Route>
+
 							{groupsRouter()}
-							<Route path="roles">
-								<Route index element={<OrganizationCustomRolesPage />} />
-								<Route path="create" element={<CreateEditRolePage />} />
-								<Route path=":roleName" element={<CreateEditRolePage />} />
+
+							<Route path="idp-org-sync" element={<IdpOrgSyncPage />} />
+							<Route path="premium" element={<PremiumPage />} />
+						</Route>
+
+						<Route path="/ai/settings" element={<AISettingsLayout />}>
+							<Route element={<DeploymentConfigProvider />}>
+								<Route
+									path="governance"
+									element={<AIGovernanceSettingsPage />}
+								/>
 							</Route>
-							<Route path="provisioners" element={<ProvisionersPage />} />
 							<Route
-								path="provisioner-jobs"
-								element={<ProvisionerJobsPage />}
+								path="gateway-keys"
+								element={<AISettingsGatewayKeysPage />}
+							/>
+							<Route index element={<AISettingsIndexRedirect />} />
+							<Route path="models" element={<AISettingsModelsPage />} />
+							<Route path="spend" element={<AISettingsSpendPage />} />
+							<Route
+								path="instructions"
+								element={<AISettingsInstructionsPage />}
+							/>
+							<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
+							<Route path="coder-agents" element={<CoderAgentsPage />} />
+							<Route path="templates" element={<AISettingsTemplatesPage />} />
+							<Route path="models/add" element={<AISettingsAddModelPage />} />
+							<Route
+								path="models/:modelId"
+								element={<AISettingsUpdateModelPage />}
 							/>
 							<Route
-								path="provisioner-keys"
-								element={<ProvisionerKeysPage />}
+								path="mcp-servers"
+								element={<AISettingsMCPServersPage />}
 							/>
-							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
-							<Route path="settings" element={<OrganizationSettingsPage />} />
-						</Route>
-					</Route>
-
-					<Route path="/deployment" element={<DeploymentSettingsLayout />}>
-						<Route element={<DeploymentConfigProvider />}>
-							<Route path="overview" element={<OverviewPage />} />
-							<Route path="security" element={<SecuritySettingsPage />} />
 							<Route
-								path="observability"
-								element={<ObservabilitySettingsPage />}
+								path="mcp-servers/add"
+								element={<AISettingsAddMCPServerPage />}
 							/>
-
-							<Route path="network" element={<NetworkSettingsPage />} />
-							<Route path="userauth" element={<UserAuthSettingsPage />} />
 							<Route
-								path="external-auth"
-								element={<ExternalAuthSettingsPage />}
+								path="mcp-servers/:serverId"
+								element={<AISettingsUpdateMCPServerPage />}
 							/>
-
+							<Route path="providers" element={<AISettingsProvidersPage />} />
 							<Route
-								path="notifications"
-								element={<DeploymentNotificationsPage />}
+								path="providers/add"
+								element={<AISettingsAddProviderPage />}
+							/>
+							<Route
+								path="providers/:providerId"
+								element={<AISettingsUpdateProviderPage />}
 							/>
 						</Route>
 
-						<Route path="licenses">
-							<Route index element={<LicensesSettingsPage />} />
-							<Route path="add" element={<AddNewLicensePage />} />
+						<Route path="/health" element={<HealthLayout />}>
+							<Route index element={<Navigate to="access-url" replace />} />
+							<Route path="access-url" element={<AccessURLPage />} />
+							<Route path="database" element={<DatabasePage />} />
+							<Route path="derp" element={<DERPPage />} />
+							<Route
+								path="derp/regions/:regionId"
+								element={<DERPRegionPage />}
+							/>
+							<Route path="websocket" element={<WebsocketPage />} />
+							<Route
+								path="workspace-proxy"
+								element={<WorkspaceProxyHealthPage />}
+							/>
+							<Route
+								path="provisioner-daemons"
+								element={<ProvisionerDaemonsHealthPage />}
+							/>
 						</Route>
-						<Route path="appearance" element={<AppearanceSettingsPage />} />
-						<Route path="workspace-proxies" element={<WorkspaceProxyPage />} />
-						<Route path="oauth2-provider">
-							<Route index element={<NotFoundPage />} />
-							<Route path="apps">
-								<Route index element={<OAuth2AppsSettingsPage />} />
-								<Route path="add" element={<CreateOAuth2AppPage />} />
-								<Route path=":appId" element={<EditOAuth2AppPage />} />
-							</Route>
-						</Route>
-
-						<Route path="users">
-							<Route index element={<UsersPage />} />
-							<Route path="create" element={<CreateUserPage />} />
-							<Route path=":user" element={<EditUserPage />} />
-						</Route>
-
-						{groupsRouter()}
-
-						<Route path="idp-org-sync" element={<IdpOrgSyncPage />} />
-						<Route path="premium" element={<PremiumPage />} />
 					</Route>
 
 					<Route path="/settings" element={<UserSettingsLayout />}>
@@ -766,66 +828,6 @@ export const router = createBrowserRouter(
 						path="/aibridge/sessions/:sessionId"
 						element={<RedirectAIBridgeSession />}
 					/>
-
-					<Route path="/ai/settings" element={<AISettingsLayout />}>
-						<Route element={<DeploymentConfigProvider />}>
-							<Route path="governance" element={<AIGovernanceSettingsPage />} />
-						</Route>
-						<Route
-							path="gateway-keys"
-							element={<AISettingsGatewayKeysPage />}
-						/>
-						<Route index element={<AISettingsIndexRedirect />} />
-						<Route path="models" element={<AISettingsModelsPage />} />
-						<Route path="spend" element={<AISettingsSpendPage />} />
-						<Route
-							path="instructions"
-							element={<AISettingsInstructionsPage />}
-						/>
-						<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
-						<Route path="coder-agents" element={<CoderAgentsPage />} />
-						<Route path="templates" element={<AISettingsTemplatesPage />} />
-						<Route path="models/add" element={<AISettingsAddModelPage />} />
-						<Route
-							path="models/:modelId"
-							element={<AISettingsUpdateModelPage />}
-						/>
-						<Route path="mcp-servers" element={<AISettingsMCPServersPage />} />
-						<Route
-							path="mcp-servers/add"
-							element={<AISettingsAddMCPServerPage />}
-						/>
-						<Route
-							path="mcp-servers/:serverId"
-							element={<AISettingsUpdateMCPServerPage />}
-						/>
-						<Route path="providers" element={<AISettingsProvidersPage />} />
-						<Route
-							path="providers/add"
-							element={<AISettingsAddProviderPage />}
-						/>
-						<Route
-							path="providers/:providerId"
-							element={<AISettingsUpdateProviderPage />}
-						/>
-					</Route>
-
-					<Route path="/health" element={<HealthLayout />}>
-						<Route index element={<Navigate to="access-url" replace />} />
-						<Route path="access-url" element={<AccessURLPage />} />
-						<Route path="database" element={<DatabasePage />} />
-						<Route path="derp" element={<DERPPage />} />
-						<Route path="derp/regions/:regionId" element={<DERPRegionPage />} />
-						<Route path="websocket" element={<WebsocketPage />} />
-						<Route
-							path="workspace-proxy"
-							element={<WorkspaceProxyHealthPage />}
-						/>
-						<Route
-							path="provisioner-daemons"
-							element={<ProvisionerDaemonsHealthPage />}
-						/>
-					</Route>
 
 					<Route path="/install" element={<CliInstallPage />} />
 

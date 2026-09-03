@@ -1,5 +1,4 @@
 import type { ElementType, FC, ReactNode } from "react";
-import { Link } from "react-router";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import {
 	Collapsible,
@@ -16,24 +15,36 @@ import { cn } from "#/utils/cn";
 import { useSidebarContext } from "./SidebarContext";
 
 interface SidebarAccordionProps {
-	icon: ElementType;
+	/**
+	 * Icon shown before the label. Top-level accordions need one so the
+	 * collapsed icon rail can represent them; nested accordions omit it.
+	 */
+	icon?: ElementType;
 	label: string;
 	children: ReactNode;
 	open: boolean;
 	onToggle: () => void;
-	/** URL to navigate to when clicking the icon in collapsed mode. */
-	href?: string;
 	/** Whether this section contains the current route. */
 	active?: boolean;
 }
 
+/**
+ * Expand/collapse section header for the settings sidebars. The header
+ * only toggles the section and never navigates. Children render in an
+ * indented list with a vertical connecting line, and accordions nest
+ * so each level adds another indented line.
+ *
+ * When the sidebar is collapsed to its icon rail, an accordion with an
+ * icon renders as that icon with a tooltip; clicking it expands the
+ * sidebar and opens the section. Accordions without an icon are only
+ * reachable inside an open parent, so they never render collapsed.
+ */
 export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	icon: Icon,
 	label,
 	children,
 	open,
 	onToggle,
-	href,
 	active = false,
 }) => {
 	const { collapsed, expand } = useSidebarContext();
@@ -49,31 +60,23 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 		active && "text-content-primary",
 	);
 
-	if (collapsed) {
+	if (collapsed && Icon) {
 		return (
 			<TooltipProvider>
 				<Tooltip delayDuration={0}>
 					<TooltipTrigger asChild>
-						{href ? (
-							<Link
-								to={href}
-								onClick={expand}
-								className="flex items-center justify-center w-10 h-10 rounded-md no-underline hover:bg-surface-secondary"
-							>
-								<Icon className={iconClass} />
-							</Link>
-						) : (
-							<button
-								type="button"
-								onClick={() => {
-									expand();
+						<button
+							type="button"
+							onClick={() => {
+								expand();
+								if (!open) {
 									onToggle();
-								}}
-								className="flex items-center justify-center w-10 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
-							>
-								<Icon className={iconClass} />
-							</button>
-						)}
+								}
+							}}
+							className="flex items-center justify-center w-10 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary"
+						>
+							<Icon className={iconClass} />
+						</button>
 					</TooltipTrigger>
 					<TooltipContent side="right">{label}</TooltipContent>
 				</Tooltip>
@@ -88,7 +91,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 					type="button"
 					className="flex w-full items-center gap-2 px-3 py-2 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors"
 				>
-					<Icon className={iconClass} />
+					{Icon && <Icon className={iconClass} />}
 					<span className={labelClass}>{label}</span>
 					<ChevronDownIcon
 						open={open}
@@ -97,7 +100,9 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 				</button>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
-				<div className="pl-6">{children}</div>
+				<div className="ml-5 pl-2 flex flex-col gap-1 border-0 border-l border-solid border-border">
+					{children}
+				</div>
 			</CollapsibleContent>
 		</Collapsible>
 	);

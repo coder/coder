@@ -7,16 +7,12 @@ const EXPANDED_WIDTH = 240;
 // Double that so the icon is horizontally centered when collapsed.
 const COLLAPSED_WIDTH = 64;
 
-function readPersisted(key: string): string | null {
-	try {
-		return localStorage.getItem(key);
-	} catch {
-		return null;
-	}
-}
-
 function readCollapsed(key: string): boolean {
-	return readPersisted(key) === "collapsed";
+	try {
+		return localStorage.getItem(key) === "collapsed";
+	} catch {
+		return false;
+	}
 }
 
 function persistCollapsed(key: string, collapsed: boolean): void {
@@ -27,31 +23,15 @@ function persistCollapsed(key: string, collapsed: boolean): void {
 	}
 }
 
-interface UseSidebarResizeOptions {
-	/**
-	 * On mount, briefly expand the sidebar then collapse it after a
-	 * short delay, unless the user previously left it expanded. The
-	 * peek expansion is never persisted; any user interaction cancels
-	 * the pending collapse.
-	 */
-	peekOnMount?: boolean;
-}
-
 interface UseSidebarResizeReturn {
 	width: number;
 	collapsed: boolean;
 	/** Force the sidebar to expand. */
 	expand: () => void;
-	/** Force the sidebar to collapse. */
-	collapse: () => void;
 	/** Toggle collapsed/expanded state. */
 	toggle: () => void;
-	/** Cancel a pending peek-on-mount auto-collapse, if any. */
-	cancelPeek: () => void;
 	onDragStart: (e: React.PointerEvent) => () => void;
 }
-
-const PEEK_COLLAPSE_DELAY_MS = 1500;
 
 /**
  * Two-state sidebar that drags smoothly by writing directly to the
@@ -61,22 +41,13 @@ const PEEK_COLLAPSE_DELAY_MS = 1500;
  */
 export function useSidebarResize(
 	storageKey = "sidebar-width",
-	{ peekOnMount = false }: UseSidebarResizeOptions = {},
 ): UseSidebarResizeReturn {
 	// Start collapsed on narrow viewports regardless of the persisted
 	// preference, so page content is not cut off on load.
 	const [collapsed, setCollapsed] = useState(
 		() => isBelowLgViewport() || readCollapsed(storageKey),
 	);
-	const peekTimerRef = useRef<number | undefined>(undefined);
 	const isNarrowViewport = useIsBelowLgViewport();
-
-	const cancelPeek = useCallback(() => {
-		if (peekTimerRef.current !== undefined) {
-			window.clearTimeout(peekTimerRef.current);
-			peekTimerRef.current = undefined;
-		}
-	}, []);
 
 	// Auto-collapse when the viewport shrinks below the lg breakpoint
 	// and restore the persisted preference when it grows back. Forced
@@ -89,54 +60,21 @@ export function useSidebarResize(
 			return;
 		}
 		prevNarrowRef.current = isNarrowViewport;
-		if (isNarrowViewport) {
-			cancelPeek();
-			setCollapsed(true);
-		} else {
-			setCollapsed(readCollapsed(storageKey));
-		}
-	}, [isNarrowViewport, storageKey, cancelPeek]);
-
-	// Peek: expand on mount, then collapse after a delay. Skipped when
-	// the user explicitly left the sidebar expanded, and on narrow
-	// viewports where the expansion would cover or squish content.
-	// Neither the expansion nor the auto-collapse is persisted.
-	useEffect(() => {
-		if (
-			!peekOnMount ||
-			isBelowLgViewport() ||
-			readPersisted(storageKey) === "expanded"
-		) {
-			return;
-		}
-		setCollapsed(false);
-		peekTimerRef.current = window.setTimeout(() => {
-			peekTimerRef.current = undefined;
-			setCollapsed(true);
-		}, PEEK_COLLAPSE_DELAY_MS);
-		return cancelPeek;
-	}, [peekOnMount, storageKey, cancelPeek]);
+		setCollapsed(isNarrowViewport ? true : readCollapsed(storageKey));
+	}, [isNarrowViewport, storageKey]);
 
 	const expand = useCallback(() => {
-		cancelPeek();
 		setCollapsed(false);
 		persistCollapsed(storageKey, false);
-	}, [storageKey, cancelPeek]);
-
-	const collapse = useCallback(() => {
-		cancelPeek();
-		setCollapsed(true);
-		persistCollapsed(storageKey, true);
-	}, [storageKey, cancelPeek]);
+	}, [storageKey]);
 
 	const toggle = useCallback(() => {
-		cancelPeek();
 		setCollapsed((prev) => {
 			const next = !prev;
 			persistCollapsed(storageKey, next);
 			return next;
 		});
-	}, [storageKey, cancelPeek]);
+	}, [storageKey]);
 
 	const onDragStart = useCallback(
 		(e: React.PointerEvent): (() => void) => {
@@ -217,13 +155,5 @@ export function useSidebarResize(
 
 	const width = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
-	return {
-		width,
-		collapsed,
-		expand,
-		collapse,
-		toggle,
-		cancelPeek,
-		onDragStart,
-	};
+	return { width, collapsed, expand, toggle, onDragStart };
 }

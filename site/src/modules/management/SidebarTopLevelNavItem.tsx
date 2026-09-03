@@ -16,14 +16,6 @@ interface SidebarTopLevelNavItemProps {
 	active: boolean;
 	/** Match the route exactly instead of by prefix (NavLink end). */
 	end?: boolean;
-	/** Called after the link is clicked, in both collapsed and expanded modes. */
-	onNavigate?: () => void;
-	/**
-	 * Whether clicking the collapsed icon re-expands the sidebar.
-	 * Overlay sidebars pass false so navigation does not pop the
-	 * flyout back open.
-	 */
-	expandOnCollapsedClick?: boolean;
 }
 
 /**
@@ -37,8 +29,6 @@ export const SidebarTopLevelNavItem: FC<SidebarTopLevelNavItemProps> = ({
 	icon: Icon,
 	active,
 	end,
-	onNavigate,
-	expandOnCollapsedClick = true,
 }) => {
 	const { collapsed, expand } = useSidebarContext();
 
@@ -49,12 +39,7 @@ export const SidebarTopLevelNavItem: FC<SidebarTopLevelNavItemProps> = ({
 					<TooltipTrigger asChild>
 						<Link
 							to={href}
-							onClick={() => {
-								if (expandOnCollapsedClick) {
-									expand();
-								}
-								onNavigate?.();
-							}}
+							onClick={expand}
 							className="flex items-center justify-center w-10 h-10 rounded-md no-underline hover:bg-surface-secondary"
 						>
 							<Icon
@@ -75,7 +60,6 @@ export const SidebarTopLevelNavItem: FC<SidebarTopLevelNavItemProps> = ({
 		<NavLink
 			to={href}
 			end={end}
-			onClick={onNavigate}
 			className={({ isActive }) =>
 				cn(
 					"flex items-center gap-2 px-3 py-2 h-10 rounded-md no-underline text-sm font-medium text-content-secondary hover:bg-surface-secondary transition-colors",

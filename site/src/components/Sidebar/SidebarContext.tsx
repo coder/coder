@@ -4,8 +4,6 @@ interface SidebarState {
 	collapsed: boolean;
 	/** Force the sidebar to expand. */
 	expand: () => void;
-	/** Force the sidebar to collapse. */
-	collapse: () => void;
 	/** Toggle collapsed/expanded state. */
 	toggle: () => void;
 }
@@ -13,7 +11,6 @@ interface SidebarState {
 export const SidebarContext = createContext<SidebarState>({
 	collapsed: false,
 	expand: () => {},
-	collapse: () => {},
 	toggle: () => {},
 });
 
