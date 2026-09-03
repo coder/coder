@@ -36,7 +36,6 @@ interface SpendPageViewProps {
 	drillInUserError: unknown;
 	onDrillInUserRetry: () => void;
 	onClearSelectedUser: () => void;
-	onSelectUser: (user: TypesGen.AIGatewaySpendUser) => void;
 	summaryData: TypesGen.AIGatewaySpendUserSummary | undefined;
 	isSummaryLoading: boolean;
 	summaryError: unknown;
@@ -58,7 +57,6 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 	drillInUserError,
 	onDrillInUserRetry,
 	onClearSelectedUser,
-	onSelectUser,
 	summaryData,
 	isSummaryLoading,
 	summaryError,
@@ -114,7 +112,6 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 				searchFilter={searchFilter}
 				onSearchFilterChange={onSearchFilterChange}
 				usersQuery={usersQuery}
-				onSelectUser={onSelectUser}
 			/>
 		</div>
 	);

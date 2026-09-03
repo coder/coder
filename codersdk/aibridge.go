@@ -410,9 +410,9 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 }
 
 // AIGatewaySpendUsage aggregates finished AI Gateway requests over a window.
-// A request whose model had no price contributes its tokens but no cost and
-// is counted in UnpricedRequestCount, so TotalCostMicros is a lower bound
-// whenever that count is non-zero.
+// A request with usage that has no recorded cost contributes its tokens but
+// no cost and is counted in UnpricedRequestCount, so TotalCostMicros is a
+// lower bound whenever that count is non-zero.
 type AIGatewaySpendUsage struct {
 	TotalCostMicros       int64 `json:"total_cost_micros"`
 	RequestCount          int64 `json:"request_count"`

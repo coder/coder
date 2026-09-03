@@ -382,9 +382,9 @@ export interface AIGatewaySpendTotals extends AIGatewaySpendUsage {
 // From codersdk/aibridge.go
 /**
  * AIGatewaySpendUsage aggregates finished AI Gateway requests over a window.
- * A request whose model had no price contributes its tokens but no cost and
- * is counted in UnpricedRequestCount, so TotalCostMicros is a lower bound
- * whenever that count is non-zero.
+ * A request with usage that has no recorded cost contributes its tokens but
+ * no cost and is counted in UnpricedRequestCount, so TotalCostMicros is a
+ * lower bound whenever that count is non-zero.
  */
 export interface AIGatewaySpendUsage {
 	readonly total_cost_micros: number;

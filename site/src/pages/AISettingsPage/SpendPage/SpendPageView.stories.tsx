@@ -105,7 +105,6 @@ const meta = {
 		onSearchFilterChange: fn(),
 		onDrillInUserRetry: fn(),
 		onClearSelectedUser: fn(),
-		onSelectUser: fn(),
 		onSummaryRetry: fn(),
 	},
 } satisfies Meta<typeof SpendPageView>;
@@ -168,24 +167,25 @@ export const Empty: Story = {
 };
 
 export const Users: Story = {
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const table = canvas.getByRole("table", { name: "Spend by user" });
-		const rows = within(table).getAllByRole("button");
-		expect(rows).toHaveLength(2);
+		// Header row plus one native row per user; no row is exposed as a button.
+		expect(within(table).getAllByRole("row")).toHaveLength(3);
+		expect(within(table).queryByRole("button")).not.toBeInTheDocument();
 		await expect(within(table).getByText("$2.50")).toBeVisible();
 		await expect(within(table).getByText("$1.00")).toBeVisible();
 		await expect(within(table).getByText("300,000")).toBeVisible();
-		await expect(
-			canvas.queryByLabelText(/could not be priced/),
-		).not.toBeInTheDocument();
+		expect(within(table).queryByText(/unpriced/)).not.toBeInTheDocument();
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: /View details for Alice Liddell/ }),
+		const detailsLink = within(table).getByRole("link", {
+			name: "Alice Liddell",
+		});
+		const detailsUrl = new URL(
+			detailsLink.getAttribute("href") ?? "",
+			"http://localhost",
 		);
-		expect(args.onSelectUser).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "user-2" }),
-		);
+		expect(detailsUrl.searchParams.get("user")).toBe("user-2");
 	},
 };
 
@@ -201,11 +201,6 @@ export const UsersWithUnpricedRequests: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("3 unpriced")).toBeVisible();
-		await expect(
-			canvas.getByRole("button", {
-				name: /3 requests could not be priced because the model has no price/,
-			}),
-		).toBeVisible();
 	},
 };
 
@@ -335,7 +330,7 @@ export const DrillInWithUnpricedRequests: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("note")).toHaveTextContent(
-			"1 request could not be priced because the model has no price.",
+			"Cost is unavailable for 1 request. The total excludes that usage.",
 		);
 	},
 };

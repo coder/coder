@@ -7,7 +7,6 @@ import {
 	paginatedAIGatewaySpendUsers,
 } from "#/api/queries/aiBridge";
 import { user } from "#/api/queries/users";
-import type { AIGatewaySpendUser } from "#/api/typesGenerated";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -16,6 +15,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import { pageTitle } from "#/utils/page";
+import { userSearchParam } from "./components/SpendUsersTable";
 import { SpendPageView } from "./SpendPageView";
 
 const startDateSearchParam = "startDate";
@@ -122,7 +122,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		enabled: canViewSpend,
 	});
 
-	const selectedUserId = searchParams.get("user") || null;
+	const selectedUserId = searchParams.get(userSearchParam) || null;
 	const selectedUserQuery = useQuery({
 		...user(selectedUserId ?? ""),
 		enabled: canViewSpend && selectedUserId !== null,
@@ -153,14 +153,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				onClearSelectedUser={() => {
 					setSearchParams((prev) => {
 						const next = new URLSearchParams(prev);
-						next.delete("user");
-						return next;
-					});
-				}}
-				onSelectUser={(selected: AIGatewaySpendUser) => {
-					setSearchParams((prev) => {
-						const next = new URLSearchParams(prev);
-						next.set("user", selected.id);
+						next.delete(userSearchParam);
 						return next;
 					});
 				}}

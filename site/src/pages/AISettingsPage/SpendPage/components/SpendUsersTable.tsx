@@ -1,5 +1,11 @@
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
+import {
+	Link as RouterLink,
+	type To,
+	useNavigate,
+	useSearchParams,
+} from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -19,12 +25,12 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { formatTokenCount } from "#/utils/analytics";
 import { formatCostMicros } from "#/utils/currency";
 import type { SpendUsersQuery } from "../SpendPageView";
 import { SpendSectionHeader } from "./SpendSectionHeader";
-import { unpricedRequestsMessage } from "./unpricedRequests";
+
+export const userSearchParam = "user";
 
 interface SpendUsersTableProps {
 	displayDateRange: DateRangeValue;
@@ -32,7 +38,6 @@ interface SpendUsersTableProps {
 	searchFilter: string;
 	onSearchFilterChange: (value: string) => void;
 	usersQuery: SpendUsersQuery;
-	onSelectUser: (user: TypesGen.AIGatewaySpendUser) => void;
 }
 
 export const SpendUsersTable: FC<SpendUsersTableProps> = ({
@@ -41,8 +46,14 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 	searchFilter,
 	onSearchFilterChange,
 	usersQuery,
-	onSelectUser,
 }) => {
+	const [searchParams] = useSearchParams();
+	const userDetailsTo = (user: TypesGen.AIGatewaySpendUser): To => {
+		const next = new URLSearchParams(searchParams);
+		next.set(userSearchParam, user.id);
+		return { search: next.toString() };
+	};
+
 	return (
 		<section className="space-y-6">
 			<SpendSectionHeader
@@ -121,7 +132,7 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 											<UserRow
 												key={user.id}
 												user={user}
-												onSelect={onSelectUser}
+												detailsTo={userDetailsTo(user)}
 											/>
 										))}
 									</TableBody>
@@ -137,26 +148,28 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 
 const UserRow: FC<{
 	user: TypesGen.AIGatewaySpendUser;
-	onSelect: (user: TypesGen.AIGatewaySpendUser) => void;
-}> = ({ user, onSelect }) => {
-	const clickableRowProps = useClickableTableRow({
-		onClick: () => onSelect(user),
-	});
-	// The row is exposed as a single button, so its label has to carry the
-	// unpriced warning; the cell text is only for sighted users.
-	const rowLabel =
-		user.unpriced_request_count > 0
-			? `View details for ${user.name || user.username}. ${unpricedRequestsMessage(user.unpriced_request_count)}`
-			: `View details for ${user.name || user.username}`;
+	detailsTo: To;
+}> = ({ user, detailsTo }) => {
+	const navigate = useNavigate();
 
+	// The row keeps its native <tr> semantics so screen readers announce every
+	// cell. The name link is the keyboard-reachable control; clicking elsewhere
+	// on the row is a mouse shortcut to the same place.
 	return (
-		<TableRow {...clickableRowProps} aria-label={rowLabel} className="text-xs">
+		<TableRow hover className="text-xs" onClick={() => navigate(detailsTo)}>
 			<TableCell className="max-w-[200px] px-3 py-2">
 				<AvatarData
+					truncate
 					title={
-						<span className="block truncate">{user.name || user.username}</span>
+						<RouterLink
+							to={detailsTo}
+							className="hover:underline"
+							onClick={(event) => event.stopPropagation()}
+						>
+							{user.name || user.username}
+						</RouterLink>
 					}
-					subtitle={<span className="block truncate">@{user.username}</span>}
+					subtitle={`@${user.username}`}
 					src={user.avatar_url}
 					imgFallbackText={user.username}
 				/>
