@@ -281,7 +281,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	return (
 		<Margins className="pb-12">
-			<PageHeader className="pb-6">
+			<PageHeader>
 				<PageHeaderTitle>Create new template</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					A Terraform blueprint for reproducible workspaces.
