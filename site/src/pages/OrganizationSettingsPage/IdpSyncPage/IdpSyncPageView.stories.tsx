@@ -80,7 +80,7 @@ export const Default: Story = {
 			canvas.getByRole("heading", { name: "Sync field" }),
 		).toBeVisible();
 		await expect(
-			canvas.getByRole("heading", { name: "Auto create missing groups" }),
+			canvas.getByRole("switch", { name: /auto create missing groups/i }),
 		).toBeVisible();
 		await expect(
 			canvas.getByRole("heading", { name: "Group mapping" }),

@@ -30,6 +30,10 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	StackLabel,
+	StackLabelHelperText,
+} from "#/components/StackLabel/StackLabel";
 import { Switch } from "#/components/Switch/Switch";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { isEveryoneGroup } from "#/modules/groups";
@@ -152,57 +156,57 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 							If empty, group sync is deactivated.
 						</SettingsHeaderDescription>
 					</SettingsHeader>
-					<div className="flex flex-col gap-2">
-						<div className="flex flex-row items-end gap-2">
-							<div className="flex flex-col gap-2">
-								<Label htmlFor={`${id}-sync-field`}>Group sync field</Label>
-								<Input
-									id={`${id}-sync-field`}
-									value={form.values.field}
-									onChange={(event) => {
-										void form.setFieldValue("field", event.target.value);
-										onSyncFieldChange(event.target.value);
+					<div className="flex flex-col gap-6">
+						<div className="flex flex-col gap-2">
+							<div className="flex flex-row items-end gap-2">
+								<div className="flex flex-col gap-2">
+									<Label htmlFor={`${id}-sync-field`}>Group sync field</Label>
+									<Input
+										id={`${id}-sync-field`}
+										value={form.values.field}
+										onChange={(event) => {
+											void form.setFieldValue("field", event.target.value);
+											onSyncFieldChange(event.target.value);
+										}}
+										className="w-72"
+									/>
+								</div>
+								<div className="flex flex-col gap-2">
+									<Label htmlFor={`${id}-regex-filter`}>Regex filter</Label>
+									<Input
+										id={`${id}-regex-filter`}
+										value={form.values.regex_filter ?? ""}
+										onChange={(event) => {
+											void form.setFieldValue(
+												"regex_filter",
+												event.target.value,
+											);
+										}}
+										className="min-w-40"
+									/>
+								</div>
+								<Button
+									type="submit"
+									disabled={form.isSubmitting || !form.dirty}
+									onClick={(event) => {
+										event.preventDefault();
+										form.handleSubmit();
 									}}
-									className="w-72"
-								/>
+								>
+									<Spinner loading={form.isSubmitting} />
+									Save
+								</Button>
 							</div>
-							<div className="flex flex-col gap-2">
-								<Label htmlFor={`${id}-regex-filter`}>Regex filter</Label>
-								<Input
-									id={`${id}-regex-filter`}
-									value={form.values.regex_filter ?? ""}
-									onChange={(event) => {
-										void form.setFieldValue("regex_filter", event.target.value);
-									}}
-									className="min-w-40"
-								/>
-							</div>
-							<Button
-								type="submit"
-								disabled={form.isSubmitting || !form.dirty}
-								onClick={(event) => {
-									event.preventDefault();
-									form.handleSubmit();
-								}}
-							>
-								<Spinner loading={form.isSubmitting} />
-								Save
-							</Button>
+							{(form.errors.field || form.errors.regex_filter) && (
+								<p className="text-content-destructive text-sm m-0">
+									{form.errors.field || form.errors.regex_filter}
+								</p>
+							)}
 						</div>
-						{(form.errors.field || form.errors.regex_filter) && (
-							<p className="text-content-destructive text-sm m-0">
-								{form.errors.field || form.errors.regex_filter}
-							</p>
-						)}
-					</div>
-				</div>
-				<div>
-					<SettingsHeader
-						actions={
+						<div className="flex items-start">
 							<Spinner size="sm" loading={form.isSubmitting}>
 								<Switch
 									id={`${id}-auto-create-missing-groups`}
-									aria-label="Auto create missing groups"
 									checked={form.values.auto_create_missing_groups}
 									onCheckedChange={(checked) => {
 										void form.setFieldValue(
@@ -213,16 +217,17 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 									}}
 								/>
 							</Spinner>
-						}
-					>
-						<SettingsHeaderTitle level="h2" hierarchy="secondary">
-							Auto create missing groups
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Create groups from the IdP when they do not already exist in
-							Coder.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
+							<Label htmlFor={`${id}-auto-create-missing-groups`}>
+								<StackLabel>
+									Auto create missing groups
+									<StackLabelHelperText>
+										Create groups from the IdP when they do not already exist in
+										Coder.
+									</StackLabelHelperText>
+								</StackLabel>
+							</Label>
+						</div>
+					</div>
 				</div>
 				<div>
 					<SettingsHeader
