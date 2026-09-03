@@ -144,6 +144,10 @@ _gen/bin/auditdocgen: $(wildcard scripts/auditdocgen/*.go) $(wildcard enterprise
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/auditdocgen
 
+_gen/bin/experimentsdocgen: $(wildcard scripts/experimentsdocgen/*.go) codersdk/deployment.go | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/experimentsdocgen
+
 _gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) $(RBAC_GO_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/check-scopes
@@ -1017,6 +1021,7 @@ GEN_FILES := \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
+	docs/experiments.json \
 	docs/install/releases/feature-stages.md \
 	docs/admin/setup/configuration-reference.md \
 	coderd/apidoc/swagger.json \
@@ -1116,6 +1121,7 @@ gen/mark-fresh:
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
+		docs/experiments.json \
 		docs/install/releases/feature-stages.md \
 		docs/admin/setup/configuration-reference.md \
 		coderd/apidoc/swagger.json \
@@ -1353,10 +1359,17 @@ docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/queri
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
+# Every experiment this version knows about, with its display name, description,
+# and whether --experiments=* enables it. The feature-stages page renders its
+# experiments table from this file, and the docs engine validates experimental
+# content markers against it.
+docs/experiments.json: codersdk/deployment.go $(wildcard scripts/experimentsdocgen/*.go) | _gen _gen/bin/experimentsdocgen
+	_gen/bin/experimentsdocgen --source codersdk/deployment.go --out $@
+
 docs/install/releases/feature-stages.md: \
 	node_modules/.installed \
 	scripts/release/docs_update_feature_stages.sh \
-	codersdk/deployment.go \
+	docs/experiments.json \
 	docs/manifest.json | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		./scripts/release/docs_update_feature_stages.sh "$$tmpfile" && \
