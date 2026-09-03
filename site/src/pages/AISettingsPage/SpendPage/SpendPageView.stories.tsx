@@ -200,13 +200,12 @@ export const UsersWithUnpricedRequests: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const warning = canvas.getByLabelText(
-			"3 requests could not be priced because the model has no price.",
-		);
-		await userEvent.hover(warning);
+		await expect(canvas.getByText("3 unpriced")).toBeVisible();
 		await expect(
-			await within(document.body).findByRole("tooltip"),
-		).toHaveTextContent("3 requests could not be priced");
+			canvas.getByRole("button", {
+				name: /3 requests could not be priced because the model has no price/,
+			}),
+		).toBeVisible();
 	},
 };
 

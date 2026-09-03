@@ -19,11 +19,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { formatTokenCount } from "#/utils/analytics";
 import { formatCostMicros } from "#/utils/currency";
@@ -147,13 +142,15 @@ const UserRow: FC<{
 	const clickableRowProps = useClickableTableRow({
 		onClick: () => onSelect(user),
 	});
+	// The row is exposed as a single button, so its label has to carry the
+	// unpriced warning; the cell text is only for sighted users.
+	const rowLabel =
+		user.unpriced_request_count > 0
+			? `View details for ${user.name || user.username}. ${unpricedRequestsMessage(user.unpriced_request_count)}`
+			: `View details for ${user.name || user.username}`;
 
 	return (
-		<TableRow
-			{...clickableRowProps}
-			aria-label={`View details for ${user.name || user.username}`}
-			className="text-xs"
-		>
+		<TableRow {...clickableRowProps} aria-label={rowLabel} className="text-xs">
 			<TableCell className="max-w-[200px] px-3 py-2">
 				<AvatarData
 					title={
@@ -165,32 +162,13 @@ const UserRow: FC<{
 				/>
 			</TableCell>
 			<TableCell className="text-right tabular-nums">
-				<span className="inline-flex items-center justify-end gap-1">
-					{user.unpriced_request_count > 0 && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								{/* Focusable so keyboard users can open the tooltip; the
-								    clickable row itself never announces the warning. Events
-								    stop here so the row does not open the drill-in. */}
-								<button
-									type="button"
-									aria-label={unpricedRequestsMessage(
-										user.unpriced_request_count,
-									)}
-									onClick={(event) => event.stopPropagation()}
-									onKeyDown={(event) => event.stopPropagation()}
-									className="inline-flex rounded-sm border-0 bg-transparent p-0 text-content-warning outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-								>
-									<TriangleAlertIcon aria-hidden className="size-icon-xs" />
-								</button>
-							</TooltipTrigger>
-							<TooltipContent>
-								{unpricedRequestsMessage(user.unpriced_request_count)}
-							</TooltipContent>
-						</Tooltip>
-					)}
-					{formatCostMicros(user.total_cost_micros)}
-				</span>
+				{formatCostMicros(user.total_cost_micros)}
+				{user.unpriced_request_count > 0 && (
+					<span className="mt-0.5 flex items-center justify-end gap-1 text-content-warning">
+						<TriangleAlertIcon aria-hidden className="size-icon-xs" />
+						{user.unpriced_request_count.toLocaleString("en-US")} unpriced
+					</span>
+				)}
 			</TableCell>
 			<TableCell className="text-right tabular-nums">
 				{user.request_count.toLocaleString("en-US")}
