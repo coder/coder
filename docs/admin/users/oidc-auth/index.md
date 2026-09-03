@@ -155,7 +155,7 @@ Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
 authentication. Upon deactivation, users are
 [suspended](../index.md#suspend-a-user) and are not deleted.
 [Configure](../../setup/index.md) your SCIM application with an auth key and supply
-it the Coder server.
+it to the control plane.
 
 ```dotenv
 CODER_SCIM_AUTH_HEADER="your-api-key"
@@ -176,7 +176,7 @@ CODER_SCIM_USE_LEGACY=false
 ```
 
 This is also available as the `--scim-use-legacy` server flag and the `scimUseLegacy` YAML option.
-Changing it requires a restart of the Coder server.
+Changing it requires a restart of the control plane.
 
 Behavior notes:
 

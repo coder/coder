@@ -88,7 +88,7 @@ Note that these permissions only apply to the scope of an
 
 A malicious Template Admin could write a template that executes commands on the
 host (or `coder server` container), which potentially escalates their privileges
-or shuts down the Coder server. To avoid this, run
+or shuts down the control plane. To avoid this, run
 [external provisioners](../provisioners/index.md).
 
 In low-trust environments, we do not recommend giving users direct access to

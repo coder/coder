@@ -29,7 +29,7 @@ handling, and how to monitor providers.
 > once seeding has completed.
 >
 > **Any changes to the provider environment variables after seeding will
-> cause the server to fail to start, to prevent operators from updating a
+> cause `coderd` to fail to start, to prevent operators from updating a
 > configuration that is ineffectual.**
 >
 > The environment variables can be safely removed once seeding has
@@ -356,5 +356,5 @@ and how to enable or disable it.
 | Symptom                                        | Likely cause                                               | Corrective action                        |
 |------------------------------------------------|------------------------------------------------------------|------------------------------------------|
 | Startup fails referencing an existing provider | Env config drifted from a provider already in the database | Remove the provider env vars and restart |
-| Provider returns errors with no upstream call  | The provider is `disabled` or in `error` status            | Consult the server logs for details      |
-| Configuration changes not taking effect        | Reloads are firing but failing to apply                    | Consult the server logs for details      |
+| Provider returns errors with no upstream call  | The provider is `disabled` or in `error` status            | Consult the `coderd` logs for details    |
+| Configuration changes not taking effect        | Reloads are firing but failing to apply                    | Consult the `coderd` logs for details    |

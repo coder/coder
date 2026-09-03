@@ -2,7 +2,7 @@
 title: Customize your template
 ---
 
-In [Launch your first workspace](../index.md), you installed the `coder` CLI, started the Coder server, and built a workspace from the Quickstart template.
+In [Launch your first workspace](../index.md), you installed the `coder` CLI, started the control plane, and built a workspace from the Quickstart template.
 That template is a good starting point, but it has gaps:
 
 - It may not include every language in which you write code.
@@ -74,7 +74,7 @@ The template web editor opens:
 ### CLI
 
 Pull the template to your local filesystem so you can edit it in your own editor.
-With the server running in your existing terminal, open a second terminal and log in:
+With the control plane running in your existing terminal, open a second terminal and log in:
 
 ```sh
 coder login

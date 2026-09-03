@@ -36,7 +36,7 @@ Agent Time excludes:
 - Time a parent agent spends waiting for a subagent, because the subagent records its own model invocations.
 - Model calls that don't produce chat messages, such as title generation.
 - Failed or retried model calls, which persist no content and record no runtime.
-- Client-executed tools and chats handed off to external coding agents, since that work happens outside the server.
+- Client-executed tools and chats handed off to external coding agents, since that work happens outside the control plane.
 
 Coder records Agent Time in milliseconds and sums it across all Coder Agents chats in the deployment.
 

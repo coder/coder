@@ -48,5 +48,5 @@ That's all! Use the UI to create your first user, template, and workspace. We re
 
 - [IDEs with Coder](../../user-guides/workspace-access/index.md)
 - [Writing custom templates for Coder](../../admin/templates/index.md)
-- [Configure the Coder server](../../admin/setup/index.md)
+- [Configure the control plane](../../admin/setup/index.md)
 - [Use your own domain + TLS](../../admin/setup/index.md#tls--reverse-proxy)

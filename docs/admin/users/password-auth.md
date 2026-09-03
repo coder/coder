@@ -9,7 +9,7 @@ setup is a username/password account.
 
 To disable password authentication, use the
 [`CODER_DISABLE_PASSWORD_AUTH`](../../reference/cli/server.md#--disable-password-auth)
-flag on the Coder server.
+flag on the control plane.
 
 ## Restore the `Owner` user
 
@@ -18,7 +18,7 @@ If you remove the admin user account (or forget the password), you can run the
 on your server.
 
 > [!IMPORTANT]
-> You must run this command on the same machine running the Coder server.
+> You must run this command on the same machine running the control plane.
 > If you are running Coder on Kubernetes, this means using
 > [kubectl exec](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_exec/)
 > to exec into the pod.

@@ -60,7 +60,7 @@ A common configuration is a template whose only persistent resource is the home
 directory. This allows the developer to retain their work while ensuring the
 rest of their environment is consistently up-to-date on each workspace restart.
 
-When a workspace is deleted, the Coder server essentially runs a
+When a workspace is deleted, the control plane essentially runs a
 [terraform destroy](https://www.terraform.io/cli/commands/destroy) to remove all
 resources associated with the workspace.
 

@@ -5,10 +5,10 @@ users.
 We provide it for convenience, allowing you to experiment with Coder
 without setting up your own GitHub OAuth app.
 
-If you authenticate with it, you grant Coder server read access to your GitHub
-user email and other metadata listed during the authentication flow.
+If you authenticate with it, you grant the control plane read access to your
+GitHub user email and other metadata listed during the authentication flow.
 
-This access is necessary for the Coder server to complete the authentication
+This access is necessary for the control plane to complete the authentication
 process.
 To the best of our knowledge, Coder, the company, does not gain access
 to this data by administering the GitHub app.
@@ -47,7 +47,7 @@ To use the default configuration:
 ## Disable the Default GitHub App
 
 You can disable the default GitHub app by [configuring your own app](#step-1-configure-the-oauth-application-in-github)
-or by adding the following environment variable to your [Coder server configuration](../../reference/cli/server.md#options):
+or by adding the following environment variable to your [control plane configuration](../../reference/cli/server.md#options):
 
 ```sh
 CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
@@ -85,7 +85,7 @@ CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
 
 ## Step 2: Configure Coder with the OAuth credentials
 
-Coder server reads these settings from environment variables. Set them
+The control plane reads these settings from environment variables. Set them
 wherever your deployment manages environment variables. For example, use
 Helm `values.yaml` for Kubernetes or `/etc/coder.d/coder.env` for a system
 service.

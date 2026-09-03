@@ -47,7 +47,7 @@ pre-installed.
 
 ![Coder Workspace and IDE in GCP VM](../../images/platforms/aws/workspace.png)
 
-## Configuring Coder server
+## Configuring the control plane
 
 Coder is primarily configured by server-side flags and environment variables.
 Given you created or added key-pairs when launching the instance, you can
@@ -77,5 +77,5 @@ to set up authentication.
 
 - [Use your IDE with Coder](../../user-guides/workspace-access/index.md)
 - [Writing custom templates for Coder](../../admin/templates/index.md)
-- [Configure the Coder server](../../admin/setup/index.md)
+- [Configure the control plane](../../admin/setup/index.md)
 - [Use your own domain + TLS](../../admin/setup/index.md#tls--reverse-proxy)

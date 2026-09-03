@@ -184,7 +184,7 @@ The WebSocket sends JSON envelopes with a `type` field (`"ping"`,
 | `message`      | A complete message has been persisted                   |
 | `status`       | The chat status changed (e.g. `running` → `waiting`)    |
 | `error`        | An error occurred during processing                     |
-| `retry`        | The server is retrying a failed LLM call                |
+| `retry`        | The control plane is retrying a failed LLM call         |
 | `queue_update` | The queued message list changed                         |
 
 Use `after_id` as a query parameter when reconnecting to skip messages the

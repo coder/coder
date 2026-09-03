@@ -20,7 +20,7 @@ Coder can act as an OAuth2 authorization server, allowing third-party applicatio
 
 ## Enable OAuth2 Provider
 
-Add the `oauth2` experiment flag to your Coder server:
+Add the `oauth2` experiment flag to your control plane:
 
 ```sh
 coder server --experiments oauth2
@@ -406,7 +406,7 @@ scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause answers
 `server_error` on `POST /oauth2/authorize`. Update the application's callback
 URL (see [Callback URL schemes](#callback-url-schemes)).
 
-The server log records the application ID and the stored value. The response
+The `coderd` log records the application ID and the stored value. The response
 does not, so a bad URL is never echoed back to a browser.
 
 ### "invalid_scope" returned to your callback
@@ -527,9 +527,9 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 - **Implement PKCE**: PKCE is mandatory for all authorization code clients
   (public and confidential)
 - **Validate redirect URLs**: Only register trusted redirect URIs. Dangerous
-  schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the server,
-  custom URI schemes for native apps (`myapp://`) are permitted, and public
-  clients additionally cannot use `mailto:`, `tel:`, or `sms:`
+  schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the control
+  plane, custom URI schemes for native apps (`myapp://`) are permitted, and
+  public clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
 
 ## Limitations

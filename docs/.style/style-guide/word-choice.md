@@ -28,7 +28,7 @@ It reads as a misspelling of the product name.
 
 **Do**:
 
-> Run `coder login` to authenticate against the Coder server.
+> Run `coder login` to authenticate against your Coder deployment.
 >
 > Open the AI Gateway integration page to configure model providers.
 
@@ -109,6 +109,49 @@ It isn't itself the concept, so it stays in backticks as a tool name.
 > The category is lowercase.)
 
 *Enforced by `Coder.DevContainer` (planned).*
+
+## Naming Coder's components
+
+Three terms name the thing that serves the Coder API and dashboard, and each has one job.
+
+Use *control plane* for the component that serves the Coder API and dashboard, brokers connections to workspaces, and coordinates provisioners.
+It is the default in prose, diagrams, and any planning, sizing, architecture, or security discussion.
+
+Use `coderd` only for the process itself, such as in metric names, log output, configuration flags, or troubleshooting steps.
+Introduce it on first use in a page as "`coderd`, the process that runs the control plane".
+
+Use `coder server` only for the command a reader runs.
+
+Don't use "the Coder server" as a name for the control plane, and don't describe the control plane generically as "a service".
+"Server" is ambiguous in a Coder deployment: it can read as the machine, the process, or the whole installation.
+Control plane is also the only one of the three that scales to a list of components, as in "the control plane, the workspaces, and the workspace proxies".
+
+| Do                                                 | Don't                                       |
+|----------------------------------------------------|---------------------------------------------|
+| the control plane serves the dashboard             | the Coder server serves the dashboard       |
+| `coderd` writes the build log                      | the server writes the build log             |
+| run `coder server` to start the control plane      | run the Coder server                        |
+| the control plane, the workspaces, and the proxies | the server, the workspaces, and the proxies |
+
+Use *workspace agent*, or `coder agent` for the process, for the agent that runs inside a workspace.
+Don't shorten it to "the agent" on a page that also discusses AI agents or Coder Agents.
+
+**Do**:
+
+> The control plane brokers the connection, and the workspace agent dials out to it.
+> Workspaces need no inbound ports.
+>
+> Set `CODER_ACCESS_URL` before you run `coder server`.
+> `coderd` logs the resolved access URL at startup.
+
+**Don't**:
+
+> The Coder server brokers the connection, and the agent dials out to it.
+>
+> The service logs the resolved access URL at startup.
+
+*Documentation-only.
+No Vale rule.*
 
 ## One term per concept
 

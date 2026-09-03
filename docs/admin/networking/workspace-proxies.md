@@ -23,8 +23,8 @@ over workspace proxies.
 
 Each workspace proxy should be a unique instance. At no point should two
 workspace proxy instances share the same authentication token. They only require
-port 443 to be open and are expected to have network connectivity to the coderd
-dashboard. Workspace proxies **do not** make any database connections.
+port 443 to be open and are expected to have network connectivity to the control
+plane dashboard. Workspace proxies **do not** make any database connections.
 
 Workspace proxies can be used in the browser by navigating to the user
 `Account -> Workspace Proxy`
@@ -56,9 +56,9 @@ newyork                             unregistered
 
 ## Step 2: Deploy the proxy
 
-Deploying the workspace proxy will also register the proxy with coderd and make
-the workspace proxy usable. If the proxy deployment is successful,
-`coder wsproxy ls` will show an `ok` status code:
+Deploying the workspace proxy will also register the proxy with the control
+plane and make the workspace proxy usable. If the proxy deployment is
+successful, `coder wsproxy ls` will show an `ok` status code:
 
 ```sh
 $ coder wsproxy ls
@@ -81,7 +81,7 @@ Other Status codes:
 
 ### Configuration
 
-Workspace proxy configuration overlaps with a subset of the coderd
+Workspace proxy configuration overlaps with a subset of the `coderd`
 configuration. To see the full list of configuration options:
 `coder wsproxy server --help`
 
@@ -178,7 +178,7 @@ sudo systemctl restart coder-workspace-proxy
 ### Running in Docker
 
 Modify the default entrypoint to run a workspace proxy server instead of a
-regular Coder server.
+regular control plane.
 
 #### Docker Compose
 

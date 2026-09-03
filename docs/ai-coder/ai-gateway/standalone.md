@@ -184,7 +184,7 @@ Configure AI Gateway Proxy and direct AI clients to send requests to the standal
 
 ### AI Gateway Proxy
 
-[AI Gateway Proxy](./ai-gateway-proxy/index.md) remains part of the `coder server` process.
+[AI Gateway Proxy](./ai-gateway-proxy/index.md) remains part of the `coderd` process.
 Configure its target to use the standalone Service, Ingress, `HTTPRoute`, or load balancer.
 
 If you installed the Helm chart, get the exact in-cluster Service URL from the chart notes:

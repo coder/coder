@@ -75,7 +75,7 @@ Provider-executed tools don't produce `pre_tool_use` or `post_tool_use` events b
 For `pre_tool_use`, `tool_input` carries the model's JSON bytes with key spelling and order preserved, so a policy can read them exactly as the model wrote them.
 Coder's built-in tools decode that JSON with Go, which matches property names case-insensitively and keeps the last match, so `{"path":"/allowed","PATH":"/secret"}` could make a policy approve `/allowed` while the tool opens `/secret`.
 Coder rejects a built-in tool call whose input repeats a key or spells a schema property with different capitalization, before dispatching `pre_tool_use`.
-This check doesn't cover dynamic and MCP tools, because the client and the workspace agent execute those calls rather than coderd.
+This check doesn't cover dynamic and MCP tools, because the client and the workspace agent execute those calls rather than `coderd`.
 A policy that gates them must validate their input itself.
 The chat `edit_files` tool reads `old_text` and `new_text` and, for rollout compatibility, also accepts the deprecated `search` and `replace` keys when the new fields are empty. A policy that gates edit content should inspect `old_text` and `new_text`, and `search`/`replace` while the compatibility window lasts.
 

@@ -47,7 +47,7 @@ At a high level, STUN works like this:
   public internet, and respond with the public IP address and port from which
   the request came.
 - **Coordination:** The client and agent then exchange this information through
-  the Coder server. They will then construct packets that should be able to
+  the control plane. They will then construct packets that should be able to
   successfully traverse their counterpart's NATs successfully.
 - **NAT Traversal:** The client and agent then send these crafted packets to
   their counterpart's public addresses. If all goes well, the NATs on the other
@@ -80,7 +80,7 @@ address and port on which they can be reached.
 
 ![Diagram of a workspace agent and client in separate networks](../../images/networking/stun2.1.png)
 
-They then exchange this information through Coder server, and can then
+They then exchange this information through the control plane, and can then
 communicate directly with each other through their respective NATs.
 
 ![Diagram of a workspace agent and client in separate networks](../../images/networking/stun2.2.png)

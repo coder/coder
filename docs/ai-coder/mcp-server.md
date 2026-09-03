@@ -230,8 +230,8 @@ them for you to invoke, for example as slash commands:
 ### Connection timeouts
 
 - Verify your Coder deployment URL is correct and accessible
-- Check network connectivity between your MCP client and the Coder server
-- Review Coder server logs for any errors
+- Check network connectivity between your MCP client and the control plane
+- Review the logs from `coderd`, the process that runs the control plane, for any errors
 
 ### OAuth2 authentication not working
 
