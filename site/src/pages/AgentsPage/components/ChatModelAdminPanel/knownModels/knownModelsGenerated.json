@@ -236,8 +236,8 @@
 			"aliases": [],
 			"contextLimit": 1050000,
 			"maxOutputTokens": 128000,
-			"inputCost": 5,
-			"outputCost": 30,
+			"inputCost": 4,
+			"outputCost": 20,
 			"cacheReadCost": 0.5,
 			"cacheWriteCost": 6.25
 		},
@@ -593,10 +593,10 @@
 			"displayName": "GLM-5.3",
 			"aliases": [],
 			"contextLimit": 1310720,
-			"maxOutputTokens": 131072,
+			"maxOutputTokens": 262144,
 			"inputCost": 1.4,
 			"outputCost": 4.4,
-			"cacheReadCost": 0.26
+			"cacheReadCost": 0.14
 		},
 		{
 			"provider": "openrouter",
@@ -700,9 +700,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.08554,
-			"outputCost": 0.17108,
-			"cacheReadCost": 0.017108
+			"inputCost": 0.088606,
+			"outputCost": 0.177212,
+			"cacheReadCost": 0.017721
 		},
 		{
 			"provider": "openrouter",
@@ -711,9 +711,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 1.030776,
-			"outputCost": 2.061552,
-			"cacheReadCost": 0.085898
+			"inputCost": 1.04226,
+			"outputCost": 2.08452,
+			"cacheReadCost": 0.086855
 		},
 		{
 			"provider": "openrouter",
