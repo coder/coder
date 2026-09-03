@@ -199,25 +199,25 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 		}
 
 		const modulesById = new Map(modules.map((m) => [m.id, m]));
-		// Seed a newly added module's agent choice with the base default so the
-		// selection is explicit from the start. Existing modules pass no variables
-		// so the reducer keeps their current values.
+
+		// Newly added agent-aware modules get their agent choice seeded with the
+		// base default so the selection is explicit from the start. Already-selected
+		// modules carry no variables here, so the reducer keeps their current values.
 		const defaultAgent = defaultAgentName(agents);
-		const nextModules: TemplateBuilderComposeModule[] = nextIds.map((id) => {
-			const mod = modulesById.get(id);
-			const declaresAgentName = mod?.variables.some(
-				(v) => v.name === AGENT_NAME_VARIABLE,
-			);
-			if (
-				id === target.id &&
-				!isSelected &&
-				declaresAgentName &&
-				defaultAgent
-			) {
-				return { id, variables: { [AGENT_NAME_VARIABLE]: defaultAgent } };
-			}
-			return { id };
-		});
+		const idsToSeedAgent = new Set(
+			nextIds.filter(
+				(id) =>
+					!selectedSet.has(id) &&
+					modulesById
+						.get(id)
+						?.variables.some((v) => v.name === AGENT_NAME_VARIABLE),
+			),
+		);
+		const nextModules: TemplateBuilderComposeModule[] = nextIds.map((id) =>
+			idsToSeedAgent.has(id) && defaultAgent
+				? { id, variables: { [AGENT_NAME_VARIABLE]: defaultAgent } }
+				: { id },
+		);
 		const nextMeta: SelectedModuleMeta[] = nextIds
 			.map((id) => modulesById.get(id))
 			.filter((m): m is TemplateBuilderModule => m != null)
