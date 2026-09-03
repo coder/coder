@@ -14,7 +14,10 @@ import {
 	MockOrganizationPermissions,
 	MockPermissions,
 } from "#/testHelpers/entities";
-import { AdminSettingsSidebarView } from "./AdminSettingsSidebarView";
+import {
+	AdminSettingsSidebarHeader,
+	AdminSettingsSidebarView,
+} from "./AdminSettingsSidebarView";
 
 /** Exposes the router location so play functions can assert on it. */
 const LocationProbe: FC = () => {
@@ -62,8 +65,12 @@ const meta: Meta<typeof AdminSettingsSidebarView> = {
 			} else {
 				localStorage.removeItem(key);
 			}
+			// Stories that mount a real CollapsibleSidebar supply the header
+			// through its header slot instead.
+			const usesRealSidebar = Boolean(parameters.realSidebar);
 			return (
 				<div className="w-60">
+					{!usesRealSidebar && <AdminSettingsSidebarHeader />}
 					<Story />
 					<LocationProbe />
 				</div>
@@ -254,13 +261,17 @@ export const NarrowViewportAutoCollapse: Story = {
 		(Story) => {
 			localStorage.setItem("story-admin-narrow-width", "expanded");
 			return (
-				<CollapsibleSidebar storageKey="story-admin-narrow-width">
+				<CollapsibleSidebar
+					storageKey="story-admin-narrow-width"
+					header={<AdminSettingsSidebarHeader />}
+				>
 					<Story />
 				</CollapsibleSidebar>
 			);
 		},
 	],
 	parameters: {
+		realSidebar: true,
 		viewport: { defaultViewport: "iphone12" },
 	},
 	play: async ({ canvasElement }) => {
@@ -283,6 +294,7 @@ export const WideContentPeek: Story = {
 			return (
 				<CollapsibleSidebar
 					storageKey="story-admin-wide-peek-width"
+					header={<AdminSettingsSidebarHeader />}
 					preferCollapsed
 				>
 					<Story />
@@ -291,6 +303,7 @@ export const WideContentPeek: Story = {
 		},
 	],
 	parameters: {
+		realSidebar: true,
 		openSections: ["logs"],
 		reactRouter: routing("/audit"),
 	},
@@ -316,6 +329,7 @@ export const WideContentStartsCollapsedWhenPreferenceCollapsed: Story = {
 			return (
 				<CollapsibleSidebar
 					storageKey="story-admin-wide-collapsed-width"
+					header={<AdminSettingsSidebarHeader />}
 					preferCollapsed
 				>
 					<Story />
@@ -324,6 +338,7 @@ export const WideContentStartsCollapsedWhenPreferenceCollapsed: Story = {
 		},
 	],
 	parameters: {
+		realSidebar: true,
 		openSections: ["logs"],
 		reactRouter: routing("/audit"),
 	},
@@ -332,5 +347,183 @@ export const WideContentStartsCollapsedWhenPreferenceCollapsed: Story = {
 		// No peek: only the icon rail renders from the start.
 		expect(canvas.queryByRole("button", { name: "Logs" })).toBeNull();
 		expect(canvas.queryByRole("link", { name: "Audit logs" })).toBeNull();
+	},
+};
+
+const ALL_SECTIONS = [
+	"deployment",
+	"deployment-general",
+	"deployment-infrastructure",
+	"deployment-authentication",
+	"organizations",
+	"organizations-provisioners",
+	"ai",
+	"ai-coder-agents",
+	"logs",
+];
+
+// A short, wide viewport with every section open: the list overflows,
+// the header stays pinned, and only the nav list scrolls.
+export const TallListScrolls: Story = {
+	args: { openSectionsStorageKey: "story-admin-tall" },
+	decorators: [
+		(Story) => {
+			localStorage.setItem("story-admin-tall-width", "expanded");
+			return (
+				<CollapsibleSidebar
+					storageKey="story-admin-tall-width"
+					header={<AdminSettingsSidebarHeader />}
+				>
+					<Story />
+				</CollapsibleSidebar>
+			);
+		},
+	],
+	parameters: {
+		realSidebar: true,
+		openSections: ALL_SECTIONS,
+		viewport: {
+			options: {
+				shortDesktop: {
+					name: "Short desktop",
+					styles: { width: "1200px", height: "600px" },
+				},
+			},
+			defaultViewport: "shortDesktop",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollArea = canvas.getByTestId("sidebar-scroll-area");
+		const header = canvas.getByRole("button", { name: /admin settings/i });
+		const headerTop = header.getBoundingClientRect().top;
+
+		await waitFor(() => {
+			expect(scrollArea.scrollHeight).toBeGreaterThan(scrollArea.clientHeight);
+		});
+		// The page itself does not need to scroll to reveal the list.
+		expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(
+			window.innerHeight,
+		);
+
+		scrollArea.scrollTop = scrollArea.scrollHeight;
+		await waitFor(() => expect(scrollArea.scrollTop).toBeGreaterThan(0));
+		expect(header.getBoundingClientRect().top).toBe(headerTop);
+		expect(header).toBeVisible();
+	},
+};
+
+// Measures the rendered geometry against the design spec (240px sidebar,
+// logical px): 40px section rows with the icon 16px from the edge and the
+// chevron 12px from the edge, 40px nested headers aligned with the parent
+// label, 32px nested leaves 20px right of the connecting line, 4px between
+// leaves, 16px before the next nested header, 12px between sections.
+export const LayoutMetrics: Story = {
+	args: { openSectionsStorageKey: "story-admin-metrics" },
+	decorators: [
+		(Story) => {
+			localStorage.setItem("story-admin-metrics-width", "expanded");
+			return (
+				<CollapsibleSidebar
+					storageKey="story-admin-metrics-width"
+					header={<AdminSettingsSidebarHeader />}
+				>
+					<Story />
+				</CollapsibleSidebar>
+			);
+		},
+	],
+	parameters: {
+		realSidebar: true,
+		openSections: ["deployment", "deployment-general", "organizations"],
+		reactRouter: routing("/organizations/my-organization"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sidebar = canvasElement.querySelector("[data-sidebar-container]");
+		if (!(sidebar instanceof HTMLElement)) {
+			throw new Error("sidebar container not rendered");
+		}
+		const edge = sidebar.getBoundingClientRect();
+		const rect = (element: Element) => element.getBoundingClientRect();
+
+		const headerToggle = canvas.getByRole("button", {
+			name: /admin settings/i,
+		});
+		const deployment = canvas.getByRole("button", { name: "Deployment" });
+		const deploymentIcon = deployment.querySelector("svg");
+		const deploymentChevron = deployment.querySelectorAll("svg")[1];
+		const deploymentLabel = canvas.getByText("Deployment");
+		const general = canvas.getByRole("button", { name: "General" });
+		const generalChevron = general.querySelector("svg");
+		const generalLabel = canvas.getByText("General");
+		const overview = canvas.getByRole("link", { name: "Overview" });
+		const licenses = canvas.getByRole("link", { name: "Licenses" });
+		const infrastructure = canvas.getByRole("button", {
+			name: "Infrastructure",
+		});
+		const organization = canvas.getByRole("button", { name: "Organizations" });
+		const members = canvas.getByRole("link", { name: "Members" });
+		const healthcheck = canvas.getByRole("link", { name: "Healthcheck" });
+		const healthcheckIcon = healthcheck.querySelector("svg");
+		if (
+			!deploymentIcon ||
+			!deploymentChevron ||
+			!generalChevron ||
+			!healthcheckIcon
+		) {
+			throw new Error("section icons not rendered");
+		}
+		const lastGeneralLeaf = overview.parentElement?.lastElementChild;
+		const line = overview.parentElement;
+		if (!lastGeneralLeaf || !line) {
+			throw new Error("nested list not rendered");
+		}
+
+		const metrics = {
+			sidebarWidth: edge.width,
+			headerRowHeight: rect(headerToggle).height,
+			headerTopPadding: rect(headerToggle).top - edge.top,
+			sectionRowHeight: rect(deployment).height,
+			iconLeft: rect(deploymentIcon).left - edge.left,
+			iconSize: rect(deploymentIcon).width,
+			labelGap: rect(deploymentLabel).left - rect(deploymentIcon).right,
+			chevronRight: edge.right - rect(deploymentChevron).right,
+			nestedHeaderHeight: rect(general).height,
+			nestedLabelOffset: rect(generalLabel).left - rect(deploymentLabel).left,
+			nestedChevronOffset:
+				rect(generalChevron).right - rect(deploymentChevron).right,
+			nestedLeafHeight: rect(overview).height,
+			// Measured from the inner edge of the 1px connecting line to the
+			// text start (the leaf has 8px of horizontal padding).
+			leafTextFromLine:
+				rect(overview).left + 8 - (rect(line).left + line.clientLeft),
+			leafGap: rect(licenses).top - rect(overview).bottom,
+			listToNextHeader: rect(infrastructure).top - rect(lastGeneralLeaf).bottom,
+			sectionLeafHeight: rect(members).height,
+			sectionGap:
+				rect(organization).top - rect(deployment.parentElement!).bottom,
+			healthcheckRowHeight: rect(healthcheck).height,
+			healthcheckIconLeft: rect(healthcheckIcon).left - edge.left,
+		};
+		expect(metrics.sidebarWidth).toBe(240);
+		expect(metrics.headerRowHeight).toBe(40);
+		expect(metrics.headerTopPadding).toBe(12);
+		expect(metrics.sectionRowHeight).toBe(40);
+		expect(metrics.iconLeft).toBe(16);
+		expect(metrics.iconSize).toBe(16);
+		expect(metrics.labelGap).toBe(8);
+		expect(metrics.chevronRight).toBe(12);
+		expect(metrics.nestedHeaderHeight).toBe(40);
+		expect(metrics.nestedLabelOffset).toBe(0);
+		expect(metrics.nestedChevronOffset).toBe(0);
+		expect(metrics.nestedLeafHeight).toBe(32);
+		expect(metrics.leafTextFromLine).toBe(20);
+		expect(metrics.leafGap).toBe(4);
+		expect(metrics.listToNextHeader).toBe(16);
+		expect(metrics.sectionLeafHeight).toBe(40);
+		expect(metrics.sectionGap).toBe(12);
+		expect(metrics.healthcheckRowHeight).toBe(40);
+		expect(metrics.healthcheckIconLeft).toBe(16);
 	},
 };

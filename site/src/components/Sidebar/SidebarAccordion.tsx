@@ -87,9 +87,15 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	return (
 		<Collapsible open={open} onOpenChange={onToggle}>
 			<CollapsibleTrigger asChild>
+				{/* Icon sections inset the icon 4px so it sits 16px from the
+				    sidebar edge; the chevron is flush with the nav padding so
+				    it lines up across all levels. */}
 				<button
 					type="button"
-					className="flex w-full items-center gap-2 px-3 py-2 h-10 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors"
+					className={cn(
+						"flex w-full items-center gap-2 h-10 pr-0 rounded-md cursor-pointer bg-transparent border-none hover:bg-surface-secondary transition-colors",
+						Icon ? "pl-1" : "pl-0",
+					)}
 				>
 					{Icon && <Icon className={iconClass} />}
 					<span className={labelClass}>{label}</span>
@@ -100,15 +106,16 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 				</button>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
-				{/* Children of an icon section align under its label. Nested
-				    sections draw a connecting line at the label's left edge,
-				    with their sub-items indented past it. */}
+				{/* Children of an icon section align under its label (4px inset
+				    + 16px icon + 8px gap). Nested sections draw a connecting
+				    line at the label's left edge, indent their items past it,
+				    and pad the bottom so the next header sits 16px below. */}
 				<div
 					className={cn(
 						"flex flex-col gap-1",
 						Icon
-							? "ml-6"
-							: "ml-3 pl-1 border-0 border-l border-solid border-border",
+							? "ml-7"
+							: "pl-3 pb-3 border-0 border-l border-solid border-border",
 					)}
 				>
 					{children}

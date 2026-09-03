@@ -16,6 +16,31 @@ const HIDE_DEPLOYMENT_BANNER_PATHS = [
 	/^\/@(?<username>[a-zA-Z0-9-]+)\/(?<workspace_name>[a-zA-Z0-9-]+)$/,
 ];
 
+/** Height of the rendered banner in px, matching its `h-9` class. */
+export const DEPLOYMENT_BANNER_HEIGHT = 36;
+
+/**
+ * Whether the deployment banner renders for the current user and route.
+ * Layouts that pin content to the viewport bottom use this to leave room
+ * for it. The stats query is shared with the banner itself.
+ */
+export const useIsDeploymentBannerVisible = (): boolean => {
+	const { permissions } = useAuthenticated();
+	const deploymentStatsQuery = useQuery({
+		...deploymentStats(),
+		enabled: permissions.viewDeploymentStats,
+	});
+	const location = useLocation();
+	const isHidden = HIDE_DEPLOYMENT_BANNER_PATHS.some((regex) =>
+		regex.test(location.pathname),
+	);
+	return (
+		!isHidden &&
+		permissions.viewDeploymentConfig &&
+		deploymentStatsQuery.data !== undefined
+	);
+};
+
 export const DeploymentBanner: FC = () => {
 	const { permissions } = useAuthenticated();
 	const deploymentStatsQuery = useQuery({
@@ -26,16 +51,9 @@ export const DeploymentBanner: FC = () => {
 		...health(),
 		enabled: permissions.viewDeploymentConfig,
 	});
-	const location = useLocation();
-	const isHidden = HIDE_DEPLOYMENT_BANNER_PATHS.some((regex) =>
-		regex.test(location.pathname),
-	);
+	const isVisible = useIsDeploymentBannerVisible();
 
-	if (
-		isHidden ||
-		!permissions.viewDeploymentConfig ||
-		!deploymentStatsQuery.data
-	) {
+	if (!isVisible || !deploymentStatsQuery.data) {
 		return null;
 	}
 

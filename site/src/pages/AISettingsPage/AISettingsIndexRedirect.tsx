@@ -16,16 +16,26 @@ export const AISettingsIndexRedirect = () => {
 		{ enabled: !permissions.editDeploymentConfig },
 	);
 
+	// Priority follows the sidebar order: Providers, Models, AI Governance,
+	// AI Gateway keys, then the Coder Agents pages.
 	if (permissions.viewAnyAIProvider) {
 		return <Navigate to="/ai/settings/providers" replace />;
+	}
+
+	if (canAccessAnyChatModelConfig({ ...permissions })) {
+		return <Navigate to="/ai/settings/models" replace />;
+	}
+
+	if (permissions.viewDeploymentConfig) {
+		return <Navigate to="/ai/settings/governance" replace />;
 	}
 
 	if (permissions.viewAIGatewayKeys) {
 		return <Navigate to="/ai/settings/gateway-keys" replace />;
 	}
 
-	if (canAccessAnyChatModelConfig({ ...permissions })) {
-		return <Navigate to="/ai/settings/models" replace />;
+	if (permissions.editDeploymentConfig) {
+		return <Navigate to="/ai/settings/coder-agents" replace />;
 	}
 
 	if (
@@ -66,10 +76,6 @@ export const AISettingsIndexRedirect = () => {
 
 	if (organizationMCPSharing.canShare) {
 		return <Navigate to="/ai/settings/mcp-servers" replace />;
-	}
-
-	if (permissions.editDeploymentConfig) {
-		return <Navigate to="/ai/settings/coder-agents" replace />;
 	}
 
 	return <Navigate to="/ai/settings/providers" replace />;

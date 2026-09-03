@@ -6,14 +6,19 @@ import {
 	PanelLeftIcon,
 	SparklesIcon,
 } from "lucide-react";
-import { type FC, useCallback, useEffect, useState } from "react";
-import { Link, useLocation } from "react-router";
+import {
+	type FC,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useState,
+} from "react";
+import { Link, NavLink, useLocation } from "react-router";
 import type {
 	BuildInfoResponse,
 	Experiment,
 	Organization,
 } from "#/api/typesGenerated";
-import { SettingsSidebarNavItem } from "#/components/Sidebar/Sidebar";
 import { SidebarAccordion } from "#/components/Sidebar/SidebarAccordion";
 import { useSidebarContext } from "#/components/Sidebar/SidebarContext";
 import {
@@ -113,6 +118,96 @@ function useOpenSections(storageKey: string, activeChain: string[]) {
 	return { openSections, toggleSection };
 }
 
+/**
+ * Pinned header for the admin sidebar: the section title and the
+ * collapse toggle, over a full-bleed divider. Rendered by the layout
+ * through CollapsibleSidebar's header slot so it never scrolls.
+ */
+export const AdminSettingsSidebarHeader: FC = () => {
+	const { collapsed, toggle } = useSidebarContext();
+
+	return (
+		<>
+			<div className="px-3 py-3">
+				<button
+					type="button"
+					onClick={toggle}
+					className={cn(
+						"group flex items-center bg-transparent border-none cursor-pointer p-0",
+						collapsed
+							? "w-10 h-10 justify-center rounded-md"
+							: "w-full px-1 rounded-md h-10",
+					)}
+				>
+					{!collapsed && (
+						<span className="text-sm text-content-secondary">
+							Admin settings
+						</span>
+					)}
+					<PanelLeftIcon
+						className={cn(
+							"size-4 text-content-secondary group-hover:text-content-primary transition-colors",
+							!collapsed && "ml-auto",
+						)}
+					/>
+				</button>
+			</div>
+			<div className="h-px shrink-0 bg-border" />
+		</>
+	);
+};
+
+interface AdminNavLinkProps {
+	href: string;
+	children: ReactNode;
+	/** Match the route exactly instead of by prefix. */
+	end?: boolean;
+	/**
+	 * Items under a nested accordion use tighter 32px rows; items directly
+	 * under an icon section keep 40px rows.
+	 */
+	nested?: boolean;
+	/** Overrides NavLink matching for pages reachable from several URLs. */
+	activeOverride?: boolean;
+}
+
+const AdminNavLink: FC<AdminNavLinkProps> = ({
+	href,
+	children,
+	end,
+	nested = false,
+	activeOverride,
+}) => {
+	const sizeClass = nested ? "h-8 px-2" : "h-10 px-2 -mx-2";
+	const baseClass = cn(
+		"flex items-center rounded-md text-sm font-medium text-content-secondary no-underline hover:bg-surface-secondary transition-colors",
+		sizeClass,
+	);
+	const activeClass = "font-semibold text-content-primary";
+
+	if (activeOverride !== undefined) {
+		return (
+			<Link
+				to={href}
+				aria-current={activeOverride ? "page" : undefined}
+				className={cn(baseClass, activeOverride && activeClass)}
+			>
+				{children}
+			</Link>
+		);
+	}
+
+	return (
+		<NavLink
+			to={href}
+			end={end}
+			className={({ isActive }) => cn(baseClass, isActive && activeClass)}
+		>
+			{children}
+		</NavLink>
+	);
+};
+
 interface AdminSettingsSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
@@ -160,7 +255,6 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 	canShareOrganizationMCPServers,
 	openSectionsStorageKey = DEFAULT_OPEN_SECTIONS_STORAGE_KEY,
 }) => {
-	const { collapsed, toggle } = useSidebarContext();
 	const { pathname } = useLocation();
 
 	const deploymentSections = deploymentNavSections({
@@ -185,41 +279,27 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 		canViewAIBridge,
 	});
 
-	const renderItems = (items: AdminNavItem[]) =>
+	const renderItems = (items: AdminNavItem[], nested = false) =>
 		items
 			.filter((item) => item.visible)
-			.map((item) => {
-				if (item.activePrefixes) {
-					// NavLink only knows its own href, so items reachable from
-					// several URLs compute their active state from the location.
-					const active = item.activePrefixes.some(
-						(prefix) =>
-							pathname === prefix || pathname.startsWith(`${prefix}/`),
-					);
-					return (
-						<Link
-							key={item.href}
-							to={item.href}
-							aria-current={active ? "page" : undefined}
-							className={cn(
-								"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
-								active && "font-semibold text-content-primary",
-							)}
-						>
-							{item.label}
-						</Link>
-					);
-				}
-				return (
-					<SettingsSidebarNavItem
-						key={item.href}
-						href={item.href}
-						end={item.end}
-					>
-						{item.label}
-					</SettingsSidebarNavItem>
-				);
-			});
+			.map((item) => (
+				<AdminNavLink
+					key={item.href}
+					href={item.href}
+					end={item.end}
+					nested={nested}
+					activeOverride={
+						item.activePrefixes
+							? item.activePrefixes.some(
+									(prefix) =>
+										pathname === prefix || pathname.startsWith(`${prefix}/`),
+								)
+							: undefined
+					}
+				>
+					{item.label}
+				</AdminNavLink>
+			));
 
 	const renderNestedSection = (section: AdminNavSection) =>
 		section.items.some((item) => item.visible) && (
@@ -230,7 +310,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 				onToggle={() => toggleSection(section.key)}
 				active={activeChain.includes(section.key)}
 			>
-				{renderItems(section.items)}
+				{renderItems(section.items, true)}
 			</SidebarAccordion>
 		);
 
@@ -239,30 +319,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 		: undefined;
 
 	return (
-		<div className="flex flex-col gap-1">
-			<button
-				type="button"
-				onClick={toggle}
-				className={cn(
-					"group flex items-center bg-transparent border-none cursor-pointer p-0 my-3",
-					collapsed
-						? "w-10 h-10 justify-center rounded-md"
-						: "w-full px-3 rounded-md h-10",
-				)}
-			>
-				{!collapsed && (
-					<span className="text-sm text-content-secondary">Admin settings</span>
-				)}
-				<PanelLeftIcon
-					className={cn(
-						"size-4 text-content-secondary group-hover:text-content-primary transition-colors",
-						!collapsed && "ml-auto",
-					)}
-				/>
-			</button>
-			{/* Full-bleed divider: cancels the nav's horizontal padding. */}
-			<div className="h-px bg-border -mx-3 mb-3" />
-
+		<div className="flex flex-col gap-3">
 			{canViewDeploymentSettings(permissions) && (
 				<SidebarAccordion
 					icon={BoxIcon}
@@ -292,18 +349,14 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 					</div>
 					{orgBase && orgPermissions && (
 						<>
-							<SettingsSidebarNavItem end href={orgBase}>
+							<AdminNavLink end href={orgBase}>
 								Members
-							</SettingsSidebarNavItem>
+							</AdminNavLink>
 							{orgPermissions.viewGroups && (
-								<SettingsSidebarNavItem href={`${orgBase}/groups`}>
-									Groups
-								</SettingsSidebarNavItem>
+								<AdminNavLink href={`${orgBase}/groups`}>Groups</AdminNavLink>
 							)}
 							{orgPermissions.viewOrgRoles && (
-								<SettingsSidebarNavItem href={`${orgBase}/roles`}>
-									Roles
-								</SettingsSidebarNavItem>
+								<AdminNavLink href={`${orgBase}/roles`}>Roles</AdminNavLink>
 							)}
 							{orgPermissions.viewProvisioners &&
 								orgPermissions.viewProvisionerJobs && (
@@ -313,30 +366,26 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 										onToggle={() => toggleSection("organizations-provisioners")}
 										active={activeChain.includes("organizations-provisioners")}
 									>
-										<SettingsSidebarNavItem href={`${orgBase}/provisioners`}>
+										<AdminNavLink nested href={`${orgBase}/provisioners`}>
 											Daemons
-										</SettingsSidebarNavItem>
-										<SettingsSidebarNavItem
-											href={`${orgBase}/provisioner-keys`}
-										>
+										</AdminNavLink>
+										<AdminNavLink nested href={`${orgBase}/provisioner-keys`}>
 											Keys
-										</SettingsSidebarNavItem>
-										<SettingsSidebarNavItem
-											href={`${orgBase}/provisioner-jobs`}
-										>
+										</AdminNavLink>
+										<AdminNavLink nested href={`${orgBase}/provisioner-jobs`}>
 											Jobs
-										</SettingsSidebarNavItem>
+										</AdminNavLink>
 									</SidebarAccordion>
 								)}
 							{orgPermissions.viewIdpSyncSettings && (
-								<SettingsSidebarNavItem href={`${orgBase}/idp-sync`}>
+								<AdminNavLink href={`${orgBase}/idp-sync`}>
 									IdP sync
-								</SettingsSidebarNavItem>
+								</AdminNavLink>
 							)}
 							{orgPermissions.editSettings && (
-								<SettingsSidebarNavItem href={`${orgBase}/settings`}>
+								<AdminNavLink href={`${orgBase}/settings`}>
 									Settings
-								</SettingsSidebarNavItem>
+								</AdminNavLink>
 							)}
 						</>
 					)}

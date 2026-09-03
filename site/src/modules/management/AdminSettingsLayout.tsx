@@ -2,7 +2,12 @@ import { type FC, Suspense } from "react";
 import { Outlet, useLocation } from "react-router";
 import { Loader } from "#/components/Loader/Loader";
 import { CollapsibleSidebar } from "#/components/Sidebar/CollapsibleSidebar";
+import {
+	DEPLOYMENT_BANNER_HEIGHT,
+	useIsDeploymentBannerVisible,
+} from "#/modules/dashboard/DeploymentBanner/DeploymentBanner";
 import { AdminSettingsSidebar } from "./AdminSettingsSidebar";
+import { AdminSettingsSidebarHeader } from "./AdminSettingsSidebarView";
 import { isWideContentRoute } from "./adminNavigation";
 
 /**
@@ -12,12 +17,15 @@ import { isWideContentRoute } from "./adminNavigation";
  */
 const AdminSettingsLayout: FC = () => {
 	const { pathname } = useLocation();
+	const isBannerVisible = useIsDeploymentBannerVisible();
 
 	return (
 		<div className="flex flex-row min-h-screen">
 			<div className="relative z-30 border-0 border-r border-solid border-border">
 				<CollapsibleSidebar
 					storageKey="admin-sidebar-width"
+					header={<AdminSettingsSidebarHeader />}
+					bottomInset={isBannerVisible ? DEPLOYMENT_BANNER_HEIGHT : 0}
 					preferCollapsed={isWideContentRoute(pathname)}
 				>
 					<AdminSettingsSidebar />

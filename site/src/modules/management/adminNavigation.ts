@@ -125,7 +125,7 @@ export const deploymentNavSections = ({
 				visible: permissions.viewDeploymentConfig,
 			},
 			{
-				label: "OAuth2 Applications",
+				label: "OAuth2 applications",
 				href: "/deployment/oauth2-provider/apps",
 				matchPrefix: "/deployment/oauth2-provider",
 				visible:
@@ -134,12 +134,12 @@ export const deploymentNavSections = ({
 						getPrereleaseFlag(buildInfo) === "devel"),
 			},
 			{
-				label: "External Authentication",
+				label: "External authentication",
 				href: "/deployment/external-auth",
 				visible: permissions.viewDeploymentConfig,
 			},
 			{
-				label: "IdP Organization sync",
+				label: "IdP organization sync",
 				href: "/deployment/idp-org-sync",
 				visible: permissions.viewOrganizationIDPSyncSettings,
 			},
@@ -174,16 +174,6 @@ export const aiNavItems = (
 	{ canAccessOrganizationModels }: AIAccess,
 ): AdminNavItem[] => [
 	{
-		label: "AI Governance",
-		href: "/ai/settings/governance",
-		visible: permissions.viewDeploymentConfig,
-	},
-	{
-		label: "AI Gateway keys",
-		href: "/ai/settings/gateway-keys",
-		visible: permissions.viewAIGatewayKeys,
-	},
-	{
 		label: "Providers",
 		href: "/ai/settings/providers",
 		visible: permissions.viewAnyAIProvider,
@@ -195,6 +185,16 @@ export const aiNavItems = (
 			canAccessAnyChatModelConfig(permissions) || canAccessOrganizationModels,
 		// Organization-scoped model pages live under a different prefix.
 		activePrefixes: ["/ai/settings/models", "/ai/settings/organizations"],
+	},
+	{
+		label: "AI Governance",
+		href: "/ai/settings/governance",
+		visible: permissions.viewDeploymentConfig,
+	},
+	{
+		label: "AI Gateway keys",
+		href: "/ai/settings/gateway-keys",
+		visible: permissions.viewAIGatewayKeys,
 	},
 ];
 

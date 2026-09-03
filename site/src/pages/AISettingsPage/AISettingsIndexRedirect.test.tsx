@@ -28,8 +28,7 @@ beforeEach(() => {
 	permissions = MockNoPermissions;
 });
 
-it("redirects a deployment administrator to Coder Agents", async () => {
-	permissions = { ...MockNoPermissions, editDeploymentConfig: true };
+const renderRedirect = async (expectedPath: string) => {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
@@ -40,10 +39,7 @@ it("redirects a deployment administrator to Coder Agents", async () => {
 	const router = createMemoryRouter(
 		[
 			{ path: "/ai/settings", element: <AISettingsIndexRedirect /> },
-			{
-				path: "/ai/settings/coder-agents",
-				element: <div>Coder Agents</div>,
-			},
+			{ path: expectedPath, element: <div>Landed</div> },
 		],
 		{ initialEntries: ["/ai/settings"] },
 	);
@@ -54,6 +50,50 @@ it("redirects a deployment administrator to Coder Agents", async () => {
 		</QueryClientProvider>,
 	);
 
-	await screen.findByText("Coder Agents");
-	expect(router.state.location.pathname).toBe("/ai/settings/coder-agents");
+	await screen.findByText("Landed");
+	expect(router.state.location.pathname).toBe(expectedPath);
+};
+
+it("redirects a deployment administrator to Coder Agents", async () => {
+	permissions = { ...MockNoPermissions, editDeploymentConfig: true };
+	await renderRedirect("/ai/settings/coder-agents");
+});
+
+it("prefers Providers over every other AI page", async () => {
+	permissions = {
+		...MockNoPermissions,
+		viewAnyAIProvider: true,
+		viewAnyChatModelConfig: true,
+		viewDeploymentConfig: true,
+		viewAIGatewayKeys: true,
+	};
+	await renderRedirect("/ai/settings/providers");
+});
+
+it("prefers Models over AI Governance and AI Gateway keys", async () => {
+	permissions = {
+		...MockNoPermissions,
+		viewAnyChatModelConfig: true,
+		viewDeploymentConfig: true,
+		viewAIGatewayKeys: true,
+	};
+	await renderRedirect("/ai/settings/models");
+});
+
+it("prefers AI Governance over AI Gateway keys", async () => {
+	permissions = {
+		...MockNoPermissions,
+		viewDeploymentConfig: true,
+		viewAIGatewayKeys: true,
+	};
+	await renderRedirect("/ai/settings/governance");
+});
+
+it("falls back to AI Gateway keys before Coder Agents", async () => {
+	permissions = {
+		...MockNoPermissions,
+		viewAIGatewayKeys: true,
+		editDeploymentConfig: true,
+	};
+	await renderRedirect("/ai/settings/gateway-keys");
 });
