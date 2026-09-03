@@ -1,47 +1,75 @@
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIcon,
-	HelpPopoverIconTrigger,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
-import type { ThemeRole } from "#/theme/roles";
+	TOOLTIP_DELAY_DURATION,
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 
+type InfoTooltipType = "info" | "warning";
+
+type InfoTooltipSize = "small" | "medium";
+
 interface InfoTooltipProps {
-	type?: ThemeRole;
+	type?: InfoTooltipType;
+	size?: InfoTooltipSize;
 	title?: ReactNode;
 	message: ReactNode;
 }
 
-const tooltipColorClasses: Record<ThemeRole, string> = {
+const typeIcon: Record<InfoTooltipType, typeof InfoIcon> = {
+	info: InfoIcon,
+	warning: TriangleAlertIcon,
+};
+
+const typeIconColor: Record<InfoTooltipType, string> = {
 	info: "text-content-secondary",
-	error: "text-content-destructive",
 	warning: "text-content-warning",
-	notice: "text-content-link",
-	success: "text-content-success",
-	danger: "text-content-destructive",
-	active: "text-content-link",
-	inactive: "text-content-secondary",
-	preview: "text-highlight-purple",
+};
+
+const sizeClasses: Record<InfoTooltipSize, string> = {
+	small: "[&_svg]:size-3",
+	medium: "[&_svg]:size-4",
 };
 
 export const InfoTooltip: FC<InfoTooltipProps> = ({
 	title,
 	message,
 	type = "info",
+	size = "medium",
 }) => {
+	const Icon = typeIcon[type];
+
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger size="small" hoverEffect={false}>
-				<HelpPopoverIcon className={cn(tooltipColorClasses[type])} />
-			</HelpPopoverIconTrigger>
-			<HelpPopoverContent>
-				{title && <HelpPopoverTitle>{title}</HelpPopoverTitle>}
-				<HelpPopoverText>{message}</HelpPopoverText>
-			</HelpPopoverContent>
-		</HelpPopover>
+		<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						aria-label="More info"
+						className={cn(
+							"flex items-center justify-center p-0",
+							"border-0 border-none bg-transparent cursor-default",
+							"opacity-75 hover:opacity-100 transition-opacity",
+							sizeClasses[size],
+							typeIconColor[type],
+						)}
+					>
+						<Icon />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent side="right" align="center" className="max-w-xs">
+					{title && (
+						<p className="m-0 mb-1 font-semibold text-content-primary">
+							{title}
+						</p>
+					)}
+					<p className="m-0 text-content-secondary [&_a]:mt-2">{message}</p>
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
+import { Link } from "#/components/Link/Link";
 import { InfoTooltip } from "./InfoTooltip";
 
 const meta = {
@@ -15,46 +16,56 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof InfoTooltip>;
 
-export const Example: Story = {
+export const Info: Story = {
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.click(screen.getByRole("button"));
+		await step("hover trigger reveals content", async () => {
+			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("dialog")).toHaveTextContent(meta.args.message),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					meta.args.message,
+				),
 			);
 		});
 	},
 };
 
-export const Notice = {
+export const Warning = {
 	args: {
-		type: "notice",
+		type: "warning",
+		title: "Something needs attention",
 		message: "Unfortunately, there's a radio connected to my brain",
 	},
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.click(screen.getByRole("button"));
+		await step("hover trigger reveals content", async () => {
+			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("dialog")).toHaveTextContent(
-					Notice.args.message,
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					Warning.args.message,
 				),
 			);
 		});
 	},
 } satisfies Story;
 
-export const Warning = {
+export const WithLink = {
 	args: {
-		type: "warning",
-		message: "Unfortunately, there's a radio connected to my brain",
+		title: "What is a role?",
+		message: (
+			<>
+				Coder role-based access control (RBAC) provides fine-grained access
+				management. View our docs on how to use the available roles.
+				<br />
+				<Link size="sm" href="https://coder.com/docs">
+					User Roles
+				</Link>
+			</>
+		),
 	},
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.click(screen.getByRole("button"));
+		await step("hover trigger reveals content", async () => {
+			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("dialog")).toHaveTextContent(
-					Warning.args.message,
-				),
+				expect(screen.getByRole("tooltip")).toHaveTextContent("User Roles"),
 			);
 		});
 	},
