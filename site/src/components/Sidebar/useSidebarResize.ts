@@ -23,15 +23,31 @@ function persistCollapsed(key: string, collapsed: boolean): void {
 	}
 }
 
+interface UseSidebarResizeOptions {
+	/**
+	 * The current page has wide content and the sidebar should settle
+	 * collapsed. Environmental like the narrow-viewport rule: never
+	 * persisted, and the stored preference is restored when it clears.
+	 */
+	preferCollapsed?: boolean;
+}
+
 interface UseSidebarResizeReturn {
 	width: number;
 	collapsed: boolean;
+	/**
+	 * The sidebar just settled collapsed for a wide page and is briefly
+	 * showing the expanded nav as a flyout over the content.
+	 */
+	peeking: boolean;
 	/** Force the sidebar to expand. */
 	expand: () => void;
 	/** Toggle collapsed/expanded state. */
 	toggle: () => void;
 	onDragStart: (e: React.PointerEvent) => () => void;
 }
+
+const PEEK_DURATION_MS = 1500;
 
 /**
  * Two-state sidebar that drags smoothly by writing directly to the
@@ -41,13 +57,25 @@ interface UseSidebarResizeReturn {
  */
 export function useSidebarResize(
 	storageKey = "sidebar-width",
+	{ preferCollapsed = false }: UseSidebarResizeOptions = {},
 ): UseSidebarResizeReturn {
-	// Start collapsed on narrow viewports regardless of the persisted
-	// preference, so page content is not cut off on load.
+	// Start collapsed on narrow viewports and wide-content pages
+	// regardless of the persisted preference, so page content is not
+	// cut off on load.
 	const [collapsed, setCollapsed] = useState(
-		() => isBelowLgViewport() || readCollapsed(storageKey),
+		() => isBelowLgViewport() || preferCollapsed || readCollapsed(storageKey),
 	);
+	const [peeking, setPeeking] = useState(false);
+	const peekTimerRef = useRef<number | undefined>(undefined);
 	const isNarrowViewport = useIsBelowLgViewport();
+
+	const endPeek = useCallback(() => {
+		if (peekTimerRef.current !== undefined) {
+			window.clearTimeout(peekTimerRef.current);
+			peekTimerRef.current = undefined;
+		}
+		setPeeking(false);
+	}, []);
 
 	// Auto-collapse when the viewport shrinks below the lg breakpoint
 	// and restore the persisted preference when it grows back. Forced
@@ -60,25 +88,83 @@ export function useSidebarResize(
 			return;
 		}
 		prevNarrowRef.current = isNarrowViewport;
-		setCollapsed(isNarrowViewport ? true : readCollapsed(storageKey));
-	}, [isNarrowViewport, storageKey]);
+		if (isNarrowViewport) {
+			endPeek();
+			setCollapsed(true);
+		} else {
+			setCollapsed(preferCollapsed || readCollapsed(storageKey));
+		}
+	}, [isNarrowViewport, preferCollapsed, storageKey, endPeek]);
+
+	// Entering the wide-content set collapses the sidebar in layout flow
+	// and, when it was expanded, peeks the nav as a flyout so the user
+	// sees where it went. Leaving the set restores the preference.
+	// Moving between two wide pages changes nothing.
+	const prevPreferRef = useRef<boolean | undefined>(undefined);
+	useEffect(() => {
+		const isMount = prevPreferRef.current === undefined;
+		if (prevPreferRef.current === preferCollapsed) {
+			return;
+		}
+		prevPreferRef.current = preferCollapsed;
+
+		if (!preferCollapsed) {
+			if (!isMount) {
+				endPeek();
+				setCollapsed(isBelowLgViewport() || readCollapsed(storageKey));
+			}
+			return;
+		}
+
+		if (isBelowLgViewport()) {
+			return;
+		}
+		// On mount the initializer already collapsed the sidebar, so the
+		// stored preference tells us whether it would have been expanded.
+		const wasExpanded = isMount ? !readCollapsed(storageKey) : !collapsed;
+		if (!wasExpanded) {
+			return;
+		}
+		setCollapsed(true);
+		setPeeking(true);
+		peekTimerRef.current = window.setTimeout(() => {
+			peekTimerRef.current = undefined;
+			setPeeking(false);
+		}, PEEK_DURATION_MS);
+	}, [preferCollapsed, collapsed, storageKey, endPeek]);
+
+	// Any interaction dismisses the peek early.
+	useEffect(() => {
+		if (!peeking) {
+			return;
+		}
+		document.addEventListener("pointerdown", endPeek);
+		document.addEventListener("keydown", endPeek);
+		return () => {
+			document.removeEventListener("pointerdown", endPeek);
+			document.removeEventListener("keydown", endPeek);
+		};
+	}, [peeking, endPeek]);
 
 	const expand = useCallback(() => {
+		endPeek();
 		setCollapsed(false);
 		persistCollapsed(storageKey, false);
-	}, [storageKey]);
+	}, [storageKey, endPeek]);
 
 	const toggle = useCallback(() => {
+		endPeek();
 		setCollapsed((prev) => {
 			const next = !prev;
 			persistCollapsed(storageKey, next);
 			return next;
 		});
-	}, [storageKey]);
+	}, [storageKey, endPeek]);
 
 	const onDragStart = useCallback(
 		(e: React.PointerEvent): (() => void) => {
 			e.preventDefault();
+			endPeek();
 
 			const container =
 				(e.currentTarget as HTMLElement).closest<HTMLElement>(
@@ -150,10 +236,10 @@ export function useSidebarResize(
 
 			return cleanup;
 		},
-		[collapsed, storageKey],
+		[collapsed, storageKey, endPeek],
 	);
 
 	const width = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
-	return { width, collapsed, expand, toggle, onDragStart };
+	return { width, collapsed, peeking, expand, toggle, onDragStart };
 }

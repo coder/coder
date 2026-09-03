@@ -13,6 +13,11 @@ export interface AdminNavItem {
 	matchPrefix?: string;
 	/** Marks a link that leaves the current section (shown with an arrow). */
 	external?: boolean;
+	/**
+	 * Pages with wide content (large tables) where the sidebar should
+	 * settle collapsed so the content gets the full width.
+	 */
+	wideContent?: boolean;
 }
 
 export interface AdminNavSection {
@@ -226,18 +231,40 @@ export const logsNavItems = ({
 	canViewConnectionLog,
 	canViewAIBridge,
 }: LogsVisibility): AdminNavItem[] => [
-	{ label: "Audit logs", href: linkToAuditing, visible: canViewAuditLog },
+	{
+		label: "Audit logs",
+		href: linkToAuditing,
+		visible: canViewAuditLog,
+		wideContent: true,
+	},
 	{
 		label: "Connection logs",
 		href: "/connectionlog",
 		visible: canViewConnectionLog,
+		wideContent: true,
 	},
 	{
 		label: "AI session logs",
 		href: "/ai-gateway/sessions",
 		visible: canViewAIBridge,
+		wideContent: true,
 	},
 ];
+
+/**
+ * Whether the route belongs to a page flagged as wide content, including
+ * its detail sub-pages (for example individual AI sessions).
+ */
+export const isWideContentRoute = (pathname: string): boolean =>
+	logsNavItems({
+		canViewAuditLog: true,
+		canViewConnectionLog: true,
+		canViewAIBridge: true,
+	}).some(
+		(item) =>
+			item.wideContent &&
+			isRouteActive(pathname, item.matchPrefix ?? item.href),
+	);
 
 /**
  * The first log page the user can see: audit, then connection, then AI

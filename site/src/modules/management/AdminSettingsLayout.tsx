@@ -1,18 +1,25 @@
 import { type FC, Suspense } from "react";
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { Loader } from "#/components/Loader/Loader";
 import { CollapsibleSidebar } from "#/components/Sidebar/CollapsibleSidebar";
 import { AdminSettingsSidebar } from "./AdminSettingsSidebar";
+import { isWideContentRoute } from "./adminNavigation";
 
 /**
  * Shared shell for every admin settings area. Renders the unified
- * collapsible sidebar beside the section content.
+ * collapsible sidebar beside the section content. On wide-content pages
+ * the sidebar settles collapsed so tables get the full width.
  */
 const AdminSettingsLayout: FC = () => {
+	const { pathname } = useLocation();
+
 	return (
 		<div className="flex flex-row min-h-screen">
-			<div className="relative border-0 border-r border-solid border-border">
-				<CollapsibleSidebar storageKey="admin-sidebar-width">
+			<div className="relative z-30 border-0 border-r border-solid border-border">
+				<CollapsibleSidebar
+					storageKey="admin-sidebar-width"
+					preferCollapsed={isWideContentRoute(pathname)}
+				>
 					<AdminSettingsSidebar />
 				</CollapsibleSidebar>
 			</div>

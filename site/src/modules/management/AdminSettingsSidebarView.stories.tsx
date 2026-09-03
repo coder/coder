@@ -271,3 +271,65 @@ export const NarrowViewportAutoCollapse: Story = {
 		});
 	},
 };
+
+// Wide-content pages: the sidebar settles collapsed. If the preference
+// was expanded, the nav peeks as a flyout first, then collapses.
+export const WideContentPeek: Story = {
+	args: { openSectionsStorageKey: "story-admin-wide-peek" },
+	decorators: [
+		(Story) => {
+			localStorage.setItem("story-admin-wide-peek-width", "expanded");
+			return (
+				<CollapsibleSidebar
+					storageKey="story-admin-wide-peek-width"
+					preferCollapsed
+				>
+					<Story />
+				</CollapsibleSidebar>
+			);
+		},
+	],
+	parameters: {
+		openSections: ["logs"],
+		reactRouter: routing("/audit"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The peek shows the expanded nav with labeled headers.
+		await canvas.findByRole("button", { name: "Logs" });
+		// After the peek the sidebar settles to the icon rail.
+		await waitFor(
+			() => {
+				expect(canvas.queryByRole("button", { name: "Logs" })).toBeNull();
+			},
+			{ timeout: 3000 },
+		);
+	},
+};
+
+export const WideContentStartsCollapsedWhenPreferenceCollapsed: Story = {
+	args: { openSectionsStorageKey: "story-admin-wide-collapsed" },
+	decorators: [
+		(Story) => {
+			localStorage.setItem("story-admin-wide-collapsed-width", "collapsed");
+			return (
+				<CollapsibleSidebar
+					storageKey="story-admin-wide-collapsed-width"
+					preferCollapsed
+				>
+					<Story />
+				</CollapsibleSidebar>
+			);
+		},
+	],
+	parameters: {
+		openSections: ["logs"],
+		reactRouter: routing("/audit"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// No peek: only the icon rail renders from the start.
+		expect(canvas.queryByRole("button", { name: "Logs" })).toBeNull();
+		expect(canvas.queryByRole("link", { name: "Audit logs" })).toBeNull();
+	},
+};
