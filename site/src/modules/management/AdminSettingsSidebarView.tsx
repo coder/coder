@@ -245,11 +245,13 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 					onToggle={() => toggleSection("organizations")}
 					active={activeChain[0] === "organizations"}
 				>
-					<OrganizationSwitcher
-						activeOrganization={activeOrganization}
-						organizations={organizations}
-						canCreateOrganization={permissions.createOrganization}
-					/>
+					<div className="py-1">
+						<OrganizationSwitcher
+							activeOrganization={activeOrganization}
+							organizations={organizations}
+							canCreateOrganization={permissions.createOrganization}
+						/>
+					</div>
 					{orgBase && orgPermissions && (
 						<>
 							<SettingsSidebarNavItem end href={orgBase}>
