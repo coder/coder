@@ -234,6 +234,24 @@ func TestTurnAccountingStageTotals(t *testing.T) {
 		require.InDelta(t, seconds/turnDuration.Seconds(), shares[stage], 0.001, stage)
 	}
 
+	// One observation per stage per turn, valued at how many times the
+	// stage occurred.
+	counts := fixture.sums(t, "coderd_chatd_turn_stage_count", "stage")
+	require.Equal(t, map[string]float64{
+		StageQueueWait:        1,
+		StageGenerationStep:   4,
+		StagePrepare:          2,
+		StageMCPConnect:       1,
+		StageStream:           2,
+		StageTimeToFirstToken: 1,
+		StageCommit:           2,
+		StageRetryBackoff:     1,
+		StageCompaction:       1,
+	}, counts)
+	for stage := range counts {
+		require.Contains(t, stages, stage)
+	}
+
 	// The turn's stage rows carry the model the turn resolved.
 	labels := fixture.labelsOf(t, "coderd_chatd_turn_stage_seconds", "stage", StageStream)
 	require.Equal(t, model.Model, labels["model"])

@@ -96,12 +96,13 @@ func stageNodeFromContext(ctx context.Context) *stageNode {
 // It is safe for concurrent use: parallel tool calls and the stages
 // under them end on different goroutines.
 type TurnAccumulator struct {
-	mu         sync.Mutex
-	stages     map[string]time.Duration
-	categories map[string]time.Duration
-	model      StageModel
-	completed  bool
-	invalid    bool
+	mu          sync.Mutex
+	stages      map[string]time.Duration
+	stageCounts map[string]int
+	categories  map[string]time.Duration
+	model       StageModel
+	completed   bool
+	invalid     bool
 }
 
 // NewTurnAccumulator returns an accumulator for one turn. The turn is
@@ -109,18 +110,22 @@ type TurnAccumulator struct {
 // reaches its finish transition emits nothing.
 func NewTurnAccumulator() *TurnAccumulator {
 	return &TurnAccumulator{
-		stages:     map[string]time.Duration{},
-		categories: map[string]time.Duration{},
+		stages:      map[string]time.Duration{},
+		stageCounts: map[string]int{},
+		categories:  map[string]time.Duration{},
 	}
 }
 
+// addStage records one occurrence of a stage and the time it took. A
+// stage that took no measurable time still counts as an occurrence.
 func (a *TurnAccumulator) addStage(stage string, elapsed time.Duration) {
-	if a == nil || elapsed <= 0 {
+	if a == nil || elapsed < 0 {
 		return
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.stages[stage] += elapsed
+	a.stageCounts[stage]++
 }
 
 func (a *TurnAccumulator) addCategory(category string, elapsed time.Duration) {
@@ -182,10 +187,11 @@ func (a *TurnAccumulator) Invalidate() {
 
 // turnAccounting is the emittable state of one turn.
 type turnAccounting struct {
-	stages     map[string]time.Duration
-	categories map[string]time.Duration
-	model      StageModel
-	emit       bool
+	stages      map[string]time.Duration
+	stageCounts map[string]int
+	categories  map[string]time.Duration
+	model       StageModel
+	emit        bool
 }
 
 func (a *TurnAccumulator) snapshot() turnAccounting {
@@ -195,13 +201,17 @@ func (a *TurnAccumulator) snapshot() turnAccounting {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	snapshot := turnAccounting{
-		stages:     make(map[string]time.Duration, len(a.stages)),
-		categories: make(map[string]time.Duration, len(a.categories)),
-		model:      a.model,
-		emit:       a.completed && !a.invalid,
+		stages:      make(map[string]time.Duration, len(a.stages)),
+		stageCounts: make(map[string]int, len(a.stageCounts)),
+		categories:  make(map[string]time.Duration, len(a.categories)),
+		model:       a.model,
+		emit:        a.completed && !a.invalid,
 	}
 	for stage, elapsed := range a.stages {
 		snapshot.stages[stage] = elapsed
+	}
+	for stage, count := range a.stageCounts {
+		snapshot.stageCounts[stage] = count
 	}
 	for category, elapsed := range a.categories {
 		snapshot.categories[category] = elapsed
@@ -364,11 +374,13 @@ func (t *StageTracer) emitTurnAccounting(acc *TurnAccumulator, chatKind string, 
 	}
 	turnSeconds := turnDuration.Seconds()
 	model := snapshot.model
-	for stage, elapsed := range snapshot.stages {
-		if elapsed <= 0 {
+	for stage, count := range snapshot.stageCounts {
+		if count == 0 {
 			continue
 		}
-		t.metrics.RecordTurnStage(stage, chatKind, model.Model, model.Effort, elapsed, elapsed.Seconds()/turnSeconds)
+		elapsed := snapshot.stages[stage]
+		t.metrics.RecordTurnStage(stage, chatKind, model.Model, model.Effort,
+			elapsed, elapsed.Seconds()/turnSeconds, count)
 	}
 	var attributed time.Duration
 	for _, category := range TurnTimeCategories {

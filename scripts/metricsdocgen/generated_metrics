@@ -346,6 +346,9 @@ coderd_chatd_tool_result_truncated_total{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_ttft_seconds Time-to-first-token: wall time from LLM request to first streamed chunk.
 # TYPE coderd_chatd_ttft_seconds histogram
 coderd_chatd_ttft_seconds{provider="",model=""} 0
+# HELP coderd_chatd_turn_stage_count Number of times a stage occurred within one chat turn, observed once per turn per stage that occurred. Only turns that finished normally are counted.
+# TYPE coderd_chatd_turn_stage_count histogram
+coderd_chatd_turn_stage_count{stage="",chat_kind="",model="",effort=""} 0
 # HELP coderd_chatd_turn_stage_seconds Total wall time one chat turn spent in a stage, observed once per turn when the turn ends. Stages overlap, so these do not partition the turn. Only turns that finished normally are counted.
 # TYPE coderd_chatd_turn_stage_seconds histogram
 coderd_chatd_turn_stage_seconds{stage="",chat_kind="",model="",effort=""} 0

@@ -37,6 +37,7 @@ type Metrics struct {
 	TTFTSeconds               *prometheus.HistogramVec
 	StageDurationSeconds      *prometheus.HistogramVec
 	TurnStageSeconds          *prometheus.HistogramVec
+	TurnStageCount            *prometheus.HistogramVec
 	StageShareOfTurn          *prometheus.HistogramVec
 	TurnTimeSeconds           *prometheus.HistogramVec
 	TurnTimeShare             *prometheus.HistogramVec
@@ -114,6 +115,13 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "turn_stage_seconds",
 			Help:      "Total wall time one chat turn spent in a stage, observed once per turn when the turn ends. Stages overlap, so these do not partition the turn. Only turns that finished normally are counted.",
 			Buckets:   stageDurationBuckets(),
+		}, []string{"stage", "chat_kind", "model", "effort"}),
+		TurnStageCount: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_stage_count",
+			Help:      "Number of times a stage occurred within one chat turn, observed once per turn per stage that occurred. Only turns that finished normally are counted.",
+			Buckets:   turnStageCountBuckets(),
 		}, []string{"stage", "chat_kind", "model", "effort"}),
 		StageShareOfTurn: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
@@ -201,6 +209,12 @@ func turnShareBuckets() []float64 {
 	return prometheus.LinearBuckets(0, 0.05, 21)
 }
 
+// turnStageCountBuckets returns the buckets for per-turn stage counts:
+// every small count, widening to 128.
+func turnStageCountBuckets() []float64 {
+	return []float64{1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128}
+}
+
 // NopMetrics returns a Metrics instance that discards all data.
 // Useful for tests and when metrics collection is not desired.
 func NopMetrics() *Metrics {
@@ -218,16 +232,17 @@ func (m *Metrics) RecordStageDuration(stage, scope, chatKind, model, effort stri
 	m.StageDurationSeconds.WithLabelValues(stage, scope, chatKind, model, effort).Observe(elapsed.Seconds())
 }
 
-// RecordTurnStage observes the total time one turn spent in a stage
-// and that time as a fraction of the turn. Both come from the same
-// turn so the pair cannot describe different turns. No-op when m is
-// nil.
-func (m *Metrics) RecordTurnStage(stage, chatKind, model, effort string, elapsed time.Duration, share float64) {
+// RecordTurnStage observes the total time one turn spent in a stage,
+// that time as a fraction of the turn, and how many times the stage
+// occurred. All three come from the same turn so they cannot describe
+// different turns. No-op when m is nil.
+func (m *Metrics) RecordTurnStage(stage, chatKind, model, effort string, elapsed time.Duration, share float64, count int) {
 	if m == nil || elapsed < 0 {
 		return
 	}
 	m.TurnStageSeconds.WithLabelValues(stage, chatKind, model, effort).Observe(elapsed.Seconds())
 	m.StageShareOfTurn.WithLabelValues(stage, chatKind, model, effort).Observe(share)
+	m.TurnStageCount.WithLabelValues(stage, chatKind, model, effort).Observe(float64(count))
 }
 
 // RecordTurnCategory observes one category of a turn's time partition
