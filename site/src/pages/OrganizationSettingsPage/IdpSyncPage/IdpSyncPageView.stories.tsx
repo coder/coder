@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import {
 	MockGroup,
 	MockGroup2,
@@ -73,7 +73,23 @@ export const Empty: Story = {
 	},
 };
 
-export const Default: Story = {};
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", { name: "Sync field" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: "Auto create missing groups" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: "Group mapping" }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("heading", { name: "Legacy group sync" }),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const HasError: Story = {
 	args: {
@@ -100,6 +116,12 @@ export const WithLegacyMapping: Story = {
 			MockLegacyMappingGroupSyncSettings.legacy_group_name_mapping,
 		),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", { name: "Legacy group sync" }),
+		).toBeVisible();
+	},
 };
 
 export const GroupsTabMissingClaims: Story = {
@@ -114,6 +136,18 @@ export const GroupsTabMissingClaims: Story = {
 export const RolesTab: Story = {
 	args: {
 		tab: "roles",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", { name: "Sync field" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: "Role mapping" }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("heading", { name: "Group mapping" }),
+		).not.toBeInTheDocument();
 	},
 };
 
