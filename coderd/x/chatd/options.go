@@ -69,8 +69,8 @@ type chatWorkerTaskStartInput struct {
 	RequiresActionDeadlineAt sql.NullTime
 	DebugTurn                *runnerDebugTurn
 	Turn                     *runnerTurnSpan
-	// TurnToken identifies the turn this task's steps run in. It is set
-	// by StartGeneration once Turn has opened or reused a turn span.
+	// TurnToken identifies the turn this task's steps run in. The zero
+	// token identifies no turn.
 	TurnToken    turnToken
 	SessionStart *sessionStartTracker
 	StopNudges   *stopNudgeTracker

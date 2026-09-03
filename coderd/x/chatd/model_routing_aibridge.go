@@ -98,9 +98,8 @@ func (t *stageSpanRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 			return resp, nil
 		}
 	}
-	// The span closes on response headers, not on body completion: the
-	// streamed body outlives this call and is measured by the stream
-	// stage.
+	// The span closes on response headers, not on body completion; the
+	// streamed body outlives this call.
 	span.End(err)
 	return resp, err
 }

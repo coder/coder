@@ -157,10 +157,8 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	debugSvc := p.debugService()
 	out.debugEnabled = debugSvc != nil && debugSvc.IsEnabled(ctx, spec.chat.ID, spec.chat.OwnerID)
 
-	// The effective effort is resolved before the client is built so the
-	// provider transport can label its spans with it. Passing it back
-	// into ProviderOptionsForCall is a no-op re-clamp, which keeps the
-	// label and the call in agreement.
+	// The effort is resolved once here so the transport's stage labels
+	// and the provider call options carry the same value.
 	effectiveEffort := chatprovider.ResolveReasoningEffort(spec.requestedEffort, out.callConfig.ReasoningEffort)
 	if effectiveEffort != nil {
 		out.resolvedEffort = *effectiveEffort

@@ -26,9 +26,7 @@ type modelClientRequest struct {
 type modelBuildOptions struct {
 	ActiveAPIKeyID string
 	RecordHTTP     bool
-	// StageModel labels the provider transport's lifecycle stages. It
-	// is set by the model call resolver, which knows the resolved model
-	// and effective reasoning effort before the client is built.
+	// StageModel labels the provider transport's lifecycle stages.
 	StageModel chatloop.StageModel
 }
 

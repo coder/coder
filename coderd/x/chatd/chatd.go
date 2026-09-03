@@ -5113,10 +5113,9 @@ func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func(
 
 // recordQueueWait emits the queue_wait stage for a message that sat
 // queued from queuedAt until promotedAt. The span context is stripped
-// from ctx so the stage is a standalone span rather than a child of the
-// promoting request's span, which ends before the turn the wait belongs
-// to. The scope and chat kind are set explicitly for the same reason:
-// ctx carries the request, not the turn. An empty chatKind records the
+// from ctx so the stage is a standalone span rather than a child of
+// the span in ctx, and the scope and chat kind are set explicitly
+// because ctx does not carry the turn's. An empty chatKind records the
 // stage without one.
 func (p *Server) recordQueueWait(ctx context.Context, chatID uuid.UUID, chatKind string, queuedAt, promotedAt time.Time) {
 	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
@@ -5129,8 +5128,7 @@ func (p *Server) recordQueueWait(ctx context.Context, chatID uuid.UUID, chatKind
 
 // inflightChatContext is inflightContext for work that belongs to a
 // known chat. The chat kind is set on the returned context so the
-// stages of the detached work carry it even when the caller never ran
-// a turn.
+// stages of the detached work carry it.
 func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
 	ctx, stop := p.inflightContext(reqCtx)
 	return chatloop.ContextWithChatKind(ctx, chatKindAttr(chat)), stop

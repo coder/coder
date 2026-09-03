@@ -61,11 +61,8 @@ func (w *chatWorker) noteCapacityRefused(chatID uuid.UUID) {
 // recordCapacityWait emits the capacity_wait stage for a chat that is
 // being acquired after at least one capacity refusal, measured from
 // the first refusal this worker saw. Chats admitted on their first
-// attempt record nothing. The acquisition pass runs before the turn
-// span exists, so the turn scope and the chat kind are stated
-// explicitly, and the stage reaches the per-occurrence profile only:
-// no turn accumulator exists yet to receive it, and its window lies
-// inside the acquisition stage the turn records.
+// attempt record nothing. No turn span exists at this point, so the
+// turn scope and the chat kind are stated explicitly.
 func (w *chatWorker) recordCapacityWait(ctx context.Context, chat database.Chat) {
 	since, waited := w.capacityWaitSince[chat.ID]
 	if !waited {

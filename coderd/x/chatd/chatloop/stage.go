@@ -33,9 +33,9 @@ const (
 )
 
 // GenerationActionExecuteLocalTools is the generation_action value of
-// a step that runs local tools. Turn accounting reads it to separate
-// tool execution from chatd overhead, so it must match the action the
-// generation loop reports through SetGenerationAction.
+// a step that runs local tools. Turn accounting compares the value
+// passed to SetGenerationAction against it to separate tool execution
+// from chatd overhead.
 const GenerationActionExecuteLocalTools = "execute_local_tools"
 
 // Span attribute keys. Keys are lowercase snake_case and shared by
@@ -58,8 +58,7 @@ const (
 
 // Scope values. A stage is turn scoped when it runs inside a chat
 // turn's trace, and background scoped when it runs on work detached
-// from the turn, such as title and summary generation that outlives
-// the turn that triggered it.
+// from the turn.
 const (
 	ScopeTurn       = "turn"
 	ScopeBackground = "background"
@@ -118,9 +117,8 @@ func (t *StageTracer) otelTracer() trace.Tracer {
 	return t.tracer
 }
 
-// Now returns the current time from the tracer's clock. Callers that
-// record stages from explicit timestamps use it so their windows share
-// the time source of the stages measured by the tracer.
+// Now returns the current time from the tracer's clock, the time
+// source for the stage windows it measures.
 func (t *StageTracer) Now() time.Time {
 	if t == nil || t.clock == nil {
 		return time.Now()
@@ -322,9 +320,8 @@ func (s *StageSpan) SetAttributes(attrs ...attribute.KeyValue) {
 }
 
 // SetModel records the model identity on the span and on the
-// duration observation End makes. Stages that only learn the model
-// after they start, such as a generation step that resolves it during
-// preparation, call this once it is known.
+// duration observation End makes, for stages that learn the model
+// after they start.
 func (s *StageSpan) SetModel(model StageModel) {
 	if s == nil || s.ended {
 		return
@@ -422,10 +419,8 @@ func (t *StageTracer) Record(
 	t.RecordAs(ctx, stage, scopeFromContext(ctx), model, start, end, err, attrs...)
 }
 
-// RecordAs is Record with an explicit scope, for stages that belong
-// to a turn but are reconstructed outside its trace, such as the
-// capacity wait an acquisition pass measures before the turn span
-// exists.
+// RecordAs is Record with an explicit scope, for stages recorded on a
+// context that does not carry the scope they belong to.
 func (t *StageTracer) RecordAs(
 	ctx context.Context,
 	stage string,

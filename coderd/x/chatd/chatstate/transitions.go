@@ -1450,8 +1450,6 @@ type FinishTurnResult struct {
 	PromotedMessage *database.ChatMessage
 	// PromotedQueuedAt is the queued row's creation time when this
 	// transition promoted a queue head, and the zero time otherwise.
-	// The promoted history row carries its insertion time, so this is
-	// the only record of how long the message sat in the queue.
 	PromotedQueuedAt time.Time
 }
 

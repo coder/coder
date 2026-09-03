@@ -12,10 +12,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 )
 
-// turnToken identifies one turn opened by runnerTurnSpan.Ensure. The
-// turn methods that take a token act only while that turn is the open
-// one, so a task that outlives its turn cannot finish or invalidate the
-// turn that replaced it.
+// turnToken identifies one turn. Methods that take a token act only
+// while that turn is the open one, so a holder of a token for a turn
+// that has since been replaced cannot finish or invalidate the
+// replacement.
 type turnToken uint64
 
 // runnerTurnSpan owns the chat_turn span of one runner. A runner is
@@ -29,10 +29,9 @@ type turnToken uint64
 // sequence: a finished turn is replaced by a new span, either when a
 // queued message is promoted or when the next prompt starts a task.
 //
-// A turn closes in two steps. Complete marks it finished while the
-// step that finished it is still running; Settle closes the span once
-// that step's own stage has ended, so the step is counted in the
-// turn's accounting.
+// A turn closes in two steps: Complete marks it finished and Settle
+// closes the span, so stages still open at Complete are counted in
+// the turn's accounting if they end before Settle.
 type runnerTurnSpan struct {
 	stages *chatloop.StageTracer
 
@@ -163,8 +162,7 @@ func (t *runnerTurnSpan) contextLocked(ctx context.Context) context.Context {
 
 // Complete marks the turn identified by token as finished normally,
 // which is what makes its accounting emittable when the span closes.
-// The span stays open until Settle so the stage of the step that ran
-// the finishing transition is counted once it ends.
+// The span stays open until Settle.
 //
 // A non-zero queuedAt is the creation time of a queued message the
 // finishing transition promoted. Settle opens the next turn anchored
@@ -189,7 +187,7 @@ func (t *runnerTurnSpan) Complete(token turnToken, queuedAt time.Time) {
 // Invalidate drops the accounting of the turn identified by token. A
 // turn that errored or was interrupted stops partway through its
 // stages, so its totals do not describe a full turn. The span stays
-// open: a task retried for the same prompt continues the same turn.
+// open and a later Ensure continues it.
 func (t *runnerTurnSpan) Invalidate(token turnToken) {
 	if t == nil {
 		return
@@ -204,8 +202,7 @@ func (t *runnerTurnSpan) Invalidate(token turnToken) {
 
 // Settle closes the turn identified by token if Complete marked it
 // finished, and opens the next turn when the finishing transition
-// promoted a queued message. It is called after the finishing step's
-// own stage has ended. A turn that is not finished is left open.
+// promoted a queued message. A turn that is not finished is left open.
 func (t *runnerTurnSpan) Settle(ctx context.Context, token turnToken) {
 	if t == nil {
 		return
