@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import type { FC, HTMLAttributes } from "react";
-import { cn } from "#/utils/cn";
 
 export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
 	children,

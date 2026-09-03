@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { EllipsisVerticalIcon, TrashIcon } from "lucide-react";
@@ -36,7 +37,6 @@ import {
 	RolesHelpPopover,
 } from "#/modules/users/UserHelpPopovers";
 import { UserRoleCell } from "#/modules/users/UserRoleCell";
-import { cn } from "#/utils/cn";
 
 dayjs.extend(relativeTime);
 

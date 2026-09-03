@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
-import { cn } from "#/utils/cn";
 
 export const PINNED_SECTION_KEY = "Pinned";
 

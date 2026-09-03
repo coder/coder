@@ -1,6 +1,6 @@
 import { Command as CommandPrimitive } from "cmdk";
+import { cn } from "cn";
 import { SearchIcon } from "lucide-react";
-import { cn } from "#/utils/cn";
 
 export const Command: React.FC<
 	React.ComponentPropsWithRef<typeof CommandPrimitive>

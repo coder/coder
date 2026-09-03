@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
-
 import {
 	type FC,
 	type ReactNode,
@@ -26,7 +26,6 @@ import {
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FC, useEffect, useRef } from "react";
 import { Link, type Location } from "react-router";
 import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
@@ -6,7 +7,6 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../tree/statusConfig";
 

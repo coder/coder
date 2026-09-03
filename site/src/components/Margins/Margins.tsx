@@ -1,10 +1,10 @@
+import { cn } from "cn";
 import type { FC, JSX } from "react";
 import {
 	containerWidth,
 	containerWidthMedium,
 	sidePadding,
 } from "#/theme/constants";
-import { cn } from "#/utils/cn";
 
 export type Size = "regular" | "medium" | "condensed" | "small";
 
