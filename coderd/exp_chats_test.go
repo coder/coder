@@ -2115,6 +2115,16 @@ func TestChatRuntimeRequests(t *testing.T) {
 				require.Equal(t, tc.wantMessage, sdkErr.Message, "%s on %s", tc.name, harness.Runtime)
 			}
 		}
+		// The SDK omits an empty list, so send the raw body a non-SDK
+		// client would.
+		for _, harness := range chatacp.Harnesses() {
+			body := fmt.Sprintf(`{"organization_id":%q,"runtime":%q,"mcp_server_ids":[],"content":[{"type":"text","text":"runtime create"}]}`, user.OrganizationID, harness.Runtime)
+			res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats", []byte(body))
+			require.NoError(t, err)
+			sdkErr := requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
+			_ = res.Body.Close()
+			require.Equal(t, unsupported, sdkErr.Message, "EmptyMCPServerIDs on %s", harness.Runtime)
+		}
 
 		workspaces, err := db.GetWorkspacesAndAgentsByOwnerID(dbauthz.AsSystemRestricted(ctx), user.UserID)
 		require.NoError(t, err)
