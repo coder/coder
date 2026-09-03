@@ -13,6 +13,7 @@ import {
 	ComboboxList,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -97,6 +98,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 	});
 	const [idpGroupName, setIdpGroupName] = useState("");
 	const [coderGroups, setCoderGroups] = useState<Option[]>([]);
+	const [mappingToDelete, setMappingToDelete] = useState<string>();
 	const id = useId();
 	const [comboInputValue, setComboInputValue] = useState("");
 	const [open, setOpen] = useState(false);
@@ -135,269 +137,289 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 	};
 
 	return (
-		<form aria-label="Group sync" onSubmit={form.handleSubmit}>
-			<fieldset
-				disabled={form.isSubmitting}
-				className="flex flex-col border-none gap-12"
-			>
-				<div>
-					<SettingsHeader>
-						<SettingsHeaderTitle level="h2" hierarchy="secondary">
-							Sync field
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							If empty, group sync is deactivated.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
-					<div className="flex flex-col gap-6">
-						<div className="flex flex-col gap-2">
-							<div className="flex flex-row items-end gap-2">
-								<div className="flex flex-col gap-2">
-									<Label htmlFor={`${id}-sync-field`}>Group sync field</Label>
-									<Input
-										id={`${id}-sync-field`}
-										value={form.values.field}
-										onChange={(event) => {
-											void form.setFieldValue("field", event.target.value);
-											onSyncFieldChange(event.target.value);
-										}}
-										className="w-72"
-									/>
-								</div>
-								<div className="flex flex-col gap-2">
-									<Label htmlFor={`${id}-regex-filter`}>Regex filter</Label>
-									<Input
-										id={`${id}-regex-filter`}
-										value={form.values.regex_filter ?? ""}
-										onChange={(event) => {
-											void form.setFieldValue(
-												"regex_filter",
-												event.target.value,
-											);
-										}}
-										className="min-w-40"
-									/>
-								</div>
-								<Button
-									type="submit"
-									disabled={form.isSubmitting || !form.dirty}
-									onClick={(event) => {
-										event.preventDefault();
-										form.handleSubmit();
-									}}
-								>
-									<Spinner loading={form.isSubmitting} />
-									Save
-								</Button>
-							</div>
-							{(form.errors.field || form.errors.regex_filter) && (
-								<p className="text-content-destructive text-sm m-0">
-									{form.errors.field || form.errors.regex_filter}
-								</p>
-							)}
-						</div>
-						<div className="flex items-start">
-							<Spinner size="sm" loading={form.isSubmitting}>
-								<Switch
-									id={`${id}-auto-create-missing-groups`}
-									checked={form.values.auto_create_missing_groups}
-									onCheckedChange={(checked) => {
-										void form.setFieldValue(
-											"auto_create_missing_groups",
-											checked,
-										);
-										form.handleSubmit();
-									}}
-								/>
-							</Spinner>
-							<Label htmlFor={`${id}-auto-create-missing-groups`}>
-								<StackLabel>
-									Auto create missing groups
-									<StackLabelHelperText>
-										Create groups from the IdP when they do not already exist in
-										Coder.
-									</StackLabelHelperText>
-								</StackLabel>
-							</Label>
-						</div>
-					</div>
-				</div>
-				<div>
-					<SettingsHeader>
-						<SettingsHeaderTitle level="h2" hierarchy="secondary">
-							Group mapping
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Map IdP groups to Coder groups.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
-					<div className="flex flex-row gap-2 justify-between items-start">
-						<div className="grid items-center gap-1 w-72">
-							<Label className="text-sm" htmlFor={`${id}-idp-group-name`}>
-								IdP group name
-							</Label>
-							{claimFieldValues ? (
-								<Combobox
-									open={open}
-									onOpenChange={setOpen}
-									value={idpGroupName}
-									onValueChange={(value) => setIdpGroupName(value ?? "")}
-								>
-									<ComboboxTrigger asChild>
-										<ComboboxButton
-											className="w-72"
-											selectedOption={
-												idpGroupName
-													? { label: idpGroupName, value: idpGroupName }
-													: undefined
-											}
-											placeholder="Select IdP group"
-										/>
-									</ComboboxTrigger>
-									<ComboboxContent className="w-72">
-										<ComboboxInput
-											value={comboInputValue}
-											onValueChange={setComboInputValue}
-											placeholder="Search..."
-											onKeyDown={handleKeyDown}
-										/>
-										<ComboboxList>
-											{claimFieldValues
-												.filter((value) =>
-													value
-														.toLowerCase()
-														.includes(comboInputValue.toLowerCase()),
-												)
-												.map((value) => (
-													<ComboboxItem
-														key={value}
-														value={value}
-														onSelect={() => setComboInputValue("")}
-													>
-														{value}
-													</ComboboxItem>
-												))}
-										</ComboboxList>
-									</ComboboxContent>
-								</Combobox>
-							) : (
-								<Input
-									id={`${id}-idp-group-name`}
-									value={idpGroupName}
-									className="w-72"
-									onChange={(event) => {
-										setIdpGroupName(event.target.value);
-									}}
-								/>
-							)}
-						</div>
-						<div className="grid items-center gap-1 flex-1">
-							<Label className="text-sm" htmlFor={`${id}-coder-group`}>
-								Coder group
-							</Label>
-							<MultiSelectCombobox
-								inputProps={{
-									id: `${id}-coder-group`,
-								}}
-								className="min-w-60 max-w-3xl"
-								value={coderGroups}
-								onChange={setCoderGroups}
-								options={groups
-									.filter((group) => !isEveryoneGroup(group))
-									.map((group) => ({
-										label: group.display_name || group.name,
-										value: group.id,
-									}))}
-								hidePlaceholderWhenSelected
-								placeholder="Select group"
-								emptyIndicator={
-									<p className="text-center text-md text-content-primary">
-										No more groups to select
-									</p>
-								}
-							/>
-						</div>
-						<div className="grid grid-rows-[28px_auto]">
-							<div />
-							<Button
-								type="submit"
-								className="min-w-fit"
-								disabled={!idpGroupName || coderGroups.length === 0}
-								onClick={() => {
-									const newSyncSettings = {
-										...form.values,
-										mapping: {
-											...form.values.mapping,
-											[idpGroupName]: coderGroups.map((group) => group.value),
-										},
-									};
-									void form.setFieldValue("mapping", newSyncSettings.mapping);
-									form.handleSubmit();
-									setIdpGroupName("");
-									setCoderGroups([]);
-								}}
-							>
-								<Spinner loading={form.isSubmitting}>
-									<PlusIcon />
-								</Spinner>
-								Add IdP group
-							</Button>
-						</div>
-					</div>
-					{form.errors.mapping && (
-						<p className="text-content-destructive text-sm m-0">
-							{Object.values(form.errors.mapping || {})}
-						</p>
-					)}
-					<IdpMappingTable type="Group" rowCount={groupMappingCount}>
-						{groupSyncSettings?.mapping &&
-							Object.entries(groupSyncSettings.mapping)
-								.sort(([a], [b]) =>
-									a.toLowerCase().localeCompare(b.toLowerCase()),
-								)
-								.map(([idpGroup, groups]) => (
-									<GroupRow
-										key={idpGroup}
-										idpGroup={idpGroup}
-										exists={claimFieldValues?.includes(idpGroup)}
-										coderGroup={getGroupNames(groups)}
-										onDelete={handleDelete}
-									/>
-								))}
-					</IdpMappingTable>
-				</div>
-				{groupSyncSettings?.legacy_group_name_mapping && (
+		<>
+			<form aria-label="Group sync" onSubmit={form.handleSubmit}>
+				<fieldset
+					disabled={form.isSubmitting}
+					className="flex flex-col border-none gap-12"
+				>
 					<div>
 						<SettingsHeader>
 							<SettingsHeaderTitle level="h2" hierarchy="secondary">
-								Legacy group sync
+								Sync field
 							</SettingsHeaderTitle>
 							<SettingsHeaderDescription>
-								These settings were configured using environment variables, and
-								only apply to the default organization. Configure IdP sync in
-								the UI or CLI so it can apply to any organization.{" "}
-								<SettingsHeaderDocsLink href={docs("/admin/users/idp-sync")} />
+								If empty, group sync is deactivated.
 							</SettingsHeaderDescription>
 						</SettingsHeader>
-						<IdpMappingTable type="Group" rowCount={legacyGroupMappingCount}>
-							{Object.entries(groupSyncSettings.legacy_group_name_mapping)
-								.sort(([a], [b]) =>
-									a.toLowerCase().localeCompare(b.toLowerCase()),
-								)
-								.map(([idpGroup, groupId]) => (
-									<GroupRow
-										key={groupId}
-										idpGroup={idpGroup}
-										exists={claimFieldValues?.includes(idpGroup)}
-										coderGroup={getGroupNames([groupId])}
-										onDelete={handleDelete}
+						<div className="flex flex-col gap-6">
+							<div className="flex flex-col gap-2">
+								<div className="flex flex-row items-end gap-2">
+									<div className="flex flex-col gap-2">
+										<Label htmlFor={`${id}-sync-field`}>Group sync field</Label>
+										<Input
+											id={`${id}-sync-field`}
+											value={form.values.field}
+											onChange={(event) => {
+												void form.setFieldValue("field", event.target.value);
+												onSyncFieldChange(event.target.value);
+											}}
+											className="w-72"
+										/>
+									</div>
+									<div className="flex flex-col gap-2">
+										<Label htmlFor={`${id}-regex-filter`}>Regex filter</Label>
+										<Input
+											id={`${id}-regex-filter`}
+											value={form.values.regex_filter ?? ""}
+											onChange={(event) => {
+												void form.setFieldValue(
+													"regex_filter",
+													event.target.value,
+												);
+											}}
+											className="min-w-40"
+										/>
+									</div>
+									<Button
+										type="submit"
+										disabled={form.isSubmitting || !form.dirty}
+										onClick={(event) => {
+											event.preventDefault();
+											form.handleSubmit();
+										}}
+									>
+										<Spinner loading={form.isSubmitting} />
+										Save
+									</Button>
+								</div>
+								{(form.errors.field || form.errors.regex_filter) && (
+									<p className="text-content-destructive text-sm m-0">
+										{form.errors.field || form.errors.regex_filter}
+									</p>
+								)}
+							</div>
+							<div className="flex items-start">
+								<Spinner size="sm" loading={form.isSubmitting}>
+									<Switch
+										id={`${id}-auto-create-missing-groups`}
+										checked={form.values.auto_create_missing_groups}
+										onCheckedChange={(checked) => {
+											void form.setFieldValue(
+												"auto_create_missing_groups",
+												checked,
+											);
+											form.handleSubmit();
+										}}
 									/>
-								))}
+								</Spinner>
+								<Label htmlFor={`${id}-auto-create-missing-groups`}>
+									<StackLabel>
+										Auto create missing groups
+										<StackLabelHelperText>
+											Create groups from the IdP when they do not already exist
+											in Coder.
+										</StackLabelHelperText>
+									</StackLabel>
+								</Label>
+							</div>
+						</div>
+					</div>
+					<div>
+						<SettingsHeader>
+							<SettingsHeaderTitle level="h2" hierarchy="secondary">
+								Group mapping
+							</SettingsHeaderTitle>
+							<SettingsHeaderDescription>
+								Map IdP groups to Coder groups.
+							</SettingsHeaderDescription>
+						</SettingsHeader>
+						<div className="flex flex-row gap-2 justify-between items-start">
+							<div className="grid items-center gap-1 w-72">
+								<Label className="text-sm" htmlFor={`${id}-idp-group-name`}>
+									IdP group name
+								</Label>
+								{claimFieldValues ? (
+									<Combobox
+										open={open}
+										onOpenChange={setOpen}
+										value={idpGroupName}
+										onValueChange={(value) => setIdpGroupName(value ?? "")}
+									>
+										<ComboboxTrigger asChild>
+											<ComboboxButton
+												className="w-72"
+												selectedOption={
+													idpGroupName
+														? { label: idpGroupName, value: idpGroupName }
+														: undefined
+												}
+												placeholder="Select IdP group"
+											/>
+										</ComboboxTrigger>
+										<ComboboxContent className="w-72">
+											<ComboboxInput
+												value={comboInputValue}
+												onValueChange={setComboInputValue}
+												placeholder="Search..."
+												onKeyDown={handleKeyDown}
+											/>
+											<ComboboxList>
+												{claimFieldValues
+													.filter((value) =>
+														value
+															.toLowerCase()
+															.includes(comboInputValue.toLowerCase()),
+													)
+													.map((value) => (
+														<ComboboxItem
+															key={value}
+															value={value}
+															onSelect={() => setComboInputValue("")}
+														>
+															{value}
+														</ComboboxItem>
+													))}
+											</ComboboxList>
+										</ComboboxContent>
+									</Combobox>
+								) : (
+									<Input
+										id={`${id}-idp-group-name`}
+										value={idpGroupName}
+										className="w-72"
+										onChange={(event) => {
+											setIdpGroupName(event.target.value);
+										}}
+									/>
+								)}
+							</div>
+							<div className="grid items-center gap-1 flex-1">
+								<Label className="text-sm" htmlFor={`${id}-coder-group`}>
+									Coder group
+								</Label>
+								<MultiSelectCombobox
+									inputProps={{
+										id: `${id}-coder-group`,
+									}}
+									className="min-w-60 max-w-3xl"
+									value={coderGroups}
+									onChange={setCoderGroups}
+									options={groups
+										.filter((group) => !isEveryoneGroup(group))
+										.map((group) => ({
+											label: group.display_name || group.name,
+											value: group.id,
+										}))}
+									hidePlaceholderWhenSelected
+									placeholder="Select group"
+									emptyIndicator={
+										<p className="text-center text-md text-content-primary">
+											No more groups to select
+										</p>
+									}
+								/>
+							</div>
+							<div className="grid grid-rows-[28px_auto]">
+								<div />
+								<Button
+									type="submit"
+									className="min-w-fit"
+									disabled={!idpGroupName || coderGroups.length === 0}
+									onClick={() => {
+										const newSyncSettings = {
+											...form.values,
+											mapping: {
+												...form.values.mapping,
+												[idpGroupName]: coderGroups.map((group) => group.value),
+											},
+										};
+										void form.setFieldValue("mapping", newSyncSettings.mapping);
+										form.handleSubmit();
+										setIdpGroupName("");
+										setCoderGroups([]);
+									}}
+								>
+									<Spinner loading={form.isSubmitting}>
+										<PlusIcon />
+									</Spinner>
+									Add IdP group
+								</Button>
+							</div>
+						</div>
+						{form.errors.mapping && (
+							<p className="text-content-destructive text-sm m-0">
+								{Object.values(form.errors.mapping || {})}
+							</p>
+						)}
+						<IdpMappingTable type="Group" rowCount={groupMappingCount}>
+							{groupSyncSettings?.mapping &&
+								Object.entries(groupSyncSettings.mapping)
+									.sort(([a], [b]) =>
+										a.toLowerCase().localeCompare(b.toLowerCase()),
+									)
+									.map(([idpGroup, groups]) => (
+										<GroupRow
+											key={idpGroup}
+											idpGroup={idpGroup}
+											exists={claimFieldValues?.includes(idpGroup)}
+											coderGroup={getGroupNames(groups)}
+											onDelete={() => setMappingToDelete(idpGroup)}
+										/>
+									))}
 						</IdpMappingTable>
 					</div>
-				)}
-			</fieldset>
-		</form>
+					{groupSyncSettings?.legacy_group_name_mapping && (
+						<div>
+							<SettingsHeader>
+								<SettingsHeaderTitle level="h2" hierarchy="secondary">
+									Legacy group sync
+								</SettingsHeaderTitle>
+								<SettingsHeaderDescription>
+									These settings were configured using environment variables,
+									and only apply to the default organization. Configure IdP sync
+									in the UI or CLI so it can apply to any organization.{" "}
+									<SettingsHeaderDocsLink
+										href={docs("/admin/users/idp-sync")}
+									/>
+								</SettingsHeaderDescription>
+							</SettingsHeader>
+							<IdpMappingTable type="Group" rowCount={legacyGroupMappingCount}>
+								{Object.entries(groupSyncSettings.legacy_group_name_mapping)
+									.sort(([a], [b]) =>
+										a.toLowerCase().localeCompare(b.toLowerCase()),
+									)
+									.map(([idpGroup, groupId]) => (
+										<GroupRow
+											key={groupId}
+											idpGroup={idpGroup}
+											exists={claimFieldValues?.includes(idpGroup)}
+											coderGroup={getGroupNames([groupId])}
+											onDelete={() => setMappingToDelete(idpGroup)}
+										/>
+									))}
+							</IdpMappingTable>
+						</div>
+					)}
+				</fieldset>
+			</form>
+			<DeleteDialog
+				key={mappingToDelete}
+				isOpen={mappingToDelete !== undefined}
+				confirmLoading={form.isSubmitting}
+				entity="group mapping"
+				name={mappingToDelete ?? ""}
+				info="Users with that IdP group will no longer be assigned the mapped Coder groups."
+				onCancel={() => setMappingToDelete(undefined)}
+				onConfirm={() => {
+					if (!mappingToDelete) {
+						return;
+					}
+					void handleDelete(mappingToDelete);
+					setMappingToDelete(undefined);
+				}}
+			/>
+		</>
 	);
 };
 
@@ -429,14 +451,12 @@ const GroupRow: FC<GroupRowProps> = ({
 
 			<TableCell>
 				<Button
-					variant="outline"
+					variant="destructive"
 					size="icon"
-					className="text-content-primary"
-					aria-label="delete"
+					aria-label={`Delete mapping for ${idpGroup}`}
 					onClick={() => onDelete(idpGroup)}
 				>
 					<TrashIcon />
-					<span className="sr-only">Delete IdP mapping</span>
 				</Button>
 			</TableCell>
 		</TableRow>

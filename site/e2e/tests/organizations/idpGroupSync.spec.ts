@@ -73,7 +73,12 @@ test.describe("IdpGroupSyncPage", () => {
 
 		const row = page.getByTestId("group-idp-group-1");
 		await expect(row.getByRole("cell", { name: "idp-group-1" })).toBeVisible();
-		await row.getByRole("button", { name: /delete/i }).click();
+		await row.getByRole("button", { name: /delete mapping/i }).click();
+		const dialog = page.getByRole("dialog", { name: "Delete group mapping" });
+		await dialog
+			.getByLabel("Name of the group mapping to delete")
+			.fill("idp-group-1");
+		await dialog.getByRole("button", { name: /^delete$/i }).click();
 		await expect(
 			row.getByRole("cell", { name: "idp-group-1" }),
 		).not.toBeVisible();

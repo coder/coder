@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import {
 	MockGroup,
 	MockGroup2,
@@ -46,6 +46,7 @@ const meta: Meta<typeof IdpSyncPageView> = {
 		groupsMap,
 		organization: MockOrganization,
 		error: undefined,
+		onSubmitGroupSyncSettings: fn(),
 	},
 };
 
@@ -95,6 +96,55 @@ export const Default: Story = {
 		await expect(
 			canvas.queryByRole("heading", { name: "Legacy group sync" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const DeleteGroupMapping: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const row = canvas.getByRole("row", { name: /idp-group-1/ });
+		const neighbor = canvas.getByRole("row", { name: /idp-group-2/ });
+
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: "Delete mapping for idp-group-1",
+			}),
+		);
+
+		const dialog = await screen.findByRole("dialog", {
+			name: "Delete group mapping",
+		});
+		await expect(dialog).toBeVisible();
+		await expect(neighbor).toBeVisible();
+		await expect(
+			within(dialog).getByRole("button", { name: /^delete$/i }),
+		).toBeDisabled();
+
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Cancel" }),
+		);
+		await expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		await expect(row).toBeVisible();
+		await expect(args.onSubmitGroupSyncSettings).not.toHaveBeenCalled();
+
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: "Delete mapping for idp-group-1",
+			}),
+		);
+		const confirmDialog = await screen.findByRole("dialog", {
+			name: "Delete group mapping",
+		});
+		await userEvent.type(
+			within(confirmDialog).getByLabelText(
+				"Name of the group mapping to delete",
+			),
+			"idp-group-1",
+		);
+		await userEvent.click(
+			within(confirmDialog).getByRole("button", { name: /^delete$/i }),
+		);
+		await expect(args.onSubmitGroupSyncSettings).toHaveBeenCalled();
 	},
 };
 
