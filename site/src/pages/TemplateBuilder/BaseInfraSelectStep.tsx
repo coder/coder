@@ -49,18 +49,22 @@ export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
 				Select your infrastructure foundation.
 			</TemplateBuilderSubtitle>
 
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-				{bases.map((base) => (
-					<TemplateCard
-						key={base.id}
-						name={base.name}
-						description={base.description}
-						iconUrl={base.icon}
-						detailsUrl={detailsUrl(base.id)}
-						selected={base.id === selectedBaseId}
-						onSelect={() => onSelectBase(toSelectedBaseMeta(base))}
-					/>
-				))}
+			{/* Cap the visible cards at two rows and let the rest scroll, so the
+			    Continue button stays above the fold and is easy to discover. */}
+			<div className="max-h-[23.5rem] overflow-y-auto p-1 -m-1">
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+					{bases.map((base) => (
+						<TemplateCard
+							key={base.id}
+							name={base.name}
+							description={base.description}
+							iconUrl={base.icon}
+							detailsUrl={detailsUrl(base.id)}
+							selected={base.id === selectedBaseId}
+							onSelect={() => onSelectBase(toSelectedBaseMeta(base))}
+						/>
+					))}
+				</div>
 			</div>
 		</div>
 	);

@@ -232,29 +232,33 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				</TabsList>
 			</Tabs>
 
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-				{visibleModules.length ? (
-					visibleModules.map((m) => (
-						<ModuleCard
-							key={m.id}
-							name={m.display_name}
-							description={m.description}
-							iconUrl={m.icon}
-							detailsUrl={moduleDetailsUrl(m.id)}
-							selected={selectedSet.has(m.id)}
-							onSelect={() => handleToggle(m)}
-						/>
-					))
-				) : (
-					<div className="col-span-full my-12 flex flex-col items-center gap-1 text-content-secondary">
-						<SearchIcon />
-						<p className="m-0 text-xs font-normal">
-							{doesBaseTemplateHaveModules
-								? "No module matched your search"
-								: "No modules available for this base template"}
-						</p>
-					</div>
-				)}
+			{/* Cap the visible cards at two rows and let the rest scroll, so the
+			    Continue button stays above the fold and is easy to discover. */}
+			<div className="max-h-[23.5rem] overflow-y-auto p-1 -m-1">
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+					{visibleModules.length ? (
+						visibleModules.map((m) => (
+							<ModuleCard
+								key={m.id}
+								name={m.display_name}
+								description={m.description}
+								iconUrl={m.icon}
+								detailsUrl={moduleDetailsUrl(m.id)}
+								selected={selectedSet.has(m.id)}
+								onSelect={() => handleToggle(m)}
+							/>
+						))
+					) : (
+						<div className="col-span-full my-12 flex flex-col items-center gap-1 text-content-secondary">
+							<SearchIcon />
+							<p className="m-0 text-xs font-normal">
+								{doesBaseTemplateHaveModules
+									? "No module matched your search"
+									: "No modules available for this base template"}
+							</p>
+						</div>
+					)}
+				</div>
 			</div>
 
 			{conflicts.length > 0 && (
