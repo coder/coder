@@ -19,12 +19,12 @@ L2      ├── prepare          prompt build, model resolution, context hydra
 L2      ├── mcp_connect      MCP server connection
 L2      ├── provider_attempt one provider HTTP round trip (per retry)
 L3      │   └── time_to_first_token   request open -> first streamed part
+L2      ├── retry_backoff    wait between provider attempts
 L2      ├── stream           provider stream open -> close
 L2      ├── thinking         reasoning part duration
 L2      ├── tool_call        one local tool call
 L2      ├── commit           step persistence transaction
-L2      ├── compaction       auxiliary compaction call
-L2      └── retry_backoff    wait between provider attempts
+L2      └── compaction       auxiliary compaction call
 ```
 
 Stages overlap in wall time (tool calls and thinking happen inside the
@@ -100,11 +100,14 @@ parent at high percentiles; a stage whose series first appears inside the
 window reads 0 until its second sample.
 
 **Stage profile in hierarchy order ($stat)** - the same query as the
-flamegraph drawn as horizontal bars in depth-first order with the tree
-indented into the labels. Dimensions: identical to the flamegraph. Use
-it to read stages too small to see as frames (prepare, commit,
-tool_call are typically milliseconds next to multi-second streams) and
-as a numeric check on the flamegraph.
+flamegraph, as a table in depth-first order: a Stage column indented by
+level, the level itself, and the duration drawn as a gauge bar scaled to
+the widest stage, so the bar lengths stay comparable to the flamegraph
+frames. Dimensions: identical to the flamegraph. Use it to read stages
+too small to see as frames (prepare, commit, tool_call are typically
+milliseconds next to multi-second streams) and as a numeric check on the
+flamegraph. The indentation uses fixed-width spacing rather than a
+drawn tree, so rows at the same depth line up in any font.
 
 ### Reading the levels
 
@@ -222,7 +225,7 @@ because of generation".
 ### Level 2: Step children
 
 Members: `prepare`, `mcp_connect`, `provider_attempt`, `stream`,
-`thinking`, `tool_call`, `commit`, `compaction`, `retry_backoff`.
+`retry_backoff`, `thinking`, `tool_call`, `commit`, `compaction`.
 
 These are the stages inside one generation step and they overlap each
 other, so read them as a profile of the step. `provider_attempt` is
