@@ -7,7 +7,7 @@ import {
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const meta: Meta<typeof OrganizationSettingsPageView> = {
-	title: "pages/OrganizationSettingsPageView",
+	title: "pages/OrganizationSettingsPage",
 	component: OrganizationSettingsPageView,
 	args: {
 		organization: MockOrganization,

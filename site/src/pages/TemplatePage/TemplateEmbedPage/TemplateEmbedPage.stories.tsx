@@ -4,7 +4,7 @@ import { MockPreviewParameter, MockTemplate } from "#/testHelpers/entities";
 import { TemplateEmbedPageView } from "./TemplateEmbedPageView";
 
 const meta: Meta<typeof TemplateEmbedPageView> = {
-	title: "pages/TemplatePage/TemplateEmbedPageView",
+	title: "pages/TemplatePage/TemplateEmbedPage",
 	component: TemplateEmbedPageView,
 	args: {
 		template: MockTemplate,

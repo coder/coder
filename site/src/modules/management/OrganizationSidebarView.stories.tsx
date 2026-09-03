@@ -13,7 +13,7 @@ import { withDashboardProvider } from "#/testHelpers/storybook";
 import { OrganizationSidebarView } from "./OrganizationSidebarView";
 
 const meta: Meta<typeof OrganizationSidebarView> = {
-	title: "modules/management/OrganizationSidebarView",
+	title: "modules/management/OrganizationSidebar",
 	component: OrganizationSidebarView,
 	decorators: [withDashboardProvider],
 	parameters: { showOrganizations: true },

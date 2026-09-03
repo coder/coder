@@ -1,7 +1,7 @@
 import { AddNewLicensePageView } from "./AddNewLicensePageView";
 
 export default {
-	title: "pages/DeploymentSettingsPage/AddNewLicensePageView",
+	title: "pages/DeploymentSettingsPage/AddNewLicensePage",
 	component: AddNewLicensePageView,
 };
 

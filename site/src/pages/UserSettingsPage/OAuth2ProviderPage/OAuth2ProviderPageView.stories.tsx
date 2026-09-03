@@ -3,7 +3,7 @@ import { MockOAuth2ProviderApps } from "#/testHelpers/entities";
 import OAuth2ProviderPageView from "./OAuth2ProviderPageView";
 
 const meta: Meta<typeof OAuth2ProviderPageView> = {
-	title: "pages/UserSettingsPage/OAuth2ProviderPageView",
+	title: "pages/UserSettingsPage/OAuth2ProviderPage",
 	component: OAuth2ProviderPageView,
 };
 

@@ -6,7 +6,7 @@ import type {
 import { AgentMetadataView } from "./AgentMetadata";
 
 const meta: Meta<typeof AgentMetadataView> = {
-	title: "modules/resources/AgentMetadataView",
+	title: "modules/resources/AgentMetadata",
 	component: AgentMetadataView,
 };
 

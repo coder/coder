@@ -29,7 +29,7 @@ const baseArgs: InstructionsPageViewProps = {
 };
 
 const meta = {
-	title: "pages/AISettingsPage/InstructionsPage/InstructionsPageView",
+	title: "pages/AISettingsPage/InstructionsPage/InstructionsPage",
 	component: InstructionsPageView,
 	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
 	parameters: { pixel: { exclude: true } },

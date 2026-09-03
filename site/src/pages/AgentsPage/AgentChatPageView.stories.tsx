@@ -196,7 +196,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 // Meta
 // ---------------------------------------------------------------------------
 const meta: Meta<typeof AgentChatPageView> = {
-	title: "pages/AgentsPage/AgentChatPageView",
+	title: "pages/AgentsPage/AgentChatPage",
 	component: AgentChatPageView,
 	// Summary is the default tab and reads the chat, so mock it for the sidebar.
 	// Cost needs no mock: these stories leave the aibridge feature off, so the
@@ -269,7 +269,7 @@ export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
 };
 
-export const OtherUserChatReadOnly: Story = {
+export const OtherUserChatReadOnlyPresentation: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			chatOwner={{ username: "OtherUser", name: "Other User" }}
@@ -328,7 +328,7 @@ export const OtherUserChatOwnerFallback: Story = {
 };
 
 /** Archived chats stay read-only without the owner banner. */
-export const ArchivedOtherUserChat: Story = {
+export const ArchivedOtherUserChatPresentation: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			isArchived
@@ -901,7 +901,7 @@ export const WorkspaceNoAgent: Story = {
 // ---------------------------------------------------------------------------
 
 /** Default loading state with skeleton placeholders. */
-export const Loading: Story = {
+export const LoadingSkeleton: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"

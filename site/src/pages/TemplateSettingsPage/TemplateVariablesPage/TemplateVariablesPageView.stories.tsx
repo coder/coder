@@ -12,7 +12,7 @@ import {
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
 const meta: Meta<typeof TemplateVariablesPageView> = {
-	title: "pages/TemplateSettingsPage/TemplateVariablesPageView",
+	title: "pages/TemplateSettingsPage/TemplateVariablesPage",
 	component: TemplateVariablesPageView,
 	args: {
 		onCancel: action("onCancel"),

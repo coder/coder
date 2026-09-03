@@ -18,7 +18,7 @@ import {
 import AddModelPageView from "./AddModelPageView";
 
 const meta: Meta<typeof AddModelPageView> = {
-	title: "pages/AISettingsPage/ModelsPage/AddModelPageView",
+	title: "pages/AISettingsPage/ModelsPage/AddModelPage",
 	component: AddModelPageView,
 	decorators: [
 		(Story) => (

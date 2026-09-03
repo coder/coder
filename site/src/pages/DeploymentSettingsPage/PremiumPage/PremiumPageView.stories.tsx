@@ -3,7 +3,7 @@ import { expect, fn, within } from "storybook/test";
 import { PremiumPageView } from "./PremiumPageView";
 
 const meta: Meta<typeof PremiumPageView> = {
-	title: "pages/DeploymentSettingsPage/PremiumPageView",
+	title: "pages/DeploymentSettingsPage/PremiumPage",
 	component: PremiumPageView,
 	args: {
 		hasLicense: false,

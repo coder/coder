@@ -40,7 +40,7 @@ const defaultFilterProps: FilterProps = {
 };
 
 const meta: Meta<typeof ListSessionsPageView> = {
-	title: "pages/AIBridgePage/ListSessionsPageView",
+	title: "pages/AIBridgePage/ListSessionsPage",
 	component: ListSessionsPageView,
 	args: {
 		isLoading: false,

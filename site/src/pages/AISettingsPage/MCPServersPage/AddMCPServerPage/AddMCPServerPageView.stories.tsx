@@ -6,7 +6,7 @@ import { MockDefaultOrganization } from "#/testHelpers/entities";
 import AddMCPServerPageView from "./AddMCPServerPageView";
 
 const meta: Meta<typeof AddMCPServerPageView> = {
-	title: "pages/AISettingsPage/MCPServersPage/AddMCPServerPageView",
+	title: "pages/AISettingsPage/MCPServersPage/AddMCPServerPage",
 	component: AddMCPServerPageView,
 	args: {
 		isSaving: false,

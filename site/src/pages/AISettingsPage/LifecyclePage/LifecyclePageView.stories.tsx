@@ -38,7 +38,7 @@ const baseArgs: LifecyclePageViewProps = {
 };
 
 const meta = {
-	title: "pages/AISettingsPage/LifecyclePage/LifecyclePageView",
+	title: "pages/AISettingsPage/LifecyclePage/LifecyclePage",
 	component: LifecyclePageView,
 	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
 	parameters: { pixel: { exclude: true } },

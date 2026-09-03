@@ -5,7 +5,7 @@ import { MockAIProviders } from "#/testHelpers/entities";
 import ProvidersPageView from "./ProvidersPageView";
 
 const meta: Meta<typeof ProvidersPageView> = {
-	title: "pages/AISettingsPage/ProvidersPageView",
+	title: "pages/AISettingsPage/ProvidersPage",
 	component: ProvidersPageView,
 	args: {
 		isLoading: false,

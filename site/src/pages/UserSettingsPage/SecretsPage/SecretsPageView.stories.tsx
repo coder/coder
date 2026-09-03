@@ -20,7 +20,7 @@ const visibleSecrets = MockUserSecrets.slice(0, 4);
 const PLACEHOLDER_INPUT = "placeholder input";
 
 const meta: Meta<typeof SecretsPageView> = {
-	title: "pages/UserSettingsPage/SecretsPageView",
+	title: "pages/UserSettingsPage/SecretsPage",
 	component: SecretsPageView,
 	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
 	parameters: { pixel: { exclude: true } },

@@ -10,7 +10,7 @@ const group: SerpentGroup = {
 };
 
 const meta: Meta<typeof NetworkSettingsPageView> = {
-	title: "pages/DeploymentSettingsPage/NetworkSettingsPageView",
+	title: "pages/DeploymentSettingsPage/NetworkSettingsPage",
 	component: NetworkSettingsPageView,
 	args: {
 		options: [

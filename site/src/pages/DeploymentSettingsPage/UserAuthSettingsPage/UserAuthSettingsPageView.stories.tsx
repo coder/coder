@@ -15,7 +15,7 @@ const ghGroup: SerpentGroup = {
 };
 
 const meta: Meta<typeof UserAuthSettingsPageView> = {
-	title: "pages/DeploymentSettingsPage/UserAuthSettingsPageView",
+	title: "pages/DeploymentSettingsPage/UserAuthSettingsPage",
 	component: UserAuthSettingsPageView,
 	args: {
 		options: [

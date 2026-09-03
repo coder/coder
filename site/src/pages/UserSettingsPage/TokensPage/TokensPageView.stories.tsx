@@ -3,7 +3,7 @@ import { MockTokens, mockApiError } from "#/testHelpers/entities";
 import { TokensPageView } from "./TokensPageView";
 
 const meta: Meta<typeof TokensPageView> = {
-	title: "pages/UserSettingsPage/TokensPageView",
+	title: "pages/UserSettingsPage/TokensPage",
 	component: TokensPageView,
 	args: {
 		isLoading: false,

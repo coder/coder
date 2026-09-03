@@ -5,7 +5,7 @@ import { docs } from "#/utils/docs";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 
 const meta: Meta<typeof AppearanceSettingsPageView> = {
-	title: "pages/DeploymentSettingsPage/AppearanceSettingsPageView",
+	title: "pages/DeploymentSettingsPage/AppearanceSettingsPage",
 	component: AppearanceSettingsPageView,
 	args: {
 		appearance: {

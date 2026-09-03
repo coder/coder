@@ -33,7 +33,7 @@ const saveByContext = new Map<
 ]);
 
 const meta: Meta<typeof OrganizationAgentSettingsView> = {
-	title: "pages/AISettingsPage/CoderAgentsPage/OrganizationAgentSettingsView",
+	title: "pages/AISettingsPage/CoderAgentsPage/OrganizationAgentSettings",
 	component: OrganizationAgentSettingsView,
 	args: {
 		overrides,

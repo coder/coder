@@ -11,7 +11,7 @@ import {
 import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 
 const meta: Meta<typeof IdpOrgSyncPageView> = {
-	title: "pages/IdpOrgSyncPageView",
+	title: "pages/IdpOrgSyncPage",
 	component: IdpOrgSyncPageView,
 	args: {
 		organizationSyncSettings: MockOrganizationSyncSettings2,

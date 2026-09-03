@@ -10,7 +10,7 @@ import {
 import { PortForwardPopoverView } from "./PortForwardButton";
 
 const meta: Meta<typeof PortForwardPopoverView> = {
-	title: "modules/resources/PortForwardPopoverView",
+	title: "modules/resources/PortForwardPopover",
 	component: PortForwardPopoverView,
 	decorators: [
 		(Story) => (

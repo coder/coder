@@ -9,7 +9,7 @@ import { withDashboardProvider } from "#/testHelpers/storybook";
 import { DeploymentSidebarView } from "./DeploymentSidebarView";
 
 const meta: Meta<typeof DeploymentSidebarView> = {
-	title: "modules/management/DeploymentSidebarView",
+	title: "modules/management/DeploymentSidebar",
 	component: DeploymentSidebarView,
 	decorators: [withDashboardProvider],
 	parameters: { showOrganizations: true },

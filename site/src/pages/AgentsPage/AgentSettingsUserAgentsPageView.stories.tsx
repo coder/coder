@@ -255,7 +255,7 @@ const selectOption = async (
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsUserAgentsPageView",
+	title: "pages/AgentsPage/AgentSettingsUserAgentsPage",
 	component: AgentSettingsUserAgentsPageView,
 	args: buildArgs(),
 } satisfies Meta<typeof AgentSettingsUserAgentsPageView>;

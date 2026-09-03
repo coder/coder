@@ -11,7 +11,7 @@ import { withAuthProvider, withToaster } from "#/testHelpers/storybook";
 import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
 
 const meta = {
-	title: "pages/DeploymentSettingsPage/CreateOAuth2AppPageView",
+	title: "pages/DeploymentSettingsPage/CreateOAuth2AppPage",
 	component: CreateOAuth2AppPageView,
 	parameters: {
 		user: MockUserOwner,

@@ -17,7 +17,7 @@ import { AISettingsSidebar } from "./AISettingsSidebar";
 import AISettingsSidebarView from "./AISettingsSidebarView";
 
 const meta: Meta<typeof AISettingsSidebarView> = {
-	title: "modules/management/AISettingsSidebarView",
+	title: "modules/management/AISettingsSidebar",
 	component: AISettingsSidebarView,
 	args: {
 		permissions: MockPermissions,
