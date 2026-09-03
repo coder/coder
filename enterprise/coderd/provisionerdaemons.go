@@ -378,7 +378,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
 		return
 	}
-	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+	server := drpcsdk.NewServer(logger, mux, drpcserver.Options{
 		Manager: drpcsdk.DefaultDRPCOptions(nil),
 		Log: func(err error) {
 			if xerrors.Is(err, io.EOF) {
