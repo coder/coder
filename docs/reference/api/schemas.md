@@ -13987,7 +13987,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "agent_name": "string",
   "id": "string",
   "variables": {
     "property1": "string",
@@ -13998,12 +13997,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description                                                                 |
-|--------------------|--------|----------|--------------|-----------------------------------------------------------------------------|
-| `agent_name`       | string | false    |              | Agent name targets a base coder_agent by name. Empty uses the base default. |
-| `id`               | string | false    |              |                                                                             |
-| `variables`        | object | false    |              |                                                                             |
-| » `[any property]` | string | false    |              |                                                                             |
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `id`               | string | false    |              |             |
+| `variables`        | object | false    |              |             |
+| » `[any property]` | string | false    |              |             |
 
 ## codersdk.TemplateBuilderComposeRequest
 
@@ -14016,7 +14014,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "modules": [
     {
-      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
@@ -14066,7 +14063,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "icon": "string",
   "modules": [
     {
-      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
