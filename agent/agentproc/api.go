@@ -215,6 +215,7 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		Truncated: truncated,
 		Running:   info.Running,
 		ExitCode:  info.ExitCode,
+		Command:   info.Command,
 	})
 }
 

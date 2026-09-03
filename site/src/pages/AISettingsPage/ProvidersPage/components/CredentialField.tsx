@@ -64,7 +64,7 @@ export const CredentialField: React.FC<CredentialFieldProps> = ({
 		<Input
 			id={inputId}
 			name={helpers.name}
-			className="font-mono text-[13px]"
+			className="font-mono text-sm font-normal"
 			value={helpers.value}
 			onChange={helpers.onChange}
 			onBlur={(event) => {

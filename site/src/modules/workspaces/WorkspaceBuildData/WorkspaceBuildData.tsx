@@ -40,12 +40,7 @@ export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 						build.transition === "start" && (
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<InfoIcon
-										css={(theme) => ({
-											color: theme.palette.info.light,
-										})}
-										className="size-icon-xs -mt-px"
-									/>
+									<InfoIcon className="text-content-secondary size-icon-xs -mt-px" />
 								</TooltipTrigger>
 								<TooltipContent side="bottom">
 									{buildReasonLabels[build.reason]}

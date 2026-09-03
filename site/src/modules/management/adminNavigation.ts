@@ -1,6 +1,9 @@
 import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
-import { linkToAuditing } from "#/modules/navigation";
-import type { Permissions } from "#/modules/permissions";
+import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
+import {
+	canAccessAnyChatModelConfig,
+	type Permissions,
+} from "#/modules/permissions";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 
 export interface AdminNavItem {
@@ -11,6 +14,12 @@ export interface AdminNavItem {
 	end?: boolean;
 	/** Route prefix that marks this item active when it differs from href. */
 	matchPrefix?: string;
+	/**
+	 * Additional route prefixes that also mark this item active, for pages
+	 * reachable from more than one URL (for example organization-scoped
+	 * model pages).
+	 */
+	activePrefixes?: string[];
 	/**
 	 * Pages with wide content (large tables) where the sidebar should
 	 * settle collapsed so the content gets the full width.
@@ -32,14 +41,15 @@ const firstVisibleHref = (items: AdminNavItem[]): string | undefined =>
 
 interface DeploymentNavContext {
 	permissions: Permissions;
-	hasPremiumLicense: boolean;
+	/** Licensed, non-trial deployments have nothing to upgrade to. */
+	hidePremiumTab: boolean;
 	experiments: Experiment[];
 	buildInfo: BuildInfoResponse;
 }
 
 export const deploymentNavSections = ({
 	permissions,
-	hasPremiumLicense,
+	hidePremiumTab,
 	experiments,
 	buildInfo,
 }: DeploymentNavContext): AdminNavSection[] => [
@@ -73,9 +83,9 @@ export const deploymentNavSections = ({
 				visible: permissions.viewNotificationTemplate,
 			},
 			{
-				label: "Premium",
-				href: "/deployment/premium",
-				visible: !hasPremiumLicense,
+				label: "Trial Upgrade",
+				href: PREMIUM_PAGE_PATH,
+				visible: !hidePremiumTab,
 			},
 		],
 	},
@@ -152,7 +162,17 @@ export const firstVisibleDeploymentPage = (
 
 // AI
 
-export const aiNavItems = (permissions: Permissions): AdminNavItem[] => [
+interface AIAccess {
+	/** The user can manage chat models in at least one organization. */
+	canAccessOrganizationModels: boolean;
+	/** The user can share MCP servers in at least one organization. */
+	canShareOrganizationMCPServers: boolean;
+}
+
+export const aiNavItems = (
+	permissions: Permissions,
+	{ canAccessOrganizationModels }: AIAccess,
+): AdminNavItem[] => [
 	{
 		label: "AI Governance",
 		href: "/ai/settings/governance",
@@ -171,44 +191,90 @@ export const aiNavItems = (permissions: Permissions): AdminNavItem[] => [
 	{
 		label: "Models",
 		href: "/ai/settings/models",
-		visible: permissions.editDeploymentConfig,
+		visible:
+			canAccessAnyChatModelConfig(permissions) || canAccessOrganizationModels,
+		// Organization-scoped model pages live under a different prefix.
+		activePrefixes: ["/ai/settings/models", "/ai/settings/organizations"],
 	},
 ];
 
-const CODER_AGENTS_ITEMS = [
-	{ label: "General", href: "/ai/settings/coder-agents", end: true },
-	{ label: "MCP servers", href: "/ai/settings/mcp-servers" },
-	{ label: "Templates", href: "/ai/settings/templates" },
-	{ label: "Spend", href: "/ai/settings/spend" },
-	{ label: "Instructions", href: "/ai/settings/instructions" },
-	{ label: "Lifecycle", href: "/ai/settings/lifecycle" },
+const CODER_AGENTS_PREFIXES = [
+	"/ai/settings/coder-agents",
+	"/ai/settings/mcp-servers",
+	"/ai/settings/templates",
+	"/ai/settings/instructions",
+	"/ai/settings/lifecycle",
 ];
 
 export const aiCoderAgentsSection = (
 	permissions: Permissions,
-): AdminNavSection => ({
-	key: "ai-coder-agents",
-	label: "Coder Agents",
-	items: CODER_AGENTS_ITEMS.map((item) => ({
-		...item,
-		visible: permissions.editDeploymentConfig,
-	})),
-});
-
-export const canViewAISettings = (permissions: Permissions): boolean =>
-	permissions.viewAnyAIProvider ||
-	permissions.viewAIGatewayKeys ||
-	permissions.editDeploymentConfig;
+	{ canAccessOrganizationModels, canShareOrganizationMCPServers }: AIAccess,
+): AdminNavSection => {
+	const canListMCPServers =
+		permissions.editDeploymentConfig ||
+		permissions.viewAnyMCPServerConfigs ||
+		permissions.updateAnyMCPServerConfig ||
+		permissions.deleteAnyMCPServerConfig ||
+		canShareOrganizationMCPServers;
+	return {
+		key: "ai-coder-agents",
+		label: "Coder Agents",
+		items: [
+			{
+				label: "General",
+				href: "/ai/settings/coder-agents",
+				end: true,
+				visible:
+					permissions.editDeploymentConfig || canAccessOrganizationModels,
+			},
+			{
+				label: "MCP servers",
+				// Users who can only create servers land on the add form.
+				href: canListMCPServers
+					? "/ai/settings/mcp-servers"
+					: "/ai/settings/mcp-servers/add",
+				matchPrefix: "/ai/settings/mcp-servers",
+				visible: canListMCPServers || permissions.createAnyMCPServerConfig,
+			},
+			{
+				label: "Templates",
+				href: "/ai/settings/templates",
+				visible: permissions.updateAnyTemplate,
+			},
+			{
+				label: "Instructions",
+				href: "/ai/settings/instructions",
+				visible: permissions.editDeploymentConfig,
+			},
+			{
+				label: "Lifecycle",
+				href: "/ai/settings/lifecycle",
+				visible: permissions.editDeploymentConfig,
+			},
+		],
+	};
+};
 
 /**
- * The first AI settings page the user can see, in sidebar order. Falls
- * back to providers, the historical landing page.
+ * Whether the AI section is shown. Mirrors the navbar's admin menu gate:
+ * any site-wide AI permission, or organization-scoped model or MCP
+ * sharing access.
  */
-export const firstVisibleAIPage = (permissions: Permissions): string =>
-	firstVisibleHref([
-		...aiNavItems(permissions),
-		...aiCoderAgentsSection(permissions).items,
-	]) ?? "/ai/settings/providers";
+export const canViewAISettings = (
+	permissions: Permissions,
+	{ canAccessOrganizationModels, canShareOrganizationMCPServers }: AIAccess,
+): boolean =>
+	permissions.viewAnyAIProvider ||
+	permissions.viewAIGatewayKeys ||
+	permissions.editDeploymentConfig ||
+	permissions.viewAnyMCPServerConfigs ||
+	permissions.createAnyMCPServerConfig ||
+	permissions.updateAnyMCPServerConfig ||
+	permissions.deleteAnyMCPServerConfig ||
+	permissions.updateAnyTemplate ||
+	canAccessAnyChatModelConfig(permissions) ||
+	canAccessOrganizationModels ||
+	canShareOrganizationMCPServers;
 
 // Logs
 
@@ -225,7 +291,7 @@ export const logsNavItems = ({
 }: LogsVisibility): AdminNavItem[] => [
 	{
 		label: "Audit logs",
-		href: linkToAuditing,
+		href: "/audit",
 		visible: canViewAuditLog,
 		wideContent: true,
 	},
@@ -306,14 +372,14 @@ export const adminSectionChainForRoute = (
 			: ["organizations"];
 	}
 	if (isRouteActive(pathname, "/ai/settings")) {
-		const isCoderAgentsPage = CODER_AGENTS_ITEMS.some((item) =>
-			isRouteActive(pathname, item.href),
+		const isCoderAgentsPage = CODER_AGENTS_PREFIXES.some((prefix) =>
+			isRouteActive(pathname, prefix),
 		);
 		return isCoderAgentsPage ? ["ai", "ai-coder-agents"] : ["ai"];
 	}
 	if (
 		isRouteActive(pathname, "/logs") ||
-		isRouteActive(pathname, linkToAuditing) ||
+		isRouteActive(pathname, "/audit") ||
 		isRouteActive(pathname, "/connectionlog") ||
 		isRouteActive(pathname, "/ai-gateway")
 	) {

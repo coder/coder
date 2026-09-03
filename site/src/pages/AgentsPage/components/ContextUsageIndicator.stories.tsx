@@ -17,9 +17,8 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 export default meta;
 type Story = StoryObj<typeof ContextUsageIndicator>;
 
-// Clean pin: the ring carries no change marker and the popover lists the
-// pinned resources.
-export const Clean: Story = {
+// A pinned resource issue flags the ring and appears under Issues.
+export const ResourceIssue: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
@@ -29,8 +28,9 @@ export const Clean: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
-		expect(button.getAttribute("aria-label") ?? "").not.toContain(
-			"Context changed",
+		expect(button).not.toHaveAccessibleName(/Context changed/);
+		expect(button).toHaveAccessibleName(
+			/Some context resources failed to load/,
 		);
 
 		await userEvent.hover(button);
@@ -120,6 +120,10 @@ export const MultipleContextRoots: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
+		expect(button).toHaveAccessibleName(/Context usage 24%/);
+		expect(button).not.toHaveAccessibleName(
+			/Context changed|failed to load|Context error/,
+		);
 		await userEvent.hover(button);
 		const body = within(document.body);
 		// Both directories that contribute instruction files are listed, so the
@@ -186,8 +190,9 @@ export const Dirty: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const button = within(canvasElement).getByRole("button");
-		expect(button.getAttribute("aria-label") ?? "").toContain(
-			"Context changed",
+		expect(button).toHaveAccessibleName(/Context changed/);
+		expect(button).toHaveAccessibleName(
+			/Some context resources failed to load/,
 		);
 
 		await userEvent.hover(button);
@@ -201,6 +206,65 @@ export const Dirty: Story = {
 			body.getByRole("button", { name: "Refresh context" }),
 		);
 		expect(args.onRefreshContext).toHaveBeenCalledTimes(1);
+	},
+};
+
+// Before any assistant message reports token usage there is no percentage,
+// so the popover explains when the numbers will appear.
+export const NoUsage: Story = {
+	args: {
+		usage: null,
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() =>
+			expect(
+				body.getByText("Context usage will appear after sending a message."),
+			).toBeVisible(),
+		);
+	},
+};
+
+// Some providers report usage without token counts, so no percentage can be
+// computed even though a message was sent. The popover must say the usage is
+// unavailable instead of promising numbers after the next message.
+export const UsageWithoutTokenCounts: Story = {
+	args: {
+		usage: {
+			contextLimitTokens: 200_000,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() =>
+			expect(body.getByText("Context usage unavailable")).toBeVisible(),
+		);
+	},
+};
+
+// A fresh chat has pinned context before any assistant message reports token
+// usage, so the popover pairs the empty-usage copy with the resource list.
+export const NoUsageWithContext: Story = {
+	args: {
+		usage: {
+			context: MockChatContextClean,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() =>
+			expect(
+				body.getByText("Context usage will appear after sending a message."),
+			).toBeVisible(),
+		);
+		expect(body.getByText("Context files")).toBeVisible();
+		expect(body.getByText("AGENTS.md")).toBeVisible();
 	},
 };
 
@@ -220,6 +284,7 @@ export const SnapshotError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
+		expect(button).toHaveAccessibleName(/Context error/);
 		await userEvent.hover(button);
 		const body = within(document.body);
 		await waitFor(() => expect(body.getByText("Context error")).toBeVisible());

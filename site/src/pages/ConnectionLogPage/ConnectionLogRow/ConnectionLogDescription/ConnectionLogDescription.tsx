@@ -89,5 +89,28 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 				</span>
 			);
 		}
+
+		case "tunnel": {
+			if (!web_info) return null;
+			const { user, status_code } = web_info;
+			const actor = user?.username ?? "Unknown user";
+			const action =
+				status_code >= 400
+					? "was denied a tunnel to"
+					: "established a tunnel to";
+			const isOwnWorkspace = workspace_owner_username === user?.username;
+			return (
+				<span>
+					{actor} {action}{" "}
+					{isOwnWorkspace ? "their" : `${workspace_owner_username}'s`}{" "}
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
+					</Link>{" "}
+					workspace
+				</span>
+			);
+		}
 	}
 };

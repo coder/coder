@@ -76,13 +76,9 @@ func (b AIProviderBedrockSettings) ResolvedProtocol() AIProviderBedrockProtocol 
 // indicating that the operator wants the provider to authenticate via
 // AWS Bedrock rather than as a bearer-token Anthropic provider.
 //
-// Model and SmallFastModel are intentionally excluded: they have
-// deployment-level defaults declared in codersdk/deployment.go, so
-// they're always non-empty in a real deployment and cannot serve as
-// a detection signal. Region and credentials have no defaults and
-// therefore reliably indicate operator intent. Credentials alone are
-// not required because Bedrock can also authenticate via the AWS
-// environment (instance profile, AWS_PROFILE, IRSA, etc.).
+// Region and credentials have no defaults and therefore reliably indicate
+// operator intent. Credentials alone are not required because Bedrock can
+// also authenticate via the AWS environment (instance profile, AWS_PROFILE, IRSA, etc.).
 func (b AIProviderBedrockSettings) IsConfigured() bool {
 	if b.Region != "" {
 		return true

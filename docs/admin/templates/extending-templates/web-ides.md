@@ -58,7 +58,7 @@ container image. Here's a Dockerfile which leverages some special
 [code-server features](https://coder.com/docs/code-server):
 
 ```dockerfile
-FROM codercom/enterprise-base:ubuntu
+FROM codercom/example-base:ubuntu
 
 # install the latest version
 USER root

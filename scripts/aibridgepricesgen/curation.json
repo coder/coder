@@ -1,4 +1,136 @@
 {
+	"anthropic": [
+		{
+			"modelIdentifier": "claude-fable-5-1",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-fable-5",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-mythos-5",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-opus-5",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-opus-4-8",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-opus-4-7",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-opus-4-6",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-sonnet-5",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-sonnet-4-6",
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "claude-haiku-4-5",
+			"aliases": ["claude-haiku-4-5-20251001"],
+			"displayName": "Claude Haiku 4.5",
+			"thinkingBudgetTokens": 8192
+		},
+		{
+			"modelIdentifier": "claude-sonnet-4-5",
+			"aliases": ["claude-sonnet-4-5-20250929"],
+			"displayName": "Claude Sonnet 4.5",
+			"thinkingBudgetTokens": 8192
+		}
+	],
+	"azure": [
+		{
+			"modelIdentifier": "claude-fable-5-1"
+		},
+		{
+			"modelIdentifier": "claude-fable-5"
+		},
+		{
+			"modelIdentifier": "claude-opus-5"
+		},
+		{
+			"modelIdentifier": "claude-sonnet-5"
+		},
+		{
+			"modelIdentifier": "claude-opus-4-8"
+		},
+		{
+			"modelIdentifier": "claude-sonnet-4-6"
+		},
+		{
+			"modelIdentifier": "claude-haiku-4-5"
+		},
+		{
+			"modelIdentifier": "gpt-5.6-sol"
+		},
+		{
+			"modelIdentifier": "gpt-5.6-terra"
+		},
+		{
+			"modelIdentifier": "gpt-5.6-luna"
+		},
+		{
+			"modelIdentifier": "gpt-5.5"
+		},
+		{
+			"modelIdentifier": "deepseek-v4-flash"
+		}
+	],
+	"bedrock": [
+		{
+			"modelIdentifier": "anthropic.claude-haiku-4-5-20251001-v1:0",
+			"aliases": ["global.anthropic.claude-haiku-4-5-20251001-v1:0"]
+		},
+		{
+			"modelIdentifier": "anthropic.claude-sonnet-5",
+			"aliases": ["global.anthropic.claude-sonnet-5"]
+		},
+		{
+			"modelIdentifier": "anthropic.claude-opus-5",
+			"aliases": ["global.anthropic.claude-opus-5"]
+		},
+		{
+			"modelIdentifier": "anthropic.claude-fable-5-1",
+			"aliases": ["global.anthropic.claude-fable-5-1"]
+		},
+		{
+			"modelIdentifier": "anthropic.claude-fable-5",
+			"aliases": ["global.anthropic.claude-fable-5"]
+		},
+		{
+			"modelIdentifier": "anthropic.claude-sonnet-4-6",
+			"aliases": ["global.anthropic.claude-sonnet-4-6"]
+		},
+		{
+			"modelIdentifier": "anthropic.claude-opus-4-8",
+			"aliases": ["global.anthropic.claude-opus-4-8"]
+		}
+	],
+	"google": [
+		{
+			"modelIdentifier": "gemini-flash-latest"
+		},
+		{
+			"modelIdentifier": "gemini-3.8-flash"
+		},
+		{
+			"modelIdentifier": "gemini-3.7-flash"
+		},
+		{
+			"modelIdentifier": "gemini-3.6-flash"
+		}
+	],
 	"openai": [
 		{
 			"modelIdentifier": "gpt-5.6-sol",
@@ -36,46 +168,110 @@
 			"reasoningEffort": "medium"
 		}
 	],
-	"anthropic": [
+	"openrouter": [
 		{
-			"modelIdentifier": "claude-fable-5",
-			"reasoningEffort": "high"
+			"modelIdentifier": "openai/gpt-5.6-sol"
 		},
 		{
-			"modelIdentifier": "claude-mythos-5",
-			"reasoningEffort": "high"
+			"modelIdentifier": "openai/gpt-5.6-terra"
 		},
 		{
-			"modelIdentifier": "claude-opus-4-8",
-			"reasoningEffort": "high"
+			"modelIdentifier": "openai/gpt-5.6-luna"
 		},
 		{
-			"modelIdentifier": "claude-opus-4-7",
-			"reasoningEffort": "high"
+			"modelIdentifier": "openai/gpt-oss-120b"
 		},
 		{
-			"modelIdentifier": "claude-opus-4-6",
-			"reasoningEffort": "high"
+			"modelIdentifier": "moonshotai/kimi-k3"
 		},
 		{
-			"modelIdentifier": "claude-sonnet-5",
-			"reasoningEffort": "high"
+			"modelIdentifier": "z-ai/glm-5.3"
 		},
 		{
-			"modelIdentifier": "claude-sonnet-4-6",
-			"reasoningEffort": "medium"
+			"modelIdentifier": "z-ai/glm-5.2"
 		},
 		{
-			"modelIdentifier": "claude-haiku-4-5",
-			"aliases": ["claude-haiku-4-5-20251001"],
-			"displayName": "Claude Haiku 4.5",
-			"thinkingBudgetTokens": 8192
+			"modelIdentifier": "anthropic/claude-fable-5.1"
 		},
 		{
-			"modelIdentifier": "claude-sonnet-4-5",
-			"aliases": ["claude-sonnet-4-5-20250929"],
-			"displayName": "Claude Sonnet 4.5",
-			"thinkingBudgetTokens": 8192
+			"modelIdentifier": "anthropic/claude-fable-5"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-opus-5"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-sonnet-5"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-opus-4.8"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-sonnet-4.6"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-haiku-4.5"
+		},
+		{
+			"modelIdentifier": "deepseek/deepseek-v4-flash"
+		},
+		{
+			"modelIdentifier": "deepseek/deepseek-v4-pro"
+		},
+		{
+			"modelIdentifier": "qwen/qwen3.8-max"
+		},
+		{
+			"modelIdentifier": "qwen/qwen3-coder-next"
+		}
+	],
+	"vercel": [
+		{
+			"modelIdentifier": "openai/gpt-5.6-sol"
+		},
+		{
+			"modelIdentifier": "openai/gpt-5.6-terra"
+		},
+		{
+			"modelIdentifier": "openai/gpt-5.6-luna"
+		},
+		{
+			"modelIdentifier": "openai/gpt-oss-120b"
+		},
+		{
+			"modelIdentifier": "moonshotai/kimi-k3"
+		},
+		{
+			"modelIdentifier": "zai/glm-5.3"
+		},
+		{
+			"modelIdentifier": "zai/glm-5.2"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-fable-5.1"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-fable-5"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-opus-5"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-sonnet-5"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-opus-4.8"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-sonnet-4.6"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-haiku-4.5"
+		},
+		{
+			"modelIdentifier": "deepseek/deepseek-v4-flash"
+		},
+		{
+			"modelIdentifier": "deepseek/deepseek-v4-pro"
 		}
 	]
 }

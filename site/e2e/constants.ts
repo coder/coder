@@ -2,6 +2,16 @@ import * as path from "node:path";
 
 export const coderBinary = path.join(__dirname, "./bin/coder");
 
+// The oldest client and agent versions that Coder still supports. The
+// compatibility tests download these release binaries and run them against the
+// current server. Changing either value changes which release asset the e2e
+// suite fetches, and invalidates the CI cache that stores them.
+//
+// we no longer support versions prior to Tailnet v2 API support: https://github.com/coder/coder/commit/059e533544a0268acbc8831006b2858ead2f0d8e
+export const oldestSupportedCLIVersion = "v2.8.0";
+// we no longer support versions w/o DRPC
+export const oldestSupportedAgentVersion = "v2.12.1";
+
 // Default port from the server
 export const coderPort = process.env.CODER_E2E_PORT
 	? Number(process.env.CODER_E2E_PORT)

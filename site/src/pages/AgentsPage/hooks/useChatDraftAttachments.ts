@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
+import { generateUUID } from "#/utils/random";
 import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
@@ -82,8 +83,6 @@ type UploadRegistryEntry = {
 // write storage or notify UI again.
 const activeDraftUploads = new Map<string, UploadRegistryEntry>();
 
-let fallbackClientIdCounter = 0;
-
 const isTerminalRegistryStatus = (entry: UploadRegistryEntry) =>
 	entry.status === "uploaded" || entry.status === "error";
 
@@ -93,20 +92,7 @@ const pruneTerminalRegistryEntry = (entry: UploadRegistryEntry) => {
 	}
 };
 
-const createClientId = () => {
-	const cryptoObject =
-		typeof globalThis.crypto !== "undefined" ? globalThis.crypto : undefined;
-	if (cryptoObject?.randomUUID) {
-		return cryptoObject.randomUUID();
-	}
-	if (cryptoObject?.getRandomValues) {
-		const values = new Uint32Array(2);
-		cryptoObject.getRandomValues(values);
-		return `draft-${Date.now()}-${Array.from(values, (value) => value.toString(36)).join("-")}`;
-	}
-	fallbackClientIdCounter += 1;
-	return `draft-${Date.now()}-${fallbackClientIdCounter}`;
-};
+const createClientId = () => generateUUID();
 
 const createBlobPreview = (file: File): string | undefined => {
 	if (file.type === "text/plain" || typeof URL.createObjectURL !== "function") {
@@ -884,5 +870,4 @@ export const resetChatDraftAttachmentRegistryForTest = () => {
 		notifySubscribers(entry);
 	}
 	activeDraftUploads.clear();
-	fallbackClientIdCounter = 0;
 };

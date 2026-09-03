@@ -14,9 +14,22 @@ describe("getQueuedMessageInfo", () => {
 		);
 		expect(result).toEqual({
 			displayText: "hello",
-			rawText: "hello",
 			attachmentCount: 0,
-			fileBlocks: [],
+			hookNotices: [],
+		});
+	});
+
+	it("collects hook notices without polluting the preview text", () => {
+		const result = getQueuedMessageInfo(
+			buildMessage([
+				{ type: "text", text: "hello" },
+				{ type: "hook-notice", text: "policy notice" },
+			]),
+		);
+		expect(result).toEqual({
+			displayText: "hello",
+			attachmentCount: 0,
+			hookNotices: ["policy notice"],
 		});
 	});
 
@@ -26,9 +39,8 @@ describe("getQueuedMessageInfo", () => {
 		);
 		expect(result).toEqual({
 			displayText: "line1\nline2",
-			rawText: "line1\nline2",
 			attachmentCount: 0,
-			fileBlocks: [],
+			hookNotices: [],
 		});
 	});
 
@@ -38,9 +50,8 @@ describe("getQueuedMessageInfo", () => {
 		);
 		expect(result).toEqual({
 			displayText: "[Queued message]",
-			rawText: "",
 			attachmentCount: 1,
-			fileBlocks: [{ type: "file", file_id: "a", media_type: "image/png" }],
+			hookNotices: [],
 		});
 	});
 
@@ -53,12 +64,8 @@ describe("getQueuedMessageInfo", () => {
 		);
 		expect(result).toEqual({
 			displayText: "[Queued message]",
-			rawText: "",
 			attachmentCount: 2,
-			fileBlocks: [
-				{ type: "file", file_id: "a", media_type: "image/png" },
-				{ type: "file", file_id: "b", media_type: "image/png" },
-			],
+			hookNotices: [],
 		});
 	});
 
@@ -71,9 +78,8 @@ describe("getQueuedMessageInfo", () => {
 		);
 		expect(result).toEqual({
 			displayText: "look",
-			rawText: "look",
 			attachmentCount: 1,
-			fileBlocks: [{ type: "file", file_id: "a", media_type: "image/png" }],
+			hookNotices: [],
 		});
 	});
 
@@ -81,9 +87,8 @@ describe("getQueuedMessageInfo", () => {
 		const result = getQueuedMessageInfo(buildMessage([]));
 		expect(result).toEqual({
 			displayText: "[Queued message]",
-			rawText: "",
 			attachmentCount: 0,
-			fileBlocks: [],
+			hookNotices: [],
 		});
 	});
 
@@ -93,9 +98,8 @@ describe("getQueuedMessageInfo", () => {
 		);
 		expect(result).toEqual({
 			displayText: "[Queued message]",
-			rawText: "",
 			attachmentCount: 0,
-			fileBlocks: [],
+			hookNotices: [],
 		});
 	});
 
@@ -108,9 +112,8 @@ describe("getQueuedMessageInfo", () => {
 		);
 		expect(result).toEqual({
 			displayText: "[Queued message]",
-			rawText: "",
 			attachmentCount: 1,
-			fileBlocks: [{ type: "file", file_id: "a", media_type: "image/png" }],
+			hookNotices: [],
 		});
 	});
 
@@ -123,13 +126,12 @@ describe("getQueuedMessageInfo", () => {
 		);
 		expect(result).toEqual({
 			displayText: "a b",
-			rawText: "a b",
 			attachmentCount: 0,
-			fileBlocks: [],
+			hookNotices: [],
 		});
 	});
 
-	it("preserves media_type from file parts", () => {
+	it("counts multiple file attachments alongside text", () => {
 		const result = getQueuedMessageInfo(
 			buildMessage([
 				{ type: "text", text: "check this" },
@@ -139,12 +141,8 @@ describe("getQueuedMessageInfo", () => {
 		);
 		expect(result).toEqual({
 			displayText: "check this",
-			rawText: "check this",
 			attachmentCount: 2,
-			fileBlocks: [
-				{ type: "file", file_id: "img-1", media_type: "image/png" },
-				{ type: "file", file_id: "doc-2", media_type: "application/pdf" },
-			],
+			hookNotices: [],
 		});
 	});
 });

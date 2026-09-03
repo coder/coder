@@ -3,7 +3,15 @@ package coderd
 import (
 	"net/http"
 
+	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Get OAuth2 applications.
@@ -87,6 +95,7 @@ func (api *API) oAuth2ProviderAppSecrets() http.HandlerFunc {
 // @Tags Enterprise
 // @Param app path string true "App ID"
 // @Success 200 {array} codersdk.OAuth2ProviderAppSecretFull
+// @Failure 400 {object} codersdk.Response "Public clients cannot have secrets"
 // @Router /api/v2/oauth2-provider/apps/{app}/secrets [post]
 func (api *API) postOAuth2ProviderAppSecret() http.HandlerFunc {
 	return oauth2provider.CreateAppSecret(api.Database, api.Auditor.Load(), api.Logger)
@@ -112,11 +121,12 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Param state query string true "A random unguessable string"
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
-// @Param scope query string false "Token scopes (currently ignored)"
+// @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
 // @Success 200 "Returns HTML authorization page"
+// @Success 302 "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
 // @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return oauth2provider.ShowAuthorizePage(api.AccessURL)
+	return oauth2provider.ShowAuthorizePage(api.AccessURL, api.Logger)
 }
 
 // @Summary OAuth2 authorization request (POST - process authorization).
@@ -127,11 +137,11 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param state query string true "A random unguessable string"
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
-// @Param scope query string false "Token scopes (currently ignored)"
-// @Success 302 "Returns redirect with authorization code"
+// @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
+// @Success 302 "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return oauth2provider.ProcessAuthorize(api.Database)
+	return oauth2provider.ProcessAuthorize(api.Database, api.Logger)
 }
 
 // @Summary OAuth2 token exchange.
@@ -139,11 +149,12 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Produce json
 // @Tags Enterprise
 // @Param client_id formData string false "Client ID, required if grant_type=authorization_code"
-// @Param client_secret formData string false "Client secret, required if grant_type=authorization_code"
+// @Param client_secret formData string false "Client secret, required if grant_type=authorization_code and the client is confidential. Public clients (token_endpoint_auth_method=none) send no secret."
 // @Param code formData string false "Authorization code, required if grant_type=authorization_code"
+// @Param code_verifier formData string false "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636."
 // @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
-// @Success 200 {object} oauth2.Token
+// @Success 200 {object} codersdk.OAuth2TokenResponse
 // @Router /oauth2/tokens [post]
 func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 	return oauth2provider.Tokens(api.Database, api.DeploymentValues.Sessions)
@@ -180,7 +191,7 @@ func (api *API) revokeOAuth2Token() http.HandlerFunc {
 // @Success 200 {object} codersdk.OAuth2AuthorizationServerMetadata
 // @Router /.well-known/oauth-authorization-server [get]
 func (api *API) oauth2AuthorizationServerMetadata() http.HandlerFunc {
-	return oauth2provider.GetAuthorizationServerMetadata(api.AccessURL)
+	return oauth2provider.GetAuthorizationServerMetadata(api.Database, api.AccessURL)
 }
 
 // @Summary OAuth2 protected resource metadata.
@@ -203,6 +214,94 @@ func (api *API) oauth2ProtectedResourceMetadata() http.HandlerFunc {
 // @Router /oauth2/register [post]
 func (api *API) postOAuth2ClientRegistration() http.HandlerFunc {
 	return oauth2provider.CreateDynamicClientRegistration(api.Database, api.AccessURL, api.Auditor.Load(), api.Logger)
+}
+
+// @Summary Get OAuth2 provider settings.
+// @ID get-oauth2-provider-settings
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.OAuth2ProviderSettings
+// @Router /api/v2/oauth2-provider/settings [get]
+func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	enabled, err := api.Database.GetOAuth2DCREnabled(ctx)
+	if err != nil {
+		if rbac.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderSettings{
+		DynamicClientRegistrationEnabled: ptr.Ref(enabled),
+	})
+}
+
+// @Summary Update OAuth2 provider settings.
+// @ID update-oauth2-provider-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param request body codersdk.OAuth2ProviderSettings true "OAuth2 provider settings request"
+// @Success 200 {object} codersdk.OAuth2ProviderSettings
+// @Router /api/v2/oauth2-provider/settings [put]
+func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req codersdk.OAuth2ProviderSettings
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.OAuth2ProviderSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
+	var resolvedEnabled bool
+	err := api.Database.InTx(func(tx database.Store) error {
+		oldEnabled, err := tx.GetOAuth2DCREnabled(ctx)
+		if err != nil {
+			return err
+		}
+		aReq.Old = database.OAuth2ProviderSettings{
+			DynamicClientRegistrationEnabled: oldEnabled,
+		}
+
+		// A nil field means the caller omitted it, leave the current value
+		// alone rather than overwrite it with a decoded zero value. This
+		// matters once a second field lands in this struct: an older client
+		// that only knows about this field must not silently clear a newer
+		// one it never sent.
+		resolvedEnabled = oldEnabled
+		if req.DynamicClientRegistrationEnabled != nil {
+			resolvedEnabled = *req.DynamicClientRegistrationEnabled
+			if err := tx.UpsertOAuth2DCREnabled(ctx, resolvedEnabled); err != nil {
+				return err
+			}
+		}
+		aReq.New = database.OAuth2ProviderSettings{
+			ID:                               uuid.New(),
+			DynamicClientRegistrationEnabled: resolvedEnabled,
+		}
+		return nil
+	}, &database.TxOptions{TxIdentifier: "update_oauth2_provider_settings"})
+	if err != nil {
+		if rbac.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderSettings{
+		DynamicClientRegistrationEnabled: ptr.Ref(resolvedEnabled),
+	})
 }
 
 // @Summary Get OAuth2 client configuration (RFC 7592)

@@ -9,7 +9,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -21,6 +20,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		provisionerTags      []string
 		variablesFile        string
 		commandLineVariables []string
+		agentsAllowed        bool
 		disableEveryone      bool
 		requireActiveVersion bool
 
@@ -153,12 +153,13 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			createReq := codersdk.CreateTemplateRequest{
 				Name:                           templateName,
 				VersionID:                      job.ID,
-				DefaultTTLMillis:               ptr.Ref(defaultTTL.Milliseconds()),
-				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
-				TimeTilDormantMillis:           ptr.Ref(dormancyThreshold.Milliseconds()),
-				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormancyAutoDeletion.Milliseconds()),
+				DefaultTTLMillis:               new(defaultTTL.Milliseconds()),
+				FailureTTLMillis:               new(failureTTL.Milliseconds()),
+				TimeTilDormantMillis:           new(dormancyThreshold.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: new(dormancyAutoDeletion.Milliseconds()),
 				DisableEveryoneGroupAccess:     disableEveryone,
 				RequireActiveVersion:           requireActiveVersion,
+				AgentsAllowed:                  &agentsAllowed,
 			}
 
 			template, err := client.CreateTemplate(inv.Context(), organization.ID, createReq)
@@ -179,6 +180,12 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		},
 	}
 	cmd.Options = serpent.OptionSet{
+		{
+			Flag:        "agents-allowed",
+			Description: "Allow Coder Agents to create workspaces using this template.",
+			Default:     "true",
+			Value:       serpent.BoolOf(&agentsAllowed),
+		},
 		{
 			Flag: "private",
 			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +

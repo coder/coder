@@ -1,6 +1,6 @@
 import { saveAs } from "file-saver";
 import { ChevronDownIcon, DownloadIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -49,6 +49,17 @@ const getDurationLabel = (startedAt: string, finishedAt?: string): string => {
 	return durationMs !== null ? compactDuration(durationMs) : "-";
 };
 
+const getMCPOutcomeBadgeVariant = (outcome: string) => {
+	switch (outcome) {
+		case "connected":
+			return "green";
+		case "no_tools":
+			return "default";
+		default:
+			return "destructive";
+	}
+};
+
 export const DebugRunCard: FC<DebugRunCardProps> = ({
 	run,
 	chatId,
@@ -57,6 +68,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 }) => {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [isExporting, setIsExporting] = useState(false);
+	const mcpConnectHeadingId = useId();
 	const runDetailQuery = useQuery({
 		...chatDebugRun(chatId, run.id),
 		enabled: isVisible && isExpanded,
@@ -85,7 +97,16 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 	// Step count from detail or summary.
 	const stepCount = steps.length > 0 ? steps.length : summaryVm.stepCount;
 	const durationLabel = getDurationLabel(run.started_at, run.finished_at);
+	// Non-chat-turn runs (title generation, quickgen, compaction)
+	// usually carry a first_message label that hides the kind, so
+	// surface the kind in the metadata; otherwise a failed title
+	// generation is indistinguishable from a failed chat turn.
+	const kindLabel =
+		run.kind !== "chat_turn" && summaryVm.primaryLabel.trim()
+			? getRunKindLabel(run.kind)
+			: undefined;
 	const metadataItems = [
+		kindLabel,
 		modelLabel || undefined,
 		stepCount !== undefined && stepCount > 0
 			? `${stepCount} ${stepCount === 1 ? "step" : "steps"}`
@@ -199,6 +220,65 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 										)}
 									</p>
 								</Alert>
+							) : null}
+							{summaryVm.mcpConnect.length > 0 ? (
+								<section
+									aria-labelledby={mcpConnectHeadingId}
+									className="rounded-md border border-solid border-border-default/40 px-2.5 py-1.5"
+								>
+									<h4
+										id={mcpConnectHeadingId}
+										className="m-0 text-xs font-medium text-content-secondary"
+									>
+										MCP server connections
+									</h4>
+									<ul className="m-0 list-none space-y-1 p-0 pt-1.5">
+										{summaryVm.mcpConnect.map((server, index) => (
+											<li
+												key={`${server.slug}-${index}`}
+												className="flex min-w-0 items-center gap-2 text-xs"
+											>
+												<span className="shrink-0 font-medium text-content-primary">
+													{server.slug}
+												</span>
+												<Badge
+													size="sm"
+													variant={getMCPOutcomeBadgeVariant(server.outcome)}
+													className="shrink-0"
+												>
+													{server.outcome}
+												</Badge>
+												{server.durationMs !== undefined ? (
+													<span className="shrink-0 text-content-secondary">
+														{compactDuration(server.durationMs)}
+													</span>
+												) : null}
+												{server.toolCount !== undefined &&
+												server.toolCount > 0 ? (
+													<span className="shrink-0 text-content-secondary">
+														{server.toolCount}{" "}
+														{server.toolCount === 1 ? "tool" : "tools"}
+													</span>
+												) : null}
+												{server.error ? (
+													<span
+														className="min-w-0 truncate text-content-secondary"
+														title={server.error}
+													>
+														{server.error}
+													</span>
+												) : null}
+											</li>
+										))}
+									</ul>
+									{summaryVm.mcpConnectDropped > 0 ? (
+										<p className="m-0 pt-1.5 text-xs text-content-secondary">
+											{summaryVm.mcpConnectDropped} earlier connection{" "}
+											{summaryVm.mcpConnectDropped === 1 ? "sample" : "samples"}{" "}
+											omitted
+										</p>
+									) : null}
+								</section>
 							) : null}
 							{steps.map((step) => (
 								<DebugStepCard key={step.id} step={step} defaultOpen={false} />

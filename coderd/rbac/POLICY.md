@@ -68,6 +68,30 @@ Each of these checks gets a "vote", which must one of three values:
 If a level abstains, then the decision gets deferred to the next level. When
 there is no "next" level to defer to it is equivalent to being denied.
 
+### Known-org asymmetry (org and org_member levels)
+
+The org and org_member levels are evaluated differently depending on whether
+the object's org id is known.
+
+When the org id is unknown (partial evaluation, e.g. filtering a list), the org
+id must be kept out of comprehensions and must not be branched on (see "Unknown
+values" below). To satisfy that, the known-org path tests the object's org id
+for membership in a set of allowed org ids instead of looking up its vote:
+
+- The org level (`check_org_permissions`, known-org clause) only ever votes
+  `1` (allow) or abstains; it never votes `-1` for a known org. The
+  `not org = -1` / `not scope_org = -1` gates in the allow rules are therefore
+  no-ops for a known org and only block in the `any_org` case.
+- Org-level deny is instead folded into the org_member level as a ground set
+  difference (`member_allow - org_deny`), so an org-level deny still blocks a
+  member-level allow.
+
+The `any_org` path ("can the subject do this in any org?") still uses the full
+`-1`/`0`/`1` vote (the `max` over the vote map), because there is no specific
+object org id to be unknown. So do not assume `org == -1` signals an org-level
+deny for a known org; reconstruct it from `org_ids_with_vote(role_org_votes, -1)`
+if you need it.
+
 ### Scope
 Additionally, each input has a "scope" that can be thought of as a second set of permissions, where each permission belongs to one of the four levels–exactly the same as role permissions. An action is only allowed if it is allowed by both the subject's permissions _and_ their current scope. This is to allow issuing tokens for a subject that have a subset of the full subjects permissions.
 

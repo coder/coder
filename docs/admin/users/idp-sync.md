@@ -1,6 +1,8 @@
-<!-- markdownlint-disable MD024 -->
-# IdP Sync
+---
+title: IdP Sync
+---
 
+<!-- markdownlint-disable MD024 -->
 > [!NOTE]
 > IdP sync is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
@@ -206,7 +208,7 @@ You can limit which groups from your identity provider can log in to Coder with
 [CODER_OIDC_ALLOWED_GROUPS](../../reference/cli/server.md#--oidc-allowed-groups).
 Users who are not in a matching group will see the following error:
 
-<Image height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
+<img height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
 
 ## Role Sync
 
@@ -241,7 +243,7 @@ role sync at the organization level.
 1. Confirm you have the [Coder CLI](../../install/index.md) installed and are
    logged in with a user who is an Owner or has an Organization Admin role.
 
-1. To fetch the current group sync settings for an organization, run the
+1. To fetch the current role sync settings for an organization, run the
    following:
 
    ```sh
@@ -388,7 +390,7 @@ settings, a user's memberships will update when they log out and log back in.
             "cbdcf774-4123-4118-8cd9-b3f502c84dfb"
          ],
          "sales": [
-            "d79144d9-b30a-555a-9af8-7dac83b2q4ec",
+            "d79144d9-b30a-555a-9af8-7dac83b2q4ec"
          ]
       },
       "organization_assign_default": true
@@ -574,6 +576,8 @@ Steps to troubleshoot.
    - (Optional) If using Group Sync, send the required groups in the configured
      groups claim field.
      Use [this answer from Stack Overflow](https://stackoverflow.com/a/55570286) for an example.
+
+</div>
 
 ## Next Steps
 

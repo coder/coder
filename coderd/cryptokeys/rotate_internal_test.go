@@ -513,7 +513,7 @@ func Test_rotateKeys(t *testing.T) {
 
 		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 5)
+		require.Len(t, keys, 6)
 
 		kbf := keysByFeature(keys, defaultRotatedFeatures)
 
@@ -525,13 +525,16 @@ func Test_rotateKeys(t *testing.T) {
 		// caused a key to be inserted.
 		require.Len(t, kbf[database.CryptoKeyFeatureTailnetResume], 1)
 		require.Len(t, kbf[database.CryptoKeyFeatureWorkspaceAppsToken], 1)
+		require.Len(t, kbf[database.CryptoKeyFeatureChatFilesToken], 1)
 
 		oidcKey := kbf[database.CryptoKeyFeatureOIDCConvert][0]
 		tailnetKey := kbf[database.CryptoKeyFeatureTailnetResume][0]
 		appTokenKey := kbf[database.CryptoKeyFeatureWorkspaceAppsToken][0]
+		chatFileTokenKey := kbf[database.CryptoKeyFeatureChatFilesToken][0]
 		requireKey(t, oidcKey, database.CryptoKeyFeatureOIDCConvert, now, nullTime, validKey.Sequence)
 		requireKey(t, tailnetKey, database.CryptoKeyFeatureTailnetResume, now, nullTime, deletedKey.Sequence+1)
 		requireKey(t, appTokenKey, database.CryptoKeyFeatureWorkspaceAppsToken, now, nullTime, 1)
+		requireKey(t, chatFileTokenKey, database.CryptoKeyFeatureChatFilesToken, now, nullTime, 1)
 		newKey := kbf[database.CryptoKeyFeatureWorkspaceAppsAPIKey][0]
 		oldKey := kbf[database.CryptoKeyFeatureWorkspaceAppsAPIKey][1]
 		if newKey.Sequence == rotatedKey.Sequence {
@@ -704,6 +707,8 @@ func requireKey(t *testing.T, key database.CryptoKey, feature database.CryptoKey
 
 	switch key.Feature {
 	case database.CryptoKeyFeatureOIDCConvert:
+		require.Len(t, secret, 64)
+	case database.CryptoKeyFeatureChatFilesToken:
 		require.Len(t, secret, 64)
 	case database.CryptoKeyFeatureWorkspaceAppsToken:
 		require.Len(t, secret, 64)

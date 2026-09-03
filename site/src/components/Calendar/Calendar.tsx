@@ -56,31 +56,31 @@ function Calendar({
 					defaultClassNames.nav,
 				),
 				button_previous: cn(
-					"h-[--cell-size] w-[--cell-size] select-none p-0",
+					"h-(--cell-size) w-(--cell-size) select-none p-0",
 					"inline-flex items-center justify-center rounded-md",
 					"bg-transparent border-0 cursor-pointer",
 					"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-					"aria-disabled:opacity-50",
+					"aria-disabled:opacity-50 aria-disabled:pointer-events-none",
 					defaultClassNames.button_previous,
 				),
 				button_next: cn(
-					"h-[--cell-size] w-[--cell-size] select-none p-0",
+					"h-(--cell-size) w-(--cell-size) select-none p-0",
 					"inline-flex items-center justify-center rounded-md",
 					"bg-transparent border-0 cursor-pointer",
 					"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-					"aria-disabled:opacity-50",
+					"aria-disabled:opacity-50 aria-disabled:pointer-events-none",
 					defaultClassNames.button_next,
 				),
 				month_caption: cn(
-					"flex h-[--cell-size] w-full items-center justify-center px-[--cell-size]",
+					"flex h-(--cell-size) w-full items-center justify-center px-(--cell-size)",
 					defaultClassNames.month_caption,
 				),
 				dropdowns: cn(
-					"flex h-[--cell-size] w-full items-center justify-center gap-1.5 text-sm font-medium",
+					"flex h-(--cell-size) w-full items-center justify-center gap-1.5 text-sm font-medium",
 					defaultClassNames.dropdowns,
 				),
 				dropdown_root: cn(
-					"has-focus:border-content-link border-border-default relative rounded-md border",
+					"border-border-default relative rounded-md border",
 					defaultClassNames.dropdown_root,
 				),
 				dropdown: cn(
@@ -100,7 +100,7 @@ function Calendar({
 				),
 				week: cn("mt-2 flex w-full", defaultClassNames.week),
 				week_number_header: cn(
-					"w-[--cell-size] select-none",
+					"w-(--cell-size) select-none",
 					defaultClassNames.week_number_header,
 				),
 				week_number: cn(
@@ -152,7 +152,7 @@ function Calendar({
 				DayButton: CalendarDayButton,
 				WeekNumber: ({ children, ...weekProps }) => (
 					<td {...weekProps}>
-						<div className="flex size-[--cell-size] items-center justify-center text-center">
+						<div className="flex size-(--cell-size) items-center justify-center text-center">
 							{children}
 						</div>
 					</td>
@@ -187,7 +187,7 @@ function CalendarDayButton({
 			data-range-end={modifiers.range_end}
 			data-range-middle={modifiers.range_middle}
 			className={cn(
-				"flex aspect-square h-auto w-full min-w-[--cell-size] flex-col gap-1 font-normal leading-none",
+				"flex aspect-square h-auto w-full min-w-(--cell-size) flex-col gap-1 font-normal leading-none",
 				"data-[selected-single=true]:bg-surface-invert-primary data-[selected-single=true]:text-content-invert",
 				"data-[range-middle=true]:bg-surface-tertiary data-[range-middle=true]:text-content-primary",
 				"data-[range-start=true]:bg-surface-invert-primary data-[range-start=true]:text-content-invert",

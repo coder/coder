@@ -1,7 +1,9 @@
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type {
+	AgentFirewallLog,
 	AIBridgeAgenticAction,
+	AIBridgeSessionNetworkCallSummary,
 	AIBridgeThread,
 	MinimalUser,
 } from "#/api/typesGenerated";
@@ -21,6 +23,7 @@ import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { AgenticLoopTable } from "./AgenticLoopTable";
+import { NetworkCallsTable } from "./NetworkCallsTable";
 import { PromptTable } from "./PromptTable";
 import { ToolCallTable } from "./ToolCallTable";
 
@@ -75,14 +78,13 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 				<div
 					className={cn(
 						"flex justify-end mt-1 absolute bottom-0 right-0 left-0",
-						!isExpanded &&
-							"bg-gradient-to-t from-surface-primary to-transparent",
+						!isExpanded && "bg-linear-to-t from-surface-primary to-transparent",
 					)}
 				>
 					<Button
 						size="sm"
 						variant="outline"
-						className="bg-surface-primary shadow-sm"
+						className="bg-surface-primary shadow-xs"
 						onClick={() => setIsExpanded((v) => !v)}
 					>
 						{isExpanded ? "Collapse" : "Show more"}
@@ -290,7 +292,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 						src={initiator.avatar_url}
 						fallback={initiator.name ?? initiator.username}
 						size="sm"
-						className="flex-shrink-0"
+						className="shrink-0"
 					/>
 					<span className="text-sm text-content-secondary font-normal py-1">
 						{initiator.username}
@@ -340,7 +342,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				</div>
 				{/* right column: details */}
 				<PromptTable
-					className="lg:max-w-64 flex-shrink-0 w-full lg:w-auto"
+					className="lg:max-w-64 shrink-0 w-full lg:w-auto"
 					timestamp={new Date(thread.started_at)}
 					model={thread.model}
 					inputTokens={thread.token_usage.input_tokens}
@@ -408,6 +410,12 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 interface SessionTimelineProps {
 	initiator: MinimalUser;
 	threads: readonly AIBridgeThread[];
+	/**
+	 * Undefined when the session did not pass through Agent Firewall, in which
+	 * case the network calls panel is not rendered.
+	 */
+	networkCallSummary?: AIBridgeSessionNetworkCallSummary;
+	networkCalls: readonly AgentFirewallLog[];
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 	onFetchNextPage: () => void;
@@ -416,6 +424,8 @@ interface SessionTimelineProps {
 export const SessionTimeline: FC<SessionTimelineProps> = ({
 	initiator,
 	threads,
+	networkCallSummary,
+	networkCalls,
 	hasNextPage,
 	isFetchingNextPage,
 	onFetchNextPage,
@@ -524,6 +534,14 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* left vertical line */}
 				</div>
 				<div className="row-start-5 col-start-2 col-span-4">
+					{networkCallSummary && (
+						<div className="mb-4">
+							<NetworkCallsTable
+								summary={networkCallSummary}
+								calls={networkCalls}
+							/>
+						</div>
+					)}
 					{/* threads */}
 					<div className="[&>.thread-gap:last-child]:hidden">
 						{threads.map((thread) => (

@@ -973,3 +973,128 @@ func TestEscapePathPreserveSlashes(t *testing.T) {
 	got := gp.BuildBranchURL("owner", "repo", "feat/my thing")
 	assert.Equal(t, "https://github.com/owner/repo/tree/feat/my%20thing", got)
 }
+
+func TestConditionalRequestReuse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NotModifiedReusesCachedBody", func(t *testing.T) {
+		t.Parallel()
+
+		const etag = `"abc123etag"`
+		var srvURL string
+		var requests int
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests++
+			// After the first response, the provider must revalidate
+			// with the ETag we handed out.
+			if inm := r.Header.Get("If-None-Match"); inm != "" {
+				assert.Equal(t, etag, inm)
+				w.Header().Set("ETag", etag)
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+			htmlURL := fmt.Sprintf("https://%s/owner/repo/pull/42",
+				strings.TrimPrefix(strings.TrimPrefix(srvURL, "http://"), "https://"))
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("ETag", etag)
+			_, _ = w.Write([]byte(fmt.Sprintf(`[{"html_url":%q,"number":42}]`, htmlURL)))
+		}))
+		defer srv.Close()
+		srvURL = srv.URL
+
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+		require.NotNil(t, gp)
+
+		branch := gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"}
+
+		// Cold fetch: 200 + full body, populates the cache.
+		first, err := gp.ResolveBranchPullRequest(context.Background(), "test-token", branch)
+		require.NoError(t, err)
+		require.NotNil(t, first)
+		assert.Equal(t, 42, first.Number)
+
+		// Warm fetch: server returns 304, provider reuses the cached
+		// body and yields the same result.
+		second, err := gp.ResolveBranchPullRequest(context.Background(), "test-token", branch)
+		require.NoError(t, err)
+		require.NotNil(t, second)
+		assert.Equal(t, 42, second.Number)
+		assert.Equal(t, first.Owner, second.Owner)
+		assert.Equal(t, first.Repo, second.Repo)
+
+		assert.Equal(t, 2, requests, "expected exactly two upstream requests")
+	})
+
+	t.Run("DifferentTokenDoesNotShareCache", func(t *testing.T) {
+		t.Parallel()
+
+		var srvURL string
+		var conditionalRequests int
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("If-None-Match") != "" {
+				conditionalRequests++
+			}
+			htmlURL := fmt.Sprintf("https://%s/owner/repo/pull/7",
+				strings.TrimPrefix(strings.TrimPrefix(srvURL, "http://"), "https://"))
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("ETag", `"tok-etag"`)
+			_, _ = w.Write([]byte(fmt.Sprintf(`[{"html_url":%q,"number":7}]`, htmlURL)))
+		}))
+		defer srv.Close()
+		srvURL = srv.URL
+
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+		require.NotNil(t, gp)
+
+		branch := gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"}
+
+		_, err = gp.ResolveBranchPullRequest(context.Background(), "token-a", branch)
+		require.NoError(t, err)
+		// A different token must not reuse token-a's cached ETag.
+		_, err = gp.ResolveBranchPullRequest(context.Background(), "token-b", branch)
+		require.NoError(t, err)
+
+		assert.Equal(t, 0, conditionalRequests,
+			"a different token must not send If-None-Match from another token's cache")
+	})
+
+	t.Run("MalformedResponseNotCached", func(t *testing.T) {
+		t.Parallel()
+
+		const etag = `"poison-etag"`
+		var conditionalRequests int
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("If-None-Match") != "" {
+				conditionalRequests++
+				w.Header().Set("ETag", etag)
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("ETag", etag)
+			// A body that cannot be decoded as a pull request list.
+			_, _ = w.Write([]byte(`<html>proxy error</html>`))
+		}))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+		require.NotNil(t, gp)
+
+		branch := gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"}
+
+		_, err = gp.ResolveBranchPullRequest(context.Background(), "test-token", branch)
+		require.Error(t, err)
+
+		_, err = gp.ResolveBranchPullRequest(context.Background(), "test-token", branch)
+		require.Error(t, err)
+
+		assert.Equal(t, 0, conditionalRequests,
+			"a body that failed to decode must not be cached with its ETag")
+	})
+}

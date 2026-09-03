@@ -1,4 +1,6 @@
-# Agent Firewall
+---
+title: Agent Firewall
+---
 
 Agent Firewall is a process-level firewall that restricts and audits what
 autonomous programs, such as AI agents, can access and use.
@@ -7,9 +9,8 @@ autonomous programs, such as AI agents, can access and use.
 of Agent Firewall blocking a process.
 
 > [!NOTE]
-> Agent Firewall requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access Agent Firewall.
+> Agent Firewall is part of [AI Governance](../ai-governance.md), which is
+> included with a Premium license.
 >
 > Agent Firewall was previously known as "Agent Boundaries". Some
 > configuration options and internal references still use the old name

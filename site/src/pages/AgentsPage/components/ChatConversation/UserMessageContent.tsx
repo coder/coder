@@ -61,14 +61,12 @@ export const UserMessageContent: FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
 	isEditing?: boolean;
-	fadeFromBottom?: boolean;
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 }> = ({
 	displayState,
 	markdown,
 	isEditing = false,
-	fadeFromBottom = false,
 	onImageClick,
 	onTextFileClick,
 }) => {
@@ -76,14 +74,10 @@ export const UserMessageContent: FC<{
 		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
 				className={cn(
-					"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
+					"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-xs transition-shadow",
 					isEditing &&
 						"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-					fadeFromBottom && "relative overflow-hidden",
 				)}
-				style={
-					fadeFromBottom ? { maxHeight: "var(--clip-h, none)" } : undefined
-				}
 			>
 				<div className="flex flex-col gap-1.5">
 					{(displayState.hasUserMessageBody || displayState.hasFileBlocks) && (
@@ -114,16 +108,6 @@ export const UserMessageContent: FC<{
 								/>
 							))}
 						</div>
-					)}
-					{fadeFromBottom && (
-						<div
-							className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
-							style={{
-								opacity: "var(--fade-opacity, 0)",
-								background:
-									"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
-							}}
-						/>
 					)}
 				</div>
 			</MessageContent>

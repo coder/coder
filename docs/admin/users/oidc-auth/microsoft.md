@@ -12,12 +12,12 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 1. Open Microsoft Azure Portal (https://portal.azure.com) → Microsoft Entra ID → App Registrations → New Registration
 2. Name: Name your application appropriately
 3. Supported Account Types: Choose the appropriate radio button according to your needs. Most organizations will want to use the first one labeled "Accounts in this organizational directory only"
-4. Click on "Register"
+4. Select "Register"
 5. On the next screen, select: "Certificates and Secrets"
-6. Click on "New Client Secret" and under description, enter an appropriate description. Then set an expiry and hit "Add" once it's created, copy the value and save it somewhere secure for the next step
-7. Next, click on the tab labeled "Token Configuration", then click "Add optional claim" and select the "ID" radio button, and finally check "upn" and hit "add" at the bottom
-8. Then, click on the button labeled "Add groups claim" and check "Security groups" and click "Save" at the bottom
-9. Now, click on the tab labeled "Authentication" and click on "Add a platform", select "Web" and for the redirect URI enter your Coder callback URL, and then hit "Configure" at the bottom:
+6. Select "New Client Secret" and under description, enter an appropriate description. Then set an expiry and hit "Add" once it's created, copy the value and save it somewhere secure for the next step
+7. Next, select the tab labeled "Token Configuration", then select "Add optional claim" and select the "ID" radio button, and finally check "upn" and hit "add" at the bottom
+8. Then, select the button labeled "Add groups claim" and check "Security groups" and select "Save" at the bottom
+9. Now, select the tab labeled "Authentication" and select "Add a platform", select "Web" and for the redirect URI enter your Coder callback URL, and then hit "Configure" at the bottom:
    - `https://coder.example.com/api/v2/users/oidc/callback`
 
 ## Step 2: Configure Coder OIDC for Microsoft Entra ID

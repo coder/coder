@@ -7,12 +7,14 @@ import (
 	"strings"
 	"time"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/provisionerkey"
+	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -196,9 +198,7 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	provisionerKey := httpmw.ProvisionerKeyParam(r)
 
-	if provisionerKey.ID.String() == codersdk.ProvisionerKeyIDBuiltIn ||
-		provisionerKey.ID.String() == codersdk.ProvisionerKeyIDUserAuth ||
-		provisionerKey.ID.String() == codersdk.ProvisionerKeyIDPSK {
+	if codersdk.IsReservedProvisionerKey(provisionerKey.ID) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Cannot delete reserved '%s' provisioner key", provisionerKey.Name),
 		})
@@ -209,6 +209,13 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
+	}
+
+	// Notify subscribers that this key was deleted so active sessions tear down.
+	// Publishing is best effort; a failure does not leave the key usable.
+	if err := api.Pubsub.Publish(pubsub.ProvisionerKeyDeletedChannel(provisionerKey.ID), nil); err != nil {
+		api.Logger.Warn(ctx, "failed to publish provisioner key deletion",
+			slog.F("provisioner_key_id", provisionerKey.ID), slog.Error(err))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)

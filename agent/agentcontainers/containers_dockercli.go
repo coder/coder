@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers/dcspec"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -191,7 +190,7 @@ func devcontainerEnv(ctx context.Context, execer agentexec.Execer, container str
 				// devcontainer-cli will set this to the string "null" if the value is
 				// not set. Explicitly setting to an empty string here as this would be
 				// more expected here.
-				v = ptr.Ref("")
+				v = new("")
 			}
 			env = append(env, fmt.Sprintf("%s=%s", k, *v))
 		}

@@ -1,0 +1,29 @@
+package httpmw
+
+import "net/http"
+
+// NoStore sets the response caching headers that OAuth2 requires on any
+// response that may contain a credential. RFC 6749 §5.1 makes both headers a
+// MUST for the authorization server; OAuth 2.1 §3.2.3 keeps only no-store,
+// because RFC 9111 §5.4 deprecates Pragma as a request-only field. Both are
+// sent so that a client or auditor reading either specification sees a
+// conformant response.
+//
+// The headers are set before the wrapped handler runs, so a handler that
+// writes its own Cache-Control would win. None does today; the integration
+// tests pin that across the /oauth2 tree and spot-check
+// /api/v2/oauth2-provider. Pragma is written unconditionally, so such a
+// handler's Cache-Control ships alongside Pragma: no-cache.
+//
+// chi's middleware.NoCache is not used, though that package is already
+// imported at the mount site. It strips the ETag-family headers from the
+// request, which an authorization server has no business doing, and it sends
+// directives neither specification asks for, where OAuth 2.1 narrows the
+// requirement rather than widening it.
+func NoStore(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Cache-Control", "no-store")
+		rw.Header().Set("Pragma", "no-cache")
+		next.ServeHTTP(rw, r)
+	})
+}

@@ -73,7 +73,7 @@ const meta: Meta<typeof AdminSettingsSidebarView> = {
 	parameters: { reactRouter: routing("/deployment/overview") },
 	args: {
 		permissions: MockPermissions,
-		hasPremiumLicense: false,
+		hidePremiumTab: false,
 		experiments: [],
 		buildInfo: MockBuildInfo,
 		canViewOrganizations: true,
@@ -83,6 +83,8 @@ const meta: Meta<typeof AdminSettingsSidebarView> = {
 		canViewAuditLog: true,
 		canViewConnectionLog: true,
 		canViewAIBridge: true,
+		canAccessOrganizationModels: false,
+		canShareOrganizationMCPServers: false,
 	},
 };
 

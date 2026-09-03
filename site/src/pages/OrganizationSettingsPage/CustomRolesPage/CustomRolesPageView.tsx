@@ -2,7 +2,7 @@ import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { AssignableRoles, Organization, Role } from "#/api/typesGenerated";
-import { PremiumBadge } from "#/components/Badges/Badges";
+import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -10,8 +10,11 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
@@ -21,11 +24,13 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
-import { docs } from "#/utils/docs";
+import { PremiumPaywallSmall } from "#/modules/paywall/PremiumPaywallSmall";
+import type { Permissions } from "#/modules/permissions";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
 
@@ -39,7 +44,7 @@ interface CustomRolesPageViewProps {
 	canDeleteOrgRole: boolean;
 	canEditDefaultRoles: boolean;
 	isCustomRolesEnabled: boolean;
-	defaultRolesEnabled?: boolean;
+	permissions: Permissions;
 	defaultRolesEntitled?: boolean;
 	availableOrgRoles?: AssignableRoles[];
 	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
@@ -56,73 +61,89 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	canDeleteOrgRole,
 	canEditDefaultRoles,
 	isCustomRolesEnabled,
-	defaultRolesEnabled,
+	permissions,
 	defaultRolesEntitled,
 	availableOrgRoles,
 	onUpdateDefaultRoles,
 	isUpdatingDefaultRoles,
 }) => {
-	const showDefaultRoles =
-		defaultRolesEnabled && canEditDefaultRoles && Boolean(onUpdateDefaultRoles);
-
 	return (
-		<div className="flex flex-col gap-8">
+		<div className="flex flex-col gap-12">
 			{!isCustomRolesEnabled && (
-				<PaywallPremium
+				<PremiumPaywallSmall
+					source="custom_roles"
 					message="Custom Roles"
-					description="Create custom roles to grant users a tailored set of granular permissions."
-					documentationLink={docs("/admin/users/groups-roles")}
+					description="Build roles with the exact permissions your team needs."
+					features={[
+						"Configure roles per organization",
+						"Go beyond the built-in role set",
+						"Assign custom roles to any user",
+					]}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
-			{showDefaultRoles && onUpdateDefaultRoles && (
+			{onUpdateDefaultRoles && (
 				<DefaultRolesSection
 					organization={organization}
 					availableOrgRoles={availableOrgRoles}
+					canEditDefaultRoles={canEditDefaultRoles}
 					defaultRolesEntitled={Boolean(defaultRolesEntitled)}
 					isUpdatingDefaultRoles={Boolean(isUpdatingDefaultRoles)}
 					onUpdateDefaultRoles={onUpdateDefaultRoles}
 				/>
 			)}
-			<div className="flex flex-row gap-4 items-baseline justify-between">
-				<span>
-					<h2 className="mb-0 text-lg">Custom Roles</h2>
-					<span className="text-sm text-content-secondary leading-relaxed">
+			<div>
+				<SettingsHeader
+					actions={
+						canCreateOrgRole &&
+						isCustomRolesEnabled && (
+							<Button variant="outline" asChild>
+								<RouterLink to="create">
+									<PlusIcon />
+									Create custom role
+								</RouterLink>
+							</Button>
+						)
+					}
+				>
+					<SettingsHeaderTitle level="h2" hierarchy="secondary">
+						Custom Roles
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
 						Create custom roles to grant users a tailored set of granular
 						permissions.
-					</span>
-				</span>
-				{canCreateOrgRole && isCustomRolesEnabled && (
-					<Button variant="outline" asChild>
-						<RouterLink to="create">
-							<PlusIcon />
-							Create custom role
-						</RouterLink>
-					</Button>
-				)}
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+				<RoleTable
+					roles={customRoles}
+					isCustomRolesEnabled={isCustomRolesEnabled}
+					canCreateOrgRole={canCreateOrgRole}
+					canUpdateOrgRole={canUpdateOrgRole}
+					canDeleteOrgRole={canDeleteOrgRole}
+					onDeleteRole={onDeleteRole}
+					aria-label="Custom roles"
+				/>
 			</div>
-			<RoleTable
-				roles={customRoles}
-				isCustomRolesEnabled={isCustomRolesEnabled}
-				canCreateOrgRole={canCreateOrgRole}
-				canUpdateOrgRole={canUpdateOrgRole}
-				canDeleteOrgRole={canDeleteOrgRole}
-				onDeleteRole={onDeleteRole}
-			/>
-			<span>
-				<h2 className="mb-0 text-lg">Built-In Roles</h2>
-				<span className="text-sm text-content-secondary leading-relaxed">
-					Built-in roles have predefined permissions. You cannot edit or delete
-					built-in roles.
-				</span>
-			</span>
-			<RoleTable
-				roles={builtInRoles}
-				isCustomRolesEnabled={isCustomRolesEnabled}
-				canCreateOrgRole={canCreateOrgRole}
-				canUpdateOrgRole={canUpdateOrgRole}
-				canDeleteOrgRole={canDeleteOrgRole}
-				onDeleteRole={onDeleteRole}
-			/>
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle level="h2" hierarchy="secondary">
+						Built-In Roles
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Built-in roles have predefined permissions. You cannot edit or
+						delete built-in roles.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+				<RoleTable
+					roles={builtInRoles}
+					isCustomRolesEnabled={isCustomRolesEnabled}
+					canCreateOrgRole={canCreateOrgRole}
+					canUpdateOrgRole={canUpdateOrgRole}
+					canDeleteOrgRole={canDeleteOrgRole}
+					onDeleteRole={onDeleteRole}
+					aria-label="Built-in roles"
+				/>
+			</div>
 		</div>
 	);
 };
@@ -130,6 +151,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 interface DefaultRolesSectionProps {
 	organization: Organization;
 	availableOrgRoles?: AssignableRoles[];
+	canEditDefaultRoles: boolean;
 	defaultRolesEntitled: boolean;
 	isUpdatingDefaultRoles: boolean;
 	onUpdateDefaultRoles: (roles: string[]) => Promise<void>;
@@ -138,6 +160,7 @@ interface DefaultRolesSectionProps {
 const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 	organization,
 	availableOrgRoles,
+	canEditDefaultRoles,
 	defaultRolesEntitled,
 	isUpdatingDefaultRoles,
 	onUpdateDefaultRoles,
@@ -145,31 +168,45 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 	const [isEditing, setIsEditing] = useState(false);
 
 	return (
-		<div className="flex flex-col gap-3">
-			<div className="flex flex-row gap-4 items-baseline justify-between">
-				<span>
-					<h2 className="mb-0 text-lg flex items-center gap-2">
-						Default Roles
-						{!defaultRolesEntitled && <PremiumBadge />}
-					</h2>
-					<span className="text-sm text-content-secondary leading-relaxed">
-						Roles attached to every member of this organization. An empty
-						selection limits new members to the floor permissions only.
-					</span>
-				</span>
-				<Button
-					type="button"
-					variant="outline"
-					onClick={() => setIsEditing(true)}
-					disabled={isUpdatingDefaultRoles || !defaultRolesEntitled}
-				>
-					Edit default roles
-				</Button>
-			</div>
+		<div>
+			<SettingsHeader
+				actions={
+					canEditDefaultRoles && (
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setIsEditing(true)}
+							disabled={
+								isUpdatingDefaultRoles ||
+								!defaultRolesEntitled ||
+								!availableOrgRoles
+							}
+						>
+							Edit default roles
+						</Button>
+					)
+				}
+			>
+				<SettingsHeaderTitle level="h2" hierarchy="secondary">
+					Default Roles
+					{!defaultRolesEntitled && <PremiumBadge />}
+				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Roles granted to every member of this organization, current and
+					future, in addition to any roles assigned directly. Removing a role
+					here removes it from all members that are not assigned that role
+					directly.
+					{!defaultRolesEntitled && (
+						<> Editing organization settings requires a Premium license.</>
+					)}
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 			<div className="text-sm">
 				{organization.default_org_member_roles.length === 0 ? (
 					<span className="text-content-secondary">
-						No default roles. New members receive only the floor.
+						No default roles. Members have only the permissions of their
+						directly assigned roles, which excludes creating and using
+						workspaces.
 					</span>
 				) : (
 					<DefaultRolesSummary
@@ -178,11 +215,6 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 					/>
 				)}
 			</div>
-			{!defaultRolesEntitled && (
-				<p className="text-xs text-content-secondary mt-0 mb-0">
-					Editing organization settings requires a Premium license.
-				</p>
-			)}
 			<DefaultRolesDialog
 				open={isEditing}
 				currentRoles={organization.default_org_member_roles}
@@ -221,7 +253,7 @@ const DefaultRolesSummary: FC<DefaultRolesSummaryProps> = ({
 	);
 };
 
-interface RoleTableProps {
+interface RoleTableBodyProps {
 	roles: AssignableRoles[] | undefined;
 	isCustomRolesEnabled: boolean;
 	canCreateOrgRole: boolean;
@@ -230,16 +262,16 @@ interface RoleTableProps {
 	onDeleteRole: (role: Role) => void;
 }
 
+interface RoleTableProps extends RoleTableBodyProps {
+	"aria-label": string;
+}
+
 const RoleTable: FC<RoleTableProps> = ({
-	roles,
-	isCustomRolesEnabled,
-	canCreateOrgRole,
-	canUpdateOrgRole,
-	canDeleteOrgRole,
-	onDeleteRole,
+	"aria-label": ariaLabel,
+	...bodyProps
 }) => {
 	return (
-		<Table>
+		<Table aria-label={ariaLabel}>
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-2/5">Name</TableHead>
@@ -248,20 +280,13 @@ const RoleTable: FC<RoleTableProps> = ({
 				</TableRow>
 			</TableHeader>
 			<TableBody>
-				<RoleTableBody
-					roles={roles}
-					isCustomRolesEnabled={isCustomRolesEnabled}
-					canCreateOrgRole={canCreateOrgRole}
-					canUpdateOrgRole={canUpdateOrgRole}
-					canDeleteOrgRole={canDeleteOrgRole}
-					onDeleteRole={onDeleteRole}
-				/>
+				<RoleTableBody {...bodyProps} />
 			</TableBody>
 		</Table>
 	);
 };
 
-const RoleTableBody: FC<RoleTableProps> = ({
+const RoleTableBody: FC<RoleTableBodyProps> = ({
 	roles,
 	isCustomRolesEnabled,
 	canCreateOrgRole,
@@ -274,31 +299,27 @@ const RoleTableBody: FC<RoleTableProps> = ({
 	}
 	if (roles.length === 0) {
 		return (
-			<TableRow className="h-14">
-				<TableCell colSpan={999}>
-					<EmptyState
-						message="No custom roles yet"
-						description={
-							canCreateOrgRole && isCustomRolesEnabled
-								? "Create your first custom role"
-								: !isCustomRolesEnabled
-									? "Upgrade to a premium license to create a custom role"
-									: "You don't have permission to create a custom role"
-						}
-						cta={
-							canCreateOrgRole &&
-							isCustomRolesEnabled && (
-								<Button asChild>
-									<RouterLink to="create">
-										<PlusIcon />
-										Create custom role
-									</RouterLink>
-								</Button>
-							)
-						}
-					/>
-				</TableCell>
-			</TableRow>
+			<TableEmpty
+				message="No custom roles yet"
+				description={
+					canCreateOrgRole && isCustomRolesEnabled
+						? "Create your first custom role"
+						: !isCustomRolesEnabled
+							? "Upgrade to a premium license to create a custom role"
+							: "You don't have permission to create a custom role"
+				}
+				cta={
+					canCreateOrgRole &&
+					isCustomRolesEnabled && (
+						<Button asChild>
+							<RouterLink to="create">
+								<PlusIcon />
+								Create custom role
+							</RouterLink>
+						</Button>
+					)
+				}
+			/>
 		);
 	}
 	return (

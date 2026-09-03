@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FieldSchema } from "#/api/chatModelOptions";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	buildInitialModelFormValues,
 	buildModelConfigFromForm,
@@ -81,8 +81,8 @@ function deepGet(obj: unknown, path: string[]): unknown {
 	return current;
 }
 
-const baseChatModelConfig: TypesGen.ChatModelConfig = {
-	...MockChatModelConfig,
+const baseChatModel: TypesGen.ChatModel = {
+	...MockChatModel,
 	id: "test-id",
 	model: "gpt-4",
 	display_name: "GPT-4",
@@ -108,13 +108,13 @@ describe("buildInitialModelFormValues", () => {
 	});
 
 	it("preserves enabled=true when editing an enabled model", () => {
-		expect(buildInitialModelFormValues(baseChatModelConfig).enabled).toBe(true);
+		expect(buildInitialModelFormValues(baseChatModel).enabled).toBe(true);
 	});
 
 	it("preserves enabled=false when editing a disabled model", () => {
 		expect(
 			buildInitialModelFormValues({
-				...baseChatModelConfig,
+				...baseChatModel,
 				enabled: false,
 			}).enabled,
 		).toBe(false);
@@ -206,18 +206,18 @@ describe("parseThresholdInteger", () => {
 
 describe("extractModelConfigFormState", () => {
 	it("returns empty form state when model_config is undefined", () => {
-		const result = extractModelConfigFormState(baseChatModelConfig);
+		const result = extractModelConfigFormState(baseChatModel);
 		expect(result).toEqual(emptyModelConfigFormState);
 	});
 
 	it("returns a copy, not a reference to emptyModelConfigFormState", () => {
-		const result = extractModelConfigFormState(baseChatModelConfig);
+		const result = extractModelConfigFormState(baseChatModel);
 		expect(result).not.toBe(emptyModelConfigFormState);
 	});
 
 	it("extracts top-level numeric fields", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				max_output_tokens: 4096,
 				temperature: 0.7,
@@ -236,36 +236,9 @@ describe("extractModelConfigFormState", () => {
 		expect(result.frequencyPenalty).toBe("0.3");
 	});
 
-	it("extracts pricing fields", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
-				cost: {
-					input_price_per_million_tokens: "0.15",
-					output_price_per_million_tokens: "0.6",
-					cache_read_price_per_million_tokens: "0.03",
-					cache_write_price_per_million_tokens: "0.3",
-				},
-			},
-		};
-		const result = extractModelConfigFormState(model);
-		expect(deepGet(result, ["cost", "inputPricePerMillionTokens"])).toBe(
-			"0.15",
-		);
-		expect(deepGet(result, ["cost", "outputPricePerMillionTokens"])).toBe(
-			"0.6",
-		);
-		expect(deepGet(result, ["cost", "cacheReadPricePerMillionTokens"])).toBe(
-			"0.03",
-		);
-		expect(deepGet(result, ["cost", "cacheWritePricePerMillionTokens"])).toBe(
-			"0.3",
-		);
-	});
-
 	it("extracts reasoning effort bounds", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				reasoning_effort: {
 					default: "medium",
@@ -279,8 +252,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts OpenAI provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					openai: {
@@ -305,8 +278,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts Anthropic provider options with thinking", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					anthropic: {
@@ -324,10 +297,26 @@ describe("extractModelConfigFormState", () => {
 		expect(anthropic.disableParallelToolUse).toBe("false");
 	});
 
+	it("extracts Anthropic 1M context window option", () => {
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
+			model_config: {
+				provider_options: {
+					anthropic: {
+						context_1m_enabled: true,
+					},
+				},
+			},
+		};
+		const result = extractModelConfigFormState(model);
+		const anthropic = result.anthropic as Record<string, unknown>;
+		expect(anthropic.context1mEnabled).toBe("true");
+	});
+
 	it("extracts Google provider options with safety settings", () => {
 		const safetySettings = [{ category: "harm", threshold: "block" }];
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					google: {
@@ -350,8 +339,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("returns empty string for google safety settings when absent", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					google: {},
@@ -364,8 +353,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts OpenAI-compatible provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					openaicompat: {
@@ -380,8 +369,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts OpenRouter provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					openrouter: {
@@ -408,8 +397,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts Vercel provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					vercel: {
@@ -434,8 +423,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("handles missing provider_options gracefully", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				temperature: 0.5,
 			},
@@ -452,7 +441,7 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("returns deep copies of provider sub-objects", () => {
-		const result = extractModelConfigFormState(baseChatModelConfig);
+		const result = extractModelConfigFormState(baseChatModel);
 		const empty = emptyModelConfigFormState;
 		expect(result.openai).not.toBe(empty.openai);
 		expect(result.anthropic).not.toBe(empty.anthropic);
@@ -653,41 +642,6 @@ describe("buildModelConfigFromForm", () => {
 		});
 	});
 
-	describe("pricing fields", () => {
-		it("builds config with valid pricing fields", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({
-					cost: {
-						inputPricePerMillionTokens: "0.15",
-						outputPricePerMillionTokens: "0.6",
-						cacheReadPricePerMillionTokens: "0.03",
-						cacheWritePricePerMillionTokens: "0.3",
-					},
-				}),
-			);
-			expect(result.fieldErrors).toEqual({});
-			expect(result.modelConfig).toMatchObject({
-				cost: {
-					input_price_per_million_tokens: "0.15",
-					output_price_per_million_tokens: "0.6",
-					cache_read_price_per_million_tokens: "0.03",
-					cache_write_price_per_million_tokens: "0.3",
-				},
-			});
-		});
-
-		it("reports error for negative pricing fields", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({ cost: { inputPricePerMillionTokens: "-0.5" } }),
-			);
-			expect(result.fieldErrors["cost.inputPricePerMillionTokens"]).toContain(
-				"must be zero or greater",
-			);
-			expect(result.modelConfig).toBeUndefined();
-		});
-	});
 	describe("OpenAI / Azure provider", () => {
 		it("builds OpenAI provider options with text verbosity", () => {
 			const result = buildModelConfigFromForm(
@@ -832,6 +786,17 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.anthropic).toEqual({
 				send_reasoning: true,
+			});
+		});
+
+		it("builds Anthropic options with 1M context window enabled", () => {
+			const result = buildModelConfigFromForm(
+				"anthropic",
+				formWith({ anthropic: { context1mEnabled: "true" } }),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig?.provider_options?.anthropic).toEqual({
+				context_1m_enabled: true,
 			});
 		});
 
@@ -1333,5 +1298,28 @@ describe("isFieldConflictDisabled", () => {
 	it("does not disable when the sibling value is the empty array sentinel '[]'", () => {
 		const reader = makeReader({ field_a: "", field_b: "[]" });
 		expect(isFieldConflictDisabled(field(), reader)).toBe(false);
+	});
+});
+
+describe("provider-scoped general fields", () => {
+	const form = formWith({ openaiConfig: { useResponsesApi: "true" } });
+
+	it("serializes a scoped general field for its provider", () => {
+		const result = buildModelConfigFromForm("openai", form);
+		expect(result.modelConfig?.openai_config).toEqual({
+			use_responses_api: true,
+		});
+	});
+
+	it("omits a scoped general field for another provider", () => {
+		const result = buildModelConfigFromForm("anthropic", form);
+		expect(result.modelConfig).toBeUndefined();
+	});
+
+	// azure resolves to the openai option schema, so scoping must gate on the
+	// raw provider type.
+	it("omits a scoped general field for an aliased provider", () => {
+		const result = buildModelConfigFromForm("azure", form);
+		expect(result.modelConfig).toBeUndefined();
 	});
 });

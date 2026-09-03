@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"tailscale.com/ipn/ipnstate"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -306,6 +308,80 @@ func TestSupportBundle(t *testing.T) {
 	})
 }
 
+func TestSupportBundleCollectsWorkspaceFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("for some reason, windows fails to remove tempdirs sometimes")
+	}
+
+	var dc codersdk.DeploymentConfig
+	dc.Values = coderdtest.DeploymentValues(t)
+	dc.Values.Prometheus.Enable = true
+	secretValue := uuid.NewString()
+	seedSecretDeploymentOptions(t, &dc, secretValue)
+	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: dc.Values,
+		HealthcheckFunc: func(_ context.Context, _ string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
+			return &healthsdk.HealthcheckReport{
+				Time:     time.Now(),
+				Healthy:  true,
+				Severity: health.SeverityOK,
+			}
+		},
+	})
+	t.Cleanup(func() { closer.Close() })
+	owner := coderdtest.CreateFirstUser(t, client)
+	workspaceWithAgent := setupSupportBundleTestFixture(testutil.Context(t, testutil.WaitLong), t, api.Database, owner.OrganizationID, owner.UserID, func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Env["SECRET_VALUE"] = secretValue
+		return agents
+	})
+
+	// The agent resolves requested paths against $HOME (USERPROFILE on
+	// Windows). The agent log dir is separate so collection does not race
+	// live agent logs. The resolved dir matches the agent's canonicalized
+	// manifest paths (the macOS temp dir is a symlink).
+	home := testutil.TempDirResolved(t)
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	require.NoError(t, os.MkdirAll(filepath.Join(home, "testlogs", "nested"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(home, "testlogs", "server.log"), []byte("server log"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, "testlogs", "nested", "nested.log"), []byte("nested log"), 0o600))
+
+	logDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(logDir, "coder-agent.log"), []byte("hello from the agent"), 0o600))
+	agt := agenttest.New(t, client.URL, workspaceWithAgent.AgentToken, func(o *agent.Options) {
+		o.LogDir = logDir
+	})
+	defer agt.Close()
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspaceWithAgent.Workspace.ID).Wait()
+
+	d := t.TempDir()
+	bundlePath := filepath.Join(d, "bundle.zip")
+	// The exact path and the glob both match server.log to cover
+	// deduplication end to end.
+	inv, root := clitest.New(t,
+		"support", "bundle", workspaceWithAgent.Workspace.Name,
+		"--workspace-file", "$HOME/testlogs/server.log",
+		"--workspace-file", "$HOME/testlogs/**/*.log",
+		"--output-file", bundlePath,
+		"--yes",
+	)
+	// nolint: gocritic // requires owner privilege
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
+	require.NoError(t, err)
+
+	assertBundleContents(t, bundlePath, true, true, []string{secretValue})
+	entries := readZipEntries(t, bundlePath)
+	serverLogEntry := "agent/workspace_files/" + agentfiles.BundleFilesArchivePath(filepath.Join(home, "testlogs", "server.log"))
+	nestedLogEntry := "agent/workspace_files/" + agentfiles.BundleFilesArchivePath(filepath.Join(home, "testlogs", "nested", "nested.log"))
+	require.Equal(t, "server log", string(entries[serverLogEntry]))
+	require.Equal(t, "nested log", string(entries[nestedLogEntry]))
+	var manifest workspacesdk.BundleFilesManifest
+	require.NoError(t, json.Unmarshal(entries["agent/workspace_files/manifest.json"], &manifest))
+	require.Equal(t, []string{"$HOME/testlogs/server.log", "$HOME/testlogs/**/*.log"}, manifest.Requested)
+	require.Len(t, manifest.Files, 2, "server.log should be deduplicated across the exact path and the glob")
+}
+
 // nolint:revive // It's a control flag, but this is just a test.
 func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAgent bool, badValues []string) {
 	t.Helper()
@@ -314,6 +390,11 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 	defer r.Close()
 	for _, f := range r.File {
 		assertDoesNotContain(t, f, badValues...)
+		if strings.HasPrefix(f.Name, "agent/workspace_files/files/") {
+			bs := readBytesFromZip(t, f)
+			require.NotEmpty(t, bs, "workspace log file should not be empty")
+			continue
+		}
 		switch f.Name {
 		case "deployment/buildinfo.json":
 			var v codersdk.BuildInfoResponse
@@ -490,6 +571,10 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 				continue
 			}
 			require.Contains(t, string(bs), "started up")
+		case "agent/workspace_files/manifest.json":
+			var v workspacesdk.BundleFilesManifest
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v.Requested, "workspace log file manifest should include requested paths")
 		case "logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "logs should not be empty")
@@ -517,9 +602,19 @@ func readBytesFromZip(t *testing.T, f *zip.File) []byte {
 	t.Helper()
 	rc, err := f.Open()
 	require.NoError(t, err, "open file from zip")
+	defer rc.Close()
 	bs, err := io.ReadAll(rc)
 	require.NoError(t, err, "read bytes from zip")
 	return bs
+}
+
+// readZipEntries reads every entry of the zip at zipPath into memory.
+func readZipEntries(t *testing.T, zipPath string) map[string][]byte {
+	t.Helper()
+
+	data, err := os.ReadFile(zipPath)
+	require.NoError(t, err, "read zip file")
+	return testutil.ReadZip(t, data)
 }
 
 func assertDoesNotContain(t *testing.T, f *zip.File, vals ...string) {

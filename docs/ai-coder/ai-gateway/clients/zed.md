@@ -1,9 +1,10 @@
-# Zed
+---
+title: Zed
+---
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 Zed IDE supports AI Gateway via its `language_models` configuration in `settings.json`.
 
@@ -55,7 +56,7 @@ You can set this in two ways:
 ### Zed UI
 
 1. Open the **Assistant Panel** (right sidebar).
-1. Click **Configuration** or the settings icon.
+1. Select **Configuration** or the settings icon.
 1. Select your provider ("Anthropic" or "OpenAI").
 1. Paste your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for the API Key.
 

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { chromatic } from "#/testHelpers/chromatic";
 import type { FileTree } from "#/utils/filetree";
 import { TemplateFileTree } from "./TemplateFileTree";
 
@@ -33,7 +32,6 @@ const fileTree: FileTree = {
 
 const meta: Meta<typeof TemplateFileTree> = {
 	title: "modules/templates/TemplateFileTree",
-	parameters: { chromatic },
 	component: TemplateFileTree,
 	args: {
 		fileTree,

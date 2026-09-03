@@ -2,14 +2,18 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestEnterpriseAuditLogs(t *testing.T) {
@@ -101,5 +105,61 @@ func TestEnterpriseAuditLogs(t *testing.T) {
 
 		// OrganizationID is deprecated, but make sure it is empty.
 		require.Equal(t, uuid.Nil, alogs.AuditLogs[0].OrganizationID)
+	})
+
+	t.Run("MCPServerConfigLinkForMutationOnlyRole", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		owner, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		config := createMCPServerConfigForOrganization(t, owner, firstUser.OrganizationID, "audit-link-mcp")
+		// Remove the default everyone-in-org ACL grant so the custom
+		// role's update permission is the requester's only access.
+		//nolint:gocritic // Owner access removes the default ACL grant.
+		err := owner.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+			GroupRoles: map[string]codersdk.MCPServerConfigRole{
+				firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+			},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
+		role, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "mcp-update-only-audit",
+			OrganizationID: firstUser.OrganizationID.String(),
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceMCPServerConfig: {codersdk.ActionUpdate},
+				codersdk.ResourceAuditLog:        {codersdk.ActionRead},
+			}),
+		})
+		require.NoError(t, err)
+		updateOnly, _ := coderdtest.CreateAnotherUser(t, owner, firstUser.OrganizationID,
+			rbac.RoleIdentifier{Name: role.Name, OrganizationID: firstUser.OrganizationID})
+
+		err = owner.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:         codersdk.AuditActionCreate,
+			ResourceType:   codersdk.ResourceTypeMCPServerConfig,
+			ResourceID:     config.ID,
+			OrganizationID: firstUser.OrganizationID,
+		})
+		require.NoError(t, err)
+
+		// Update-only administrators lack config read access, yet the
+		// settings page admits them, so the link must still appear.
+		logs, err := updateOnly.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, logs.AuditLogs, 1)
+		require.Contains(t, logs.AuditLogs[0].ResourceLink, fmt.Sprintf("/ai/settings/mcp-servers/%s", config.ID))
 	})
 }

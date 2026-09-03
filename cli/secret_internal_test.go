@@ -3,12 +3,15 @@ package cli
 import (
 	"bytes"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 
@@ -106,6 +109,107 @@ func TestTrailingNewlineWarnings(t *testing.T) {
 		require.Equal(t, "line1\nline2\n", got)
 		require.Empty(t, stderr.String())
 	})
+}
+
+func TestSecretsFileFormatFromPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want codersdk.SecretsFileFormat
+	}{
+		{path: ".env", want: codersdk.SecretsFileFormatEnv},
+		{path: "/tmp/prod.env", want: codersdk.SecretsFileFormatEnv},
+		{path: "secrets.ENV", want: codersdk.SecretsFileFormatEnv},
+		{path: "config.json", want: codersdk.SecretsFileFormatJSON},
+		{path: "values.yaml", want: codersdk.SecretsFileFormatYAML},
+		{path: "values.yml", want: codersdk.SecretsFileFormatYAML},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := secretsFileFormatFromPath(tt.path)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+
+	// filepath.Ext(".env.local") is ".local", so it does not map to a format.
+	for _, path := range []string{"secrets.txt", "noextension", ".env.local", "-", ""} {
+		t.Run("Unsupported/"+path, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := secretsFileFormatFromPath(path)
+			require.ErrorContains(t, err, "set --input-format to one of: env, json, yaml")
+		})
+	}
+}
+
+func TestReadSecretsFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Stdin", func(t *testing.T) {
+		t.Parallel()
+
+		inv := newSecretTestInvocation(t, strings.NewReader("A=1"), nil)
+
+		got, err := readSecretsFile(inv, "-")
+		require.NoError(t, err)
+		require.Equal(t, "A=1", string(got))
+	})
+
+	t.Run("File", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "secrets.env")
+		require.NoError(t, os.WriteFile(path, []byte("A=1"), 0o600))
+		inv := newSecretTestInvocation(t, strings.NewReader(""), nil)
+
+		got, err := readSecretsFile(inv, path)
+		require.NoError(t, err)
+		require.Equal(t, "A=1", string(got))
+	})
+
+	t.Run("MissingFile", func(t *testing.T) {
+		t.Parallel()
+
+		inv := newSecretTestInvocation(t, strings.NewReader(""), nil)
+
+		_, err := readSecretsFile(inv, filepath.Join(t.TempDir(), "absent.env"))
+		require.ErrorContains(t, err, "open secrets file")
+	})
+
+	t.Run("AtMaxSize", func(t *testing.T) {
+		t.Parallel()
+
+		content := strings.Repeat("a", codersdk.MaxSecretsFileBytes)
+		inv := newSecretTestInvocation(t, strings.NewReader(content), nil)
+
+		got, err := readSecretsFile(inv, "-")
+		require.NoError(t, err)
+		require.Len(t, got, codersdk.MaxSecretsFileBytes)
+	})
+
+	t.Run("OverMaxSize", func(t *testing.T) {
+		t.Parallel()
+
+		content := strings.Repeat("a", codersdk.MaxSecretsFileBytes+1)
+		inv := newSecretTestInvocation(t, strings.NewReader(content), nil)
+
+		_, err := readSecretsFile(inv, "-")
+		require.ErrorContains(t, err, "exceeds the maximum allowed size")
+	})
+}
+
+func TestWarnSecretsWithoutEnvNameEscapesNames(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	warnSecretsWithoutEnvName(&stderr, []codersdk.UserSecret{{Name: "\x1b[31mBAD"}})
+
+	require.Contains(t, stderr.String(), `"\x1b[31mBAD"`)
+	require.NotContains(t, stderr.String(), "\x1b[31mBAD")
 }
 
 func newSecretTestInvocation(t *testing.T, stdin io.Reader, stderr io.Writer) *serpent.Invocation {

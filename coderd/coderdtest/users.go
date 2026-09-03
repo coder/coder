@@ -401,7 +401,19 @@ func UsersFilter(
 				Search: "a",
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
-				return (strings.ContainsAny(u.Username, "aA") || strings.ContainsAny(u.Email, "aA"))
+				return (strings.ContainsAny(u.Username, "aA") || strings.ContainsAny(u.Email, "aA") || strings.ContainsAny(u.Name, "aA"))
+			},
+		},
+		{
+			Name: "DisplayNameSearch",
+			Filter: codersdk.UsersRequest{
+				Search: "user",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				const term = "user"
+				return strings.Contains(strings.ToLower(u.Username), term) ||
+					strings.Contains(strings.ToLower(u.Email), term) ||
+					strings.Contains(strings.ToLower(u.Name), term)
 			},
 		},
 		{
@@ -411,6 +423,24 @@ func UsersFilter(
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				return u.Username == "before1"
+			},
+		},
+		{
+			Name: "ExactUsername",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: "username:" + strings.ToUpper(users[0].Username),
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return strings.EqualFold(u.Username, users[0].Username)
+			},
+		},
+		{
+			Name: "ExactEmail",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: "email:" + strings.ToUpper(users[0].Email),
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return strings.EqualFold(u.Email, users[0].Email)
 			},
 		},
 		{
@@ -470,7 +500,7 @@ func UsersFilter(
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
 					if r.Name == codersdk.RoleOwner {
-						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI")) &&
+						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI") || strings.ContainsAny(u.Name, "iI")) &&
 							u.Status == codersdk.UserStatusActive
 					}
 				}
@@ -485,7 +515,7 @@ func UsersFilter(
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
 					if r.Name == codersdk.RoleOwner {
-						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI")) &&
+						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI") || strings.ContainsAny(u.Name, "iI")) &&
 							u.Status == codersdk.UserStatusActive
 					}
 				}

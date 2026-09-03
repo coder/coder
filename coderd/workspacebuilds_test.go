@@ -902,6 +902,41 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		assertWorkspaceResource(t, workspace.LatestBuild.Resources[3], "fourth_resource", "example", 0) // resource has no agents, sorted by name
 		assertWorkspaceResource(t, workspace.LatestBuild.Resources[4], "third_resource", "example", 0)  // resource is the last one
 	})
+	t.Run("StopBuildHasNoAgents", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		// The same responses are replayed for every transition, mimicking a
+		// template where the agent is bound to a resource that persists across
+		// stop.
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionGraph: echo.ProvisionGraphWithAgent(uuid.NewString()),
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Len(t, workspace.LatestBuild.Resources, 1)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
+
+		build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+		workspace, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		// The resource is still reported, but a stopped workspace has no agents
+		// and so cannot be unhealthy because of one.
+		require.Len(t, workspace.LatestBuild.Resources, 1)
+		require.Empty(t, workspace.LatestBuild.Resources[0].Agents)
+		require.True(t, workspace.Health.Healthy)
+		require.Empty(t, workspace.Health.FailingAgents)
+	})
 }
 
 func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T) {

@@ -52,7 +52,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 	// Icon and label highlight when this section owns the current
 	// route, regardless of whether the accordion is expanded.
 	const iconClass = cn(
-		"size-4 flex-shrink-0 text-content-secondary",
+		"size-4 shrink-0 text-content-secondary",
 		active && "text-content-primary",
 	);
 	const labelClass = cn(
@@ -95,7 +95,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 					<span className={labelClass}>{label}</span>
 					<ChevronDownIcon
 						open={open}
-						className="size-4 text-content-secondary ml-auto flex-shrink-0"
+						className="size-4 text-content-secondary ml-auto shrink-0"
 					/>
 				</button>
 			</CollapsibleTrigger>

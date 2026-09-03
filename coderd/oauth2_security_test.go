@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -21,6 +22,7 @@ func TestOAuth2ClientIsolation(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	ctx := t.Context()
 
@@ -108,6 +110,7 @@ func TestOAuth2RegistrationTokenSecurity(t *testing.T) {
 	// independent OAuth2 apps with unique client names.
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	t.Run("InvalidTokenFormats", func(t *testing.T) {
 		t.Parallel()
@@ -209,6 +212,7 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := t.Context()
 
 		// Register a basic client
@@ -243,6 +247,7 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := t.Context()
 
 		// Test valid custom schemes per RFC 7591/8252
@@ -261,6 +266,19 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 				RedirectURIs:            []string{"urn:ietf:wg:oauth:2.0:oob"},
 				ClientName:              fmt.Sprintf("native-app-3-%d", time.Now().UnixNano()),
 				TokenEndpointAuthMethod: "none", // Required for public clients
+			},
+			{
+				// Bare custom schemes (no reverse-domain notation) are the
+				// schemes real native apps register with the OS, and PKCE,
+				// not the scheme's spelling, is what secures the redirect.
+				RedirectURIs:            []string{"vscode://coder.authenticate"},
+				ClientName:              fmt.Sprintf("native-app-vscode-%d", time.Now().UnixNano()),
+				TokenEndpointAuthMethod: "none",
+			},
+			{
+				RedirectURIs:            []string{"jetbrains://coder-callback"},
+				ClientName:              fmt.Sprintf("native-app-jetbrains-%d", time.Now().UnixNano()),
+				TokenEndpointAuthMethod: "none",
 			},
 		}
 
@@ -307,6 +325,54 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 				require.Contains(t, err.Error(), "dangerous scheme")
 			})
 		}
+
+		// mailto, tel, and sms are not in the dangerous-scheme blocklist
+		// above: they hand off to a mail client, dialer, or SMS app rather
+		// than injecting content, so they are harmless for a confidential
+		// client's redirect. A public client has no secret, so the redirect
+		// URI's scheme is its only mechanism for regaining control, and
+		// none of these three return control to it the way a real redirect
+		// scheme does. They are rejected for public clients specifically,
+		// with a distinct error from the dangerous-scheme case above.
+		publicClientDisallowedSchemeRequests := []struct {
+			req    codersdk.OAuth2ClientRegistrationRequest
+			scheme string
+		}{
+			{
+				req: codersdk.OAuth2ClientRegistrationRequest{
+					RedirectURIs:            []string{"mailto:user@example.com"},
+					ClientName:              fmt.Sprintf("native-app-mailto-%d", time.Now().UnixNano()),
+					TokenEndpointAuthMethod: "none",
+				},
+				scheme: "mailto",
+			},
+			{
+				req: codersdk.OAuth2ClientRegistrationRequest{
+					RedirectURIs:            []string{"tel:+15555550100"},
+					ClientName:              fmt.Sprintf("native-app-tel-%d", time.Now().UnixNano()),
+					TokenEndpointAuthMethod: "none",
+				},
+				scheme: "tel",
+			},
+			{
+				req: codersdk.OAuth2ClientRegistrationRequest{
+					RedirectURIs:            []string{"sms:+15555550100"},
+					ClientName:              fmt.Sprintf("native-app-sms-%d", time.Now().UnixNano()),
+					TokenEndpointAuthMethod: "none",
+				},
+				scheme: "sms",
+			},
+		}
+
+		for _, test := range publicClientDisallowedSchemeRequests {
+			t.Run(fmt.Sprintf("PublicClientDisallowedScheme_%s", test.scheme), func(t *testing.T) {
+				t.Parallel()
+
+				_, err := client.PostOAuth2ClientRegistration(ctx, test.req)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "public clients may not use the "+test.scheme+" scheme")
+			})
+		}
 	})
 }
 
@@ -316,6 +382,7 @@ func TestOAuth2InformationDisclosure(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	ctx := t.Context()
 
@@ -399,6 +466,7 @@ func TestOAuth2ConcurrentSecurityOperations(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	ctx := t.Context()
 

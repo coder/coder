@@ -1,20 +1,23 @@
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
-import DialogTitle from "@mui/material/DialogTitle";
 import { type FC, useEffect, useState } from "react";
 import type {
 	TemplateVersionVariable,
 	VariableValue,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import { FormFields, VerticalForm } from "#/components/Form/Form";
 import { Loader } from "#/components/Loader/Loader";
 import { VariableInput } from "#/pages/CreateTemplatePage/VariableInput";
 
-type MissingTemplateVariablesDialogProps = Omit<DialogProps, "onSubmit"> & {
+type MissingTemplateVariablesDialogProps = {
+	open: boolean;
 	onClose: () => void;
 	onSubmit: (values: VariableValue[]) => void;
 	missingVariables?: TemplateVersionVariable[];
@@ -22,7 +25,7 @@ type MissingTemplateVariablesDialogProps = Omit<DialogProps, "onSubmit"> & {
 
 export const MissingTemplateVariablesDialog: FC<
 	MissingTemplateVariablesDialogProps
-> = ({ missingVariables, onSubmit, ...dialogProps }) => {
+> = ({ missingVariables, onSubmit, open, onClose }) => {
 	const [variableValues, setVariableValues] = useState<VariableValue[]>([]);
 
 	// Pre-fill the form with the default values when missing variables are loaded
@@ -37,24 +40,23 @@ export const MissingTemplateVariablesDialog: FC<
 
 	return (
 		<Dialog
-			{...dialogProps}
-			scroll="body"
-			aria-labelledby="update-build-parameters-title"
-			maxWidth="xs"
-			data-testid="dialog"
+			open={open}
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) {
+					onClose();
+				}
+			}}
 		>
-			<DialogTitle
-				id="update-build-parameters-title"
-				className="px-10 py-6 text-xl font-normal"
-			>
-				Template variables
-			</DialogTitle>
-			<DialogContent className="px-10">
-				<DialogContentText className="m-0">
-					There are a few missing template variable values. Please fill them in.
-				</DialogContentText>
+			<DialogContent className="max-w-md" data-testid="dialog">
+				<DialogHeader>
+					<DialogTitle>Template variables</DialogTitle>
+					<DialogDescription>
+						There are a few missing template variable values. Please fill them
+						in.
+					</DialogDescription>
+				</DialogHeader>
+
 				<VerticalForm
-					className="pt-8"
 					id="updateVariables"
 					onSubmit={(e) => {
 						e.preventDefault();
@@ -70,13 +72,9 @@ export const MissingTemplateVariablesDialog: FC<
 										variable={variable}
 										key={variable.name}
 										onChange={async (value) => {
-											setVariableValues((prev) => {
-												prev[index] = {
-													name: variable.name,
-													value,
-												};
-												return [...prev];
-											});
+											setVariableValues((prev) =>
+												prev.with(index, { name: variable.name, value }),
+											);
 										}}
 									/>
 								);
@@ -86,20 +84,16 @@ export const MissingTemplateVariablesDialog: FC<
 						<Loader />
 					)}
 				</VerticalForm>
+
+				<DialogFooter>
+					<Button variant="outline" type="button" onClick={onClose}>
+						Cancel
+					</Button>
+					<Button type="submit" form="updateVariables">
+						Submit
+					</Button>
+				</DialogFooter>
 			</DialogContent>
-			<DialogActions disableSpacing className="flex flex-col gap-2 p-10">
-				<Button className="w-full" type="submit" form="updateVariables">
-					Submit
-				</Button>
-				<Button
-					variant="outline"
-					className="w-full"
-					type="button"
-					onClick={dialogProps.onClose}
-				>
-					Cancel
-				</Button>
-			</DialogActions>
 		</Dialog>
 	);
 };

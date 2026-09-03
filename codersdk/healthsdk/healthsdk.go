@@ -2,7 +2,6 @@ package healthsdk
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -64,7 +63,7 @@ func (c *HealthClient) DebugHealth(ctx context.Context) (HealthcheckReport, erro
 		return HealthcheckReport{}, codersdk.ReadBodyAsError(res)
 	}
 	var rpt HealthcheckReport
-	return rpt, json.NewDecoder(res.Body).Decode(&rpt)
+	return rpt, codersdk.ReadBodyAsJSON(res, &rpt)
 }
 
 func (c *HealthClient) HealthSettings(ctx context.Context) (HealthSettings, error) {
@@ -77,7 +76,7 @@ func (c *HealthClient) HealthSettings(ctx context.Context) (HealthSettings, erro
 		return HealthSettings{}, codersdk.ReadBodyAsError(res)
 	}
 	var settings HealthSettings
-	return settings, json.NewDecoder(res.Body).Decode(&settings)
+	return settings, codersdk.ReadBodyAsJSON(res, &settings)
 }
 
 func (c *HealthClient) PutHealthSettings(ctx context.Context, settings HealthSettings) error {

@@ -3,22 +3,22 @@ package mcpclient
 import (
 	"cmp"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/client/transport"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/oauth2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -27,6 +27,7 @@ import (
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/safedial"
 )
 
 // toolNameSep separates the server slug from the original tool
@@ -59,6 +60,46 @@ const connectTimeout = 10 * time.Second
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
 
+// slowConnectThreshold is the successful-connect duration above
+// which a warning is logged. Connects happen on every generation
+// step, so a consistently slow server taxes the whole chat even
+// when it stays inside the connect budget.
+const slowConnectThreshold = 5 * time.Second
+
+// ConnectOutcome classifies the result of one MCP server connect
+// attempt for logs and chat debug runs.
+type ConnectOutcome string
+
+const (
+	// ConnectOutcomeConnected means tools were discovered and the
+	// session is live.
+	ConnectOutcomeConnected ConnectOutcome = "connected"
+	// ConnectOutcomeTimeout means the connect budget elapsed before
+	// the server completed the handshake and tool listing.
+	ConnectOutcomeTimeout ConnectOutcome = "timeout"
+	// ConnectOutcomeError means the handshake or tool listing
+	// failed.
+	ConnectOutcomeError ConnectOutcome = "error"
+	// ConnectOutcomeNoTools means the server connected but no tools
+	// survived allow/deny filtering, so the session was closed.
+	ConnectOutcomeNoTools ConnectOutcome = "no_tools"
+)
+
+// ConnectSummary describes one MCP server connect attempt. It is
+// logged and recorded into chat debug runs so slow or failing
+// servers are visible instead of appearing as silent gaps in the
+// turn timeline.
+type ConnectSummary struct {
+	ConfigID   uuid.UUID      `json:"config_id"`
+	Slug       string         `json:"slug"`
+	Outcome    ConnectOutcome `json:"outcome"`
+	DurationMS int64          `json:"duration_ms"`
+	ToolCount  int            `json:"tool_count,omitempty"`
+	// Error is the redacted, size-bounded connect error, present
+	// unless the outcome is connected or no_tools.
+	Error string `json:"error,omitempty"`
+}
+
 // UserOIDCTokenSource resolves the OIDC access token for the calling
 // user. Implementations attempt to refresh tokens that are expired
 // or close to expiring and MUST return ("", nil) when the user has
@@ -75,8 +116,9 @@ type UserOIDCTokenSource interface {
 // their tools, and returns them as fantasy.AgentTool values.
 // Tools are sorted by their prefixed name so callers
 // receive a deterministic order. It skips servers that fail to
-// connect and logs warnings. The returned cleanup function
-// must be called to close all connections.
+// connect and logs warnings; per-server outcomes are returned as
+// ConnectSummary values sorted by slug. The returned cleanup
+// function must be called to close all connections.
 func ConnectAll(
 	ctx context.Context,
 	logger slog.Logger,
@@ -85,7 +127,35 @@ func ConnectAll(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
-) ([]fantasy.AgentTool, func()) {
+	httpClient *http.Client,
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
+	return connectAllWithHooks(
+		ctx, logger, configs, tokens, userID, oidcSrc, coderHeaders,
+		httpClient, connectTimeout, connectHooks{},
+	)
+}
+
+// connectHooks carries test-only instrumentation for connect
+// internals. The zero value is used in production.
+type connectHooks struct {
+	// reaperDone, when non-nil, is called after an abandoned
+	// connect goroutine's late result has been drained and any
+	// late session closed.
+	reaperDone func()
+}
+
+func connectAllWithHooks(
+	ctx context.Context,
+	logger slog.Logger,
+	configs []database.MCPServerConfig,
+	tokens []database.MCPServerUserToken,
+	userID uuid.UUID,
+	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
+	httpClient *http.Client,
+	timeout time.Duration,
+	hooks connectHooks,
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
 	tokensByConfigID := make(
@@ -96,20 +166,27 @@ func ConnectAll(
 	}
 
 	var (
-		mu      sync.Mutex
-		clients []*client.Client
-		tools   []fantasy.AgentTool
+		mu        sync.Mutex
+		sessions  []*mcp.ClientSession
+		tools     []fantasy.AgentTool
+		summaries []ConnectSummary
 	)
 
-	// Build cleanup eagerly so it always closes any clients
-	// that connected, even if a later connection fails.
+	// Build cleanup eagerly so it always closes any sessions
+	// that connected, even if a later connection fails. Each
+	// close runs in a detached goroutine: the sessions are
+	// discarded either way, and Close on a server that stopped
+	// responding mid-turn can block until the transport abandons
+	// the connection (the SDK detaches the request context), which
+	// must not stall the generation loop at step boundaries.
 	cleanup := func() {
 		mu.Lock()
-		defer mu.Unlock()
-		for _, c := range clients {
-			_ = c.Close()
+		toClose := sessions
+		sessions = nil
+		mu.Unlock()
+		for _, s := range toClose {
+			go func() { _ = s.Close() }()
 		}
-		clients = nil
 	}
 
 	var eg errgroup.Group
@@ -119,27 +196,59 @@ func ConnectAll(
 		}
 
 		eg.Go(func() error {
-			serverTools, mcpClient, connectErr := connectOne(
+			start := time.Now()
+			serverTools, session, connectErr := connectOne(
 				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
+				httpClient, timeout, hooks,
 			)
+			duration := time.Since(start)
+			summary := ConnectSummary{
+				ConfigID:   cfg.ID,
+				Slug:       cfg.Slug,
+				DurationMS: duration.Milliseconds(),
+				ToolCount:  len(serverTools),
+			}
+			switch {
+			case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
+				summary.Outcome = ConnectOutcomeTimeout
+				summary.Error = summaryError(connectErr)
+			case connectErr != nil:
+				summary.Outcome = ConnectOutcomeError
+				summary.Error = summaryError(connectErr)
+			case len(serverTools) == 0:
+				summary.Outcome = ConnectOutcomeNoTools
+			default:
+				summary.Outcome = ConnectOutcomeConnected
+			}
+
 			if connectErr != nil {
 				logger.Warn(ctx,
 					"skipping MCP server due to connection failure",
 					slog.F("server_slug", cfg.Slug),
 					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("duration", duration),
 					slog.F("error", redactErrorURL(connectErr)),
 				)
-				// Connection failures are not propagated — the
-				// LLM simply won't have this server's tools.
-				return nil
+			} else if duration >= slowConnectThreshold {
+				logger.Warn(ctx,
+					"slow MCP server connect",
+					slog.F("server_slug", cfg.Slug),
+					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("duration", duration),
+				)
 			}
 
 			mu.Lock()
-			if mcpClient != nil {
-				clients = append(clients, mcpClient)
+			summaries = append(summaries, summary)
+			if connectErr == nil {
+				if session != nil {
+					sessions = append(sessions, session)
+				}
+				tools = append(tools, serverTools...)
 			}
-			tools = append(tools, serverTools...)
 			mu.Unlock()
+			// Connection failures are not propagated; the
+			// LLM simply won't have this server's tools.
 			return nil
 		})
 	}
@@ -147,6 +256,15 @@ func ConnectAll(
 	// All goroutines return nil; error is intentionally
 	// discarded.
 	_ = eg.Wait()
+
+	// Sort summaries for deterministic ordering regardless of
+	// goroutine completion order.
+	slices.SortFunc(summaries, func(a, b ConnectSummary) int {
+		return cmp.Or(
+			cmp.Compare(a.Slug, b.Slug),
+			cmp.Compare(a.ConfigID.String(), b.ConfigID.String()),
+		)
+	})
 
 	// Sort tools by prefixed name for deterministic ordering
 	// regardless of goroutine completion order. Ties, possible
@@ -198,7 +316,7 @@ func ConnectAll(
 		}
 	}
 
-	return tools, cleanup
+	return tools, summaries, cleanup
 }
 
 // connectOne establishes a connection to a single MCP server,
@@ -212,7 +330,10 @@ func connectOne(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
-) ([]fantasy.AgentTool, *client.Client, error) {
+	httpClient *http.Client,
+	timeout time.Duration,
+	hooks connectHooks,
+) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
 	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
 
 	// When opted-in, merge Coder identity headers BEFORE the
@@ -236,54 +357,79 @@ func connectOne(
 		}
 	}
 
-	tr, err := createTransport(cfg, headers)
+	tr, err := createTransport(cfg, headers, httpClient)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
 		)
 	}
 
-	mcpClient := client.NewClient(tr)
+	mcpClient := mcp.NewClient(&mcp.Implementation{
+		Name:    "coder",
+		Version: buildinfo.Version(),
+	}, nil)
 
-	// The timeout covers the entire connect+init+list sequence,
-	// not each phase individually.
-	connectCtx, cancel := context.WithTimeout(
-		ctx, connectTimeout,
-	)
+	// The timeout covers the entire connect+list sequence, not
+	// each phase individually. The SDK negotiates the protocol
+	// version during Connect; the session outlives connectCtx.
+	connectCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := mcpClient.Start(connectCtx); err != nil {
-		_ = mcpClient.Close()
-		return nil, nil, xerrors.Errorf(
-			"start transport: %w", err,
-		)
+	// Run the connect+list sequence in a goroutine and enforce the
+	// budget externally. The SDK's streamable transport detaches
+	// the context after starting HTTP requests, and its error-path
+	// session.Close blocks on those detached requests, so a
+	// black-holed server can block Connect far past connectCtx's
+	// deadline. The select below guarantees the caller gets an
+	// answer within the budget regardless.
+	type connectResult struct {
+		session *mcp.ClientSession
+		tools   *mcp.ListToolsResult
+		err     error
 	}
+	resCh := make(chan connectResult, 1)
+	go func() {
+		session, err := mcpClient.Connect(connectCtx, tr, nil)
+		if err != nil {
+			resCh <- connectResult{err: xerrors.Errorf("connect: %w", err)}
+			return
+		}
+		toolsResult, err := session.ListTools(connectCtx, nil)
+		if err != nil {
+			// Deliver the result before closing: Close sends a
+			// DELETE on the SDK's detached context and can wedge,
+			// which would otherwise convert a fast ListTools
+			// failure into a budget timeout for the caller.
+			resCh <- connectResult{err: xerrors.Errorf("list tools: %w", err)}
+			_ = session.Close()
+			return
+		}
+		resCh <- connectResult{session: session, tools: toolsResult}
+	}()
 
-	_, err = mcpClient.Initialize(
-		connectCtx,
-		mcp.InitializeRequest{
-			Params: mcp.InitializeParams{
-				ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-				ClientInfo: mcp.Implementation{
-					Name:    "coder",
-					Version: buildinfo.Version(),
-				},
-			},
-		},
-	)
-	if err != nil {
-		// Best-effort close so we don't leak the transport.
-		_ = mcpClient.Close()
-		return nil, nil, xerrors.Errorf("initialize: %w", err)
+	var res connectResult
+	select {
+	case res = <-resCh:
+	case <-connectCtx.Done():
+		// Abandon the wedged goroutine; it exits once the
+		// transport's dial or response-header timeout fires. The
+		// reaper drains its late result and closes any session
+		// that still materialized so nothing leaks. It must not
+		// hold locks or block the caller.
+		go func() {
+			if late := <-resCh; late.session != nil {
+				_ = late.session.Close()
+			}
+			if hooks.reaperDone != nil {
+				hooks.reaperDone()
+			}
+		}()
+		return nil, nil, xerrors.Errorf("connect: %w", connectCtx.Err())
 	}
-
-	toolsResult, err := mcpClient.ListTools(
-		connectCtx, mcp.ListToolsRequest{},
-	)
-	if err != nil {
-		_ = mcpClient.Close()
-		return nil, nil, xerrors.Errorf("list tools: %w", err)
+	if res.err != nil {
+		return nil, nil, res.err
 	}
+	session, toolsResult := res.session, res.tools
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
@@ -300,44 +446,41 @@ func connectOne(
 		}
 
 		tools = append(
-			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, mcpClient, cfg.ModelIntent),
+			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent),
 		)
 	}
 
-	// If no tools passed filtering, close the client early
-	// to avoid holding an idle connection.
 	if len(tools) == 0 {
-		_ = mcpClient.Close()
+		// Close the discarded session asynchronously: Close sends
+		// a DELETE on the SDK's detached context, so a server that
+		// wedges after a successful connect would otherwise hold
+		// the caller far past the connect budget.
+		go func() { _ = session.Close() }()
 		return nil, nil, nil
 	}
 
-	return tools, mcpClient, nil
+	return tools, session, nil
 }
 
-// createTransport builds the appropriate mcp-go transport based
-// on the server's configured transport type.
 func createTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
-) (transport.Interface, error) {
-	httpClient := mcpHTTPClient()
+	baseHTTPClient *http.Client,
+) (mcp.Transport, error) {
+	httpClient := httpClientWithHeaders(baseHTTPClient, headers)
 
 	switch cfg.Transport {
 	case "sse":
-		var opts []transport.ClientOption
-		opts = append(opts, transport.WithHeaders(headers))
-		if httpClient != nil {
-			opts = append(opts, transport.WithHTTPClient(httpClient))
-		}
-		return transport.NewSSE(cfg.Url, opts...)
+		return &mcp.SSEClientTransport{
+			Endpoint:   cfg.Url,
+			HTTPClient: httpClient,
+		}, nil
 	case "", "streamable_http":
 		// Default to streamable HTTP, the newer transport.
-		var opts []transport.StreamableHTTPCOption
-		opts = append(opts, transport.WithHTTPHeaders(headers))
-		if httpClient != nil {
-			opts = append(opts, transport.WithHTTPBasicClient(httpClient))
-		}
-		return transport.NewStreamableHTTP(cfg.Url, opts...)
+		return &mcp.StreamableClientTransport{
+			Endpoint:   cfg.Url,
+			HTTPClient: httpClient,
+		}, nil
 	default:
 		return nil, xerrors.Errorf(
 			"unsupported transport %q", cfg.Transport,
@@ -355,9 +498,6 @@ func buildAuthHeaders(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 ) map[string]string {
-	// Using map[string]string rather than http.Header because
-	// the mcp-go transport options accept map[string]string.
-	// MCP servers typically don't require multi-valued headers.
 	headers := make(map[string]string)
 
 	switch cfg.AuthType {
@@ -366,6 +506,16 @@ func buildAuthHeaders(
 		if !ok {
 			logger.Warn(ctx,
 				"no oauth2 token found for MCP server",
+				slog.F("server_slug", cfg.Slug),
+			)
+			break
+		}
+		if tok.OauthRefreshFailureReason != "" {
+			// The grant is permanently unusable (e.g. revoked
+			// upstream) and the user must reconnect. Do not attach
+			// any leftover token material.
+			logger.Warn(ctx,
+				"oauth2 token for MCP server requires reconnect, skipping auth header",
 				slog.F("server_slug", cfg.Slug),
 			)
 			break
@@ -517,6 +667,28 @@ func redactErrorURL(err error) string {
 	return err.Error()
 }
 
+// maxSummaryErrorLen bounds the persisted connect error in bytes.
+// Protocol errors can embed arbitrarily large remote-controlled
+// response bodies, so without this cap a single retained summary
+// could inflate the JSONB row and every debug-runs payload
+// regardless of the entry-count cap.
+const maxSummaryErrorLen = 512
+
+// summaryError renders a connect error for the persisted summary:
+// credential-bearing URLs are redacted and the result is truncated
+// to maxSummaryErrorLen bytes on a rune boundary.
+func summaryError(err error) string {
+	msg := redactErrorURL(err)
+	if len(msg) <= maxSummaryErrorLen {
+		return msg
+	}
+	cut := maxSummaryErrorLen
+	for cut > 0 && !utf8.RuneStart(msg[cut]) {
+		cut--
+	}
+	return msg[:cut] + "... (truncated)"
+}
+
 // MCPToolIdentifier is implemented by tools that originate from
 // an MCP server config and can report the config's database ID.
 type MCPToolIdentifier interface {
@@ -534,7 +706,7 @@ type mcpToolWrapper struct {
 	parameters      map[string]any
 	required        []string
 	modelIntent     bool
-	client          *client.Client
+	session         *mcp.ClientSession
 	providerOptions fantasy.ProviderOptions
 }
 
@@ -549,20 +721,38 @@ func (t *mcpToolWrapper) MCPServerConfigID() uuid.UUID {
 func newMCPTool(
 	configID uuid.UUID,
 	serverSlug string,
-	tool mcp.Tool,
-	mcpClient *client.Client,
+	tool *mcp.Tool,
+	session *mcp.ClientSession,
 	modelIntent bool,
 ) *mcpToolWrapper {
+	properties, required := splitInputSchema(tool.InputSchema)
 	return &mcpToolWrapper{
 		configID:     configID,
 		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
 		originalName: tool.Name,
 		description:  tool.Description,
-		parameters:   tool.InputSchema.Properties,
-		required:     tool.InputSchema.Required,
+		parameters:   properties,
+		required:     required,
 		modelIntent:  modelIntent,
-		client:       mcpClient,
+		session:      session,
 	}
+}
+
+func splitInputSchema(schema any) (map[string]any, []string) {
+	m, ok := schema.(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	properties, _ := m["properties"].(map[string]any)
+	var required []string
+	if rawRequired, ok := m["required"].([]any); ok {
+		for _, r := range rawRequired {
+			if str, ok := r.(string); ok {
+				required = append(required, str)
+			}
+		}
+	}
+	return properties, required
 }
 
 func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
@@ -634,13 +824,11 @@ func (t *mcpToolWrapper) Run(
 	callCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
 	defer cancel()
 
-	result, err := t.client.CallTool(
+	result, err := t.session.CallTool(
 		callCtx,
-		mcp.CallToolRequest{
-			Params: mcp.CallToolParams{
-				Name:      t.originalName,
-				Arguments: args,
-			},
+		&mcp.CallToolParams{
+			Name:      t.originalName,
+			Arguments: args,
 		},
 	)
 	if err != nil {
@@ -709,86 +897,57 @@ func convertCallResult(
 	)
 	for _, item := range result.Content {
 		switch c := item.(type) {
-		case mcp.TextContent:
+		case *mcp.TextContent:
 			textParts = append(textParts, strings.ToValidUTF8(c.Text, "\uFFFD"))
-		case mcp.ImageContent:
-			data, err := base64.StdEncoding.DecodeString(
-				c.Data,
-			)
-			if err != nil {
-				textParts = append(textParts,
-					"[image decode error: "+err.Error()+"]",
-				)
-				continue
-			}
+		case *mcp.ImageContent:
+			// The SDK decodes base64 payloads during unmarshal, so
+			// Data is raw bytes.
 			if binaryResult == nil {
 				r := fantasy.ToolResponse{
 					Type:      "image",
-					Data:      data,
+					Data:      c.Data,
 					MediaType: c.MIMEType,
 					IsError:   result.IsError,
 				}
 				binaryResult = &r
 			}
-		case mcp.AudioContent:
-			data, err := base64.StdEncoding.DecodeString(
-				c.Data,
-			)
-			if err != nil {
-				textParts = append(textParts,
-					"[audio decode error: "+err.Error()+"]",
-				)
-				continue
-			}
+		case *mcp.AudioContent:
 			if binaryResult == nil {
 				r := fantasy.ToolResponse{
 					Type:      "media",
-					Data:      data,
+					Data:      c.Data,
 					MediaType: c.MIMEType,
 					IsError:   result.IsError,
 				}
 				binaryResult = &r
 			}
-		case mcp.EmbeddedResource:
-			// Embedded resources wrap either text or blob
-			// content from an MCP resource. We handle each
-			// variant so the LLM receives the content
-			// regardless of form.
-			switch r := c.Resource.(type) {
-			case mcp.TextResourceContents:
-				textParts = append(textParts, strings.ToValidUTF8(r.Text, "\uFFFD"))
-			case mcp.BlobResourceContents:
-				data, err := base64.StdEncoding.DecodeString(
-					r.Blob,
+		case *mcp.EmbeddedResource:
+			// Embedded resources wrap either text or blob content
+			// from an MCP resource. Exactly one of Text or Blob is
+			// set per the spec; a nil Blob means text content.
+			switch {
+			case c.Resource == nil:
+				textParts = append(textParts,
+					"[embedded resource with no contents]",
 				)
-				if err != nil {
-					textParts = append(textParts,
-						"[blob decode error: "+err.Error()+"]",
-					)
-					continue
-				}
+			case c.Resource.Blob != nil:
 				if binaryResult == nil {
 					blobType := "media"
-					if strings.HasPrefix(r.MIMEType, "image/") {
+					if strings.HasPrefix(c.Resource.MIMEType, "image/") {
 						blobType = "image"
 					}
 					res := fantasy.ToolResponse{
 						Type:      blobType,
-						Data:      data,
-						MediaType: r.MIMEType,
+						Data:      c.Resource.Blob,
+						MediaType: c.Resource.MIMEType,
 						IsError:   result.IsError,
 					}
 					binaryResult = &res
 				}
 			default:
-				textParts = append(textParts,
-					fmt.Sprintf(
-						"[unsupported embedded resource type: %T]",
-						c.Resource,
-					),
-				)
+				textParts = append(textParts, strings.ToValidUTF8(c.Resource.Text, "\uFFFD"))
 			}
-		case mcp.ResourceLink:
+		case *mcp.ResourceLink:
 			// Resource links point to content the LLM can
 			// reference by URI. Surface the URI so the model
 			// can use it in follow-ups.
@@ -858,6 +1017,43 @@ type RefreshResult struct {
 	Refreshed bool
 }
 
+// refreshFailureReasonLimit caps the error text persisted to
+// mcp_server_user_tokens.oauth_refresh_failure_reason, matching the
+// external auth failure reason limit.
+const refreshFailureReasonLimit = 400
+
+// IsPermanentRefreshError reports whether an OAuth2 token refresh
+// error means the user's grant is permanently unusable (for example
+// the upstream grant was revoked) rather than a transient provider
+// failure. Only error codes tied to the grant itself count: client
+// or config problems (invalid_client, unauthorized_client, ...)
+// affect every user of the server and cannot be fixed by the user
+// reconnecting, so they are treated as transient here. See RFC 6749
+// section 5.2.
+func IsPermanentRefreshError(err error) bool {
+	var oauthErr *oauth2.RetrieveError
+	if !xerrors.As(err, &oauthErr) {
+		return false
+	}
+	switch oauthErr.ErrorCode {
+	case "invalid_grant", // RFC 6749: grant invalid, expired, or revoked
+		"bad_refresh_token": // GitHub's equivalent, returned with HTTP 200
+		return true
+	}
+	return false
+}
+
+// RefreshFailureReason converts a refresh error into a bounded string
+// safe to persist as oauth_refresh_failure_reason. It is stored for
+// operator debugging only and is never returned through the API.
+func RefreshFailureReason(err error) string {
+	reason := err.Error()
+	if len(reason) > refreshFailureReasonLimit {
+		reason = reason[:refreshFailureReasonLimit]
+	}
+	return reason
+}
+
 // RefreshOAuth2Token checks whether the given MCP user token is
 // expired (or within 10 seconds of expiry) and refreshes it using
 // the OAuth2 credentials from the server config. If the token is
@@ -867,6 +1063,7 @@ type RefreshResult struct {
 // Refreshed is true.
 func RefreshOAuth2Token(
 	ctx context.Context,
+	httpClient *http.Client,
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (RefreshResult, error) {
@@ -892,6 +1089,12 @@ func RefreshOAuth2Token(
 	// matches connectTimeout used for MCP server connections.
 	refreshCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
+	if httpClient == nil {
+		httpClient = NewHTTPClient(nil)
+	}
+	refreshClient := *httpClient
+	refreshClient.CheckRedirect = safedial.CheckSameOriginRedirect
+	refreshCtx = context.WithValue(refreshCtx, oauth2.HTTPClient, &refreshClient)
 
 	// TokenSource automatically refreshes expired tokens. It
 	// uses a 10-second expiry window, so tokens about to expire
@@ -914,4 +1117,163 @@ func RefreshOAuth2Token(
 		Expiry:       newToken.Expiry,
 		Refreshed:    refreshed,
 	}, nil
+}
+
+// RevokeOAuth2Token revokes the user's token at the provider's RFC 7009
+// endpoint. It prefers the refresh token, retrying with the access token
+// only on unsupported_token_type; other failures do not fall back, since
+// an access-token success would hide a possibly live refresh token.
+// Returns false without error when there is no revocation endpoint or no
+// stored token. Errors carry only the HTTP status because provider
+// bodies may echo secrets.
+func RevokeOAuth2Token(
+	ctx context.Context,
+	httpClient *http.Client,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (bool, error) {
+	if cfg.OAuth2RevocationURL == "" {
+		return false, nil
+	}
+	if tok.RefreshToken == "" && tok.AccessToken == "" {
+		return false, nil
+	}
+	if err := ValidateRevocationEndpoint(cfg.OAuth2RevocationURL); err != nil {
+		return false, err
+	}
+
+	if httpClient == nil {
+		httpClient = NewHTTPClient(nil)
+	}
+	// Copy so CheckRedirect does not leak into the shared client.
+	redirectSafe := *httpClient
+	redirectSafe.CheckRedirect = safedial.CheckSameOriginRedirect
+	httpClient = &redirectSafe
+
+	token, hint := tok.AccessToken, "access_token"
+	if tok.RefreshToken != "" {
+		token, hint = tok.RefreshToken, "refresh_token"
+	}
+	status, errorCode, err := postTokenRevocation(ctx, httpClient, cfg, token, hint)
+	if err != nil {
+		return false, err
+	}
+	if isRevocationSuccessStatus(status) {
+		return true, nil
+	}
+
+	if hint == "refresh_token" && tok.AccessToken != "" && errorCode == "unsupported_token_type" {
+		fbStatus, _, fbErr := postTokenRevocation(ctx, httpClient, cfg, tok.AccessToken, "access_token")
+		if fbErr != nil {
+			return false, fbErr
+		}
+		if isRevocationSuccessStatus(fbStatus) {
+			return true, nil
+		}
+		return false, xerrors.Errorf(
+			"revocation endpoint returned HTTP %d for the refresh token and HTTP %d for the access token",
+			status, fbStatus,
+		)
+	}
+	return false, xerrors.Errorf(
+		"revocation endpoint returned HTTP %d", status,
+	)
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// ValidateRevocationEndpoint enforces the RFC 7009 HTTPS requirement;
+// the request carries token material and the client secret. Plain HTTP
+// is allowed only for loopback hosts.
+func ValidateRevocationEndpoint(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return xerrors.Errorf("parse revocation URL: %w", err)
+	}
+	// url.Parse accepts hostless forms like "https:/revoke" that can
+	// never be POSTed to.
+	if parsed.Hostname() == "" {
+		return xerrors.Errorf(
+			"revocation endpoint %q has no host", parsed.Redacted(),
+		)
+	}
+	if !isAllowedRevocationScheme(parsed) {
+		return xerrors.Errorf(
+			"revocation endpoint %q must use https", parsed.Redacted(),
+		)
+	}
+	return nil
+}
+
+func isAllowedRevocationScheme(u *url.URL) bool {
+	if u.Scheme == "https" {
+		return true
+	}
+	return u.Scheme == "http" && isLoopbackHost(u.Hostname())
+}
+
+func isRevocationSuccessStatus(status int) bool {
+	return status == http.StatusOK || status == http.StatusNoContent
+}
+
+// postTokenRevocation returns the HTTP status and the RFC 6749 error
+// code from the body; the raw body never propagates.
+func postTokenRevocation(
+	ctx context.Context,
+	httpClient *http.Client,
+	cfg database.MCPServerConfig,
+	token, tokenTypeHint string,
+) (int, string, error) {
+	form := url.Values{}
+	form.Set("token", token)
+	form.Set("token_type_hint", tokenTypeHint)
+	// Only public clients send client_id in the body; mixing it with
+	// Basic auth is malformed per RFC 6749 section 2.3.1.
+	if cfg.OAuth2ClientSecret == "" {
+		form.Set("client_id", cfg.OAuth2ClientID)
+	}
+
+	revokeCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(
+		revokeCtx, http.MethodPost,
+		cfg.OAuth2RevocationURL, strings.NewReader(form.Encode()),
+	)
+	if err != nil {
+		return 0, "", xerrors.Errorf("create revocation request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Credentials are form-encoded per RFC 6749 section 2.3.1
+	// (mirrors x/oauth2).
+	if cfg.OAuth2ClientSecret != "" {
+		req.SetBasicAuth(url.QueryEscape(cfg.OAuth2ClientID), url.QueryEscape(cfg.OAuth2ClientSecret))
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
+		return 0, "", xerrors.Errorf("revoke oauth2 token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if isRevocationSuccessStatus(resp.StatusCode) {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return resp.StatusCode, "", nil
+	}
+	var errBody struct {
+		Error string `json:"error"`
+	}
+	_ = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&errBody)
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.StatusCode, errBody.Error, nil
 }

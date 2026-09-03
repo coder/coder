@@ -134,7 +134,8 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 
 	switch dblog.ConnectionLog.Type {
 	case database.ConnectionTypeWorkspaceApp,
-		database.ConnectionTypePortForwarding:
+		database.ConnectionTypePortForwarding,
+		database.ConnectionTypeTunnel:
 		webInfo = &codersdk.ConnectionLogWebInfo{
 			UserAgent:  dblog.ConnectionLog.UserAgent.String,
 			User:       user,

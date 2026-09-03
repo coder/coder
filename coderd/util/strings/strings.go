@@ -64,8 +64,19 @@ func Truncate(s string, n int, opts ...TruncateOption) string {
 	if n < 1 {
 		return ""
 	}
-	runes := []rune(s)
-	if len(runes) <= n {
+
+	// Find the byte offset of the (n+1)th rune, if any; early exit
+	// avoids decoding s past what's needed.
+	runeCount := 0
+	cutoff := -1
+	for i := range s {
+		runeCount++
+		if runeCount > n {
+			cutoff = i
+			break
+		}
+	}
+	if cutoff < 0 {
 		return s
 	}
 
@@ -73,6 +84,7 @@ func Truncate(s string, n int, opts ...TruncateOption) string {
 	if options&TruncateWithEllipsis != 0 {
 		maxLen--
 	}
+	runes := []rune(s[:cutoff])
 	var sb strings.Builder
 	if options&TruncateWithFullWords != 0 {
 		// Convert the rune-safe prefix to a string, then find

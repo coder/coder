@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockTemplateExample,
 	MockTemplateExample2,
@@ -8,10 +7,10 @@ import { TemplateExampleCard } from "./TemplateExampleCard";
 
 const meta: Meta<typeof TemplateExampleCard> = {
 	title: "modules/templates/TemplateExampleCard",
-	parameters: { chromatic },
 	component: TemplateExampleCard,
 	args: {
 		example: MockTemplateExample,
+		templateBuilderEnabled: true,
 	},
 };
 
@@ -32,5 +31,11 @@ export const LotsOfTags: Story = {
 			...MockTemplateExample2,
 			tags: ["omg", "so many tags", "look at all these", "so cool"],
 		},
+	},
+};
+
+export const TemplateBuilderDisabled: Story = {
+	args: {
+		templateBuilderEnabled: false,
 	},
 };

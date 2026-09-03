@@ -28,7 +28,7 @@ export const LogLine: FC<LogLineProps> = ({
 			className={cn(
 				"logs-line",
 				"m-0 break-all flex items-center h-auto",
-				"text-[13px] text-content-primary font-mono",
+				"text-xs font-normal text-content-primary font-mono",
 				level === "error" &&
 					"bg-surface-error text-content-error [&_.dashed-line]:bg-border-error",
 				level === "debug" &&

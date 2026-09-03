@@ -30,11 +30,27 @@ func (lp *osListeningPortsGetter) GetListeningPorts() ([]codersdk.WorkspaceAgent
 		return ports, nil
 	}
 
-	tabs, err := netstat.TCPSocks(func(s *netstat.SockTabEntry) bool {
+	acceptListening := func(s *netstat.SockTabEntry) bool {
 		return s.State == netstat.Listen
-	})
+	}
+
+	tabs, err := netstat.TCPSocks(acceptListening)
 	if err != nil {
 		return nil, xerrors.Errorf("scan listening ports: %w", err)
+	}
+
+	// Include IPv6 listeners too. Many dev servers (e.g. Next.js, Node's
+	// default http.Server) bind to the IPv6 wildcard address "::", which is
+	// a dual-stack socket that also accepts IPv4 connections, but only shows
+	// up in the IPv6 socket table (/proc/net/tcp6), not /proc/net/tcp.
+	//
+	// The IPv6 scan fails on systems with IPv6 disabled (e.g. missing
+	// /proc/net/tcp6 on Linux). Fall back to the IPv4 results instead of
+	// failing the whole scan, otherwise the ports UI breaks entirely on
+	// such systems.
+	tabs6, err := netstat.TCP6Socks(acceptListening)
+	if err == nil {
+		tabs = append(tabs, tabs6...)
 	}
 
 	seen := make(map[uint16]struct{}, len(tabs))

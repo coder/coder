@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { selectTemplatesByGroup } from "#/api/queries/notifications";
 import type { DeploymentValues } from "#/api/typesGenerated";
 import { MockSystemNotificationTemplates } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { NotificationEvents } from "./NotificationEvents";
 import { baseMeta } from "./storybookUtils";
 
@@ -36,6 +37,15 @@ export const SMTPNotConfigured: Story = {
 			},
 		} as DeploymentValues,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute(
+			"href",
+			docs("/admin/monitoring/notifications#smtp-email"),
+		);
+	},
 };
 
 export const WebhookNotConfigured: Story = {
@@ -53,42 +63,52 @@ export const WebhookNotConfigured: Story = {
 			},
 		} as DeploymentValues,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute("href", docs("/admin/monitoring/notifications#webhook"));
+	},
 };
 
-export const Toggle: Story = {
+export const ChangeMethod: Story = {
 	play: async ({ canvasElement }) => {
 		spyOn(API, "updateNotificationTemplateMethod").mockResolvedValue();
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const tmpl = MockSystemNotificationTemplates[4];
 		const option = await canvas.findByText(tmpl.name);
-		const li = option.closest("li");
-		if (!li) {
-			throw new Error("Could not find li");
+		const row = option.closest("[data-testid='notification-template-row']");
+		if (!(row instanceof HTMLElement)) {
+			throw new Error("Could not find notification template row");
 		}
-		const toggleButton = within(li).getByRole("button", {
-			name: "Webhook",
-		});
-		await user.click(toggleButton);
+		await user.click(
+			within(row).getByRole("combobox", { name: /Notification method/ }),
+		);
+		await user.click(
+			await within(document.body).findByRole("option", { name: "Webhook" }),
+		);
 		await within(document.body).findByText("Notification method updated.");
 	},
 };
 
-export const ToggleError: Story = {
+export const ChangeMethodError: Story = {
 	play: async ({ canvasElement }) => {
 		spyOn(API, "updateNotificationTemplateMethod").mockRejectedValue({});
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const tmpl = MockSystemNotificationTemplates[4];
 		const option = await canvas.findByText(tmpl.name);
-		const li = option.closest("li");
-		if (!li) {
-			throw new Error("Could not find li");
+		const row = option.closest("[data-testid='notification-template-row']");
+		if (!(row instanceof HTMLElement)) {
+			throw new Error("Could not find notification template row");
 		}
-		const toggleButton = within(li).getByRole("button", {
-			name: "Webhook",
-		});
-		await user.click(toggleButton);
+		await user.click(
+			within(row).getByRole("combobox", { name: /Notification method/ }),
+		);
+		await user.click(
+			await within(document.body).findByRole("option", { name: "Webhook" }),
+		);
 		await within(document.body).findByText(
 			"Failed to update notification method.",
 		);

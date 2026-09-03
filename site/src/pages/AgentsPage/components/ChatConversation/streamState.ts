@@ -24,7 +24,7 @@ export const applyMessagePartToStreamState = (
 			// Skip empty and whitespace-only deltas so they don't
 			// create a non-null StreamState with empty blocks, which
 			// would prematurely end the "starting" phase.
-			if (!part.text?.trim()) {
+			if (!part.text.trim()) {
 				return prev;
 			}
 			return {
@@ -33,7 +33,7 @@ export const applyMessagePartToStreamState = (
 			};
 		}
 		case "reasoning": {
-			if (!part.text?.trim()) {
+			if (!part.text.trim()) {
 				return prev;
 			}
 			return {
@@ -211,6 +211,9 @@ export const applyMessagePartToStreamState = (
 		// skill parts are metadata-only; no streaming render
 		// needed.
 		case "skill":
+		// Hook notices may arrive in durable message events, but not in
+		// streaming part deltas.
+		case "hook-notice":
 			return prev;
 		default: {
 			const _exhaustive: never = part;

@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 )
@@ -56,7 +55,7 @@ func (c *Client) WorkspaceSharingSettings(ctx context.Context, orgID string) (Wo
 		return WorkspaceSharingSettings{}, ReadBodyAsError(res)
 	}
 	var resp WorkspaceSharingSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // PatchWorkspaceSharingSettings modifies the workspace sharing settings for an organization.
@@ -71,5 +70,5 @@ func (c *Client) PatchWorkspaceSharingSettings(ctx context.Context, orgID string
 		return WorkspaceSharingSettings{}, ReadBodyAsError(res)
 	}
 	var resp WorkspaceSharingSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }

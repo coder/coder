@@ -47,9 +47,6 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 	parameters: {
 		layout: "fullscreen",
 		features: ["advanced_template_scheduling"],
-		chromatic: {
-			diffThreshold: 0.6,
-		},
 		user: MockUserOwner,
 	},
 };
@@ -57,7 +54,14 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 export default meta;
 type Story = StoryObj<typeof WorkspaceTopbar>;
 
-export const Example: Story = {};
+export const Example: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const backLink = canvas.getByRole("link", { name: "Back to workspaces" });
+		await expect(backLink).toBeVisible();
+		await expect(backLink).toHaveAttribute("aria-label", "Back to workspaces");
+	},
+};
 
 export const Outdated: Story = {
 	args: {
@@ -328,11 +332,6 @@ export const TemplateInfoPopover: Story = {
 				),
 			);
 		});
-	},
-	parameters: {
-		chromatic: {
-			diffThreshold: 0.6,
-		},
 	},
 };
 

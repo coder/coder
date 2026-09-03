@@ -1,0 +1,24 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder oauth2-provider
+
+  Manage Coder OAuth2 provider settings
+
+  Administrators can use these commands to change OAuth2 provider settings.
+    - Enable dynamic client registration (RFC 7591), allowing OAuth2/MCP clients
+  to
+  self-register without an admin creating an app first:
+  
+       $ coder oauth2-provider dcr enable
+  
+    - Disable dynamic client registration. Clients that already registered are
+  unaffected; only new self-registration attempts are rejected:
+  
+       $ coder oauth2-provider dcr disable
+
+SUBCOMMANDS:
+    dcr    Manage OAuth2 dynamic client registration (RFC 7591)
+
+———
+Run `coder --help` for a list of global options.

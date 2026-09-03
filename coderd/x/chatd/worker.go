@@ -97,6 +97,11 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	w.wg.Go(func() {
 		w.archiveLoop(workerCtx)
 	})
+	if w.opts.CapacityMetrics != nil {
+		w.wg.Go(func() {
+			w.capacityMetricsLoop(workerCtx)
+		})
+	}
 	wake(wakeCh)
 	return nil
 }
@@ -187,49 +192,65 @@ func (w *chatWorker) acquisitionLoop(
 }
 
 func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manager *runnerManager) {
-	attempted := make(map[uuid.UUID]struct{})
-	for {
-		rows, err := w.opts.Store.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
-			StaleSeconds: w.opts.HeartbeatStaleSeconds,
-			LimitCount:   w.opts.AcquisitionBatchSize,
-		})
+	// Fetch twice the budget so one full pool cannot hide candidates in the other.
+	rows, err := w.opts.Store.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
+		StaleSeconds: w.opts.HeartbeatStaleSeconds,
+		LimitCount:   w.opts.AcquisitionBatchSize * 2,
+	})
+	if err != nil {
+		if ctx.Err() == nil {
+			w.opts.Logger.Warn(ctx, "chatworker acquisition query failed", slogError(err))
+		}
+		return
+	}
+
+	acquired := int32(0)
+	rootPoolRefused := false
+	subagentPoolRefused := false
+	for _, row := range rows {
+		if acquired >= w.opts.AcquisitionBatchSize {
+			return
+		}
+		// Interrupting and requires-action chats bypass capacity so their runners
+		// can finish work or enforce the action deadline.
+		isSubagent := row.ParentChatID.Valid
+		if row.Status == database.ChatStatusRunning &&
+			((isSubagent && subagentPoolRefused) || (!isSubagent && rootPoolRefused)) {
+			continue
+		}
+		candidateAcquired, err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)
+		if errors.Is(err, errCapacityRefused) {
+			if isSubagent {
+				subagentPoolRefused = true
+			} else {
+				rootPoolRefused = true
+			}
+			continue
+		}
 		if err != nil {
-			if ctx.Err() == nil {
-				w.opts.Logger.Warn(ctx, "chatworker acquisition query failed", slogError(err))
+			if ctx.Err() != nil {
+				return
 			}
-			return
+			w.opts.Logger.Warn(ctx, "chatworker acquisition candidate failed", slogError(err))
+			continue
 		}
-		if len(rows) == 0 {
-			return
-		}
-		newRows := 0
-		for _, row := range rows {
-			if _, ok := attempted[row.ID]; ok {
-				continue
-			}
-			attempted[row.ID] = struct{}{}
-			newRows++
-			if err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID); err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-				w.opts.Logger.Warn(ctx, "chatworker acquisition candidate failed", slogError(err))
-			}
-		}
-		if len(rows) < int(w.opts.AcquisitionBatchSize) || newRows == 0 {
-			return
+		if candidateAcquired {
+			acquired++
 		}
 	}
 }
 
-var errSkipAcquire = xerrors.New("skip acquire")
+var (
+	errSkipAcquire     = xerrors.New("skip acquire")
+	errCapacityRefused = xerrors.New("capacity refused")
+)
 
 func (w *chatWorker) acquireCandidateSafely(
 	ctx context.Context,
 	workerID uuid.UUID,
 	manager *runnerManager,
 	chatID uuid.UUID,
-) (err error) {
+) (acquired bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = xerrors.Errorf("chatworker acquisition panic: %v", recovered)
@@ -243,7 +264,7 @@ func (w *chatWorker) acquireCandidate(
 	workerID uuid.UUID,
 	manager *runnerManager,
 	chatID uuid.UUID,
-) error {
+) (bool, error) {
 	runnerID := uuid.New()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -274,22 +295,34 @@ func (w *chatWorker) acquireCandidate(
 				return errSkipAcquire
 			}
 		}
+		admitted, err := w.opts.AgentCapacityLimiter.Admit(ctx, store, chat)
+		if err != nil {
+			return xerrors.Errorf("agent admission: %w", err)
+		}
+		if !admitted {
+			// Roll back to suppress the ownership hint, which would wake every
+			// worker into an immediate retry of this unowned chat.
+			return errCapacityRefused
+		}
 		_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
 		return err
 	})
+	if errors.Is(err, errCapacityRefused) {
+		return false, errCapacityRefused
+	}
 	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID}); err != nil {
 		if errAbandon := w.abandonAcquiredChat(ctx, workerID, runnerID, chatID); errAbandon != nil {
-			return errors.Join(err, errAbandon)
+			return false, errors.Join(err, errAbandon)
 		}
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID, runnerID uuid.UUID, chatID uuid.UUID) error {

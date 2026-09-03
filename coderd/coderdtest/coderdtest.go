@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -35,6 +36,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/assert"
@@ -85,7 +87,6 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
@@ -93,6 +94,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -116,22 +118,26 @@ type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
-	AccessURL                      *url.URL
-	AppHostname                    string
-	AWSCertificates                awsidentity.Certificates
-	Authorizer                     rbac.Authorizer
-	AzureCertificates              azureidentity.Options
-	GithubOAuth2Config             *coderd.GithubOAuth2Config
-	RealIPConfig                   *httpmw.RealIPConfig
-	OIDCConfig                     *coderd.OIDCConfig
-	GoogleTokenValidator           *idtoken.Validator
-	SSHKeygenAlgorithm             gitsshkey.Algorithm
-	AutobuildTicker                <-chan time.Time
-	AutobuildStats                 chan<- autobuild.Stats
-	Auditor                        audit.Auditor
-	TLSCertificates                []tls.Certificate
-	ExternalAuthConfigs            []*externalauth.Config
-	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	AccessURL            *url.URL
+	AppHostname          string
+	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
+	AzureCertificates    azureidentity.Options
+	GithubOAuth2Config   *coderd.GithubOAuth2Config
+	RealIPConfig         *httpmw.RealIPConfig
+	OIDCConfig           *coderd.OIDCConfig
+	GoogleTokenValidator *idtoken.Validator
+	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	AutobuildTicker      <-chan time.Time
+	AutobuildStats       chan<- autobuild.Stats
+	Auditor              audit.Auditor
+	TLSCertificates      []tls.Certificate
+	ExternalAuthConfigs  []*externalauth.Config
+	TrialGenerator       func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// MCPAllowedPrivateCIDRs exempts IP ranges from the MCP
+	// SSRF guard for MCP server and OAuth2 traffic. Defaults to loopback so
+	// tests can serve mock MCP and authorization servers via httptest.
+	MCPAllowedPrivateCIDRs         []netip.Prefix
 	RefreshEntitlements            func(ctx context.Context) error
 	TemplateScheduleStore          schedule.TemplateScheduleStore
 	Coordinator                    tailnet.Coordinator
@@ -171,7 +177,7 @@ type Options struct {
 	// test instances are running against the same database.
 	Database          database.Store
 	Pubsub            pubsub.Pubsub
-	ReplicaSyncPubsub *pubsub.PGPubsub
+	ReplicaSyncPubsub pubsub.Pubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
 	// useful in certain tests where you want to intercept requests before
@@ -197,7 +203,9 @@ type Options struct {
 	NotificationsEnqueuer              notifications.Enqueuer
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
+	ChatFileTokenKeyCache              cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
+	Acquirer                           *provisionerdserver.Acquirer
 	TelemetryReporter                  telemetry.Reporter
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
@@ -289,15 +297,39 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		usageInserter.Store(&options.UsageInserter)
 	}
 	if options.Database == nil {
-		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+		var ps pubsub.Pubsub
+		options.Database, ps = dbtestutil.NewDB(t)
+		var ok bool
+		options.ReplicaSyncPubsub, ok = ps.(*pubsub.PGPubsub)
+		require.True(t, ok)
 	}
 	if options.ReplicaSyncPubsub == nil {
-		pgPubsub, ok := options.Pubsub.(*pubsub.PGPubsub)
-		require.True(t, ok, "ReplicaSyncPubsub must be a PGPubsub")
-		options.ReplicaSyncPubsub = pgPubsub
+		// To get here, the database must have been passed in, but not the ReplicSyncPubsub. We can't create a PGPubsub
+		// just from the database.Store since it could be anything including a mock. We need this to be independent from
+		// the main Pubsub in case it's NATS, since that uses the ReplicaSync to bootstrap the cluster. The in-mem
+		// pubsub satisfies these requirements.
+		options.ReplicaSyncPubsub = pubsub.NewInMemory()
 	}
+	if options.Pubsub == nil {
+		natsCtx, natsCancel := context.WithCancel(context.Background())
+		t.Cleanup(natsCancel)
+		natPS, err := natspubsub.New(natsCtx, *options.Logger, natspubsub.Options{ClusterPort: server.RANDOM_PORT})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = natPS.Close() })
+		options.Pubsub = natPS
+	}
+
 	if options.CoordinatorResumeTokenProvider == nil {
 		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
+	}
+
+	if options.MCPAllowedPrivateCIDRs == nil {
+		// Tests allow loopback for mock MCP and OAuth servers. Pass a non-nil
+		// allowlist, including an empty one, to exercise the guard.
+		options.MCPAllowedPrivateCIDRs = []netip.Prefix{
+			netip.MustParsePrefix("127.0.0.0/8"),
+			netip.MustParsePrefix("::1/128"),
+		}
 	}
 
 	if options.NotificationsEnqueuer == nil {
@@ -596,6 +628,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
 			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
+			MCPAllowedPrivateCIDRs:         options.MCPAllowedPrivateCIDRs,
 			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
 			ChatWorkerDisabled:             options.ChatWorkerDisabled,
 			AccessURL:                      accessURL,
@@ -655,8 +688,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
 			Clock:                              options.Clock,
+			Acquirer:                           options.Acquirer,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
+			ChatFileTokenKeyCache:              options.ChatFileTokenKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
 			WorkspaceBuilderMetrics:            options.WorkspaceBuilderMetrics,
 		}
@@ -947,7 +982,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		OrganizationIDs: organizationIDs,
 		// Always create users as active in tests to ignore an extra audit log
 		// when logging in.
-		UserStatus: ptr.Ref(codersdk.UserStatusActive),
+		UserStatus: new(codersdk.UserStatusActive),
 	}
 	for _, m := range mutators {
 		m(&req)
@@ -1495,8 +1530,8 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
 		Name:              RandomUsername(t),
-		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
-		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutostartSchedule: new("CRON_TZ=US/Central 30 9 * * 1-5"),
+		TTLMillis:         new((8 * time.Hour).Milliseconds()),
 		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
 	}
 	for _, mutator := range mutators {
@@ -1828,6 +1863,10 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 	opts := cfg.Options()
 	err := opts.SetDefaults()
 	require.NoError(t, err)
+	// Tasks ship disabled. Tests exercise the enabled behavior by default so
+	// the Tasks suite keeps running; tests for the disabled path opt out
+	// explicitly via the mutators.
+	cfg.EnableAITasks = true
 	for _, fn := range mut {
 		fn(cfg)
 	}

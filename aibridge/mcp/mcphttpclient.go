@@ -5,6 +5,39 @@ import (
 	"net/http"
 )
 
+// withHeaders shallow-copies base so client-level settings such as
+// Timeout and Jar survive the transport wrap.
+func withHeaders(base *http.Client, headers map[string]string) *http.Client {
+	client := &http.Client{}
+	if base != nil {
+		clone := *base
+		client = &clone
+	}
+	if client.Transport == nil {
+		client.Transport = http.DefaultTransport
+	}
+	if len(headers) > 0 {
+		client.Transport = &headerRoundTripper{
+			base:    client.Transport,
+			headers: headers,
+		}
+	}
+	return client
+}
+
+type headerRoundTripper struct {
+	base    http.RoundTripper
+	headers map[string]string
+}
+
+func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	for k, v := range h.headers {
+		clone.Header.Set(k, v)
+	}
+	return h.base.RoundTrip(clone)
+}
+
 // mcpHTTPClient returns an isolated *http.Client when running
 // inside tests, or nil for production. During tests,
 // httptest.Server.Close() calls

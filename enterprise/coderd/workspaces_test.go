@@ -32,6 +32,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -1921,17 +1923,50 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		t.Helper()
 
 		var runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow
-		testutil.Eventually(ctx, t, func(context.Context) bool {
+		// Real time, not the mock clock: this measures wall-clock queueing of
+		// the prebuild's provisioner job, which is what regressed in PLAT-390.
+		start := time.Now()
+		polls := 0
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			polls++
+			// Reset per iteration. The rows are re-read every poll, so
+			// accumulating across polls would double count if an iteration
+			// appended rows and then returned early on an error, and the
+			// count could never match again.
+			runningPrebuilds = nil
+
 			rows, err := db.GetRunningPrebuiltWorkspaces(ctx)
 			if err != nil {
+				t.Logf("poll %d (%s elapsed): query failed: %v", polls, time.Since(start), err)
 				return false
 			}
 
 			for _, row := range rows {
 				runningPrebuilds = append(runningPrebuilds, row)
 
+				// Report how long the job waited to be picked up. queued_for is
+				// started_at minus created_at, both stamped from the real clock
+				// (wsbuilder and the acquirer respectively), so it is
+				// meaningful even though this test runs on a mock clock. A
+				// value near 30s means the provisioner_job_posted notification
+				// was lost and provisionerd only found the job via the
+				// acquirer's backup poll, which is what PLAT-390 was.
+				//
+				// Do not compute a duration against completed_at: that column
+				// is stamped by CompleteJob from the injected (mock) clock,
+				// while started_at comes from the real clock, so the
+				// subtraction mixes two time bases and is meaningless here.
+				if build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, row.ID); err == nil {
+					if job, err := db.GetProvisionerJobByID(ctx, build.JobID); err == nil {
+						t.Logf("poll %d (%s elapsed): prebuild %s ready=%t job=%s status=%s queued_for=%s",
+							polls, time.Since(start), row.ID, row.Ready, job.ID, job.JobStatus,
+							job.StartedAt.Time.Sub(job.CreatedAt))
+					}
+				}
+
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
 				if err != nil {
+					t.Logf("poll %d (%s elapsed): get agents failed: %v", polls, time.Since(start), err)
 					return false
 				}
 
@@ -1943,14 +1978,26 @@ func TestPrebuildsAutobuild(t *testing.T) {
 						ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
 					})
 					if err != nil {
+						t.Logf("poll %d (%s elapsed): mark agent ready failed: %v", polls, time.Since(start), err)
 						return false
 					}
 				}
 			}
 
-			t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), prebuildInstances)
+			t.Logf("poll %d (%s elapsed): found %d running prebuilds so far, want %d",
+				polls, time.Since(start), len(runningPrebuilds), prebuildInstances)
 			return len(runningPrebuilds) == prebuildInstances
 		}, testutil.IntervalSlow, "prebuilds not running")
+
+		// A prebuild here should be running within a second or two. A long wait
+		// with queued_for at or near a multiple of 30s means the job posting was
+		// lost and provisionerd fell back to the acquirer's backup poll.
+		if elapsed := time.Since(start); elapsed > 10*time.Second {
+			t.Logf("WARNING: prebuilds took %s (%d polls) to start running; "+
+				"check queued_for above, a value near 30s means the "+
+				"provisioner_job_posted notification was lost (PLAT-390)",
+				elapsed, polls)
+		}
 
 		return runningPrebuilds
 	}
@@ -1959,6 +2006,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		t *testing.T,
 		ctx context.Context,
 		db database.Store,
+		pb pubsub.Pubsub,
 		reconciler *prebuilds.StoreReconciler,
 		presets []codersdk.Preset,
 	) {
@@ -1973,6 +2021,22 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, actions)
 		require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
+
+		// StoreReconciler queues its "job posted" pubsub notification on an
+		// internal channel that only StoreReconciler.Run drains. These tests
+		// drive the reconciler directly and never start Run, so nothing
+		// publishes the notification and provisionerd would not see the job
+		// until the acquirer's 30 second backup poll. Publish on the
+		// reconciler's behalf. Posting a job that was already acquired is
+		// harmless: the acquirer re-queries and finds nothing.
+		jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Time{})
+		require.NoError(t, err)
+		for _, job := range jobs {
+			if job.JobStatus != database.ProvisionerJobStatusPending {
+				continue
+			}
+			require.NoError(t, provisionerjobs.PostJob(pb, job))
+		}
 	}
 
 	claimPrebuild := func(
@@ -2079,7 +2143,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Len(t, presets, 1)
 
 		// Given: Reconciliation loop runs and starts prebuilt workspace
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
 		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 		require.Len(t, runningPrebuilds, int(prebuildInstances))
 
@@ -2205,7 +2269,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Len(t, presets, 1)
 
 		// Given: Reconciliation loop runs and starts prebuilt workspace
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
 		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 		require.Len(t, runningPrebuilds, int(prebuildInstances))
 
@@ -2330,7 +2394,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Len(t, presets, 1)
 
 		// Given: Reconciliation loop runs and starts prebuilt workspace
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
 		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 		require.Len(t, runningPrebuilds, int(prebuildInstances))
 
@@ -2476,7 +2540,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Len(t, presets, 1)
 
 		// Given: reconciliation loop runs and starts prebuilt workspace
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
 		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 		require.Len(t, runningPrebuilds, int(prebuildInstances))
 
@@ -2559,12 +2623,21 @@ func TestPrebuildsAutobuild(t *testing.T) {
 
 		// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
 		clock := quartz.NewMock(t)
+		acquirerClock := quartz.NewMock(t)
 		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+		acquirerTickerTrap := acquirerClock.Trap().NewTicker("acquirer", "backup_poll")
 
 		// Setup
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 		logger := testutil.Logger(t)
+		acquirer := provisionerdserver.NewAcquirer(
+			ctx,
+			logger.Named("acquirer"),
+			db,
+			pb,
+			provisionerdserver.WithClock(acquirerClock),
+		)
 		tickCh := make(chan time.Time)
 		statsCh := make(chan autobuild.Stats)
 		notificationsNoop := notifications.NewNoopEnqueuer()
@@ -2576,6 +2649,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statsCh,
 				Clock:                    clock,
+				Acquirer:                 acquirer,
 				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(
 					agplUserQuietHoursScheduleStore(),
 					notificationsNoop,
@@ -2589,6 +2663,10 @@ func TestPrebuildsAutobuild(t *testing.T) {
 				},
 			},
 		})
+		// The Acquirer creates a fresh backup-poll ticker for the initial idle
+		// wait and again after completing the template import job. Release both
+		// so the second ticker exists before the clock advances below.
+		acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
 
 		// Setup Prebuild reconciler
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -2620,8 +2698,12 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, presets, 1)
 
+		acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
+		acquirerTickerTrap.Close()
+
 		// Given: reconciliation loop runs and starts prebuilt workspace in failed state
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
+		acquirerClock.Advance(30 * time.Second).MustWait(ctx)
 		var failedWorkspaceBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
 		require.Eventually(t, func() bool {
 			rows, err := db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
@@ -2879,7 +2961,7 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusConflict, apiErr.StatusCode())
-			require.Equal(t, tc.apiErrorMsg, apiErr.Response.Message)
+			require.Equal(t, tc.apiErrorMsg, apiErr.Message)
 
 			// Given: the prebuilt workspace is claimed by a user
 			user, err := client.User(ctx, "testUser")
@@ -4752,9 +4834,10 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		// Find actors in response
 		var userActor, groupActor *codersdk.SharedWorkspaceActor
 		for i := range sharedWith {
-			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {
+			switch sharedWith[i].ActorType {
+			case codersdk.SharedWorkspaceActorTypeUser:
 				userActor = &sharedWith[i]
-			} else if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeGroup {
+			case codersdk.SharedWorkspaceActorTypeGroup:
 				groupActor = &sharedWith[i]
 			}
 		}
@@ -4839,9 +4922,10 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		// Find actors in response
 		var userActor, groupActor *codersdk.SharedWorkspaceActor
 		for i := range sharedWith {
-			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {
+			switch sharedWith[i].ActorType {
+			case codersdk.SharedWorkspaceActorTypeUser:
 				userActor = &sharedWith[i]
-			} else if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeGroup {
+			case codersdk.SharedWorkspaceActorTypeGroup:
 				groupActor = &sharedWith[i]
 			}
 		}

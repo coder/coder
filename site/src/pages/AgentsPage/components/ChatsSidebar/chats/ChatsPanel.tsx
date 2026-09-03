@@ -22,10 +22,9 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
-import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
+import type { Chat, ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -38,7 +37,6 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
-import type { ModelSelectorOption } from "../../ChatElements";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -68,8 +66,8 @@ const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 interface ChatsPanelProps {
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
-	readonly modelOptions: readonly ModelSelectorOption[];
-	readonly modelConfigs: readonly ChatModelConfig[];
+	readonly modelConfigs: readonly ChatModel[];
+	readonly isLoadingModelConfigs: boolean;
 	readonly onArchiveAgent: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;
 	readonly onArchiveAndDeleteWorkspace: (
@@ -104,8 +102,8 @@ interface ChatsPanelProps {
 export const ChatsPanel: FC<ChatsPanelProps> = ({
 	chats,
 	chatErrorReasons,
-	modelOptions,
 	modelConfigs,
+	isLoadingModelConfigs,
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
@@ -297,8 +295,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		visibleChatIDs,
 		normalizedSearch: "",
 		expandedById,
-		modelOptions,
 		modelConfigs,
+		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
 		isArchiving,
@@ -335,9 +333,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				}))
 	).filter((section) => section.chats.length > 0);
 	const isShowingEmptyState = visibleRootIDs.length === 0;
+	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
+	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
 		? "No agents match these filters"
-		: sidebarFilters.archiveStatus === "archived"
+		: isViewingArchived
 			? "No archived agents"
 			: "No agents yet";
 	const clearResultFilters = () => {
@@ -360,14 +360,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		>
 			<nav
 				aria-label="Sidebar"
-				className="hidden border-b border-border-default px-2 py-1.5 sm:flex sm:flex-col sm:gap-0.5"
+				className="hidden px-2 py-1.5 sm:flex sm:flex-col sm:gap-0.5"
 			>
 				<div className="flex items-center justify-between mb-2.5 ml-2.5">
 					<div className="flex items-center gap-2">
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
-						<FeatureStageBadge contentType="beta" size="xs" />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
 						<Button
@@ -429,7 +428,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				<div className="mx-2 pt-6 mb-1.5">
 					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
-							Chats
+							{chatsHeadingLabel}
 						</h2>
 						<div className="flex items-center gap-1">
 							{onOpenSearchDialog && (
@@ -451,16 +450,16 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					</div>
 				</div>
 				<ScrollArea
-					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
+					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!"
 					scrollBarClassName="w-1.5"
 					// The default 24px hit-target extends ~18px left of this narrow
 					// scrollbar, onto the row controls (actions menu, timestamp,
 					// indicators). Disable it so those controls stay clickable.
 					scrollThumbClassName="before:hidden"
 					viewportClassName={cn(
-						"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
+						"mask-[linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
 						"[-webkit-mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
-						"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
+						"sm:mask-none sm:[-webkit-mask-image:none]",
 					)}
 				>
 					<div className="flex flex-col gap-2 px-2 pb-3">
@@ -513,7 +512,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									) : (
 										<>
 											{pinnedChats.length > 0 && (
-												<div className="[&:not(:first-child)]:mt-3">
+												<div className="not-first:mt-3">
 													<ChatSectionHeader
 														label={PINNED_SECTION_KEY}
 														count={pinnedChats.length}
@@ -566,7 +565,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												</div>
 											)}
 											{sharedWithYouChats.length > 0 && (
-												<div className="[&:not(:first-child)]:mt-3">
+												<div className="not-first:mt-3">
 													<ChatSectionHeader
 														label={SHARED_WITH_YOU_SECTION_KEY}
 														count={sharedWithYouChats.length}
@@ -597,10 +596,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												const isSectionExpanded =
 													!collapsedSections[section.key];
 												return (
-													<div
-														key={section.key}
-														className="[&:not(:first-child)]:mt-3"
-													>
+													<div key={section.key} className="not-first:mt-3">
 														<ChatSectionHeader
 															label={section.label}
 															count={section.chats.length}

@@ -34,7 +34,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 				"flex flex-col pt-4 px-4 pb-6 rounded",
 				"bg-surface-secondary border border-solid",
 				"cursor-pointer",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
+				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
 				selected ? "border-border-pending" : "border-border",
 			)}
 			onClick={() => onSelect?.()}
@@ -61,24 +61,24 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 			</div>
 
 			<div>
-				<h3 id={nameId} className="text-md font-semibold text-content-primary">
+				<h3 id={nameId} className="text-sm font-bold text-content-primary">
 					{name}
 					{official && (
 						<>
 							{" "}
-							<BadgeCheckIcon className="size-4 text-highlight-sky align-middle" />
+							<BadgeCheckIcon className="size-4 text-highlight-sky align-middle inline-block" />
 						</>
 					)}
 				</h3>
 				<div>
-					<p className="text-sm font-normal text-content-secondary">
+					<p className="text-xs font-normal text-content-secondary">
 						{description}
 					</p>
 
 					<Link
 						href={detailsUrl}
 						target="_blank"
-						className="text-sm font-normal"
+						className="text-xs font-normal"
 					>
 						View details
 					</Link>

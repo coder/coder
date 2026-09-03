@@ -1,15 +1,9 @@
-import { ArrowLeftIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
+import { ArrowLeftIcon, Share2Icon } from "lucide-react";
+import { type FC, useId } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
 import {
@@ -20,9 +14,9 @@ import {
 import { cn } from "#/utils/cn";
 import { MCPServerIcon } from "./MCPServerIcon";
 
-const MCPServerFormBackLink: FC = () => {
+const MCPServerFormBackLink: FC<{ to: string }> = ({ to }) => {
 	return (
-		<Link to="/ai/settings/mcp-servers" className="-ml-3">
+		<Link to={to} className="-ml-3">
 			<Button variant="subtle" type="button">
 				<ArrowLeftIcon />
 				<span>Back to MCP servers</span>
@@ -35,9 +29,11 @@ interface MCPServerFormHeaderProps {
 	server?: TypesGen.MCPServerConfig;
 	title: string;
 	iconUrl: string;
+	listPath?: string;
 	isEditing: boolean;
 	isDisabled: boolean;
-	onRequestDelete: () => void;
+	onRequestDelete?: () => void;
+	onShareServer?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 }
 
@@ -45,82 +41,105 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	server,
 	title,
 	iconUrl,
+	listPath,
 	isEditing,
 	isDisabled,
 	onRequestDelete,
+	onShareServer,
 	onToggleEnabled,
 }) => {
+	const disabledReasonId = useId();
+	const lacksUpdatePermission = isEditing && server && !onToggleEnabled;
+
 	return (
 		<>
 			<div className="flex items-center justify-between">
-				<MCPServerFormBackLink />
-				{isEditing && server && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
+				{listPath && <MCPServerFormBackLink to={listPath} />}
+				{isEditing && server && (onShareServer || onRequestDelete) && (
+					<div className="flex items-center gap-2">
+						{onShareServer && (
 							<Button
-								variant="subtle"
-								size="icon"
 								type="button"
+								variant="outline"
 								disabled={isDisabled}
-								aria-label="Server actions"
+								onClick={onShareServer}
 							>
-								<EllipsisVerticalIcon />
+								<Share2Icon />
+								<span>Manage permissions</span>
 							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
+						)}
+						{onRequestDelete && (
+							<Button
+								type="button"
+								variant="destructive"
+								disabled={isDisabled}
 								onClick={onRequestDelete}
 							>
-								<TrashIcon />
-								Remove
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+								<span>Delete</span>
+							</Button>
+						)}
+					</div>
 				)}
 			</div>
-			<div className="flex items-center justify-between gap-4">
-				<div className="flex min-w-0 items-center gap-4">
-					{isEditing && (
-						<MCPServerIcon iconUrl={iconUrl} name={title} className="size-12" />
-					)}
-					<SettingsHeaderTitle>
-						<span
-							className={cn(
-								"block min-w-0 truncate",
-								server?.enabled === false && "text-content-secondary",
-							)}
-						>
-							{title}
-						</span>
-					</SettingsHeaderTitle>
-					{isEditing && server && !server.enabled && (
-						<Badge variant="default">Disabled</Badge>
-					)}
-				</div>
-				{isEditing && server && (
+			<div className="flex items-center gap-4 pt-6 min-w-0">
+				{isEditing && (
+					<MCPServerIcon iconUrl={iconUrl} name={title} className="size-12" />
+				)}
+				<SettingsHeaderTitle>
+					<span
+						className={cn(
+							"block min-w-0 truncate",
+							server?.enabled === false && "text-content-secondary",
+						)}
+					>
+						{title}
+					</span>
+				</SettingsHeaderTitle>
+				{isEditing && server && !server.enabled && (
+					<Badge variant="default">Disabled</Badge>
+				)}
+			</div>
+			{isEditing && server && (
+				<div className="flex items-center justify-between w-full pt-6">
+					<p className="text-sm text-content-secondary m-0">
+						Disabled servers are hidden from agents.
+					</p>
 					<div className="flex shrink-0 items-center gap-2">
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<span className="inline-flex">
 									<Switch
 										checked={server.enabled}
-										onCheckedChange={(checked) => onToggleEnabled?.(checked)}
+										onCheckedChange={(checked) => {
+											onToggleEnabled?.(checked);
+										}}
 										disabled={isDisabled}
+										aria-disabled={lacksUpdatePermission}
 										aria-label="Server enabled"
+										aria-describedby={
+											lacksUpdatePermission ? disabledReasonId : undefined
+										}
+										className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=checked]:bg-surface-tertiary aria-disabled:data-[state=unchecked]:bg-surface-tertiary"
 									/>
 								</span>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">
-								{server.enabled
-									? "Disable this server. It will be hidden from agents."
-									: "Enable this server. It will be visible to agents."}
+								{lacksUpdatePermission
+									? "You do not have permission to update this server."
+									: server.enabled
+										? "Disable this server. It will be hidden from agents."
+										: "Enable this server. It will be visible to agents."}
 							</TooltipContent>
 						</Tooltip>
+						{lacksUpdatePermission && (
+							<span id={disabledReasonId} className="sr-only">
+								You do not have permission to update this server.
+							</span>
+						)}
 						<span className="text-sm">Enable</span>
 					</div>
-				)}
-			</div>
+				</div>
+			)}
 		</>
 	);
 };

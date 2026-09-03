@@ -1,86 +1,104 @@
-import type { ReactNode } from "react";
-import { PremiumBadge } from "#/components/Badges/Badges";
+import type { FC } from "react";
+import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
 import { cn } from "#/utils/cn";
 import {
-	Paywall,
-	PaywallContent,
-	PaywallCTA,
-	PaywallDescription,
-	PaywallDocumentationLink,
+	PaywallCTALink,
 	PaywallFeature,
 	PaywallFeatures,
-	PaywallHeading,
-	PaywallSeparator,
-	PaywallStack,
+	PaywallGuidance,
+	type PaywallProps,
 	PaywallTitle,
+	PREMIUM_DEFAULT_DESCRIPTION,
+	PREMIUM_DEFAULT_HERO,
+	PREMIUM_FEATURES,
+	PREMIUM_PAGE_PATH,
 } from "./Paywall";
 
-type PaywallPremiumProps = React.ComponentProps<"div"> & {
-	message: string;
-	description: ReactNode;
-	documentationLink: string;
-	compact?: boolean;
-};
+const DEFAULT_HERO_SUBTITLE = "Start an unlimited 30-day trial today";
 
-const PaywallPremium = ({
-	message,
-	description,
-	documentationLink,
-	compact = false,
+const PaywallPremiumHeader: FC<React.ComponentProps<"div">> = ({
+	children,
 	className,
 	...props
-}: PaywallPremiumProps) => {
-	const PREMIUM_FEATURES = [
-		"High availability & workspace proxies",
-		"Multi-org & role-based access control",
-		"24x7 global support with SLA",
-		"Unlimited Git & external auth integrations",
-	];
-
+}) => {
 	return (
-		<Paywall
+		<div
 			className={cn(
-				compact && "max-w-[770px] py-4 px-[36px] gap-[18px] min-h-[230px]",
+				"relative isolate overflow-hidden rounded-lg py-12 mb-8",
+				"flex flex-col items-center justify-center px-6 text-center",
 				className,
 			)}
 			{...props}
 		>
-			<PaywallContent>
-				<PaywallHeading className={cn(compact && "mb-[18px]")}>
-					<PaywallTitle className={cn(compact && "text-lg leading-none")}>
-						{message}
-					</PaywallTitle>
-					<PremiumBadge />
-				</PaywallHeading>
-				<PaywallDescription
-					className={cn(
-						compact &&
-							"text-sm max-w-[360px] mt-2 mb-3.5 leading-relaxed text-content-secondary",
-					)}
-				>
-					{description}
-				</PaywallDescription>
-				<PaywallDocumentationLink href={documentationLink}>
-					Read the documentation
-				</PaywallDocumentationLink>
-			</PaywallContent>
-			<PaywallSeparator className="h-[180px]" />
-			<PaywallStack className={cn(compact && "gap-4")}>
-				<PaywallFeatures className={cn(compact && "pr-0")}>
-					{PREMIUM_FEATURES.map((feature) => (
-						<PaywallFeature
-							className={cn(compact && "text-[13px] leading-tight")}
-							key={feature}
-						>
-							{feature}
-						</PaywallFeature>
+			{children}
+		</div>
+	);
+};
+
+const PaywallPremiumContent: FC<React.ComponentProps<"div">> = ({
+	children,
+	className,
+	...props
+}) => {
+	return (
+		<div
+			className={cn("flex flex-col md:flex-row gap-8 px-6 pb-6", className)}
+			{...props}
+		>
+			{children}
+		</div>
+	);
+};
+
+const PaywallPremium = ({
+	message,
+	description = PREMIUM_DEFAULT_DESCRIPTION,
+	canViewPremium,
+	className,
+	features = PREMIUM_FEATURES,
+	onCTAClick,
+	...props
+}: PaywallProps) => {
+	return (
+		<div
+			className={cn(
+				"rounded-lg border border-solid border-border-default bg-surface-primary p-2",
+				className,
+			)}
+			{...props}
+		>
+			<PaywallPremiumHeader>
+				<Supergraphic />
+				<PaywallTitle>{PREMIUM_DEFAULT_HERO}</PaywallTitle>
+				<p className="mt-3 mb-0 text-sm">{DEFAULT_HERO_SUBTITLE}</p>
+				{canViewPremium ? (
+					<PaywallCTALink
+						to={PREMIUM_PAGE_PATH}
+						className="mt-6 mx-0"
+						onClick={onCTAClick}
+					>
+						Start trial for free
+					</PaywallCTALink>
+				) : (
+					<PaywallGuidance className="mt-6 mx-0">
+						Contact your deployment administrator for Premium.
+					</PaywallGuidance>
+				)}
+			</PaywallPremiumHeader>
+
+			<PaywallPremiumContent>
+				<div className="flex-1">
+					<h3 className="m-0 font-semibold text-base leading-relaxed text-content-primary">
+						{description}
+					</h3>
+				</div>
+				<PaywallFeatures className="flex-1 px-0" aria-label={message}>
+					{features.map((feature) => (
+						<PaywallFeature key={feature}>{feature}</PaywallFeature>
 					))}
 				</PaywallFeatures>
-				<PaywallCTA href="https://coder.com/pricing#compare-plans">
-					Learn about Premium
-				</PaywallCTA>
-			</PaywallStack>
-		</Paywall>
+			</PaywallPremiumContent>
+		</div>
 	);
 };
 

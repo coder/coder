@@ -26,13 +26,18 @@ type githubProvider struct {
 	httpClient *http.Client
 	clock      quartz.Clock
 
+	// cache stores ETags and response bodies so JSON reads can be
+	// issued as conditional requests, letting unchanged pull
+	// requests return 304 Not Modified instead of a full body.
+	cache *responseCache
+
 	// Compiled per-instance to support GitHub Enterprise hosts.
 	pullRequestPathPattern   *regexp.Regexp
 	repositoryHTTPSPattern   *regexp.Regexp
 	repositorySSHPathPattern *regexp.Regexp
 }
 
-func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) *githubProvider {
+func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) (Provider, error) {
 	if apiBaseURL == "" {
 		apiBaseURL = defaultGitHubAPIBaseURL
 	}
@@ -57,6 +62,7 @@ func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) *
 		webBaseURL: webBaseURL,
 		httpClient: httpClient,
 		clock:      clock,
+		cache:      newResponseCache(defaultResponseCacheEntries),
 		pullRequestPathPattern: regexp.MustCompile(
 			`^https://` + escapedHost + `/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pull/([0-9]+)(?:[/?#].*)?$`,
 		),
@@ -66,7 +72,7 @@ func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) *
 		repositorySSHPathPattern: regexp.MustCompile(
 			`^(?:ssh://)?git@` + escapedHost + `[:/]([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$`,
 		),
-	}
+	}, nil
 }
 
 // deriveWebBaseURL converts a GitHub API base URL to the
@@ -401,11 +407,33 @@ func (g *githubProvider) decodeJSON(
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
+	// Issue a conditional request when we have a cached ETag for this
+	// URL + auth scope. GitHub replies 304 Not Modified when nothing
+	// changed, which is cheaper than a full body and does not count
+	// against the primary REST rate limit.
+	cacheKey := responseCacheKey(requestURL, token)
+	var (
+		cachedBody []byte
+		haveCached bool
+	)
+	if etag, body, ok := g.cache.load(cacheKey); ok {
+		req.Header.Set("If-None-Match", etag)
+		cachedBody, haveCached = body, true
+	}
+
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
 		return xerrors.Errorf("execute github request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// Nothing changed since the cached response: reuse the stored body.
+	if resp.StatusCode == http.StatusNotModified && haveCached {
+		if err := json.Unmarshal(cachedBody, dest); err != nil {
+			return xerrors.Errorf("decode cached github response: %w", err)
+		}
+		return nil
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
@@ -425,9 +453,18 @@ func (g *githubProvider) decodeJSON(
 		)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(dest); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return xerrors.Errorf("read github response: %w", err)
+	}
+
+	if err := json.Unmarshal(body, dest); err != nil {
 		return xerrors.Errorf("decode github response: %w", err)
 	}
+
+	// Only cache bodies we could successfully decode, so a malformed
+	// response does not poison the cache.
+	g.cache.store(cacheKey, resp.Header.Get("ETag"), body)
 	return nil
 }
 

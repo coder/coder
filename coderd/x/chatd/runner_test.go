@@ -42,6 +42,7 @@ func TestRunner_CancelsActiveTaskWhenHistoryChanges(t *testing.T) {
 	require.NotErrorIs(t, context.Cause(first.ctx), errTaskTimeout)
 	second := starter.waitCall(t, taskKindGeneration, chat.ID)
 	require.Equal(t, updated.HistoryVersion, second.input.HistoryVersion)
+	require.Same(t, first.input.SessionStart, second.input.SessionStart)
 }
 
 func TestRunner_CancelsActiveTaskWhenStatusChanges(t *testing.T) {

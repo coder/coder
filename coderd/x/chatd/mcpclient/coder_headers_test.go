@@ -9,8 +9,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"github.com/mark3labs/mcp-go/mcp"
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,19 +28,19 @@ func newHeaderRecordingServer(t *testing.T) (*httptest.Server, *sync.Mutex, *[]h
 		mu      sync.Mutex
 		headers []http.Header
 	)
-	srv := mcpserver.NewMCPServer("hdr-server", "1.0.0")
-	srv.AddTools(mcpserver.ServerTool{
-		Tool: mcp.NewTool("ping", mcp.WithDescription("records the request headers")),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	ts := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "ping",
+			Description: "records the request headers",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			mu.Lock()
-			headers = append(headers, req.Header.Clone())
+			headers = append(headers, req.Extra.Header.Clone())
 			mu.Unlock()
-			return mcp.NewToolResultText("ok"), nil
+			return textToolResult("ok"), nil
 		},
 	})
-	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-	ts := httptest.NewServer(httpSrv)
-	t.Cleanup(ts.Close)
 	return ts, &mu, &headers
 }
 
@@ -64,9 +63,9 @@ func TestConnectAll_ForwardCoderHeaders_DefaultOff(t *testing.T) {
 		chatprovider.HeaderCoderWorkspaceID: uuid.NewString(),
 	}
 
-	tools, cleanup := mcpclient.ConnectAll(
+	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
-		coderHeaders,
+		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
@@ -114,9 +113,9 @@ func TestConnectAll_ForwardCoderHeaders_Enabled(t *testing.T) {
 		WorkspaceID:  uuid.NullUUID{UUID: workspaceID, Valid: true},
 	})
 
-	tools, cleanup := mcpclient.ConnectAll(
+	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
-		coderHeaders,
+		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
@@ -157,9 +156,9 @@ func TestConnectAll_ForwardCoderHeaders_RootChat(t *testing.T) {
 		OwnerID: ownerID,
 	})
 
-	tools, cleanup := mcpclient.ConnectAll(
+	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
-		coderHeaders,
+		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
@@ -203,9 +202,9 @@ func TestConnectAll_ForwardCoderHeaders_WithAPIKeyAuth(t *testing.T) {
 		OwnerID: ownerID,
 	})
 
-	tools, cleanup := mcpclient.ConnectAll(
+	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
-		coderHeaders,
+		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
@@ -253,12 +252,12 @@ func TestConnectAll_ForwardCoderHeaders_WithOAuth2(t *testing.T) {
 		chatprovider.HeaderCoderOwnerID: ownerID,
 	}
 
-	tools, cleanup := mcpclient.ConnectAll(
+	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger,
 		[]database.MCPServerConfig{cfg},
 		[]database.MCPServerUserToken{token},
 		uuid.Nil, nil,
-		coderHeaders,
+		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
@@ -305,9 +304,9 @@ func TestConnectAll_ForwardCoderHeaders_WithCustomHeaders(t *testing.T) {
 		OwnerID: ownerID,
 	})
 
-	tools, cleanup := mcpclient.ConnectAll(
+	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
-		coderHeaders,
+		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)

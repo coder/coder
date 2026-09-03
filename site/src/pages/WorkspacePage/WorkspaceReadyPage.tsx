@@ -22,7 +22,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
-} from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+} from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
@@ -226,10 +226,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	const checkEphemeralParameters = async (
 		buildParameters?: TypesGen.WorkspaceBuildParameter[],
 	) => {
-		if (workspace.template_use_classic_parameter_flow) {
-			return { hasEphemeral: false, ephemeralParameters: [] };
-		}
-
 		try {
 			const dynamicParameters = await API.getDynamicParameters(
 				workspace.latest_build.template_version_id,
@@ -433,13 +429,12 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				templateVersionId={workspace.latest_build.template_version_id}
 			/>
 
-			<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+			<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 
 			<WorkspaceErrorDialog
 				open={workspaceErrorDialog.open}
 				error={workspaceErrorDialog.error}
 				onClose={() => setWorkspaceErrorDialog({ open: false })}
-				showDetail={workspace.template_use_classic_parameter_flow}
 				workspaceOwner={workspace.owner_name}
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}

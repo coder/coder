@@ -27,7 +27,6 @@ export const externalAuthDevice = (providerId: string) => {
 export const exchangeExternalAuthDevice = (
 	providerId: string,
 	deviceCode: string,
-	queryClient: QueryClient,
 ) => {
 	return {
 		queryFn: () =>
@@ -35,12 +34,6 @@ export const exchangeExternalAuthDevice = (
 				device_code: deviceCode,
 			}),
 		queryKey: ["external-auth", providerId, "device", deviceCode],
-		onSuccess: async () => {
-			// Force a refresh of the Git auth status.
-			await queryClient.invalidateQueries({
-				queryKey: ["external-auth", providerId],
-			});
-		},
 	};
 };
 

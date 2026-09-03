@@ -2,15 +2,14 @@ package integrationtest
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 
-	"github.com/mark3labs/mcp-go/client/transport"
-	mcplib "github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
@@ -63,7 +62,7 @@ func setupMCPForTestWithName(t *testing.T, name string, tracer trace.Tracer) *mo
 	httpTransport := &http.Transport{}
 	t.Cleanup(httpTransport.CloseIdleConnections)
 	httpClient := &http.Client{Transport: httpTransport}
-	proxy, err := mcp.NewStreamableHTTPServerProxy(name, mcpSrv.URL, nil, nil, nil, logger, tracer, transport.WithHTTPBasicClient(httpClient))
+	proxy, err := mcp.NewStreamableHTTPServerProxy(name, mcpSrv.URL, nil, nil, nil, logger, tracer, httpClient)
 	require.NoError(t, err)
 
 	mgr := mcp.NewServerProxyManager(map[string]mcp.ServerProxier{proxy.Name(): proxy}, tracer)
@@ -129,26 +128,34 @@ func (a *callAccumulator) getCallsByTool(name string) []any {
 func createMockMCPSrv(t *testing.T) (http.Handler, *callAccumulator) {
 	t.Helper()
 
-	s := server.NewMCPServer(
-		"Mock coder MCP server",
-		"1.0.0",
-		server.WithToolCapabilities(true),
-	)
+	s := sdkmcp.NewServer(&sdkmcp.Implementation{
+		Name:    "Mock coder MCP server",
+		Version: "1.0.0",
+	}, nil)
 
 	acc := newCallAccumulator()
 
 	for _, name := range []string{mockToolName, "coder_list_templates", "coder_template_version_parameters", "coder_get_authenticated_user", "coder_create_workspace_build", "coder_delete_template"} {
-		tool := mcplib.NewTool(name,
-			mcplib.WithDescription(fmt.Sprintf("Mock of the %s tool", name)),
-		)
-		s.AddTool(tool, func(_ context.Context, request mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-			acc.addCall(request.Params.Name, request.Params.Arguments)
+		s.AddTool(&sdkmcp.Tool{
+			Name:        name,
+			Description: fmt.Sprintf("Mock of the %s tool", name),
+			InputSchema: map[string]any{"type": "object"},
+		}, func(_ context.Context, request *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+			var args any
+			if len(request.Params.Arguments) > 0 {
+				_ = json.Unmarshal(request.Params.Arguments, &args)
+			}
+			acc.addCall(request.Params.Name, args)
 			if errMsg, ok := acc.getToolError(request.Params.Name); ok {
 				return nil, xerrors.New(errMsg)
 			}
-			return mcplib.NewToolResultText("mock"), nil
+			return &sdkmcp.CallToolResult{
+				Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "mock"}},
+			}, nil
 		})
 	}
 
-	return server.NewStreamableHTTPServer(s), acc
+	// Stateless mode gives each POST an ephemeral server session, so
+	// no server-side goroutines outlive the request (goleak-clean).
+	return sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server { return s }, &sdkmcp.StreamableHTTPOptions{Stateless: true}), acc
 }

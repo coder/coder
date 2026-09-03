@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -109,30 +110,6 @@ func (api *API) agentFirewallSessionLogs(rw http.ResponseWriter, r *http.Request
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AgentFirewallSessionLogsResponse{
-		Results: agentFirewallLogsFromDB(dbLogs),
+		Results: db2sdk.AgentFirewallLogs(dbLogs),
 	})
-}
-
-// agentFirewallLogsFromDB converts database boundary logs to SDK
-// representation. Allowed is derived from MatchedRule being non-NULL.
-func agentFirewallLogsFromDB(dbLogs []database.BoundaryLog) []codersdk.AgentFirewallLog {
-	results := make([]codersdk.AgentFirewallLog, 0, len(dbLogs))
-	for _, l := range dbLogs {
-		bl := codersdk.AgentFirewallLog{
-			ID:             l.ID,
-			SessionID:      l.SessionID,
-			SequenceNumber: l.SequenceNumber,
-			Allowed:        l.MatchedRule.Valid,
-			CreatedAt:      l.CreatedAt,
-			Proto:          l.Proto,
-			Method:         l.Method,
-			Detail:         l.Detail,
-			CapturedAt:     &l.CapturedAt,
-		}
-		if l.MatchedRule.Valid {
-			bl.MatchedRule = &l.MatchedRule.String
-		}
-		results = append(results, bl)
-	}
-	return results
 }

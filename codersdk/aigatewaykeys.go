@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -48,7 +47,7 @@ func (c *Client) CreateAIGatewayKey(ctx context.Context, req CreateAIGatewayKeyR
 		return CreateAIGatewayKeyResponse{}, ReadBodyAsError(res)
 	}
 	var resp CreateAIGatewayKeyResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ListAIGatewayKeys lists all AI Gateway keys.
@@ -63,7 +62,7 @@ func (c *Client) ListAIGatewayKeys(ctx context.Context) ([]AIGatewayKey, error) 
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []AIGatewayKey
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteAIGatewayKey deletes an AI Gateway key by ID.

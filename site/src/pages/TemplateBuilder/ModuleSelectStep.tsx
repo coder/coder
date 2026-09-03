@@ -18,6 +18,7 @@ import {
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import { ModuleCard } from "./ModuleCard";
+import { sortByPriority } from "./sortByPriority";
 import {
 	moduleHasConfigurableVars,
 	type SelectedModuleMeta,
@@ -90,19 +91,6 @@ const MODULE_PRIORITY: readonly string[] = [
 	"filebrowser",
 	"kasmvnc",
 ];
-
-function sortByPriority<T extends { id: string }>(
-	items: readonly T[],
-	priority: readonly string[],
-): T[] {
-	const indexMap = new Map(priority.map((id, i) => [id, i]));
-	const fallback = priority.length;
-	return [...items].sort((a, b) => {
-		const ai = indexMap.get(a.id) ?? fallback;
-		const bi = indexMap.get(b.id) ?? fallback;
-		return ai - bi;
-	});
-}
 
 export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 	baseId,
@@ -244,8 +232,7 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				</TabsList>
 			</Tabs>
 
-			{/* 420px accounts for navbar, page header, card padding, search, tabs, and nav controls */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[calc(100vh-420px)] overflow-y-auto">
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 				{visibleModules.length ? (
 					visibleModules.map((m) => (
 						<ModuleCard
@@ -261,7 +248,7 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				) : (
 					<div className="col-span-full my-12 flex flex-col items-center gap-1 text-content-secondary">
 						<SearchIcon />
-						<p className="m-0 text-sm font-normal">
+						<p className="m-0 text-xs font-normal">
 							{doesBaseTemplateHaveModules
 								? "No module matched your search"
 								: "No modules available for this base template"}

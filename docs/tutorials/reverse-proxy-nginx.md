@@ -54,7 +54,7 @@ you're using `coder.example.com` as your subdomain.
 ## Install and configure LetsEncrypt Certbot
 
 1. Install LetsEncrypt Certbot: Refer to the
-   [CertBot documentation](https://certbot.eff.org/instructions?ws=apache&os=ubuntufocal&tab=wildcard).
+   [CertBot documentation](https://certbot.eff.org/instructions?ws=nginx&os=ubuntufocal&tab=wildcard).
    Be sure to pick the wildcard tab and select your DNS provider for
    instructions to install the necessary DNS plugin.
 
@@ -134,7 +134,7 @@ providers, refer to the
            proxy_set_header Host $host;
            proxy_set_header X-Real-IP $remote_addr;
            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-           proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+           proxy_set_header X-Forwarded-Proto $scheme;
            add_header Strict-Transport-Security "max-age=15552000; includeSubDomains" always;
        }
    }

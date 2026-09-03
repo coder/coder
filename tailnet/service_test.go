@@ -238,7 +238,8 @@ func TestClientUserCoordinateeAuth(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	updatesProvider := tailnettest.NewMockWorkspaceUpdatesProvider(ctrl)
 
-	fCoord, client := createUpdateService(t, ctx, clientID, updatesProvider)
+	auditor := &recordingTunnelAuditor{}
+	fCoord, client := createUpdateService(t, ctx, clientID, updatesProvider, auditor)
 
 	// Coordinate
 	stream, err := client.Coordinate(ctx)
@@ -261,9 +262,62 @@ func TestClientUserCoordinateeAuth(t *testing.T) {
 	require.NoError(t, call.Auth.Authorize(ctx, &proto.CoordinateRequest{
 		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID)},
 	}))
-	require.Error(t, call.Auth.Authorize(ctx, &proto.CoordinateRequest{
+	require.Len(t, auditor.decisions, 1)
+	require.Equal(t, agentID, auditor.decisions[0].agentID)
+	require.NoError(t, auditor.decisions[0].authorizationErr)
+	err = call.Auth.Authorize(ctx, &proto.CoordinateRequest{
 		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID2)},
-	}))
+	})
+	require.EqualError(t, err, "workspace agent not found or you do not have permission")
+	require.Len(t, auditor.decisions, 2)
+	require.Equal(t, agentID2, auditor.decisions[1].agentID)
+	require.Error(t, auditor.decisions[1].authorizationErr)
+
+	err = call.Auth.Authorize(ctx, &proto.CoordinateRequest{
+		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID)},
+		UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
+			Node: &proto.Node{Addresses: []string{"not-an-address"}},
+		},
+	})
+	require.ErrorContains(t, err, "parse node address")
+	require.Len(t, auditor.decisions, 3)
+	require.Equal(t, agentID, auditor.decisions[2].agentID)
+	require.NoError(t, auditor.decisions[2].authorizationErr)
+
+	err = call.Auth.Authorize(ctx, &proto.CoordinateRequest{
+		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: []byte("invalid")},
+	})
+	require.ErrorContains(t, err, "parse add tunnel id")
+	require.Len(t, auditor.decisions, 3)
+}
+
+func TestClientCoordinateeAuthTunnelAuditor(t *testing.T) {
+	t.Parallel()
+
+	agentID := uuid.New()
+	otherAgentID := uuid.New()
+	auditor := &recordingTunnelAuditor{}
+	auth := tailnet.ClientCoordinateeAuth{
+		AgentID: agentID,
+		Auditor: auditor,
+	}
+
+	err := auth.Authorize(t.Context(), &proto.CoordinateRequest{
+		AddTunnel:         &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID)},
+		ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{}},
+	})
+	require.ErrorContains(t, err, "clients may not send ready_for_handshake")
+	require.Len(t, auditor.decisions, 1)
+	require.Equal(t, agentID, auditor.decisions[0].agentID)
+	require.NoError(t, auditor.decisions[0].authorizationErr)
+
+	err = auth.Authorize(t.Context(), &proto.CoordinateRequest{
+		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(otherAgentID)},
+	})
+	require.ErrorContains(t, err, "invalid agent id")
+	require.Len(t, auditor.decisions, 2)
+	require.Equal(t, otherAgentID, auditor.decisions[1].agentID)
+	require.Error(t, auditor.decisions[1].authorizationErr)
 }
 
 func TestWorkspaceUpdates(t *testing.T) {
@@ -278,7 +332,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 	clientID := uuid.UUID{0x03}
 	wsID := uuid.UUID{0x04}
 
-	_, client := createUpdateService(t, ctx, clientID, updatesProvider)
+	_, client := createUpdateService(t, ctx, clientID, updatesProvider, nil)
 
 	// Workspace updates
 	expected := &proto.WorkspaceUpdate{
@@ -315,7 +369,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 }
 
 //nolint:revive // t takes precedence
-func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, updates tailnet.WorkspaceUpdatesProvider) (*tailnettest.FakeCoordinator, proto.DRPCTailnetClient) {
+func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, updates tailnet.WorkspaceUpdatesProvider, auditor tailnet.TunnelAuditor) (*tailnettest.FakeCoordinator, proto.DRPCTailnetClient) {
 	fCoord := tailnettest.NewFakeCoordinator()
 	var coord tailnet.Coordinator = fCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
@@ -341,7 +395,8 @@ func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, 
 			Name: "client",
 			ID:   clientID,
 			Auth: tailnet.ClientUserCoordinateeAuth{
-				Auth: &fakeTunnelAuth{},
+				Auth:    &fakeTunnelAuth{},
+				Auditor: auditor,
 			},
 		})
 		t.Logf("ServeClient returned; err=%v", err)
@@ -359,6 +414,24 @@ func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, 
 	})
 	return fCoord, client
 }
+
+type tunnelAuditDecision struct {
+	agentID          uuid.UUID
+	authorizationErr error
+}
+
+type recordingTunnelAuditor struct {
+	decisions []tunnelAuditDecision
+}
+
+func (a *recordingTunnelAuditor) Audit(agentID uuid.UUID, authorizationErr error) {
+	a.decisions = append(a.decisions, tunnelAuditDecision{
+		agentID:          agentID,
+		authorizationErr: authorizationErr,
+	})
+}
+
+var _ tailnet.TunnelAuditor = (*recordingTunnelAuditor)(nil)
 
 type fakeTunnelAuth struct{}
 

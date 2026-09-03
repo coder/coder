@@ -1,4 +1,6 @@
-# Port Forwarding
+---
+title: Port Forwarding
+---
 
 Port forwarding lets developers securely access processes on their Coder
 workspace from a local machine. A common use case is testing web applications in
@@ -78,7 +80,7 @@ where each segment of hostnames must not exceed 63 characters. If your app
 name, agent name, workspace name and username exceed 63 characters in the
 hostname, port forwarding via the dashboard will not work.
 
-### From an coder_app resource
+### From a coder_app resource
 
 One way to port forward is to configure a `coder_app` resource in the
 workspace's template. This approach shows a visual application icon in the

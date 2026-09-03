@@ -51,7 +51,7 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 			    lives here so it isn't clipped by overflow-hidden. */}
 			<div
 				data-sidebar-container
-				className="relative flex-shrink-0 sticky top-0 h-screen z-30 transition-[width] duration-150 ease-in-out"
+				className="relative shrink-0 sticky top-0 h-screen z-30 transition-[width] duration-150 ease-in-out"
 				style={{ width }}
 			>
 				{peeking ? (

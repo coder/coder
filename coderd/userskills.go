@@ -60,10 +60,8 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	r.Body = http.MaxBytesReader(rw, r.Body, maxPersonalSkillRequestBytes)
-
 	var req codersdk.CreateUserSkillRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, maxPersonalSkillRequestBytes, &req) {
 		return
 	}
 
@@ -197,10 +195,8 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	r.Body = http.MaxBytesReader(rw, r.Body, maxPersonalSkillRequestBytes)
-
 	var req codersdk.UpdateUserSkillRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, maxPersonalSkillRequestBytes, &req) {
 		return
 	}
 

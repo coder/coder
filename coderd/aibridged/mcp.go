@@ -60,7 +60,7 @@ func (m *MCPProxyFactory) Build(ctx context.Context, req Request, tracer trace.T
 }
 
 func (m *MCPProxyFactory) retrieveMCPServerConfigs(ctx context.Context, req Request) (map[string]mcp.ServerProxier, error) {
-	client, err := m.clientFn()
+	client, err := m.clientFn(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire client: %w", err)
 	}
@@ -196,6 +196,7 @@ func (m *MCPProxyFactory) newStreamableHTTPServerProxy(cfg *proto.MCPServerConfi
 		denylist,
 		m.logger.Named(fmt.Sprintf("mcp-server-proxy-%s", cfg.GetId())),
 		m.tracer,
+		nil,
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable HTTP MCP server proxy: %w", err)

@@ -1,3 +1,10 @@
+mcp:
+  # MCP server destinations in private or reserved IP ranges are blocked by default
+  # for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and
+  # revocation exchanges, and runtime MCP connections from coderd. This option
+  # exempts specific CIDRs.
+  # (default: <unset>, type: string-array)
+  allowed_private_cidrs: []
 networking:
   # The URL that users will use to access the Coder deployment.
   # (default: <unset>, type: url)
@@ -566,6 +573,17 @@ disableWorkspaceSharing: false
 # their chats.
 # (default: <unset>, type: bool)
 disableChatSharing: false
+# Stop persisting workspace agent context snapshots (instructions, skills, and MCP
+# state used for pinned chat context). When set, coderd rejects agent context
+# pushes as unimplemented and agents stop sending them; chats cannot pin workspace
+# context. Use this to shed the database write load of context sync on large
+# deployments.
+# (default: <unset>, type: bool)
+disableWorkspaceAgentContextSync: false
+# Disable Coder-managed file path delivery for user secrets. Stored paths remain
+# until users clear them and resume if this setting is turned off.
+# (default: <unset>, type: bool)
+disableUserSecretFilePath: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
@@ -597,9 +615,6 @@ client:
   # 'webgl', or 'dom'.
   # (default: canvas, type: string)
   webTerminalRenderer: canvas
-  # Hide AI tasks from the dashboard.
-  # (default: false, type: bool)
-  hideAITasks: false
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []
@@ -631,10 +646,10 @@ userQuietHoursSchedule:
   # change their quiet hours schedule and the site default is always used.
   # (default: true, type: bool)
   allowCustomQuietHours: true
-# Allow users to rename their workspaces. WARNING: Renaming a workspace can cause
-# Terraform resources that depend on the workspace name to be destroyed and
-# recreated, potentially causing data loss. Only enable this if your templates do
-# not use workspace names in resource identifiers, or if you understand the risks.
+# Deprecated: use the per-template "Allow workspace renames" setting instead.
+# While set, it force-enables renames for every template in the deployment.
+# WARNING: Renaming a workspace can cause Terraform resources that depend on the
+# workspace name to be destroyed and recreated, potentially causing data loss.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
 # Configure how emails are sent.
@@ -794,6 +809,11 @@ workspace_prebuilds:
   # limit; disabled when set to zero.
   # (default: 3, type: int)
   failure_hard_limit: 3
+# Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI
+# and its URLs are unavailable, the task RBAC permissions are stripped from
+# built-in roles, and the CLI task commands are hidden.
+# (default: false, type: bool)
+enableAITasks: false
 # Configure the background chat processing daemon.
 chat:
   # How many pending chats a worker should acquire per polling cycle.
@@ -803,6 +823,23 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
+  # HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires
+  # --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the
+  # agent-lifecycle-hooks experiment.
+  # (default: <unset>, type: url)
+  hookURL:
+  # Maximum time to wait for a chat agent lifecycle hook response.
+  # (default: 1.5s, type: duration)
+  hookTimeout: 1.5s
+  # Whether to dispatch chat agent lifecycle hooks when a hook URL is configured.
+  # Requires the agent-lifecycle-hooks experiment.
+  # (default: true, type: bool)
+  hookEnabled: true
+  # Allow the chat hook URL to use plain HTTP for any host. Plain HTTP exposes
+  # sensitive chat data and lets an on-path attacker forge hook responses that
+  # control agent execution, so only enable this on a network you fully trust.
+  # (default: false, type: bool)
+  hookAllowInsecure: false
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
@@ -828,7 +865,7 @@ aibridge:
   bedrock_base_url: ""
   # Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION
   # instead. The AWS Bedrock API region to use. Constructs a base URL to use for the
-  # AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
+  # AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.
   # (default: <unset>, type: string)
   bedrock_region: ""
   # Deprecated: use --ai-gateway-bedrock-model or CODER_AI_GATEWAY_BEDROCK_MODEL
@@ -932,7 +969,7 @@ ai_gateway:
   # option seeds provider configuration at startup only exactly once. It will not be
   # used in service runtime. The AWS Bedrock API region to use. Constructs a base
   # URL to use for the AWS Bedrock API in the form of
-  # 'https://bedrock-runtime.<region>.amazonaws.com'.
+  # `https://bedrock-runtime.<region>.amazonaws.com`.
   # (default: <unset>, type: string)
   bedrock_region: ""
   # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this
@@ -1167,7 +1204,9 @@ templateBuilder:
   # disabled, all /api/v2/templatebuilder/* endpoints return 404.
   # (default: <unset>, type: bool)
   disabled: false
-  # The base URL of the module registry used by the template builder for module
-  # source paths.
+  # The module registry host the template builder uses for module source paths (for
+  # example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme
+  # and trailing slash are stripped; a path, query, fragment, or credentials is
+  # rejected.
   # (default: registry.coder.com, type: string)
   registryURL: registry.coder.com

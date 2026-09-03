@@ -8,8 +8,10 @@ import { disabledRefetchOptions } from "./util";
 
 const AUTHORIZATION_KEY = "authorization";
 
+export const authorizationKey = [AUTHORIZATION_KEY] as const;
+
 export const getAuthorizationKey = (req: AuthorizationRequest) =>
-	[AUTHORIZATION_KEY, req] as const;
+	[...authorizationKey, req] as const;
 
 export function checkAuthorization<TResponse extends AuthorizationResponse>(
 	req: AuthorizationRequest,

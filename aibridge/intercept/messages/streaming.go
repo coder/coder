@@ -3,6 +3,7 @@ package messages
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/google/uuid"
-	mcplib "github.com/mark3labs/mcp-go/mcp"
+	mcplib "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/tidwall/sjson"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -64,7 +65,7 @@ func (*StreamingInterception) Streaming() bool {
 }
 
 func (i *StreamingInterception) TraceAttributes(r *http.Request) []attribute.KeyValue {
-	return i.interceptionBase.baseTraceAttributes(r, true)
+	return i.baseTraceAttributes(r, true)
 }
 
 // ProcessRequest handles a request to /v1/messages.
@@ -215,6 +216,7 @@ newStream:
 
 		var message anthropic.Message
 		var lastToolName string
+		var serviceTier anthropic.UsageServiceTier
 
 		pendingToolCalls := make(map[string]string)
 
@@ -264,21 +266,9 @@ newStream:
 				}
 			case string(constant.ValueOf[constant.MessageStart]()):
 				start := event.AsMessageStart()
+				serviceTier = start.Message.Usage.ServiceTier
 				accumulateUsage(&cumulativeUsage, start.Message.Usage)
-
-				_ = i.recorder.RecordTokenUsage(streamCtx, &recorder.TokenUsageRecord{
-					InterceptionID:        i.ID().String(),
-					MsgID:                 message.ID,
-					Input:                 start.Message.Usage.InputTokens,
-					Output:                start.Message.Usage.OutputTokens,
-					CacheReadInputTokens:  start.Message.Usage.CacheReadInputTokens,
-					CacheWriteInputTokens: start.Message.Usage.CacheCreationInputTokens,
-					ExtraTokenTypes: map[string]int64{
-						"web_search_requests":      start.Message.Usage.ServerToolUse.WebSearchRequests,
-						"cache_ephemeral_1h_input": start.Message.Usage.CacheCreation.Ephemeral1hInputTokens,
-						"cache_ephemeral_5m_input": start.Message.Usage.CacheCreation.Ephemeral5mInputTokens,
-					},
-				})
+				i.recordTokenUsage(streamCtx, message.ID, start.Message.Usage)
 
 				if !isFirst {
 					// Don't send message_start unless first message!
@@ -291,10 +281,9 @@ newStream:
 				accumulateUsage(&cumulativeUsage, delta.Usage)
 
 				// Only output tokens should change in message_delta.
-				_ = i.recorder.RecordTokenUsage(streamCtx, &recorder.TokenUsageRecord{
-					InterceptionID: i.ID().String(),
-					MsgID:          message.ID,
-					Output:         delta.Usage.OutputTokens,
+				i.recordTokenUsage(streamCtx, message.ID, anthropic.Usage{
+					OutputTokens: delta.Usage.OutputTokens,
+					ServiceTier:  serviceTier,
 				})
 
 				// Don't relay message_delta events which indicate injected tool use.
@@ -410,27 +399,30 @@ newStream:
 						var hasValidResult bool
 						for _, content := range res.Content {
 							switch cb := content.(type) {
-							case mcplib.TextContent:
+							case *mcplib.TextContent:
 								toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 									OfText: &anthropic.TextBlockParam{
 										Text: cb.Text,
 									},
 								})
 								hasValidResult = true
-							case mcplib.EmbeddedResource:
-								switch resource := cb.Resource.(type) {
-								case mcplib.TextResourceContents:
-									val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
-										resource.MIMEType, resource.URI, resource.Text)
+							case *mcplib.EmbeddedResource:
+								resource := cb.Resource
+								switch {
+								case resource == nil:
+									logger.Warn(ctx, "embedded resource with no contents")
 									toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 										OfText: &anthropic.TextBlockParam{
-											Text: val,
+											Text: "Error: embedded resource with no contents",
 										},
 									})
+									toolResult.OfToolResult.IsError = anthropic.Bool(true)
 									hasValidResult = true
-								case mcplib.BlobResourceContents:
+								case resource.Blob != nil:
+									// The SDK decodes base64 during unmarshal; re-encode
+									// the bytes for model-facing text.
 									val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
-										resource.MIMEType, resource.URI, resource.Blob)
+										resource.MIMEType, resource.URI, base64.StdEncoding.EncodeToString(resource.Blob))
 									toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 										OfText: &anthropic.TextBlockParam{
 											Text: val,
@@ -438,13 +430,13 @@ newStream:
 									})
 									hasValidResult = true
 								default:
-									logger.Warn(ctx, "unknown embedded resource type", slog.F("type", fmt.Sprintf("%T", resource)))
+									val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
+										resource.MIMEType, resource.URI, resource.Text)
 									toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 										OfText: &anthropic.TextBlockParam{
-											Text: "Error: unknown embedded resource type",
+											Text: val,
 										},
 									})
-									toolResult.OfToolResult.IsError = anthropic.Bool(true)
 									hasValidResult = true
 								}
 							default:

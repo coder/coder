@@ -6,14 +6,15 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { QueryClientProvider } from "react-query";
-import { describe, expect, it } from "vitest";
+import { type QueryClient, QueryClientProvider } from "react-query";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
-const renderWithQueryClient = (children: ReactNode) => {
-	const queryClient = createTestQueryClient();
-
+const renderWithQueryClient = (
+	children: ReactNode,
+	queryClient: QueryClient = createTestQueryClient(),
+) => {
 	return render(
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
 	);
@@ -65,7 +66,18 @@ const QueuedReplacementHarness: FC<{
 	);
 };
 
+beforeAll(() => {
+	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+		configurable: true,
+		value: () => new DOMRect(0, 0, 1, 16),
+	});
+});
+
 describe("ChatMessageInput", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("returns the initial draft before the editor visually hydrates", async () => {
 		renderWithQueryClient(
 			<InitialValueHarness initialValue="persisted draft" />,

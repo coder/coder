@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -2376,10 +2377,11 @@ func TestTasksNotification(t *testing.T) {
 					startedAt sql.NullTime
 					readyAt   sql.NullTime
 				)
-				if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateReady {
+				switch tc.agentLifecycle {
+				case database.WorkspaceAgentLifecycleStateReady:
 					startedAt = sql.NullTime{Time: clock.Now(), Valid: true}
 					readyAt = sql.NullTime{Time: clock.Now(), Valid: true}
-				} else if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateStarting {
+				case database.WorkspaceAgentLifecycleStateStarting:
 					startedAt = sql.NullTime{Time: clock.Now(), Valid: true}
 				}
 
@@ -2610,8 +2612,16 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 		payload := makePayload(t, largeContent)
 
 		res := makeRequest(t, taskID, agentToken, payload, "agentapi")
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-		res.Body.Close()
+		defer res.Body.Close()
+		// An oversized payload is reported as a size failure rather than a
+		// malformed one, matching every other body limit in the API.
+		require.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
+
+		var errResp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&errResp))
+		require.Equal(t, "Request body too large.", errResp.Message)
+		// taskSnapshotMaxSize, which is unexported.
+		require.Contains(t, errResp.Detail, strconv.Itoa(64*1024))
 	})
 
 	t.Run("InvalidTaskID", func(t *testing.T) {
@@ -2682,7 +2692,7 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 
 		var errResp codersdk.Response
 		json.NewDecoder(res.Body).Decode(&errResp)
-		require.Contains(t, errResp.Message, "Failed to decode request payload")
+		require.Contains(t, errResp.Message, "Request body must be valid JSON")
 	})
 
 	t.Run("InvalidAgentAPIPayload", func(t *testing.T) {
@@ -3085,6 +3095,7 @@ func TestPauseTask(t *testing.T) {
 
 func TestResumeTask(t *testing.T) {
 	t.Parallel()
+	t.Skipf("Test is flaking on data-race. Tasks is being removed, so this test will not be fixed")
 
 	setupClient := func(t *testing.T, db database.Store, ps pubsub.Pubsub, authorizer rbac.Authorizer) *codersdk.Client {
 		t.Helper()

@@ -340,6 +340,7 @@ WHERE
 -- name: GetWorkspaceAgentsInLatestBuildByWorkspaceIDs :many
 SELECT
 	workspace_builds.workspace_id,
+	workspace_builds.id AS build_id,
 	sqlc.embed(workspace_agents)
 FROM
 	workspace_agents

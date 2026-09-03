@@ -1,9 +1,9 @@
 package agentssh
 
 import (
-	"strings"
-
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type sshServerMetrics struct {
@@ -71,15 +71,7 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	}
 }
 
-func magicTypeMetricLabel(magicType MagicSessionType) string {
-	switch magicType {
-	case MagicSessionTypeVSCode:
-	case MagicSessionTypeJetBrains:
-	case MagicSessionTypeSSH:
-	case MagicSessionTypeUnknown:
-	default:
-		magicType = MagicSessionTypeUnknown
-	}
-	// Always be case insensitive
-	return strings.ToLower(string(magicType))
+func appNameMetricLabel(appName string) string {
+	// Family, not raw name, so cardinality stays bounded.
+	return string(codersdk.AppNameFamily(appName))
 }

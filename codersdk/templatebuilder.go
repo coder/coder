@@ -59,6 +59,17 @@ type TemplateBuilderBase struct {
 	OS            string                          `json:"os"`
 	Variables     []TemplateBuilderModuleVariable `json:"variables"`
 	Prerequisites string                          `json:"prerequisites"`
+	Agents        []TemplateBuilderBaseAgent      `json:"agents"`
+}
+
+// TemplateBuilderBaseAgent is a coder_agent a base template declares. Modules
+// composed onto the base target one of these by Name.
+type TemplateBuilderBaseAgent struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	// Default reports whether modules attach to this agent when they do not
+	// name one.
+	Default bool `json:"default"`
 }
 
 // TemplateBuilderBasesResponse is the response body for listing template builder bases.
@@ -78,7 +89,7 @@ func (c *Client) TemplateBuilderBases(ctx context.Context) (TemplateBuilderBases
 		return TemplateBuilderBasesResponse{}, ReadBodyAsError(res)
 	}
 	var resp TemplateBuilderBasesResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // TemplateBuilderModules returns the list of modules available for a given
@@ -98,7 +109,7 @@ func (c *Client) TemplateBuilderModules(ctx context.Context, base string) (Templ
 		return TemplateBuilderModulesResponse{}, ReadBodyAsError(res)
 	}
 	var resp TemplateBuilderModulesResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // TemplateBuilderComposeRequest is the request body for
@@ -112,7 +123,9 @@ type TemplateBuilderComposeRequest struct {
 // TemplateBuilderComposeModule identifies a module and its variable
 // values for the compose request.
 type TemplateBuilderComposeModule struct {
-	ID        string            `json:"id"`
+	ID string `json:"id"`
+	// AgentName targets a base coder_agent by name. Empty uses the base default.
+	AgentName string            `json:"agent_name,omitempty"`
 	Variables map[string]string `json:"variables,omitempty"`
 }
 
@@ -150,6 +163,40 @@ type TemplateBuilderCreateTemplateResponse struct {
 	Template Template `json:"template"`
 }
 
+// TemplateBuilderSessionEventType enumerates the event types for
+// template builder session telemetry.
+type TemplateBuilderSessionEventType string
+
+const (
+	TemplateBuilderSessionEventWizardEntry       TemplateBuilderSessionEventType = "wizard_entry"
+	TemplateBuilderSessionEventComposeCompletion TemplateBuilderSessionEventType = "compose_completion"
+)
+
+// TemplateBuilderSessionRequest is the request body for
+// POST /api/v2/templatebuilder/sessions.
+type TemplateBuilderSessionRequest struct {
+	SessionID       uuid.UUID                       `json:"session_id" format:"uuid" validate:"required"`
+	EventType       TemplateBuilderSessionEventType `json:"event_type" validate:"required,oneof=wizard_entry compose_completion"`
+	BaseTemplateID  string                          `json:"base_template_id,omitempty"`
+	ModuleIDs       []string                        `json:"module_ids,omitempty"`
+	DurationSeconds float64                         `json:"duration_seconds,omitempty"`
+	Success         bool                            `json:"success,omitempty"`
+}
+
+// TemplateBuilderSession reports a template builder session event for
+// telemetry purposes.
+func (c *Client) TemplateBuilderSession(ctx context.Context, req TemplateBuilderSessionRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/templatebuilder/sessions", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // TemplateBuilderCreateTemplate composes a template from a base and modules,
 // validates it via a provisioner import job, and creates the template.
 func (c *Client) TemplateBuilderCreateTemplate(ctx context.Context, req TemplateBuilderCreateTemplateRequest) (TemplateBuilderCreateTemplateResponse, error) {
@@ -162,5 +209,5 @@ func (c *Client) TemplateBuilderCreateTemplate(ctx context.Context, req Template
 		return TemplateBuilderCreateTemplateResponse{}, ReadBodyAsError(res)
 	}
 	var resp TemplateBuilderCreateTemplateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }

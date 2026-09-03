@@ -248,54 +248,81 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// GIVEN: a user with the agents-access role at the org level.
 	org := dbgen.Organization(t, db, database.Organization{})
-	userWithRole := dbgen.User(t, db, database.User{})
+	orgMember := dbgen.User(t, db, database.User{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		OrganizationID: org.ID,
-		UserID:         userWithRole.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
+		UserID:         orgMember.ID,
 	})
-	_, tokenWithRole := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    userWithRole.ID,
+	_, orgMemberToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    orgMember.ID,
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
 	// WHEN: the user loads the page.
 	r := httptest.NewRequest("GET", "/", nil)
-	r.Header.Set(codersdk.SessionTokenHeader, tokenWithRole)
+	r.Header.Set(codersdk.SessionTokenHeader, orgMemberToken)
 	rw := httptest.NewRecorder()
 	handler.ServeHTTP(rw, r)
 	require.Equal(t, http.StatusOK, rw.Code)
 
-	// THEN: the SSR-rendered permissions include createChat = true
-	// because the agents-access role grants org-scoped chat create
-	// permission, and the any_org check picks it up.
-	var permsWithRole codersdk.AuthorizationResponse
-	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithRole)
+	// The any_org check finds chat permission through the user's membership.
+	var memberPerms codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &memberPerms)
 	require.NoError(t, err)
-	assert.True(t, permsWithRole["createChat"], "user with agents-access role should have createChat = true")
+	assert.True(t, memberPerms["createChat"], "organization member should have createChat = true")
+	// THEN: createWorkspace = true because the organization-member role
+	// grants creating a workspace owned by the member, and owner_id "me"
+	// resolves to the requesting user.
+	assert.True(t, memberPerms["createWorkspace"], "org member should have createWorkspace = true")
 
-	// GIVEN: a user without the agents-access role.
-	userWithoutRole := dbgen.User(t, db, database.User{})
-	_, tokenWithoutRole := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    userWithoutRole.ID,
+	userWithoutMembership := dbgen.User(t, db, database.User{})
+	_, tokenWithoutMembership := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    userWithoutMembership.ID,
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
 	// WHEN: the user loads the page.
 	r = httptest.NewRequest("GET", "/", nil)
-	r.Header.Set(codersdk.SessionTokenHeader, tokenWithoutRole)
+	r.Header.Set(codersdk.SessionTokenHeader, tokenWithoutMembership)
 	rw = httptest.NewRecorder()
 	handler.ServeHTTP(rw, r)
 	require.Equal(t, http.StatusOK, rw.Code)
 
-	// THEN: createChat = false because the member role does not
-	// grant chat permissions.
-	var permsWithoutRole codersdk.AuthorizationResponse
-	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithoutRole)
+	var permsWithoutMembership codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithoutMembership)
 	require.NoError(t, err)
-	assert.False(t, permsWithoutRole["createChat"], "user without agents-access role should have createChat = false")
+	assert.False(t, permsWithoutMembership["createChat"], "user without an organization membership should have createChat = false")
+	// THEN: createWorkspace = false because the user belongs to no
+	// organization, so the any_org check has no memberships to satisfy it.
+	assert.False(t, permsWithoutMembership["createWorkspace"], "user without an org membership should have createWorkspace = false")
+
+	// GIVEN: an org member whose only membership carries the
+	// workspace-creation ban role.
+	bannedUser := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         bannedUser.ID,
+		Roles:          []string{rbac.RoleOrgWorkspaceCreationBan()},
+	})
+	_, bannedToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    bannedUser.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r = httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, bannedToken)
+	rw = httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// THEN: createWorkspace = false because the ban's negative permission
+	// overrides the create permission granted by org membership.
+	var bannedPerms codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &bannedPerms)
+	require.NoError(t, err)
+	assert.False(t, bannedPerms["createWorkspace"], "org member with a workspace-creation ban should have createWorkspace = false")
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
@@ -443,6 +470,57 @@ func TestOrganizationsMetadata(t *testing.T) {
 	assert.NotContains(t, memberOrgIDs, deletedOrg.ID)
 }
 
+func TestUserSecretFilePathEnabledMetadata(t *testing.T) {
+	t.Parallel()
+
+	// The dashboard reads this as a positive capability, so the
+	// metadata is the negation of the deployment's disable option.
+	for _, tc := range []struct {
+		name     string
+		enabled  bool
+		expected string
+	}{
+		{name: "Enabled", enabled: true, expected: "true"},
+		{name: "Disabled", enabled: false, expected: "false"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// GIVEN: a site handler configured with the capability and a
+			// template that renders only that metadata value.
+			siteFS := fstest.MapFS{
+				"index.html": &fstest.MapFile{
+					Data: []byte("{{ .UserSecretFilePathEnabled }}"),
+				},
+			}
+			db, _ := dbtestutil.NewDB(t)
+			handler, err := site.New(&site.Options{
+				Telemetry:                 telemetry.NewNoop(),
+				Database:                  db,
+				SiteFS:                    siteFS,
+				UserSecretFilePathEnabled: tc.enabled,
+			})
+			require.NoError(t, err)
+
+			user := dbgen.User(t, db, database.User{})
+			_, token := dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: time.Now().Add(time.Hour),
+			})
+
+			// WHEN: an authenticated user loads the page.
+			r := httptest.NewRequest("GET", "/", nil)
+			r.Header.Set(codersdk.SessionTokenHeader, token)
+			rw := httptest.NewRecorder()
+			handler.ServeHTTP(rw, r)
+
+			// THEN: the metadata renders as a JSON boolean.
+			require.Equal(t, http.StatusOK, rw.Code)
+			require.Equal(t, tc.expected, strings.TrimSpace(rw.Body.String()))
+		})
+	}
+}
+
 func TestCaching(t *testing.T) {
 	t.Parallel()
 
@@ -542,7 +620,7 @@ func TestServingFiles(t *testing.T) {
 	require.NoError(t, err)
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
-	client := &http.Client{}
+	client := srv.Client()
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -831,7 +909,7 @@ func TestServingBin(t *testing.T) {
 			compressor := middleware.NewCompressor(1, "text/*", "application/*")
 			srv := httptest.NewServer(compressor.Handler(handler))
 			defer srv.Close()
-			client := &http.Client{}
+			client := srv.Client()
 
 			// Create a context
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)

@@ -1,0 +1,30 @@
+Streaming response with cumulative usage on every JSON chunk and an injected tool call.
+
+-- request --
+{
+  "model": "gpt-4.1",
+  "messages": [
+    {
+      "role": "user",
+      "content": "list my coder workspaces"
+    }
+  ]
+}
+
+-- streaming --
+data: {"id":"chatcmpl-cumulative-tool","object":"chat.completion.chunk","created":1754479216,"model":"gpt-4.1","choices":[{"index":0,"delta":{"content":"Calling"}}],"usage":{"prompt_tokens":6000,"completion_tokens":10,"total_tokens":6010,"prompt_tokens_details":{"cached_tokens":100,"cache_write_tokens":10,"audio_tokens":1},"completion_tokens_details":{"reasoning_tokens":1,"audio_tokens":1,"accepted_prediction_tokens":1,"rejected_prediction_tokens":1}}}
+
+data: {"id":"chatcmpl-cumulative-tool","object":"chat.completion.chunk","created":1754479216,"model":"gpt-4.1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-cumulative","type":"function","function":{"name":"bmcp_coder_coder_list_workspaces","arguments":"{}"}}]}}],"usage":{"prompt_tokens":6000,"completion_tokens":20,"total_tokens":6020,"prompt_tokens_details":{"cached_tokens":100,"cache_write_tokens":10,"audio_tokens":2},"completion_tokens_details":{"reasoning_tokens":2,"audio_tokens":2,"accepted_prediction_tokens":2,"rejected_prediction_tokens":2}}}
+
+data: {"id":"chatcmpl-cumulative-tool","object":"chat.completion.chunk","created":1754479216,"model":"gpt-4.1","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030,"prompt_tokens_details":{"cached_tokens":100,"cache_write_tokens":10,"audio_tokens":3},"completion_tokens_details":{"reasoning_tokens":4,"audio_tokens":5,"accepted_prediction_tokens":6,"rejected_prediction_tokens":7}}}
+
+data: [DONE]
+
+-- streaming/tool-call --
+data: {"id":"chatcmpl-cumulative-final","object":"chat.completion.chunk","created":1754479217,"model":"gpt-4.1","choices":[{"index":0,"delta":{"content":"Done"}}],"usage":{"prompt_tokens":6000,"completion_tokens":10,"total_tokens":6010,"prompt_tokens_details":{"cached_tokens":200,"cache_write_tokens":20,"audio_tokens":7},"completion_tokens_details":{"reasoning_tokens":8,"audio_tokens":9,"accepted_prediction_tokens":10,"rejected_prediction_tokens":11}}}
+
+data: {"id":"chatcmpl-cumulative-final","object":"chat.completion.chunk","created":1754479217,"model":"gpt-4.1","choices":[{"index":0,"delta":{"content":"."}}],"usage":{"prompt_tokens":6000,"completion_tokens":20,"total_tokens":6020,"prompt_tokens_details":{"cached_tokens":200,"cache_write_tokens":20,"audio_tokens":8},"completion_tokens_details":{"reasoning_tokens":9,"audio_tokens":10,"accepted_prediction_tokens":11,"rejected_prediction_tokens":12}}}
+
+data: {"id":"chatcmpl-cumulative-final","object":"chat.completion.chunk","created":1754479217,"model":"gpt-4.1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030,"prompt_tokens_details":{"cached_tokens":200,"cache_write_tokens":20,"audio_tokens":9},"completion_tokens_details":{"reasoning_tokens":10,"audio_tokens":11,"accepted_prediction_tokens":12,"rejected_prediction_tokens":13}}}
+
+data: [DONE]

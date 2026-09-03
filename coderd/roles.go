@@ -101,6 +101,13 @@ func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role, customR
 	}
 
 	for _, role := range customRoles {
+		// A custom role that predates the reservation of a retired
+		// built-in name can no longer be granted, so do not offer it.
+		// Custom-role management surfaces still list it so it can be
+		// deleted.
+		if rbac.IsRetiredRoleName(role.Name) {
+			continue
+		}
 		canAssign := rbac.CanAssignRole(actorRoles, rbac.CustomSiteRole())
 		if role.RoleIdentifier().IsOrgRole() {
 			canAssign = rbac.CanAssignRole(actorRoles, rbac.CustomOrganizationRole(role.OrganizationID.UUID))

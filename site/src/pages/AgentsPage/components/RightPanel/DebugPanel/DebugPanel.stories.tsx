@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import type { Mock } from "vitest";
 import { API } from "#/api/api";
+import { chatDebugRunKey, chatDebugRunsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DebugPanel } from "./DebugPanel";
 import { CHAT_ID, MockRun, MockStep } from "./debugFixtures";
@@ -456,7 +457,7 @@ const getAllRunSummaries = () =>
 const getDebugRunDetailById = () =>
 	new Map(getAllRunDetails().map((run) => [run.id, run]));
 
-const debugRunsQueryKey = ["chats", CHAT_ID, "debug-runs"] as const;
+const debugRunsQueryKey = chatDebugRunsKey(CHAT_ID);
 
 const getSeededRunSummaries = (
 	queries: readonly { key: readonly unknown[]; data: unknown }[] | undefined,
@@ -535,7 +536,7 @@ export const Empty: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [],
 			},
 		],
@@ -615,7 +616,7 @@ export const RunDetailLoading: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [detailProbeSummary],
 			},
 		],
@@ -649,7 +650,7 @@ export const RunDetailError: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [detailProbeSummary],
 			},
 		],
@@ -682,11 +683,11 @@ export const RunWithNoSteps: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [detailProbeSummary],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", detailProbeRunId],
+				key: chatDebugRunKey(CHAT_ID, detailProbeRunId),
 				data: {
 					...MockRun,
 					id: detailProbeRunId,
@@ -711,6 +712,93 @@ export const RunWithNoSteps: Story = {
 	},
 };
 
+const mcpConnectRunId = "run-mcp-connect";
+const mcpConnectSummary = {
+	first_message: "MCP connect probe",
+	mcp_connect: [
+		{
+			config_id: "b8f9f3f2-4a3f-4f8a-9c5e-2f4f4be00001",
+			slug: "linear",
+			outcome: "connected",
+			duration_ms: 320,
+			tool_count: 12,
+		},
+		{
+			config_id: "b8f9f3f2-4a3f-4f8a-9c5e-2f4f4be00002",
+			slug: "registry",
+			outcome: "timeout",
+			duration_ms: 10000,
+			error: "connect: context deadline exceeded",
+		},
+		// The same server reported again by a later generation
+		// step; entries accumulate across the turn's preparations.
+		{
+			config_id: "b8f9f3f2-4a3f-4f8a-9c5e-2f4f4be00002",
+			slug: "registry",
+			outcome: "connected",
+			duration_ms: 45,
+			tool_count: 3,
+		},
+	],
+	// Entries beyond the retention cap; the card renders a
+	// truncation notice for them.
+	mcp_connect_dropped: 4,
+};
+
+export const RunWithMCPConnectSummary: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatDebugRunsKey(CHAT_ID),
+				data: [
+					buildRunSummary({
+						id: mcpConnectRunId,
+						summary: mcpConnectSummary,
+					}),
+				],
+			},
+			{
+				key: chatDebugRunKey(CHAT_ID, mcpConnectRunId),
+				data: {
+					...MockRun,
+					id: mcpConnectRunId,
+					summary: mcpConnectSummary,
+					steps: [],
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const runTrigger = await canvas.findByRole("button", {
+			name: /MCP connect probe/i,
+		});
+		await user.click(runTrigger);
+
+		const section = await canvas.findByRole("region", {
+			name: /MCP server connections/i,
+		});
+		const mcp = within(section);
+		await waitFor(() => {
+			expect(mcp.getByText("linear")).toBeVisible();
+			expect(mcp.getAllByText("connected")).toHaveLength(2);
+			expect(mcp.getByText("320ms")).toBeVisible();
+			expect(mcp.getByText("12 tools")).toBeVisible();
+			expect(mcp.getAllByText("registry")).toHaveLength(2);
+			expect(mcp.getByText("timeout")).toBeVisible();
+			expect(mcp.getByText("10.0s")).toBeVisible();
+			expect(mcp.getByText("connect: context deadline exceeded")).toBeVisible();
+			expect(mcp.getByText("45ms")).toBeVisible();
+			expect(mcp.getByText("3 tools")).toBeVisible();
+			expect(
+				mcp.getByText("4 earlier connection samples omitted"),
+			).toBeVisible();
+		});
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Core state stories.
 // ---------------------------------------------------------------------------
@@ -719,7 +807,7 @@ export const SingleStepSuccessfulRun: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: successfulRunDetail.id,
@@ -728,7 +816,7 @@ export const SingleStepSuccessfulRun: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				key: chatDebugRunKey(CHAT_ID, successfulRunDetail.id),
 				data: successfulRunDetail,
 			},
 		],
@@ -770,7 +858,7 @@ export const ExportAllRuns: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: successfulRunDetail.id,
@@ -819,7 +907,7 @@ export const ExportAllRunsUsesCachedTerminalRunDetails: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: successfulRunDetail.id,
@@ -828,7 +916,7 @@ export const ExportAllRunsUsesCachedTerminalRunDetails: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				key: chatDebugRunKey(CHAT_ID, successfulRunDetail.id),
 				data: successfulRunDetail,
 			},
 		],
@@ -979,7 +1067,7 @@ export const ExportSingleRun: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: successfulRunDetail.id,
@@ -988,7 +1076,7 @@ export const ExportSingleRun: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				key: chatDebugRunKey(CHAT_ID, successfulRunDetail.id),
 				data: successfulRunDetail,
 			},
 		],
@@ -1060,7 +1148,7 @@ export const MultiStepRunWithRetries: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: multiStepRunDetail.id,
@@ -1073,7 +1161,7 @@ export const MultiStepRunWithRetries: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", multiStepRunDetail.id],
+				key: chatDebugRunKey(CHAT_ID, multiStepRunDetail.id),
 				data: multiStepRunDetail,
 			},
 		],
@@ -1118,7 +1206,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: errorRunDetail.id,
@@ -1131,7 +1219,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", errorRunDetail.id],
+				key: chatDebugRunKey(CHAT_ID, errorRunDetail.id),
 				data: errorRunDetail,
 			},
 		],
@@ -1174,7 +1262,7 @@ export const CompactionAndTitleGenerationBadges: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: "run-compaction",
@@ -1218,11 +1306,51 @@ export const CompactionAndTitleGenerationBadges: Story = {
 	},
 };
 
+export const NonChatTurnKindShownWithFirstMessage: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatDebugRunsKey(CHAT_ID),
+				data: [
+					buildRunSummary({
+						id: "run-title-with-label",
+						kind: "title_generation",
+						status: "error",
+						model: "gpt-4o-mini",
+						summary: { first_message: "Summarize my workspace" },
+					}),
+					buildRunSummary({
+						id: "run-turn-with-label",
+						kind: "chat_turn",
+						status: "completed",
+						summary: { first_message: "Fix the login bug" },
+					}),
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A failed title generation with a first_message label must
+		// still identify itself by kind so it is distinguishable from
+		// a failed chat turn.
+		const titleRun = await canvas.findByRole("button", {
+			name: /Summarize my workspace/i,
+		});
+		await expect(within(titleRun).getByText("Title Generation")).toBeVisible();
+		// Chat turns keep their metadata kind-free.
+		const chatRun = await canvas.findByRole("button", {
+			name: /Fix the login bug/i,
+		});
+		expect(within(chatRun).queryByText("Chat Turn")).toBeNull();
+	},
+};
+
 export const LongRawPayloads: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: longPayloadRunDetail.id,
@@ -1234,7 +1362,7 @@ export const LongRawPayloads: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", longPayloadRunDetail.id],
+				key: chatDebugRunKey(CHAT_ID, longPayloadRunDetail.id),
 				data: longPayloadRunDetail,
 			},
 		],
@@ -1266,7 +1394,7 @@ export const RichPayloadWithTranscript: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: richRunDetail.id,
@@ -1275,7 +1403,7 @@ export const RichPayloadWithTranscript: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", richRunDetail.id],
+				key: chatDebugRunKey(CHAT_ID, richRunDetail.id),
 				data: richRunDetail,
 			},
 		],
@@ -1343,7 +1471,7 @@ export const ToolCallStep: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: toolCallRunDetail.id,
@@ -1352,7 +1480,7 @@ export const ToolCallStep: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", toolCallRunDetail.id],
+				key: chatDebugRunKey(CHAT_ID, toolCallRunDetail.id),
 				data: toolCallRunDetail,
 			},
 		],
@@ -1380,7 +1508,7 @@ export const FallbackLabeledRun: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: "run-fallback",
@@ -1409,7 +1537,7 @@ export const InProgressRun: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: "run-progress",
@@ -1586,7 +1714,7 @@ export const BackendNormalizedShape: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["chats", CHAT_ID, "debug-runs"],
+				key: chatDebugRunsKey(CHAT_ID),
 				data: [
 					buildRunSummary({
 						id: backendShapeRunDetail.id,
@@ -1597,7 +1725,7 @@ export const BackendNormalizedShape: Story = {
 				],
 			},
 			{
-				key: ["chats", CHAT_ID, "debug-runs", backendShapeRunDetail.id],
+				key: chatDebugRunKey(CHAT_ID, backendShapeRunDetail.id),
 				data: backendShapeRunDetail,
 			},
 		],

@@ -1,4 +1,3 @@
-import { type Theme, useTheme } from "@emotion/react";
 import { ExternalLinkIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
@@ -7,6 +6,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { Theme } from "#/theme";
+import { useTheme } from "#/theme/context";
 import { Bar } from "./Chart/Bar";
 import {
 	Chart,

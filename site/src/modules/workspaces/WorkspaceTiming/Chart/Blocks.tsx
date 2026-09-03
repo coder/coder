@@ -14,7 +14,7 @@ export const Blocks: FC<BlocksProps> = ({ count }) => {
 	const [availableWidth, setAvailableWidth] = useState<number>(0);
 	const blocksRef = useRef<HTMLDivElement>(null);
 
-	// Fix: When using useLayoutEffect, Chromatic fails to calculate the right width.
+	// Fix: When using useLayoutEffect, snapshot tests fail to calculate the right width.
 	useEffect(() => {
 		if (availableWidth || !blocksRef.current) {
 			return;

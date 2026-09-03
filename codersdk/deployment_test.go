@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -80,6 +79,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 			yaml: true,
 		},
 		"Email Auth: Password": {
+			yaml: true,
+		},
+		"Chat: Hook Secret": {
 			yaml: true,
 		},
 		"Notifications: Email Auth: Password": {
@@ -147,6 +149,19 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 	for opt := range excludes {
 		t.Errorf("Excluded option %q is not in the deployment config. Remove it?", opt)
 	}
+}
+
+func TestAIBudgetPeriodAdjective(t *testing.T) {
+	t.Parallel()
+
+	// Every selectable period must have a real adjective.
+	for _, p := range codersdk.AIBudgetPeriods {
+		period := codersdk.AIBudgetPeriod(p)
+		require.NotEqual(t, p, period.Adjective(),
+			"add an adjective for AI budget period %q in AIBudgetPeriod.Adjective", p)
+	}
+
+	require.Equal(t, "monthly", codersdk.AIBudgetPeriodMonth.Adjective())
 }
 
 func TestParseSSHConfigOption(t *testing.T) {
@@ -726,6 +741,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 		dv := &codersdk.DeploymentValues{}
 		dv.Sessions.DefaultDuration = serpent.Duration(access)
 		dv.Sessions.RefreshDefaultDuration = serpent.Duration(refresh)
+		dv.AI.Chat.HookTimeout = serpent.Duration(1500 * time.Millisecond)
 		return dv
 	}
 
@@ -768,6 +784,180 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 		err := dv.Validate()
 		require.NoError(t, err)
 	})
+}
+
+func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		disabled      bool
+		url           string
+		secret        string
+		timeout       time.Duration
+		allowInsecure bool
+		wantErr       string
+	}{
+		{
+			name:    "NoURL",
+			timeout: 1500 * time.Millisecond,
+		},
+		{
+			name:     "DisabledSkipsValidation",
+			disabled: true,
+			url:      "http://hooks.example.com/agent",
+			timeout:  0,
+		},
+		{
+			name:    "Valid",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 5 * time.Second,
+		},
+		{
+			name:    "HTTPURL",
+			url:     "http://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "chat hook URL must use HTTPS",
+		},
+		{
+			name:          "HTTPURLAllowInsecure",
+			url:           "http://hooks.example.com/agent",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+		},
+		{
+			name:          "NonHTTPSchemeAllowInsecure",
+			url:           "ftp://hooks.example.com/agent",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "chat hook URL must use HTTPS",
+		},
+		{
+			name:          "AllowInsecureStillRequiresSecret",
+			url:           "http://hooks.example.com/agent",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "chat hook secret is required",
+		},
+		{
+			name:    "HostlessURL",
+			url:     "https:///hook",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must include a host",
+		},
+		{
+			name:          "HostlessHTTPURLAllowInsecure",
+			url:           "http:///hook",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "set --chat-hook-url to a complete URL",
+		},
+		{
+			name:          "PortOnlyHTTPURLAllowInsecure",
+			url:           "http://:8080/hooks",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "must include a host",
+		},
+		{
+			name:    "PortOnlyHTTPSURL",
+			url:     "https://:8080/hooks",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must include a host",
+		},
+		{
+			name:    "FragmentURL",
+			url:     "https://hooks.example.com/agent#frag",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must not contain a fragment or userinfo",
+		},
+		{
+			name:          "FragmentHTTPURLAllowInsecure",
+			url:           "http://hooks.example.com/agent#frag",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "set --chat-hook-url to a URL without a fragment or userinfo",
+		},
+		{
+			name:    "UserinfoURL",
+			url:     "https://user:pass@hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must not contain a fragment or userinfo",
+		},
+		{
+			name:    "MissingSecret",
+			url:     "https://hooks.example.com/agent",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "chat hook secret is required",
+		},
+		{
+			name:    "ShortSecret",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcde",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "chat hook secret must be at least 32 bytes",
+		},
+		{
+			name:    "ZeroTimeout",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 0,
+			wantErr: "chat hook timeout",
+		},
+		{
+			name:    "NegativeTimeout",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: -time.Millisecond,
+			wantErr: "chat hook timeout",
+		},
+		{
+			name:    "TimeoutAboveMaximum",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 5*time.Second + time.Millisecond,
+			wantErr: "chat hook timeout",
+		},
+		{
+			name:    "NoURLSkipsTimeoutValidation",
+			timeout: 10 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := &codersdk.DeploymentValues{}
+			dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
+			dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+			dv.AI.Chat.HookEnabled = serpent.Bool(!tt.disabled)
+			dv.AI.Chat.HookSecret = serpent.String(tt.secret)
+			dv.AI.Chat.HookTimeout = serpent.Duration(tt.timeout)
+			dv.AI.Chat.HookAllowInsecure = serpent.Bool(tt.allowInsecure)
+			if tt.url != "" {
+				require.NoError(t, dv.AI.Chat.HookURL.Set(tt.url))
+			}
+
+			err := dv.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }
 
 func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
@@ -815,6 +1005,7 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 		ID:                            "id",
 		AuthURL:                       "https://example.com/auth",
 		TokenURL:                      "https://example.com/token",
+		RedirectURL:                   "https://example.com/redirect",
 		ValidateURL:                   "https://example.com/validate",
 		RevokeURL:                     "https://example.com/revoke",
 		AppInstallURL:                 "https://example.com/install",
@@ -896,7 +1087,7 @@ func TestFeatureComparison(t *testing.T) {
 			Name: "EntitledVsGracePeriodLimits",
 			A:    codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
 			// Entitled should still win here
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](50)},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(100)), Actual: new(int64(50))},
 			Expected: 1,
 		},
 		{
@@ -934,8 +1125,8 @@ func TestFeatureComparison(t *testing.T) {
 		// --
 		{
 			Name:     "EntitledVsGracePeriodCapable",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](200)},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](300), Actual: ptr.Ref[int64](200)},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: -1,
 		},
 		// UserLimits
@@ -944,62 +1135,119 @@ func TestFeatureComparison(t *testing.T) {
 			// is not exceeded. This is the edge case that we should use the graceful period
 			// instead of the entitled.
 			Name:     "UserLimitExceeded",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: -1,
 		},
 		{
 			Name:     "UserLimitExceededNoEntitled",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: 3,
 		},
 		{
 			Name:     "HigherLimit",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(110)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(110)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
 			Expected: 10, // Diff in the limit #
 		},
 		{
 			Name:     "HigherActual",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(300))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
 			Expected: 100, // Diff in the actual #
 		},
 		{
 			Name:     "LimitExists",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: new(int64(200))},
 			Expected: 1,
 		},
 		{
 			Name:     "LimitExistsGrace",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: nil, Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(100)), Actual: new(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: nil, Actual: new(int64(200))},
 			Expected: 1,
 		},
 		{
 			Name:     "ActualExists",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: nil},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: nil},
 			Expected: 1,
 		},
 		{
 			Name:     "NotNils",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
 			Expected: 1,
 		},
 		{
 			Name:     "EnabledVsDisabled",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Enabled: true, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Enabled: true, Limit: new(int64(300)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: 1,
 		},
 		{
 			Name:     "NotNils",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
+			Expected: 1,
+		},
+		{
+			Name:     "SoftHardLimitsIgnored",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), SoftLimit: new(int64(80)), HardLimit: new(int64(120))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100))},
+			Expected: 0,
+		},
+		{
+			Name: "NewerIssuedAtWinsOverSoftHardLimits",
+			A: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Limit:       new(int64(50)),
+				SoftLimit:   new(int64(40)),
+				HardLimit:   new(int64(60)),
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			B: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Limit:       new(int64(100)),
+				SoftLimit:   new(int64(80)),
+				HardLimit:   new(int64(120)),
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			Expected: 1,
+		},
+		{
+			// A nil limit on a usage period feature means unlimited, so it
+			// outranks a set limit on an exact usage period tie.
+			Name: "UnlimitedUsagePeriodOutranksMeteredOnTie",
+			A: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			B: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       new(int64(100)),
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
 			Expected: 1,
 		},
 	}
@@ -1178,6 +1426,46 @@ func TestRetentionConfigParsing(t *testing.T) {
 			assert.Equal(t, tt.expectedAPIKeys, dv.Retention.APIKeys.Value(), "api keys retention mismatch")
 		})
 	}
+}
+
+func TestDisableUserSecretFilePath(t *testing.T) {
+	t.Parallel()
+
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	require.False(t, dv.DisableUserSecretFilePath.Value(), "must default to false")
+
+	var opt serpent.Option
+	for _, o := range opts {
+		if o.Value == &dv.DisableUserSecretFilePath {
+			opt = o
+			break
+		}
+	}
+	require.NotEmpty(t, opt.Flag, "option must be registered")
+	assert.Equal(t, "disable-user-secret-file-path", opt.Flag)
+	assert.Equal(t, "CODER_DISABLE_USER_SECRET_FILE_PATH", opt.Env)
+	assert.Equal(t, "disableUserSecretFilePath", opt.YAML)
+
+	require.NoError(t, opts.ParseEnv([]serpent.EnvVar{
+		{Name: "CODER_DISABLE_USER_SECRET_FILE_PATH", Value: "true"},
+	}))
+	require.True(t, dv.DisableUserSecretFilePath.Value(), "env must set the value")
+
+	yamlDV := codersdk.DeploymentValues{}
+	yamlOpts := yamlDV.Options()
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("disableUserSecretFilePath: true\n"), &node))
+	require.NoError(t, node.Decode(&yamlOpts))
+	require.True(t, yamlDV.DisableUserSecretFilePath.Value(), "yaml must set the value")
+
+	// The option is not a secret, so telemetry and the config endpoint
+	// must keep reporting it after sanitization.
+	full := codersdk.DeploymentValues{DisableUserSecretFilePath: true}
+	sanitized, err := full.WithoutSecrets()
+	require.NoError(t, err)
+	require.True(t, sanitized.DisableUserSecretFilePath.Value())
 }
 
 func TestChatAIGatewayRoutingEnabledDefault(t *testing.T) {

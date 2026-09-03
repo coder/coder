@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -188,6 +188,90 @@ export const JsxInProse: Story = {
 		expect(marker).toBeInTheDocument();
 		const marker2 = await canvas.findByText(/commentBox=\{commentBox\}/);
 		expect(marker2).toBeInTheDocument();
+	},
+};
+
+// A 1x1 transparent PNG. Streamdown's sanitize plugin strips data:
+// image sources before our img component sees them, so these render
+// as nothing: inert, and never a network request.
+const dataImagePNG =
+	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+const externalImageURL = "https://external-image-host.invalid/image.png";
+
+// Verifies the IP-leak fix for Cure53 CDM-02-006: externally hosted
+// markdown images must not be fetched when a chat is rendered. The
+// viewer gets a consent placeholder and the <img> element only
+// appears after clicking it.
+export const ExternalImageConsentGate: Story = {
+	args: {
+		children: `Before\n\n![diagram](${externalImageURL})\n\nAfter`,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The placeholder must render instead of the image.
+		const loadButton = await canvas.findByRole("button", {
+			name: /load external image from external-image-host\.invalid/i,
+		});
+		expect(loadButton).toBeInTheDocument();
+
+		// No <img> in the document may point at the external host.
+		expect(canvasElement.querySelector("img")).toBeNull();
+
+		// Clicking the placeholder opts in and renders the image.
+		await userEvent.click(loadButton);
+		await waitFor(() => {
+			const img = canvasElement.querySelector("img");
+			expect(img).not.toBeNull();
+			expect(img?.getAttribute("src")).toBe(externalImageURL);
+		});
+	},
+};
+
+// data: image sources are stripped by the sanitize plugin, so they
+// render as nothing: no <img>, no consent gate, no request.
+export const DataImageStrippedBySanitizer: Story = {
+	args: {
+		children: `Before\n\n![inline](${dataImagePNG})\n\nAfter`,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("After");
+		expect(canvasElement.querySelector("img")).toBeNull();
+		expect(canvas.queryByRole("button")).toBeNull();
+	},
+};
+
+// Deployment-relative images (for example emoji or uploaded icons)
+// are same-origin, so they render immediately without a consent gate.
+export const RelativeImageRendersImmediately: Story = {
+	args: {
+		children: "![emoji](/emojis/1f4bb.png)",
+	},
+	play: async ({ canvasElement }) => {
+		await waitFor(() => {
+			const img = canvasElement.querySelector("img");
+			expect(img).not.toBeNull();
+			expect(img?.getAttribute("src")).toBe("/emojis/1f4bb.png");
+		});
+		expect(within(canvasElement).queryByRole("button")).toBeNull();
+	},
+};
+
+// The consent gate must also apply while streaming.
+export const StreamingExternalImageConsentGate: Story = {
+	args: {
+		children: `![diagram](${externalImageURL})`,
+		streaming: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const loadButton = await canvas.findByRole("button", {
+			name: /load external image/i,
+		});
+		expect(loadButton).toBeInTheDocument();
+		expect(canvasElement.querySelector("img")).toBeNull();
 	},
 };
 

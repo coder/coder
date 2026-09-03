@@ -76,7 +76,7 @@ func TestTunnelSrcCoordController_Mainline(t *testing.T) {
 
 	reqs := make(chan *proto.CoordinateRequest, 100)
 	resps := make(chan *proto.CoordinateResponse, 100)
-	mCoord.EXPECT().Coordinate(gomock.Any(), clientID, gomock.Any(), tailnet.ClientCoordinateeAuth{agentID}).
+	mCoord.EXPECT().Coordinate(gomock.Any(), clientID, gomock.Any(), tailnet.ClientCoordinateeAuth{AgentID: agentID}).
 		Times(1).Return(reqs, resps)
 
 	var coord tailnet.Coordinator = mCoord
@@ -415,7 +415,7 @@ func TestAgentCoordinationController_SendsReadyForHandshake(t *testing.T) {
 
 	reqs := make(chan *proto.CoordinateRequest, 100)
 	resps := make(chan *proto.CoordinateResponse, 100)
-	mCoord.EXPECT().Coordinate(gomock.Any(), clientID, gomock.Any(), tailnet.ClientCoordinateeAuth{agentID}).
+	mCoord.EXPECT().Coordinate(gomock.Any(), clientID, gomock.Any(), tailnet.ClientCoordinateeAuth{AgentID: agentID}).
 		Times(1).Return(reqs, resps)
 
 	var coord tailnet.Coordinator = mCoord

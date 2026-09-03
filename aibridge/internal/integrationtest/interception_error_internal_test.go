@@ -18,8 +18,9 @@ import (
 // records a categorized upstream error on the ended record.
 //
 // The default test provider is centralized (backed by a single-key pool), so a
-// 401 exhausts the pool. Both blocking and streaming interceptors preserve the
-// *keypool.Error so the cause is categorized as "unauthorized".
+// 401 marks the key temporary and exhausts the pool. Both blocking and
+// streaming interceptors preserve the *keypool.Error so the cause is
+// categorized as "unauthorized", the auth-failure exhaustion outcome.
 func TestInterceptionUpstreamErrorRecorded(t *testing.T) {
 	t.Parallel()
 

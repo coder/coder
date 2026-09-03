@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 )
 
@@ -71,5 +70,5 @@ func (c *Client) AuthCheck(ctx context.Context, req AuthorizationRequest) (Autho
 		return AuthorizationResponse{}, ReadBodyAsError(res)
 	}
 	var resp AuthorizationResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }

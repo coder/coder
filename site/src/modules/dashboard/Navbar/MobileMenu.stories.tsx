@@ -11,6 +11,22 @@ import {
 } from "#/testHelpers/entities";
 import { MobileMenu } from "./MobileMenu";
 
+const defaultProxyContextValue = {
+	latenciesLoaded: true,
+	proxy: {
+		preferredPathAppURL: "",
+		preferredWildcardHostname: "",
+		proxy: MockPrimaryWorkspaceProxy,
+	},
+	isLoading: false,
+	isFetched: true,
+	setProxy: fn(),
+	clearProxy: fn(),
+	refetchProxyLatencies: fn(),
+	proxyLatencies: MockProxyLatencies,
+	proxies: MockWorkspaceProxies,
+};
+
 const meta: Meta<typeof MobileMenu> = {
 	title: "modules/dashboard/MobileMenu",
 	parameters: {
@@ -21,32 +37,20 @@ const meta: Meta<typeof MobileMenu> = {
 	},
 	component: MobileMenu,
 	args: {
-		proxyContextValue: {
-			latenciesLoaded: true,
-			proxy: {
-				preferredPathAppURL: "",
-				preferredWildcardHostname: "",
-				proxy: MockPrimaryWorkspaceProxy,
-			},
-			isLoading: false,
-			isFetched: true,
-			setProxy: fn(),
-			clearProxy: fn(),
-			refetchProxyLatencies: fn(),
-			proxyLatencies: MockProxyLatencies,
-			proxies: MockWorkspaceProxies,
-		},
+		proxyContextValue: defaultProxyContextValue,
 		user: MockUserOwner,
 		supportLinks: MockSupportLinks,
 		onSignOut: fn(),
 		isDefaultOpen: true,
-		canViewAuditLog: true,
-		canViewConnectionLog: true,
-		canViewDeployment: true,
-		canViewHealth: true,
-		canViewOrganizations: true,
-		canViewAIBridge: true,
-		canViewAISettings: true,
+		adminPermissions: {
+			canViewDeployment: true,
+			canViewOrganizations: true,
+			canViewAISettings: true,
+			canViewAuditLog: true,
+			canViewConnectionLog: true,
+			canViewAIBridge: true,
+			canViewHealth: true,
+		},
 	},
 	decorators: [withNavbarMock],
 };
@@ -67,13 +71,9 @@ export const Admin: Story = {
 export const Auditor: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: true,
-		canViewConnectionLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewOrganizations: false,
-		canViewAIBridge: false,
-		canViewAISettings: false,
+		adminPermissions: {
+			canViewAuditLog: true,
+		},
 	},
 	play: openAdminSettings,
 };
@@ -81,13 +81,10 @@ export const Auditor: Story = {
 export const OrgAdmin: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: true,
-		canViewConnectionLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewOrganizations: true,
-		canViewAIBridge: false,
-		canViewAISettings: false,
+		adminPermissions: {
+			canViewAuditLog: true,
+			canViewOrganizations: true,
+		},
 	},
 	play: openAdminSettings,
 };
@@ -95,13 +92,7 @@ export const OrgAdmin: Story = {
 export const Member: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewConnectionLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewOrganizations: false,
-		canViewAIBridge: false,
-		canViewAISettings: false,
+		adminPermissions: {},
 	},
 };
 
@@ -113,6 +104,53 @@ export const ProxySettings: Story = {
 			name: /workspace proxy settings/i,
 		});
 		await user.click(menuItem);
+	},
+};
+
+export const ProxyWarningLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockPrimaryWorkspaceProxy.id]: {
+					accurate: true,
+					latencyMS: 224,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ProxyCriticalLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockPrimaryWorkspaceProxy.id]: {
+					accurate: true,
+					latencyMS: 471,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ProxyNoLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: Object.fromEntries(
+				Object.entries(MockProxyLatencies).filter(
+					([id]) => id !== MockPrimaryWorkspaceProxy.id,
+				),
+			),
+		},
 	},
 };
 

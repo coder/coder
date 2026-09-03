@@ -18,6 +18,7 @@ import (
 	"github.com/sony/gobreaker/v2"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/net/http/httpguts"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/quartz"
 )
 
@@ -248,6 +250,18 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		client := GuessClient(r)
 		sessionID := GuessSessionID(client, r)
 
+		if isWebSocketUpgrade(r) {
+			route := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/%s", p.Name()))
+			logger.Debug(ctx, "rejecting unsupported WebSocket upgrade",
+				slog.F("provider", p.Name()),
+				slog.F("route", route),
+				slog.F("client", string(client)),
+				slog.F("client_session_id", sessionID),
+			)
+			http.Error(w, "WebSocket transport is not supported, use HTTP", http.StatusNotImplemented)
+			return
+		}
+
 		// Read and validate Agent Firewall correlation headers. The
 		// values are captured here and recorded below; the headers
 		// themselves are stripped from the upstream request by
@@ -264,7 +278,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))
 			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-				writeRequestBodyTooLarge(w)
+				writeRequestBodyTooLarge(ctx, w)
 			} else {
 				logger.Warn(ctx, "failed to create interceptor", slog.Error(err), slog.F("path", r.URL.Path))
 				http.Error(w, fmt.Sprintf("failed to create %q interceptor", r.URL.Path), http.StatusInternalServerError)
@@ -381,9 +395,23 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 	}
 }
 
+// isWebSocketUpgrade reports whether r is a WebSocket opening handshake.
+func isWebSocketUpgrade(r *http.Request) bool {
+	return r.Method == http.MethodGet &&
+		httpguts.HeaderValuesContainsToken(r.Header.Values("Connection"), "upgrade") &&
+		httpguts.HeaderValuesContainsToken(r.Header.Values("Upgrade"), "websocket")
+}
+
 // writeRequestBodyTooLarge writes a human-readable 413 response indicating that
 // the request body exceeded maxRequestBodyBytes.
-func writeRequestBodyTooLarge(w http.ResponseWriter) {
+//
+// It records the limit before writing, so the request log names the limit that
+// tripped and the too-large metric attributes the rejection to body size rather
+// than to the other reasons coderd answers 413. Recording here rather than at
+// each call site keeps the two inseparable: this helper is the only path to a
+// body-too-large response from aibridge.
+func writeRequestBodyTooLarge(ctx context.Context, w http.ResponseWriter) {
+	httpapi.RecordRequestBodyLimit(ctx, maxRequestBodyBytes)
 	http.Error(w, fmt.Sprintf(
 		"Request body too large. The maximum allowed request body size is %dMiB.",
 		maxRequestBodyBytes>>20,

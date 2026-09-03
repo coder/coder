@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -508,8 +507,9 @@ func TestDifferentialReload(t *testing.T) {
 		origClient := m.servers["srv"].client
 		m.mu.RUnlock()
 
-		// Change the server's args to trigger a diff.
-		entry.Args = append(entry.Args, "-test.v")
+		// Change the environment because verbose test flags make the
+		// fake server write non-protocol output, which the SDK rejects.
+		entry.Env["EXTRA_DIFF_TRIGGER"] = "1"
 		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
 		err = m.Reload(ctx, []string{configPath})
@@ -561,7 +561,7 @@ func TestDifferentialReload(t *testing.T) {
 		// ListTools on a closed client returns an error.
 		listCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
 		defer cancel()
-		_, listErr := oldClientB.ListTools(listCtx, mcp.ListToolsRequest{})
+		_, listErr := oldClientB.ListTools(listCtx, nil)
 		assert.Error(t, listErr, "ListTools on closed client should fail")
 	})
 

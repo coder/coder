@@ -6,12 +6,6 @@ describe("sidebarViewFromPath", () => {
 		expect(sidebarViewFromPath("/agents")).toEqual({ panel: "chats" });
 	});
 
-	it("returns analytics for the analytics route", () => {
-		expect(sidebarViewFromPath("/agents/analytics")).toEqual({
-			panel: "analytics",
-		});
-	});
-
 	it("returns chats for non-settings agent routes", () => {
 		expect(sidebarViewFromPath("/agents/some-uuid")).toEqual({
 			panel: "chats",
@@ -95,9 +89,5 @@ describe("isSettingsView", () => {
 
 	it("returns false for chats", () => {
 		expect(isSettingsView({ panel: "chats" })).toBe(false);
-	});
-
-	it("returns false for analytics", () => {
-		expect(isSettingsView({ panel: "analytics" })).toBe(false);
 	});
 });

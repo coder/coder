@@ -2,7 +2,6 @@ package agentsdk
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 
@@ -100,5 +99,5 @@ func (a *AWSSessionTokenExchanger) exchange(ctx context.Context) (AuthenticateRe
 		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, codersdk.ReadBodyAsJSON(res, &resp)
 }

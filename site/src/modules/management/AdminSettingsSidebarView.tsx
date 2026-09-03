@@ -7,7 +7,7 @@ import {
 	SparklesIcon,
 } from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import type {
 	BuildInfoResponse,
 	Experiment,
@@ -116,7 +116,8 @@ function useOpenSections(storageKey: string, activeChain: string[]) {
 interface AdminSettingsSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
-	hasPremiumLicense: boolean;
+	/** Licensed, non-trial deployments hide the Trial Upgrade link. */
+	hidePremiumTab: boolean;
 	experiments: Experiment[];
 	buildInfo: BuildInfoResponse;
 	/** Whether the Organizations section is shown at all. */
@@ -130,6 +131,10 @@ interface AdminSettingsSidebarViewProps {
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewAIBridge: boolean;
+	/** The user can manage chat models in at least one organization. */
+	canAccessOrganizationModels: boolean;
+	/** The user can share MCP servers in at least one organization. */
+	canShareOrganizationMCPServers: boolean;
 	/** Overridable so stories do not share persisted accordion state. */
 	openSectionsStorageKey?: string;
 }
@@ -141,7 +146,7 @@ interface AdminSettingsSidebarViewProps {
  */
 export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 	permissions,
-	hasPremiumLicense,
+	hidePremiumTab,
 	experiments,
 	buildInfo,
 	canViewOrganizations,
@@ -151,6 +156,8 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewAIBridge,
+	canAccessOrganizationModels,
+	canShareOrganizationMCPServers,
 	openSectionsStorageKey = DEFAULT_OPEN_SECTIONS_STORAGE_KEY,
 }) => {
 	const { collapsed, toggle } = useSidebarContext();
@@ -158,10 +165,14 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 
 	const deploymentSections = deploymentNavSections({
 		permissions,
-		hasPremiumLicense,
+		hidePremiumTab,
 		experiments,
 		buildInfo,
 	});
+	const aiAccess = {
+		canAccessOrganizationModels,
+		canShareOrganizationMCPServers,
+	};
 	const activeChain = adminSectionChainForRoute(pathname, deploymentSections);
 	const { openSections, toggleSection } = useOpenSections(
 		openSectionsStorageKey,
@@ -177,11 +188,38 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 	const renderItems = (items: AdminNavItem[]) =>
 		items
 			.filter((item) => item.visible)
-			.map((item) => (
-				<SettingsSidebarNavItem key={item.href} href={item.href} end={item.end}>
-					{item.label}
-				</SettingsSidebarNavItem>
-			));
+			.map((item) => {
+				if (item.activePrefixes) {
+					// NavLink only knows its own href, so items reachable from
+					// several URLs compute their active state from the location.
+					const active = item.activePrefixes.some(
+						(prefix) =>
+							pathname === prefix || pathname.startsWith(`${prefix}/`),
+					);
+					return (
+						<Link
+							key={item.href}
+							to={item.href}
+							aria-current={active ? "page" : undefined}
+							className={cn(
+								"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
+								active && "font-semibold text-content-primary",
+							)}
+						>
+							{item.label}
+						</Link>
+					);
+				}
+				return (
+					<SettingsSidebarNavItem
+						key={item.href}
+						href={item.href}
+						end={item.end}
+					>
+						{item.label}
+					</SettingsSidebarNavItem>
+				);
+			});
 
 	const renderNestedSection = (section: AdminNavSection) =>
 		section.items.some((item) => item.visible) && (
@@ -305,7 +343,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 				</SidebarAccordion>
 			)}
 
-			{canViewAISettings(permissions) && (
+			{canViewAISettings(permissions, aiAccess) && (
 				<SidebarAccordion
 					icon={SparklesIcon}
 					label="AI"
@@ -313,8 +351,8 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 					onToggle={() => toggleSection("ai")}
 					active={activeChain[0] === "ai"}
 				>
-					{renderItems(aiNavItems(permissions))}
-					{renderNestedSection(aiCoderAgentsSection(permissions))}
+					{renderItems(aiNavItems(permissions, aiAccess))}
+					{renderNestedSection(aiCoderAgentsSection(permissions, aiAccess))}
 				</SidebarAccordion>
 			)}
 

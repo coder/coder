@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -8,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
@@ -81,16 +83,35 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 			OS:            string(templatebuilder.BaseTemplateOS(id)),
 			Variables:     vars,
 			Prerequisites: templatebuilder.BasePrerequisites(id),
+			Agents:        baseAgentsToSDK(templatebuilder.BaseAgents(id)),
 		})
 	}
 
-	sort.Slice(bases, func(i, j int) bool {
-		return bases[i].Name < bases[j].Name
+	// Order bases by display name, tiebreaking on ID so the order is total and
+	// deterministic even if two bases ever share a display name.
+	slices.SortFunc(bases, func(a, b codersdk.TemplateBuilderBase) int {
+		return cmp.Or(
+			cmp.Compare(a.Name, b.Name),
+			cmp.Compare(a.ID, b.ID),
+		)
 	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderBasesResponse{
 		Bases: bases,
 	})
+}
+
+// baseAgentsToSDK converts base template agents to the SDK type.
+func baseAgentsToSDK(agents []templatebuilder.BaseAgent) []codersdk.TemplateBuilderBaseAgent {
+	out := make([]codersdk.TemplateBuilderBaseAgent, 0, len(agents))
+	for _, a := range agents {
+		out = append(out, codersdk.TemplateBuilderBaseAgent{
+			Name:        a.Name,
+			DisplayName: a.DisplayName,
+			Default:     a.Default,
+		})
+	}
+	return out
 }
 
 // baseVariablesToSDK converts base template variables to the SDK type,
@@ -138,8 +159,11 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Resolve OS filter from the base query param.
-	var filterOS templatebuilder.BaseOS
+	// Resolve OS filter and base-included modules from the base query param.
+	var (
+		filterOS    templatebuilder.BaseOS
+		baseModules map[string]bool
+	)
 	if base := r.URL.Query().Get("base"); base != "" {
 		filterOS = templatebuilder.BaseTemplateOS(base)
 		if filterOS == "" {
@@ -149,11 +173,20 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
+		included := templatebuilder.BaseIncludedModules(base)
+		baseModules = make(map[string]bool, len(included))
+		for _, id := range included {
+			baseModules[id] = true
+		}
 	}
 
 	modules := make([]codersdk.TemplateBuilderModule, 0, len(manifests))
 	for _, m := range manifests {
 		if filterOS != "" && !m.CompatibleWithOS(string(filterOS)) {
+			continue
+		}
+		// Skip modules the base already includes (see BaseIncludedModules).
+		if baseModules[m.ID] {
 			continue
 		}
 		modules = append(modules, m.ToSDK())
@@ -201,6 +234,7 @@ func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) 
 	for _, m := range req.Modules {
 		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
 			ID:        m.ID,
+			AgentName: m.AgentName,
 			Variables: m.Variables,
 		})
 	}
@@ -311,6 +345,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	for _, m := range req.Modules {
 		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
 			ID:        m.ID,
+			AgentName: m.AgentName,
 			Variables: m.Variables,
 		})
 	}
@@ -459,7 +494,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	jobCtx, jobCancel := context.WithTimeout(ctx, templateBuilderCreateTemplateTimeout)
 	defer jobCancel()
 
-	completedJob, err := api.waitForProvisionerJob(jobCtx, provisionerJob.ID, nil)
+	completedJob, err := api.waitForProvisionerJob(jobCtx, provisionerJob.ID)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			httpapi.Write(ctx, rw, http.StatusGatewayTimeout, codersdk.Response{
@@ -554,6 +589,8 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			MaxPortSharingLevel:          database.AppSharingLevelOwner,
 			UseClassicParameterFlow:      false,
 			CorsBehavior:                 database.CorsBehaviorSimple,
+			AgentsAllowed:                true,
+			AllowWorkspaceRenames:        false,
 		})
 		if err != nil {
 			if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
@@ -616,11 +653,9 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 }
 
 // waitForProvisionerJob polls until the job completes or the context expires.
-// If onUpdate is non-nil, it is called after each poll with the latest job state.
 func (api *API) waitForProvisionerJob(
 	ctx context.Context,
 	jobID uuid.UUID,
-	onUpdate func(database.ProvisionerJob),
 ) (database.ProvisionerJob, error) {
 	initialIntervals := []time.Duration{
 		100 * time.Millisecond,
@@ -648,12 +683,50 @@ func (api *API) waitForProvisionerJob(
 			return database.ProvisionerJob{}, xerrors.Errorf("get provisioner job: %w", err)
 		}
 
-		if onUpdate != nil {
-			onUpdate(job)
-		}
-
 		if job.CompletedAt.Valid {
 			return job, nil
 		}
 	}
+}
+
+// @Summary Report a template builder session event
+// @ID report-a-template-builder-session-event
+// @Security CoderSessionToken
+// @Accept json
+// @Tags TemplateBuilder
+// @Param request body codersdk.TemplateBuilderSessionRequest true "Session event"
+// @Success 204
+// @Router /api/v2/templatebuilder/sessions [post]
+func (api *API) templateBuilderSession(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	// Only template admins should be able to use this flow and submit
+	// session telemetry, matching the compose endpoint's authorization.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceTemplate.AnyOrganization()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.TemplateBuilderSessionRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		TemplateBuilderSessions: []telemetry.TemplateBuilderSession{
+			{
+				ID:              req.SessionID,
+				EventType:       string(req.EventType),
+				UserID:          apiKey.UserID,
+				BaseTemplateID:  req.BaseTemplateID,
+				ModuleIDs:       req.ModuleIDs,
+				DurationSeconds: req.DurationSeconds,
+				Success:         req.Success,
+				CreatedAt:       dbtime.Now(),
+			},
+		},
+	})
+
+	rw.WriteHeader(http.StatusNoContent)
 }

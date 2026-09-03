@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import cronParser from "cron-parser";
 import cronstrue from "cronstrue";
 import dayjs, { type Dayjs } from "dayjs";
@@ -10,6 +9,7 @@ import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import type { Template, Workspace } from "#/api/typesGenerated";
 import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import type { WorkspaceActivityStatus } from "#/modules/workspaces/activity";
 import { isWorkspaceOn } from "./workspace";
 
@@ -140,8 +140,8 @@ export const autostopDisplay = (
 					{" "}
 					because this workspace has enabled autostop. You can disable autostop
 					from this workspace&apos;s{" "}
-					<Link component={RouterLink} to="settings/schedule">
-						schedule settings
+					<Link asChild showExternalIcon={false} size="sm" className="p-0">
+						<RouterLink to="settings/schedule">schedule settings</RouterLink>
 					</Link>
 					.
 				</span>
@@ -199,7 +199,9 @@ export function getMaxDeadline(ws: Workspace | undefined): dayjs.Dayjs {
 	// note: we count runtime from updated_at as started_at counts from the start of
 	// the workspace build process, which can take a while.
 	if (ws === undefined) {
-		throw Error("Cannot calculate max deadline because workspace is undefined");
+		throw new Error(
+			"Cannot calculate max deadline because workspace is undefined",
+		);
 	}
 	const startedAt = dayjs(ws.latest_build.updated_at);
 	return startedAt.add(deadlineExtensionMax);

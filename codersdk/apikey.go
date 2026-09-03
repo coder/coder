@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -74,7 +73,7 @@ func (c *Client) CreateToken(ctx context.Context, userID string, req CreateToken
 	}
 
 	var apiKey GenerateAPIKeyResponse
-	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+	return apiKey, ReadBodyAsJSON(res, &apiKey)
 }
 
 // CreateAPIKey generates an API key for the user ID provided.
@@ -93,7 +92,7 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyR
 	}
 
 	var apiKey GenerateAPIKeyResponse
-	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+	return apiKey, ReadBodyAsJSON(res, &apiKey)
 }
 
 type TokensFilter struct {
@@ -132,7 +131,7 @@ func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter)
 		return nil, ReadBodyAsError(res)
 	}
 	apiKey := []APIKeyWithOwner{}
-	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+	return apiKey, ReadBodyAsJSON(res, &apiKey)
 }
 
 // APIKeyByID returns the api key by id.
@@ -146,7 +145,7 @@ func (c *Client) APIKeyByID(ctx context.Context, userID string, id string) (*API
 		return nil, ReadBodyAsError(res)
 	}
 	apiKey := &APIKey{}
-	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+	return apiKey, ReadBodyAsJSON(res, apiKey)
 }
 
 // APIKeyByName returns the api key by name.
@@ -160,7 +159,7 @@ func (c *Client) APIKeyByName(ctx context.Context, userID string, name string) (
 		return nil, ReadBodyAsError(res)
 	}
 	apiKey := &APIKey{}
-	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+	return apiKey, ReadBodyAsJSON(res, apiKey)
 }
 
 // DeleteAPIKey deletes API key by id.
@@ -201,5 +200,5 @@ func (c *Client) GetTokenConfig(ctx context.Context, userID string) (TokenConfig
 		return TokenConfig{}, ReadBodyAsError(res)
 	}
 	tokenConfig := TokenConfig{}
-	return tokenConfig, json.NewDecoder(res.Body).Decode(&tokenConfig)
+	return tokenConfig, ReadBodyAsJSON(res, &tokenConfig)
 }

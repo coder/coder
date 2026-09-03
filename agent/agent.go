@@ -100,25 +100,25 @@ type Options struct {
 	IgnorePorts map[int]string
 	// ListeningPortsGetter is used to get the list of listening ports. Only
 	// tests should set this. If unset, a default that queries the OS will be used.
-	ListeningPortsGetter         ListeningPortsGetter
-	SSHMaxTimeout                time.Duration
-	TailnetListenPort            uint16
-	Subsystems                   []codersdk.AgentSubsystem
-	PrometheusRegistry           *prometheus.Registry
-	ReportMetadataInterval       time.Duration
-	ServiceBannerRefreshInterval time.Duration
-	BlockFileTransfer            bool
-	BlockReversePortForwarding   bool
-	BlockLocalPortForwarding     bool
-	Execer                       agentexec.Execer
-	Devcontainers                bool
-	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
-	GitAPIOptions                []agentgit.Option
-	Clock                        quartz.Clock
-	SocketServerEnabled          bool
-	SocketPath                   string // Path for the agent socket server socket
-	BoundaryLogProxySocketPath   string
-	ContextConfig                agentcontextconfig.Config
+	ListeningPortsGetter            ListeningPortsGetter
+	SSHMaxTimeout                   time.Duration
+	TailnetListenPort               uint16
+	Subsystems                      []codersdk.AgentSubsystem
+	PrometheusRegistry              *prometheus.Registry
+	ReportMetadataInterval          time.Duration
+	ServiceBannerRefreshInterval    time.Duration
+	BlockFileTransfer               bool
+	BlockReversePortForwarding      bool
+	BlockLocalPortForwarding        bool
+	Execer                          agentexec.Execer
+	Devcontainers                   bool
+	DevcontainerAPIOptions          []agentcontainers.Option // Enable Devcontainers for these to be effective.
+	GitAPIOptions                   []agentgit.Option
+	Clock                           quartz.Clock
+	SocketServerEnabled             bool
+	SocketPath                      string // Path for the agent socket server socket
+	AgentFirewallLogProxySocketPath string
+	ContextConfig                   agentcontextconfig.Config
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
 	// StatsReportInterval is the interval for the connstats callback
@@ -253,14 +253,14 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
-		devcontainers:              options.Devcontainers,
-		containerAPIOptions:        options.DevcontainerAPIOptions,
-		gitAPIOptions:              options.GitAPIOptions,
-		socketPath:                 options.SocketPath,
-		socketServerEnabled:        options.SocketServerEnabled,
-		boundaryLogProxySocketPath: options.BoundaryLogProxySocketPath,
-		contextConfig:              options.ContextConfig,
-		derpTLSConfig:              options.DERPTLSConfig,
+		devcontainers:                   options.Devcontainers,
+		containerAPIOptions:             options.DevcontainerAPIOptions,
+		gitAPIOptions:                   options.GitAPIOptions,
+		socketPath:                      options.SocketPath,
+		socketServerEnabled:             options.SocketServerEnabled,
+		agentFirewallLogProxySocketPath: options.AgentFirewallLogProxySocketPath,
+		contextConfig:                   options.ContextConfig,
+		derpTLSConfig:                   options.DERPTLSConfig,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -337,11 +337,11 @@ type agent struct {
 
 	logSender *agentsdk.LogSender
 
-	// boundaryLogProxy is a socket server that forwards boundary audit logs to coderd.
+	// agentFirewallLogProxy is a socket server that forwards Agent Firewall audit logs to coderd.
 	// It may be nil if there is a problem starting the server.
-	boundaryLogProxy           *boundarylogproxy.Server
-	boundaryLogProxySocketPath string
-	contextConfig              agentcontextconfig.Config
+	agentFirewallLogProxy           *boundarylogproxy.Server
+	agentFirewallLogProxySocketPath string
+	contextConfig                   agentcontextconfig.Config
 
 	prometheusRegistry *prometheus.Registry
 	// metrics are prometheus registered metrics that will be collected and
@@ -424,19 +424,18 @@ func (a *agent) init() {
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
-		ReportConnection: func(id uuid.UUID, magicType agentssh.MagicSessionType, ip string) func(code int, reason string) {
+		ReportConnection: func(id uuid.UUID, appName string, ip string) func(code int, reason string) {
 			var connectionType proto.Connection_Type
-			switch magicType {
-			case agentssh.MagicSessionTypeSSH:
+			// Connection_Type is a fixed enum, stored as a database enum in
+			// the connection log, so it can only hold a family.
+			switch codersdk.AppNameFamily(appName) {
+			case codersdk.AppFamilySSH:
 				connectionType = proto.Connection_SSH
-			case agentssh.MagicSessionTypeVSCode:
+			case codersdk.AppFamilyVSCode:
 				connectionType = proto.Connection_VSCODE
-			case agentssh.MagicSessionTypeJetBrains:
+			case codersdk.AppFamilyJetBrains:
 				connectionType = proto.Connection_JETBRAINS
-			case agentssh.MagicSessionTypeUnknown:
-				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			default:
-				a.logger.Error(a.hardCtx, "unhandled magic session type when reporting connection", slog.F("magic_type", magicType))
 				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			}
 
@@ -475,7 +474,7 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	pathStore := agentgit.NewPathStore()
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo))
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
@@ -540,7 +539,7 @@ func (a *agent) init() {
 	)
 
 	a.initSocketServer()
-	a.startBoundaryLogProxyServer()
+	a.startAgentFirewallLogProxyServer()
 
 	// Start the agentcontext manager's resolver/watcher loop.
 	// It runs for the lifetime of the agent and is closed in
@@ -576,22 +575,21 @@ func (a *agent) initSocketServer() {
 	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
-// startBoundaryLogProxyServer starts the boundary log proxy socket server.
-func (a *agent) startBoundaryLogProxyServer() {
-	if a.boundaryLogProxySocketPath == "" {
-		a.logger.Warn(a.hardCtx, "boundary log proxy socket path not defined; not starting proxy")
+func (a *agent) startAgentFirewallLogProxyServer() {
+	if a.agentFirewallLogProxySocketPath == "" {
+		a.logger.Warn(a.hardCtx, "agent firewall log proxy socket path not defined; not starting proxy")
 		return
 	}
 
-	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath, a.prometheusRegistry)
+	proxy := boundarylogproxy.NewServer(a.logger, a.agentFirewallLogProxySocketPath, a.prometheusRegistry)
 	if err := proxy.Start(); err != nil {
-		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
+		a.logger.Warn(a.hardCtx, "failed to start agent firewall log proxy", slog.Error(err))
 		return
 	}
 
-	a.boundaryLogProxy = proxy
-	a.logger.Info(a.hardCtx, "boundary log proxy server started",
-		slog.F("socket_path", a.boundaryLogProxySocketPath))
+	a.agentFirewallLogProxy = proxy
+	a.logger.Info(a.hardCtx, "agent firewall log proxy server started",
+		slog.F("socket_path", a.agentFirewallLogProxySocketPath))
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -1229,13 +1227,13 @@ func (a *agent) run() (retErr error) {
 			return err
 		})
 
-	// Forward boundary audit logs to coderd if boundary log forwarding is enabled.
+	// Forward Agent Firewall audit logs to coderd if agent firewall log forwarding is enabled.
 	// These are audit logs so they should continue during graceful shutdown.
-	if a.boundaryLogProxy != nil {
+	if a.agentFirewallLogProxy != nil {
 		proxyFunc := func(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
-			return a.boundaryLogProxy.RunForwarder(ctx, aAPI)
+			return a.agentFirewallLogProxy.RunForwarder(ctx, aAPI)
 		}
-		connMan.startAgentAPI("boundary log proxy", gracefulShutdownBehaviorRemain, proxyFunc)
+		connMan.startAgentAPI("agent firewall log proxy", gracefulShutdownBehaviorRemain, proxyFunc)
 	}
 
 	// part of graceful shut down is reporting the final lifecycle states, e.g "ShuttingDown" so the
@@ -2163,11 +2161,11 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		stats.TxPackets += int64(counts.TxPackets)
 	}
 
-	// The count of active sessions.
-	sshStats := a.sshServer.ConnStats()
-	stats.SessionCountSsh = sshStats.Sessions
-	stats.SessionCountVscode = sshStats.VSCode
-	stats.SessionCountJetbrains = sshStats.JetBrains
+	// The count of active sessions; types without a protocol field are dropped.
+	sessionCounts := a.sshServer.SessionCounts()
+	stats.SessionCountSsh = sessionCounts[string(codersdk.AppFamilySSH)]
+	stats.SessionCountVscode = sessionCounts[string(codersdk.AppFamilyVSCode)]
+	stats.SessionCountJetbrains = sessionCounts[string(codersdk.AppFamilyJetBrains)]
 
 	stats.SessionCountReconnectingPty = a.reconnectingPTYServer.ConnCount()
 
@@ -2414,10 +2412,10 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "agentcontext manager close", slog.Error(err))
 	}
 
-	if a.boundaryLogProxy != nil {
-		err = a.boundaryLogProxy.Close()
+	if a.agentFirewallLogProxy != nil {
+		err = a.agentFirewallLogProxy.Close()
 		if err != nil {
-			a.logger.Warn(context.Background(), "close boundary log proxy", slog.Error(err))
+			a.logger.Warn(context.Background(), "close agent firewall log proxy", slog.Error(err))
 		}
 	}
 

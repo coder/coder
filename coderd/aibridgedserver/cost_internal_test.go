@@ -2,8 +2,11 @@ package aibridgedserver
 
 import (
 	"database/sql"
+	"errors"
+	"math"
 	"testing"
 
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
@@ -12,11 +15,15 @@ func TestComputeCost(t *testing.T) {
 
 	nullInt64 := func(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
 
+	const oneMicroPerToken = 1_000_000
+	bound := maxCostMicros.IntPart()
+
 	tests := []struct {
 		name                                                         string
 		price                                                        database.AIModelPrice
 		inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64
 		want                                                         int64
+		wantOutOfRange                                               bool
 	}{
 		{
 			name: "all priced",
@@ -109,15 +116,142 @@ func TestComputeCost(t *testing.T) {
 			inputTokens: 122_000_000_000, // 122e9 * 75e6 = 9.15e18 < int64 max
 			want:        9_150_000_000_000,
 		},
+		{
+			// Each category costs 37.5 micro-units, so truncating per category
+			// gives 37 + 37 = 74.
+			name: "each category truncates before the sum",
+			price: database.AIModelPrice{
+				InputPrice:  nullInt64(37_500_000),
+				OutputPrice: nullInt64(37_500_000),
+			},
+			inputTokens:  1,
+			outputTokens: 1,
+			want:         74,
+		},
+		{
+			name:        "cost exactly at the bound is in range",
+			price:       database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			inputTokens: bound,
+			want:        bound,
+		},
+		{
+			name:           "cost one micro-unit above the bound is out of range",
+			price:          database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			inputTokens:    bound + 1,
+			wantOutOfRange: true,
+		},
+		{
+			name:           "cost of int64 max is out of range",
+			price:          database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			inputTokens:    math.MaxInt64,
+			wantOutOfRange: true,
+		},
+		{
+			// Each category fits on its own; only their sum exceeds the bound,
+			// so the range check has to run on the total.
+			name: "sum of in-range categories above the bound is out of range",
+			price: database.AIModelPrice{
+				InputPrice:  nullInt64(oneMicroPerToken),
+				OutputPrice: nullInt64(oneMicroPerToken),
+			},
+			inputTokens:    bound/2 + 1,
+			outputTokens:   bound/2 + 1,
+			wantOutOfRange: true,
+		},
+		{
+			// The cost column forbids negatives, so an implausible token count
+			// is rejected here rather than failing the insert.
+			name: "negative cost is out of range",
+			price: database.AIModelPrice{
+				InputPrice: nullInt64(3_000_000),
+			},
+			inputTokens:    -1_000_000,
+			wantOutOfRange: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := computeCost(tt.price, tt.inputTokens, tt.outputTokens, tt.cacheReadTokens, tt.cacheWriteTokens)
+			got, err := computeCost(tt.price, tt.inputTokens, tt.outputTokens, tt.cacheReadTokens, tt.cacheWriteTokens)
+			if tt.wantOutOfRange {
+				if !errors.Is(err, errCostOutOfRange) {
+					t.Fatalf("computeCost error = %v, want errCostOutOfRange", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("computeCost error = %v, want nil", err)
+			}
 			if got != tt.want {
 				t.Fatalf("computeCost = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateTokenUsage(t *testing.T) {
+	t.Parallel()
+
+	bound := maxAllowedTokenUsage
+
+	tests := []struct {
+		name           string
+		request        *proto.RecordTokenUsageRequest
+		wantOutOfRange bool
+	}{
+		{
+			// A frontier-sized request, with one category at zero.
+			name: "plausible counts",
+			request: &proto.RecordTokenUsageRequest{
+				InputTokens: 1_000_000, OutputTokens: 128_000,
+				CacheReadInputTokens: 500_000,
+			},
+		},
+		{
+			// The bound is inclusive.
+			name: "every category exactly at the bound",
+			request: &proto.RecordTokenUsageRequest{
+				InputTokens: bound, OutputTokens: bound,
+				CacheReadInputTokens: bound, CacheWriteInputTokens: bound,
+			},
+		},
+		{
+			name:           "above the bound",
+			request:        &proto.RecordTokenUsageRequest{InputTokens: bound + 1},
+			wantOutOfRange: true,
+		},
+		{
+			// The last category is checked too, not just the first.
+			name:           "negative cache write",
+			request:        &proto.RecordTokenUsageRequest{CacheWriteInputTokens: -1},
+			wantOutOfRange: true,
+		},
+		{
+			// A negative offset by a larger positive still totals in range, so
+			// the check has to run per category rather than on the sum.
+			name: "negative input offset by positive output",
+			request: &proto.RecordTokenUsageRequest{
+				InputTokens: -1_000_000, OutputTokens: 2_000_000,
+			},
+			wantOutOfRange: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := validateTokenUsage(tt.request)
+			if tt.wantOutOfRange {
+				if !errors.Is(err, errTokenUsageOutOfRange) {
+					t.Fatalf("validateTokenUsage error = %v, want errTokenUsageOutOfRange", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateTokenUsage error = %v, want nil", err)
 			}
 		})
 	}

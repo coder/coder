@@ -6,6 +6,8 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { canViewOrganization } from "#/modules/permissions/organizations";
+import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
+import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { AdminSettingsSidebarView } from "./AdminSettingsSidebarView";
 
 /**
@@ -29,6 +31,13 @@ export const AdminSettingsSidebar: FC = () => {
 	const orgPermissionsQuery = useQuery(
 		organizationsPermissions(organizations.map((org) => org.id)),
 	);
+	// Organization-scoped AI access lets non-admins reach the Models and
+	// MCP servers pages; these queries dedupe with the AI pages themselves.
+	const accessibleModelOrgs = useAccessibleModelOrganizations(organizations);
+	const organizationMCPSharing = useCanShareOrganizationMCPServers(
+		organizations,
+		{ enabled: !permissions.editDeploymentConfig },
+	);
 	const permissionsByOrgId = orgPermissionsQuery.data;
 	const viewableOrganizations = permissionsByOrgId
 		? organizations.filter((org) =>
@@ -43,7 +52,7 @@ export const AdminSettingsSidebar: FC = () => {
 	return (
 		<AdminSettingsSidebarView
 			permissions={permissions}
-			hasPremiumLicense={entitlements.features.multiple_organizations.enabled}
+			hidePremiumTab={entitlements.has_license && !entitlements.trial}
 			experiments={experiments}
 			buildInfo={buildInfo}
 			canViewOrganizations={canViewOrganizationSettings}
@@ -54,6 +63,8 @@ export const AdminSettingsSidebar: FC = () => {
 					? permissionsByOrgId?.[activeOrganization.id]
 					: undefined
 			}
+			canAccessOrganizationModels={accessibleModelOrgs.organizations.length > 0}
+			canShareOrganizationMCPServers={organizationMCPSharing.canShare}
 			canViewAuditLog={
 				featureVisibility.audit_log && permissions.viewAnyAuditLog
 			}

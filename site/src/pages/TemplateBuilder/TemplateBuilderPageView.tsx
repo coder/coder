@@ -4,6 +4,8 @@ import {
 	useCallback,
 	useEffect,
 	useReducer,
+	useRef,
+	useState,
 } from "react";
 
 import { useQuery } from "react-query";
@@ -45,8 +47,12 @@ import {
 	WIZARD_STEPS,
 } from "./steps";
 import { TemplateAlternatives } from "./TemplateAlternatives";
-import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
+	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
+	TemplateCustomizationsStep,
+} from "./TemplateCustomizationsStep";
+import {
+	type CustomizationsFormValues,
 	initWizardState,
 	type SelectedBaseMeta,
 	type TemplateBuilderWizardState,
@@ -58,10 +64,14 @@ interface TemplateBuilderPageViewProps {
 	error: unknown;
 	basesData: TemplateBuilderBasesResponse | undefined;
 	preselectedBase?: SelectedBaseMeta;
-	onCreateTemplate: (state: TemplateBuilderWizardState) => void;
+	onCreateTemplate: (
+		state: TemplateBuilderWizardState,
+		customizations: CustomizationsFormValues,
+	) => void;
 	createError: Error | null;
 	isCreating: boolean;
 	onClearCreateError?: () => void;
+	sessionId: string;
 }
 
 export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
@@ -72,10 +82,11 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	createError,
 	isCreating,
 	onClearCreateError,
+	sessionId,
 }) => {
 	const [state, dispatch] = useReducer(
 		wizardReducer,
-		preselectedBase,
+		{ sessionId, preselectedBase },
 		initWizardState,
 	);
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -102,6 +113,16 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	const currentIndex = nearestVisible(clampedIndex, state);
 	const currentStep = WIZARD_STEPS[currentIndex];
 
+	// The highest sidebar group the user has reached. It never shrinks on
+	// backward navigation, so completed steps stay green and clickable in the
+	// SelectionSummary sidebar like a browser back-stack.
+	const [maxReachedGroup, setMaxReachedGroup] = useState<1 | 2 | 3>(
+		currentStep.group,
+	);
+	if (currentStep.group > maxReachedGroup) {
+		setMaxReachedGroup(currentStep.group);
+	}
+
 	// Rewrite the URL whenever it disagrees with the resolved step.
 	useEffect(() => {
 		if (searchParams.get("step") === currentStep.id) {
@@ -114,7 +135,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	// Reset scroll whenever the active step changes, including on browser
 	// back/forward (popstate) where button click handlers would not fire.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll must reset when step changes
 	useEffect(() => {
 		window.scrollTo(0, 0);
 	}, [currentStep.id]);
@@ -151,11 +171,27 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	};
 
 	const handleNext = () => {
-		if (isLastStep) {
-			onCreateTemplate(state);
+		navigateToStep(nextIndex);
+	};
+
+	// Sidebar step labels and the base-template row call this to jump to a
+	// specific wizard step. Skipped steps resolve to the nearest visible one
+	// (so jumping to base-parameters lands on base-infra when the base has no
+	// parameters).
+	const navigateToStepId = (stepId: StepId) => {
+		const target = WIZARD_STEPS.findIndex((s) => s.id === stepId);
+		if (target < 0) {
 			return;
 		}
-		navigateToStep(nextIndex);
+		if (currentStep.id === "customizations" && stepId !== "customizations") {
+			dispatch({ type: "RESET_CUSTOMIZATIONS" });
+			onClearCreateError?.();
+		}
+		navigateToStep(nearestVisible(target, state));
+	};
+
+	const handleCreate = (values: CustomizationsFormValues) => {
+		onCreateTemplate(state, values);
 	};
 
 	const handleProvisionerStatusChange = useCallback(
@@ -176,6 +212,68 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			meta: state.selectedModules.filter((m) => m.id !== moduleId),
 		});
 	};
+
+	// Maps module id -> its config section node, populated by
+	// ModuleSettingsStep via callback refs. Used to scroll a module into
+	// view without relying on DOM ids.
+	const moduleRefs = useRef(new Map<string, HTMLDivElement>());
+
+	const registerModuleRef = useCallback(
+		(moduleId: string, node: HTMLDivElement | null) => {
+			if (node) {
+				moduleRefs.current.set(moduleId, node);
+			} else {
+				moduleRefs.current.delete(moduleId);
+			}
+		},
+		[],
+	);
+
+	// Holds the module a sidebar click wants to scroll to, so the scroll can
+	// happen after the module-settings step has rendered.
+	const pendingModuleScrollRef = useRef<string | null>(null);
+
+	const scrollModuleIntoView = (moduleId: string) => {
+		moduleRefs.current.get(moduleId)?.scrollIntoView({ behavior: "smooth" });
+	};
+
+	// Sidebar module rows call this to jump to a module's configuration.
+	const navigateToModule = (moduleId: string) => {
+		const settingsIndex = WIZARD_STEPS.findIndex(
+			(s) => s.id === "module-settings",
+		);
+		const settingsVisible =
+			settingsIndex >= 0 && !WIZARD_STEPS[settingsIndex].shouldSkip(state);
+
+		// If module-settings is skipped (no configurable vars) there is no
+		// card to scroll to, so the click is a no-op.
+		if (!settingsVisible) {
+			return;
+		}
+
+		if (currentStep.id === "module-settings") {
+			scrollModuleIntoView(moduleId);
+			return;
+		}
+		// Remember the target and scroll once the step has rendered.
+		pendingModuleScrollRef.current = moduleId;
+		navigateToStep(settingsIndex);
+	};
+
+	// Runs after the scroll-reset effect above (declared earlier, so it fires
+	// first). Scrolls the requested module into view once module-settings
+	// has rendered.
+	useEffect(() => {
+		if (currentStep.id !== "module-settings") {
+			return;
+		}
+		const moduleId = pendingModuleScrollRef.current;
+		if (!moduleId) {
+			return;
+		}
+		pendingModuleScrollRef.current = null;
+		requestAnimationFrame(() => scrollModuleIntoView(moduleId));
+	}, [currentStep.id]);
 
 	if (isCreating) {
 		return <BuildingTemplateLoader />;
@@ -211,6 +309,8 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							createError,
 							handleProvisionerStatusChange,
 							handleDeselectModule,
+							registerModuleRef,
+							handleCreate,
 						)}
 					</div>
 
@@ -223,9 +323,19 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Back
 							</Button>
 						)}
-						<Button onClick={handleNext} disabled={!canContinue}>
-							{isLastStep ? "Create Template" : "Continue"}
-						</Button>
+						{isLastStep ? (
+							<Button
+								type="submit"
+								form={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
+								disabled={state.hasProvisioners === false}
+							>
+								Create Template
+							</Button>
+						) : (
+							<Button onClick={handleNext} disabled={!canContinue}>
+								Continue
+							</Button>
+						)}
 					</div>
 
 					{currentStep.id === "base-infra" && <TemplateAlternatives />}
@@ -235,6 +345,9 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				<div className="w-64 shrink-0 hidden md:block sticky top-[72px] self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
+						maxReachedStep={maxReachedGroup}
+						onNavigateStep={navigateToStepId}
+						onNavigateModule={navigateToModule}
 						selectedTemplate={
 							state.selectedBase
 								? {
@@ -263,6 +376,8 @@ function renderStepContent(
 	createError: Error | null,
 	onProvisionerStatusChange: (value: boolean | undefined) => void,
 	onRemoveModule: (moduleId: string) => void,
+	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void,
+	onCreate: (values: CustomizationsFormValues) => void,
 ): ReactNode {
 	switch (stepId) {
 		case "base-infra":
@@ -309,6 +424,7 @@ function renderStepContent(
 						})
 					}
 					onRemoveModule={onRemoveModule}
+					registerModuleRef={registerModuleRef}
 				/>
 			);
 		case "customizations":
@@ -317,13 +433,7 @@ function renderStepContent(
 					{createError != null && <ErrorAlert error={createError} />}
 					<TemplateCustomizationsStep
 						state={state}
-						onChangeField={(field, value) =>
-							dispatch({
-								type: "SET_CUSTOMIZATION",
-								field,
-								value,
-							})
-						}
+						onCreate={onCreate}
 						onProvisionerStatusChange={onProvisionerStatusChange}
 					/>
 				</>
@@ -356,7 +466,7 @@ function computeCanContinue(
 				moduleVarMap,
 			);
 		case "customizations":
-			return state.name.trim() !== "" && state.hasProvisioners !== false;
+			return state.hasProvisioners !== false;
 		default:
 			return true;
 	}

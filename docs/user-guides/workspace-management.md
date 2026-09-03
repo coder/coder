@@ -1,8 +1,7 @@
 # Workspaces
 
-A workspace is the environment that a developer works in. Developers in a team
-each work from their own workspace and can use
-[multiple IDEs](./workspace-access/index.md).
+A workspace is the environment where a developer or a coding agent works.
+Developers and agents in a team each work from their own workspace and can use [multiple IDEs](./workspace-access/index.md).
 
 A developer creates a workspace from a
 [shared template](../admin/templates/index.md). This lets an entire team work in
@@ -45,6 +44,10 @@ coder show <workspace-name>
 | Reserved names   | Cannot use `new` or `create`               |
 | Uniqueness       | Must be unique within your workspaces      |
 
+Renaming a workspace after you create it is off by default. A template admin can
+allow it per template. Refer to
+[Workspace renaming](../admin/templates/managing-templates/index.md#workspace-renaming).
+
 ## Workspace filtering
 
 In the Coder UI, you can filter your workspaces using pre-defined filters or
@@ -69,6 +72,10 @@ The following filters are supported:
   `connecting|connected|timeout|disconnected`, e.g, `has-agent:connecting`
 - `id` - Workspace UUID
 - `healthy` - Only applicable for workspaces in "start" transition. `healthy:false` is an alias for `has-agent:timeout,disconnected`, `healthy:true` is an alias for `has-agent:connected`.
+- `include_agent_metadata` - Not a filter: expands each agent in the API
+  response with the named agent metadata keys, e.g,
+  `include_agent_metadata:cpu_usage`. Repeat the key to request multiple
+  metadata items. Keys match case-insensitively.
 
 ## Updating workspaces
 
@@ -110,8 +117,8 @@ operation.
 The start and stop operations can be applied even when the selected workspaces
 are not all in the same state. Bulk start will only apply to selected workspaces
 that are currently stopped, and bulk stop will only apply to selected workspaces
-that are currently running. For update and delete, the user will be prompted for
-confirmation before any action is taken.
+that are currently running. For update, delete, and stop, the user is prompted
+for confirmation before any action is taken.
 
 ![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
 

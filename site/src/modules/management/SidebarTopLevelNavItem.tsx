@@ -44,7 +44,7 @@ export const SidebarTopLevelNavItem: FC<SidebarTopLevelNavItemProps> = ({
 						>
 							<Icon
 								className={cn(
-									"size-4 flex-shrink-0 text-content-secondary",
+									"size-4 shrink-0 text-content-secondary",
 									active && "text-content-primary",
 								)}
 							/>
@@ -67,7 +67,7 @@ export const SidebarTopLevelNavItem: FC<SidebarTopLevelNavItemProps> = ({
 				)
 			}
 		>
-			<Icon className="size-4 flex-shrink-0" />
+			<Icon className="size-4 shrink-0" />
 			{label}
 		</NavLink>
 	);

@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -36,5 +35,5 @@ func (c *Client) TemplateVersionPresets(ctx context.Context, templateVersionID u
 		return nil, ReadBodyAsError(res)
 	}
 	var presets []Preset
-	return presets, json.NewDecoder(res.Body).Decode(&presets)
+	return presets, ReadBodyAsJSON(res, &presets)
 }

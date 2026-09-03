@@ -1,7 +1,7 @@
-import Link from "@mui/material/Link";
 import isEqual from "lodash/isEqual";
 import { type FC, memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
+import { Link } from "#/components/Link/Link";
 
 interface InlineMarkdownProps {
 	/**
@@ -46,13 +46,22 @@ export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
 			]}
 			unwrapDisallowed
 			components={{
-				p: ({ children }) => <>{children}</>,
+				p: ({ children }) => children,
 
-				a: ({ href, target, children }) => (
-					<Link href={href} target={target}>
-						{children}
-					</Link>
-				),
+				a: ({ href, children }) => {
+					const isExternal = href?.startsWith("http");
+
+					return (
+						<Link
+							href={href}
+							target={isExternal ? "_blank" : undefined}
+							showExternalIcon={isExternal}
+							className="text-[length:inherit] p-0"
+						>
+							{children}
+						</Link>
+					);
+				},
 
 				code: ({ node, className, children, style, ...props }) => (
 					<code

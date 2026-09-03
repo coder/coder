@@ -22,7 +22,7 @@ import (
 // This is faster than calling Authorize() on each object.
 func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action policy.Action, objects []O) ([]O, error) {
 	roles := httpmw.UserAuthorization(r.Context())
-	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles, action, objects)
+	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles, action, objects, rbac.DefaultFilterThreshold)
 	if err != nil {
 		// Log the error as Filter should not be erroring.
 		h.Logger.Error(r.Context(), "authorization filter failed",
@@ -154,6 +154,30 @@ func (h *HTTPAuthorizer) AuthorizeSQLFilterContext(ctx context.Context, action p
 	return prepared, nil
 }
 
+// authcheckFilterThreshold is the per-(action, resource type) group size at or
+// above which checkAuthorization lets rbac.Filter switch to a single partial
+// evaluation. For a subject in many organizations, a group can hold one object
+// per organization while the subject also carries one role per organization, so
+// Prepare cost grows with the group size. The measured crossover where batching
+// beats per-object evaluation is ~35 (DEVEX-608), so this sits above it:
+// subjects with few objects of a given type keep the per-object path and cannot
+// regress, and only large groups pay for and benefit from partial evaluation.
+// It is higher than rbac.DefaultFilterThreshold because that default assumes a
+// Prepare cost independent of the input size.
+const authcheckFilterThreshold = 50
+
+// authorizeCheck carries an authorization check's response key alongside its
+// resolved RBAC object. It implements rbac.Objecter so a batch of same-typed
+// checks can be run through rbac.Filter; because the key travels with the
+// object, the filtered subset maps back to keys by reading the field, without
+// relying on element identity.
+type authorizeCheck struct {
+	key    string
+	object rbac.Object
+}
+
+func (c authorizeCheck) RBACObject() rbac.Object { return c.object }
+
 // checkAuthorization returns if the current API key can use the given
 // permissions, factoring in the current user's roles and the API key scopes.
 //
@@ -206,6 +230,15 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Group the checks by (action, resource type) and authorize each group with
+	// rbac.Filter, which amortizes a single partial evaluation across the group
+	// once it is large enough. Each check carries its response key so the
+	// filtered subset maps back without relying on element identity.
+	type checkGroup struct {
+		action     policy.Action
+		objectType string
+	}
+	groups := make(map[checkGroup][]authorizeCheck)
 	for k, v := range params.Checks {
 		if v.Object.ResourceType == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -263,8 +296,43 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			obj = dbObj.RBACObject()
 		}
 
-		err := api.Authorizer.Authorize(ctx, auth, policy.Action(v.Action), obj)
-		response[k] = err == nil
+		// AnyOrgOwner objects have no verified semantics under partial
+		// evaluation: Filter's prepared path can deny objects that a full
+		// evaluation allows (authz_internal_test.go skips the full-vs-partial
+		// equivalence assertion for them). Authorize them per-object with a full
+		// evaluation instead of grouping them into the batched Filter path.
+		if obj.AnyOrgOwner {
+			err := api.Authorizer.Authorize(ctx, auth, policy.Action(v.Action), obj)
+			response[k] = err == nil
+			continue
+		}
+
+		group := checkGroup{action: policy.Action(v.Action), objectType: obj.Type}
+		groups[group] = append(groups[group], authorizeCheck{key: k, object: obj})
+	}
+
+	for group, checks := range groups {
+		allowed, err := rbac.Filter(ctx, api.Authorizer, auth, group.action, checks, authcheckFilterThreshold)
+		if err != nil {
+			// A Filter error is never a per-object denial: per-object rejections
+			// are filtered out inside Filter, so only Prepare failures and context
+			// errors reach here. Reporting the group as denied would hide an
+			// evaluation failure behind a "not permitted" answer, so surface it.
+			if ctx.Err() != nil {
+				// The client went away or the request was canceled; there is no
+				// useful response to write and nothing worth logging.
+				return
+			}
+			httpapi.InternalServerError(rw, xerrors.Errorf("authorize %q %q: %w", group.action, group.objectType, err))
+			return
+		}
+		// Default to denied, then mark the checks Filter allowed.
+		for _, c := range checks {
+			response[c.key] = false
+		}
+		for _, c := range allowed {
+			response[c.key] = true
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)

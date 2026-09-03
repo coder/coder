@@ -19,9 +19,14 @@ func TestGuessClient(t *testing.T) {
 		wantClient aibridge.Client
 	}{
 		{
-			name:       "mux",
+			name:       "xum",
+			userAgent:  "xum/0.20.0 ai-sdk/openai/3.0.36 ai-sdk/provider-utils/4.0.15 runtime/node.js/22",
+			wantClient: aibridge.ClientXum,
+		},
+		{
+			name:       "xum_legacy_mux_user_agent",
 			userAgent:  "mux/0.19.0-next.2.gcceff159 ai-sdk/openai/3.0.36 ai-sdk/provider-utils/4.0.15 runtime/node.js/22",
-			wantClient: aibridge.ClientMux,
+			wantClient: aibridge.ClientXum,
 		},
 		{
 			name:       "claude_code",
@@ -103,6 +108,11 @@ func TestGuessClient(t *testing.T) {
 			name:       "opencode",
 			userAgent:  "opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14",
 			wantClient: aibridge.ClientOpenCode,
+		},
+		{
+			name:       "junie_cli",
+			userAgent:  "Junie:SNAPSHOT",
+			wantClient: aibridge.ClientJunie,
 		},
 		{
 			name:       "unknown_client",

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { UpdateUserQuietHoursScheduleRequest } from "#/api/typesGenerated";
@@ -17,7 +17,9 @@ const fillForm = async ({
 	timezone: string;
 }) => {
 	const user = userEvent.setup();
-	await waitFor(() => screen.findByLabelText("Start time"));
+	// findByLabelText already retries. Wrapping it in waitFor raced two 1s
+	// budgets against each other, so a slow first render timed out.
+	await screen.findByLabelText("Start time", undefined, { timeout: 10_000 });
 	const HH = hour.toString().padStart(2, "0");
 	const mm = minute.toString().padStart(2, "0");
 	fireEvent.change(screen.getByLabelText("Start time"), {
@@ -62,36 +64,38 @@ describe("SchedulePage", () => {
 	});
 
 	describe("cron tests", () => {
-		it.each(
-			cronTests,
-		)("case %# has the correct expected time", async (test) => {
-			server.use(
-				http.put(
-					`/api/v2/users/${MockUserOwner.id}/quiet-hours`,
-					async ({ request }) => {
-						const data =
-							(await request.json()) as UpdateUserQuietHoursScheduleRequest;
-						return HttpResponse.json({
-							raw_schedule: data.schedule,
-							user_set: true,
-							time: `${test.hour.toString().padStart(2, "0")}:${test.minute
-								.toString()
-								.padStart(2, "0")}`,
-							timezone: test.timezone,
-							next: "", // This value isn't used in the UI, the UI generates it.
-						});
-					},
-				),
-			);
+		it.each(cronTests)(
+			"case %# has the correct expected time",
+			async (test) => {
+				server.use(
+					http.put(
+						`/api/v2/users/${MockUserOwner.id}/quiet-hours`,
+						async ({ request }) => {
+							const data =
+								(await request.json()) as UpdateUserQuietHoursScheduleRequest;
+							return HttpResponse.json({
+								raw_schedule: data.schedule,
+								user_set: true,
+								time: `${test.hour.toString().padStart(2, "0")}:${test.minute
+									.toString()
+									.padStart(2, "0")}`,
+								timezone: test.timezone,
+								next: "", // This value isn't used in the UI, the UI generates it.
+							});
+						},
+					),
+				);
 
-			renderWithAuth(<SchedulePage />);
-			await fillForm(test);
-			await submitForm();
-			const successMessage = await screen.findByText(
-				"Schedule updated successfully.",
-			);
-			expect(successMessage).toBeDefined();
-		}, 15_000);
+				renderWithAuth(<SchedulePage />);
+				await fillForm(test);
+				await submitForm();
+				const successMessage = await screen.findByText(
+					"Schedule updated successfully.",
+				);
+				expect(successMessage).toBeDefined();
+			},
+			15_000,
+		);
 	});
 
 	describe("when it is an unknown error", () => {
@@ -113,7 +117,7 @@ describe("SchedulePage", () => {
 
 			const errorMessage = await screen.findByText("oh no!");
 			expect(errorMessage).toBeDefined();
-		});
+		}, 15_000);
 	});
 
 	describe("when user custom schedule is disabled", () => {
@@ -139,7 +143,7 @@ describe("SchedulePage", () => {
 			const timeInput = screen.getByLabelText("Start time");
 			expect(timeInput).toBeDisabled();
 			const timezoneDropdown = screen.getByLabelText("Timezone");
-			expect(timezoneDropdown).toHaveClass("Mui-disabled");
+			expect(timezoneDropdown).toBeDisabled();
 			const updateButton = screen.getByText("Update schedule");
 			expect(updateButton).toBeDisabled();
 		});

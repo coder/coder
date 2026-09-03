@@ -105,12 +105,51 @@ export const ToggleParentCheckbox: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		const checkbox = await canvas
-			.getByTestId("audit_log")
-			.getElementsByTagName("input")[0];
+		const checkbox = canvas.getByRole("checkbox", { name: "audit_log" });
 		await user.click(checkbox);
 		await expect(checkbox).toBeChecked();
 		await user.click(checkbox);
 		await expect(checkbox).not.toBeChecked();
+	},
+};
+
+export const ToggleAdvancedPermissions: Story = {
+	args: {
+		...Default.args,
+		role: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+
+		// Advanced-only resources are hidden until the switch is enabled.
+		expect(
+			canvas.queryByRole("checkbox", { name: "api_key" }),
+		).not.toBeInTheDocument();
+
+		const [toggle] = canvas.getAllByRole("switch", {
+			name: "Show advanced permissions",
+		});
+		await user.click(toggle);
+
+		// Enabling the switch reveals advanced resources and flips the label.
+		await expect(
+			canvas.getByRole("checkbox", { name: "api_key" }),
+		).toBeInTheDocument();
+		const [enabledToggle] = canvas.getAllByRole("switch", {
+			name: "Hide advanced permissions",
+		});
+		await expect(enabledToggle).toBeChecked();
+
+		await user.click(enabledToggle);
+
+		// Disabling the switch hides advanced resources again.
+		await expect(
+			canvas.queryByRole("checkbox", { name: "api_key" }),
+		).not.toBeInTheDocument();
+		const [disabledToggle] = canvas.getAllByRole("switch", {
+			name: "Show advanced permissions",
+		});
+		await expect(disabledToggle).not.toBeChecked();
 	},
 };

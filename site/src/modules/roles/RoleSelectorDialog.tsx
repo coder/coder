@@ -69,6 +69,16 @@ const ActiveRoleSelectorDialog: React.FC<Required<RoleSelectorDialogProps>> = ({
 	const [selectedRoles, setSelectedRoles] = useState<Set<string>>(
 		() => new Set(getRoleNames(user.roles)),
 	);
+	// A role the user holds explicitly must stay selectable even when it
+	// is also implied (for example via the organization's default roles);
+	// otherwise the explicit grant could never be removed here. Derived
+	// from the user's initial roles so rows do not vanish mid-edit.
+	const [impliedRoles] = useState<AssignableRoles[]>(() => {
+		const explicitRoleNames = new Set(getRoleNames(user.roles));
+		return additionalImpliedRoles.filter(
+			(role) => !explicitRoleNames.has(role.name),
+		);
+	});
 
 	return (
 		<Dialog
@@ -93,7 +103,7 @@ const ActiveRoleSelectorDialog: React.FC<Required<RoleSelectorDialogProps>> = ({
 				<RoleSelector
 					hideLabel
 					availableRoles={availableRoles}
-					additionalImpliedRoles={additionalImpliedRoles}
+					additionalImpliedRoles={impliedRoles}
 					selectedRoles={selectedRoles}
 					onChange={setSelectedRoles}
 				/>

@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { DatabaseIcon, SettingsIcon, TriangleAlertIcon } from "lucide-react";
-import { Badges } from "#/components/Badges/Badges";
-import { Badge } from "./Badge";
+import {
+	CheckIcon,
+	DatabaseIcon,
+	SettingsIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Badge, BadgeGroup } from "./Badge";
 
 const meta: Meta<typeof Badge> = {
 	title: "components/Badge",
@@ -12,7 +17,7 @@ type Story = StoryObj<typeof Badge>;
 
 export const Default: Story = {
 	render: () => (
-		<Badges>
+		<BadgeGroup>
 			<Badge size="xs">
 				<DatabaseIcon />
 				Text
@@ -25,13 +30,13 @@ export const Default: Story = {
 				<DatabaseIcon />
 				Text
 			</Badge>
-		</Badges>
+		</BadgeGroup>
 	),
 };
 
 export const Warning: Story = {
 	render: () => (
-		<Badges>
+		<BadgeGroup>
 			<Badge variant="warning" size="xs">
 				Warning
 				<TriangleAlertIcon />
@@ -44,13 +49,13 @@ export const Warning: Story = {
 				<TriangleAlertIcon />
 				Warning
 			</Badge>
-		</Badges>
+		</BadgeGroup>
 	),
 };
 
 export const Destructive: Story = {
 	render: () => (
-		<Badges>
+		<BadgeGroup>
 			<Badge variant="destructive" size="xs">
 				Destructive
 				<TriangleAlertIcon />
@@ -63,13 +68,13 @@ export const Destructive: Story = {
 				<TriangleAlertIcon />
 				Destructive
 			</Badge>
-		</Badges>
+		</BadgeGroup>
 	),
 };
 
 export const Info: Story = {
 	render: () => (
-		<Badges>
+		<BadgeGroup>
 			<Badge variant="info" size="xs">
 				Info
 			</Badge>
@@ -79,13 +84,13 @@ export const Info: Story = {
 			<Badge variant="info" size="md">
 				Info
 			</Badge>
-		</Badges>
+		</BadgeGroup>
 	),
 };
 
 export const Green: Story = {
 	render: () => (
-		<Badges>
+		<BadgeGroup>
 			<Badge variant="green" size="xs">
 				Green
 			</Badge>
@@ -95,13 +100,13 @@ export const Green: Story = {
 			<Badge variant="green" size="md">
 				Green
 			</Badge>
-		</Badges>
+		</BadgeGroup>
 	),
 };
 
 export const Purple: Story = {
 	render: () => (
-		<Badges>
+		<BadgeGroup>
 			<Badge variant="purple" size="xs">
 				Purple
 			</Badge>
@@ -111,13 +116,13 @@ export const Purple: Story = {
 			<Badge variant="purple" size="md">
 				Purple
 			</Badge>
-		</Badges>
+		</BadgeGroup>
 	),
 };
 
 export const Magenta: Story = {
 	render: () => (
-		<Badges>
+		<BadgeGroup>
 			<Badge variant="magenta" size="xs">
 				Magenta
 			</Badge>
@@ -127,7 +132,7 @@ export const Magenta: Story = {
 			<Badge variant="magenta" size="md">
 				Magenta
 			</Badge>
-		</Badges>
+		</BadgeGroup>
 	),
 };
 
@@ -146,5 +151,24 @@ export const MediumWithIcon: Story = {
 			<TriangleAlertIcon />
 			Immutable
 		</Badge>
+	),
+};
+
+export const StatusWithIcon: Story = {
+	render: () => (
+		<BadgeGroup>
+			<Badge variant="info" size="md" role="status">
+				<Spinner loading />
+				Running
+			</Badge>
+			<Badge variant="green" size="md" role="status">
+				<CheckIcon />
+				Success
+			</Badge>
+			<Badge variant="destructive" size="md" role="status">
+				<TriangleAlertIcon />
+				Failed
+			</Badge>
+		</BadgeGroup>
 	),
 };

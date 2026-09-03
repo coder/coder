@@ -2,6 +2,7 @@ package agentmcp
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -14,9 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/client/transport"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	tailscalesingleflight "tailscale.com/util/singleflight"
@@ -126,10 +125,9 @@ type Manager struct {
 	connectStartedHook func()
 }
 
-// serverEntry pairs a server config with its connected client.
 type serverEntry struct {
 	config ServerConfig
-	client *client.Client
+	client *mcp.ClientSession
 }
 
 // NewManager creates a new MCP client manager. The ctx bounds
@@ -418,7 +416,7 @@ type serverDiff struct {
 type connectedServer struct {
 	name   string
 	config ServerConfig
-	client *client.Client
+	client *mcp.ClientSession
 }
 
 // doReload reads MCP config files and performs a differential
@@ -697,11 +695,9 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 	callCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
 	defer cancel()
 
-	result, err := entry.client.CallTool(callCtx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name:      originalName,
-			Arguments: req.Arguments,
-		},
+	result, err := entry.client.CallTool(callCtx, &mcp.CallToolParams{
+		Name:      originalName,
+		Arguments: req.Arguments,
 	})
 	if err != nil {
 		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("call tool %q on %q: %w", originalName, serverName, err)
@@ -743,7 +739,7 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 	for name, entry := range servers {
 		eg.Go(func() error {
 			listCtx, cancel := context.WithTimeout(ctx, connectTimeout)
-			result, err := entry.client.ListTools(listCtx, mcp.ListToolsRequest{})
+			result, err := entry.client.ListTools(listCtx, nil)
 			cancel()
 			if err != nil {
 				logger.Warn(ctx, "failed to list tools from MCP server",
@@ -858,75 +854,49 @@ func (m *Manager) Close() error {
 	return errors.Join(errs...)
 }
 
-// connectServer establishes a connection to a single MCP server
-// and returns the connected client. It does not modify any Manager
-// state.
-func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.Client, error) {
+// connectServer does not modify Manager state.
+func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.ClientSession, error) {
+	// Use ctx for the transport so a stdio subprocess outlives the
+	// connect handshake. connectCtx bounds only Connect; closing the
+	// session or canceling ctx stops the subprocess.
 	tr, err := m.createTransport(ctx, cfg)
 	if err != nil {
 		return nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
 	}
 
-	c := client.NewClient(tr)
+	c := mcp.NewClient(&mcp.Implementation{
+		Name:    "coder-agent",
+		Version: buildinfo.Version(),
+	}, nil)
 
 	connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
 
-	// Use the parent ctx (not connectCtx) so the subprocess outlives
-	// the connect/initialize handshake. connectCtx bounds only the
-	// Initialize call below. The subprocess is cleaned up when the
-	// Manager is closed or ctx is canceled.
-	if err := c.Start(ctx); err != nil {
-		_ = c.Close()
-		return nil, xerrors.Errorf("start %q: %w", cfg.Name, err)
-	}
-
-	_, err = c.Initialize(connectCtx, mcp.InitializeRequest{
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcp.Implementation{
-				Name:    "coder-agent",
-				Version: buildinfo.Version(),
-			},
-		},
-	})
+	session, err := c.Connect(connectCtx, tr, nil)
 	if err != nil {
-		_ = c.Close()
-		return nil, xerrors.Errorf("initialize %q: %w", cfg.Name, err)
+		return nil, xerrors.Errorf("connect %q: %w", cfg.Name, err)
 	}
 
-	return c, nil
+	return session, nil
 }
 
-// createTransport builds the mcp-go transport for a server config.
-func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transport.Interface, error) {
+func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Transport, error) {
 	switch cfg.Transport {
 	case "stdio":
 		env := m.buildEnv(ctx, cfg.Env)
-		return transport.NewStdioWithOptions(
-			cfg.Command,
-			env,
-			cfg.Args,
-			transport.WithCommandFunc(func(ctx context.Context, command string, cmdEnv []string, args []string) (*exec.Cmd, error) {
-				cmd := m.execer.CommandContext(ctx, command, args...)
-				cmd.Env = cmdEnv
-				return cmd, nil
-			}),
-		), nil
+		cmd := m.execer.CommandContext(ctx, cfg.Command, cfg.Args...)
+		cmd.Env = env
+		return &mcp.CommandTransport{Command: cmd}, nil
 	case "http", "":
-		var opts []transport.StreamableHTTPCOption
-		opts = append(opts, transport.WithHTTPHeaders(cfg.Headers))
-		if c := mcpHTTPClient(); c != nil {
-			opts = append(opts, transport.WithHTTPBasicClient(c))
-		}
-		return transport.NewStreamableHTTP(cfg.URL, opts...)
+		return &mcp.StreamableClientTransport{
+			Endpoint:   cfg.URL,
+			HTTPClient: httpClientWithHeaders(cfg.Headers),
+		}, nil
 	case "sse":
-		var sseOpts []transport.ClientOption
-		sseOpts = append(sseOpts, transport.WithHeaders(cfg.Headers))
-		if c := mcpHTTPClient(); c != nil {
-			sseOpts = append(sseOpts, transport.WithHTTPClient(c))
-		}
-		return transport.NewSSE(cfg.URL, sseOpts...)
+		return &mcp.SSEClientTransport{
+			Endpoint:   cfg.URL,
+			HTTPClient: httpClientWithHeaders(cfg.Headers),
+		}, nil
 	default:
 		return nil, xerrors.Errorf("unsupported transport %q", cfg.Transport)
 	}
@@ -993,29 +963,31 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 	var content []workspacesdk.MCPToolContent
 	for _, item := range result.Content {
 		switch c := item.(type) {
-		case mcp.TextContent:
+		case *mcp.TextContent:
 			content = append(content, workspacesdk.MCPToolContent{
 				Type: "text",
 				Text: c.Text,
 			})
-		case mcp.ImageContent:
+		case *mcp.ImageContent:
+			// The SDK decodes base64 during unmarshal; re-encode to
+			// keep the agent API's base64 wire format.
 			content = append(content, workspacesdk.MCPToolContent{
 				Type:      "image",
-				Data:      c.Data,
+				Data:      base64.StdEncoding.EncodeToString(c.Data),
 				MediaType: c.MIMEType,
 			})
-		case mcp.AudioContent:
+		case *mcp.AudioContent:
 			content = append(content, workspacesdk.MCPToolContent{
 				Type:      "audio",
-				Data:      c.Data,
+				Data:      base64.StdEncoding.EncodeToString(c.Data),
 				MediaType: c.MIMEType,
 			})
-		case mcp.EmbeddedResource:
+		case *mcp.EmbeddedResource:
 			content = append(content, workspacesdk.MCPToolContent{
 				Type: "resource",
 				Text: fmt.Sprintf("[embedded resource: %T]", c.Resource),
 			})
-		case mcp.ResourceLink:
+		case *mcp.ResourceLink:
 			content = append(content, workspacesdk.MCPToolContent{
 				Type: "resource",
 				Text: fmt.Sprintf("[resource link: %s]", c.URI),
@@ -1055,23 +1027,24 @@ type ToolInfo struct {
 	InputSchema map[string]any
 }
 
-// toolInputSchemaMap converts an mcp-go tool input schema into the
-// JSON-Schema-shaped map ToolInfo carries. Required is converted to
-// []any so the downstream protobuf/structpb encoding accepts it. An
-// empty schema yields nil so the tool ships with InputSchema unset.
-func toolInputSchemaMap(s mcp.ToolInputSchema) map[string]any {
+// Only type, properties, and required are exposed through ToolInfo;
+// empty schemas leave InputSchema unset.
+func toolInputSchemaMap(schema any) map[string]any {
+	m, ok := schema.(map[string]any)
+	if !ok {
+		return nil
+	}
 	out := map[string]any{}
-	if s.Type != "" {
-		out["type"] = s.Type
+	if typ, ok := m["type"].(string); ok && typ != "" {
+		out["type"] = typ
 	}
-	if len(s.Properties) > 0 {
-		out["properties"] = s.Properties
+	// Preserve an empty "properties" object: dropping it collapses the
+	// schema to nil by the time the tool definition is rebuilt, and a
+	// nil properties serializes to JSON null, which OpenAI rejects.
+	if properties, ok := m["properties"].(map[string]any); ok {
+		out["properties"] = properties
 	}
-	if len(s.Required) > 0 {
-		required := make([]any, len(s.Required))
-		for i, req := range s.Required {
-			required[i] = req
-		}
+	if required, ok := m["required"].([]any); ok && len(required) > 0 {
 		out["required"] = required
 	}
 	if len(out) == 0 {

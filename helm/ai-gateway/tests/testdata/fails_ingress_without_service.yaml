@@ -1,0 +1,11 @@
+coder:
+  image:
+    tag: v2.36.0
+aigateway:
+  keySecret:
+    name: key
+service:
+  enable: false
+ingress:
+  enable: true
+  host: ai.example.com

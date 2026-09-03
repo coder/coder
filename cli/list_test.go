@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -141,5 +145,37 @@ func TestList(t *testing.T) {
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &workspaces))
 		require.Len(t, workspaces, 1)
 		require.Equal(t, sharedWorkspace.ID, workspaces[0].ID)
+	})
+
+	t.Run("HTMLResponse", func(t *testing.T) {
+		t.Parallel()
+		// Simulate an SSO portal or misconfigured reverse proxy that
+		// returns 200 OK with an HTML body instead of JSON.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<!DOCTYPE html><html><head><title>Sign in</title></head><body>Sign in</body></html>"))
+		}))
+		defer srv.Close()
+
+		parsedURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		client := codersdk.New(parsedURL)
+		client.SetSessionToken("test-token")
+
+		inv, root := clitest.New(t, "list")
+		clitest.SetupConfig(t, client, root)
+		err = inv.Run()
+		require.Error(t, err)
+
+		// The list command wraps the error, so errors.As must
+		// traverse the wrapping to find the SDK error.
+		var sdkErr *codersdk.Error
+		require.True(t, errors.As(err, &sdkErr))
+		require.Equal(t, http.StatusOK, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "HTML response instead of JSON")
+		require.Contains(t, sdkErr.Helper, "/api/v2")
+		require.NotContains(t, err.Error(), "invalid character")
+		require.NotContains(t, err.Error(), "unexpected status code")
 	})
 }

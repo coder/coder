@@ -21,7 +21,7 @@ import {
 	Main,
 	Pill,
 } from "./Content";
-import { DismissWarningButton } from "./DismissWarningButton";
+import { MuteWarningsButton } from "./MuteWarningsButton";
 
 const WorkspaceProxyPage: FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
@@ -37,7 +37,7 @@ const WorkspaceProxyPage: FC = () => {
 					<HealthyDot severity={workspace_proxy.severity} />
 					Workspace Proxy
 				</HeaderTitle>
-				<DismissWarningButton healthcheck="WorkspaceProxy" />
+				<MuteWarningsButton healthcheck="WorkspaceProxy" />
 			</Header>
 
 			<Main>
@@ -53,6 +53,7 @@ const WorkspaceProxyPage: FC = () => {
 							key={warning.code}
 							severity="warning"
 							prominent
+							dismissible
 						>
 							{warning.message}
 						</Alert>
@@ -135,7 +136,7 @@ const WorkspaceProxyPage: FC = () => {
 								) : (
 									<div className="flex flex-col">
 										{[...errors, ...warnings].map((msg) => (
-											<span key={msg} className="[&::first-letter]:uppercase">
+											<span key={msg} className="first-letter:uppercase">
 												{msg}
 											</span>
 										))}

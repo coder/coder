@@ -1,13 +1,22 @@
-import { type FC, type ReactNode, useId } from "react";
+import { type FC, type HTMLAttributes, type ReactNode, useId } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
 
+type ControlProps = Pick<
+	HTMLAttributes<HTMLElement>,
+	"id" | "aria-invalid" | "aria-describedby"
+>;
+
 type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
 	field: FormHelpers;
 	label: ReactNode;
 	description?: ReactNode;
+	/**
+	 * Renders in place of the default `Input` element
+	 */
+	control?: (props: ControlProps) => ReactNode;
 };
 
 export const FormField: FC<FormFieldProps> = ({
@@ -15,6 +24,7 @@ export const FormField: FC<FormFieldProps> = ({
 	label,
 	description,
 	className,
+	control,
 	...inputProps
 }) => {
 	const generatedId = useId();
@@ -29,6 +39,11 @@ export const FormField: FC<FormFieldProps> = ({
 		.filter(Boolean)
 		.join(" ");
 	const required = inputProps.required ?? false;
+	const controlProps: ControlProps = {
+		id,
+		"aria-invalid": field.error,
+		"aria-describedby": describedBy || undefined,
+	};
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -48,17 +63,19 @@ export const FormField: FC<FormFieldProps> = ({
 					{description}
 				</div>
 			)}
-			<Input
-				name={field.name}
-				value={field.value}
-				onChange={field.onChange}
-				onBlur={field.onBlur}
-				{...inputProps}
-				id={id}
-				aria-invalid={field.error}
-				aria-describedby={describedBy || undefined}
-				className={cn(field.error && "border-border-destructive", className)}
-			/>
+			{control ? (
+				control(controlProps)
+			) : (
+				<Input
+					name={field.name}
+					value={field.value}
+					onChange={field.onChange}
+					onBlur={field.onBlur}
+					{...inputProps}
+					{...controlProps}
+					className={cn(field.error && "border-border-destructive", className)}
+				/>
+			)}
 			{field.error ? (
 				<span id={errorId} className="text-xs text-content-destructive">
 					{field.helperText}

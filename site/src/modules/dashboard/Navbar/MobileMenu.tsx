@@ -2,6 +2,7 @@ import {
 	ChevronRightIcon,
 	CircleHelpIcon,
 	MenuIcon,
+	RadioIcon,
 	XIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
@@ -26,10 +27,12 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { cn } from "#/utils/cn";
+import { getLatencyColor } from "#/utils/latency";
 import {
+	AdminSettingsItems,
 	type AdminSettingsPermissions,
-	getAdminSettingsItems,
-} from "./adminSettings";
+	canViewAdminSettings,
+} from "./AdminSettings";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 const itemStyles = {
@@ -38,8 +41,9 @@ const itemStyles = {
 	open: "text-content-primary",
 };
 
-type MobileMenuProps = AdminSettingsPermissions & {
+type MobileMenuProps = {
 	proxyContextValue?: ProxyContextValue;
+	adminPermissions: AdminSettingsPermissions;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
@@ -47,15 +51,14 @@ type MobileMenuProps = AdminSettingsPermissions & {
 };
 
 export const MobileMenu: FC<MobileMenuProps> = ({
-	isDefaultOpen,
+	adminPermissions,
 	proxyContextValue,
 	user,
 	supportLinks,
 	onSignOut,
-	...permissions
+	isDefaultOpen,
 }) => {
 	const [open, setOpen] = useState(isDefaultOpen);
-	const hasSomePermission = Object.values(permissions).some((p) => p);
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -87,10 +90,10 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				<DropdownMenuSeparator />
 				<ProxySettingsSub proxyContextValue={proxyContextValue} />
 
-				{hasSomePermission && (
+				{canViewAdminSettings(adminPermissions) && (
 					<>
 						<DropdownMenuSeparator />
-						<AdminSettingsSub {...permissions} />
+						<AdminSettingsSub permissions={adminPermissions} />
 					</>
 				)}
 				<DropdownMenuSeparator />
@@ -123,7 +126,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 		<Collapsible open={open} onOpenChange={setOpen}>
 			<CollapsibleTrigger asChild>
 				<DropdownMenuItem
-					className={cn(itemStyles.default, open ? itemStyles.open : "")}
+					className={cn(itemStyles.default, open && itemStyles.open)}
 					onClick={(e) => {
 						e.preventDefault();
 						setOpen((prev) => !prev);
@@ -131,12 +134,19 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 				>
 					Workspace proxy settings:
 					<span className="leading-none flex items-center gap-1">
-						<ExternalImage
-							className="size-4"
-							src={selectedProxy.icon_url}
-							alt={selectedProxy.name}
+						<span className="sr-only">
+							Latency for {selectedProxy.display_name || selectedProxy.name}
+						</span>
+						<RadioIcon
+							aria-hidden="true"
+							className={cn("size-4", getLatencyColor(latency?.latencyMS))}
 						/>
-						{latency && <Latency latency={latency.latencyMS} />}
+						<Latency
+							className={
+								latency?.latencyMS ? "text-content-primary" : undefined
+							}
+							latency={latency?.latencyMS}
+						/>
 					</span>
 					<ChevronRightIcon
 						className={cn("ml-auto", open ? "rotate-90" : "")}
@@ -191,7 +201,8 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 				</DropdownMenuItem>
 				<DropdownMenuItem
 					className={cn(itemStyles.default, itemStyles.sub)}
-					onClick={() => {
+					onClick={(event) => {
+						event.stopPropagation();
 						proxyContextValue.refetchProxyLatencies();
 					}}
 				>
@@ -202,15 +213,18 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 	);
 };
 
-const AdminSettingsSub: FC<AdminSettingsPermissions> = (permissions) => {
+type AdminSettingsSubProps = {
+	permissions: AdminSettingsPermissions;
+};
+
+const AdminSettingsSub: FC<AdminSettingsSubProps> = ({ permissions }) => {
 	const [open, setOpen] = useState(false);
-	const items = getAdminSettingsItems(permissions);
 
 	return (
 		<Collapsible open={open} onOpenChange={setOpen}>
 			<CollapsibleTrigger asChild>
 				<DropdownMenuItem
-					className={cn(itemStyles.default, open ? itemStyles.open : "")}
+					className={cn(itemStyles.default, open && itemStyles.open)}
 					onClick={(e) => {
 						e.preventDefault();
 						setOpen((prev) => !prev);
@@ -223,15 +237,10 @@ const AdminSettingsSub: FC<AdminSettingsPermissions> = (permissions) => {
 				</DropdownMenuItem>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
-				{items.map((item) => (
-					<DropdownMenuItem
-						key={item.to}
-						asChild
-						className={cn(itemStyles.default, itemStyles.sub)}
-					>
-						<Link to={item.to}>{item.label}</Link>
-					</DropdownMenuItem>
-				))}
+				<AdminSettingsItems
+					itemClassName={cn(itemStyles.default, itemStyles.sub)}
+					permissions={permissions}
+				/>
 			</CollapsibleContent>
 		</Collapsible>
 	);
@@ -254,7 +263,7 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 		<Collapsible open={open} onOpenChange={setOpen}>
 			<CollapsibleTrigger asChild>
 				<DropdownMenuItem
-					className={cn(itemStyles.default, open ? itemStyles.open : "")}
+					className={cn(itemStyles.default, open && itemStyles.open)}
 					onClick={(e) => {
 						e.preventDefault();
 						setOpen((prev) => !prev);

@@ -2,11 +2,13 @@ package chatd
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
@@ -91,16 +93,11 @@ func storeLinkedChatFileTx(
 		return chattool.AttachmentMetadata{}, xerrors.Errorf("insert chat file: %w", err)
 	}
 
-	rejected, err := tx.LinkChatFiles(ctx, database.LinkChatFilesParams{
-		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-		FileIds:      []uuid.UUID{row.ID},
-	})
-	if err != nil {
-		return chattool.AttachmentMetadata{}, xerrors.Errorf("link chat file: %w", err)
-	}
-	if rejected > 0 {
-		return chattool.AttachmentMetadata{}, xerrors.Errorf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs)
+	if err := chatstate.LinkFiles(ctx, tx, chatID, []uuid.UUID{row.ID}); err != nil {
+		if errors.Is(err, chatstate.ErrChatFileCapExceeded) {
+			return chattool.AttachmentMetadata{}, xerrors.Errorf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs)
+		}
+		return chattool.AttachmentMetadata{}, err
 	}
 
 	return chattool.AttachmentMetadata{

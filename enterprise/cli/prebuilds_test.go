@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -469,7 +468,7 @@ func TestSchedulePrebuilds(t *testing.T) {
 				Name:                    coderdtest.RandomUsername(t),
 				// The 'extend' command requires the workspace to have an existing deadline.
 				// To ensure this, we set the workspace's TTL to 1 hour.
-				TTLMillis: ptr.Ref[int64](time.Hour.Milliseconds()),
+				TTLMillis: new(time.Hour.Milliseconds()),
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, claimedWorkspace.LatestBuild.ID)

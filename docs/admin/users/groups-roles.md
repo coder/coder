@@ -1,9 +1,14 @@
-# Groups and Roles
+# Groups and Roles (Premium)
 
 Groups and roles can be manually assigned in Coder. For production deployments,
 these can also be [managed and synced by the identity provider](./idp-sync.md).
 
 ## Groups
+
+> [!NOTE]
+> Groups require a
+> [Premium license](https://coder.com/pricing#compare-plans).
+> For more details, [contact your account team](https://coder.com/contact).
 
 Groups are logical segmentations of users in Coder and can be used to control
 which templates developers can use. For example:
@@ -30,6 +35,11 @@ Roles determine which actions users can take within the platform.
 
 A user may have one or more roles. All users have an implicit Member role that
 may use personal workspaces.
+
+Whether organization members can create and use workspaces is controlled per
+organization through its default member roles. See
+[Default member roles](./organizations.md#default-member-roles) for how to
+remove workspace operations from the default member set.
 
 ## Custom Roles
 
@@ -62,8 +72,7 @@ Custom roles can also be applied to
 
 ### Creating custom roles
 
-Clicking "Create custom role" opens a UI to select the desired permissions for a
-given persona.
+Selecting "Create custom role" opens a UI to select the desired permissions for a given persona.
 
 ![Creating a custom role](../../images/admin/users/roles/creating-custom-role.PNG)
 

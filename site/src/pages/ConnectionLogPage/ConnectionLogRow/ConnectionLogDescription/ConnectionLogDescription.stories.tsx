@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	MockConnectedSSHConnectionLog,
+	MockDeniedTunnelConnectionLog,
+	MockTunnelConnectionLog,
 	MockWebConnectionLog,
 } from "#/testHelpers/entities";
 import { ConnectionLogDescription } from "./ConnectionLogDescription";
@@ -92,6 +95,37 @@ export const JetBrains: Story = {
 			...MockWebConnectionLog,
 			type: "jetbrains",
 		},
+	},
+};
+
+export const Tunnel: Story = {
+	args: {
+		connectionLog: MockTunnelConnectionLog,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/established a tunnel to/)).toBeVisible();
+	},
+};
+
+// An admin tunneling into another user's workspace, which is the
+// primary audit scenario for tunnel events.
+export const TunnelOtherUser: Story = {
+	args: {
+		connectionLog: {
+			...MockTunnelConnectionLog,
+			workspace_owner_username: "some-other-user",
+		},
+	},
+};
+
+export const TunnelDenied: Story = {
+	args: {
+		connectionLog: MockDeniedTunnelConnectionLog,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/was denied a tunnel to/)).toBeVisible();
 	},
 };
 

@@ -14,14 +14,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 	component: PortForwardPopoverView,
 	decorators: [
 		(Story) => (
-			<div
-				css={(theme) => ({
-					width: 404,
-					border: `1px solid ${theme.palette.divider}`,
-					borderRadius: 8,
-					backgroundColor: theme.palette.background.paper,
-				})}
-			>
+			<div className="w-[404px] rounded-lg border border-solid border-border bg-surface-primary">
 				<Story />
 			</div>
 		),
@@ -34,6 +27,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 		workspace: MockWorkspace,
 		portSharingControlsEnabled: true,
 		host: "*.coder.com",
+		refetchSharedPorts: () => {},
 	},
 };
 

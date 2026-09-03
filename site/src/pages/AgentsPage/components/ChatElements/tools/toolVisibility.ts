@@ -5,7 +5,6 @@ import {
 	asString,
 	parseArgs,
 	type ToolStatus,
-	toProviderLabel,
 } from "./utils";
 
 export type ExecuteTranscriptBlock = {
@@ -16,10 +15,9 @@ export type ExecuteTranscriptBlock = {
 type ExecuteRenderData = {
 	command: string;
 	transcriptBlocks: ExecuteTranscriptBlock[];
+	errorText: string;
 	durationMs?: number;
 	isBackgrounded: boolean;
-	authenticateURL: string;
-	providerLabel: string;
 };
 
 /**
@@ -48,30 +46,33 @@ export const getExecuteRenderData = (
 		? (asNumber(rec.wall_duration_ms, { parseString: true }) ??
 			asNumber(rec.duration_ms, { parseString: true }))
 		: undefined;
-	const isBackgrounded = Boolean(
+	// Foreground timeouts also set background_process_id, so fall
+	// back to the call args for older transcripts without the flag.
+	// That includes trailing-& commands, which the tool promotes to
+	// background without adding run_in_background to the args. The
+	// args record intent, not outcome, so require a process ID as
+	// evidence the launch actually happened.
+	const trimmedCommand = command.trimEnd();
+	const hasTrailingAmp =
+		trimmedCommand.endsWith("&") &&
+		!trimmedCommand.endsWith("&&") &&
+		!trimmedCommand.endsWith("|&");
+	const hasProcessID = Boolean(
 		rec && asString(rec.background_process_id).trim(),
 	);
-	const authenticateURL = rec?.auth_required
-		? asString(rec.authenticate_url).trim()
-		: "";
-	const providerLabel = toProviderLabel(
-		rec ? asString(rec.provider_display_name).trim() : "",
-		rec ? asString(rec.provider_id).trim() : "",
-		rec ? asString(rec.provider_type).trim() : "",
-	);
+	const isBackgrounded =
+		rec?.backgrounded === true ||
+		(rec?.backgrounded === undefined &&
+			hasProcessID &&
+			(parsedArgs?.run_in_background === true || hasTrailingAmp));
 
 	return {
 		command,
 		transcriptBlocks,
+		errorText,
 		durationMs,
 		isBackgrounded,
-		authenticateURL,
-		providerLabel,
 	};
-};
-
-const shouldRenderExecuteTool = (data: ExecuteRenderData): boolean => {
-	return data.command.trim().length > 0 || Boolean(data.authenticateURL);
 };
 
 const shouldRenderSubagentLifecycleTool = ({
@@ -120,7 +121,7 @@ export const shouldRenderTool = ({
 	result?: unknown;
 }): boolean => {
 	if (name === "execute") {
-		return shouldRenderExecuteTool(getExecuteRenderData(args, result));
+		return getExecuteRenderData(args, result).command.trim().length > 0;
 	}
 
 	return shouldRenderSubagentLifecycleTool({ name, status, args, result });

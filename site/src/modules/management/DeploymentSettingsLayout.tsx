@@ -17,8 +17,8 @@ const DeploymentSettingsLayout: FC = () => {
 			<Navigate
 				to={firstVisibleDeploymentPage({
 					permissions,
-					hasPremiumLicense:
-						entitlements.features.multiple_organizations.enabled,
+					// Trialing deployments keep the Premium tab so they can convert.
+					hidePremiumTab: entitlements.has_license && !entitlements.trial,
 					experiments,
 					buildInfo,
 				})}

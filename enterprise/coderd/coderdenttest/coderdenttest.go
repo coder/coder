@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -235,6 +234,17 @@ func (opts *LicenseOptions) AIGovernanceAddon(limit int64) *LicenseOptions {
 
 func (opts *LicenseOptions) ManagedAgentLimit(limit int64) *LicenseOptions {
 	return opts.Feature(codersdk.FeatureManagedAgentLimit, limit)
+}
+
+func (opts *LicenseOptions) AgentRuntimeHours(allocation int64, softLimit, hardLimit *int64) *LicenseOptions {
+	opts.Feature(license.ClaimAgentRuntimeHoursAllocation, allocation)
+	if softLimit != nil {
+		opts.Feature(license.ClaimAgentRuntimeHoursLimitSoft, *softLimit)
+	}
+	if hardLimit != nil {
+		opts.Feature(license.ClaimAgentRuntimeHoursLimitHard, *hardLimit)
+	}
+	return opts
 }
 
 func (opts *LicenseOptions) Feature(name codersdk.FeatureName, value int64) *LicenseOptions {
@@ -542,7 +552,7 @@ func MustClaimPrebuild(
 		TemplateVersionID:       version.ID,
 		Name:                    workspaceName,
 		TemplateVersionPresetID: presetID,
-		AutostartSchedule:       ptr.Ref(startSchedule),
+		AutostartSchedule:       &startSchedule,
 	})
 	require.NoError(t, err)
 	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)

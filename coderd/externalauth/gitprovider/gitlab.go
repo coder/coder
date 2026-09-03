@@ -25,7 +25,7 @@ type gitlabProvider struct {
 	clock      quartz.Clock
 }
 
-func newGitLab(baseURL string, httpClient *http.Client, clock quartz.Clock) (*gitlabProvider, error) {
+func newGitLab(baseURL string, httpClient *http.Client, clock quartz.Clock) (Provider, error) {
 	if baseURL == "" {
 		baseURL = "https://gitlab.com"
 	}

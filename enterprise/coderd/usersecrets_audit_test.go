@@ -58,6 +58,7 @@ func TestUserSecretAuditDiffRedaction(t *testing.T) {
 		Name:        "createDiff-target",
 		Description: initialDescription,
 		Value:       initialValue,
+		EnvName:     "CREATE_DIFF_TARGET",
 	})
 	require.NoError(t, err)
 
@@ -79,10 +80,12 @@ func TestUserSecretAuditDiffRedaction(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	require.Equal(t, len(rows), 2, "expected exactly two rows")
-	// GetAuditLogsOffset returns entries sorted by time in descending order.
-	createLog := rows[1].AuditLog
-	updateLog := rows[0].AuditLog
+	require.Len(t, rows, 2, "expected exactly two rows")
+	byAction := auditLogsByAction(t, rows)
+	createLog := byAction[database.AuditActionCreate]
+	updateLog := byAction[database.AuditActionWrite]
+	require.Equal(t, database.AuditActionCreate, createLog.Action, "missing create audit log")
+	require.Equal(t, database.AuditActionWrite, updateLog.Action, "missing update audit log")
 
 	var createDiff audit.Map
 	require.NoError(t, json.Unmarshal(createLog.Diff, &createDiff))

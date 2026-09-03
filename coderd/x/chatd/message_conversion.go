@@ -16,7 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -27,17 +27,20 @@ import (
 const interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
 
 type buildCommitStepMessagesInput struct {
-	modelConfigID      uuid.UUID
-	modelCallConfig    codersdk.ChatModelCallConfig
-	step               stepData
-	toolNameToConfigID map[string]uuid.UUID
-	logger             slog.Logger
-	contentVersion     int16
+	modelConfigID          uuid.UUID
+	step                   stepData
+	toolNameToConfigID     map[string]uuid.UUID
+	logger                 slog.Logger
+	contentVersion         int16
+	hookRewrittenToolCalls map[string]json.RawMessage
 }
 
 type stepMessagesForCommit struct {
 	Messages       []chatstate.Message
 	VisibleIndexes []int
+	// ConsumeCompactionRequest clears the manual compaction marker
+	// atomically with the commit. Set on compaction commits.
+	ConsumeCompactionRequest bool
 }
 
 func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesForCommit, error) {
@@ -47,7 +50,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	}
 
 	assistantBlocks, toolResults := splitStepContent(input.step.Content)
-	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID)
+	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID, input.hookRewrittenToolCalls)
 
 	messages := make([]chatstate.Message, 0, 1+len(toolResults))
 	if len(assistantParts) > 0 {
@@ -55,7 +58,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal assistant content: %w", err)
 		}
-		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step, input.modelCallConfig))
+		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step))
 	}
 
 	for _, toolResult := range toolResults {
@@ -71,6 +74,16 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
 		messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content))
+	}
+
+	// Usage sums runtime_ms across rows, so the batch window is billed
+	// once on a dedicated record instead of an arbitrary member row.
+	stamp, ok, err := batchUsageMessage(input.modelConfigID, contentVersion, input.step.BatchRuntime, input.step.BatchBilledCalls)
+	if err != nil {
+		return stepMessagesForCommit{}, err
+	}
+	if ok {
+		messages = append(messages, stamp)
 	}
 
 	return stepMessagesForCommit{
@@ -108,6 +121,7 @@ func buildAssistantParts(
 	toolResults []fantasy.ToolResultContent,
 	step stepData,
 	toolNameToConfigID map[string]uuid.UUID,
+	hookRewrittenToolCalls map[string]json.RawMessage,
 ) []codersdk.ChatMessagePart {
 	parts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks)+len(toolResults))
 	reasoningIdx := 0
@@ -120,6 +134,11 @@ func buildAssistantParts(
 				if ts, ok := step.ToolCallCreatedAt[part.ToolCallID]; ok {
 					part.CreatedAt = &ts
 				}
+			}
+			// Hooks never see provider-executed calls, so such a call must not
+			// inherit attribution from an ordinary call that reused its ID.
+			if part.ToolCallID != "" && !part.ProviderExecuted {
+				_, part.HookRewritten = hookRewrittenToolCalls[part.ToolCallID]
 			}
 		case codersdk.ChatMessagePartTypeToolResult:
 			if part.ToolCallID != "" && step.ToolResultCreatedAt != nil {
@@ -175,7 +194,6 @@ func assistantMessage(
 	contentVersion int16,
 	content pqtype.NullRawMessage,
 	step stepData,
-	modelCallConfig codersdk.ChatModelCallConfig,
 ) chatstate.Message {
 	msg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, modelConfigID, contentVersion, content)
 	if step.Usage != (fantasy.Usage{}) {
@@ -185,21 +203,12 @@ func assistantMessage(
 		msg.ReasoningTokens = nullInt64IfNonZero(step.Usage.ReasoningTokens)
 		msg.CacheCreationTokens = nullInt64IfNonZero(step.Usage.CacheCreationTokens)
 		msg.CacheReadTokens = nullInt64IfNonZero(step.Usage.CacheReadTokens)
-		usage := codersdk.ChatMessageUsage{
-			InputTokens:         int64PtrIfNonZero(step.Usage.InputTokens),
-			OutputTokens:        int64PtrIfNonZero(step.Usage.OutputTokens),
-			ReasoningTokens:     int64PtrIfNonZero(step.Usage.ReasoningTokens),
-			CacheCreationTokens: int64PtrIfNonZero(step.Usage.CacheCreationTokens),
-			CacheReadTokens:     int64PtrIfNonZero(step.Usage.CacheReadTokens),
-		}
-		if totalCost := chatcost.CalculateTotalCostMicros(usage, modelCallConfig.Cost); totalCost != nil {
-			msg.TotalCostMicros = sql.NullInt64{Int64: *totalCost, Valid: true}
-		}
 	}
 	msg.ContextLimit = step.ContextLimit
-	if step.Runtime > 0 {
-		msg.RuntimeMs = sql.NullInt64{Int64: step.Runtime.Milliseconds(), Valid: true}
-	}
+	// InsertChatMessages maps a zero runtime to NULL, so a model
+	// invocation shorter than a millisecond persists the same way an
+	// unmeasured one does.
+	msg.RuntimeMs = nullInt64IfNonZero(step.Runtime.Milliseconds())
 	return msg
 }
 
@@ -226,11 +235,52 @@ func nullInt64IfNonZero(value int64) sql.NullInt64 {
 	return sql.NullInt64{Int64: value, Valid: true}
 }
 
-func int64PtrIfNonZero(value int64) *int64 {
-	if value == 0 {
-		return nil
+// toolBatchUsagePartType marks the dedicated billing record for a local
+// tool batch. Internal to chatd: the row is persisted with model
+// visibility so it never reaches the API or SSE, and prompt replay drops
+// it because the part converts to no provider content.
+const toolBatchUsagePartType codersdk.ChatMessagePartType = "tool-batch-usage"
+
+// toolBatchUsagePayload is the audit payload stored on the usage record.
+// It duplicates the row's runtime_ms so the billed window survives in
+// content for debugging, alongside how many call intervals produced it.
+type toolBatchUsagePayload struct {
+	BilledMs    int64 `json:"billed_ms"`
+	BilledCalls int   `json:"billed_calls"`
+}
+
+// batchUsageMessage builds the single model-invisible row that carries a
+// local tool batch's billed runtime. Usage sums runtime_ms across rows,
+// so a dedicated record keeps real tool results free of batch-level
+// runtime. Completed and interrupted batches share this helper. Returns
+// false when the batch bills no whole millisecond.
+func batchUsageMessage(
+	modelConfigID uuid.UUID,
+	contentVersion int16,
+	runtime time.Duration,
+	billedCalls int,
+) (chatstate.Message, bool, error) {
+	runtimeMs := runtime.Milliseconds()
+	if runtimeMs <= 0 {
+		return chatstate.Message{}, false, nil
 	}
-	return &value
+	payload, err := json.Marshal(toolBatchUsagePayload{
+		BilledMs:    runtimeMs,
+		BilledCalls: billedCalls,
+	})
+	if err != nil {
+		return chatstate.Message{}, false, xerrors.Errorf("marshal tool batch usage payload: %w", err)
+	}
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:   toolBatchUsagePartType,
+		Result: payload,
+	}})
+	if err != nil {
+		return chatstate.Message{}, false, xerrors.Errorf("marshal tool batch usage part: %w", err)
+	}
+	msg := baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityModel, modelConfigID, contentVersion, content)
+	msg.RuntimeMs = sql.NullInt64{Int64: runtimeMs, Valid: true}
+	return msg, true, nil
 }
 
 func visibleMessageIndexes(messages []chatstate.Message) []int {
@@ -255,7 +305,6 @@ func textFromParts(parts []codersdk.ChatMessagePart) string {
 
 type buildCompactionMessagesInput struct {
 	modelConfigID  uuid.UUID
-	activeAPIKeyID string
 	toolCallID     string
 	toolName       string
 	compaction     compactionOutcome
@@ -281,8 +330,12 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction system summary: %w", err)
 	}
+	source := input.compaction.Source
+	if source == "" {
+		source = chatloop.CompactionSourceAutomatic
+	}
 	args, err := json.Marshal(map[string]any{
-		"source":            "automatic",
+		"source":            source,
 		"threshold_percent": input.compaction.ThresholdPercent,
 	})
 	if err != nil {
@@ -296,7 +349,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	}
 	summaryResult, err := json.Marshal(map[string]any{
 		"summary":              input.compaction.SummaryReport,
-		"source":               "automatic",
+		"source":               source,
 		"threshold_percent":    input.compaction.ThresholdPercent,
 		"usage_percent":        input.compaction.UsagePercent,
 		"context_tokens":       input.compaction.ContextTokens,
@@ -312,6 +365,8 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction tool result: %w", err)
 	}
 
+	assistantMsg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent)
+	assistantMsg.RuntimeMs = nullInt64IfNonZero(input.compaction.Runtime.Milliseconds())
 	messages := []chatstate.Message{
 		{
 			Role:           database.ChatMessageRoleUser,
@@ -319,9 +374,8 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 			Visibility:     database.ChatMessageVisibilityModel,
 			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
 			ContentVersion: contentVersion,
-			APIKeyID:       sql.NullString{String: input.activeAPIKeyID, Valid: input.activeAPIKeyID != ""},
 		},
-		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
+		assistantMsg,
 		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),
 	}
 	for i := range messages {
@@ -330,19 +384,102 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
 }
 
-func currentTurnStepCount(messages []database.ChatMessage) int {
-	latestUser := -1
+type buildClearMessagesInput struct {
+	modelConfigID  uuid.UUID
+	toolCallID     string
+	contentVersion int16
+}
+
+// buildClearMessages produces the manual context-clear boundary
+// triplet, mirroring the compaction triplet shape: a hidden
+// model-only user-role row (the boundary anchor the prompt query keys
+// on), a user-visible synthetic chat_cleared tool call, and its tool
+// result. The hidden row carries a short sentinel rather than empty
+// content so the next prompt never sends an empty user message.
+func buildClearMessages(input buildClearMessagesInput) ([]chatstate.Message, error) {
+	contentVersion := input.contentVersion
+	if contentVersion == 0 {
+		contentVersion = chatprompt.CurrentContentVersion
+	}
+
+	sentinelContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("Previous conversation context was cleared by the user."),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear sentinel: %w", err)
+	}
+	payload := json.RawMessage(`{"source":"manual"}`)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall(input.toolCallID, "chat_cleared", payload),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear tool call: %w", err)
+	}
+	toolContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult(input.toolCallID, "chat_cleared", payload, false, false),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear tool result: %w", err)
+	}
+
+	messages := []chatstate.Message{
+		{
+			Role:           database.ChatMessageRoleUser,
+			Content:        sentinelContent,
+			Visibility:     database.ChatMessageVisibilityModel,
+			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
+			ContentVersion: contentVersion,
+		},
+		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
+		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),
+	}
+	for i := range messages {
+		messages[i].Compressed = true
+	}
+	return messages, nil
+}
+
+// hasClearableMessageAfter reports whether any active, uncompressed
+// model-visible conversation message follows the boundary index.
+// System prompts and user-only rows do not make a chat clearable.
+func hasClearableMessageAfter(messages []database.ChatMessage, index int) bool {
+	for i := index + 1; i < len(messages); i++ {
+		msg := messages[i]
+		if msg.Deleted || msg.Compressed {
+			continue
+		}
+		if msg.Role == database.ChatMessageRoleSystem {
+			continue
+		}
+		if msg.Visibility == database.ChatMessageVisibilityModel || msg.Visibility == database.ChatMessageVisibilityBoth {
+			return true
+		}
+	}
+	return false
+}
+
+// Hook model-context messages use the user role but must not reset
+// per-turn guards.
+func lastUserPromptIndex(messages []database.ChatMessage) int {
+	index := -1
 	for i, msg := range messages {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
-		if msg.Role == database.ChatMessageRoleUser {
-			latestUser = i
+		if msg.Role == database.ChatMessageRoleUser && msg.Visibility != database.ChatMessageVisibilityModel {
+			index = i
 		}
 	}
+	return index
+}
+
+func currentTurnStartIndex(messages []database.ChatMessage) int {
+	return lastUserPromptIndex(messages) + 1
+}
+
+func currentTurnStepCount(messages []database.ChatMessage) int {
 	count := 0
-	for i := latestUser + 1; i < len(messages); i++ {
-		msg := messages[i]
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
@@ -366,7 +503,7 @@ func compactionStatusFromHistory(
 	thresholdPercent int32,
 	contextLimit int64,
 ) compactionStatus {
-	boundaryIndex := latestCompactionBoundaryIndex(messages)
+	boundaryIndex := latestContextBoundaryIndex(messages)
 	if requirement == compactionRequirementNeeded {
 		if boundaryIndex == -1 {
 			return compactionStatusNeeded
@@ -391,16 +528,19 @@ func compactionStatusFromHistory(
 	return compactionStatusNotNeeded
 }
 
-func latestCompactionBoundaryIndex(messages []database.ChatMessage) int {
+// latestContextBoundaryIndex finds the latest compressed
+// chat_summarized or chat_cleared boundary. Compaction and clear
+// eligibility both stop here so neither reaches across the other.
+func latestContextBoundaryIndex(messages []database.ChatMessage) int {
 	for i := len(messages) - 1; i >= 0; i-- {
-		if isCompactionBoundaryMessage(messages[i]) {
+		if isContextBoundaryMessage(messages[i]) {
 			return i
 		}
 	}
 	return -1
 }
 
-func isCompactionBoundaryMessage(msg database.ChatMessage) bool {
+func isContextBoundaryMessage(msg database.ChatMessage) bool {
 	if msg.Deleted || !msg.Compressed {
 		return false
 	}
@@ -409,7 +549,7 @@ func isCompactionBoundaryMessage(msg database.ChatMessage) bool {
 		return false
 	}
 	for _, part := range parts {
-		if part.ToolName == "chat_summarized" &&
+		if (part.ToolName == "chat_summarized" || part.ToolName == "chat_cleared") &&
 			(part.Type == codersdk.ChatMessagePartTypeToolCall || part.Type == codersdk.ChatMessagePartTypeToolResult) {
 			return true
 		}
@@ -471,16 +611,7 @@ func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterToo
 	if len(stopAfterTools) == 0 {
 		return false, nil
 	}
-	start := 0
-	for i, msg := range messages {
-		if msg.Deleted || msg.Compressed {
-			continue
-		}
-		if msg.Role == database.ChatMessageRoleUser {
-			start = i + 1
-		}
-	}
-	for _, msg := range messages[start:] {
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
 		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool {
 			continue
 		}
@@ -554,6 +685,12 @@ type bufferedPartsToPartialMessagesInput struct {
 	contentVersion int16
 	logger         slog.Logger
 	interruptedAt  time.Time
+	// attemptRuntime is the interrupted attempt's billable model
+	// invocation window: the span from the provider stream opening to
+	// the interrupt closing its buffer episode. It is persisted as
+	// runtime_ms on the first partial assistant message when the
+	// attempt streamed model-generated assistant content.
+	attemptRuntime time.Duration
 }
 
 type partialToolCall struct {
@@ -604,6 +741,17 @@ func bufferedPartsToPartialMessages(input bufferedPartsToPartialMessagesInput) (
 	if err := state.appendSyntheticInterruptionResults(); err != nil {
 		return nil, err
 	}
+	if input.attemptRuntime > 0 && state.modelStreamedAssistant {
+		// Usage reporting sums runtime_ms across rows, so placing the
+		// whole span on the first assistant message is sufficient.
+		for i := range state.messages {
+			if state.messages[i].Role != database.ChatMessageRoleAssistant {
+				continue
+			}
+			state.messages[i].RuntimeMs = nullInt64IfNonZero(input.attemptRuntime.Milliseconds())
+			break
+		}
+	}
 	return state.messages, nil
 }
 
@@ -618,6 +766,9 @@ type partialMessageConversionState struct {
 	toolResults     map[string]*partialToolResult
 	toolResultOrder []string
 	answered        map[string]bool
+	// modelStreamedAssistant distinguishes streamed content from tool
+	// attachment parts, which must not carry model runtime.
+	modelStreamedAssistant bool
 }
 
 func (s *partialMessageConversionState) consume(buffered messagepartbuffer.Part) error {
@@ -637,6 +788,9 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	if part.Type == "" {
 		s.logSkippedPart(buffered, "empty buffered assistant part type")
 		return
+	}
+	if part.Type != codersdk.ChatMessagePartTypeFile {
+		s.modelStreamedAssistant = true
 	}
 	if part.Type != codersdk.ChatMessagePartTypeToolCall {
 		if part.Type == codersdk.ChatMessagePartTypeReasoning &&

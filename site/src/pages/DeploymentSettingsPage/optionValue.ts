@@ -67,7 +67,10 @@ export function optionValue(
 			return experimentMap;
 		}
 		default:
-			// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
-			return option.value as any;
+			return option.value as
+				| number
+				| string
+				| string[]
+				| Record<string, boolean>;
 	}
 }

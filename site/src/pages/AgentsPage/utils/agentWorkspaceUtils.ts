@@ -91,24 +91,28 @@ export function isWorkspaceNotFound(error: unknown): boolean {
 
 export class ArchiveAndDeleteError extends Error {
 	readonly step: "delete" | "archive";
-	readonly deleteEnqueued: boolean;
 	declare readonly cause: unknown;
 
-	constructor(
-		step: "delete" | "archive",
-		cause: unknown,
-		deleteEnqueued = false,
-	) {
+	constructor(step: "delete" | "archive", cause: unknown) {
 		super(
 			step === "delete" ? "workspace delete failed" : "chat archive failed",
 			{ cause },
 		);
 		this.step = step;
-		this.deleteEnqueued = deleteEnqueued;
 	}
 }
 
-// Delete-first, archive-second. 404/410 on delete falls through to archive.
+// Archive-first, delete-second. The archive is the reversible step and
+// doubles as the eligibility check: the server rejects it with 409 while
+// any family member is active, before anything destructive happens, so a
+// chat that became active while a confirmation dialog was open can never
+// lose its workspace. 404/410 on delete mean the workspace is already
+// gone and the archive stands. There is deliberately no compensating
+// unarchive when the delete enqueue fails: the delete outcome can be
+// ambiguous client-side (a late 5xx can arrive after the build was
+// committed), so restoring the chat risks resurrecting it while its
+// workspace is being deleted. The chat stays archived and the failure
+// toast points at the archived filter, where Unarchive is one click.
 export async function archiveChatAndDeleteWorkspace(
 	chatId: string,
 	workspaceId: string,
@@ -119,6 +123,11 @@ export async function archiveChatAndDeleteWorkspace(
 	workspaceId: string;
 	deleteBuild: WorkspaceBuild | null;
 }> {
+	try {
+		await doArchive(chatId);
+	} catch (error) {
+		throw new ArchiveAndDeleteError("archive", error);
+	}
 	let deleteBuild: WorkspaceBuild | null = null;
 	try {
 		deleteBuild = await doDelete(workspaceId);
@@ -126,11 +135,6 @@ export async function archiveChatAndDeleteWorkspace(
 		if (!isWorkspaceNotFound(error)) {
 			throw new ArchiveAndDeleteError("delete", error);
 		}
-	}
-	try {
-		await doArchive(chatId);
-	} catch (error) {
-		throw new ArchiveAndDeleteError("archive", error, deleteBuild !== null);
 	}
 	return { chatId, workspaceId, deleteBuild };
 }
@@ -242,18 +246,19 @@ export function notifyArchiveAndDeleteFailed(
 
 	if (step === "archive") {
 		const label = workspace ? `"${workspace.name}"` : "the workspace";
-		const deleteEnqueued =
-			error instanceof ArchiveAndDeleteError && error.deleteEnqueued;
-		const prefix = deleteEnqueued
-			? `Deleting ${label}, but failed to archive the chat.`
-			: `Failed to archive the chat for ${label}.`;
+		const prefix = `Failed to archive the chat for ${label}.`;
 		const detail = getErrorMessage(cause, "");
 		toast.error(detail ? `${prefix} ${detail}` : prefix);
 		return;
 	}
 
+	const description =
+		"The chat was archived but the workspace delete failed. Unarchive it from the archived filter, or open the workspace to delete it manually.";
+
 	if (!workspace) {
-		toast.error(getErrorMessage(cause, "Failed to delete workspace."));
+		toast.error(getErrorMessage(cause, "Failed to delete workspace."), {
+			description,
+		});
 		return;
 	}
 
@@ -261,8 +266,7 @@ export function notifyArchiveAndDeleteFailed(
 	toast.error(
 		getErrorMessage(cause, `Failed to delete workspace "${workspace.name}".`),
 		{
-			description:
-				"The chat was not archived. Open the workspace to delete it manually.",
+			description,
 			action: {
 				label: "Open workspace",
 				onClick: () => onOpenWorkspace(path),

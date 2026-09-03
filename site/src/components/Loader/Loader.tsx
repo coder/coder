@@ -25,6 +25,7 @@ export const Loader: FC<LoaderProps> = ({
 			{...attrs}
 			role="status"
 			aria-live="polite"
+			aria-label={resolvedLabel}
 			data-testid="loader"
 			className={cn(
 				"flex items-center justify-center",
@@ -32,7 +33,7 @@ export const Loader: FC<LoaderProps> = ({
 				className,
 			)}
 		>
-			<Spinner aria-label={resolvedLabel} size={size} loading />
+			<Spinner size={size} loading />
 		</div>
 	);
 };

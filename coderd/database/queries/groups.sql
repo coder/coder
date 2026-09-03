@@ -32,9 +32,11 @@ SELECT
 FROM
 	groups
 WHERE
-	organization_id = $1
+	organization_id = @organization_id
 AND
-	name = $2
+	-- Match group name case-insensitively, consistent with organization and
+	-- workspace name lookups.
+	LOWER("name") = LOWER(@name)
 LIMIT
 	1;
 
@@ -88,6 +90,44 @@ WHERE
 -- A limit of 0 means "no limit".
 LIMIT NULLIF(@limit_opt :: int, 0)
 ;
+
+-- name: GetGroupsByOrganizationIDPaginated :many
+SELECT
+		sqlc.embed(groups),
+		organizations.name AS organization_name,
+		organizations.display_name AS organization_display_name,
+		COUNT(*) OVER() AS count
+FROM
+		groups
+INNER JOIN
+		organizations ON groups.organization_id = organizations.id
+WHERE
+		true
+		AND groups.organization_id = @organization_id
+		-- Keyset pagination cursor. When @after_id is set, return only groups
+		-- ordered after it, matching the ORDER BY (LOWER(name), id) below. This
+		-- lets callers page without duplicated or skipped rows even if groups are
+		-- inserted or deleted between page requests.
+		AND CASE
+				WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+						(LOWER(groups.name), groups.id) > (
+								SELECT LOWER(name), id FROM groups WHERE id = @after_id
+						)
+				ELSE true
+		END
+		-- Filter by group name or display name (substring, case-insensitive).
+		AND CASE WHEN @search :: text != '' THEN (
+				groups.name ILIKE concat('%', @search, '%')
+				OR groups.display_name ILIKE concat('%', @search, '%')
+			)
+			ELSE true
+		END
+ORDER BY
+		-- Deterministic and consistent ordering of all groups. This is to ensure consistent pagination.
+		LOWER(groups.name) ASC, groups.id ASC OFFSET @offset_opt
+LIMIT
+		-- A null limit means "no limit", so 0 means return all
+		NULLIF(@limit_opt :: int, 0);
 
 -- name: InsertGroup :one
 INSERT INTO groups (

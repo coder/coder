@@ -1,21 +1,21 @@
-import { getDiffCacheKeyPrefix } from "./diffCacheKey";
+import { getContentCacheKey } from "./diffCacheKey";
 
-describe("getDiffCacheKeyPrefix", () => {
-	it("returns the same key for the same scope and query update time", () => {
-		expect(getDiffCacheKeyPrefix("chat-123", 101)).toBe(
-			getDiffCacheKeyPrefix("chat-123", 101),
+describe("getContentCacheKey", () => {
+	it("returns the same key for identical text", () => {
+		expect(getContentCacheKey("--- a\n+++ a\n")).toBe(
+			getContentCacheKey("--- a\n+++ a\n"),
 		);
 	});
 
-	it("changes when the query update time changes", () => {
-		expect(getDiffCacheKeyPrefix("chat-123", 101)).not.toBe(
-			getDiffCacheKeyPrefix("chat-123", 202),
+	it("returns different keys for different text", () => {
+		expect(getContentCacheKey("--- a\n+++ a\n-x\n+y\n")).not.toBe(
+			getContentCacheKey("--- a\n+++ a\n-x\n+z\n"),
 		);
 	});
 
-	it("changes when the scope changes", () => {
-		expect(getDiffCacheKeyPrefix("chat-123", 101)).not.toBe(
-			getDiffCacheKeyPrefix("chat-456", 101),
+	it("formats keys as content-<hex hash>-<hex length>", () => {
+		expect(getContentCacheKey("anything")).toMatch(
+			/^content-[0-9a-f]+-[0-9a-f]+$/,
 		);
 	});
 });

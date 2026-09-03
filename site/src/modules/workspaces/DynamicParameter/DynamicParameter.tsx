@@ -677,7 +677,7 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 };
 
 export const getInitialParameterValues = (
-	params: PreviewParameter[],
+	params: readonly PreviewParameter[],
 	autofillParams?: AutofillBuildParameter[],
 ): WorkspaceBuildParameter[] => {
 	return params.map((parameter) => {

@@ -1,10 +1,6 @@
-import { parsePatchFiles } from "@pierre/diffs";
 import { describe, expect, it } from "vitest";
 import { extractDiffContent } from "../DiffViewer/CommentableDiffViewer";
-
-function parse(diffStr: string) {
-	return parsePatchFiles(diffStr).flatMap((p) => p.files);
-}
+import { parseDiffString as parse } from "../DiffViewer/parseDiff";
 
 /** Filter blank strings that arise from trailing newlines in parsed lines. */
 function contentLines(text: string): string[] {

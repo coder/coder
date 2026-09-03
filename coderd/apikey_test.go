@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -177,6 +178,113 @@ func TestTokenLegacySingularScopeCompat(t *testing.T) {
 			require.Len(t, keys[0].AllowList, 1)
 			require.Equal(t, "*:*", keys[0].AllowList[0].String())
 		})
+	}
+}
+
+func TestCreateTokenScopes(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name            string
+		sendScopes      []codersdk.APIKeyScope
+		sendLegacyScope codersdk.APIKeyScope
+		wantScopes      []codersdk.APIKeyScope
+		wantLegacyScope codersdk.APIKeyScope
+		wantErrDetail   string
+	}{
+		{
+			name:            "alias all is stored as coder:all",
+			sendScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeAll},
+			wantScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll},
+			wantLegacyScope: codersdk.APIKeyScopeAll,
+		},
+		{
+			name:            "alias application_connect is stored as coder:application_connect",
+			sendScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeApplicationConnect},
+			wantScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderApplicationConnect},
+			wantLegacyScope: codersdk.APIKeyScopeApplicationConnect,
+		},
+		{
+			name:            "alias is stored canonically alongside another scope",
+			sendScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeAll, codersdk.APIKeyScopeWorkspaceRead},
+			wantScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll, codersdk.APIKeyScopeWorkspaceRead},
+			wantLegacyScope: codersdk.APIKeyScopeAll,
+		},
+		{
+			name:            "alias and canonical spelling collapse to one scope",
+			sendScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeAll, codersdk.APIKeyScopeCoderAll},
+			wantScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll},
+			wantLegacyScope: codersdk.APIKeyScopeAll,
+		},
+		{
+			// The read-only request must not widen to the coder:all sent in the
+			// deprecated field. The legacy field reads back empty because
+			// convertAPIKey derives it only for coder:all and
+			// coder:application_connect.
+			name:            "plural Scopes wins over singular Scope",
+			sendScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
+			sendLegacyScope: codersdk.APIKeyScopeAll,
+			wantScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
+			wantLegacyScope: "",
+		},
+		{
+			name:          "name that is no scope at all is rejected",
+			sendScopes:    []codersdk.APIKeyScope{"not_a_real_scope"},
+			wantErrDetail: "unknown API key scope",
+		},
+		{
+			// A real api_key_scope member that IsExternalScope refuses, so no
+			// re-spelling makes it requestable and the message must not read
+			// like a typo.
+			name:          "internal scope is rejected",
+			sendScopes:    []codersdk.APIKeyScope{codersdk.APIKeyScope(database.ApiKeyScopeDebugInfoRead)},
+			wantErrDetail: "is internal and cannot be requested",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := coderdtest.New(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+				Scope:  tc.sendLegacyScope,
+				Scopes: tc.sendScopes,
+			})
+			if tc.wantErrDetail != "" {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Detail, string(tc.sendScopes[0]))
+				require.Contains(t, sdkErr.Detail, tc.wantErrDetail)
+				return
+			}
+			require.NoError(t, err)
+
+			keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+			require.NoError(t, err)
+			require.Len(t, keys, 1)
+			require.ElementsMatch(t, tc.wantScopes, keys[0].Scopes)
+			require.Equal(t, tc.wantLegacyScope, keys[0].Scope)
+		})
+	}
+}
+
+// Lives in this package because database imports rbac, so rbac cannot check its
+// own names against the api_key_scope enum.
+func TestExternalScopesAreStorable(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range rbac.ExternalScopeNames() {
+		// CanonicalScopeName is a no-op today, since ExternalScopeNames omits
+		// the bare aliases. It stays so an alias added to that list later is
+		// still checked against the enum.
+		canonical := rbac.CanonicalScopeName(rbac.ScopeName(name))
+		require.Truef(t, database.APIKeyScope(canonical).Valid(),
+			"external scope %q canonicalizes to %q, which is not an api_key_scope member",
+			name, canonical)
 	}
 }
 
@@ -578,7 +686,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify the token is expired.
 		key, err = adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
+		require.LessOrEqual(t, key.ExpiresAt, dbtime.Now(), "key should be expired")
 
 		// Verify audit log.
 		als := auditor.AuditLogs()
@@ -605,7 +713,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify the token is expired.
 		key, err := memberClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
+		require.LessOrEqual(t, key.ExpiresAt, dbtime.Now(), "key should be expired")
 	})
 
 	t.Run("MemberCannotExpireOtherUsersToken", func(t *testing.T) {
@@ -685,7 +793,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify it's expired.
 		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
+		require.LessOrEqual(t, key.ExpiresAt, dbtime.Now(), "key should be expired")
 
 		// Delete the expired token - should succeed.
 		err = adminClient.DeleteAPIKey(ctx, codersdk.Me, keyID)

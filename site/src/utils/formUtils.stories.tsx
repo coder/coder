@@ -1,9 +1,8 @@
-import TextField from "@mui/material/TextField";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { action } from "storybook/actions";
-import { Form } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
 import { getFormHelpers } from "./formUtils";
 
 interface ExampleFormProps {
@@ -22,13 +21,7 @@ const ExampleForm: FC<ExampleFormProps> = ({ value, maxLength }) => {
 	const getFieldHelpers = getFormHelpers(form, null);
 
 	return (
-		<Form>
-			<TextField
-				label="Value"
-				rows={2}
-				{...getFieldHelpers("value", { maxLength })}
-			/>
-		</Form>
+		<FormField label="Value" field={getFieldHelpers("value", { maxLength })} />
 	);
 };
 
@@ -38,7 +31,7 @@ const meta: Meta<typeof ExampleForm> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof Form>;
+type Story = StoryObj<typeof ExampleForm>;
 
 export const UnderMaxLength: Story = {
 	args: {

@@ -1,9 +1,5 @@
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type ChangeEvent, type FC, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { useNavigate } from "react-router";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
@@ -18,18 +14,21 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { FormFields, FormFooter, VerticalForm } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
+import { Label } from "#/components/Label/Label";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Table,
 	TableBody,
 	TableCell,
-	TableFooter,
 	TableHead,
 	TableHeader,
 	TableRow,
@@ -114,22 +113,22 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 						<ErrorAlert error={error} />
 					)}
 
-					<TextField
-						{...getFieldHelpers("name", {
+					<FormField
+						field={getFieldHelpers("name", {
 							helperText:
 								"The role name cannot be modified after the role is created.",
 						})}
-						autoFocus
-						fullWidth
-						disabled={role !== undefined}
 						label="Name"
+						autoFocus
+						disabled={role !== undefined}
+						className="w-full"
 					/>
-					<TextField
-						{...getFieldHelpers("display_name", {
+					<FormField
+						field={getFieldHelpers("display_name", {
 							helperText: "Optional: keep empty to default to the name.",
 						})}
-						fullWidth
 						label="Display Name"
+						className="w-full"
 					/>
 					<ActionCheckboxes
 						permissions={role?.organization_permissions || []}
@@ -179,6 +178,12 @@ const filteredRBACResourceActions = Object.fromEntries(
 	),
 );
 
+// Object.entries widens keys to `string`; this narrows them back to the
+// RBACResource union without an assertion.
+function isRBACResource(resource: string): resource is RBACResource {
+	return resource in RBACResourceActions;
+}
+
 interface ActionCheckboxesProps {
 	permissions: readonly Permission[];
 	form: ReturnType<typeof useFormik<Role>> & { values: Role };
@@ -197,11 +202,7 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 		? RBACResourceActions
 		: filteredRBACResourceActions;
 
-	const handleActionCheckChange = async (
-		e: ChangeEvent<HTMLInputElement>,
-		form: ReturnType<typeof useFormik<Role>> & { values: Role },
-	) => {
-		const { name, checked } = e.currentTarget;
+	const handleActionCheckChange = async (name: string, checked: boolean) => {
 		const [resource_type, action] = name.split(":");
 
 		const newPermissions = checked
@@ -222,13 +223,10 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 	};
 
 	const handleResourceCheckChange = async (
-		e: ChangeEvent<HTMLInputElement>,
-		form: ReturnType<typeof useFormik<Role>> & { values: Role },
+		resource: RBACResource,
+		checked: boolean,
 		indeterminate: boolean,
 	) => {
-		const { name, checked } = e.currentTarget;
-		const resource = name as RBACResource;
-
 		const resourceActionsForResource = resourceActions[resource] || {};
 
 		const newCheckedActions =
@@ -253,61 +251,55 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 	};
 
 	return (
-		<Table>
-			<TableHeader>
-				<TableRow>
-					<TableHead>Permission</TableHead>
-					<TableHead className="py-1 text-right">
-						<ShowAllResourcesCheckbox
-							showAllResources={showAllResources}
-							setShowAllResources={setShowAllResources}
-						/>
-					</TableHead>
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				{Object.entries(resourceActions).map(([resourceKey, value]) => {
-					return (
-						<PermissionCheckboxGroup
-							key={resourceKey}
-							checkedActions={checkedActions?.filter(
-								(a) => a.resource_type === resourceKey,
-							)}
-							resourceKey={resourceKey}
-							value={value}
-							form={form}
-							handleActionCheckChange={handleActionCheckChange}
-							handleResourceCheckChange={handleResourceCheckChange}
-						/>
-					);
-				})}
-			</TableBody>
-			<TableFooter>
-				<TableRow>
-					<TableCell align="right" colSpan={2} className="py-1 pr-1">
-						<ShowAllResourcesCheckbox
-							showAllResources={showAllResources}
-							setShowAllResources={setShowAllResources}
-						/>
-					</TableCell>
-				</TableRow>
-			</TableFooter>
-		</Table>
+		<>
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead>Permission</TableHead>
+						<TableHead className="py-1 text-right">
+							<ShowAllResourcesSwitch
+								showAllResources={showAllResources}
+								setShowAllResources={setShowAllResources}
+							/>
+						</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{Object.entries(resourceActions).map(([resourceKey, value]) => {
+						if (!isRBACResource(resourceKey)) {
+							return null;
+						}
+						return (
+							<PermissionCheckboxGroup
+								key={resourceKey}
+								checkedActions={checkedActions?.filter(
+									(a) => a.resource_type === resourceKey,
+								)}
+								resourceKey={resourceKey}
+								value={value}
+								handleActionCheckChange={handleActionCheckChange}
+								handleResourceCheckChange={handleResourceCheckChange}
+							/>
+						);
+					})}
+				</TableBody>
+			</Table>
+			<ShowAllResourcesSwitch
+				showAllResources={showAllResources}
+				setShowAllResources={setShowAllResources}
+			/>
+		</>
 	);
 };
 
 interface PermissionCheckboxGroupProps {
 	checkedActions: readonly Permission[];
-	resourceKey: string;
+	resourceKey: RBACResource;
 	value: Partial<Record<RBACAction, string>>;
-	form: ReturnType<typeof useFormik<Role>> & { values: Role };
-	handleActionCheckChange: (
-		e: ChangeEvent<HTMLInputElement>,
-		form: ReturnType<typeof useFormik<Role>> & { values: Role },
-	) => Promise<void>;
+	handleActionCheckChange: (name: string, checked: boolean) => Promise<void>;
 	handleResourceCheckChange: (
-		e: ChangeEvent<HTMLInputElement>,
-		form: ReturnType<typeof useFormik<Role>> & { values: Role },
+		resource: RBACResource,
+		checked: boolean,
 		indeterminate: boolean,
 	) => Promise<void>;
 }
@@ -316,50 +308,62 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 	checkedActions,
 	resourceKey,
 	value,
-	form,
 	handleActionCheckChange,
 	handleResourceCheckChange,
 }) => {
+	const actionCount = Object.keys(value).length;
+	const isResourceChecked = checkedActions.length === actionCount;
+	const isResourceIndeterminate =
+		checkedActions.length > 0 && checkedActions.length < actionCount;
+
 	return (
 		<TableRow key={resourceKey}>
-			<TableCell className="pl-0.5" colSpan={2}>
+			<TableCell className="px-4" colSpan={2}>
 				<li key={resourceKey} className="m-0 list-none">
-					<Checkbox
-						size="small"
-						name={`${resourceKey}`}
-						checked={checkedActions.length === Object.keys(value).length}
-						indeterminate={
-							checkedActions.length > 0 &&
-							checkedActions.length < Object.keys(value).length
-						}
-						data-testid={`${resourceKey}`}
-						onChange={(e) =>
-							handleResourceCheckChange(
-								e,
-								form,
-								checkedActions.length > 0 &&
-									checkedActions.length < Object.keys(value).length,
-							)
-						}
-					/>
-					{resourceKey}
-					<ul className="m-0 list-none">
-						{Object.entries(value).map(([actionKey, value]) => (
-							<li key={actionKey} className="grid grid-cols-[270px_1fr]">
-								<span className="text-content-primary">
-									<Checkbox
-										size="small"
-										name={`${resourceKey}:${actionKey}`}
-										checked={checkedActions.some((p) =>
-											ResourceActionComparator(p, resourceKey, actionKey),
-										)}
-										onChange={(e) => handleActionCheckChange(e, form)}
-									/>
-									{actionKey}
-								</span>
-								<span className="pt-1.5 text-content-secondary">{value}</span>
-							</li>
-						))}
+					<div className="inline-flex items-center gap-2">
+						<Checkbox
+							name={resourceKey}
+							checked={
+								isResourceIndeterminate ? "indeterminate" : isResourceChecked
+							}
+							data-testid={resourceKey}
+							aria-label={resourceKey}
+							onCheckedChange={(checked) =>
+								handleResourceCheckChange(
+									resourceKey,
+									checked === true,
+									isResourceIndeterminate,
+								)
+							}
+						/>
+						<span>{resourceKey}</span>
+					</div>
+					<ul className="m-0 list-none py-2 flex flex-col gap-2 pl-8">
+						{Object.entries(value).map(([actionKey, description]) => {
+							const actionName = `${resourceKey}:${actionKey}`;
+							const isActionChecked = checkedActions.some((p) =>
+								ResourceActionComparator(p, resourceKey, actionKey),
+							);
+
+							return (
+								<li key={actionKey} className="grid grid-cols-[270px_1fr]">
+									<span className="inline-flex items-center text-content-primary gap-2">
+										<Checkbox
+											name={actionName}
+											checked={isActionChecked}
+											aria-label={actionName}
+											onCheckedChange={(checked) =>
+												handleActionCheckChange(actionName, checked === true)
+											}
+										/>
+										{actionKey}
+									</span>
+									<span className="pt-1.5 text-content-secondary">
+										{description}
+									</span>
+								</li>
+							);
+						})}
 					</ul>
 				</li>
 			</TableCell>
@@ -367,37 +371,32 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 	);
 };
 
-interface ShowAllResourcesCheckboxProps {
+interface ShowAllResourcesSwitchProps {
 	showAllResources: boolean;
 	setShowAllResources: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const ShowAllResourcesCheckbox: FC<ShowAllResourcesCheckboxProps> = ({
+const ShowAllResourcesSwitch: FC<ShowAllResourcesSwitchProps> = ({
 	showAllResources,
 	setShowAllResources,
 }) => {
+	const id = useId();
+
 	return (
-		<FormControlLabel
-			sx={{ marginRight: 1 }}
-			control={
-				<Checkbox
-					size="small"
-					id="show_all_permissions"
-					name="show_all_permissions"
-					checked={showAllResources}
-					onChange={(e) => setShowAllResources(e.currentTarget.checked)}
-					checkedIcon={<EyeIcon className="size-icon-sm" />}
-					icon={<EyeOffIcon className="size-icon-sm" />}
-				/>
-			}
-			label={
-				<span style={{ fontSize: 12 }}>
-					{showAllResources
-						? "Hide advanced permissions"
-						: "Show advanced permissions"}
-				</span>
-			}
-		/>
+		<div className="mr-2 inline-flex items-center justify-end gap-2">
+			<Label htmlFor={id} className="cursor-pointer text-xs font-normal">
+				{showAllResources
+					? "Hide advanced permissions"
+					: "Show advanced permissions"}
+			</Label>
+			<Switch
+				id={id}
+				size="sm"
+				name="show_all_permissions"
+				checked={showAllResources}
+				onCheckedChange={setShowAllResources}
+			/>
+		</div>
 	);
 };
 

@@ -1,9 +1,20 @@
-import FormHelperText from "@mui/material/FormHelperText";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { ChevronDownIcon } from "lucide-react";
-import { type FC, useEffect, useReducer } from "react";
+import {
+	type ComponentProps,
+	type FC,
+	type ReactNode,
+	useId,
+	useState,
+} from "react";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
+import { cn } from "#/utils/cn";
 import {
 	durationInDays,
 	durationInHours,
@@ -11,169 +22,146 @@ import {
 	type TimeUnit,
 } from "#/utils/time";
 
-type DurationFieldProps = Omit<TextFieldProps, "value" | "onChange"> & {
+type DurationFieldProps = Omit<
+	ComponentProps<typeof Input>,
+	"value" | "onChange" | "type"
+> & {
 	valueMs: number;
 	onChange: (value: number) => void;
+	label?: string;
+	error?: boolean;
+	helperText?: ReactNode;
 };
 
-type State = {
-	unit: TimeUnit;
-	// Handling empty values as strings in the input simplifies the process,
-	// especially when a user clears the input field.
-	durationFieldValue: string;
-};
+function toMs(value: string, unit: TimeUnit): number {
+	const n = Number.parseInt(value, 10);
+	if (Number.isNaN(n)) {
+		return 0;
+	}
+	return unit === "hours" ? hoursToDuration(n) : daysToDuration(n);
+}
 
-type Action =
-	| { type: "SYNC_WITH_PARENT"; parentValueMs: number }
-	| { type: "CHANGE_DURATION_FIELD_VALUE"; fieldValue: string }
-	| { type: "CHANGE_TIME_UNIT"; unit: TimeUnit };
+function toDisplayValue(ms: number, unit: TimeUnit): string {
+	return unit === "hours"
+		? durationInHours(ms).toString()
+		: durationInDays(ms).toString();
+}
 
-const reducer = (state: State, action: Action): State => {
-	switch (action.type) {
-		case "SYNC_WITH_PARENT": {
-			return initState(action.parentValueMs);
-		}
-		case "CHANGE_DURATION_FIELD_VALUE": {
-			return {
-				...state,
-				durationFieldValue: action.fieldValue,
-			};
-		}
-		case "CHANGE_TIME_UNIT": {
-			const currentDurationMs = durationInMs(
-				state.durationFieldValue,
-				state.unit,
-			);
+export const DurationField: FC<DurationFieldProps> = ({
+	valueMs,
+	onChange,
+	label,
+	error,
+	helperText,
+	id: idProp,
+	className,
+	disabled,
+	...inputProps
+}) => {
+	const generatedId = useId();
+	const id = idProp ?? generatedId;
+	const helperId = `${id}-helper`;
+	const [unit, setUnit] = useState<TimeUnit>(() => suggestedTimeUnit(valueMs));
+	const [text, setText] = useState(() => toDisplayValue(valueMs, unit));
+	const [prevValueMs, setPrevValueMs] = useState(valueMs);
 
-			return {
-				unit: action.unit,
-				durationFieldValue:
-					action.unit === "hours"
-						? durationInHours(currentDurationMs).toString()
-						: Math.ceil(durationInDays(currentDurationMs)).toString(),
-			};
-		}
-		default: {
-			return state;
+	// Keep local display state in sync when the parent value changes
+	// independently (for example, toggling a cleanup switch that resets TTL).
+	//
+	// We track the previous prop instead of comparing against a value
+	// round-tripped through toMs(). toMs() calls Number.parseInt(), which
+	// truncates fractional units, so a valid but non-integer TTL (e.g. 90
+	// minutes displayed as "1.5" hours) would never match valueMs and would
+	// loop this render-phase setState forever, crashing the page.
+	if (valueMs !== prevValueMs) {
+		setPrevValueMs(valueMs);
+		// Only overwrite what the user is editing when the incoming value truly
+		// differs from what the field currently represents. This preserves an
+		// empty input while the user is clearing it.
+		if (valueMs !== toMs(text, unit)) {
+			const newUnit = suggestedTimeUnit(valueMs);
+			setUnit(newUnit);
+			setText(toDisplayValue(valueMs, newUnit));
 		}
 	}
-};
 
-export const DurationField: FC<DurationFieldProps> = (props) => {
-	const {
-		valueMs: parentValueMs,
-		onChange,
-		helperText,
-		...textFieldProps
-	} = props;
-	const [state, dispatch] = useReducer(reducer, initState(parentValueMs));
-	const currentDurationMs = durationInMs(state.durationFieldValue, state.unit);
+	const handleTextChange = (raw: string) => {
+		const digits = raw.replace(/\D/g, "");
+		setText(digits);
 
-	useEffect(() => {
-		if (parentValueMs !== currentDurationMs) {
-			dispatch({ type: "SYNC_WITH_PARENT", parentValueMs });
+		const ms = toMs(digits, unit);
+		if (ms !== valueMs) {
+			onChange(ms);
 		}
-	}, [currentDurationMs, parentValueMs]);
+	};
+
+	const handleUnitChange = (newUnit: TimeUnit) => {
+		const currentMs = toMs(text, unit);
+
+		// When switching to days, round up to the nearest day so a partial day
+		// does not silently shrink the configured duration.
+		const newMs =
+			newUnit === "hours"
+				? currentMs
+				: daysToDuration(Math.ceil(durationInDays(currentMs)));
+
+		setUnit(newUnit);
+		setText(toDisplayValue(newMs, newUnit));
+
+		if (newMs !== valueMs) {
+			onChange(newMs);
+		}
+	};
 
 	return (
-		<div>
+		<div className={cn("flex flex-col gap-2", className)}>
+			{label && <Label htmlFor={id}>{label}</Label>}
 			<div className="flex gap-2">
-				<TextField
-					{...textFieldProps}
-					fullWidth
-					value={state.durationFieldValue}
-					onChange={(e) => {
-						const durationFieldValue = intMask(e.currentTarget.value);
-
-						dispatch({
-							type: "CHANGE_DURATION_FIELD_VALUE",
-							fieldValue: durationFieldValue,
-						});
-
-						const newDurationInMs = durationInMs(
-							durationFieldValue,
-							state.unit,
-						);
-						if (newDurationInMs !== parentValueMs) {
-							onChange(newDurationInMs);
-						}
-					}}
-					inputProps={{
-						step: 1,
-					}}
+				<Input
+					{...inputProps}
+					id={id}
+					value={text}
+					onChange={(e) => handleTextChange(e.currentTarget.value)}
+					disabled={disabled}
+					inputMode="numeric"
+					pattern="[0-9]*"
+					aria-invalid={error}
+					aria-describedby={helperText ? helperId : undefined}
+					className="w-full min-w-0"
 				/>
 				<Select
-					disabled={props.disabled}
-					css={{ width: 120, "& .MuiSelect-icon": { padding: 2 } }}
-					value={state.unit}
-					onChange={(e) => {
-						const unit = e.target.value as TimeUnit;
-						dispatch({
-							type: "CHANGE_TIME_UNIT",
-							unit,
-						});
-
-						// Calculate the new duration in ms after changing the unit
-						// Important: When changing from hours to days, we need to round up to nearest day
-						// but keep the millisecond value consistent for the parent component
-						let newDurationMs: number;
-						if (unit === "hours") {
-							// When switching to hours, use the current milliseconds to get exact hours
-							newDurationMs = currentDurationMs;
-						} else {
-							// When switching to days, round up to the nearest day
-							const daysValue = Math.ceil(durationInDays(currentDurationMs));
-							newDurationMs = daysToDuration(daysValue);
-						}
-
-						// Notify parent component if the value has changed
-						if (newDurationMs !== parentValueMs) {
-							onChange(newDurationMs);
+					value={unit}
+					onValueChange={(value) => {
+						if (value === "hours" || value === "days") {
+							handleUnitChange(value);
 						}
 					}}
-					inputProps={{ "aria-label": "Time unit" }}
-					IconComponent={ChevronDownIcon}
+					disabled={disabled}
 				>
-					<MenuItem value="hours">Hours</MenuItem>
-					<MenuItem value="days">Days</MenuItem>
+					<SelectTrigger className="w-[120px] flex-none" aria-label="Time unit">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="hours">Hours</SelectItem>
+						<SelectItem value="days">Days</SelectItem>
+					</SelectContent>
 				</Select>
 			</div>
 
 			{helperText && (
-				<FormHelperText error={props.error}>{helperText}</FormHelperText>
+				<span
+					id={helperId}
+					className={cn(
+						"text-xs",
+						error ? "text-content-destructive" : "text-content-secondary",
+					)}
+				>
+					{helperText}
+				</span>
 			)}
 		</div>
 	);
 };
-
-function initState(value: number): State {
-	const unit = suggestedTimeUnit(value);
-	const durationFieldValue =
-		unit === "hours"
-			? durationInHours(value).toString()
-			: durationInDays(value).toString();
-
-	return {
-		unit,
-		durationFieldValue,
-	};
-}
-
-function intMask(value: string): string {
-	return value.replace(/\D/g, "");
-}
-
-function durationInMs(durationFieldValue: string, unit: TimeUnit): number {
-	const durationInMs = Number.parseInt(durationFieldValue, 10);
-
-	if (Number.isNaN(durationInMs)) {
-		return 0;
-	}
-
-	return unit === "hours"
-		? hoursToDuration(durationInMs)
-		: daysToDuration(durationInMs);
-}
 
 function hoursToDuration(hours: number): number {
 	return hours * 60 * 60 * 1000;

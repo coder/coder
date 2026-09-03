@@ -66,7 +66,7 @@ echo -e "${GREEN}✓ Created client secret${NC}\n"
 
 # Test 2: PKCE Flow
 echo -e "${YELLOW}Test 2: PKCE Flow${NC}"
-CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c -43)
+CODE_VERIFIER=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')
 CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | base64 | tr -d "=" | tr '+/' '-_')
 STATE=$(openssl rand -hex 16)
 
@@ -132,7 +132,7 @@ fi
 echo -e "${YELLOW}Test 4: Resource Parameter Support${NC}"
 RESOURCE="https://api.example.com"
 STATE=$(openssl rand -hex 16)
-RESOURCE_CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c -43)
+RESOURCE_CODE_VERIFIER=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')
 RESOURCE_CODE_CHALLENGE=$(echo -n "$RESOURCE_CODE_VERIFIER" | openssl dgst -sha256 -binary | base64 | tr -d "=" | tr '+/' '-_')
 RESOURCE_AUTH_URL="$BASE_URL/oauth2/authorize?client_id=$CLIENT_ID&response_type=code&redirect_uri=http://localhost:9876/callback&state=$STATE&resource=$RESOURCE&code_challenge=$RESOURCE_CODE_CHALLENGE&code_challenge_method=S256"
 

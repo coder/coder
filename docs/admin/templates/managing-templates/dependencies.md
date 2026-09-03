@@ -1,4 +1,6 @@
-# Template Dependencies
+---
+title: Template Dependencies
+---
 
 When creating Coder templates, it is unlikely that you will just be using
 built-in providers. Part of Terraform's flexibility stems from its rich plugin

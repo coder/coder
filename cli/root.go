@@ -29,15 +29,19 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/propagation"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/cli/telemetry"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/pretty"
@@ -109,6 +113,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.logout(),
 		r.netcheck(),
 		r.notifications(),
+		r.oauth2Provider(),
 		r.organizations(),
 		r.portForward(),
 		r.publickey(),
@@ -395,12 +400,14 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		}
 	})
 
-	// Add the PrintDeprecatedOptions middleware to all commands.
+	// Add the PrintDeprecatedOptions and client session ID middleware to all
+	// commands. clientSessionIDMiddleware runs first so the resolved ID is on
+	// the invocation context for every downstream middleware and handler.
 	cmd.Walk(func(cmd *serpent.Command) {
 		if cmd.Middleware == nil {
-			cmd.Middleware = PrintDeprecatedOptions()
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), PrintDeprecatedOptions())
 		} else {
-			cmd.Middleware = serpent.Chain(cmd.Middleware, PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), cmd.Middleware, PrintDeprecatedOptions())
 		}
 	})
 
@@ -852,6 +859,9 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)
+	if sessionID := clientSessionIDFromContext(inv.Context()); sessionID != "" {
+		transport = wrapTransportWithSessionIDHeader(transport, sessionID)
+	}
 	if !r.noVersionCheck {
 		buildInfoTransport, err := newHTTPTransport(r.tlsConfig)
 		if err != nil {
@@ -1504,7 +1514,7 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 	if opts.Verbose {
 		// If all these fields are empty, then do not print this information.
 		// This can occur if the error is being used outside the api.
-		if !(err.Method() == "" && err.URL() == "" && err.StatusCode() == 0) {
+		if err.Method() != "" || err.URL() != "" || err.StatusCode() != 0 {
 			_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
 			_, _ = str.WriteString("\n")
 		}
@@ -1729,6 +1739,103 @@ func wrapTransportWithUserAgentHeader(transport http.RoundTripper, inv *serpent.
 			userAgent = fmt.Sprintf("coder-cli/%s (%s/%s; %s)", buildinfo.Version(), runtime.GOOS, runtime.GOARCH, inv.Command.FullName())
 		})
 		req.Header.Set("User-Agent", userAgent)
+		return transport.RoundTrip(req)
+	})
+}
+
+// clientSessionIDEnv is the environment variable a spawning client (Toolbox,
+// the VS Code plugin) can set so the CLI it launches reuses an existing client
+// session ID instead of generating a new one.
+const clientSessionIDEnv = "CODER_TRACE_SESSION_ID"
+
+// annotationClientSessionID marks commands that establish a client session and
+// should resolve a client_session_id. clientSessionIDMiddleware only resolves
+// and attaches the ID for commands that opt in with this annotation, so
+// long-running daemon commands (server, agent, provisionerd, and so on) never
+// carry a meaningless session ID in their logs, request baggage, or telemetry.
+const annotationClientSessionID = "client_session_id"
+
+type clientSessionIDContextKey struct{}
+
+// withClientSessionID returns a copy of ctx carrying the client session ID so
+// non-log consumers (HTTP baggage, tailnet telemetry) can read it back.
+func withClientSessionID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, clientSessionIDContextKey{}, id)
+}
+
+// clientSessionIDFromContext returns the client session ID stored on ctx, or
+// the empty string if none was resolved for this invocation.
+func clientSessionIDFromContext(ctx context.Context) string {
+	id, _ := ctx.Value(clientSessionIDContextKey{}).(string)
+	return id
+}
+
+// resolveClientSessionID returns the client session ID for this invocation.
+// When CODER_TRACE_SESSION_ID is set it is used verbatim so a spawning client
+// can correlate the CLI it launches. A warning is logged if the value is not
+// the canonical 32-character lowercase hex form, since coderd and agent
+// middleware drop non-canonical values. Otherwise a new session ID is
+// generated.
+func resolveClientSessionID(inv *serpent.Invocation) (string, error) {
+	if id, ok := inv.Environ.Lookup(clientSessionIDEnv); ok && id != "" {
+		if !tracing.ValidSessionID(id) {
+			cliui.Warnf(inv.Stderr,
+				"%s is not a 32-character lowercase hexadecimal string; it will not correlate in coderd and agent logs.",
+				clientSessionIDEnv)
+		}
+		return id, nil
+	}
+	id, err := tracing.NewSessionID()
+	if err != nil {
+		return "", xerrors.Errorf("generate client session ID: %w", err)
+	}
+	return id, nil
+}
+
+// clientSessionIDMiddleware resolves a single client session ID per invocation
+// and stores it on the invocation context for commands that opt in with the
+// annotationClientSessionID annotation. It attaches the ID as a slog field so
+// any log written with the invocation context (or a descendant) carries
+// client_session_id regardless of which logger emits it, and stores the raw ID
+// so createHTTPClient can attach it as W3C baggage and ssh can forward it as
+// tailnet telemetry. Commands that do not opt in (and completion mode) are
+// skipped so daemon logs stay free of an irrelevant session ID.
+func clientSessionIDMiddleware() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			if inv.IsCompletionMode() || inv.Command == nil ||
+				!inv.Command.Annotations.IsSet(annotationClientSessionID) {
+				return next(inv)
+			}
+			id, err := resolveClientSessionID(inv)
+			if err != nil {
+				return err
+			}
+			ctx := slog.With(inv.Context(), slog.F("client_session_id", id))
+			ctx = withClientSessionID(ctx, id)
+			return next(inv.WithContext(ctx))
+		}
+	}
+}
+
+// wrapTransportWithSessionIDHeader attaches the client session ID to every
+// request as W3C baggage under the client_session_id key, so coderd and agent
+// middleware can correlate logs, spans, and telemetry by session. It is set
+// regardless of whether tracing is enabled, and merges with any baggage
+// already present on the request rather than overwriting it.
+func wrapTransportWithSessionIDHeader(transport http.RoundTripper, sessionID string) http.RoundTripper {
+	member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, sessionID)
+	if err != nil {
+		// An invalid session ID should never reach here. If it somehow does,
+		// skip attaching baggage rather than failing every request.
+		return transport
+	}
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		ctx := propagation.Baggage{}.Extract(req.Context(), propagation.HeaderCarrier(req.Header))
+		if bag, err := baggage.FromContext(ctx).SetMember(member); err == nil {
+			ctx = baggage.ContextWithBaggage(ctx, bag)
+			propagation.Baggage{}.Inject(ctx, propagation.HeaderCarrier(req.Header))
+		}
 		return transport.RoundTrip(req)
 	})
 }

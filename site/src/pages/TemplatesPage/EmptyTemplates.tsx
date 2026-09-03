@@ -1,9 +1,9 @@
-import Link from "@mui/material/Link";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { Link } from "#/components/Link/Link";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
 import { docs } from "#/utils/docs";
@@ -64,6 +64,8 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 							href={docs("/admin/templates/creating-templates")}
 							target="_blank"
 							rel="noreferrer"
+							showExternalIcon={false}
+							className="p-0 text-xs"
 						>
 							create your own
 						</Link>
@@ -74,7 +76,11 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 					<div className="flex flex-col gap-8 items-center">
 						<div className="flex flex-wrap justify-center gap-4">
 							{featuredExamples.map((example) => (
-								<TemplateExampleCard example={example} key={example.id} />
+								<TemplateExampleCard
+									example={example}
+									key={example.id}
+									templateBuilderEnabled={templateBuilderEnabled}
+								/>
 							))}
 						</div>
 						<Button size="sm" asChild className="rounded-full">

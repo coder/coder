@@ -1,4 +1,6 @@
-# Improving Agent Resiliency
+---
+title: Improving Agent Resiliency
+---
 
 Coder's agent can automatically lower the scheduling priority
 and raise the OOM (out-of-memory) kill score of user processes
@@ -71,7 +73,7 @@ resource "kubernetes_deployment" "workspace" {
       spec {
         container {
           name  = "dev"
-          image = "codercom/enterprise-base:ubuntu"
+          image = "codercom/example-base:ubuntu"
 
           env {
             name  = "CODER_AGENT_TOKEN"

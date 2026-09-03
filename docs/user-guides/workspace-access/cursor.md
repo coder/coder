@@ -1,4 +1,6 @@
-# Cursor
+---
+title: Cursor
+---
 
 [Cursor](https://cursor.sh/) is a modern IDE built on top of VS Code with enhanced AI capabilities.
 
@@ -38,7 +40,7 @@ Cursor can connect to a Coder workspace using the Coder extension:
       Alternatively:
 
       1. Open the Command Palette
-   (<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>)
+   (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>)
    and search for `vsix`.
 
       1. Select **Extensions: Install from VSIX** and select the vscode-coder extension you downloaded.
@@ -52,7 +54,7 @@ Cursor can connect to a Coder workspace using the Coder extension:
 ## Open a workspace in Cursor
 
 1. From the Cursor Command Palette
-(<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>),
+(<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>),
 enter `coder` and select **Coder: Login**.
 
 1. Follow the prompts to login and copy your session token.

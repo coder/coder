@@ -1,5 +1,5 @@
 import { type FC, Fragment, useEffect } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
+import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
@@ -12,10 +12,6 @@ import {
 	updateUserNotificationPreferences,
 	userNotificationPreferences,
 } from "#/api/queries/notifications";
-import {
-	preferenceSettings,
-	updatePreferenceSettings,
-} from "#/api/queries/users";
 import type { NotificationTemplate } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import {
@@ -32,7 +28,6 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	castNotificationMethod,
-	isTaskNotification,
 	methodIcons,
 	methodLabels,
 	notificationIsDisabled,
@@ -105,11 +100,6 @@ const NotificationsPage: FC = () => {
 		...systemTemplatesByGroup.data,
 		...customTemplatesByGroup.data,
 	};
-
-	const preferencesQuery = useQuery(preferenceSettings());
-	const updatePreferencesMutation = useMutation(
-		updatePreferenceSettings(queryClient),
-	);
 
 	return (
 		<>
@@ -190,7 +180,7 @@ const NotificationsPage: FC = () => {
 
 										return (
 											<Fragment key={tmpl.id}>
-												<div className="flex items-center justify-between gap-3 px-4 py-3 border-0 [&:not(:last-child)]:border-b border-solid">
+												<div className="flex items-center justify-between gap-3 px-4 py-3 border-0 not-last:border-b border-solid">
 													<div className="flex items-center gap-2">
 														<Switch
 															id={tmpl.id}
@@ -219,20 +209,6 @@ const NotificationsPage: FC = () => {
 																		},
 																	},
 																);
-
-																// Clear the Tasks page warning dismissal when enabling a task notification
-																// This ensures that if the user disables task notifications again later,
-																// they will see the warning alert again.
-																if (
-																	isTaskNotification(tmpl) &&
-																	checked &&
-																	preferencesQuery.data
-																) {
-																	updatePreferencesMutation.mutate({
-																		...preferencesQuery.data,
-																		task_notification_alert_dismissed: false,
-																	});
-																}
 															}}
 														/>
 														<label
@@ -282,10 +258,12 @@ function canSeeNotificationGroup(
 		case "User Events":
 			return permissions.createUser;
 		case "Workspace Events":
-		case "Task Events":
 		case "Chat Events":
 		case "Custom Events":
+		case "AI Cost Control Events":
 			return true;
+		case "AI Cost Control Admin Events":
+			return permissions.createUser;
 		default:
 			return false;
 	}

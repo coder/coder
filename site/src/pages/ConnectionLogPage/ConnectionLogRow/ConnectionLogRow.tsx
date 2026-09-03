@@ -5,7 +5,7 @@ import userAgentParser from "ua-parser-js";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Link } from "#/components/Link/Link";
-import { StatusPill } from "#/components/StatusPill/StatusPill";
+import { StatusBadge } from "#/components/StatusBadge/StatusBadge";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
 import {
@@ -36,7 +36,7 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 			data-testid={`connection-log-row-${connectionLog.id}`}
 			clickable={false}
 		>
-			<TableCell className="!p-0 border-0">
+			<TableCell className="p-0! border-0">
 				<div className="flex flex-row items-center gap-4 py-4 px-8">
 					<div className="flex flex-row items-center gap-4 flex-1">
 						{/* Non-web logs don't have an associated user, so we
@@ -64,7 +64,7 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 
 							<div className="flex flex-row items-center gap-4">
 								{code !== undefined && (
-									<StatusPill
+									<StatusBadge
 										code={code}
 										isHttpCode={isWeb}
 										label={isWeb ? "HTTP Status Code" : "SSH Exit Code"}

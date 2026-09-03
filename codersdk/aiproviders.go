@@ -202,6 +202,15 @@ type AIProvider struct {
 	Settings    AIProviderSettings `json:"settings"`
 	CreatedAt   time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt   time.Time          `json:"updated_at" format:"date-time"`
+
+	// Status carries runtime routing status; nil when empty.
+	Status *AIProviderStatus `json:"status,omitempty"`
+}
+
+// AIProviderStatus carries non-fatal routing warnings. Direct
+// routing remains available for the provider.
+type AIProviderStatus struct {
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // AIProviderKey is a single API key registered on a provider. The
@@ -285,6 +294,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			})
 		}
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
+		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
 	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{
@@ -335,10 +345,17 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	if req.APIKeys != nil {
 		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
 	}
+	// Despite arriving on a PATCH, a bedrock settings blob is a full
+	// replacement rather than a per-field patch: the caller must set every
+	// field, except AccessKey, AccessKeySecret, and ExternalID, which
+	// mergeAIProviderSettings carries forward from the stored row when
+	// omitted. Omitting any other field clears it, so the checks below apply
+	// to the patch exactly as they would to what gets stored.
 	if req.Settings != nil && req.Settings.Bedrock != nil {
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
+		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
 	}
 	return validations
 }
@@ -383,6 +400,32 @@ func validateAIProviderBedrockMantleRegion(b AIProviderBedrockSettings) []Valida
 		}}
 	}
 	return nil
+}
+
+// validateAIProviderBedrockModels requires the model identifiers that the
+// invoke-model protocol substitutes into every upstream request. Without them
+// the provider cannot be constructed at runtime (see
+// config.AWSBedrock.Validate), so it would be skipped at gateway startup and
+// every request to it would 404. The mantle protocol forwards the client's
+// model unchanged and needs neither field.
+func validateAIProviderBedrockModels(b AIProviderBedrockSettings) []ValidationError {
+	if b.ResolvedProtocol() != AIProviderBedrockProtocolInvokeModel {
+		return nil
+	}
+	var validations []ValidationError
+	if b.Model == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.model",
+			Detail: "model is required for the invoke-model protocol",
+		})
+	}
+	if b.SmallFastModel == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.small_fast_model",
+			Detail: "small_fast_model is required for the invoke-model protocol",
+		})
+	}
+	return validations
 }
 
 func validateAIProviderRoleARN(roleARN string) []ValidationError {
@@ -509,7 +552,7 @@ func (c *Client) AIProviders(ctx context.Context) ([]AIProvider, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var providers []AIProvider
-	return providers, json.NewDecoder(res.Body).Decode(&providers)
+	return providers, ReadBodyAsJSON(res, &providers)
 }
 
 // AIProvider fetches a single AI provider by ID or name.
@@ -523,7 +566,7 @@ func (c *Client) AIProvider(ctx context.Context, idOrName string) (AIProvider, e
 		return AIProvider{}, ReadBodyAsError(res)
 	}
 	var provider AIProvider
-	return provider, json.NewDecoder(res.Body).Decode(&provider)
+	return provider, ReadBodyAsJSON(res, &provider)
 }
 
 // CreateAIProvider creates a new AI provider.
@@ -537,7 +580,7 @@ func (c *Client) CreateAIProvider(ctx context.Context, req CreateAIProviderReque
 		return AIProvider{}, ReadBodyAsError(res)
 	}
 	var provider AIProvider
-	return provider, json.NewDecoder(res.Body).Decode(&provider)
+	return provider, ReadBodyAsJSON(res, &provider)
 }
 
 // UpdateAIProvider partially updates an AI provider identified by
@@ -552,7 +595,7 @@ func (c *Client) UpdateAIProvider(ctx context.Context, idOrName string, req Upda
 		return AIProvider{}, ReadBodyAsError(res)
 	}
 	var provider AIProvider
-	return provider, json.NewDecoder(res.Body).Decode(&provider)
+	return provider, ReadBodyAsJSON(res, &provider)
 }
 
 // DeleteAIProvider soft-deletes an AI provider identified by ID or

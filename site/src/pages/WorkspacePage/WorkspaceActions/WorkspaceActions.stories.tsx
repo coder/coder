@@ -211,6 +211,15 @@ export const CancelHiddenForUser: Story = {
 	},
 };
 
+export const FavoriteHiddenForNonOwner: Story = {
+	args: {
+		workspace: Mocks.MockWorkspace,
+	},
+	parameters: {
+		user: Mocks.MockUserMember,
+	},
+};
+
 export const OpenDownloadLogs: Story = {
 	args: {
 		workspace: Mocks.MockWorkspace,

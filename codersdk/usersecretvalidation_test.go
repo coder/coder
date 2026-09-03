@@ -9,6 +9,70 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func TestValidateCreateUserSecretRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		req  codersdk.CreateUserSecretRequest
+		want []codersdk.ValidationError
+	}{
+		{
+			name: "Valid",
+			req: codersdk.CreateUserSecretRequest{
+				Name:     "github-token",
+				Value:    "ghp_xxxxxxxxxxxx",
+				EnvName:  "GITHUB_TOKEN",
+				FilePath: "~/.github-token",
+			},
+		},
+		{
+			name: "MissingValue",
+			req: codersdk.CreateUserSecretRequest{
+				Name:    "missing-value-secret",
+				EnvName: "MISSING_VALUE_SECRET",
+			},
+			want: []codersdk.ValidationError{{
+				Field:  "value",
+				Detail: "Value is required.",
+			}},
+		},
+		{
+			name: "MissingInjectionTarget",
+			req: codersdk.CreateUserSecretRequest{
+				Name:  "missing-target-secret",
+				Value: "value",
+			},
+			want: []codersdk.ValidationError{{
+				Field:  "env_name",
+				Detail: codersdk.UserSecretInjectionTargetRequiredDetail,
+			}},
+		},
+		{
+			name: "MultiInvalid",
+			req: codersdk.CreateUserSecretRequest{
+				EnvName:  "1TOKEN",
+				FilePath: "relative/path",
+			},
+			want: []codersdk.ValidationError{
+				{Field: "name", Detail: "Name is required."},
+				{Field: "value", Detail: "Value is required."},
+				{Field: "env_name", Detail: "must start with a letter or underscore, followed by letters, digits, or underscores"},
+				{Field: "file_path", Detail: "file path must start with ~/ or /"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := codersdk.ValidateCreateUserSecretRequest(tt.req)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestUserSecretNameValid(t *testing.T) {
 	t.Parallel()
 

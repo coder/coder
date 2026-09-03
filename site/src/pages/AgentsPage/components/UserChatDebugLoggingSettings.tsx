@@ -36,7 +36,7 @@ export const UserChatDebugLoggingSettings: FC<
 				Record debug logs for my chats
 			</h3>
 			<div className="flex items-center justify-between gap-4">
-				<div className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+				<div className="mt-0.5! m-0 flex-1 text-xs text-content-secondary">
 					{forcedByDeployment ? (
 						<p className="m-0">
 							An administrator has enabled debug logging for every chat in this

@@ -1,14 +1,17 @@
 package chatstate_test
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -99,6 +102,180 @@ func TestCreateChat_AllowsNonFinalUserMessage(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, res.InitialMessages, 2)
+}
+
+func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("local model remains selected", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		localModel := dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
+			OrganizationID: f.Org.ID,
+		})
+		promoted := promoteQueuedMessageWithModel(t, f, localModel.ID)
+		require.Equal(t, localModel.ID, promoted.ModelConfigID.UUID)
+	})
+
+	t.Run("foreign model falls back to local default", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		foreignOrg := dbgen.Organization(t, f.DB, database.Organization{})
+		foreignModel := dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
+			OrganizationID: foreignOrg.ID,
+			IsDefault:      true,
+		})
+		promoted := promoteQueuedMessageWithModel(t, f, foreignModel.ID)
+		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
+	})
+
+	t.Run("missing model falls back to local default", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		promoted := promoteQueuedMessageWithModel(t, f, uuid.New())
+		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
+	})
+
+	t.Run("disabled model falls back to local default", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		disabled := dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
+			OrganizationID: f.Org.ID,
+		})
+		setChatModelConfigEnabled(t, f.DB, disabled, false)
+		promoted := promoteQueuedMessageWithModel(t, f, disabled.ID)
+		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
+	})
+
+	t.Run("missing local default rejects promotion", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		setChatModelConfigEnabled(t, f.DB, f.Model, false)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		created := createTestChat(t, f)
+		machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+		queued := sendQueuedMessage(t, f, machine, "queued without default")
+		require.NotNil(t, queued.QueuedMessage)
+		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.FinishError(chatstate.FinishErrorInput{
+				LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"boom"}`), Valid: true},
+			})
+			return err
+		}))
+
+		err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+				QueuedMessageID: queued.QueuedMessage.ID,
+			})
+			return err
+		})
+		require.ErrorIs(t, err, chatstate.ErrNoDefaultChatModelConfig)
+		require.Equal(t, chatstate.StateE1, f.classify(ctx, t, created.Chat.ID))
+	})
+
+	t.Run("database error rejects promotion", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		created := createTestChat(t, f)
+		machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+		queued := sendQueuedMessage(t, f, machine, "queued database error")
+		require.NotNil(t, queued.QueuedMessage)
+		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.FinishError(chatstate.FinishErrorInput{
+				LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"boom"}`), Valid: true},
+			})
+			return err
+		}))
+
+		queryErr := xerrors.New("model query failed")
+		failingStore := &modelConfigErrorStore{Store: f.DB, err: queryErr}
+		machine = chatstate.NewChatMachine(failingStore, f.Pub, created.Chat.ID)
+		err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+				QueuedMessageID: queued.QueuedMessage.ID,
+			})
+			return err
+		})
+		require.ErrorIs(t, err, queryErr)
+		require.Equal(t, chatstate.StateE1, f.classify(ctx, t, created.Chat.ID))
+	})
+}
+
+type modelConfigErrorStore struct {
+	database.Store
+	err error
+}
+
+func (s *modelConfigErrorStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(store database.Store) error {
+		return fn(&modelConfigErrorStore{Store: store, err: s.err})
+	}, opts)
+}
+
+func (s *modelConfigErrorStore) GetEnabledChatModelConfigByID(
+	context.Context,
+	uuid.UUID,
+) (database.ChatModelConfig, error) {
+	return database.ChatModelConfig{}, s.err
+}
+
+func promoteQueuedMessageWithModel(
+	t *testing.T,
+	f *testFixture,
+	modelConfigID uuid.UUID,
+) database.ChatMessage {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	message := userTextMessage("queued model resolution", f.User.ID, modelConfigID)
+	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:        created.Chat.ID,
+		Content:       message.Content.RawMessage,
+		ModelConfigID: message.ModelConfigID,
+	})
+	require.NoError(t, err)
+	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.FinishError(chatstate.FinishErrorInput{
+			LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"boom"}`), Valid: true},
+		})
+		return err
+	}))
+
+	var result chatstate.PromoteQueuedMessageResult
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		var err error
+		result, err = tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+			QueuedMessageID: queued.ID,
+		})
+		return err
+	}))
+	require.NotNil(t, result.InsertedMessage)
+	promoted := requireChatMessageByID(ctx, t, f, result.InsertedMessage.ID)
+	require.True(t, promoted.ModelConfigID.Valid)
+	return promoted
+}
+
+func setChatModelConfigEnabled(
+	t *testing.T,
+	store database.Store,
+	config database.ChatModelConfig,
+	enabled bool,
+) {
+	t.Helper()
+	_, err := store.UpdateChatModelConfig(context.Background(), database.UpdateChatModelConfigParams{
+		ID:                   config.ID,
+		Model:                config.Model,
+		DisplayName:          config.DisplayName,
+		Enabled:              enabled,
+		IsDefault:            config.IsDefault,
+		ContextLimit:         config.ContextLimit,
+		CompressionThreshold: config.CompressionThreshold,
+		Options:              config.Options,
+		AIProviderID:         config.AIProviderID,
+	})
+	require.NoError(t, err)
 }
 
 // Input-specific rejection cases.
@@ -413,6 +590,36 @@ func TestSendMessageQueueCapRejectsQueueAppend(t *testing.T) {
 		"failed queue append must not bump queue_version")
 }
 
+func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	seeded := seedAOrA1(t, f, 0, "interrupt_cancels")
+	require.Equal(t, chatstate.StateA0, f.classify(ctx, t, seeded.chatID))
+
+	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+	var send chatstate.SendMessageResult
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		var err error
+		send, err = tx.SendMessage(chatstate.SendMessageInput{
+			Message:      userTextMessage("interrupt", f.User.ID, f.Model.ID),
+			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+		})
+		return err
+	}))
+
+	require.NotNil(t, send.QueuedMessage, "interrupt from A0 queues the user message")
+	require.Len(t, send.InsertedMessages, 1,
+		"the synthetic tool cancellation must be reported to callers")
+	cancel := send.InsertedMessages[0]
+	require.Equal(t, database.ChatMessageRoleTool, cancel.Role)
+	require.Equal(t, database.ChatMessageVisibilityBoth, cancel.Visibility)
+	parts, err := chatprompt.ParseContent(cancel)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.Equal(t, seeded.pendingToolCallID, parts[0].ToolCallID)
+}
+
 // TestEditMessageNonUserReturnsSentinel asserts that editing a
 // non-user message returns chatstate.ErrEditedMessageNotUser via
 // the TransitionError cause chain, and still matches the generic
@@ -459,6 +666,82 @@ func TestEditMessageNonUserReturnsSentinel(t *testing.T) {
 		"non-user edit returns ErrEditedMessageNotUser via TransitionError cause")
 	require.ErrorIs(t, editErr, chatstate.ErrTransitionNotAllowed,
 		"ErrEditedMessageNotUser still matches the generic transition sentinel")
+}
+
+func TestEditMessageInsertsSuffixMessages(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	target := userTextMessage("original prompt", f.User.ID, f.Model.ID)
+
+	var targetID int64
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		step, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages: []chatstate.Message{target},
+		})
+		if err != nil {
+			return err
+		}
+		require.Len(t, step.InsertedMessages, 1)
+		targetID = step.InsertedMessages[0].ID
+		return nil
+	}))
+
+	firstSuffix := userTextMessage("first notice", f.User.ID, f.Model.ID)
+	firstSuffix.Role = database.ChatMessageRoleSystem
+	secondSuffix := userTextMessage("second notice", f.User.ID, f.Model.ID)
+	secondSuffix.Role = database.ChatMessageRoleSystem
+	rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("edited prompt"),
+	})
+	require.NoError(t, err)
+
+	var result chatstate.EditMessageResult
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		result, err = tx.EditMessage(chatstate.EditMessageInput{
+			MessageID:      targetID,
+			SuffixMessages: []chatstate.Message{firstSuffix, secondSuffix},
+			CreatedBy:      f.User.ID,
+			Content:        rawContent,
+		})
+		return err
+	}))
+
+	require.Contains(t, result.DeletedMessageIDs, targetID)
+	require.Len(t, result.SuffixMessages, 2)
+	assertChatMessageText(t, result.SuffixMessages[0], "first notice")
+	assertChatMessageText(t, result.SuffixMessages[1], "second notice")
+	require.Greater(t, result.SuffixMessages[0].ID, result.ReplacementMessage.ID,
+		"the suffix messages must follow the replacement")
+	require.Greater(t, result.SuffixMessages[1].ID, result.SuffixMessages[0].ID,
+		"suffix message IDs must ascend with the input array")
+	_, err = f.DB.GetChatMessageByID(ctx, result.ReplacementMessage.ID)
+	require.NoError(t, err, "the replacement message must stay active")
+
+	// Reloading is what the generation path does, so the input order has to
+	// survive the round trip and not just the returned slice.
+	history, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID: created.Chat.ID,
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(history), 3)
+	tail := history[len(history)-3:]
+	require.Equal(t, []int64{
+		result.ReplacementMessage.ID,
+		result.SuffixMessages[0].ID,
+		result.SuffixMessages[1].ID,
+	}, []int64{tail[0].ID, tail[1].ID, tail[2].ID})
+	assertChatMessageText(t, tail[0], "edited prompt")
+	assertChatMessageText(t, tail[1], "first notice")
+	assertChatMessageText(t, tail[2], "second notice")
+
+	for _, message := range history {
+		require.NotEqual(t, targetID, message.ID,
+			"the edited message must not stay in active history")
+	}
 }
 
 // TestTransitionAbandon_RejectsUnowned verifies that calling Abandon

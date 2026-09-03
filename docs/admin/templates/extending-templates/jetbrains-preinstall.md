@@ -74,7 +74,7 @@ resource "coder_agent" "main" {
 If you are using Docker based workspaces, you can add the command to your Dockerfile:
 
 ```dockerfile
-FROM codercom/enterprise-base:ubuntu
+FROM codercom/example-base:ubuntu
 
 # JetBrains IDE installation (configurable)
 ARG IDE_CODE=IU

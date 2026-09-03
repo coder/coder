@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
@@ -17,11 +18,13 @@ const compilerPreset = reactCompilerPreset();
 compilerPreset.rolldown.filter = {
 	...compilerPreset.rolldown.filter,
 	id: {
+		// Keep in sync with targetDirs in scripts/check-compiler.mjs.
 		include: [/src\/pages\/AgentsPage\//, /src\/pages\/AIBridgePage\//],
 	},
 };
 
 const plugins: PluginOption[] = [
+	tailwindcss(),
 	react(),
 	babel({ presets: [compilerPreset] }),
 	checker({
@@ -43,15 +46,18 @@ export default defineConfig({
 	worker: {
 		format: "es",
 	},
-	publicDir: path.resolve(__dirname, "./static"),
+	publicDir: path.resolve(import.meta.dirname, "./static"),
 	build: {
-		outDir: path.resolve(__dirname, "./out"),
+		outDir: path.resolve(import.meta.dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
 		sourcemap: isProfilingBuild ? true : "hidden",
 		rolldownOptions: {
 			input: {
-				index: path.resolve(__dirname, "./index.html"),
-				serviceWorker: path.resolve(__dirname, "./src/serviceWorker.ts"),
+				index: path.resolve(import.meta.dirname, "./index.html"),
+				serviceWorker: path.resolve(
+					import.meta.dirname,
+					"./src/serviceWorker.ts",
+				),
 			},
 			output: {
 				entryFileNames: (chunkInfo) => {
@@ -61,8 +67,6 @@ export default defineConfig({
 				},
 				codeSplitting: {
 					groups: [
-						{ name: "mui", test: /@mui/ },
-						{ name: "emotion", test: /@emotion/ },
 						{ name: "monaco", test: /monaco-editor/ },
 						{ name: "xterm", test: /@xterm/ },
 						{ name: "emoji-mart", test: /emoji-mart/ },
@@ -156,58 +160,11 @@ export default defineConfig({
 				},
 		allowedHosts: [".coder", ".dev.coder.com"],
 	},
-	// Pre-bundle deps that Vite tends to discover late (deep MUI
-	// imports, Emotion). Without this, Vite re-optimizes mid-session
-	// which returns 504 "Outdated Optimize Dep" for every previously
-	// served chunk, cascading into dynamic import failures.
+	// Pre-bundle deps that Vite tends to discover late. Without this, Vite
+	// re-optimizes mid-session which returns 504 "Outdated Optimize Dep" for
+	// every previously served chunk, cascading into dynamic import failures.
 	optimizeDeps: {
 		include: [
-			"@emotion/cache",
-			"@emotion/css",
-			"@emotion/react",
-			"@emotion/react/jsx-runtime",
-			"@emotion/styled",
-			"@mui/material/Autocomplete",
-			"@mui/material/Card",
-			"@mui/material/CardActionArea",
-			"@mui/material/CardContent",
-			"@mui/material/Checkbox",
-			"@mui/material/Collapse",
-			"@mui/material/CssBaseline",
-			"@mui/material/Dialog",
-			"@mui/material/DialogActions",
-			"@mui/material/DialogContent",
-			"@mui/material/DialogContentText",
-			"@mui/material/DialogTitle",
-			"@mui/material/Divider",
-			"@mui/material/Drawer",
-			"@mui/material/FormControl",
-			"@mui/material/FormControlLabel",
-			"@mui/material/FormGroup",
-			"@mui/material/FormHelperText",
-			"@mui/material/FormLabel",
-			"@mui/material/InputAdornment",
-			"@mui/material/InputBase",
-			"@mui/material/Link",
-			"@mui/material/List",
-			"@mui/material/ListItem",
-			"@mui/material/ListItemText",
-			"@mui/material/Menu",
-			"@mui/material/MenuItem",
-			"@mui/material/MenuList",
-			"@mui/material/Radio",
-			"@mui/material/RadioGroup",
-			"@mui/material/Select",
-			"@mui/material/Skeleton",
-			"@mui/material/Snackbar",
-			"@mui/material/Stack",
-			"@mui/material/TableRow",
-			"@mui/material/TextField",
-			"@mui/material/ToggleButton",
-			"@mui/material/ToggleButtonGroup",
-			"@mui/material/styles",
-			"@mui/system/createTheme",
-			"@mui/system/useTheme",
 			// Discovered at runtime without this entry, triggering
 			// a mid-run dep re-optimization that breaks imports.
 			"@tanstack/react-query-devtools",
@@ -251,7 +208,7 @@ export default defineConfig({
 				extends: true,
 				plugins: [
 					storybookTest({
-						configDir: path.join(__dirname, ".storybook"),
+						configDir: path.join(import.meta.dirname, ".storybook"),
 					}),
 					{
 						name: "storybook-test-setup",

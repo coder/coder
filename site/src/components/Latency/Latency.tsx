@@ -38,7 +38,7 @@ export const Latency: FC<LatencyProps> = ({
 							className,
 						)}
 					>
-						<Spinner loading className={cn("!size-icon-xs", latencyColor)} />
+						<Spinner loading className={cn("size-icon-xs!", latencyColor)} />
 					</div>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Loading latency...</TooltipContent>
@@ -52,7 +52,7 @@ export const Latency: FC<LatencyProps> = ({
 				<TooltipTrigger asChild>
 					<CircleHelpIcon
 						aria-label="Latency not available"
-						className={cn("!size-icon-sm", latencyColor, className)}
+						className={cn("size-icon-sm!", latencyColor, className)}
 					/>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Latency not available</TooltipContent>

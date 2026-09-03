@@ -8,7 +8,7 @@ import {
 	deleteAIGatewayKeyMutation,
 } from "#/api/queries/aiGatewayKeys";
 import type { AIGatewayKey } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -43,6 +43,7 @@ const GatewayKeysPage: FC = () => {
 				isLoading={keysQuery.isLoading}
 				error={keysQuery.error}
 				showPaywall={showPaywall}
+				permissions={permissions}
 				onCreateKey={() => setIsCreateOpen(true)}
 				onDeleteKey={setKeyToDelete}
 			/>

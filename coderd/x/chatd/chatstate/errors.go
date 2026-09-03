@@ -49,6 +49,16 @@ var (
 	// wraps this sentinel.
 	ErrMessageQueueFull = xerrors.New("chat message queue is full")
 
+	// ErrNoDefaultChatModelConfig is returned when queued-message
+	// promotion cannot find an enabled default model in the chat organization.
+	ErrNoDefaultChatModelConfig = xerrors.New("no default chat model config is configured")
+
+	// ErrChatFileCapExceeded reports a [LinkFiles] cap rejection.
+	ErrChatFileCapExceeded = xerrors.New("chat attachment cap exceeded")
+
+	// ErrChatFileUnavailable reports a missing file passed to [LinkFiles].
+	ErrChatFileUnavailable = xerrors.New("chat attachment unavailable")
+
 	// ErrToolResultDuplicate is returned by [Tx.CompleteRequiresAction]
 	// when the same tool_call_id appears more than once in the
 	// submitted results.

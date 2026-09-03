@@ -14,6 +14,8 @@ const (
 	TransitionSetArchived             Transition = "SetArchived"
 	TransitionSendMessage             Transition = "SendMessage"
 	TransitionEditMessage             Transition = "EditMessage"
+	TransitionRequestCompaction       Transition = "RequestCompaction"
+	TransitionClearContext            Transition = "ClearContext"
 	TransitionDeleteQueuedMessage     Transition = "DeleteQueuedMessage"
 	TransitionPromoteQueuedMessage    Transition = "PromoteQueuedMessage"
 	TransitionInterrupt               Transition = "Interrupt"
@@ -44,6 +46,8 @@ var AllExecutionTransitions = []Transition{
 	TransitionSetArchived,
 	TransitionSendMessage,
 	TransitionEditMessage,
+	TransitionRequestCompaction,
+	TransitionClearContext,
 	TransitionDeleteQueuedMessage,
 	TransitionPromoteQueuedMessage,
 	TransitionInterrupt,
@@ -75,14 +79,19 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionCreateChat: {StateR0},
 	},
 	StateW: {
-		TransitionSetArchived: {StateXW},
-		TransitionSendMessage: {StateR0},
-		TransitionEditMessage: {StateR0},
+		TransitionSetArchived:       {StateXW},
+		TransitionSendMessage:       {StateR0},
+		TransitionEditMessage:       {StateR0},
+		TransitionRequestCompaction: {StateR0},
+		TransitionClearContext:      {StateW},
+		TransitionFinishError:       {StateE0},
 	},
 	StateE0: {
-		TransitionSetArchived: {StateXE0},
-		TransitionSendMessage: {StateR0},
-		TransitionEditMessage: {StateR0},
+		TransitionSetArchived:       {StateXE0},
+		TransitionSendMessage:       {StateR0},
+		TransitionEditMessage:       {StateR0},
+		TransitionRequestCompaction: {StateR0},
+		TransitionClearContext:      {StateW},
 	},
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
@@ -90,6 +99,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1},
 		TransitionPromoteQueuedMessage: {StateR0, StateR1},
+		TransitionRequestCompaction:    {StateR1},
 	},
 	StateR0: {
 		TransitionSendMessage:             {StateR1, StateI1},

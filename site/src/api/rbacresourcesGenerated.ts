@@ -73,6 +73,13 @@ export const RBACResourceActions: Partial<
 		share: "share a chat with other users or groups",
 		update: "update chat title or settings",
 	},
+	chat_model_config: {
+		create: "create a new chat model config",
+		delete: "delete a chat model config",
+		read: "read chat model configs",
+		share: "share a chat model config with other users or groups",
+		update: "update a chat model config",
+	},
 	connection_log: {
 		read: "read connection logs",
 		update: "upsert connection log entries",
@@ -119,6 +126,13 @@ export const RBACResourceActions: Partial<
 		create: "create a license",
 		delete: "delete license",
 		read: "read licenses",
+	},
+	mcp_server_config: {
+		create: "create a new MCP server config",
+		delete: "delete MCP server config",
+		read: "read MCP server config",
+		share: "share MCP server config with other users or groups",
+		update: "update MCP server config",
 	},
 	notification_message: {
 		create: "create notification messages",

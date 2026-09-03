@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
@@ -35,6 +36,8 @@ type CreateChatInput struct {
 	DynamicTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
 	InitialMessages   []Message
+	// FileIDs are linked atomically with the initial messages.
+	FileIDs []uuid.UUID
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -61,6 +64,31 @@ func CreateChat(
 	publisher Publisher,
 	input CreateChatInput,
 ) (CreateChatResult, error) {
+	return insertChat(ctx, store, publisher, uuid.NullUUID{}, input)
+}
+
+// CreateChatWithID creates a chat using a caller-minted ID so
+// admission-time work can reference the chat before it exists.
+func CreateChatWithID(
+	ctx context.Context,
+	store database.Store,
+	publisher Publisher,
+	chatID uuid.UUID,
+	input CreateChatInput,
+) (CreateChatResult, error) {
+	if chatID == uuid.Nil {
+		return CreateChatResult{}, xerrors.New("chatstate: CreateChatWithID called with nil chat ID")
+	}
+	return insertChat(ctx, store, publisher, uuid.NullUUID{UUID: chatID, Valid: true}, input)
+}
+
+func insertChat(
+	ctx context.Context,
+	store database.Store,
+	publisher Publisher,
+	chatID uuid.NullUUID,
+	input CreateChatInput,
+) (CreateChatResult, error) {
 	if store == nil {
 		return CreateChatResult{}, xerrors.New("chatstate: CreateChat called with nil store")
 	}
@@ -78,6 +106,7 @@ func CreateChat(
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			ID:                chatID,
 			OrganizationID:    input.OrganizationID,
 			OwnerID:           input.OwnerID,
 			WorkspaceID:       input.WorkspaceID,
@@ -105,13 +134,16 @@ func CreateChat(
 		if err != nil {
 			return xerrors.Errorf("insert initial messages: %w", err)
 		}
+		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs); err != nil {
+			return err
+		}
 		refreshed, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("reload chat after initial messages: %w", err)
 		}
 		result = CreateChatResult{
 			Chat:            refreshed,
-			InitialMessages: inserted,
+			InitialMessages: fromInsertedRows(inserted),
 		}
 		if err := buffer.Publish(
 			coderdpubsub.ChatStateUpdateChannel(refreshed.ID),
@@ -141,7 +173,14 @@ func CreateChat(
 // applyExecutionStateUpdate is a small adapter so transition methods
 // do not have to repeat the UpdateChatExecutionState boilerplate.
 // The state machine writes status, archived, last_error, ownership
-// identifiers, and the requires-action deadline as one atomic update.
+// identifiers, the requires-action deadline, and the manual
+// compaction request marker as one atomic update.
+//
+// CompactionRequestedAt is one-shot by construction: leaving it at
+// its zero value clears any pending manual compaction request, so a
+// stale request can never replay on a later turn. Transitions that
+// must keep a pending request alive (archive toggles, ownership
+// changes, queue appends) explicitly carry the current value forward.
 type executionStateUpdate struct {
 	Status                   database.ChatStatus
 	Archived                 bool
@@ -149,6 +188,8 @@ type executionStateUpdate struct {
 	RunnerID                 uuid.NullUUID
 	LastError                pqtype.NullRawMessage
 	RequiresActionDeadlineAt sql.NullTime
+	CompactionRequestedAt    sql.NullTime
+	GrantHistoryEpoch        bool
 }
 
 func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error) {
@@ -160,6 +201,8 @@ func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error)
 		RunnerID:                 u.RunnerID,
 		LastError:                u.LastError,
 		RequiresActionDeadlineAt: u.RequiresActionDeadlineAt,
+		CompactionRequestedAt:    u.CompactionRequestedAt,
+		GrantHistoryEpoch:        u.GrantHistoryEpoch,
 	})
 }
 
@@ -173,7 +216,7 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 	if err != nil {
 		return nil, xerrors.Errorf("insert messages: %w", err)
 	}
-	return inserted, nil
+	return fromInsertedRows(inserted), nil
 }
 
 // clearQueue deletes all queued messages on the chat and returns the
@@ -236,23 +279,55 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 		ModelConfigID:   m.ModelConfigID,
 		ReasoningEffort: m.ReasoningEffort,
 		CreatedBy:       createdBy,
-		APIKeyID:        m.APIKeyID,
 	})
 }
 
-// messageFromQueuedRow synthesizes a Message from a stored queued row,
-// suitable for promoting into active history.
-func messageFromQueuedRow(q database.ChatQueuedMessage) Message {
+func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueuedMessage) (Message, error) {
+	modelConfigID, err := tx.resolveQueuedMessageModelConfigID(chat, queued)
+	if err != nil {
+		return Message{}, err
+	}
 	return Message{
 		Role:            database.ChatMessageRoleUser,
-		Content:         pqtype.NullRawMessage{RawMessage: q.Content, Valid: q.Content != nil},
+		Content:         pqtype.NullRawMessage{RawMessage: queued.Content, Valid: queued.Content != nil},
 		Visibility:      database.ChatMessageVisibilityBoth,
-		ModelConfigID:   q.ModelConfigID,
-		ReasoningEffort: q.ReasoningEffort,
-		CreatedBy:       uuid.NullUUID{UUID: q.CreatedBy, Valid: true},
+		ModelConfigID:   modelConfigID,
+		ReasoningEffort: queued.ReasoningEffort,
+		CreatedBy:       uuid.NullUUID{UUID: queued.CreatedBy, Valid: true},
 		ContentVersion:  chatprompt.CurrentContentVersion,
-		APIKeyID:        q.APIKeyID,
+	}, nil
+}
+
+func (tx *Tx) resolveQueuedMessageModelConfigID(
+	chat database.Chat,
+	queued database.ChatQueuedMessage,
+) (uuid.NullUUID, error) {
+	//nolint:gocritic // Queue promotion needs daemon access to deployment model configuration.
+	ctx := dbauthz.AsChatd(tx.ctx)
+	if queued.ModelConfigID.Valid {
+		config, err := tx.store.GetEnabledChatModelConfigByID(ctx, queued.ModelConfigID.UUID)
+		if err == nil && config.OrganizationID == chat.OrganizationID {
+			return queued.ModelConfigID, nil
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return uuid.NullUUID{}, xerrors.Errorf(
+				"get chat model config %s: %w",
+				queued.ModelConfigID.UUID,
+				err,
+			)
+		}
 	}
+
+	configs, err := tx.store.GetEnabledChatModelConfigsByOrganization(ctx, chat.OrganizationID)
+	if err != nil {
+		return uuid.NullUUID{}, xerrors.Errorf("get default chat model config: %w", err)
+	}
+	for _, config := range configs {
+		if config.ChatModelConfig.IsDefault {
+			return uuid.NullUUID{UUID: config.ChatModelConfig.ID, Valid: true}, nil
+		}
+	}
+	return uuid.NullUUID{}, ErrNoDefaultChatModelConfig
 }
 
 // SetArchivedInput configures [Tx.SetArchived].
@@ -287,6 +362,7 @@ func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
 		RunnerID:                 chat.RunnerID,
 		LastError:                chat.LastError,
 		RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
+		CompactionRequestedAt:    chat.CompactionRequestedAt,
 	}); err != nil {
 		return SetArchivedResult{}, xerrors.Errorf("update archive: %w", err)
 	}
@@ -347,48 +423,48 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	// Idle / empty-queue error: insert directly into history, clear
 	// last_error, leave queue alone.
 	case StateW, StateE0:
-		return tx.sendMessageDirect(chat, input.Message)
+		return tx.sendMessageDirect(chat, input)
 
 	// Error-with-queue: append to tail, promote previous head into
 	// history, clear last_error.
 	case StateE1:
-		return tx.sendMessageE1(chat, input.Message)
+		return tx.sendMessageE1(chat, input)
 
 	// Running with no queue.
 	case StateR0:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input.Message, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
+			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 		}
-		return tx.sendMessageQueueAndSetStatus(chat, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Running with queue.
 	case StateR1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input.Message, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
+			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 		}
-		return tx.sendMessageQueueAndSetStatus(chat, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Interrupting: queue regardless of busy behavior.
 	case StateI0, StateI1:
-		return tx.sendMessageQueueAndSetStatus(chat, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Requires-action: queue keeps A*; interrupt cancels pending
 	// dynamic calls and resumes in running.
 	case StateA0, StateA1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageInterruptRequiresAction(chat, input.Message)
+			return tx.sendMessageInterruptRequiresAction(chat, input)
 		}
-		return tx.sendMessageQueueAndSetStatus(chat, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 	}
 	return SendMessageResult{}, newTransitionError(TransitionSendMessage, from, "unhandled state in SendMessage")
 }
 
-func (tx *Tx) sendMessageDirect(chat database.Chat, m Message) (SendMessageResult, error) {
+func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by new user message", false)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	inserted, err := tx.insertMessages(append(cancels, m))
+	inserted, err := tx.insertMessages(append(cancels, input.Message))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert direct user message: %w", err)
 	}
@@ -407,8 +483,8 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, m Message) (SendMessageResul
 	}, nil
 }
 
-func (tx *Tx) sendMessageE1(chat database.Chat, m Message) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, m)
+func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -420,7 +496,10 @@ func (tx *Tx) sendMessageE1(chat database.Chat, m Message) (SendMessageResult, e
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	promoted := messageFromQueuedRow(head)
+	promoted, err := tx.messageFromQueuedRow(chat, head)
+	if err != nil {
+		return SendMessageResult{}, xerrors.Errorf("resolve promoted queued head: %w", err)
+	}
 	inserted, err := tx.insertMessages(append(cancels, promoted))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
@@ -449,15 +528,18 @@ func (tx *Tx) sendMessageE1(chat database.Chat, m Message) (SendMessageResult, e
 
 func (tx *Tx) sendMessageQueueAndSetStatus(
 	chat database.Chat,
-	m Message,
+	input SendMessageInput,
 	status database.ChatStatus,
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, m)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
+	// Queueing does not start a new turn, so a pending manual
+	// compaction request stays live: the in-flight compaction
+	// commits first and the queued message is promoted afterwards.
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   status,
 		Archived:                 false,
@@ -465,6 +547,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 		RunnerID:                 chat.RunnerID,
 		LastError:                lastError,
 		RequiresActionDeadlineAt: deadline,
+		CompactionRequestedAt:    chat.CompactionRequestedAt,
 	}); err != nil {
 		return SendMessageResult{}, xerrors.Errorf("update status: %w", err)
 	}
@@ -473,25 +556,36 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	}, nil
 }
 
-func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, m Message) (SendMessageResult, error) {
+func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by user message", true)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	if _, err := tx.insertMessages(cancels); err != nil {
+	inserted, err := tx.insertMessages(cancels)
+	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert requires-action cancellations: %w", err)
 	}
-	return tx.sendMessageQueueAndSetStatus(chat, m, database.ChatStatusRunning, chat.LastError, sql.NullTime{})
+	result, err := tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusRunning, chat.LastError, sql.NullTime{})
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+	// Report the cancellation rows so API clients receive every
+	// user-visible message this send inserted.
+	result.InsertedMessages = inserted
+	return result, nil
 }
 
 // EditMessageInput configures [Tx.EditMessage].
 type EditMessageInput struct {
-	MessageID               int64
+	MessageID int64
+	// SuffixMessages are inserted after the replacement message in the
+	// same transaction, so a later edit's suffix truncation cleans them
+	// up together with the rest of the discarded turn.
+	SuffixMessages          []Message
 	CreatedBy               uuid.UUID
 	Content                 pqtype.NullRawMessage
 	ModelConfigIDOverride   uuid.NullUUID
 	ReasoningEffortOverride database.NullChatReasoningEffort
-	APIKeyID                sql.NullString
 }
 
 // EditMessageResult is returned by [Tx.EditMessage].
@@ -500,6 +594,7 @@ type EditMessageResult struct {
 	DeletedMessageIDs       []int64
 	DeletedQueuedMessageIDs []int64
 	CancellationMessages    []database.ChatMessage
+	SuffixMessages          []database.ChatMessage
 }
 
 // EditMessage replaces an earlier user message and discards the
@@ -553,7 +648,6 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	}); err != nil {
 		return EditMessageResult{}, xerrors.Errorf("soft-delete suffix: %w", err)
 	}
-
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by message edit", false)
 	if err != nil {
 		return EditMessageResult{}, err
@@ -571,10 +665,6 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	if input.ReasoningEffortOverride.Valid {
 		reasoningEffort = input.ReasoningEffortOverride
 	}
-	apiKeyID := input.APIKeyID
-	if !apiKeyID.Valid {
-		return EditMessageResult{}, xerrors.Errorf("api_key_id is required")
-	}
 	replacement := Message{
 		Role:            database.ChatMessageRoleUser,
 		Content:         input.Content,
@@ -583,7 +673,6 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		ReasoningEffort: reasoningEffort,
 		CreatedBy:       uuid.NullUUID{UUID: input.CreatedBy, Valid: true},
 		ContentVersion:  chatprompt.CurrentContentVersion,
-		APIKeyID:        apiKeyID,
 	}
 	insertedReplacement, err := tx.insertMessages([]Message{replacement})
 	if err != nil {
@@ -592,6 +681,10 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	var replacementRow database.ChatMessage
 	if len(insertedReplacement) == 1 {
 		replacementRow = insertedReplacement[0]
+	}
+	insertedSuffix, err := tx.insertMessages(input.SuffixMessages)
+	if err != nil {
+		return EditMessageResult{}, xerrors.Errorf("insert edit suffix messages: %w", err)
 	}
 
 	deletedQueuedIDs, err := tx.clearQueue()
@@ -614,7 +707,100 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		DeletedMessageIDs:       deletedIDs,
 		DeletedQueuedMessageIDs: deletedQueuedIDs,
 		CancellationMessages:    cancellationMessages,
+		SuffixMessages:          insertedSuffix,
 	}, nil
+}
+
+// RequestCompactionInput is intentionally empty. The compaction turn
+// derives AI Gateway attribution from the owner's synthetic API key,
+// so the request carries no caller input.
+type RequestCompactionInput struct{}
+
+// RequestCompactionResult is returned by [Tx.RequestCompaction].
+type RequestCompactionResult struct {
+	Chat database.Chat
+}
+
+// RequestCompaction records a manual compaction request, clears any
+// prior error, and hands ownership off to a worker. The transition
+// changes no history, so the previous runner cannot detect the work
+// from its existing running snapshot. Clearing ownership makes
+// ChatMachine.Update publish an ownership hint for worker acquisition.
+//
+// The compaction turn gets the same fresh history epoch a history
+// change would grant: a full retry budget regardless of how the
+// previous turn spent its own, and message part episode keys that
+// cannot collide with episodes the failed turn's replica retains.
+func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResult, error) {
+	_, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
+	if err != nil {
+		return RequestCompactionResult{}, err
+	}
+	now, err := tx.store.GetDatabaseNow(tx.ctx)
+	if err != nil {
+		return RequestCompactionResult{}, xerrors.Errorf("get db now: %w", err)
+	}
+	updated, err := tx.applyExecutionState(executionStateUpdate{
+		Status:                   database.ChatStatusRunning,
+		Archived:                 false,
+		WorkerID:                 uuid.NullUUID{},
+		RunnerID:                 uuid.NullUUID{},
+		LastError:                pqtype.NullRawMessage{},
+		RequiresActionDeadlineAt: sql.NullTime{},
+		CompactionRequestedAt:    sql.NullTime{Time: now, Valid: true},
+		GrantHistoryEpoch:        true,
+	})
+	if err != nil {
+		return RequestCompactionResult{}, xerrors.Errorf("set running: %w", err)
+	}
+	return RequestCompactionResult{Chat: updated}, nil
+}
+
+// ClearContextInput configures [Tx.ClearContext]. Messages carries
+// the boundary rows built by chatd; chatstate requires a non-empty
+// batch so the insert trigger grants the fresh history epoch.
+type ClearContextInput struct {
+	Messages []Message
+}
+
+// ClearContextResult is returned by [Tx.ClearContext].
+type ClearContextResult struct {
+	Chat             database.Chat
+	InsertedMessages []database.ChatMessage
+}
+
+// ClearContext commits a synchronous context reset: it inserts the
+// caller-built boundary rows, clears any stored error and pending
+// compaction request, preserves ownership, and lands in waiting. No
+// worker turn is needed; the message insert trigger advances
+// history_version and resets the retry budget.
+func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionClearContext)
+	if err != nil {
+		return ClearContextResult{}, err
+	}
+	if len(input.Messages) == 0 {
+		return ClearContextResult{}, newTransitionError(
+			TransitionClearContext, from,
+			"ClearContext requires boundary messages",
+		)
+	}
+	inserted, err := tx.insertMessages(input.Messages)
+	if err != nil {
+		return ClearContextResult{}, xerrors.Errorf("insert clear boundary messages: %w", err)
+	}
+	updated, err := tx.applyExecutionState(executionStateUpdate{
+		Status:                   database.ChatStatusWaiting,
+		Archived:                 false,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
+		LastError:                pqtype.NullRawMessage{},
+		RequiresActionDeadlineAt: sql.NullTime{},
+	})
+	if err != nil {
+		return ClearContextResult{}, xerrors.Errorf("set waiting: %w", err)
+	}
+	return ClearContextResult{Chat: updated, InsertedMessages: inserted}, nil
 }
 
 // DeleteQueuedMessageInput configures [Tx.DeleteQueuedMessage].
@@ -726,7 +912,10 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, err
 	}
-	promotedMsg := messageFromQueuedRow(target)
+	promotedMsg, err := tx.messageFromQueuedRow(chat, target)
+	if err != nil {
+		return PromoteQueuedMessageResult{}, xerrors.Errorf("resolve promoted queued message: %w", err)
+	}
 	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("insert promoted queued message: %w", err)
@@ -833,9 +1022,10 @@ type ToolResultInput struct {
 
 // CompleteRequiresActionInput configures [Tx.CompleteRequiresAction].
 type CompleteRequiresActionInput struct {
-	CreatedBy     uuid.UUID
-	ModelConfigID uuid.UUID
-	Results       []ToolResultInput
+	CreatedBy      uuid.UUID
+	ModelConfigID  uuid.UUID
+	Results        []ToolResultInput
+	SuffixMessages []Message
 }
 
 // CompleteRequiresActionResult is returned by [Tx.CompleteRequiresAction].
@@ -855,41 +1045,11 @@ func (tx *Tx) CompleteRequiresAction(input CompleteRequiresActionInput) (Complet
 	if err != nil {
 		return CompleteRequiresActionResult{}, err
 	}
-	submitted := make(map[string]ToolResultInput, len(input.Results))
-	for _, r := range input.Results {
-		if _, dup := submitted[r.ToolCallID]; dup {
-			return CompleteRequiresActionResult{}, newTransitionErrorWithCause(
-				TransitionCompleteRequiresAction, from,
-				&ToolResultValidationError{Cause: ErrToolResultDuplicate, ToolCallID: r.ToolCallID},
-				"duplicate tool_call_id submitted",
-			)
-		}
-		if !json.Valid(r.Output) {
-			return CompleteRequiresActionResult{}, newTransitionErrorWithCause(
-				TransitionCompleteRequiresAction, from,
-				&ToolResultValidationError{Cause: ErrToolResultInvalidJSON, ToolCallID: r.ToolCallID},
-				"tool result output is not valid JSON",
-			)
-		}
-		submitted[r.ToolCallID] = r
-	}
-	for id := range pending {
-		if _, ok := submitted[id]; !ok {
-			return CompleteRequiresActionResult{}, newTransitionErrorWithCause(
-				TransitionCompleteRequiresAction, from,
-				&ToolResultValidationError{Cause: ErrToolResultMissing, ToolCallID: id},
-				"submitted tool results do not match pending tool calls",
-			)
-		}
-	}
-	for id := range submitted {
-		if _, ok := pending[id]; !ok {
-			return CompleteRequiresActionResult{}, newTransitionErrorWithCause(
-				TransitionCompleteRequiresAction, from,
-				&ToolResultValidationError{Cause: ErrToolResultUnexpected, ToolCallID: id},
-				"submitted tool_call_id does not match a pending dynamic tool call",
-			)
-		}
+	if invalid := ValidateToolResults(input.Results, pending); invalid != nil {
+		return CompleteRequiresActionResult{}, newTransitionErrorWithCause(
+			TransitionCompleteRequiresAction, from, invalid,
+			toolResultTransitionMessage(invalid.Cause),
+		)
 	}
 	messages := make([]Message, 0, len(input.Results))
 	for _, r := range input.Results {
@@ -913,7 +1073,7 @@ func (tx *Tx) CompleteRequiresAction(input CompleteRequiresActionInput) (Complet
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
 	}
-	inserted, err := tx.insertMessages(messages)
+	inserted, err := tx.insertMessages(append(messages, input.SuffixMessages...))
 	if err != nil {
 		return CompleteRequiresActionResult{}, xerrors.Errorf("insert tool results: %w", err)
 	}
@@ -930,6 +1090,21 @@ func (tx *Tx) CompleteRequiresAction(input CompleteRequiresActionInput) (Complet
 	return CompleteRequiresActionResult{
 		InsertedMessages: inserted,
 	}, nil
+}
+
+func toolResultTransitionMessage(cause error) string {
+	switch {
+	case errors.Is(cause, ErrToolResultDuplicate):
+		return "duplicate tool_call_id submitted"
+	case errors.Is(cause, ErrToolResultInvalidJSON):
+		return "tool result output is not valid JSON"
+	case errors.Is(cause, ErrToolResultMissing):
+		return "submitted tool results do not match pending tool calls"
+	case errors.Is(cause, ErrToolResultUnexpected):
+		return "submitted tool_call_id does not match a pending dynamic tool call"
+	default:
+		return "submitted tool results are invalid"
+	}
 }
 
 // AcquireInput configures [Tx.Acquire].
@@ -962,6 +1137,7 @@ func (tx *Tx) Acquire(input AcquireInput) (AcquireResult, error) {
 		RunnerID:                 uuid.NullUUID{UUID: input.RunnerID, Valid: true},
 		LastError:                chat.LastError,
 		RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
+		CompactionRequestedAt:    chat.CompactionRequestedAt,
 	}); err != nil {
 		return AcquireResult{}, xerrors.Errorf("set ownership: %w", err)
 	}
@@ -1005,6 +1181,7 @@ func (tx *Tx) Abandon(_ AbandonInput) (AbandonResult, error) {
 		RunnerID:                 uuid.NullUUID{},
 		LastError:                chat.LastError,
 		RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
+		CompactionRequestedAt:    chat.CompactionRequestedAt,
 	}); err != nil {
 		return AbandonResult{}, xerrors.Errorf("clear ownership: %w", err)
 	}
@@ -1077,6 +1254,11 @@ func (tx *Tx) RecordRetryState(input RecordRetryStateInput) (RecordRetryStateRes
 // CommitStepInput configures [Tx.CommitStep].
 type CommitStepInput struct {
 	Messages []Message
+	// ConsumeCompactionRequest clears the one-shot manual compaction
+	// marker atomically with the committed step. Compaction commits
+	// set this so a request is consumed exactly once and never
+	// replays on a later turn.
+	ConsumeCompactionRequest bool
 }
 
 // CommitStepResult is returned by [Tx.CommitStep].
@@ -1087,7 +1269,7 @@ type CommitStepResult struct {
 // CommitStep stores one durable message suffix while remaining
 // running.
 func (tx *Tx) CommitStep(input CommitStepInput) (CommitStepResult, error) {
-	_, from, err := tx.requireFromAllowed(TransitionCommitStep)
+	chat, from, err := tx.requireFromAllowed(TransitionCommitStep)
 	if err != nil {
 		return CommitStepResult{}, err
 	}
@@ -1100,6 +1282,19 @@ func (tx *Tx) CommitStep(input CommitStepInput) (CommitStepResult, error) {
 	inserted, err := tx.insertMessages(input.Messages)
 	if err != nil {
 		return CommitStepResult{}, xerrors.Errorf("insert commit step messages: %w", err)
+	}
+	if input.ConsumeCompactionRequest && chat.CompactionRequestedAt.Valid {
+		if _, err := tx.applyExecutionState(executionStateUpdate{
+			Status:                   chat.Status,
+			Archived:                 chat.Archived,
+			WorkerID:                 chat.WorkerID,
+			RunnerID:                 chat.RunnerID,
+			LastError:                chat.LastError,
+			RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
+			CompactionRequestedAt:    sql.NullTime{},
+		}); err != nil {
+			return CommitStepResult{}, xerrors.Errorf("consume compaction request: %w", err)
+		}
 	}
 	return CommitStepResult{
 		InsertedMessages: inserted,
@@ -1211,7 +1406,10 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("get queue head: %w", err)
 	}
-	promotedMsg := messageFromQueuedRow(head)
+	promotedMsg, err := tx.messageFromQueuedRow(chat, head)
+	if err != nil {
+		return FinishInterruptionResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
+	}
 	insertedHead, err := tx.insertMessages([]Message{promotedMsg})
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
@@ -1243,7 +1441,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	}, nil
 }
 
-// FinishTurnInput is intentionally empty.
+// FinishTurnInput configures [Tx.FinishTurn].
 type FinishTurnInput struct{}
 
 // FinishTurnResult is returned by [Tx.FinishTurn].
@@ -1281,7 +1479,10 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
-	promotedMsg := messageFromQueuedRow(head)
+	promotedMsg, err := tx.messageFromQueuedRow(chat, head)
+	if err != nil {
+		return FinishTurnResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
+	}
 	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
@@ -1322,6 +1523,7 @@ type FinishErrorInput struct {
 type FinishErrorResult struct{}
 
 // FinishError parks the chat in error with the supplied last_error.
+// It is allowed when an unarchived chat is waiting or running.
 func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionFinishError)
 	if err != nil {

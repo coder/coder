@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/user"
@@ -57,6 +58,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/aibridge"
+	aibridgemetrics "github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -64,6 +66,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/authlink"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
@@ -93,7 +96,6 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/updatecheck"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/webpush"
@@ -114,6 +116,7 @@ import (
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
+	"github.com/coder/safedial"
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
@@ -444,7 +447,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			if vals.AccessURL.String() != "" &&
-				!(vals.AccessURL.Scheme == "http" || vals.AccessURL.Scheme == "https") {
+				(vals.AccessURL.Scheme != "http" && vals.AccessURL.Scheme != "https") {
 				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
 			}
 
@@ -730,6 +733,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
+			mcpAllowedPrivateCIDRs := make([]netip.Prefix, 0, len(vals.MCPAllowedPrivateCIDRs))
+			for _, cidr := range vals.MCPAllowedPrivateCIDRs {
+				prefix, err := safedial.ParseAllowedPrefix(cidr)
+				if err != nil {
+					return xerrors.Errorf("parse MCP allowed private CIDR %q: %w", cidr, err)
+				}
+				mcpAllowedPrivateCIDRs = append(mcpAllowedPrivateCIDRs, prefix)
+			}
+
 			// Resolve this replica's cluster host: the explicit Cluster.Host,
 			// else the DERP relay host for older HA deployments that predate the
 			// setting. Used as the NATS cluster route host and, when an IP, the
@@ -767,6 +779,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
+				MCPAllowedPrivateCIDRs:      mcpAllowedPrivateCIDRs,
 				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				UserQuietHoursScheduleStore: &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{},
 				SSHConfig:                   sshConfigResponse,
@@ -972,9 +985,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			options.ExternalAuthConfigs, err = externalauth.ConvertConfig(
+				ctx,
+				logger,
 				oauthInstrument,
 				mergedExternalAuthProviders,
 				vals.AccessURL.Value(),
+				httpClient,
 			)
 			if err != nil {
 				return xerrors.Errorf("convert external auth config: %w", err)
@@ -997,7 +1013,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// Manage push notifications.
-			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
+			webpusher, err := webpush.New(ctx, new(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
 			if err != nil {
 				options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
 				webpusher = &webpush.NoopWebpusher{
@@ -1137,10 +1153,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// nolint:gocritic // We need to run the manager in a notifier context.
 			notificationsManager.Run(dbauthz.AsNotifier(ctx))
 
-			// Run report generator to distribute periodic reports.
-			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
-			defer notificationReportGenerator.Close()
-
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have its own close functions. This is cleaner
 			// than abstracting the Coder API itself.
@@ -1169,6 +1181,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Must run after newAPI so options.Database is dbcrypt-wrapped.
 			coderd.BackfillBedrockProviderType(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
 
+			// Run report generator to distribute periodic reports.
+			// Must run after newAPI so prices and providers are initialized.
+			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+			defer notificationReportGenerator.Close()
+
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
 			// crossing the gated /api/v2/ai-gateway HTTP route. The HTTP route
@@ -1180,8 +1197,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// TODO(deprecation): Remove "coder_aibridged_" in v2.37.
 				// See AIGOV-447:
 				// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
-				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, "coder_ai_gateway_", "coder_aibridged_")
+				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, aibridgemetrics.PrometheusMetricPrefix, "coder_aibridged_")
 				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
+				costControlReg := prometheus.WrapRegistererWithPrefix("coder_ai_gateway_", coderAPI.PrometheusRegistry)
+				coderAPI.AIGatewayServerMetrics = aibridgedserver.NewMetrics(costControlReg)
+				if vals.Prometheus.Enable {
+					budgetPeriod := codersdk.NewAIBudgetPeriodFromString(vals.AI.BridgeConfig.BudgetPeriod)
+					closeBlockedUsersFunc := coderAPI.AIGatewayServerMetrics.StartBlockedUsersCollector(
+						ctx, logger.Named("aigateway_cost_control_metrics"), quartz.NewReal(),
+						coderAPI.Database, budgetPeriod, 0,
+					)
+					defer closeBlockedUsersFunc()
+				}
 				var unsubscribeProviderReload func()
 				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
 				if err != nil {
@@ -1197,7 +1224,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if vals.Prometheus.Enable {
 				// Agent metrics require reference to the tailnet coordinator, so must be initiated after Coder API.
-				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, logger, options.PrometheusRegistry, coderAPI.Database, &coderAPI.TailnetCoordinator, coderAPI.DERPMap, coderAPI.Options.AgentInactiveDisconnectTimeout, 0)
+				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, logger, options.PrometheusRegistry, coderAPI.Database, &coderAPI.TailnetCoordinator, coderAPI.DERPMap, coderAPI.AgentInactiveDisconnectTimeout, 0)
 				if err != nil {
 					return xerrors.Errorf("register agents prometheus metric: %w", err)
 				}
@@ -2910,7 +2937,7 @@ func ConfigureHTTPServers(logger slog.Logger, inv *serpent.Invocation, cfg *code
 	}
 
 	if cfg.AccessURL.String() != "" &&
-		!(cfg.AccessURL.Scheme == "http" || cfg.AccessURL.Scheme == "https") {
+		(cfg.AccessURL.Scheme != "http" && cfg.AccessURL.Scheme != "https") {
 		return nil, xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
 	}
 
@@ -3110,6 +3137,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.RevokeURL = v.Value
 		case "VALIDATE_URL":
 			provider.ValidateURL = v.Value
+		case "REDIRECT_URL":
+			provider.RedirectURL = v.Value
 		case "REGEX":
 			provider.Regex = v.Value
 		case "DEVICE_FLOW":

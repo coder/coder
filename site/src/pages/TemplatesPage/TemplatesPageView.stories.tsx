@@ -3,7 +3,6 @@ import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockTemplate,
 	MockTemplateExample,
@@ -11,8 +10,9 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { pixelWithTablet } from "#/testHelpers/pixel";
 import { withDashboardProvider } from "#/testHelpers/storybook";
-import type { TemplateFilterState } from "./TemplatesPage";
+import type { TemplateFilterState } from "./TemplatesFilter";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({
@@ -27,7 +27,7 @@ const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({
 const meta: Meta<typeof TemplatesPageView> = {
 	title: "pages/TemplatesPage",
 	decorators: [withDashboardProvider],
-	parameters: { chromatic: chromaticWithTablet },
+	parameters: { pixel: { matrix: pixelWithTablet } },
 	component: TemplatesPageView,
 	args: {
 		filterState: defaultFilterProps,

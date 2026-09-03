@@ -1,8 +1,8 @@
 import { CheckIcon, CircleAlertIcon, HourglassIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import type { TemplateVersion } from "#/api/typesGenerated";
-import { Pill, PillSpinner } from "#/components/Pill/Pill";
-import type { ThemeRole } from "#/theme/roles";
+import { Badge, type BadgeProps } from "#/components/Badge/Badge";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { getPendingStatusLabel } from "#/utils/provisionerJob";
 
 interface TemplateVersionStatusBadgeProps {
@@ -12,61 +12,57 @@ interface TemplateVersionStatusBadgeProps {
 export const TemplateVersionStatusBadge: FC<
 	TemplateVersionStatusBadgeProps
 > = ({ version }) => {
-	const { text, icon, type } = getStatus(version);
+	const { text, icon, variant } = getStatus(version);
 	return (
-		<Pill
-			icon={icon}
-			type={type}
-			title={`Build status is ${text}`}
-			role="status"
-		>
+		<Badge variant={variant} title={`Build status is ${text}`} role="status">
+			{icon}
 			{text}
-		</Pill>
+		</Badge>
 	);
 };
 
 const getStatus = (
 	version: TemplateVersion,
 ): {
-	type?: ThemeRole;
+	variant: NonNullable<BadgeProps["variant"]>;
 	text: string;
 	icon: ReactNode;
 } => {
 	switch (version.job.status) {
 		case "running":
 			return {
-				type: "active",
+				variant: "info",
 				text: "Running",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			};
 		case "pending":
 			return {
-				type: "active",
+				variant: "info",
 				text: getPendingStatusLabel(version.job),
 				icon: <HourglassIcon className="size-icon-sm" />,
 			};
 		case "canceling":
 			return {
-				type: "inactive",
+				variant: "default",
 				text: "Canceling",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			};
 		case "canceled":
 			return {
-				type: "inactive",
+				variant: "default",
 				text: "Canceled",
 				icon: <CircleAlertIcon className="size-icon-sm" />,
 			};
 		case "unknown":
 		case "failed":
 			return {
-				type: "error",
+				variant: "destructive",
 				text: "Failed",
 				icon: <CircleAlertIcon className="size-icon-sm" />,
 			};
 		case "succeeded":
 			return {
-				type: "success",
+				variant: "green",
 				text: "Success",
 				icon: <CheckIcon className="size-icon-sm" />,
 			};

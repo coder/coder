@@ -1,6 +1,6 @@
 /**
  * @file Shared WebSocket reconnection utility with capped exponential
- * backoff. Both the chat-list watcher (AgentsPage) and the per-chat
+ * backoff. Both the chat-list watcher (AgentsPageLayout) and the per-chat
  * stream watcher (ChatContext) use the same reconnect-on-disconnect
  * pattern. This module extracts that logic into a single reusable
  * function so the two call sites stay in sync and the backoff math
@@ -77,7 +77,7 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 	 * Factory that creates and returns a new socket. Called on the
 	 * initial connection and on every reconnection attempt. The caller
 	 * is responsible for attaching any `message` listeners to the
-	 * returned socket — this utility only manages the lifecycle
+	 * returned socket. This utility only manages the lifecycle
 	 * (`open`, `close`, `error`) events.
 	 */
 	connect: () => TSocket;
@@ -248,7 +248,7 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		activeSocket = socket;
 
 		const handleOpen = () => {
-			// Connection succeeded — reset backoff.
+			// Connection succeeded, reset backoff.
 			lastReconnectAttempt = 0;
 			onOpen?.(socket);
 		};

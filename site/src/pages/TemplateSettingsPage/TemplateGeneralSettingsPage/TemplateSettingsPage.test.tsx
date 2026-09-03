@@ -17,6 +17,7 @@ const validFormValues: FormValues = {
 	description: "A description",
 	icon: "vscode.png",
 	allow_user_cancel_workspace_jobs: false,
+	agents_allowed: true,
 	allow_user_autostart: false,
 	allow_user_autostop: false,
 	autostop_requirement: {
@@ -45,6 +46,7 @@ const validFormValues: FormValues = {
 	use_classic_parameter_flow: true,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	allow_workspace_renames: false,
 };
 
 describe("TemplateSettingsPage", () => {

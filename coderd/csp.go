@@ -30,7 +30,7 @@ type cspViolation struct {
 // @Tags General
 // @Param request body cspViolation true "Violation report"
 // @Success 200
-// @Failure 413 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response "Request body exceeds 64 KiB"
 // @Router /api/v2/csp/reports [post]
 func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -41,6 +41,7 @@ func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) 
 	err := dec.Decode(&v)
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			httpapi.RecordRequestBodyLimit(ctx, cspReportMaxBytes)
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Request body too large.",
 				Detail:  fmt.Sprintf("Maximum CSP report size is %d bytes.", cspReportMaxBytes),

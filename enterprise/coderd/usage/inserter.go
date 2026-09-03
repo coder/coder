@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -68,9 +69,15 @@ func (i *dbInserter) InsertDiscreteUsageEvent(ctx context.Context, tx database.S
 }
 
 // InsertHeartbeatUsageEvent implements agplusage.Inserter.
-func (i *dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, event usagetypes.HeartbeatEvent) error {
+func (*dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) error {
 	if !event.EventType().IsHeartbeat() {
 		return xerrors.Errorf("event type %q is not a heartbeat event", event.EventType())
+	}
+	// A zero createdAt stores the row at year 1, where bucket reconciliation
+	// can never match it again while the deterministic id turns every retry
+	// into a no-op, silently forfeiting the bucket's usage.
+	if createdAt.IsZero() {
+		return xerrors.Errorf("createdAt must be set for %q event", event.EventType())
 	}
 	if err := event.Valid(); err != nil {
 		return xerrors.Errorf("invalid %q event: %w", event.EventType(), err)
@@ -87,6 +94,6 @@ func (i *dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.
 		ID:        id,
 		EventType: string(event.EventType()),
 		EventData: jsonData,
-		CreatedAt: dbtime.Time(i.clock.Now()),
+		CreatedAt: dbtime.Time(createdAt),
 	})
 }

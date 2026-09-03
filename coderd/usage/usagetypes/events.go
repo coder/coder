@@ -30,6 +30,7 @@ type UsageEventType string
 const (
 	UsageEventTypeDCManagedAgentsV1 UsageEventType = "dc_managed_agents_v1"
 	UsageEventTypeHBAISeatsV1       UsageEventType = "hb_ai_seats_v1"
+	UsageEventTypeHBAgentRuntimeV1  UsageEventType = "hb_agent_runtime_v1"
 )
 
 func (e UsageEventType) Valid() bool {
@@ -37,6 +38,8 @@ func (e UsageEventType) Valid() bool {
 	case UsageEventTypeDCManagedAgentsV1:
 		return true
 	case UsageEventTypeHBAISeatsV1:
+		return true
+	case UsageEventTypeHBAgentRuntimeV1:
 		return true
 	default:
 		return false
@@ -101,6 +104,12 @@ func ParseEventWithType(eventType UsageEventType, data json.RawMessage) (Event, 
 		return event, nil
 	case UsageEventTypeHBAISeatsV1:
 		var event HBAISeats
+		if err := ParseEvent(data, &event); err != nil {
+			return nil, err
+		}
+		return event, nil
+	case UsageEventTypeHBAgentRuntimeV1:
+		var event HBAgentRuntime
 		if err := ParseEvent(data, &event); err != nil {
 			return nil, err
 		}
@@ -190,5 +199,44 @@ func (e HBAISeats) Valid() error {
 func (e HBAISeats) Fields() map[string]any {
 	return map[string]any{
 		"count": e.Count,
+	}
+}
+
+// HBAgentRuntime is the event associated with hb_agent_runtime_v1. RuntimeMs
+// is total Coder Agent chat runtime in milliseconds for one UTC hour.
+//
+// Model steps bill provider streaming. Local tool batches bill the union of
+// billed execution intervals, so parallel calls count once and serial calls
+// count only from their own start.
+//
+// Excluded: sub-agent orchestration, client and external-agent work, user or
+// idle waits, and retry backoff. Server-executed tools count even when their
+// work runs in a connected workspace.
+//
+// This measures the new Coder Agents (the `chats` tables), not the deprecated
+// Tasks counted by dc_managed_agents_v1.
+type HBAgentRuntime struct {
+	RuntimeMs int64 `json:"runtime_ms"`
+}
+
+var _ HeartbeatEvent = HBAgentRuntime{}
+
+func (HBAgentRuntime) usageEvent()          {}
+func (HBAgentRuntime) heartbeatUsageEvent() {}
+func (HBAgentRuntime) EventType() UsageEventType {
+	return UsageEventTypeHBAgentRuntimeV1
+}
+
+func (e HBAgentRuntime) Valid() error {
+	if e.RuntimeMs < 0 {
+		return xerrors.New("runtime_ms cannot be negative")
+	}
+	// The runtime can be 0 (idle hour).
+	return nil
+}
+
+func (e HBAgentRuntime) Fields() map[string]any {
+	return map[string]any{
+		"runtime_ms": e.RuntimeMs,
 	}
 }

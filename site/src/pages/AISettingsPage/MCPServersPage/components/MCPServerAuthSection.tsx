@@ -17,17 +17,29 @@ import {
 	SECRET_PLACEHOLDER,
 } from "./mcpServerFormLogic";
 
-interface MCPServerAuthSectionProps {
+interface MCPServerAuthFieldsProps {
 	form: FormikContextType<MCPServerFormValues>;
 	formId: string;
 	disabled: boolean;
+}
+
+interface MCPServerAuthSectionProps extends MCPServerAuthFieldsProps {
+	canSelectUserOIDC: boolean;
 }
 
 export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 	form,
 	formId,
 	disabled,
+	canSelectUserOIDC,
 }) => {
+	const authTypeOptions = AUTH_TYPE_OPTIONS.filter(
+		(option) =>
+			option.value !== "user_oidc" ||
+			canSelectUserOIDC ||
+			form.initialValues.authType === "user_oidc",
+	);
+
 	return (
 		<>
 			<Field
@@ -44,7 +56,7 @@ export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						{AUTH_TYPE_OPTIONS.map((option) => (
+						{authTypeOptions.map((option) => (
 							<SelectItem key={option.value} value={option.value}>
 								{option.label}
 							</SelectItem>
@@ -70,7 +82,7 @@ export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 	);
 };
 
-const OAuth2Fields: FC<MCPServerAuthSectionProps> = ({
+const OAuth2Fields: FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,
@@ -122,18 +134,29 @@ const OAuth2Fields: FC<MCPServerAuthSectionProps> = ({
 				/>
 			</Field>
 		</div>
-		<Field label="Scopes" htmlFor={`${formId}-oauth-scopes`}>
-			<Input
-				id={`${formId}-oauth-scopes`}
-				className="shadow-none"
-				{...form.getFieldProps("oauth2Scopes")}
-				disabled={disabled}
-			/>
-		</Field>
+		<div className="grid items-start gap-4 sm:grid-cols-2">
+			<Field label="Revocation URL" htmlFor={`${formId}-oauth-revocation-url`}>
+				<Input
+					id={`${formId}-oauth-revocation-url`}
+					className="placeholder:text-content-disabled shadow-none"
+					{...form.getFieldProps("oauth2RevocationURL")}
+					placeholder="https://"
+					disabled={disabled}
+				/>
+			</Field>
+			<Field label="Scopes" htmlFor={`${formId}-oauth-scopes`}>
+				<Input
+					id={`${formId}-oauth-scopes`}
+					className="shadow-none"
+					{...form.getFieldProps("oauth2Scopes")}
+					disabled={disabled}
+				/>
+			</Field>
+		</div>
 	</div>
 );
 
-const APIKeyFields: FC<MCPServerAuthSectionProps> = ({
+const APIKeyFields: FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,
@@ -201,7 +224,7 @@ const SecretInput: FC<{
 	/>
 );
 
-const CustomHeadersFields: FC<MCPServerAuthSectionProps> = ({
+const CustomHeadersFields: FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,

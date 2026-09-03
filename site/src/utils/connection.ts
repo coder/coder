@@ -14,13 +14,21 @@ export const connectionTypeToFriendlyName = (type: ConnectionType): string => {
 			return "Port Forwarding";
 		case "workspace_app":
 			return "Workspace App";
+		case "tunnel":
+			return "Tunnel";
 	}
 };
 
+// connectionTypeIsWeb returns true for connection types reported by
+// coderd from an HTTP request. These carry `web_info` (user, IP, user
+// agent, HTTP status code) rather than agent-reported `ssh_info`, and
+// are not necessarily browser connections (tunnels are typically
+// established by the CLI or an IDE extension).
 export const connectionTypeIsWeb = (type: ConnectionType): boolean => {
 	switch (type) {
 		case "port_forwarding":
-		case "workspace_app": {
+		case "workspace_app":
+		case "tunnel": {
 			return true;
 		}
 		case "reconnecting_pty":

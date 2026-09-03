@@ -120,7 +120,7 @@ const SelectField: FC<SelectFieldDefinition> = ({
 	const descriptionId = `${id}-description`;
 	return (
 		// All fields span 2 columns, except for dropdowns which can only be 1 column (50% width)
-		<div className="!col-end-1 flex flex-col gap-2">
+		<div className="col-end-1! flex flex-col gap-2">
 			<Label htmlFor={id}>
 				{label}
 				{required ? (
@@ -135,7 +135,7 @@ const SelectField: FC<SelectFieldDefinition> = ({
 				)}
 			</Label>
 			{description && (
-				<div id={descriptionId} className="text-sm text-content-secondary">
+				<div id={descriptionId} className="text-xs text-content-secondary">
 					{description}
 				</div>
 			)}
@@ -185,7 +185,7 @@ const RadioField: FC<RadioFieldDefinition> = ({
 				)}
 			</Label>
 			{description && (
-				<div id={descriptionId} className="text-sm text-content-secondary">
+				<div id={descriptionId} className="text-xs text-content-secondary">
 					{description}
 				</div>
 			)}
@@ -276,7 +276,7 @@ const SwitchField: FC<SwitchFieldDefinition> = ({
 			{description && (
 				<div
 					id={descriptionId}
-					className="ml-[44px] text-sm font-normal text-content-secondary"
+					className="ml-[44px] text-xs font-normal text-content-secondary"
 				>
 					{description}
 				</div>
@@ -310,7 +310,7 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 				)}
 			</Label>
 			{description && (
-				<div id={descriptionId} className="text-sm text-content-secondary">
+				<div id={descriptionId} className="text-xs text-content-secondary">
 					{description}
 				</div>
 			)}

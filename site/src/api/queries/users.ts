@@ -31,6 +31,7 @@ import {
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import { prepareQuery } from "#/utils/filters";
 import { getAuthorizationKey } from "./authCheck";
+import { invalidateGroupMembersAISpend } from "./groups";
 import { cachedQuery } from "./util";
 
 export function usersKey(req: UsersRequest) {
@@ -203,6 +204,17 @@ export const userAIBudgetOverride = (
 	};
 };
 
+const invalidateUserAIBudgetQueries = (
+	queryClient: QueryClient,
+	userId: string,
+) =>
+	Promise.all([
+		queryClient.invalidateQueries({
+			queryKey: getUserAIBudgetOverrideQueryKey(userId),
+		}),
+		invalidateGroupMembersAISpend(queryClient, userId),
+	]);
+
 export const saveUserAIBudgetOverride = (
 	queryClient: QueryClient,
 	userId: string,
@@ -211,9 +223,7 @@ export const saveUserAIBudgetOverride = (
 		mutationFn: (request: UpsertUserAIBudgetOverrideRequest) =>
 			API.upsertUserAIBudgetOverride(userId, request),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: getUserAIBudgetOverrideQueryKey(userId),
-			});
+			await invalidateUserAIBudgetQueries(queryClient, userId);
 		},
 	};
 };
@@ -225,9 +235,7 @@ export const deleteUserAIBudgetOverride = (
 	return {
 		mutationFn: () => API.deleteUserAIBudgetOverride(userId),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: getUserAIBudgetOverrideQueryKey(userId),
-			});
+			await invalidateUserAIBudgetQueries(queryClient, userId);
 		},
 	};
 };

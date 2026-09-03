@@ -92,7 +92,7 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			Icon:                    req.Icon,
 			CallbackURL:             req.CallbackURL,
 			RedirectUris:            []string{},
-			ClientType:              sql.NullString{String: "confidential", Valid: true},
+			ClientType:              database.OAuth2ProviderAppClientTypeConfidential,
 			DynamicallyRegistered:   sql.NullBool{Bool: false, Valid: true},
 			ClientIDIssuedAt:        sql.NullTime{},
 			ClientSecretExpiresAt:   sql.NullTime{},

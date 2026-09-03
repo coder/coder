@@ -120,6 +120,17 @@ func buildWorkspaceMCPTool(
 	}
 }
 
+// ServerName returns the originating MCP server name from the unsanitized
+// routing name. The model-facing info.Name can lose the "__" separator to
+// sanitization or length capping, so it cannot be parsed for the server.
+func (t *WorkspaceMCPTool) ServerName() string {
+	server, _, ok := strings.Cut(t.routingName, "__")
+	if !ok {
+		return ""
+	}
+	return server
+}
+
 // sanitizeModelToolName returns the provider-safe form of a workspace MCP tool
 // name: characters outside [a-zA-Z0-9_-] become "_" and the result is capped
 // at maxModelToolNameLen. The "__" server/tool separator survives because

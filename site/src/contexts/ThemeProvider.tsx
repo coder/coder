@@ -1,16 +1,3 @@
-import createCache from "@emotion/cache";
-/** @deprecated Emotion is deprecated. Migrate to Tailwind CSS. */
-import {
-	CacheProvider,
-	ThemeProvider as EmotionThemeProvider,
-} from "@emotion/react";
-/** @deprecated MUI CssBaseline is deprecated. Migrate to shadcn/ui components and Tailwind CSS. */
-import CssBaseline from "@mui/material/CssBaseline";
-/** @deprecated MUI components are deprecated. Migrate to shadcn/ui components and Tailwind CSS. */
-import {
-	ThemeProvider as MuiThemeProvider,
-	StyledEngineProvider,
-} from "@mui/material/styles";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -21,6 +8,8 @@ import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import themes, { baseModeFor, CONCRETE_THEMES, type Theme } from "#/theme";
+import { AppearanceProvider } from "#/theme/appearance";
+import { ThemeContextProvider } from "#/theme/context";
 import {
 	migrateLegacyPreference,
 	resolveActiveThemeName,
@@ -57,18 +46,8 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	const theme = themes[concreteName];
 
-	return (
-		<StyledEngineProvider injectFirst>
-			<ThemeOverride theme={theme}>{children}</ThemeOverride>
-		</StyledEngineProvider>
-	);
+	return <ThemeOverride theme={theme}>{children}</ThemeOverride>;
 };
-
-// This is being added to allow Tailwind classes to be used with MUI components. https://mui.com/material-ui/integrations/interoperability/#tailwind-css
-const cache = createCache({
-	key: "css",
-	prepend: true,
-});
 
 interface ThemeOverrideProps {
 	theme: Theme;
@@ -77,13 +56,10 @@ interface ThemeOverrideProps {
 
 export const ThemeOverride: FC<ThemeOverrideProps> = ({ theme, children }) => {
 	return (
-		<CacheProvider value={cache}>
-			<MuiThemeProvider theme={theme}>
-				<EmotionThemeProvider theme={theme}>
-					<CssBaseline enableColorScheme />
-					{children}
-				</EmotionThemeProvider>
-			</MuiThemeProvider>
-		</CacheProvider>
+		<ThemeContextProvider theme={theme}>
+			<AppearanceProvider externalImages={theme.externalImages}>
+				{children}
+			</AppearanceProvider>
+		</ThemeContextProvider>
 	);
 };

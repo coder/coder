@@ -34,6 +34,34 @@ export const ManyOrgs: Story = {
 	},
 };
 
+export const ActiveSortsFirstThenAlphabetical: Story = {
+	args: {
+		value: MockOrganization2,
+		options: [MockOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		const options = await screen.findAllByRole("option");
+		expect(options[0]).toHaveTextContent(MockOrganization2.display_name);
+		expect(options[1]).toHaveTextContent(MockOrganization.display_name);
+	},
+};
+
+export const TabbableOptions: Story = {
+	args: {
+		value: MockOrganization,
+		optionsTabbable: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		const options = await screen.findAllByRole("option");
+		await userEvent.tab();
+		expect(options[0]).toHaveFocus();
+	},
+};
+
 export const WithValue: Story = {
 	args: {
 		value: MockOrganization2,

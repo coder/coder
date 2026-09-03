@@ -1,4 +1,6 @@
-# Notifications
+---
+title: Notifications
+---
 
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
@@ -39,6 +41,8 @@ These notifications are sent to users with **owner** and **user admin** roles:
 - User account created
 - User account deleted
 - User account suspended
+
+These account notifications cover both user and service accounts.
 
 These notifications are sent to users themselves:
 

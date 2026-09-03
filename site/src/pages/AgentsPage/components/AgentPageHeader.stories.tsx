@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type FC, useMemo, useState } from "react";
 import { Outlet } from "react-router";
 import { expect, userEvent, waitFor, within } from "storybook/test";
+import { pixelWithPhone } from "#/testHelpers/pixel";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentPageHeader } from "./AgentPageHeader";
 import { ChimeButton } from "./ChimeButton";
@@ -172,6 +173,54 @@ const meta: Meta<typeof AgentPageHeader> = {
 
 export default meta;
 type Story = StoryObj<typeof AgentPageHeader>;
+
+export const MobileActionsExcludeAnalytics: Story = {
+	beforeEach: () => {
+		const originalMatchMedia = window.matchMedia;
+		window.matchMedia = createMatchMediaController(false).matchMedia;
+
+		return () => {
+			window.matchMedia = originalMatchMedia;
+		};
+	},
+	render: () => <HeaderStateHarness />,
+	parameters: {
+		layout: "fullscreen",
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: pixelWithPhone },
+		reactRouter: {
+			location: {
+				path: "/agents",
+			},
+			routing: [
+				{
+					path: "/",
+					element: (
+						<Outlet
+							context={{
+								isSidebarCollapsed: false,
+								onExpandSidebar: () => undefined,
+							}}
+						/>
+					),
+					children: [{ path: "agents", useStoryElement: true }],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+
+		const menu = within(await within(document.body).findByRole("menu"));
+		await waitFor(() => {
+			expect(menu.getByRole("menuitem", { name: "Settings" })).toBeVisible();
+		});
+		await expect(
+			menu.queryByRole("menuitem", { name: "Analytics" }),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const ToggleStateStaysInSyncAcrossBreakpoints: Story = {
 	render: () => <HeaderStateHarness />,

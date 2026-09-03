@@ -19,7 +19,7 @@ Provision Kubernetes Pods as [Coder workspaces](https://coder.com/docs/user-guid
 
 **Cluster**: This template requires an existing Kubernetes cluster
 
-**Container Image**: This template uses the [codercom/enterprise-base:ubuntu image](https://github.com/coder/enterprise-images/tree/main/images/base) with some dev tools preinstalled. To add additional tools, extend this image or build it yourself.
+**Container Image**: This template uses the [codercom/example-base:ubuntu image](https://github.com/coder/images/tree/main/images/base) with some dev tools preinstalled. To add additional tools, extend this image or build it yourself.
 
 ### Authentication
 

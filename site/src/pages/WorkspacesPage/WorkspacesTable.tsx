@@ -1,11 +1,12 @@
 import {
 	BanIcon,
-	CloudIcon,
+	CircleAlertIcon,
 	EllipsisVerticalIcon,
 	ExternalLinkIcon,
 	FileIcon,
 	PlayIcon,
 	RefreshCcwIcon,
+	RotateCcwIcon,
 	SquareTerminalIcon,
 	StarIcon,
 } from "lucide-react";
@@ -38,10 +39,8 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -67,6 +66,7 @@ import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import {
 	getTerminalHref,
 	getVSCodeHref,
+	isAppUrlValid,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
@@ -94,6 +94,7 @@ interface WorkspacesTableProps {
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
+	canCreateWorkspace: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 	chatsByWorkspace?: Record<string, string>;
@@ -106,6 +107,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onCheckChange,
 	templates,
 	canCreateTemplate,
+	canCreateWorkspace,
 	onActionSuccess,
 	onActionError,
 	chatsByWorkspace,
@@ -168,6 +170,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								templates={templates}
 								isUsingFilter={isUsingFilter}
 								canCreateTemplate={canCreateTemplate}
+								canCreateWorkspace={canCreateWorkspace}
 							/>
 						</TableCell>
 					</TableRow>
@@ -217,11 +220,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												)}
 												{workspace.outdated && (
 													<WorkspaceOutdatedTooltip workspace={workspace} />
-												)}
-												{workspace.task_id && (
-													<Badge size="xs" variant="default">
-														Task
-													</Badge>
 												)}
 												{chatsByWorkspace?.[workspace.id] && (
 													<Badge size="xs" variant="info" hover asChild>
@@ -508,9 +506,9 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							isLoading={workspaceUpdate.isUpdating}
 							label="Update and start workspace"
 						>
-							<CloudIcon />
+							<RotateCcwIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -523,7 +521,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<PlayIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -534,9 +532,9 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							isLoading={workspaceUpdate.isUpdating}
 							label="Update and restart workspace"
 						>
-							<CloudIcon />
+							<RotateCcwIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -549,7 +547,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<PlayIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -699,9 +697,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				workspace={workspace.name}
 				agent={agent.name}
 				folder={agent.expanded_directory}
-			>
-				<VSCodeIcon />
-			</VSCodeIconLink>,
+			/>,
 		);
 	}
 
@@ -715,9 +711,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				workspace={workspace.name}
 				agent={agent.name}
 				folder={agent.expanded_directory}
-			>
-				<VSCodeInsidersIcon />
-			</VSCodeIconLink>,
+			/>,
 		);
 	}
 
@@ -748,7 +742,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				}}
 				label="Open Terminal"
 			>
-				<SquareTerminalIcon className="!size-7" />
+				<SquareTerminalIcon className="size-7!" />
 			</BaseIconLink>,
 		);
 	}
@@ -805,6 +799,27 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 		agent,
 	});
 
+	// A malformed external app URL can't be opened. Render a non-navigating
+	// icon with an explanatory tooltip instead of a broken link.
+	if (!isAppUrlValid(app)) {
+		return (
+			<BaseIconLink
+				key={app.id}
+				label={`${link.label} has an invalid URL`}
+				onClick={() => {}}
+			>
+				{app.icon ? (
+					<ExternalImage src={app.icon} />
+				) : (
+					<CircleAlertIcon
+						aria-hidden="true"
+						className="size-icon-sm text-content-warning"
+					/>
+				)}
+			</BaseIconLink>
+		);
+	}
+
 	return (
 		<BaseIconLink
 			key={app.id}
@@ -817,14 +832,14 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 	);
 };
 
-type VSCodeIconLinkProps = PropsWithChildren<{
+type VSCodeIconLinkProps = {
 	variant: "vscode" | "vscode-insiders";
 	label: string;
 	owner: string;
 	workspace: string;
 	agent: string;
 	folder?: string;
-}>;
+};
 
 // Generates an API key on click instead of on page load, since
 // key generation is a POST request that should only fire when
@@ -836,7 +851,6 @@ const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
 	workspace,
 	agent,
 	folder,
-	children,
 }) => {
 	const generateKeyMutation = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -863,7 +877,12 @@ const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
 				}
 			}}
 		>
-			{children}
+			<ExternalImage
+				src={
+					variant === "vscode" ? "/icon/code.svg" : "/icon/code-insiders.svg"
+				}
+				alt=""
+			/>
 		</BaseIconLink>
 	);
 };

@@ -12,7 +12,6 @@ import (
 
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 var _ aibridge.Recorder = &recorderTranslation{}
@@ -105,7 +104,7 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 
 	var invErr *string
 	if req.InvocationError != nil {
-		invErr = ptr.Ref(req.InvocationError.Error())
+		invErr = new(req.InvocationError.Error())
 	}
 
 	_, err = t.client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{

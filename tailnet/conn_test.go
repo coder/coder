@@ -2,6 +2,7 @@ package tailnet_test
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"strings"
@@ -483,7 +484,9 @@ func stitch(t *testing.T, dst, src *tailnet.Conn) {
 			Node: pn,
 			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
 		}})
-		assert.NoError(t, err)
+		if err != nil && !errors.Is(err, tailnet.ErrConnClosed) {
+			assert.NoError(t, err)
+		}
 	})
 	// ensures we don't send callbacks after the test ends and connections are closed.
 	t.Cleanup(func() {

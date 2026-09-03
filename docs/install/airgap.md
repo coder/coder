@@ -1,4 +1,6 @@
-# Air-gapped Deployments
+---
+title: Air-gapped Deployments
+---
 
 All Coder features are supported in air-gapped / behind firewalls / disconnected / offline.
 This is a general comparison. Keep reading for a full tutorial running Coder
@@ -14,7 +16,7 @@ air-gapped with Kubernetes or Docker.
 | Telemetry                 | Telemetry is on by default, and [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                          | Telemetry [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                                                                                  |
 | Update check              | By default, Coder checks for updates from [GitHub releases](https://github.com/coder/coder/releases)                                                                                                                                                               | Update checks [can be disabled](../reference/cli/server.md#--update-check)                                                                                                                                                                                                                           |
 | License validation        | License keys are validated locally using cryptographic signatures. No outbound connection to Coder is required                                                                                                                                                     | No changes needed. See [offline license validation](../admin/licensing/index.md#offline-license-validation)                                                                                                                                                                                          |
-| AI Governance Usage Count | By default, deployments with the [AI Governance Add On](../ai-coder/ai-governance.md) report usage data                                                                                                                                                            | [Contact us](https://coder.com/contact) to request a license with usage reporting off.                                                                                                                                                                                                               |
+| AI Governance Usage Count | By default, deployments with [AI Governance](../ai-coder/ai-governance.md) report usage data                                                                                                                                                                       | [Contact us](https://coder.com/contact) to request a license with usage reporting off.                                                                                                                                                                                                               |
 
 ## Air-gapped container images
 
@@ -258,6 +260,12 @@ CODER_TEMPLATE_BUILDER_REGISTRY_URL=registry.internal.example.com
 
 This makes the builder generate module source paths pointing at your mirror
 rather than `registry.coder.com`.
+
+The value is a bare host, optionally with a port (for example, `mirror.internal:8443`).
+A leading `http(s)://` scheme and trailing slash are stripped, and a path, query, fragment, or credentials is rejected at server start.
+
+For a complete walkthrough of setting up the mirror, see
+[Mirror the Coder Registry with JFrog Artifactory](./registry-mirror-artifactory.md).
 
 ## Coder Modules
 

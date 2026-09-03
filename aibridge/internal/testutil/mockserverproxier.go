@@ -3,7 +3,7 @@ package testutil
 import (
 	"context"
 
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
+	mcpgo "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -59,6 +59,8 @@ func (*MockServerProxier) CallTool(context.Context, string, any) (*mcpgo.CallToo
 // StubToolCaller is a minimal tool client that returns a fixed text result.
 type StubToolCaller struct{}
 
-func (StubToolCaller) CallTool(_ context.Context, _ mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	return mcpgo.NewToolResultText("tool result"), nil
+func (StubToolCaller) CallTool(_ context.Context, _ *mcpgo.CallToolParams) (*mcpgo.CallToolResult, error) {
+	return &mcpgo.CallToolResult{
+		Content: []mcpgo.Content{&mcpgo.TextContent{Text: "tool result"}},
+	}, nil
 }

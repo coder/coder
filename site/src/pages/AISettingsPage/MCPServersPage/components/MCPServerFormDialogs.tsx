@@ -1,8 +1,7 @@
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import type { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 
 interface MCPServerFormDialogsProps {
@@ -25,13 +24,15 @@ export const MCPServerFormDialogs: FC<MCPServerFormDialogsProps> = ({
 	return (
 		<>
 			{server && onDeleteServer && (
-				<ConfirmDeleteDialog
+				<ConfirmDialog
+					type="delete"
 					open={confirmingDelete}
-					onOpenChange={setConfirmingDelete}
-					entity="MCP server"
+					onClose={() => setConfirmingDelete(false)}
+					title="Delete MCP server"
+					confirmText="Delete MCP server"
 					description={`Delete "${server.display_name}"? Agents will no longer be able to use this server.`}
 					onConfirm={() => void onDeleteServer(server.id)}
-					isPending={isDeleting}
+					confirmLoading={isDeleting}
 				/>
 			)}
 			<ConfirmDialog

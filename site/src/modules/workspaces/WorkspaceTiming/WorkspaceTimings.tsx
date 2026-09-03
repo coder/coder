@@ -1,4 +1,3 @@
-import Collapse from "@mui/material/Collapse";
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
 import { type FC, useState } from "react";
@@ -9,6 +8,11 @@ import type {
 } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	calcDuration,
@@ -99,17 +103,22 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	};
 
 	return (
-		<div className="rounded-lg border border-solid bg-surface-primary">
+		<Collapsible
+			open={isOpen}
+			onOpenChange={setIsOpen}
+			className="rounded-lg border border-solid bg-surface-primary"
+		>
 			<div className="flex items-center justify-between px-4 py-1.5 relative">
-				<Button
-					disabled={isLoading}
-					variant="subtle"
-					onClick={() => setIsOpen((o) => !o)}
-					className="after:content-[''] after:absolute after:inset-0"
-				>
-					<ChevronDownIcon open={isOpen} />
-					<span>Build timeline</span>
-				</Button>
+				<CollapsibleTrigger asChild>
+					<Button
+						disabled={isLoading}
+						variant="subtle"
+						className="after:content-[''] after:absolute after:inset-0"
+					>
+						<ChevronDownIcon open={isOpen} />
+						<span>Build timeline</span>
+					</Button>
+				</CollapsibleTrigger>
 				<span className="ml-auto text-sm text-content-secondary pr-2">
 					{isLoading ? (
 						<Skeleton variant="text" width={40} height={16} />
@@ -119,7 +128,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				</span>
 			</div>
 			{!isLoading && (
-				<Collapse in={isOpen}>
+				<CollapsibleContent>
 					<div
 						className="border-solid border-0 border-t flex flex-col"
 						style={{
@@ -220,9 +229,9 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 							</>
 						)}
 					</div>
-				</Collapse>
+				</CollapsibleContent>
 			)}
-		</div>
+		</Collapsible>
 	);
 };
 

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -42,6 +43,14 @@ func TestTemplateBuilderBases(t *testing.T) {
 		}
 
 		specs := []baseSpec{
+			{
+				// Quickstart exposes no builder variables today: its base.json
+				// declares none. Locking that here flags drift if it changes,
+				// e.g. if it later exposes a container_image selector.
+				id:           "quickstart",
+				expectedOS:   "linux",
+				hasVariables: false,
+			},
 			{
 				id:           "docker",
 				expectedOS:   "linux",
@@ -93,7 +102,25 @@ func TestTemplateBuilderBases(t *testing.T) {
 			} else {
 				require.Empty(t, b.Variables, "base %q should have no variables", spec.id)
 			}
+
+			// Every base declares at least one agent, exactly one default.
+			require.NotEmpty(t, b.Agents, "base %q should declare agents", spec.id)
+			defaults := 0
+			for _, a := range b.Agents {
+				if a.Default {
+					defaults++
+				}
+			}
+			require.Equal(t, 1, defaults, "base %q should mark exactly one default agent", spec.id)
 		}
+
+		// aws-linux names its agent "dev"; the rest use "main".
+		require.Equal(t,
+			[]codersdk.TemplateBuilderBaseAgent{{Name: "dev", Default: true}},
+			basesByID["aws-linux"].Agents)
+		require.Equal(t,
+			[]codersdk.TemplateBuilderBaseAgent{{Name: "main", Default: true}},
+			basesByID["docker"].Agents)
 	})
 
 	t.Run("Sorted", func(t *testing.T) {
@@ -106,10 +133,13 @@ func TestTemplateBuilderBases(t *testing.T) {
 
 		resp, err := client.TemplateBuilderBases(ctx)
 		require.NoError(t, err)
+		require.NotEmpty(t, resp.Bases)
 
+		// Bases are returned sorted by display name (with ID as a deterministic
+		// tiebreak), so the whole list is in non-decreasing name order.
 		for i := 1; i < len(resp.Bases); i++ {
 			require.LessOrEqual(t, resp.Bases[i-1].Name, resp.Bases[i].Name,
-				"bases should be sorted by name")
+				"bases should be sorted by display name")
 		}
 	})
 
@@ -175,6 +205,39 @@ func TestTemplateBuilderModules(t *testing.T) {
 		}
 	})
 
+	t.Run("BaseExcludesIncludedModules", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// The quickstart base bundles the git-clone module, so the module
+		// list for that base must omit git-clone to avoid a collision. The
+		// docker base does not bundle it, so it stays available there.
+		quickstartResp, err := client.TemplateBuilderModules(ctx, "quickstart")
+		require.NoError(t, err)
+		require.NotEmpty(t, quickstartResp.Modules,
+			"quickstart should still offer modules other than the ones it bundles")
+		for _, m := range quickstartResp.Modules {
+			require.NotEqual(t, "git-clone", m.ID,
+				"git-clone should be excluded for the quickstart base")
+		}
+
+		dockerResp, err := client.TemplateBuilderModules(ctx, "docker")
+		require.NoError(t, err)
+		var dockerHasGitClone bool
+		for _, m := range dockerResp.Modules {
+			if m.ID == "git-clone" {
+				dockerHasGitClone = true
+				break
+			}
+		}
+		require.True(t, dockerHasGitClone,
+			"git-clone should remain available for bases that do not bundle it")
+	})
+
 	t.Run("ComputedVariablesExcluded", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -231,6 +294,123 @@ func TestTemplateBuilderModules(t *testing.T) {
 		defer cancel()
 
 		_, err := client.TemplateBuilderModules(ctx, "")
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+}
+
+func TestTemplateBuilderSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WizardEntry", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			SessionID: uuid.New(),
+			EventType: codersdk.TemplateBuilderSessionEventWizardEntry,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("ComposeCompletion", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			SessionID:       uuid.New(),
+			EventType:       codersdk.TemplateBuilderSessionEventComposeCompletion,
+			BaseTemplateID:  "docker",
+			ModuleIDs:       []string{"code-server", "git-clone"},
+			DurationSeconds: 42.5,
+			Success:         true,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("MissingSessionID", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			EventType: codersdk.TemplateBuilderSessionEventWizardEntry,
+		})
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("InvalidEventType", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			EventType: "invalid_event",
+		})
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("DisabledReturns404", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.TemplateBuilder.Disabled = true
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			EventType: codersdk.TemplateBuilderSessionEventWizardEntry,
+		})
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("MemberCannotSubmit", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := memberClient.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			EventType: codersdk.TemplateBuilderSessionEventWizardEntry,
+		})
 		require.Error(t, err)
 
 		var sdkErr *codersdk.Error

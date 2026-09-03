@@ -1,0 +1,14 @@
+coder:
+  image:
+    tag: v2.36.0
+  env:
+    - name: CODER_URL
+      value: http://coder.default.svc.cluster.local:80
+aigateway:
+  keySecret:
+    name: ai-gateway-key
+service:
+  type: NodePort
+  nodePort: 30401
+  externalTrafficPolicy: Local
+  sessionAffinity: ClientIP

@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
@@ -50,6 +51,9 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		OrganizationID:       org.ID,
+		GroupACL:             database.ChatACL{},
+		UserACL:              database.ChatACL{},
 	})
 	require.NoError(t, err)
 
@@ -57,7 +61,6 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 		codersdk.ChatMessageText("hello"),
 	})
 	require.NoError(t, err)
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: owner.ID})
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
@@ -72,7 +75,6 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 				ContentVersion: chatprompt.CurrentContentVersion,
 				CreatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
 				ModelConfigID:  uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-				APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
 			},
 		},
 	})
@@ -114,7 +116,10 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 	require.Equal(t, sql.NullString{String: "fresh summary", Valid: true}, fetched.LastTurnSummary)
 }
 
-func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
+// A successful child chat outcome persists the subagent's final report
+// as the chat summary but still skips the turn status label and web
+// push, which remain parent-only.
+func TestSuccessfulChildChatOutcomeStoresReportSummaryWithoutPush(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -144,6 +149,9 @@ func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		OrganizationID:       org.ID,
+		GroupACL:             database.ChatACL{},
+		UserACL:              database.ChatACL{},
 	})
 	require.NoError(t, err)
 
@@ -170,6 +178,14 @@ func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	const report = "Completed the delegated task."
+	insertAssistantMessage(t, db, child.ID, modelCfg.ID, report)
+	// Message inserts bump history_version via trigger; the finalize
+	// hook receives the post-turn chat, so mirror that here or the
+	// fenced summary write would be skipped as stale.
+	child, err = db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+
 	dispatcher := &recordingWebpushDispatcher{}
 	server := &Server{
 		ctx:               t.Context(),
@@ -177,6 +193,11 @@ func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
 		pubsub:            ps,
 		logger:            slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		webpushDispatcher: dispatcher,
+		// deriveFinalTurnRunResult resolves the chat model once the
+		// child has an assistant message, which requires the cache and
+		// the clock used to mint the synthetic gateway API key.
+		clock:       quartz.NewReal(),
+		configCache: newChatConfigCache(context.Background(), db, quartz.NewReal()),
 	}
 	require.NoError(t, server.afterGenerationOutcome(ctx, generationOutcome{
 		Chat: child,
@@ -187,6 +208,7 @@ func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
 	fetched, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	require.False(t, fetched.LastTurnSummary.Valid)
+	require.Equal(t, sql.NullString{String: report, Valid: true}, fetched.Summary)
 	require.Equal(t, int32(0), dispatcher.dispatchCount.Load())
 }
 

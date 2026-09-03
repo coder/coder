@@ -1,4 +1,6 @@
-# Docker in Workspaces
+---
+title: Docker in Workspaces
+---
 
 There are a few ways to run Docker within container-based Coder workspaces.
 
@@ -27,7 +29,7 @@ the Coder host, modify your template to use the sysbox-runc runtime:
 resource "docker_container" "workspace" {
   # ...
   name    = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-  image   = "codercom/enterprise-base:ubuntu"
+  image   = "codercom/example-base:ubuntu"
   env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   command = ["sh", "-c", coder_agent.main.init_script]
   # Use the Sysbox container runtime (required)
@@ -105,7 +107,7 @@ resource "kubernetes_pod" "dev" {
         name  = "CODER_AGENT_TOKEN"
         value = coder_agent.main.token
       }
-      image = "codercom/enterprise-base:ubuntu"
+      image = "codercom/example-base:ubuntu"
       command = ["sh", "-c", coder_agent.main.init_script]
     }
   }
@@ -247,14 +249,66 @@ Before using Podman, please review the following documentation:
 3. For systems running SELinux (typically Fedora-, CentOS-, and Red Hat-based
    systems), you might need to disable SELinux or set it to permissive mode.
 
-4. Use this
-   [kubernetes-with-podman](https://github.com/coder/community-templates/tree/main/kubernetes-podman)
-   example template, or make your own.
+4. Create a template from the built-in `kubernetes` starter, then adapt it for rootless Podman:
 
    ```sh
-   echo "kubernetes-with-podman" | coder templates init
-   cd ./kubernetes-with-podman
-   coder templates create
+   coder templates init --id kubernetes ./kubernetes-podman
+   cd ./kubernetes-podman
+   ```
+
+   The `kubernetes` starter already runs the workspace pod as a non-root user (`run_as_user = 1000`, `fs_group = 1000`, `run_as_non_root = true`), which rootless Podman requires. In the generated `main.tf`, apply the Podman changes to the `kubernetes_deployment_v1.main` pod template (marked `# Podman` in the following snippet):
+
+   ```tf
+   spec {
+     template {
+       metadata {
+         # ...
+         # Podman: allow Podman to create nested containers. The annotation
+         # key must match the container name below (`dev`).
+         annotations = {
+           "container.apparmor.security.beta.kubernetes.io/dev" = "unconfined"
+         }
+       }
+       spec {
+         # The starter already sets these; rootless Podman requires them.
+         security_context {
+           run_as_user     = 1000
+           fs_group        = 1000
+           run_as_non_root = true
+         }
+
+         container {
+           name = "dev"
+           # Podman: base image with Podman and fuse-overlayfs preinstalled.
+           image = "codercom/example-podman:ubuntu"
+           # ...
+           resources {
+             limits = {
+               # ...
+               # Podman: FUSE device exposed by smarter-device-manager (step 1).
+               "github.com/fuse" = "1"
+             }
+           }
+         }
+       }
+     }
+   }
+   ```
+
+   The `codercom/example-podman` image is built and maintained in
+   [`coder/images`](https://github.com/coder/images).
+
+   > On Kubernetes 1.30+, the
+   > `container.apparmor.security.beta.kubernetes.io/<container>` annotation is
+   > deprecated in favor of the `securityContext.appArmorProfile` field. The
+   > annotation still works and remains the most broadly compatible option, so
+   > switch to the field once your cluster and Terraform Kubernetes provider
+   > both support it.
+
+   Push the template to your deployment:
+
+   ```sh
+   coder templates push
    ```
 
    > For more information around the requirements of rootless podman pods, see:
@@ -299,6 +353,12 @@ spec:
     sysctl = { "user.max_user_namespaces" = "65536" }
 ```
 
+### Rootless Podman on EKS Auto Mode
+
+The `EC2NodeClass` above applies to self-managed Karpenter nodes. On EKS Auto Mode, the built-in `NodeClass` (`eks.amazonaws.com`) doesn't expose `userData` or kernel sysctls, so `user.max_user_namespaces` stays at `0` with no way to raise it on those nodes. Run Podman workspaces on a separate managed node group instead; the default AL2023 AMIs ship with user namespaces enabled.
+
+> On a brand-new Auto Mode cluster, install the `vpc-cni` and `kube-proxy` add-ons before your managed node group can reach `Ready`.
+
 ## Privileged sidecar container
 
 A
@@ -333,7 +393,7 @@ resource "docker_container" "dind" {
 
 resource "docker_container" "workspace" {
   count   = data.coder_workspace.me.start_count
-  image   = "codercom/enterprise-base:ubuntu"
+  image   = "codercom/example-base:ubuntu"
   name    = "dev-${data.coder_workspace.me.id}"
   command = ["sh", "-c", coder_agent.main.init_script]
   env = [
@@ -391,7 +451,7 @@ resource "kubernetes_pod" "main" {
     }
     container {
       name    = "dev"
-      image   = "codercom/enterprise-base:ubuntu"
+      image   = "codercom/example-base:ubuntu"
       command = ["sh", "-c", coder_agent.main.init_script]
       security_context {
         run_as_user = "1000"
@@ -472,7 +532,7 @@ resource "kubernetes_pod" "dev" {
         name  = "CODER_AGENT_TOKEN"
         value = coder_agent.main.token
       }
-      image = "codercom/enterprise-base:ubuntu"
+      image = "codercom/example-base:ubuntu"
       command = ["sh", "-c", <<EOF
     # Start the Coder agent as the "coder" user
     # once systemd has started up

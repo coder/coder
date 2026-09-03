@@ -1,3 +1,5 @@
+import { decodeDataURL } from "./dataUrls";
+
 type ChatDraftAttachmentRecord = {
 	clientId: string;
 	fileName: string;
@@ -279,35 +281,22 @@ const fileFromDataURL = (
 	payload: string,
 	metadata: { fileName: string; fileType: string; lastModified: number },
 ): File | null => {
-	const commaIndex = payload.indexOf(",");
-	if (commaIndex === -1 || !payload.startsWith("data:")) {
+	const decoded = decodeDataURL(payload);
+	// FileReader stores drafts as base64, so other encodings indicate corruption.
+	if (!decoded?.isBase64) {
 		return null;
 	}
-	const header = payload.slice(0, commaIndex);
-	if (!header.toLowerCase().includes(";base64")) {
-		return null;
-	}
-	const payloadMediaType = header.slice("data:".length).split(";")[0];
 	if (
 		metadata.fileType &&
-		payloadMediaType &&
-		payloadMediaType.toLowerCase() !== metadata.fileType.toLowerCase()
+		decoded.mediaType &&
+		decoded.mediaType.toLowerCase() !== metadata.fileType.toLowerCase()
 	) {
 		return null;
 	}
-	try {
-		const binary = atob(payload.slice(commaIndex + 1));
-		const bytes = new Uint8Array(binary.length);
-		for (let index = 0; index < binary.length; index++) {
-			bytes[index] = binary.charCodeAt(index);
-		}
-		return new File([bytes], metadata.fileName, {
-			type: metadata.fileType,
-			lastModified: metadata.lastModified,
-		});
-	} catch {
-		return null;
-	}
+	return new File([decoded.bytes], metadata.fileName, {
+		type: metadata.fileType,
+		lastModified: metadata.lastModified,
+	});
 };
 
 const fileForRecord = (record: ChatDraftAttachmentRecord): File | null => {

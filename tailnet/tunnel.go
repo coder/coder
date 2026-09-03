@@ -33,40 +33,59 @@ type CoordinateeAuth interface {
 	Authorize(ctx context.Context, req *proto.CoordinateRequest) error
 }
 
-// SingleTailnetCoordinateeAuth allows all tunnels, since Coderd and wsproxy are allowed to initiate a tunnel to any agent
+// TunnelAuditor records AddTunnel authorization decisions. Audit must not
+// block because authorization may run while the coordinator mutex is held.
+type TunnelAuditor interface {
+	Audit(agentID uuid.UUID, authorizationErr error)
+}
+
+// SingleTailnetCoordinateeAuth allows all tunnels because coderd and workspace
+// proxies may initiate a tunnel to any agent.
 type SingleTailnetCoordinateeAuth struct{}
 
 func (SingleTailnetCoordinateeAuth) Authorize(context.Context, *proto.CoordinateRequest) error {
 	return nil
 }
 
-// ClientCoordinateeAuth allows connecting to a single, given agent
+// ClientCoordinateeAuth allows connecting to a single agent.
 type ClientCoordinateeAuth struct {
 	AgentID uuid.UUID
+	Auditor TunnelAuditor
 }
 
 func (c ClientCoordinateeAuth) Authorize(_ context.Context, req *proto.CoordinateRequest) error {
-	if tun := req.GetAddTunnel(); tun != nil {
-		uid, err := uuid.FromBytes(tun.Id)
+	var agentID uuid.UUID
+	authErr, report := func() (error, bool) {
+		tun := req.GetAddTunnel()
+		if tun == nil {
+			return nil, false
+		}
+		var err error
+		agentID, err = uuid.FromBytes(tun.Id)
 		if err != nil {
-			return xerrors.Errorf("parse add tunnel id: %w", err)
+			return xerrors.Errorf("parse add tunnel id: %w", err), false
 		}
-
-		if c.AgentID != uid {
-			return xerrors.Errorf("invalid agent id, expected %s, got %s", c.AgentID.String(), uid.String())
+		if c.AgentID != agentID {
+			return xerrors.Errorf("invalid agent id, expected %s, got %s", c.AgentID.String(), agentID.String()), true
 		}
+		return nil, true
+	}()
+	if report && c.Auditor != nil {
+		c.Auditor.Audit(agentID, authErr)
 	}
-
+	if authErr != nil {
+		return authErr
+	}
 	return handleClientNodeRequests(req)
 }
 
-// AgentCoordinateeAuth disallows all tunnels, since agents are not allowed to initiate their own tunnels
+// AgentCoordinateeAuth disallows tunnels because agents may not initiate them.
 type AgentCoordinateeAuth struct {
 	ID uuid.UUID
 }
 
 func (a AgentCoordinateeAuth) Authorize(_ context.Context, req *proto.CoordinateRequest) error {
-	if tun := req.GetAddTunnel(); tun != nil {
+	if req.GetAddTunnel() != nil {
 		return xerrors.New("agents cannot open tunnels")
 	}
 
@@ -110,21 +129,33 @@ func (a AgentCoordinateeAuth) authorizeNodePrefixes(prefixes []string) error {
 }
 
 type ClientUserCoordinateeAuth struct {
-	Auth TunnelAuthorizer
+	Auth    TunnelAuthorizer
+	Auditor TunnelAuditor
 }
 
 func (a ClientUserCoordinateeAuth) Authorize(ctx context.Context, req *proto.CoordinateRequest) error {
-	if tun := req.GetAddTunnel(); tun != nil {
-		uid, err := uuid.FromBytes(tun.Id)
-		if err != nil {
-			return xerrors.Errorf("parse add tunnel id: %w", err)
+	var agentID uuid.UUID
+	authErr, report := func() (error, bool) {
+		tun := req.GetAddTunnel()
+		if tun == nil {
+			return nil, false
 		}
-		err = a.Auth.AuthorizeTunnel(ctx, uid)
+		var err error
+		agentID, err = uuid.FromBytes(tun.Id)
 		if err != nil {
-			return xerrors.Errorf("workspace agent not found or you do not have permission")
+			return xerrors.Errorf("parse add tunnel id: %w", err), false
 		}
+		if err := a.Auth.AuthorizeTunnel(ctx, agentID); err != nil {
+			return xerrors.New("workspace agent not found or you do not have permission"), true
+		}
+		return nil, true
+	}()
+	if report && a.Auditor != nil {
+		a.Auditor.Audit(agentID, authErr)
 	}
-
+	if authErr != nil {
+		return authErr
+	}
 	return handleClientNodeRequests(req)
 }
 

@@ -2,6 +2,7 @@ import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -10,12 +11,11 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import type { ModelFormValues } from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
 
 export const ModelFormDialogs: FC<{
-	editingModel?: TypesGen.ChatModelConfig;
-	onDeleteModel?: (modelConfigId: string) => Promise<void>;
+	editingModel?: TypesGen.ChatModel;
+	onDeleteModel?: (modelId: string) => Promise<void>;
 	isDeleting: boolean;
 	confirmingDelete: boolean;
 	setConfirmingDelete: (open: boolean) => void;
@@ -28,7 +28,7 @@ export const ModelFormDialogs: FC<{
 	};
 	confirmingReplaceDefault: boolean;
 	setConfirmingReplaceDefault: (open: boolean) => void;
-	currentDefaultModel?: TypesGen.ChatModelConfig;
+	currentDefaultModel?: TypesGen.ChatModel;
 	onConfirmReplaceDefault: () => void;
 }> = ({
 	editingModel,
@@ -47,11 +47,14 @@ export const ModelFormDialogs: FC<{
 	return (
 		<>
 			{editingModel && onDeleteModel && (
-				<ConfirmDeleteDialog
-					entity="model"
-					isPending={isDeleting}
+				<ConfirmDialog
+					type="delete"
+					title="Delete model"
+					confirmText="Delete model"
+					description="Are you sure you want to delete this model? This action is irreversible."
+					confirmLoading={isDeleting}
 					open={confirmingDelete}
-					onOpenChange={(open) => !open && setConfirmingDelete(false)}
+					onClose={() => setConfirmingDelete(false)}
 					onConfirm={() => {
 						resetForm(formValues);
 						void onDeleteModel(editingModel.id);

@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -28,8 +28,8 @@ func TestAIProviderSettings_Marshal(t *testing.T) {
 				Region:          "us-east-1",
 				Model:           "anthropic.claude-3-5-sonnet",
 				SmallFastModel:  "anthropic.claude-3-5-haiku",
-				AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // fixture
-				AccessKeySecret: ptr.Ref("secret"),
+				AccessKey:       new("AKIA-test"), //nolint:gosec // fixture
+				AccessKeySecret: new("secret"),
 			},
 		})
 		require.NoError(t, err)
@@ -146,8 +146,8 @@ func TestAIProviderSettings_Roundtrip(t *testing.T) {
 			Region:          "us-west-2",
 			Model:           "anthropic.claude-sonnet-4-5",
 			SmallFastModel:  "anthropic.claude-haiku-4-5",
-			AccessKey:       ptr.Ref("AKIA-roundtrip"), //nolint:gosec // fixture
-			AccessKeySecret: ptr.Ref("secret-roundtrip"),
+			AccessKey:       new("AKIA-roundtrip"), //nolint:gosec // fixture
+			AccessKeySecret: new("secret-roundtrip"),
 		},
 	}
 	encoded, err := json.Marshal(orig)
@@ -322,4 +322,86 @@ func TestAIProviderRequest_ValidateBedrockMantle(t *testing.T) {
 			require.False(t, hasFieldError(create.Validate(), "settings.region"))
 		}
 	})
+}
+
+// TestAIProviderRequest_ValidationInSync keeps API-level validation
+// (CreateAIProviderRequest.Validate) and runtime-level validation
+// (config.AWSBedrock.Validate) in sync.
+func TestAIProviderRequest_ValidationInSync(t *testing.T) {
+	t.Parallel()
+
+	const (
+		model          = "anthropic.claude-sonnet-4-5"
+		smallFastModel = "anthropic.claude-haiku-4-5"
+	)
+
+	cases := []struct {
+		name    string
+		baseURL string
+		bedrock codersdk.AIProviderBedrockSettings
+		isValid bool
+	}{
+		{
+			name:    "InvokeModelRegionOnly",
+			baseURL: "https://bedrock.us-east-2.amazonaws.com",
+			bedrock: codersdk.AIProviderBedrockSettings{Region: "us-east-2"},
+			isValid: false,
+		},
+		{
+			name:    "InvokeModelMissingSmallFastModel",
+			baseURL: "https://bedrock.us-east-2.amazonaws.com",
+			bedrock: codersdk.AIProviderBedrockSettings{
+				Region: "us-east-2",
+				Model:  model,
+			},
+			isValid: false,
+		},
+		{
+			name:    "InvokeModelComplete",
+			baseURL: "https://bedrock.us-east-2.amazonaws.com",
+			bedrock: codersdk.AIProviderBedrockSettings{
+				Region:         "us-east-2",
+				Model:          model,
+				SmallFastModel: smallFastModel,
+			},
+			isValid: true,
+		},
+		{
+			// Mantle forwards the client's model unchanged, so it needs neither.
+			name:    "MantleWithoutModels",
+			baseURL: "https://bedrock-mantle.us-east-2.api.aws/anthropic",
+			bedrock: codersdk.AIProviderBedrockSettings{
+				Region:   "us-east-2",
+				Protocol: codersdk.AIProviderBedrockProtocolMantle,
+			},
+			isValid: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Mirror the settings-to-runtime conversion that cli/aibridged.go
+			// performs when it builds providers from the database.
+			runtimeCfg := config.AWSBedrock{
+				BaseURL:        tc.baseURL,
+				Region:         tc.bedrock.Region,
+				Model:          tc.bedrock.Model,
+				SmallFastModel: tc.bedrock.SmallFastModel,
+				Protocol:       config.BedrockProtocol(tc.bedrock.ResolvedProtocol()),
+			}
+			require.Equal(t, tc.isValid, runtimeCfg.Validate() == nil,
+				"config.AWSBedrock.Validate disagrees with the expected verdict")
+
+			create := codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeBedrock,
+				Name:     "bedrock",
+				BaseURL:  tc.baseURL,
+				Settings: codersdk.AIProviderSettings{Bedrock: &tc.bedrock},
+			}
+			require.Equal(t, tc.isValid, len(create.Validate()) == 0,
+				"the API disagrees with the expected verdict")
+		})
+	}
 }

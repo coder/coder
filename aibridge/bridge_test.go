@@ -13,13 +13,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -186,11 +189,12 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 
 	upstreamRespBody := "upstream response"
 	tests := []struct {
-		name        string
-		baseURLPath string
-		requestPath string
-		provider    func(*testing.T, string) provider.Provider
-		expectPath  string
+		name          string
+		baseURLPath   string
+		requestMethod string
+		requestPath   string
+		provider      func(*testing.T, string) provider.Provider
+		expectPath    string
 	}{
 		{
 			name:        "openAI_no_base_path",
@@ -243,6 +247,23 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			},
 			expectPath: "/v1/models",
 		},
+		{
+			name:        "copilot_ping",
+			requestPath: "/copilot/_ping",
+			provider: func(_ *testing.T, baseURL string) provider.Provider {
+				return aibridge.NewCopilotProvider(config.Copilot{BaseURL: baseURL})
+			},
+			expectPath: "/_ping",
+		},
+		{
+			name:          "copilot_auto",
+			requestMethod: http.MethodPost,
+			requestPath:   "/copilot/auto",
+			provider: func(_ *testing.T, baseURL string) provider.Provider {
+				return aibridge.NewCopilotProvider(config.Copilot{BaseURL: baseURL})
+			},
+			expectPath: "/auto",
+		},
 	}
 
 	for _, tc := range tests {
@@ -263,7 +284,7 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			bridge, err := aibridge.NewRequestBridge(t.Context(), []provider.Provider{prov}, &rec, nil, logger, nil, bridgeTestTracer)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest("", tc.requestPath, nil)
+			req := httptest.NewRequest(tc.requestMethod, tc.requestPath, nil)
 			resp := httptest.NewRecorder()
 			bridge.ServeHTTP(resp, req)
 
@@ -271,6 +292,37 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			assert.Contains(t, resp.Body.String(), upstreamRespBody)
 		})
 	}
+}
+
+func TestWebSocketUpgradeRejected(t *testing.T) {
+	t.Parallel()
+
+	interceptorCalled := false
+	prov := &testutil.MockProvider{
+		NameStr: "test",
+		Bridged: []string{"/responses"},
+		InterceptorFunc: func(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error) {
+			interceptorCalled = true
+			return nil, nil //nolint:nilnil // The interceptor must not be reached.
+		},
+	}
+	bridge, err := aibridge.NewRequestBridge(
+		t.Context(),
+		[]provider.Provider{prov},
+		nil, nil, slogtest.Make(t, nil), nil, bridgeTestTracer,
+	)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/test/responses", nil)
+	req.Header.Set("Connection", "keep-alive, Upgrade")
+	req.Header.Set("Upgrade", "WebSocket")
+	resp := httptest.NewRecorder()
+
+	bridge.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusNotImplemented, resp.Code)
+	assert.Contains(t, resp.Body.String(), "WebSocket transport is not supported, use HTTP")
+	assert.False(t, interceptorCalled)
 }
 
 func TestRequestBodySizeLimit(t *testing.T) {
@@ -335,11 +387,17 @@ func TestRequestBodySizeLimit(t *testing.T) {
 			// Copilot's bridged route checks Authorization before reading the
 			// body, so provide a token to reach the read path.
 			req.Header.Set("Authorization", "Bearer test-key")
+			// coderd mounts aibridge behind the middleware that turns this
+			// tracker into the too-large metric's reason label, so a rejection
+			// that leaves it unset is counted as some other kind of 413.
+			var tracker httpapi.RequestBodyLimitTracker
+			req = req.WithContext(httpapi.WithRequestBodyLimitTracker(req.Context(), &tracker))
 			resp := httptest.NewRecorder()
 			bridge.ServeHTTP(resp, req)
 
 			assert.Equal(t, http.StatusRequestEntityTooLarge, resp.Code)
 			assert.Contains(t, resp.Body.String(), "Request body too large")
+			assert.True(t, tracker.Exceeded(), "rejection must be attributed to the body size limit")
 		})
 	}
 }

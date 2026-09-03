@@ -1,4 +1,6 @@
-# Clone private repositories
+---
+title: Clone private repositories
+---
 
 Now that you've finished [Launch your first workspace](../index.md), you can let your workspaces clone private GitHub repositories without a manual login each time.
 
@@ -246,9 +248,9 @@ data "coder_parameter" "ides" {
     icon  = "/icon/zed.svg"
   }
   option {
-    name  = "Windsurf"
-    value = "windsurf"
-    icon  = "/icon/windsurf.svg"
+    name  = "Devin Desktop"
+    value = "devin-desktop"
+    icon  = "/icon/devin.svg"
   }
 }
 
@@ -458,9 +460,9 @@ module "zed" {
   order    = 5
 }
 
-module "windsurf" {
-  count    = data.coder_workspace.me.start_count * (contains(local.ides, "windsurf") ? 1 : 0)
-  source   = "registry.coder.com/coder/windsurf/coder"
+module "devin-desktop" {
+  count    = data.coder_workspace.me.start_count * (contains(local.ides, "devin-desktop") ? 1 : 0)
+  source   = "registry.coder.com/coder/devin-desktop/coder"
   version  = "~> 1.0"
   agent_id = coder_agent.main.id
   folder   = "/home/coder"
@@ -548,7 +550,7 @@ resource "docker_volume" "home_volume" {
 
 resource "docker_container" "workspace" {
   count    = data.coder_workspace.me.start_count
-  image    = "codercom/enterprise-base:ubuntu"
+  image    = "codercom/example-base:ubuntu"
   name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   hostname = data.coder_workspace.me.name
   entrypoint = [

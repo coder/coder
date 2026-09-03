@@ -213,9 +213,9 @@ func TestAIGatewayKeyAudit(t *testing.T) {
 	)
 	opts := aibridgeOpts(t)
 	opts.AuditLogging = true
-	opts.Options.Database = db
-	opts.Options.Pubsub = ps
-	opts.Options.Auditor = auditor
+	opts.Database = db
+	opts.Pubsub = ps
+	opts.Auditor = auditor
 	opts.LicenseOptions.Features[codersdk.FeatureAuditLog] = 1
 
 	ownerClient, _ := coderdenttest.New(t, opts)
@@ -365,8 +365,8 @@ func TestAIGatewayKeysDatabaseErrors(t *testing.T) {
 			errStore.Store = db
 
 			opts := aibridgeOpts(t)
-			opts.Options.Database = &errStore
-			opts.Options.Pubsub = ps
+			opts.Database = &errStore
+			opts.Pubsub = ps
 
 			ownerClient, _ := coderdenttest.New(t, opts)
 			ctx := testutil.Context(t, testutil.WaitLong)

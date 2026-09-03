@@ -1,6 +1,7 @@
 package strings_test
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -32,6 +33,7 @@ func TestTruncate(t *testing.T) {
 		{"foo", 1, "f", nil},
 		{"foo", 0, "", nil},
 		{"foo", -1, "", nil},
+		{"", 5, "", nil},
 		{"foo bar", 7, "foo bar", []strings.TruncateOption{strings.TruncateWithEllipsis}},
 		{"foo bar", 6, "foo b…", []strings.TruncateOption{strings.TruncateWithEllipsis}},
 		{"foo bar", 5, "foo …", []strings.TruncateOption{strings.TruncateWithEllipsis}},
@@ -79,6 +81,28 @@ func TestTruncate(t *testing.T) {
 			require.Equal(t, tt.expected, actual)
 		})
 	}
+}
+
+func BenchmarkTruncate(b *testing.B) {
+	b.Run("NoTruncationNeeded", func(b *testing.B) {
+		s := "a short string well under the limit"
+		b.ReportAllocs()
+		for b.Loop() {
+			strings.Truncate(s, 1000)
+		}
+	})
+
+	b.Run("ActualTruncation", func(b *testing.B) {
+		var buf bytes.Buffer
+		for range 2000 {
+			buf.WriteString("日本語テスト word ")
+		}
+		s := buf.String()
+		b.ReportAllocs()
+		for b.Loop() {
+			strings.Truncate(s, 100, strings.TruncateWithEllipsis, strings.TruncateWithFullWords)
+		}
+	})
 }
 
 func TestUISanitize(t *testing.T) {

@@ -23,12 +23,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func testAPIKeyID(t testing.TB, db database.Store, userID uuid.UUID) string {
-	t.Helper()
-	key, _ := dbgen.APIKey(t, db, database.APIKey{ID: uuid.NewString(), UserID: userID})
-	return key.ID
-}
-
 type workerTestFixture struct {
 	db     database.Store
 	pubsub dbpubsub.Pubsub
@@ -131,7 +125,8 @@ func newWorkerTestFixture(t *testing.T) *workerTestFixture {
 		BaseUrl:     "http://example.invalid",
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		IsDefault: true,
+		IsDefault:      true,
+		OrganizationID: org.ID,
 	})
 	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 	return &workerTestFixture{db: db, pubsub: ps, sqlDB: sqlDB, user: user, org: org, model: model, apiKey: apiKey}
@@ -146,6 +141,25 @@ func (f *workerTestFixture) createRunningChat(t *testing.T) database.Chat {
 		LastModelConfigID: f.model.ID,
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
+		},
+	})
+	require.NoError(t, err)
+	return res.Chat
+}
+
+func (f *workerTestFixture) createRunningSubagentChat(t *testing.T, parentID uuid.UUID) database.Chat {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	res, err := chatstate.CreateChat(ctx, f.db, f.pubsub, chatstate.CreateChatInput{
+		OrganizationID:    f.org.ID,
+		OwnerID:           f.user.ID,
+		LastModelConfigID: f.model.ID,
+		Title:             "subagent",
+		ClientType:        database.ChatClientTypeApi,
+		ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: parentID, Valid: true},
 		InitialMessages: []chatstate.Message{
 			userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
 		},
@@ -208,7 +222,6 @@ func userTextMessage(t *testing.T, text string, createdBy uuid.UUID, modelConfig
 		ContentVersion: chatprompt.CurrentContentVersion,
 		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: true},
 		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		APIKeyID:       sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
 	}
 }
 

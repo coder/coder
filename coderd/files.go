@@ -43,6 +43,7 @@ const (
 // @Param file formData file true "File to be uploaded. If using tar format, file must conform to ustar (pax may cause problems)."
 // @Success 200 {object} codersdk.UploadResponse "Returns existing file if duplicate"
 // @Success 201 {object} codersdk.UploadResponse "Returns newly created file"
+// @Failure 413 {object} codersdk.Response "Request body exceeds 100 MiB, or a .zip archive exceeds it once expanded"
 // @Router /api/v2/files [post]
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -61,6 +62,17 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(rw, r.Body, HTTPFileMaxBytes)
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
+		// An oversized body is a size failure rather than a read failure, and
+		// the 413 below for an oversized expanded archive is about the expanded
+		// bytes, which are not reached until this read succeeds.
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			httpapi.RecordRequestBodyLimit(ctx, HTTPFileMaxBytes)
+			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Request body too large.",
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", HTTPFileMaxBytes),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to read file from request.",
 			Detail:  err.Error(),

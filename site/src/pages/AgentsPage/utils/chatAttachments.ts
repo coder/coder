@@ -1,5 +1,7 @@
-import { isApiErrorResponse } from "#/api/errors";
+import { toast } from "sonner";
+import { getErrorMessage, isApiErrorResponse } from "#/api/errors";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
+import { decodeDataURL } from "./dataUrls";
 
 const undisplayableAttachmentDetail = "File exists but could not be displayed.";
 
@@ -8,7 +10,7 @@ export type AttachmentFailure =
 	| { kind: "failed"; detail?: string };
 
 export const getChatFileURL = (fileId: string) =>
-	`/api/experimental/chats/files/${encodeURIComponent(fileId)}`;
+	`/api/v2/chats/files/${encodeURIComponent(fileId)}`;
 
 export const isAbortError = (error: unknown): error is Error =>
 	error instanceof Error && error.name === "AbortError";
@@ -61,6 +63,122 @@ export async function probeAttachmentFailure(
 	const response = await fetch(src, { signal });
 	return classifyAttachmentFailureResponse(response);
 }
+
+type IOSNavigator = Navigator & { standalone?: boolean };
+
+const isIOS = (): boolean =>
+	/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+	// iPadOS 13+ reports a macOS user agent; the touchscreen is the tell.
+	(navigator.userAgent.includes("Mac") && navigator.maxTouchPoints > 1);
+
+const isStandaloneDisplayMode = (): boolean => {
+	const nav: IOSNavigator = navigator;
+	return (
+		matchMedia("(display-mode: standalone)").matches || nav.standalone === true
+	);
+};
+
+const canShareFile = (file: File): boolean =>
+	typeof navigator.share === "function" &&
+	typeof navigator.canShare === "function" &&
+	navigator.canShare({ files: [file] });
+
+type AttachmentDownloadTarget = {
+	href: string;
+	fileName: string;
+	mediaType: string;
+};
+
+const fileFromDataURL = ({
+	href,
+	fileName,
+	mediaType,
+}: AttachmentDownloadTarget): File | null => {
+	const decoded = decodeDataURL(href);
+	return decoded
+		? new File([decoded.bytes], fileName, {
+				type: decoded.mediaType || mediaType || "application/octet-stream",
+			})
+		: null;
+};
+
+const shareFileViaSheet = (file: File, fileName: string): Promise<void> =>
+	navigator.share({ files: [file] }).catch((error: unknown) => {
+		if (error instanceof DOMException && error.name === "AbortError") {
+			return;
+		}
+		if (error instanceof DOMException && error.name === "NotAllowedError") {
+			// Fetching may outlast transient user activation. The toast action
+			// supplies a fresh gesture for the retry.
+			toast.error(`Couldn't download ${fileName}`, {
+				description: "The file is ready to save.",
+				action: {
+					label: "Save",
+					onClick: () => void shareFileViaSheet(file, fileName),
+				},
+			});
+			return;
+		}
+		toast.error(`Couldn't download ${fileName}`, {
+			description: getErrorMessage(error, "Sharing failed."),
+		});
+	});
+
+const shareAttachmentFile = async (
+	target: AttachmentDownloadTarget,
+): Promise<void> => {
+	let file: File;
+	if (target.href.startsWith("data:")) {
+		const decoded = fileFromDataURL(target);
+		if (!decoded) {
+			toast.error(`Couldn't download ${target.fileName}`, {
+				description: "The attachment data could not be decoded.",
+			});
+			return;
+		}
+		file = decoded;
+	} else {
+		try {
+			const response = await fetch(target.href);
+			if (!response.ok) {
+				throw new Error(
+					response.statusText
+						? `${response.status} ${response.statusText}`
+						: `HTTP ${response.status}`,
+				);
+			}
+			const blob = await response.blob();
+			file = new File([blob], target.fileName, {
+				type: blob.type || target.mediaType || "application/octet-stream",
+			});
+		} catch (error) {
+			toast.error(`Couldn't download ${target.fileName}`, {
+				description: getErrorMessage(error, "The file could not be fetched."),
+			});
+			return;
+		}
+	}
+	await shareFileViaSheet(file, target.fileName);
+};
+
+/**
+ * Uses the share sheet in iOS standalone mode to avoid a QuickLook navigation
+ * with no reliable return path. Otherwise, the native anchor handles the download.
+ */
+export const handleAttachmentDownloadClick = (
+	event: { preventDefault: () => void },
+	target: AttachmentDownloadTarget,
+): Promise<void> | undefined => {
+	if (!isIOS() || !isStandaloneDisplayMode()) {
+		return undefined;
+	}
+	const probe = new File(["0"], target.fileName, { type: target.mediaType });
+	if (!canShareFile(probe)) {
+		return undefined;
+	}
+	event.preventDefault();
+	return shareAttachmentFile(target);
+};
 
 // Filename extensions to list in the file-picker's `accept` attribute
 // alongside the MIME types. Browsers and operating systems do not always

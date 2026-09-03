@@ -2,7 +2,6 @@ package agentsdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -75,5 +74,5 @@ func (g *GoogleSessionTokenExchanger) exchange(ctx context.Context) (Authenticat
 		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, codersdk.ReadBodyAsJSON(res, &resp)
 }

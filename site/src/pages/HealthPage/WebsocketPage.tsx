@@ -16,7 +16,7 @@ import {
 	Pill,
 	SectionLabel,
 } from "./Content";
-import { DismissWarningButton } from "./DismissWarningButton";
+import { MuteWarningsButton } from "./MuteWarningsButton";
 
 const WebsocketPage = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
@@ -31,7 +31,7 @@ const WebsocketPage = () => {
 					<HealthyDot severity={websocket.severity} />
 					Websocket
 				</HeaderTitle>
-				<DismissWarningButton healthcheck="Websocket" />
+				<MuteWarningsButton healthcheck="Websocket" />
 			</Header>
 
 			<Main>
@@ -43,7 +43,7 @@ const WebsocketPage = () => {
 
 				{websocket.warnings.map((warning) => {
 					return (
-						<Alert key={warning.code} severity="warning" prominent>
+						<Alert key={warning.code} severity="warning" prominent dismissible>
 							{warning.message}
 						</Alert>
 					);

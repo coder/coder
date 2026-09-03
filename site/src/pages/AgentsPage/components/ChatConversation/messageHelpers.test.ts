@@ -47,6 +47,7 @@ const parsed = (
 	tools: [],
 	blocks: [],
 	sources: [],
+	hookNotices: [],
 	...overrides,
 });
 
@@ -465,13 +466,13 @@ describe("buildDisplayMessages", () => {
 		]);
 	});
 
-	it("returns a single read_file-only message unchanged", () => {
-		const readFile = readFileMessage(1, "read-1");
-
-		const result = buildDisplayMessages([readFile]);
+	it("keys a single read_file-only message like a merged group", () => {
+		const result = buildDisplayMessages([readFileMessage(1, "read-1")]);
 
 		expect(result).toHaveLength(1);
-		expect(result[0]).toBe(readFile);
+		expect(result[0].message.id).toBe(1);
+		expect(result[0].mergedFrom).toEqual([1]);
+		expect(result[0].parsed.blocks).toEqual([{ type: "tool", id: "read-1" }]);
 	});
 
 	it("collapses read_file-only assistant messages across hidden tool results", () => {
@@ -505,19 +506,20 @@ describe("buildDisplayMessages", () => {
 	it.each([
 		["assistant", textMessage(2, "middle")],
 		["user", textMessage(2, "middle", "user")],
-	] satisfies Array<
-		[string, ParsedMessageEntry]
-	>)("does not collapse read_file messages across visible %s content", (_, message) => {
-		const result = buildDisplayMessages([
-			readFileMessage(1, "read-1"),
-			message,
-			readFileMessage(3, "read-2"),
-		]);
+	] satisfies Array<[string, ParsedMessageEntry]>)(
+		"does not collapse read_file messages across visible %s content",
+		(_, message) => {
+			const result = buildDisplayMessages([
+				readFileMessage(1, "read-1"),
+				message,
+				readFileMessage(3, "read-2"),
+			]);
 
-		expect(result.map((entry) => entry.message.id)).toEqual([1, 2, 3]);
-		expect(result[0].parsed.blocks).toEqual([{ type: "tool", id: "read-1" }]);
-		expect(result[2].parsed.blocks).toEqual([{ type: "tool", id: "read-2" }]);
-	});
+			expect(result.map((entry) => entry.message.id)).toEqual([1, 2, 3]);
+			expect(result[0].parsed.blocks).toEqual([{ type: "tool", id: "read-1" }]);
+			expect(result[2].parsed.blocks).toEqual([{ type: "tool", id: "read-2" }]);
+		},
+	);
 
 	it.each([
 		["markdown", { markdown: "Visible markdown" }],
@@ -530,17 +532,18 @@ describe("buildDisplayMessages", () => {
 				],
 			},
 		],
-	] satisfies Array<
-		[string, Partial<ParsedMessageContent>]
-	>)("does not collapse read_file messages with visible %s", (_, overrides) => {
-		const result = buildDisplayMessages([
-			readFileMessage(1, "read-1"),
-			readFileMessage(2, "read-2", overrides),
-			readFileMessage(3, "read-3"),
-		]);
+	] satisfies Array<[string, Partial<ParsedMessageContent>]>)(
+		"does not collapse read_file messages with visible %s",
+		(_, overrides) => {
+			const result = buildDisplayMessages([
+				readFileMessage(1, "read-1"),
+				readFileMessage(2, "read-2", overrides),
+				readFileMessage(3, "read-3"),
+			]);
 
-		expect(result.map((entry) => entry.message.id)).toEqual([1, 2, 3]);
-	});
+			expect(result.map((entry) => entry.message.id)).toEqual([1, 2, 3]);
+		},
+	);
 
 	it("does not collapse read_file messages across another visible tool", () => {
 		const result = buildDisplayMessages([

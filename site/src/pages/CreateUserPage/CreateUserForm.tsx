@@ -249,7 +249,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 										<SelectPrimitive.Item
 											key={key}
 											value={key}
-											className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-none focus:bg-surface-secondary focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+											className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50"
 										>
 											<span className="absolute right-2 top-2 flex items-center justify-center">
 												<SelectPrimitive.ItemIndicator>
@@ -260,7 +260,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 												<SelectPrimitive.ItemText>
 													{opt.label}
 												</SelectPrimitive.ItemText>
-												<span className="text-xs text-content-secondary whitespace-normal break-words">
+												<span className="text-xs text-content-secondary whitespace-normal wrap-break-word">
 													{opt.description}
 												</span>
 											</div>

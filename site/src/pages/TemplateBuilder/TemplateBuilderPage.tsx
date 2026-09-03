@@ -1,21 +1,27 @@
-import { type FC, useEffect, useState } from "react";
+import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { deploymentConfig } from "#/api/queries/deployment";
 import {
 	createTemplateFromBuilder,
+	recordTemplateBuilderSession,
 	templateBuilderBases,
 } from "#/api/queries/templateBuilder";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
+import { generateUUID } from "#/utils/random";
 import { TemplateBuilderPageView } from "./TemplateBuilderPageView";
 import type {
 	SelectedBaseMeta,
 	TemplateBuilderWizardState,
 } from "./wizardState";
-import { toCreateTemplateRequest, toSelectedBaseMeta } from "./wizardState";
+import {
+	type CustomizationsFormValues,
+	toCreateTemplateRequest,
+	toSelectedBaseMeta,
+} from "./wizardState";
 
 const TemplateBuilderPage: FC = () => {
 	const navigate = useNavigate();
@@ -24,12 +30,55 @@ const TemplateBuilderPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { data, error, isLoading } = useQuery(deploymentConfig());
 	const createMutation = useMutation(createTemplateFromBuilder());
+	const sessionMutation = useMutation(recordTemplateBuilderSession());
+
+	// Stable session ID for the lifetime of this page mount, shared
+	// across wizard_entry and compose_completion telemetry events.
+	const sessionId = useMemo(() => generateUUID(), []);
 
 	const builderDisabled = data?.config?.template_builder?.disabled ?? false;
+	const wizardReady =
+		!builderDisabled && !isLoading && permissions.createTemplates;
+
+	// Report wizard_entry once the builder is ready and accessible.
+	const reportEntry = useCallback(() => {
+		sessionMutation.mutate({
+			session_id: sessionId,
+			event_type: "wizard_entry",
+		});
+	}, [sessionMutation.mutate, sessionId]);
+
+	// Report compose_completion when the create request settles. Duration
+	// is captured at submit time so it measures wizard usage, not the
+	// create request round trip.
+	const reportCompletion = useCallback(
+		(
+			state: TemplateBuilderWizardState,
+			success: boolean,
+			durationSeconds: number,
+		) => {
+			sessionMutation.mutate({
+				session_id: state.sessionId,
+				event_type: "compose_completion",
+				base_template_id: state.baseTemplateId ?? undefined,
+				module_ids: state.modules.map((m) => m.id),
+				duration_seconds: durationSeconds,
+				success,
+			});
+		},
+		[sessionMutation.mutate],
+	);
+
+	useEffect(() => {
+		if (!wizardReady) {
+			return;
+		}
+		reportEntry();
+	}, [wizardReady, reportEntry]);
 
 	const basesQuery = useQuery({
 		...templateBuilderBases(),
-		enabled: !builderDisabled && !isLoading && permissions.createTemplates,
+		enabled: wizardReady,
 	});
 
 	// ?base= is the only search param accepted on entry. It is consumed
@@ -64,15 +113,24 @@ const TemplateBuilderPage: FC = () => {
 		return <Navigate to="/templates/new" replace />;
 	}
 
-	const handleCreate = (state: TemplateBuilderWizardState) => {
-		const req = toCreateTemplateRequest(state);
+	const handleCreate = (
+		state: TemplateBuilderWizardState,
+		customizations: CustomizationsFormValues,
+	) => {
+		const req = toCreateTemplateRequest(state, customizations);
+		const durationSeconds = (Date.now() - state.enteredAt) / 1000;
+
 		createMutation.mutate(req, {
 			onSuccess: (resp) => {
+				reportCompletion(state, true, durationSeconds);
 				const t = resp.template;
 				navigate(
 					`${getLink(linkToTemplate(t.organization_name, t.name))}/files`,
 					{ state: { justCreated: true } },
 				);
+			},
+			onError: () => {
+				reportCompletion(state, false, durationSeconds);
 			},
 		});
 	};
@@ -86,8 +144,9 @@ const TemplateBuilderPage: FC = () => {
 				preselectedBase={preselectedBase}
 				onCreateTemplate={handleCreate}
 				createError={createMutation.error}
-				isCreating={createMutation.isPending}
+				isCreating={createMutation.isPending || createMutation.isSuccess}
 				onClearCreateError={() => createMutation.reset()}
+				sessionId={sessionId}
 			/>
 		</>
 	);

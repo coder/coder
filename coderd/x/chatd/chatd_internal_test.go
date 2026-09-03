@@ -4,9 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"io"
-	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +11,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -27,15 +25,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
-	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspacestats"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
@@ -85,6 +80,251 @@ func newTestMCPAgentTool(name string, configID uuid.UUID) fantasy.AgentTool {
 
 func (t *testMCPAgentTool) MCPServerConfigID() uuid.UUID {
 	return t.configID
+}
+
+func TestUpdateChatSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TrimsAndPublishes", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		ps := newRecordingPubsub(dbpubsub.NewInMemory())
+		server := &Server{db: db, pubsub: ps}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		caller := rbac.Subject{
+			ID:    chat.OwnerID.String(),
+			Type:  rbac.SubjectTypeUser,
+			Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+		}
+		//nolint:gocritic // Verify updateChatSummary preserves its caller's actor.
+		ctx := dbauthz.As(context.Background(), caller)
+
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: "trimmed summary", Valid: true},
+		}).DoAndReturn(func(ctx context.Context, _ database.UpdateChatSummaryParams) (int64, error) {
+			actor, ok := dbauthz.ActorFromContext(ctx)
+			require.True(t, ok, "summary writes must preserve the caller's actor")
+			require.Equal(t, caller, actor)
+			return 1, nil
+		})
+
+		server.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, " \n trimmed summary\t ")
+
+		events := ps.watchEvents(t)
+		require.Len(t, events, 1)
+		require.Equal(t, codersdk.ChatWatchEventKindChatSummaryChange, events[0].Kind)
+		require.NotNil(t, events[0].Chat.Summary)
+		require.Equal(t, "trimmed summary", *events[0].Chat.Summary)
+	})
+
+	t.Run("SkipsBlankSummary", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, " \n\t ")
+	})
+
+	t.Run("SkipsEventOnStaleWrite", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		ps := newRecordingPubsub(dbpubsub.NewInMemory())
+		server := &Server{db: db, pubsub: ps}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: "stale summary", Valid: true},
+		}).Return(int64(0), nil)
+
+		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, "stale summary")
+
+		require.Empty(t, ps.watchEvents(t))
+	})
+}
+
+func assistantReportMessage(t *testing.T, chatID uuid.UUID, id int64, text string) database.ChatMessage {
+	t.Helper()
+
+	parts := []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)}
+	data, err := json.Marshal(parts)
+	require.NoError(t, err)
+
+	return database.ChatMessage{
+		ID:             id,
+		ChatID:         chatID,
+		Role:           database.ChatMessageRoleAssistant,
+		Content:        pqtype.NullRawMessage{RawMessage: data, Valid: true},
+		ContentVersion: chatprompt.ContentVersionV1,
+		Visibility:     database.ChatMessageVisibilityBoth,
+	}
+}
+
+func TestStoreSubagentReportSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PersistsFinalReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{
+			assistantReportMessage(t, chat.ID, 1, "intermediate progress"),
+			assistantReportMessage(t, chat.ID, 2, "final report"),
+		}, nil)
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: "final report", Valid: true},
+		}).Return(int64(1), nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+
+	t.Run("SkipsWhenNoVisibleReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{}, nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+
+	t.Run("TruncatesLongReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		longReport := strings.Repeat("a", subagentReportSummaryMaxRunes+100)
+		wantSummary := strings.Repeat("a", subagentReportSummaryMaxRunes-1) + "…"
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{
+			assistantReportMessage(t, chat.ID, 1, longReport),
+		}, nil)
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: wantSummary, Valid: true},
+		}).Return(int64(1), nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+
+	t.Run("StoresSnippetOfMarkdownReport", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
+		chat := database.Chat{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			HistoryVersion: 3,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		report := "## Result\n\nFixed **the race** in `cache.go`. " +
+			"Added a regression test.\n\nLonger explanation follows here."
+
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		}).Return([]database.ChatMessage{
+			assistantReportMessage(t, chat.ID, 1, report),
+		}, nil)
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary: sql.NullString{
+				String: "Fixed the race in cache.go. Added a regression test.",
+				Valid:  true,
+			},
+		}).Return(int64(1), nil)
+
+		server.storeSubagentReportSummary(context.Background(), chat, logger)
+	})
+}
+
+func TestMaybeGenerateChatSummaryAsync_CloseCancelsInflight(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	t.Cleanup(serverCancel)
+	server := &Server{ctx: serverCtx, cancel: serverCancel, db: db}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	entered := make(chan struct{})
+	db.EXPECT().GetChatByID(gomock.Any(), chat.ID).DoAndReturn(
+		func(readCtx context.Context, _ uuid.UUID) (database.Chat, error) {
+			close(entered)
+			// Hang like an unreachable callee until the context is
+			// canceled; only server shutdown can release this before
+			// chatSummaryWorkTimeout.
+			<-readCtx.Done()
+			return database.Chat{}, readCtx.Err()
+		},
+	)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	server.maybeGenerateChatSummaryAsync(ctx, logger, chat)
+
+	testutil.TryReceive(ctx, t, entered)
+
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		_ = server.Close()
+	}()
+	testutil.TryReceive(ctx, t, closed)
 }
 
 func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
@@ -552,6 +792,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		newTestAgentTool("read_skill"),
 		newTestAgentTool("read_skill_file"),
 		newTestAgentTool("ask_user_question"),
+		newTestAgentTool(chattool.FindToolsName),
 	})
 
 	require.Equal(t, []string{
@@ -566,6 +807,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	require.NotContains(t, got, "start_workspace")
 	require.NotContains(t, got, "stop_workspace")
 	require.NotContains(t, got, "ask_user_question")
+	require.NotContains(t, got, chattool.FindToolsName)
 }
 
 func TestAllowedBehaviorToolNames(t *testing.T) {
@@ -741,321 +983,6 @@ func TestRenameChatTitle(t *testing.T) {
 			"must report wrote=false when the stored row already matches newTitle so the handler suppresses a redundant title_change event")
 		require.Equal(t, landed, got)
 	})
-}
-
-func withChatMessageAPIKeyID(message database.ChatMessage, apiKeyID string) database.ChatMessage {
-	message.APIKeyID = sqlNullString(apiKeyID)
-	return message
-}
-
-// requireOutgoingRequestModel asserts that the outgoing request body
-// requests wantModel. This is so that mock transports can still
-// verify the outgoing request asked for the expected model.
-func requireOutgoingRequestModel(t testing.TB, req *http.Request, wantModel string) {
-	t.Helper()
-
-	body, err := io.ReadAll(req.Body)
-	require.NoError(t, err)
-	req.Body = io.NopCloser(strings.NewReader(string(body)))
-
-	var decoded struct {
-		Model string `json:"model"`
-	}
-	require.NoError(t, json.Unmarshal(body, &decoded))
-	require.Equal(t, wantModel, decoded.Model)
-}
-
-func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	usageTx := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	pubsub := dbpubsub.NewInMemory()
-	clock := quartz.NewReal()
-
-	ownerID := uuid.New()
-	chatID := uuid.New()
-	modelConfigID := uuid.New()
-	workerID := uuid.New()
-	userPrompt := "review pull request 23633 and fix review threads"
-	activeAPIKeyID := "key-" + uuid.NewString()
-	wantTitle := "Review PR 23633"
-
-	chat := database.Chat{
-		ID:                chatID,
-		OwnerID:           ownerID,
-		LastModelConfigID: modelConfigID,
-		Status:            database.ChatStatusRunning,
-		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
-		Title:             chatprompt.FallbackTitle(userPrompt),
-	}
-	providerID := uuid.New()
-	modelConfig := database.ChatModelConfig{
-		ID:           modelConfigID,
-		Model:        "gpt-4o-mini",
-		ContextLimit: 8192,
-		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
-	}
-	updatedChat := chat
-	updatedChat.Title = wantTitle
-
-	messageEvents := make(chan struct {
-		payload codersdk.ChatWatchEvent
-		err     error
-	}, 1)
-	cancelSub, err := pubsub.SubscribeWithErr(
-		coderdpubsub.ChatWatchEventChannel(ownerID),
-		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
-			messageEvents <- struct {
-				payload codersdk.ChatWatchEvent
-				err     error
-			}{payload: payload, err: err}
-		}),
-	)
-	require.NoError(t, err)
-	defer cancelSub()
-
-	// Title generation routes through the transport factory, so the model
-	// response is synthesized by the RoundTripper (see aibridgeTestFactory).
-	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		requireOutgoingRequestModel(t, req, modelConfig.Model)
-		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
-		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(body)),
-			Request:    req,
-		}, nil
-	})}
-
-	server := &Server{
-		db:                       db,
-		logger:                   logger,
-		pubsub:                   pubsub,
-		clock:                    quartz.NewReal(),
-		configCache:              newChatConfigCache(context.Background(), db, clock),
-		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
-	}
-
-	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
-	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
-		ID:      providerID,
-		Name:    "primary-openai",
-		Type:    database.AIProviderTypeOpenai,
-		Enabled: true,
-	}, nil).AnyTimes()
-
-	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
-		ID:      providerID,
-		Name:    "primary-openai",
-		Type:    database.AIProviderTypeOpenai,
-		Enabled: true,
-	}}, nil).AnyTimes()
-	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
-	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
-	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
-	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
-		gomock.Any(),
-		database.GetChatMessagesByChatIDAscPaginatedParams{
-			ChatID:   chatID,
-			AfterID:  0,
-			LimitVal: manualTitleMessageWindowLimit,
-		},
-	).Return([]database.ChatMessage{
-		withChatMessageAPIKeyID(mustChatMessage(
-			t,
-			database.ChatMessageRoleUser,
-			database.ChatMessageVisibilityBoth,
-			codersdk.ChatMessageText(userPrompt),
-		), activeAPIKeyID),
-		mustChatMessage(
-			t,
-			database.ChatMessageRoleAssistant,
-			database.ChatMessageVisibilityBoth,
-			codersdk.ChatMessageText("checking the diff now"),
-		),
-	}, nil)
-	db.EXPECT().GetChatMessagesByChatIDDescPaginated(
-		gomock.Any(),
-		database.GetChatMessagesByChatIDDescPaginatedParams{
-			ChatID:   chatID,
-			BeforeID: 0,
-			LimitVal: manualTitleMessageWindowLimit,
-		},
-	).Return(nil, nil)
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
-
-	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
-		func(fn func(database.Store) error, opts *database.TxOptions) error {
-			require.Nil(t, opts)
-			return fn(usageTx)
-		},
-	)
-
-	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
-	usageTx.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
-		ID:    chatID,
-		Title: wantTitle,
-	}).Return(updatedChat, nil)
-
-	gotChat, err := server.RegenerateChatTitle(ctx, chat)
-	require.NoError(t, err)
-	require.Equal(t, updatedChat, gotChat)
-
-	select {
-	case event := <-messageEvents:
-		require.NoError(t, event.err)
-		require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.payload.Kind)
-		require.Equal(t, chatID, event.payload.Chat.ID)
-		require.Equal(t, wantTitle, event.payload.Chat.Title)
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for title change pubsub event")
-	}
-}
-
-// With no request-level locking, persistManualTitle's re-read under
-// GetChatByIDForUpdate is the only protection against clobbering a title
-// that changed while the model call ran. The strict mock has no
-// UpdateChatByID expectation, so any persist attempt fails the test.
-// A skipped persist must also not publish a title_change event; the
-// wroteTitle comment in regenerateChatTitleWithStore explains why.
-func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	usageTx := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	pubsub := dbpubsub.NewInMemory()
-	clock := quartz.NewReal()
-
-	ownerID := uuid.New()
-	chatID := uuid.New()
-	modelConfigID := uuid.New()
-	providerID := uuid.New()
-	userPrompt := "review pull request 23633 and fix review threads"
-	activeAPIKeyID := "key-" + uuid.NewString()
-	generatedTitle := "Review PR 23633"
-
-	chat := database.Chat{
-		ID:                chatID,
-		OwnerID:           ownerID,
-		LastModelConfigID: modelConfigID,
-		Status:            database.ChatStatusWaiting,
-		Title:             chatprompt.FallbackTitle(userPrompt),
-	}
-	modelConfig := database.ChatModelConfig{
-		ID:           modelConfigID,
-		Model:        "gpt-4o-mini",
-		ContextLimit: 8192,
-		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
-	}
-	// Another writer (rename or a second regenerate) landed while the
-	// model call was in flight.
-	landedChat := chat
-	landedChat.Title = "landed-concurrently"
-
-	titleEvents := make(chan codersdk.ChatWatchEvent, 1)
-	cancelSub, err := pubsub.SubscribeWithErr(
-		coderdpubsub.ChatWatchEventChannel(ownerID),
-		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
-			require.NoError(t, err)
-			titleEvents <- payload
-		}),
-	)
-	require.NoError(t, err)
-	defer cancelSub()
-
-	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		requireOutgoingRequestModel(t, req, modelConfig.Model)
-		text := strconv.Quote(`{"title":"` + generatedTitle + `"}`)
-		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(body)),
-			Request:    req,
-		}, nil
-	})}
-
-	server := &Server{
-		db:                       db,
-		logger:                   logger,
-		pubsub:                   pubsub,
-		clock:                    quartz.NewReal(),
-		configCache:              newChatConfigCache(context.Background(), db, clock),
-		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
-	}
-
-	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
-	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
-		ID:      providerID,
-		Name:    "primary-openai",
-		Type:    database.AIProviderTypeOpenai,
-		Enabled: true,
-	}, nil).AnyTimes()
-	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
-		ID:      providerID,
-		Name:    "primary-openai",
-		Type:    database.AIProviderTypeOpenai,
-		Enabled: true,
-	}}, nil).AnyTimes()
-	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
-	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
-	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
-	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
-		gomock.Any(),
-		database.GetChatMessagesByChatIDAscPaginatedParams{
-			ChatID:   chatID,
-			AfterID:  0,
-			LimitVal: manualTitleMessageWindowLimit,
-		},
-	).Return([]database.ChatMessage{
-		withChatMessageAPIKeyID(mustChatMessage(
-			t,
-			database.ChatMessageRoleUser,
-			database.ChatMessageVisibilityBoth,
-			codersdk.ChatMessageText(userPrompt),
-		), activeAPIKeyID),
-	}, nil)
-	db.EXPECT().GetChatMessagesByChatIDDescPaginated(
-		gomock.Any(),
-		database.GetChatMessagesByChatIDDescPaginatedParams{
-			ChatID:   chatID,
-			BeforeID: 0,
-			LimitVal: manualTitleMessageWindowLimit,
-		},
-	).Return(nil, nil)
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
-
-	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
-		func(fn func(database.Store) error, _ *database.TxOptions) error {
-			return fn(usageTx)
-		},
-	)
-
-	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(landedChat, nil)
-
-	gotChat, err := server.RegenerateChatTitle(ctx, chat)
-	require.NoError(t, err)
-	require.Equal(t, landedChat.Title, gotChat.Title,
-		"the concurrently landed title must survive; the generated title must not be persisted")
-
-	// The in-memory pubsub delivers synchronously, so any event published
-	// during RegenerateChatTitle is already buffered by now.
-	select {
-	case event := <-titleEvents:
-		t.Fatalf("unexpected %s event published for skipped regeneration (title %q)",
-			event.Kind, event.Chat.Title)
-	default:
-	}
 }
 
 func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
@@ -3416,70 +3343,308 @@ func TestServer_inflightContext(t *testing.T) {
 	}
 }
 
-// TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig drives
-// the fallback branch in prepareManualTitleDebugRun: AI-gateway route
-// resolution fails (the BYOK key lookup returns a non-ErrNoRows error) while
-// the linked provider stays enabled, so the debug run records the provider
-// type derived from modelConfig.AIProviderID instead of an empty string.
-func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *testing.T) {
+func TestResolveModelConfigProviderLookupError(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	organizationID := uuid.New()
+	modelConfigID := uuid.New()
 
-	ownerID := uuid.New()
-	providerID := uuid.New()
-	chat := database.Chat{ID: uuid.New(), OwnerID: ownerID}
-	modelConfig := database.ChatModelConfig{
-		ID:           uuid.New(),
-		Model:        "claude-sonnet-4",
-		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
-	}
-	provider := database.AIProvider{
-		ID:      providerID,
-		Type:    database.AIProviderTypeAnthropic,
-		Name:    "anthropic",
-		Enabled: true,
-	}
-
-	// Resolved twice: once by gatewayProviderForConfig during route resolution,
-	// once by the fallback's own enabledAIProviderByID lookup.
-	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).AnyTimes()
-	// A non-ErrNoRows BYOK error fails route resolution while the provider stays
-	// enabled, which is exactly the gap the fallback covers.
-	db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
-		UserID:       ownerID,
-		AIProviderID: providerID,
-	}).Return(database.UserAIProviderKey{}, sql.ErrConnDone)
-
-	var gotProvider sql.NullString
-	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, params database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
-			gotProvider = params.Provider
-			return database.ChatDebugRun{ChatID: params.ChatID, Provider: params.Provider}, nil
-		},
-	)
+	db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelConfigID).Return(database.ChatModelConfig{}, sql.ErrConnDone)
 
 	server := &Server{
-		db:        db,
-		logger:    logger,
-		allowBYOK: true,
+		db:          db,
+		configCache: newChatConfigCache(context.Background(), db, quartz.NewReal()),
 	}
-	debugSvc := chatdebug.NewService(db, logger, nil)
-	fallbackModel := &chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}
+	_, err := server.resolveModelConfig(ctx, database.Chat{
+		OrganizationID:    organizationID,
+		LastModelConfigID: modelConfigID,
+	})
+	require.ErrorIs(t, err, sql.ErrConnDone)
+	require.ErrorContains(t, err, "get chat model config")
+}
 
-	server.prepareManualTitleDebugRun(
-		ctx,
-		debugSvc,
-		chat,
-		modelConfig,
-		modelBuildOptions{},
-		nil,
-		fallbackModel,
-	)
+func TestResolveModelConfigOrganizationScope(t *testing.T) {
+	t.Parallel()
 
-	require.True(t, gotProvider.Valid, "debug run provider should be populated from the linked config")
-	require.Equal(t, "anthropic", gotProvider.String)
+	t.Run("ForeignConfigFallsBackToLocalDefault", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		chatOrg := dbgen.Organization(t, db, database.Organization{})
+		defaultOrg, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			OrganizationID: defaultOrg.ID,
+		})
+		localDefault := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			OrganizationID: chatOrg.ID,
+			IsDefault:      true,
+		})
+		server := &Server{
+			db:          db,
+			configCache: newChatConfigCache(context.Background(), db, quartz.NewReal()),
+		}
+
+		got, err := server.resolveModelConfig(ctx, database.Chat{
+			OrganizationID:    chatOrg.ID,
+			LastModelConfigID: foreignModel.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, localDefault.ID, got.ID)
+	})
+
+	t.Run("ForeignConfigWithoutLocalDefaultFails", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		chatOrg := dbgen.Organization(t, db, database.Organization{})
+		defaultOrg, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			OrganizationID: defaultOrg.ID,
+		})
+		server := &Server{
+			db:          db,
+			configCache: newChatConfigCache(context.Background(), db, quartz.NewReal()),
+		}
+
+		_, err = server.resolveModelConfig(ctx, database.Chat{
+			OrganizationID:    chatOrg.ID,
+			LastModelConfigID: foreignModel.ID,
+		})
+		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
+	})
+}
+
+// TestResolveFallbackModelConfigID verifies that admission does not reuse
+// a disabled last model and rejects a disabled default.
+func TestResolveFallbackModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	newProvider := func(t *testing.T, db database.Store, enabled bool) database.AIProvider {
+		return dbgen.AIProvider(t, db, database.AIProvider{}, func(p *database.InsertAIProviderParams) {
+			p.Enabled = enabled
+		})
+	}
+	// The configs under test live in an ad-hoc org so the per-org
+	// default lookup stays scoped to them, independent of any seeded
+	// default-org config.
+	newModelConfigOrg := func(t *testing.T, db database.Store) uuid.UUID {
+		return dbgen.Organization(t, db, database.Organization{}).ID
+	}
+	newModelConfig := func(t *testing.T, db database.Store, orgID, providerID uuid.UUID, isDefault bool) database.ChatModelConfig {
+		return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: providerID, Valid: true},
+			IsDefault:      isDefault,
+			OrganizationID: orgID,
+		})
+	}
+
+	t.Run("EnabledLastModel", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := newModelConfigOrg(t, db)
+		provider := newProvider(t, db, true)
+		lastModel := newModelConfig(t, db, orgID, provider.ID, false)
+
+		resolved, err := resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, lastModel.ID)
+		require.NoError(t, err)
+		require.Equal(t, lastModel.ID, resolved)
+	})
+
+	t.Run("ProviderDisabledLastModelFallsBackToDefault", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := newModelConfigOrg(t, db)
+		disabledProvider := newProvider(t, db, false)
+		lastModel := newModelConfig(t, db, orgID, disabledProvider.ID, false)
+		enabledProvider := newProvider(t, db, true)
+		defaultModel := newModelConfig(t, db, orgID, enabledProvider.ID, true)
+
+		resolved, err := resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, lastModel.ID)
+		require.NoError(t, err)
+		require.Equal(t, defaultModel.ID, resolved)
+	})
+
+	t.Run("NilLastModelUsesDefault", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := newModelConfigOrg(t, db)
+		provider := newProvider(t, db, true)
+		defaultModel := newModelConfig(t, db, orgID, provider.ID, true)
+
+		resolved, err := resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, uuid.Nil)
+		require.NoError(t, err)
+		require.Equal(t, defaultModel.ID, resolved)
+	})
+
+	t.Run("NonDefaultOrgWithoutLocalDefaultRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		otherOrgID := newModelConfigOrg(t, db)
+		defaultOrg, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		provider := newProvider(t, db, true)
+		newModelConfig(t, db, defaultOrg.ID, provider.ID, true)
+
+		_, err = resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: otherOrgID}, uuid.Nil)
+		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
+	})
+
+	t.Run("DisabledLocalDefaultRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := newModelConfigOrg(t, db)
+		disabledProvider := newProvider(t, db, true)
+		disabledLocal := newModelConfig(t, db, orgID, disabledProvider.ID, true)
+		_, err := db.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
+			ID:                   disabledLocal.ID,
+			Model:                disabledLocal.Model,
+			DisplayName:          disabledLocal.DisplayName,
+			Enabled:              false,
+			IsDefault:            true,
+			ContextLimit:         disabledLocal.ContextLimit,
+			CompressionThreshold: disabledLocal.CompressionThreshold,
+			Options:              disabledLocal.Options,
+			AIProviderID:         disabledLocal.AIProviderID,
+		})
+		require.NoError(t, err)
+
+		_, err = resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, uuid.Nil)
+		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
+	})
+
+	t.Run("DisabledLocalDefaultProviderRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := newModelConfigOrg(t, db)
+		disabledProvider := newProvider(t, db, false)
+		newModelConfig(t, db, orgID, disabledProvider.ID, true)
+
+		_, err := resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, uuid.Nil)
+		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
+	})
+
+	t.Run("ProviderDisabledDefaultRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := newModelConfigOrg(t, db)
+		disabledProvider := newProvider(t, db, false)
+		lastModel := newModelConfig(t, db, orgID, disabledProvider.ID, false)
+		newModelConfig(t, db, orgID, disabledProvider.ID, true)
+
+		_, err := resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, lastModel.ID)
+		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
+	})
+
+	t.Run("ExplicitEnabledModel", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := newModelConfigOrg(t, db)
+		provider := newProvider(t, db, true)
+		model := newModelConfig(t, db, orgID, provider.ID, false)
+
+		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
+		require.NoError(t, err)
+		require.Equal(t, model.ID, resolved)
+	})
+
+	t.Run("ExplicitDefaultOrgModelRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		chatOrgID := newModelConfigOrg(t, db)
+		defaultOrg, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		provider := newProvider(t, db, true)
+		model := newModelConfig(t, db, defaultOrg.ID, provider.ID, false)
+
+		_, err = resolveSendMessageModelConfigID(
+			ctx,
+			db,
+			database.Chat{OrganizationID: chatOrgID},
+			model.ID,
+		)
+		require.ErrorIs(t, err, ErrInvalidModelConfigID)
+	})
+
+	t.Run("ExplicitUnrelatedOrgModelRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		chatOrgID := newModelConfigOrg(t, db)
+		unrelatedOrgID := newModelConfigOrg(t, db)
+		provider := newProvider(t, db, true)
+		model := newModelConfig(t, db, unrelatedOrgID, provider.ID, false)
+
+		_, err := resolveSendMessageModelConfigID(
+			ctx,
+			db,
+			database.Chat{OrganizationID: chatOrgID},
+			model.ID,
+		)
+		require.ErrorIs(t, err, ErrInvalidModelConfigID)
+	})
+
+	// An explicit model whose provider was disabled after the coderd
+	// preflight must still be rejected inside the daemon.
+	t.Run("ExplicitProviderDisabledRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := newModelConfigOrg(t, db)
+		disabledProvider := newProvider(t, db, false)
+		model := newModelConfig(t, db, orgID, disabledProvider.ID, false)
+
+		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
+		require.ErrorIs(t, err, ErrInvalidModelConfigID)
+	})
+
+	// The create path performs the same daemon-side recheck before
+	// inserting the chat and its initial messages.
+	t.Run("CreateChatProviderDisabledRejected", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		owner := dbgen.User(t, db, database.User{})
+		disabledProvider := newProvider(t, db, false)
+		model := newModelConfig(t, db, newModelConfigOrg(t, db), disabledProvider.ID, false)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+		_, err := server.CreateChat(ctx, CreateOptions{
+			OrganizationID: uuid.New(),
+			OwnerID:        owner.ID,
+			Title:          "provider disabled create",
+			ModelConfigID:  model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.ErrorIs(t, err, ErrInvalidModelConfigID)
+	})
 }
