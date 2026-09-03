@@ -222,6 +222,11 @@ Members: `acquisition`, `queue_wait`, `capacity_wait`,
 `generation_step`. The three scheduling waits happen once per turn
 before generation starts; `generation_step` repeats once per step.
 
+`capacity_wait` appears in the duration per occurrence panel only. It is
+measured by the acquisition loop before the turn exists, so no turn
+records it, and its window lies inside `acquisition`, which the turn
+does record under the `scheduling` category.
+
 Because these are the direct children of the turn, their share panel is
 the quickest answer to "was this turn slow because of scheduling or
 because of generation".

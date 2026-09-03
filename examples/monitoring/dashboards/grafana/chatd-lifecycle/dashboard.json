@@ -1615,7 +1615,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Total seconds each stage occupied within a turn, from coderd_chatd_turn_stage_seconds.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats.\n\nCompare with duration per occurrence: a stage can be fast per occurrence and still dominate a turn by repeating. All three variables apply, because the turn-end metrics are stamped with the turn's model and effort even for stages that ran before it was resolved.",
+      "description": "Total seconds each stage occupied within a turn, from coderd_chatd_turn_stage_seconds.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats.\n\nCompare with duration per occurrence: a stage can be fast per occurrence and still dominate a turn by repeating. All three variables apply, because the turn-end metrics are stamped with the turn's model and effort even for stages that ran before it was resolved.\n\ncapacity_wait is not in this panel: it is measured before the turn exists and reaches only the per-occurrence profile, and its window lies inside acquisition.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1697,7 +1697,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_seconds_bucket{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_seconds_sum{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_seconds_bucket{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_seconds_sum{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_seconds_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
           "legendFormat": "{{stage}}",
           "range": true,
           "refId": "A"
@@ -1711,7 +1711,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "How many times each stage ran in a turn, from coderd_chatd_turn_stage_count.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats. A stage that did not occur in a turn is not recorded for that turn, so this reads as the count among turns where the stage happened at all.\n\nThis is the multiplier between the other two panels: seconds per turn is roughly occurrences per turn times duration per occurrence.",
+      "description": "How many times each stage ran in a turn, from coderd_chatd_turn_stage_count.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats. A stage that did not occur in a turn is not recorded for that turn, so this reads as the count among turns where the stage happened at all.\n\nThis is the multiplier between the other two panels: seconds per turn is roughly occurrences per turn times duration per occurrence.\n\ncapacity_wait is not in this panel: it is measured before the turn exists and reaches only the per-occurrence profile, and its window lies inside acquisition.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1793,7 +1793,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_count_bucket{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_count_count{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_count_sum{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_count_count{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_turn_stage_count_bucket{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_turn_stage_count_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_turn_stage_count_sum{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_turn_stage_count_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
           "legendFormat": "{{stage}}",
           "range": true,
           "refId": "A"
@@ -1807,7 +1807,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Fraction of the turn each stage occupied, from coderd_chatd_stage_share_of_turn.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats. Stages overlap in wall time, so shares at one level do not sum to 1 and several stages can each approach the whole turn.\n\nUse it to compare levels: a level whose shares are all small means turn time is going somewhere else, which the turn time partition row attributes.",
+      "description": "Fraction of the turn each stage occupied, from coderd_chatd_stage_share_of_turn.\n\nOne sample per turn, recorded when the turn ends, so this is \"how much of a turn does this stage account for in total\" and it already sums the repeats. Stages overlap in wall time, so shares at one level do not sum to 1 and several stages can each approach the whole turn.\n\nUse it to compare levels: a level whose shares are all small means turn time is going somewhere else, which the turn time partition row attributes.\n\ncapacity_wait is not in this panel: it is measured before the turn exists and reaches only the per-occurrence profile, and its window lies inside acquisition.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1889,7 +1889,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_share_of_turn_bucket{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_share_of_turn_sum{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{stage=~\"acquisition|queue_wait|capacity_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
+          "expr": "(\n  histogram_quantile($stat, sum by (le, stage) (rate(coderd_chatd_stage_share_of_turn_bucket{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])))\n  and on() (vector($stat) > bool 0) == 1\n  and on(stage) (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n)\nor\n(\n  sum by (stage) (rate(coderd_chatd_stage_share_of_turn_sum{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) / (sum by (stage) (rate(coderd_chatd_stage_share_of_turn_count{stage=~\"acquisition|queue_wait|generation_step\", model=~\"$model\", effort=~\"$effort\", chat_kind=~\"$chat_kind\"}[$__rate_interval])) > 0)\n  and on() (vector($stat) == bool 0) == 1\n)",
           "legendFormat": "{{stage}}",
           "range": true,
           "refId": "A"

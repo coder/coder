@@ -475,6 +475,13 @@ func TestTurnAccountingIgnoresWorkOutsideTheTurn(t *testing.T) {
 	})
 }
 
+func TestTurnAccountingCapacityWaitIsNotCategorized(t *testing.T) {
+	t.Parallel()
+	// The capacity wait window lies inside the acquisition window the
+	// turn records, so categorizing it would count the same time twice.
+	require.NotContains(t, recordedStageCategories, StageCapacityWait)
+}
+
 func TestTurnAccountingStampsModelOnRoot(t *testing.T) {
 	t.Parallel()
 	fixture := newTurnFixture(t)

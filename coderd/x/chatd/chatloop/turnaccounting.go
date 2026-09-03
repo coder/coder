@@ -59,10 +59,12 @@ var attributingStages = map[string]struct{}{
 // timestamps to their category. They run outside any attributing stage
 // and cannot nest, so their full duration is categorized. Recorded
 // stages absent from the map contribute to the per-stage totals only.
+// capacity_wait is absent: it is a sub-window of acquisition, measured
+// before the turn exists, and categorizing it would count that window
+// twice.
 var recordedStageCategories = map[string]string{
-	StageAcquisition:  CategoryScheduling,
-	StageQueueWait:    CategoryScheduling,
-	StageCapacityWait: CategoryScheduling,
+	StageAcquisition: CategoryScheduling,
+	StageQueueWait:   CategoryScheduling,
 }
 
 // turnAccumulatorKey keys the accumulator of the turn a context runs

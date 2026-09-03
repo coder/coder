@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -56,7 +55,7 @@ func (w *chatWorker) noteCapacityRefused(chatID uuid.UUID) {
 	if _, ok := w.capacityWaitSince[chatID]; ok {
 		return
 	}
-	w.capacityWaitSince[chatID] = time.Now()
+	w.capacityWaitSince[chatID] = w.opts.Clock.Now()
 }
 
 // recordCapacityWait emits the capacity_wait stage for a chat that is
@@ -64,7 +63,9 @@ func (w *chatWorker) noteCapacityRefused(chatID uuid.UUID) {
 // the first refusal this worker saw. Chats admitted on their first
 // attempt record nothing. The acquisition pass runs before the turn
 // span exists, so the turn scope and the chat kind are stated
-// explicitly.
+// explicitly, and the stage reaches the per-occurrence profile only:
+// no turn accumulator exists yet to receive it, and its window lies
+// inside the acquisition stage the turn records.
 func (w *chatWorker) recordCapacityWait(ctx context.Context, chat database.Chat) {
 	since, waited := w.capacityWaitSince[chat.ID]
 	if !waited {
@@ -73,14 +74,24 @@ func (w *chatWorker) recordCapacityWait(ctx context.Context, chat database.Chat)
 	delete(w.capacityWaitSince, chat.ID)
 	ctx = chatloop.ContextWithChatKind(ctx, chatKindAttr(chat))
 	w.server.stages.RecordAs(ctx, chatloop.StageCapacityWait, chatloop.ScopeTurn, chatloop.StageModel{},
-		since, time.Now(), nil,
+		since, w.opts.Clock.Now(), nil,
 		attribute.String(chatloop.AttrChatID, chat.ID.String()),
 	)
 }
 
+// forgetCapacityWait drops the wait start of a chat this worker will
+// not acquire on the current pass for a reason other than capacity: it
+// is owned by a live runner, archived, or no longer runnable. A wait
+// that resumes later starts from the next refusal.
+func (w *chatWorker) forgetCapacityWait(chatID uuid.UUID) {
+	delete(w.capacityWaitSince, chatID)
+}
+
 // pruneCapacityWaits drops wait starts for chats that are no longer
 // acquisition candidates, which happens when they are archived,
-// deleted, or picked up by another worker.
+// deleted, or picked up by another worker. candidates must be the
+// complete candidate set: a chat missing from a truncated batch is
+// still waiting, and dropping it would restart its clock.
 func (w *chatWorker) pruneCapacityWaits(candidates []database.GetChatWorkerAcquisitionCandidatesRow) {
 	if len(w.capacityWaitSince) == 0 {
 		return
