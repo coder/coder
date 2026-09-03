@@ -409,7 +409,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 				confirmLoading={form.isSubmitting}
 				entity="group mapping"
 				name={mappingToDelete ?? ""}
-				info="Users with that IdP group will no longer be assigned the mapped Coder groups."
+				info="This mapping is removed from the policy. Group membership is updated the next time a user logs in."
 				onCancel={() => setMappingToDelete(undefined)}
 				onConfirm={() => {
 					if (!mappingToDelete) {
