@@ -510,7 +510,7 @@ export const WithAttachmentError: Story = {
 
 /** File reference chip rendered inline with text in the editor. */
 export const WithFileReference: Story = {
-	render: (args) => {
+	render: function WithFileReferenceRender(args) {
 		const ref = useRef<ChatMessageInputRef>(null);
 
 		useEffect(() => {
@@ -539,7 +539,7 @@ export const WithFileReference: Story = {
 
 /** Multiple file reference chips rendered inline with text. */
 export const WithMultipleFileReferences: Story = {
-	render: (args) => {
+	render: function WithMultipleFileReferencesRender(args) {
 		const ref = useRef<ChatMessageInputRef>(null);
 
 		useEffect(() => {
