@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -232,7 +234,7 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 		Database: db,
 		Pubsub:   pubsub,
 	})
-	coderdtest.CreateFirstUser(t, client)
+	owner := coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
@@ -242,6 +244,7 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	type exchange struct {
 		status int
 		body   string
+		err    error
 	}
 
 	var barrier sync.WaitGroup
@@ -249,8 +252,8 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	redeem := func() exchange {
 		barrier.Done()
 		barrier.Wait()
-		status, body := postTokenRequest(ctx, t, client, form)
-		return exchange{status: status, body: body}
+		status, body, err := tryTokenRequest(ctx, t, client, form)
+		return exchange{status: status, body: body, err: err}
 	}
 
 	other := make(chan exchange, 1)
@@ -259,6 +262,7 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 
 	var minted, rejected int
 	for _, result := range results {
+		require.NoError(t, result.err)
 		switch result.status {
 		case http.StatusOK:
 			minted++
@@ -271,6 +275,57 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	}
 	require.Equal(t, 1, minted, "a code may mint at most one token")
 	require.Equal(t, 1, rejected)
+	requireOneTokenForApp(ctx, t, db, owner.UserID, app.ID)
+}
+
+// The ordinary replay: a client retries a redemption whose answer it never saw.
+// Here the first read refuses it. The race test cannot cover this path
+// deterministically, since which read or delete arbitrates there depends on
+// scheduling.
+func TestOAuth2TokenExchangeReplay(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+	exchangeCode(ctx, t, client, app, code, verifier)
+
+	status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
+	requireTokenGrantError(t, status, body)
+	requireOneTokenForApp(ctx, t, db, owner.UserID, app.ID)
+}
+
+// requireOneTokenForApp pins what a status code cannot show: a redemption that
+// wrote rows and then failed looks the same from outside as one that never
+// wrote. Counts both rows because the key is written before the token.
+func requireOneTokenForApp(ctx context.Context, t *testing.T, db database.Store, userID, appID uuid.UUID) {
+	t.Helper()
+
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		LoginType:      database.LoginTypeOAuth2ProviderApp,
+		UserID:         userID,
+		IncludeExpired: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, keys, 1, "expected exactly one minted API key")
+
+	apps, err := db.GetOAuth2ProviderAppsByUserID(ctx, userID)
+	require.NoError(t, err)
+	for _, app := range apps {
+		if app.OAuth2ProviderApp.ID == appID {
+			require.EqualValues(t, 1, app.TokenCount, "expected exactly one minted token")
+			return
+		}
+	}
+	t.Fatalf("app %s holds no tokens for user %s", appID, userID)
 }
 
 // appWithSecret is seeded directly because the management API registers no
@@ -453,15 +508,35 @@ func exchangeCode(ctx context.Context, t *testing.T, client *codersdk.Client, ap
 func postTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values) (int, string) {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/tokens", strings.NewReader(form.Encode()))
+	status, body, err := tryTokenRequest(ctx, t, client, form)
 	require.NoError(t, err)
+	return status, body
+}
+
+// tryTokenRequest returns the request error instead of asserting on it, so a
+// caller on a spawned goroutine can carry it back to the test goroutine.
+// require there runs runtime.Goexit, which skips whatever the goroutine still
+// owed its parent.
+func tryTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values) (int, string, error) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/tokens", strings.NewReader(form.Encode()))
+	if err != nil {
+		return 0, "", xerrors.Errorf("build token request: %w", err)
+	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
+	if err != nil {
+		return 0, "", xerrors.Errorf("post token request: %w", err)
+	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode, readBody(t, resp)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, "", xerrors.Errorf("read token response: %w", err)
+	}
+	return resp.StatusCode, string(body), nil
 }
 
 func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2TokenResponse {

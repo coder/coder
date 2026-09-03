@@ -504,7 +504,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		ctx := dbauthz.As(ctx, actor)
 		// The delete decides the race: only the redemption that removes the row
 		// mints a token, and the loser sees the code as already spent.
-		_, err = tx.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, dbCode.ID)
+		_, err := tx.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, dbCode.ID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errBadCode
 		}

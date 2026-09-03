@@ -19891,6 +19891,8 @@ const deleteOAuth2ProviderAppCodeByID = `-- name: DeleteOAuth2ProviderAppCodeByI
 DELETE FROM oauth2_provider_app_codes WHERE id = $1
 `
 
+// Succeeds whether or not a row was there. Callers that need to know use the
+// ReturningRow variant below.
 func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppCodeByID, id)
 	return err
@@ -19900,8 +19902,9 @@ const deleteOAuth2ProviderAppCodeByIDReturningRow = `-- name: DeleteOAuth2Provid
 DELETE FROM oauth2_provider_app_codes WHERE id = $1 RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope
 `
 
-// Returns sql.ErrNoRows when the code is already gone, which lets a caller
-// enforce single use by racing this delete instead of reading first.
+// Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
+// this the arbiter of single use. A prior read cannot arbitrate: its result is
+// stale the moment it returns.
 func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
 	row := q.db.QueryRowContext(ctx, deleteOAuth2ProviderAppCodeByIDReturningRow, id)
 	var i OAuth2ProviderAppCode
