@@ -4,6 +4,7 @@ import type {
 	AIBridgeListSessionsResponse,
 	AIBridgeSessionThreadsResponse,
 	AIGatewaySpendUsersResponse,
+	AIGatewaySpendWindow,
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
@@ -28,12 +29,7 @@ export const paginatedSessions = (
 	};
 };
 
-interface AIGatewaySpendDateParams {
-	start_date: string;
-	end_date: string;
-}
-
-interface PaginatedAIGatewaySpendUsersPayload extends AIGatewaySpendDateParams {
+interface PaginatedAIGatewaySpendUsersPayload extends AIGatewaySpendWindow {
 	search: string;
 }
 
@@ -61,7 +57,7 @@ export const paginatedAIGatewaySpendUsers = (
 
 export const aiGatewaySpendUserSummary = (
 	user: string,
-	params: AIGatewaySpendDateParams,
+	params: AIGatewaySpendWindow,
 ) => ({
 	queryKey: ["aiGatewaySpendUserSummary", user, params] as const,
 	queryFn: () => API.getAIGatewaySpendUserSummary(user, params),

@@ -705,6 +705,27 @@ func (api *API) aiGatewaySpendUsers(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var count int64
+	if len(rows) == 0 && page.Offset > 0 {
+		// The window function that carries total_count only rides along on
+		// returned rows, so an overshot page has to read it separately.
+		firstPage, err := api.Database.ListAIBridgeSpendByUser(ctx, database.ListAIBridgeSpendByUserParams{
+			StartDate:  start,
+			EndDate:    end,
+			Search:     r.URL.Query().Get("search"),
+			PageLimit:  1,
+			PageOffset: 0,
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error getting AI Gateway spend.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(firstPage) > 0 {
+			count = firstPage[0].TotalCount
+		}
+	}
 	users := make([]codersdk.AIGatewaySpendUser, len(rows))
 	for i, row := range rows {
 		count = row.TotalCount
@@ -747,7 +768,7 @@ func (api *API) aiGatewaySpendUsers(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or me"
 // @Param start_date query string false "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date." format(date-time)
 // @Param end_date query string false "Exclusive upper bound (RFC3339). Defaults to now." format(date-time)
 // @Success 200 {object} codersdk.AIGatewaySpendUserSummary

@@ -1574,6 +1574,16 @@ func TestAIGatewaySpend(t *testing.T) {
 		require.Len(t, page2.Users, 1)
 		require.Equal(t, alice.ID, page2.Users[0].ID)
 
+		// An overshot page is empty but still reports the total count.
+		//nolint:gocritic // Owner role is irrelevant here.
+		overshot, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{
+			AIGatewaySpendWindow: window,
+			Pagination:           codersdk.Pagination{Limit: 1, Offset: 5},
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 2, overshot.Count)
+		require.Empty(t, overshot.Users)
+
 		// An empty window reports no users and a zero count.
 		//nolint:gocritic // Owner role is irrelevant here.
 		empty, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{

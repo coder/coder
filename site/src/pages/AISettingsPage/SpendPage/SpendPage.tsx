@@ -17,7 +17,6 @@ import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import { pageTitle } from "#/utils/page";
 import { SpendPageView } from "./SpendPageView";
-import { toExclusiveEndOfDayDateRange } from "./utils/dateRange";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
@@ -98,14 +97,14 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		end_date: dateRange.endDate.toISOString(),
 	};
 
+	// DateRangePicker already emits exclusive API boundaries (midnight after
+	// the picked day, or the next hour when the picked day is today).
 	const onDateRangeChange = (value: DateRangeValue) => {
-		const nextDateRange = toExclusiveEndOfDayDateRange(value);
-
 		setSearchParams(
 			(prev) => {
 				const next = new URLSearchParams(prev);
-				next.set(startDateSearchParam, nextDateRange.startDate.toISOString());
-				next.set(endDateSearchParam, nextDateRange.endDate.toISOString());
+				next.set(startDateSearchParam, value.startDate.toISOString());
+				next.set(endDateSearchParam, value.endDate.toISOString());
 				next.delete("page");
 				return next;
 			},

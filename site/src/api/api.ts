@@ -316,17 +316,6 @@ type SearchParamOptions = TypesGen.Pagination & {
 	q?: string;
 };
 
-type AIGatewaySpendDateParams = {
-	start_date: string;
-	end_date: string;
-};
-
-type AIGatewaySpendUsersParams = AIGatewaySpendDateParams & {
-	search?: string;
-	limit?: number;
-	offset?: number;
-};
-
 type RestartWorkspaceParameters = Readonly<{
 	workspace: TypesGen.Workspace;
 	buildParameters?: TypesGen.WorkspaceBuildParameter[];
@@ -3099,7 +3088,7 @@ class ApiMethods {
 	};
 
 	getAIGatewaySpendUsers = async (
-		params: AIGatewaySpendUsersParams,
+		params: TypesGen.AIGatewaySpendUsersFilter,
 	): Promise<TypesGen.AIGatewaySpendUsersResponse> => {
 		const url = getURLWithSearchParams(`${aiGatewayPath}/spend/users`, params);
 		const response =
@@ -3109,7 +3098,7 @@ class ApiMethods {
 
 	getAIGatewaySpendUserSummary = async (
 		user: string,
-		params: AIGatewaySpendDateParams,
+		params: TypesGen.AIGatewaySpendWindow,
 	): Promise<TypesGen.AIGatewaySpendUserSummary> => {
 		const url = getURLWithSearchParams(
 			`${aiGatewayPath}/spend/users/${encodeURIComponent(user)}/summary`,

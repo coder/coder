@@ -861,7 +861,7 @@ WHERE
 		ELSE true
 	END
 GROUP BY u.id, u.username, u.name, u.avatar_url
-ORDER BY total_cost_micros DESC, u.username ASC
+ORDER BY total_cost_micros DESC, u.username ASC, u.id ASC
 LIMIT COALESCE(NULLIF(@page_limit::integer, 0), 10)
 OFFSET @page_offset::integer;
 

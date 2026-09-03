@@ -169,12 +169,17 @@ const UserRow: FC<{
 					{user.unpriced_request_count > 0 && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon
+								{/* Focusable so keyboard users can open the tooltip; the
+								    clickable row itself never announces the warning. */}
+								<button
+									type="button"
 									aria-label={unpricedRequestsMessage(
 										user.unpriced_request_count,
 									)}
-									className="size-icon-xs text-content-warning"
-								/>
+									className="inline-flex rounded-sm border-0 bg-transparent p-0 text-content-warning outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+								>
+									<TriangleAlertIcon aria-hidden className="size-icon-xs" />
+								</button>
 							</TooltipTrigger>
 							<TooltipContent>
 								{unpricedRequestsMessage(user.unpriced_request_count)}

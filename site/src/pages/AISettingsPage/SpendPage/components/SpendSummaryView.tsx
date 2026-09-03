@@ -2,6 +2,7 @@ import { TriangleAlertIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -51,20 +52,19 @@ export const SpendSummaryView: FC<SpendSummaryViewProps> = ({
 		);
 	}
 
-	if (error != null) {
-		return (
-			<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
-				<p className="m-0 text-sm text-content-secondary">
-					{getErrorMessage(error, "Failed to load spend details.")}
-				</p>
-				<Button variant="outline" size="sm" type="button" onClick={onRetry}>
-					Retry
-				</Button>
-			</div>
-		);
-	}
-
 	if (!summary) {
+		if (error != null) {
+			return (
+				<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
+					<p className="m-0 text-sm text-content-secondary">
+						{getErrorMessage(error, "Failed to load spend details.")}
+					</p>
+					<Button variant="outline" size="sm" type="button" onClick={onRetry}>
+						Retry
+					</Button>
+				</div>
+			);
+		}
 		return null;
 	}
 
@@ -81,6 +81,16 @@ export const SpendSummaryView: FC<SpendSummaryViewProps> = ({
 
 	return (
 		<div className="space-y-6">
+			{error != null && (
+				<ErrorAlert
+					error={error}
+					actions={
+						<Button variant="outline" size="sm" type="button" onClick={onRetry}>
+							Retry
+						</Button>
+					}
+				/>
+			)}
 			<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
 				<SummaryCard label="Total cost">
 					{formatCostMicros(summary.total_cost_micros)}

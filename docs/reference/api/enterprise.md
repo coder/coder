@@ -409,7 +409,7 @@ Returns the user's AI Gateway spend over the window with per-model and per-clien
 
 | Name         | In    | Type              | Required | Description                                                           |
 |--------------|-------|-------------------|----------|-----------------------------------------------------------------------|
-| `user`       | path  | string            | true     | User ID, name, or me                                                  |
+| `user`       | path  | string            | true     | User ID, username, or me                                              |
 | `start_date` | query | string(date-time) | false    | Inclusive lower bound (RFC3339). Defaults to 30 days before end_date. |
 | `end_date`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339). Defaults to now.                     |
 

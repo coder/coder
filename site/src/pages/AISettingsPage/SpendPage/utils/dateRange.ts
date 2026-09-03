@@ -3,9 +3,8 @@ import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicke
 
 /**
  * Returns true when the given date falls exactly on local midnight
- * (00:00:00.000). DateRangePicker's `toBoundary` produces local
- * midnight via `dayjs(to).startOf("day").add(1, "day").toDate()`,
- * so we use local-time methods to match that convention.
+ * (00:00:00.000), which is how DateRangePicker encodes an exclusive
+ * end-of-day boundary.
  */
 function isMidnight(date: Date): boolean {
 	return (
@@ -14,19 +13,6 @@ function isMidnight(date: Date): boolean {
 		date.getSeconds() === 0 &&
 		date.getMilliseconds() === 0
 	);
-}
-
-export function toExclusiveEndOfDayDateRange(
-	dateRange: DateRangeValue,
-): DateRangeValue {
-	if (isMidnight(dateRange.endDate)) {
-		return dateRange;
-	}
-
-	return {
-		startDate: dateRange.startDate,
-		endDate: dayjs(dateRange.endDate).startOf("day").add(1, "day").toDate(),
-	};
 }
 
 /**

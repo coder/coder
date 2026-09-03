@@ -2627,7 +2627,7 @@ WHERE
 		ELSE true
 	END
 GROUP BY u.id, u.username, u.name, u.avatar_url
-ORDER BY total_cost_micros DESC, u.username ASC
+ORDER BY total_cost_micros DESC, u.username ASC, u.id ASC
 LIMIT COALESCE(NULLIF($3::integer, 0), 10)
 OFFSET $2::integer
 `

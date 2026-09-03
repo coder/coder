@@ -311,9 +311,8 @@ Visibility follows the viewer's role:
 | Owners, User Admins, and organization administrators | Spend and budgets for every group and every member                   |
 | Users who can view AI sessions                       | Every user's AI Gateway spend on the **Spend** page                  |
 
-- The **Spend** page under **Admin settings** > **AI** lists AI Gateway spend
-  for every user over a date range, with a per-model and per-client breakdown
-  for each user. It requires the AI Gateway entitlement.
+- The **Spend** page under **Admin settings** > **AI** lists AI Gateway spend for every user over a date range, with a per-model and per-client breakdown for each user.
+  It requires the AI Gateway entitlement.
 - The **Groups** page compares each group's spend with the combined limits of
   the members it covers.
 - The **Members** tab of a group reports each member's spend, their budget, and
