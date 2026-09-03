@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -381,9 +382,6 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			callbackURL, err := url.Parse("http://localhost:3000/callback")
-			require.NoError(t, err)
-
 			// Build query parameters for GET request
 			query := url.Values{}
 			query.Set("response_type", "code")
@@ -407,10 +405,9 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			}
 
 			// Extract authorize params
-			params, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
 
-			require.NoError(t, err)
-			require.Empty(t, validationErrs)
+			require.Nil(t, failure)
 			require.Equal(t, tc.expectedScopes, params.scope)
 		})
 	}
@@ -454,9 +451,6 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			callbackURL, err := url.Parse("http://localhost:3000/callback")
-			require.NoError(t, err)
-
 			query := url.Values{}
 			query.Set("response_type", "code")
 			query.Set("client_id", "test-client")
@@ -471,45 +465,48 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 				URL:    reqURL,
 			}
 
-			_, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+			_, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
 			if tc.expectValid {
-				require.NoError(t, err)
-				require.Empty(t, validationErrs)
+				require.Nil(t, failure)
 			} else {
-				require.Error(t, err)
-				require.Len(t, validationErrs, 1)
-				require.Equal(t, "code_challenge", validationErrs[0].Field)
+				require.NotNil(t, failure)
+				require.Len(t, failure.validationErrors, 1)
+				require.Equal(t, "code_challenge", failure.validationErrors[0].Field)
 			}
 		})
 	}
 }
 
-// TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE ensures
-// response_type=token is parsed without requiring PKCE fields so callers can
-// return unsupported_response_type instead of invalid_request.
-func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T) {
+// TestExtractAuthorizeParams_NonCodeResponseTypeDoesNotRequirePKCE ensures a
+// response type other than code is parsed without requiring PKCE fields so
+// callers can answer unsupported_response_type instead of invalid_request.
+func TestExtractAuthorizeParams_NonCodeResponseTypeDoesNotRequirePKCE(t *testing.T) {
 	t.Parallel()
 
-	callbackURL, err := url.Parse("http://localhost:3000/callback")
-	require.NoError(t, err)
+	// id_token has no SDK constant, so it also pins that the value is read as
+	// plain text.
+	for _, responseType := range []string{string(codersdk.OAuth2ProviderResponseTypeToken), "id_token"} {
+		t.Run(responseType, func(t *testing.T) {
+			t.Parallel()
 
-	query := url.Values{}
-	query.Set("response_type", string(codersdk.OAuth2ProviderResponseTypeToken))
-	query.Set("client_id", "test-client")
-	query.Set("redirect_uri", "http://localhost:3000/callback")
+			query := url.Values{}
+			query.Set("response_type", responseType)
+			query.Set("client_id", "test-client")
+			query.Set("redirect_uri", "http://localhost:3000/callback")
 
-	reqURL, err := url.Parse("http://localhost:8080/oauth2/authorize?" + query.Encode())
-	require.NoError(t, err)
+			reqURL, err := url.Parse("http://localhost:8080/oauth2/authorize?" + query.Encode())
+			require.NoError(t, err)
 
-	req := &http.Request{
-		Method: http.MethodGet,
-		URL:    reqURL,
+			req := &http.Request{
+				Method: http.MethodGet,
+				URL:    reqURL,
+			}
+
+			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
+			require.Nil(t, failure)
+			require.Equal(t, responseType, params.responseType)
+		})
 	}
-
-	params, validationErrs, err := extractAuthorizeParams(req, callbackURL)
-	require.NoError(t, err)
-	require.Empty(t, validationErrs)
-	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
 
 func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
