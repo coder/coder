@@ -1964,6 +1964,21 @@ func (mr *MockStoreMockRecorder) GetAIBridgeSessionTopDomains(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeSessionTopDomains", reflect.TypeOf((*MockStore)(nil).GetAIBridgeSessionTopDomains), ctx, arg)
 }
 
+// GetAIBridgeSpendUserSummary mocks base method.
+func (m *MockStore) GetAIBridgeSpendUserSummary(ctx context.Context, arg database.GetAIBridgeSpendUserSummaryParams) (database.GetAIBridgeSpendUserSummaryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIBridgeSpendUserSummary", ctx, arg)
+	ret0, _ := ret[0].(database.GetAIBridgeSpendUserSummaryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIBridgeSpendUserSummary indicates an expected call of GetAIBridgeSpendUserSummary.
+func (mr *MockStoreMockRecorder) GetAIBridgeSpendUserSummary(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeSpendUserSummary", reflect.TypeOf((*MockStore)(nil).GetAIBridgeSpendUserSummary), ctx, arg)
+}
+
 // GetAIBridgeTokenUsagesByInterceptionID mocks base method.
 func (m *MockStore) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	m.ctrl.T.Helper()
@@ -9100,6 +9115,51 @@ func (m *MockStore) ListAIBridgeSessions(ctx context.Context, arg database.ListA
 func (mr *MockStoreMockRecorder) ListAIBridgeSessions(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeSessions", reflect.TypeOf((*MockStore)(nil).ListAIBridgeSessions), ctx, arg)
+}
+
+// ListAIBridgeSpendByUser mocks base method.
+func (m *MockStore) ListAIBridgeSpendByUser(ctx context.Context, arg database.ListAIBridgeSpendByUserParams) ([]database.ListAIBridgeSpendByUserRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIBridgeSpendByUser", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAIBridgeSpendByUserRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIBridgeSpendByUser indicates an expected call of ListAIBridgeSpendByUser.
+func (mr *MockStoreMockRecorder) ListAIBridgeSpendByUser(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeSpendByUser", reflect.TypeOf((*MockStore)(nil).ListAIBridgeSpendByUser), ctx, arg)
+}
+
+// ListAIBridgeSpendByUserClient mocks base method.
+func (m *MockStore) ListAIBridgeSpendByUserClient(ctx context.Context, arg database.ListAIBridgeSpendByUserClientParams) ([]database.ListAIBridgeSpendByUserClientRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIBridgeSpendByUserClient", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAIBridgeSpendByUserClientRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIBridgeSpendByUserClient indicates an expected call of ListAIBridgeSpendByUserClient.
+func (mr *MockStoreMockRecorder) ListAIBridgeSpendByUserClient(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeSpendByUserClient", reflect.TypeOf((*MockStore)(nil).ListAIBridgeSpendByUserClient), ctx, arg)
+}
+
+// ListAIBridgeSpendByUserModel mocks base method.
+func (m *MockStore) ListAIBridgeSpendByUserModel(ctx context.Context, arg database.ListAIBridgeSpendByUserModelParams) ([]database.ListAIBridgeSpendByUserModelRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIBridgeSpendByUserModel", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAIBridgeSpendByUserModelRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIBridgeSpendByUserModel indicates an expected call of ListAIBridgeSpendByUserModel.
+func (mr *MockStoreMockRecorder) ListAIBridgeSpendByUserModel(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeSpendByUserModel", reflect.TypeOf((*MockStore)(nil).ListAIBridgeSpendByUserModel), ctx, arg)
 }
 
 // ListAIBridgeTokenUsagesByInterceptionIDs mocks base method.

@@ -316,6 +316,17 @@ type SearchParamOptions = TypesGen.Pagination & {
 	q?: string;
 };
 
+type AIGatewaySpendDateParams = {
+	start_date: string;
+	end_date: string;
+};
+
+type AIGatewaySpendUsersParams = AIGatewaySpendDateParams & {
+	search?: string;
+	limit?: number;
+	offset?: number;
+};
+
 type RestartWorkspaceParameters = Readonly<{
 	workspace: TypesGen.Workspace;
 	buildParameters?: TypesGen.WorkspaceBuildParameter[];
@@ -3084,6 +3095,28 @@ class ApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
+		return response.data;
+	};
+
+	getAIGatewaySpendUsers = async (
+		params: AIGatewaySpendUsersParams,
+	): Promise<TypesGen.AIGatewaySpendUsersResponse> => {
+		const url = getURLWithSearchParams(`${aiGatewayPath}/spend/users`, params);
+		const response =
+			await this.axios.get<TypesGen.AIGatewaySpendUsersResponse>(url);
+		return response.data;
+	};
+
+	getAIGatewaySpendUserSummary = async (
+		user: string,
+		params: AIGatewaySpendDateParams,
+	): Promise<TypesGen.AIGatewaySpendUserSummary> => {
+		const url = getURLWithSearchParams(
+			`${aiGatewayPath}/spend/users/${encodeURIComponent(user)}/summary`,
+			params,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIGatewaySpendUserSummary>(url);
 		return response.data;
 	};
 

@@ -409,6 +409,137 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	return clients, ReadBodyAsJSON(res, &clients)
 }
 
+// AIGatewaySpendUsage aggregates finished AI Gateway requests over a window.
+// A request whose model had no price contributes its tokens but no cost and
+// is counted in UnpricedRequestCount, so TotalCostMicros is a lower bound
+// whenever that count is non-zero.
+type AIGatewaySpendUsage struct {
+	TotalCostMicros       int64 `json:"total_cost_micros"`
+	RequestCount          int64 `json:"request_count"`
+	UnpricedRequestCount  int64 `json:"unpriced_request_count"`
+	InputTokens           int64 `json:"input_tokens"`
+	OutputTokens          int64 `json:"output_tokens"`
+	CacheReadInputTokens  int64 `json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64 `json:"cache_write_input_tokens"`
+}
+
+// AIGatewaySpendTotals is AIGatewaySpendUsage plus the number of distinct
+// sessions, which is only meaningful for groupings that span whole sessions.
+type AIGatewaySpendTotals struct {
+	AIGatewaySpendUsage
+	SessionCount int64 `json:"session_count"`
+}
+
+// AIGatewaySpendUser is one user's AI Gateway spend over the requested window.
+type AIGatewaySpendUser struct {
+	MinimalUser
+	AIGatewaySpendTotals
+}
+
+// AIGatewaySpendUsersResponse lists per-user AI Gateway spend, most expensive
+// first. Count is the total number of users with requests in the window.
+type AIGatewaySpendUsersResponse struct {
+	StartDate time.Time            `json:"start_date" format:"date-time"`
+	EndDate   time.Time            `json:"end_date" format:"date-time"`
+	Count     int64                `json:"count"`
+	Users     []AIGatewaySpendUser `json:"users"`
+}
+
+// AIGatewaySpendModelBreakdown is one user's spend on a single model.
+type AIGatewaySpendModelBreakdown struct {
+	Provider     string `json:"provider"`
+	ProviderName string `json:"provider_name"`
+	Model        string `json:"model"`
+	AIGatewaySpendUsage
+}
+
+// AIGatewaySpendClientBreakdown is one user's spend through a single client.
+type AIGatewaySpendClientBreakdown struct {
+	Client string `json:"client"`
+	AIGatewaySpendTotals
+}
+
+// AIGatewaySpendUserSummary is one user's AI Gateway spend over the requested
+// window, broken down by model and by client.
+type AIGatewaySpendUserSummary struct {
+	StartDate time.Time `json:"start_date" format:"date-time"`
+	EndDate   time.Time `json:"end_date" format:"date-time"`
+	AIGatewaySpendTotals
+	ByModel  []AIGatewaySpendModelBreakdown  `json:"by_model"`
+	ByClient []AIGatewaySpendClientBreakdown `json:"by_client"`
+}
+
+// AIGatewaySpendWindow bounds an AI Gateway spend query. Zero values are
+// omitted from the request so the server applies its default window.
+type AIGatewaySpendWindow struct {
+	StartDate time.Time `json:"start_date,omitempty" format:"date-time"`
+	EndDate   time.Time `json:"end_date,omitempty" format:"date-time"`
+}
+
+func (w AIGatewaySpendWindow) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if !w.StartDate.IsZero() {
+			q.Set("start_date", w.StartDate.UTC().Format(time.RFC3339Nano))
+		}
+		if !w.EndDate.IsZero() {
+			q.Set("end_date", w.EndDate.UTC().Format(time.RFC3339Nano))
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// AIGatewaySpendUsersFilter filters the per-user AI Gateway spend list.
+type AIGatewaySpendUsersFilter struct {
+	AIGatewaySpendWindow
+	// Search matches the username or display name, case-insensitively.
+	Search string `json:"search,omitempty"`
+	Pagination
+}
+
+// AIGatewaySpendUsers returns per-user AI Gateway spend for the deployment.
+func (c *Client) AIGatewaySpendUsers(ctx context.Context, filter AIGatewaySpendUsersFilter) (AIGatewaySpendUsersResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/spend/users", nil,
+		filter.AIGatewaySpendWindow.asRequestOption(),
+		filter.Pagination.asRequestOption(),
+		func(r *http.Request) {
+			if filter.Search == "" {
+				return
+			}
+			q := r.URL.Query()
+			q.Set("search", filter.Search)
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return AIGatewaySpendUsersResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIGatewaySpendUsersResponse{}, ReadBodyAsError(res)
+	}
+	var resp AIGatewaySpendUsersResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// AIGatewaySpendUserSummary returns one user's AI Gateway spend broken down by
+// model and by client. The user may be an ID, a username, or "me".
+func (c *Client) AIGatewaySpendUserSummary(ctx context.Context, user string, window AIGatewaySpendWindow) (AIGatewaySpendUserSummary, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/ai-gateway/spend/users/%s/summary", user),
+		nil, window.asRequestOption(),
+	)
+	if err != nil {
+		return AIGatewaySpendUserSummary{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIGatewaySpendUserSummary{}, ReadBodyAsError(res)
+	}
+	var resp AIGatewaySpendUserSummary
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
 // per-provider AI spend for the organization over the requested period. Both
 // bounds are optional and interpreted as UTC, and zero values fall back to the

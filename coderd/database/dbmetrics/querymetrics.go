@@ -1128,6 +1128,14 @@ func (m queryMetricsStore) GetAIBridgeSessionTopDomains(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIBridgeSpendUserSummary(ctx context.Context, arg database.GetAIBridgeSpendUserSummaryParams) (database.GetAIBridgeSpendUserSummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeSpendUserSummary(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIBridgeSpendUserSummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeSpendUserSummary").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptionID)
@@ -4829,6 +4837,30 @@ func (m queryMetricsStore) ListAIBridgeSessions(ctx context.Context, arg databas
 	r0, r1 := m.s.ListAIBridgeSessions(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListAIBridgeSessions").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSessions").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeSpendByUser(ctx context.Context, arg database.ListAIBridgeSpendByUserParams) ([]database.ListAIBridgeSpendByUserRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeSpendByUser(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeSpendByUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSpendByUser").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeSpendByUserClient(ctx context.Context, arg database.ListAIBridgeSpendByUserClientParams) ([]database.ListAIBridgeSpendByUserClientRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeSpendByUserClient(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeSpendByUserClient").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSpendByUserClient").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeSpendByUserModel(ctx context.Context, arg database.ListAIBridgeSpendByUserModelParams) ([]database.ListAIBridgeSpendByUserModelRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeSpendByUserModel(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeSpendByUserModel").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSpendByUserModel").Inc()
 	return r0, r1
 }
 

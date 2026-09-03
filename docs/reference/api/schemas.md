@@ -1153,6 +1153,200 @@ title: Schemas
 | `last_heartbeat_at` | string | false    |              |             |
 | `name`              | string | false    |              |             |
 
+## codersdk.AIGatewaySpendClientBreakdown
+
+```json
+{
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
+  "client": "string",
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "request_count": 0,
+  "session_count": 0,
+  "total_cost_micros": 0,
+  "unpriced_request_count": 0
+}
+```
+
+### Properties
+
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `client`                   | string  | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
+| `request_count`            | integer | false    |              |             |
+| `session_count`            | integer | false    |              |             |
+| `total_cost_micros`        | integer | false    |              |             |
+| `unpriced_request_count`   | integer | false    |              |             |
+
+## codersdk.AIGatewaySpendModelBreakdown
+
+```json
+{
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
+  "input_tokens": 0,
+  "model": "string",
+  "output_tokens": 0,
+  "provider": "string",
+  "provider_name": "string",
+  "request_count": 0,
+  "total_cost_micros": 0,
+  "unpriced_request_count": 0
+}
+```
+
+### Properties
+
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `model`                    | string  | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
+| `provider`                 | string  | false    |              |             |
+| `provider_name`            | string  | false    |              |             |
+| `request_count`            | integer | false    |              |             |
+| `total_cost_micros`        | integer | false    |              |             |
+| `unpriced_request_count`   | integer | false    |              |             |
+
+## codersdk.AIGatewaySpendUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input_tokens": 0,
+  "name": "string",
+  "output_tokens": 0,
+  "request_count": 0,
+  "session_count": 0,
+  "total_cost_micros": 0,
+  "unpriced_request_count": 0,
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `avatar_url`               | string  | false    |              |             |
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `id`                       | string  | true     |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `name`                     | string  | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
+| `request_count`            | integer | false    |              |             |
+| `session_count`            | integer | false    |              |             |
+| `total_cost_micros`        | integer | false    |              |             |
+| `unpriced_request_count`   | integer | false    |              |             |
+| `username`                 | string  | true     |              |             |
+
+## codersdk.AIGatewaySpendUserSummary
+
+```json
+{
+  "by_client": [
+    {
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "client": "string",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "request_count": 0,
+      "session_count": 0,
+      "total_cost_micros": 0,
+      "unpriced_request_count": 0
+    }
+  ],
+  "by_model": [
+    {
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "input_tokens": 0,
+      "model": "string",
+      "output_tokens": 0,
+      "provider": "string",
+      "provider_name": "string",
+      "request_count": 0,
+      "total_cost_micros": 0,
+      "unpriced_request_count": 0
+    }
+  ],
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
+  "end_date": "2019-08-24T14:15:22Z",
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "request_count": 0,
+  "session_count": 0,
+  "start_date": "2019-08-24T14:15:22Z",
+  "total_cost_micros": 0,
+  "unpriced_request_count": 0
+}
+```
+
+### Properties
+
+| Name                       | Type                                                                                      | Required | Restrictions | Description |
+|----------------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `by_client`                | array of [codersdk.AIGatewaySpendClientBreakdown](#codersdkaigatewayspendclientbreakdown) | false    |              |             |
+| `by_model`                 | array of [codersdk.AIGatewaySpendModelBreakdown](#codersdkaigatewayspendmodelbreakdown)   | false    |              |             |
+| `cache_read_input_tokens`  | integer                                                                                   | false    |              |             |
+| `cache_write_input_tokens` | integer                                                                                   | false    |              |             |
+| `end_date`                 | string                                                                                    | false    |              |             |
+| `input_tokens`             | integer                                                                                   | false    |              |             |
+| `output_tokens`            | integer                                                                                   | false    |              |             |
+| `request_count`            | integer                                                                                   | false    |              |             |
+| `session_count`            | integer                                                                                   | false    |              |             |
+| `start_date`               | string                                                                                    | false    |              |             |
+| `total_cost_micros`        | integer                                                                                   | false    |              |             |
+| `unpriced_request_count`   | integer                                                                                   | false    |              |             |
+
+## codersdk.AIGatewaySpendUsersResponse
+
+```json
+{
+  "count": 0,
+  "end_date": "2019-08-24T14:15:22Z",
+  "start_date": "2019-08-24T14:15:22Z",
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_tokens": 0,
+      "name": "string",
+      "output_tokens": 0,
+      "request_count": 0,
+      "session_count": 0,
+      "total_cost_micros": 0,
+      "unpriced_request_count": 0,
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `count`      | integer                                                             | false    |              |             |
+| `end_date`   | string                                                              | false    |              |             |
+| `start_date` | string                                                              | false    |              |             |
+| `users`      | array of [codersdk.AIGatewaySpendUser](#codersdkaigatewayspenduser) | false    |              |             |
+
 ## codersdk.AIModelPrice
 
 ```json
@@ -12273,9 +12467,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                      |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_keys`, `ai_governance`, `aibridge_session_threads`, `aibridge_sessions`, `appearance`, `audit_log`, `browser_only`, `connection_log`, `custom_roles`, `direct`, `external_auth`, `groups`, `idp_org_sync`, `idp_sync`, `multiple_organizations`, `observability`, `provisioner_keys`, `provisioners`, `template_permissions`, `workspace_proxies` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                  |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_keys`, `ai_governance`, `ai_spend`, `aibridge_session_threads`, `aibridge_sessions`, `appearance`, `audit_log`, `browser_only`, `connection_log`, `custom_roles`, `direct`, `external_auth`, `groups`, `idp_org_sync`, `idp_sync`, `multiple_organizations`, `observability`, `provisioner_keys`, `provisioners`, `template_permissions`, `workspace_proxies` |
 
 ## codersdk.PremiumFunnelVariant
 

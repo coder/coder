@@ -876,6 +876,115 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/ai-gateway/spend/users": {
+            "get": {
+                "description": "Returns AI Gateway spend for every user with finished requests in the window, most expensive first. Requires permission to read any AI Gateway interception.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List AI Gateway spend by user",
+                "operationId": "list-ai-gateway-spend-by-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date.",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339). Defaults to now.",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Case-insensitive match on username or name",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit (default 10, maximum 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewaySpendUsersResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai-gateway/spend/users/{user}/summary": {
+            "get": {
+                "description": "Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Requires permission to read any AI Gateway interception.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get AI Gateway spend summary for a user",
+                "operationId": "get-ai-gateway-spend-summary-for-a-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date.",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339). Defaults to now.",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewaySpendUserSummary"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/ai/providers": {
             "get": {
                 "produces": [
@@ -17968,6 +18077,191 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIGatewaySpendClientBreakdown": {
+            "type": "object",
+            "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
+                "client": {
+                    "type": "string"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "request_count": {
+                    "type": "integer"
+                },
+                "session_count": {
+                    "type": "integer"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_request_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AIGatewaySpendModelBreakdown": {
+            "type": "object",
+            "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "provider_name": {
+                    "type": "string"
+                },
+                "request_count": {
+                    "type": "integer"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_request_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AIGatewaySpendUser": {
+            "type": "object",
+            "required": [
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "request_count": {
+                    "type": "integer"
+                },
+                "session_count": {
+                    "type": "integer"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_request_count": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIGatewaySpendUserSummary": {
+            "type": "object",
+            "properties": {
+                "by_client": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIGatewaySpendClientBreakdown"
+                    }
+                },
+                "by_model": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIGatewaySpendModelBreakdown"
+                    }
+                },
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
+                "end_date": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "request_count": {
+                    "type": "integer"
+                },
+                "session_count": {
+                    "type": "integer"
+                },
+                "start_date": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_request_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AIGatewaySpendUsersResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "end_date": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "start_date": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIGatewaySpendUser"
+                    }
+                }
+            }
+        },
         "codersdk.AIModelPrice": {
             "type": "object",
             "properties": {
@@ -26382,6 +26676,7 @@ const docTemplate = `{
                 "aibridge_sessions",
                 "ai_gateway_keys",
                 "ai_governance",
+                "ai_spend",
                 "appearance",
                 "audit_log",
                 "browser_only",
@@ -26404,6 +26699,7 @@ const docTemplate = `{
                 "PremiumFunnelSourceAIBridgeSessions",
                 "PremiumFunnelSourceAIGatewayKeys",
                 "PremiumFunnelSourceAIGovernance",
+                "PremiumFunnelSourceAISpend",
                 "PremiumFunnelSourceAppearance",
                 "PremiumFunnelSourceAuditLog",
                 "PremiumFunnelSourceBrowserOnly",

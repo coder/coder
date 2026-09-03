@@ -39,6 +39,12 @@ const (
 	defaultListSessionsLimit = 100
 	defaultListModelsLimit   = 100
 	defaultListClientsLimit  = 100
+	// The spend overview lists users, not events, so its pages are small.
+	defaultAIGatewaySpendUsersLimit = 10
+	maxAIGatewaySpendUsersLimit     = 100
+	// defaultAIGatewaySpendWindow is the lookback applied when no spend
+	// window is requested.
+	defaultAIGatewaySpendWindow = 30 * 24 * time.Hour
 	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
 	// requests. This is hardcoded to keep configuration simple.
 	aiBridgeRateLimitWindow              = time.Second
@@ -604,6 +610,260 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, clients)
+}
+
+// aiGatewaySpendWindow parses the optional start_date and end_date query
+// parameters. end_date defaults to now and start_date to 30 days before
+// end_date. On invalid input it writes the error response and returns false.
+func (api *API) aiGatewaySpendWindow(rw http.ResponseWriter, r *http.Request) (start, end time.Time, ok bool) {
+	ctx := r.Context()
+	query := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	end = parser.Time3339Nano(query, api.Clock.Now().UTC(), "end_date")
+	start = parser.Time3339Nano(query, end.Add(-defaultAIGatewaySpendWindow), "start_date")
+	if len(parser.Errors) == 0 && !start.Before(end) {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "end_date",
+			Detail: "Query param \"end_date\" must be after \"start_date\".",
+		})
+	}
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return time.Time{}, time.Time{}, false
+	}
+	return start, end, true
+}
+
+// aiGatewaySpendUsers lists per-user AI Gateway spend for the deployment.
+//
+// @Summary List AI Gateway spend by user
+// @Description Returns AI Gateway spend for every user with finished requests in the window, most expensive first. Requires permission to read any AI Gateway interception.
+// @ID list-ai-gateway-spend-by-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param start_date query string false "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date." format(date-time)
+// @Param end_date query string false "Exclusive upper bound (RFC3339). Defaults to now." format(date-time)
+// @Param search query string false "Case-insensitive match on username or name"
+// @Param limit query int false "Page limit (default 10, maximum 100)"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.AIGatewaySpendUsersResponse
+// @Router /api/v2/ai-gateway/spend/users [get]
+func (api *API) aiGatewaySpendUsers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAibridgeInterception) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	page, ok := coderd.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+	if page.AfterID != uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameters have invalid values.",
+			Detail:  "after_id pagination is not supported; use offset.",
+		})
+		return
+	}
+	if page.Limit == 0 {
+		page.Limit = defaultAIGatewaySpendUsersLimit
+	}
+	if page.Limit > maxAIGatewaySpendUsersLimit || page.Limit < 1 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid pagination limit value.",
+			Detail:  fmt.Sprintf("Pagination limit must be in range (0, %d]", maxAIGatewaySpendUsersLimit),
+		})
+		return
+	}
+
+	start, end, ok := api.aiGatewaySpendWindow(rw, r)
+	if !ok {
+		return
+	}
+
+	rows, err := api.Database.ListAIBridgeSpendByUser(ctx, database.ListAIBridgeSpendByUserParams{
+		StartDate: start,
+		EndDate:   end,
+		Search:    r.URL.Query().Get("search"),
+		// #nosec G115 - The limit is capped above and the offset is parsed as int32.
+		PageLimit: int32(page.Limit),
+		// #nosec G115 - The limit is capped above and the offset is parsed as int32.
+		PageOffset: int32(page.Offset),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting AI Gateway spend.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var count int64
+	users := make([]codersdk.AIGatewaySpendUser, len(rows))
+	for i, row := range rows {
+		count = row.TotalCount
+		users[i] = codersdk.AIGatewaySpendUser{
+			MinimalUser: codersdk.MinimalUser{
+				ID:        row.UserID,
+				Username:  row.Username,
+				Name:      row.Name,
+				AvatarURL: row.AvatarURL,
+			},
+			AIGatewaySpendTotals: codersdk.AIGatewaySpendTotals{
+				AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+					TotalCostMicros:       row.TotalCostMicros,
+					RequestCount:          row.RequestCount,
+					UnpricedRequestCount:  row.UnpricedRequestCount,
+					InputTokens:           row.InputTokens,
+					OutputTokens:          row.OutputTokens,
+					CacheReadInputTokens:  row.CacheReadInputTokens,
+					CacheWriteInputTokens: row.CacheWriteInputTokens,
+				},
+				SessionCount: row.SessionCount,
+			},
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIGatewaySpendUsersResponse{
+		StartDate: start,
+		EndDate:   end,
+		Count:     count,
+		Users:     users,
+	})
+}
+
+// aiGatewaySpendUserSummary returns one user's AI Gateway spend broken down by
+// model and by client.
+//
+// @Summary Get AI Gateway spend summary for a user
+// @Description Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Requires permission to read any AI Gateway interception.
+// @ID get-ai-gateway-spend-summary-for-a-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, name, or me"
+// @Param start_date query string false "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date." format(date-time)
+// @Param end_date query string false "Exclusive upper bound (RFC3339). Defaults to now." format(date-time)
+// @Success 200 {object} codersdk.AIGatewaySpendUserSummary
+// @Router /api/v2/ai-gateway/spend/users/{user}/summary [get]
+func (api *API) aiGatewaySpendUserSummary(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAibridgeInterception) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	start, end, ok := api.aiGatewaySpendWindow(rw, r)
+	if !ok {
+		return
+	}
+
+	var (
+		totals   database.GetAIBridgeSpendUserSummaryRow
+		byModel  []database.ListAIBridgeSpendByUserModelRow
+		byClient []database.ListAIBridgeSpendByUserClientRow
+	)
+	err := api.Database.InTx(func(db database.Store) error {
+		var err error
+		totals, err = db.GetAIBridgeSpendUserSummary(ctx, database.GetAIBridgeSpendUserSummaryParams{
+			UserID:    user.ID,
+			StartDate: start,
+			EndDate:   end,
+		})
+		if err != nil {
+			return xerrors.Errorf("get spend summary: %w", err)
+		}
+		byModel, err = db.ListAIBridgeSpendByUserModel(ctx, database.ListAIBridgeSpendByUserModelParams{
+			UserID:    user.ID,
+			StartDate: start,
+			EndDate:   end,
+		})
+		if err != nil {
+			return xerrors.Errorf("list spend by model: %w", err)
+		}
+		byClient, err = db.ListAIBridgeSpendByUserClient(ctx, database.ListAIBridgeSpendByUserClientParams{
+			UserID:    user.ID,
+			StartDate: start,
+			EndDate:   end,
+		})
+		if err != nil {
+			return xerrors.Errorf("list spend by client: %w", err)
+		}
+		return nil
+	}, &database.TxOptions{
+		Isolation:    sql.LevelRepeatableRead,
+		ReadOnly:     true,
+		TxIdentifier: "ai_gateway_spend_user_summary",
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting AI Gateway spend summary.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp := codersdk.AIGatewaySpendUserSummary{
+		StartDate: start,
+		EndDate:   end,
+		AIGatewaySpendTotals: codersdk.AIGatewaySpendTotals{
+			AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+				TotalCostMicros:       totals.TotalCostMicros,
+				RequestCount:          totals.RequestCount,
+				UnpricedRequestCount:  totals.UnpricedRequestCount,
+				InputTokens:           totals.InputTokens,
+				OutputTokens:          totals.OutputTokens,
+				CacheReadInputTokens:  totals.CacheReadInputTokens,
+				CacheWriteInputTokens: totals.CacheWriteInputTokens,
+			},
+			SessionCount: totals.SessionCount,
+		},
+		ByModel:  make([]codersdk.AIGatewaySpendModelBreakdown, len(byModel)),
+		ByClient: make([]codersdk.AIGatewaySpendClientBreakdown, len(byClient)),
+	}
+	for i, row := range byModel {
+		resp.ByModel[i] = codersdk.AIGatewaySpendModelBreakdown{
+			Provider:     row.Provider,
+			ProviderName: row.ProviderName,
+			Model:        row.Model,
+			AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+				TotalCostMicros:       row.TotalCostMicros,
+				RequestCount:          row.RequestCount,
+				UnpricedRequestCount:  row.UnpricedRequestCount,
+				InputTokens:           row.InputTokens,
+				OutputTokens:          row.OutputTokens,
+				CacheReadInputTokens:  row.CacheReadInputTokens,
+				CacheWriteInputTokens: row.CacheWriteInputTokens,
+			},
+		}
+	}
+	for i, row := range byClient {
+		resp.ByClient[i] = codersdk.AIGatewaySpendClientBreakdown{
+			Client: row.Client,
+			AIGatewaySpendTotals: codersdk.AIGatewaySpendTotals{
+				AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+					TotalCostMicros:       row.TotalCostMicros,
+					RequestCount:          row.RequestCount,
+					UnpricedRequestCount:  row.UnpricedRequestCount,
+					InputTokens:           row.InputTokens,
+					OutputTokens:          row.OutputTokens,
+					CacheReadInputTokens:  row.CacheReadInputTokens,
+					CacheWriteInputTokens: row.CacheWriteInputTokens,
+				},
+				SessionCount: row.SessionCount,
+			},
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // validateInterceptionCursor checks that a pagination cursor refers to an

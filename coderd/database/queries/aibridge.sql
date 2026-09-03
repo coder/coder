@@ -808,3 +808,156 @@ SELECT
 	COUNT(*)::bigint AS request_count,
 	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count
 FROM per_request;
+
+-- AI spend overview queries. They share one aggregation contract:
+--   * A request is a finished interception (ended_at IS NOT NULL) whose
+--     started_at falls in the closed-open [start_date, end_date) window.
+--   * Token usages are joined with LEFT JOIN, so a finished request without usage
+--     (for example one that failed upstream) still counts as a request.
+--   * total_cost_micros sums every priced usage regardless of
+--     effective_group_id, matching the CSV export. unpriced_request_count
+--     is the number of requests with at least one usage whose cost_micros
+--     is NULL; the tu.id guard keeps the unmatched LEFT JOIN side from
+--     reading as unpriced usage.
+--   * A session is a distinct session_id. Client is COALESCE(client, 'Unknown').
+
+-- name: ListAIBridgeSpendByUser :many
+WITH per_request AS (
+	SELECT
+		i.initiator_id,
+		i.session_id,
+		COALESCE(SUM(tu.cost_micros), 0)::bigint AS cost_micros,
+		BOOL_OR(tu.id IS NOT NULL AND tu.cost_micros IS NULL) AS has_unpriced_usage,
+		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
+		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	FROM aibridge_interceptions i
+	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id
+	WHERE i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+	GROUP BY i.id
+)
+SELECT
+	u.id AS user_id,
+	u.username,
+	u.name,
+	u.avatar_url,
+	COALESCE(SUM(r.cost_micros), 0)::bigint AS total_cost_micros,
+	COUNT(*)::bigint AS request_count,
+	COUNT(*) FILTER (WHERE r.has_unpriced_usage)::bigint AS unpriced_request_count,
+	COUNT(DISTINCT r.session_id)::bigint AS session_count,
+	COALESCE(SUM(r.input_tokens), 0)::bigint AS input_tokens,
+	COALESCE(SUM(r.output_tokens), 0)::bigint AS output_tokens,
+	COALESCE(SUM(r.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+	COALESCE(SUM(r.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens,
+	COUNT(*) OVER()::bigint AS total_count
+FROM per_request r
+JOIN users u ON u.id = r.initiator_id
+WHERE
+	CASE
+		WHEN @search::text != '' THEN u.username ILIKE '%' || @search::text || '%' OR u.name ILIKE '%' || @search::text || '%'
+		ELSE true
+	END
+GROUP BY u.id, u.username, u.name, u.avatar_url
+ORDER BY total_cost_micros DESC, u.username ASC
+LIMIT COALESCE(NULLIF(@page_limit::integer, 0), 10)
+OFFSET @page_offset::integer;
+
+-- name: GetAIBridgeSpendUserSummary :one
+WITH per_request AS (
+	SELECT
+		i.session_id,
+		COALESCE(SUM(tu.cost_micros), 0)::bigint AS cost_micros,
+		BOOL_OR(tu.id IS NOT NULL AND tu.cost_micros IS NULL) AS has_unpriced_usage,
+		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
+		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	FROM aibridge_interceptions i
+	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id
+	WHERE i.initiator_id = @user_id::uuid
+		AND i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+	GROUP BY i.id
+)
+SELECT
+	COALESCE(SUM(cost_micros), 0)::bigint AS total_cost_micros,
+	COUNT(*)::bigint AS request_count,
+	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count,
+	COUNT(DISTINCT session_id)::bigint AS session_count,
+	COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+	COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
+	COALESCE(SUM(cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+FROM per_request;
+
+-- name: ListAIBridgeSpendByUserModel :many
+WITH per_request AS (
+	SELECT
+		i.provider,
+		i.provider_name,
+		i.model,
+		COALESCE(SUM(tu.cost_micros), 0)::bigint AS cost_micros,
+		BOOL_OR(tu.id IS NOT NULL AND tu.cost_micros IS NULL) AS has_unpriced_usage,
+		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
+		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	FROM aibridge_interceptions i
+	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id
+	WHERE i.initiator_id = @user_id::uuid
+		AND i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+	GROUP BY i.id
+)
+SELECT
+	provider,
+	provider_name,
+	model,
+	COALESCE(SUM(cost_micros), 0)::bigint AS total_cost_micros,
+	COUNT(*)::bigint AS request_count,
+	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count,
+	COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+	COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
+	COALESCE(SUM(cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+FROM per_request
+GROUP BY provider, provider_name, model
+ORDER BY total_cost_micros DESC, provider ASC, model ASC;
+
+-- name: ListAIBridgeSpendByUserClient :many
+WITH per_request AS (
+	SELECT
+		COALESCE(i.client, 'Unknown')::text AS client,
+		i.session_id,
+		COALESCE(SUM(tu.cost_micros), 0)::bigint AS cost_micros,
+		BOOL_OR(tu.id IS NOT NULL AND tu.cost_micros IS NULL) AS has_unpriced_usage,
+		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
+		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	FROM aibridge_interceptions i
+	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id
+	WHERE i.initiator_id = @user_id::uuid
+		AND i.started_at >= @start_date::timestamptz
+		AND i.started_at < @end_date::timestamptz
+		AND i.ended_at IS NOT NULL
+	GROUP BY i.id
+)
+SELECT
+	client,
+	COALESCE(SUM(cost_micros), 0)::bigint AS total_cost_micros,
+	COUNT(*)::bigint AS request_count,
+	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count,
+	COUNT(DISTINCT session_id)::bigint AS session_count,
+	COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+	COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
+	COALESCE(SUM(cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
+	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+FROM per_request
+GROUP BY client
+ORDER BY total_cost_micros DESC, client ASC;
