@@ -16,7 +16,7 @@
     {
       "id": "auto-fill-parameters",
       "displayName": "Auto-fill Template Parameters",
-      "description": "This should not be taken out of experiments until we have redesigned the feature.",
+      "description": "Pre-fills a new workspace's parameter form with the values from the user's most recent build of that template.",
       "safe": false
     },
     {
@@ -29,12 +29,6 @@
       "id": "chat-virtual-desktop",
       "displayName": "Chat Virtual Desktop",
       "description": "Enables virtual desktop and computer use provider for agents.",
-      "safe": false
-    },
-    {
-      "id": "example",
-      "displayName": "Example Experiment",
-      "description": "This isn't used for anything.",
       "safe": false
     },
     {

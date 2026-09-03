@@ -5472,7 +5472,7 @@ type Experiment string
 const (
 	// Add new experiments here!
 	ExperimentExample                   Experiment = "example"                     // This isn't used for anything.
-	ExperimentAutoFillParameters        Experiment = "auto-fill-parameters"        // This should not be taken out of experiments until we have redesigned the feature.
+	ExperimentAutoFillParameters        Experiment = "auto-fill-parameters"        // Pre-fills a new workspace's parameter form with the values from the user's most recent build of that template.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentOAuth2                    Experiment = "oauth2"                      // Enables OAuth2 provider functionality.

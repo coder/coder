@@ -1,5 +1,6 @@
-// experimentsdocgen writes docs/experiments.json: every experiment this
-// version of Coder knows about (codersdk.ExperimentsKnown), its display name,
+// experimentsdocgen writes docs/experiments.json: every user-facing experiment
+// this version of Coder knows about (codersdk.ExperimentsKnown minus the
+// placeholders in notDocumented), its display name,
 // the description from the constant's comment in codersdk/deployment.go, and
 // whether `--experiments=*` enables it (membership in codersdk.ExperimentsSafe).
 //
@@ -63,7 +64,7 @@ func main() {
 		log.Fatalf("parse %s: %v", source, err)
 	}
 
-	doc := buildExperimentsDoc(codersdk.ExperimentsKnown, codersdk.ExperimentsSafe, descriptions, codersdk.Experiment.DisplayName)
+	doc := buildExperimentsDoc(documented(codersdk.ExperimentsKnown), codersdk.ExperimentsSafe, descriptions, codersdk.Experiment.DisplayName)
 	data, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		log.Fatalf("encode: %v", err)
@@ -77,6 +78,23 @@ func main() {
 	if err := atomicwrite.File(out, data); err != nil {
 		log.Fatalf("write %s: %v", out, err)
 	}
+}
+
+// notDocumented lists experiments that exist for the code's own purposes and
+// never describe a user-facing feature, so the documentation omits them.
+var notDocumented = map[codersdk.Experiment]bool{
+	codersdk.ExperimentExample: true, // A placeholder kept for tests.
+}
+
+// documented filters `known` down to the experiments the docs should list.
+func documented(known codersdk.Experiments) codersdk.Experiments {
+	out := make(codersdk.Experiments, 0, len(known))
+	for _, experiment := range known {
+		if !notDocumented[experiment] {
+			out = append(out, experiment)
+		}
+	}
+	return out
 }
 
 // parseExperimentDescriptions maps each `Experiment` constant's string value to

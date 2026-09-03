@@ -71,8 +71,11 @@ func TestRealDeploymentFile(t *testing.T) {
 	descriptions, err := parseExperimentDescriptions(src)
 	require.NoError(t, err)
 
-	doc := buildExperimentsDoc(codersdk.ExperimentsKnown, codersdk.ExperimentsSafe, descriptions, codersdk.Experiment.DisplayName)
-	require.Len(t, doc.Experiments, len(codersdk.ExperimentsKnown))
+	known := documented(codersdk.ExperimentsKnown)
+	require.NotContains(t, known, codersdk.ExperimentExample, "the example experiment is never documented")
+	require.Len(t, known, len(codersdk.ExperimentsKnown)-1)
+	doc := buildExperimentsDoc(known, codersdk.ExperimentsSafe, descriptions, codersdk.Experiment.DisplayName)
+	require.Len(t, doc.Experiments, len(known))
 	for _, entry := range doc.Experiments {
 		require.NotEmpty(t, entry.DisplayName, "experiment %q has no display name", entry.ID)
 		require.Contains(t, descriptions, entry.ID, "experiment %q is not declared as a constant", entry.ID)

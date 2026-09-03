@@ -23396,7 +23396,7 @@ const docTemplate = `{
             "x-enum-comments": {
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
-                "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentAutoFillParameters": "Pre-fills a new workspace's parameter form with the values from the user's most recent build of that template.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -23411,7 +23411,7 @@ const docTemplate = `{
             },
             "x-enum-descriptions": [
                 "This isn't used for anything.",
-                "This should not be taken out of experiments until we have redesigned the feature.",
+                "Pre-fills a new workspace's parameter form with the values from the user's most recent build of that template.",
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
                 "Enables OAuth2 provider functionality.",
