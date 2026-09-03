@@ -133,8 +133,9 @@ direction.
 
 Users can attach files to chat messages by pasting from the clipboard, dragging files into the input area, or using the attachment button.
 Supported types are PNG, JPEG, GIF, and WebP images, plus plain text, Markdown, CSV, JSON, SVG, and PDF files.
-Each upload can be up to 10&nbsp;MiB. A conversation keeps its 50 most recent attachments by default, and older attachments are removed automatically.
-Administrators can change the attachment count with [`CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`](../../admin/setup/configuration-reference.md#max-attachments-per-chat).
+Each upload can be up to 10&nbsp;MiB.
+A conversation keeps its 50 most recent attachments by default, and older attachments are removed automatically.
+You can change the attachment count with [`CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`](../../admin/setup/configuration-reference.md#max-attachments-per-chat).
 Attachments are sent to the model as multimodal content alongside the text prompt.
 
 This is useful for sharing screenshots of errors, UI mockups, terminal output, logs, or other context that helps the agent understand the task.
