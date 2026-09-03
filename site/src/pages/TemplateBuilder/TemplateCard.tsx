@@ -61,10 +61,10 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 			</div>
 
 			<div>
-				<h3 className="flex items-center gap-2 text-sm font-bold text-content-primary">
-					<span id={nameId}>{name}</span>
+				<h3 id={nameId} className="text-sm font-bold text-content-primary">
+					{name}
 					{official && (
-						<BadgeCheckIcon className="size-4 shrink-0 text-highlight-sky" />
+						<BadgeCheckIcon className="inline size-4 ml-1 align-middle text-highlight-sky" />
 					)}
 				</h3>
 				<div>
