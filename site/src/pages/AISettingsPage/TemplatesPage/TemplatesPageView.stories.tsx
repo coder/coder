@@ -53,7 +53,7 @@ const filterState = getDefaultFilterProps<TemplateFilterState>({
 });
 
 const meta = {
-	title: "pages/AISettingsPage/TemplatesPage/TemplatesPage",
+	title: "pages/AISettingsPage/TemplatesPage/TemplatesPage/States",
 	component: TemplatesPageView,
 	decorators: [withDashboardProvider],
 	args: {

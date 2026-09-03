@@ -25,7 +25,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 });
 
 const meta: Meta<typeof UsersPageView> = {
-	title: "pages/UsersPage",
+	title: "pages/UsersPage/States",
 	component: UsersPageView,
 	args: {
 		canEditUsers: true,

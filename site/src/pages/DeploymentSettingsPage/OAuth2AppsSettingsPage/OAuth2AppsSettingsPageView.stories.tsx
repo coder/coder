@@ -18,7 +18,7 @@ const MockSettingsTab = {
 };
 
 const meta: Meta<typeof OAuth2AppsSettingsPageView> = {
-	title: "pages/DeploymentSettingsPage/OAuth2AppsSettingsPage",
+	title: "pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/States",
 	component: OAuth2AppsSettingsPageView,
 	args: {
 		canCreateApp: true,
