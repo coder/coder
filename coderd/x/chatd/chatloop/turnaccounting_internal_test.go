@@ -482,6 +482,113 @@ func TestTurnAccountingCapacityWaitIsNotCategorized(t *testing.T) {
 	require.NotContains(t, recordedStageCategories, StageCapacityWait)
 }
 
+// anomalies returns the anomaly counter values keyed by reason.
+func (f turnFixture) anomalies(t *testing.T) map[string]float64 {
+	t.Helper()
+	families, err := f.registry.Gather()
+	require.NoError(t, err)
+	out := map[string]float64{}
+	for _, family := range families {
+		if family.GetName() != "coderd_chatd_stage_anomalies_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			out[metricLabel(metric, "reason")] = metric.GetCounter().GetValue()
+		}
+	}
+	return out
+}
+
+func TestTurnAccountingAnomalies(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Overattributed", func(t *testing.T) {
+		t.Parallel()
+		fixture := newTurnFixture(t)
+
+		acc := NewTurnAccumulator()
+		ctx := ContextWithTurnAccumulator(t.Context(), acc)
+		turnStart := fixture.clock.Now()
+		turnCtx, turnSpan := fixture.tracer.StartRootAt(ctx, StageChatTurn, turnStart, nil)
+		// Two steps overlapping in wall time each report their full
+		// duration, so the categories exceed the turn.
+		_, first := fixture.tracer.Start(turnCtx, StageGenerationStep)
+		_, second := fixture.tracer.Start(turnCtx, StageGenerationStep)
+		fixture.clock.Advance(4 * time.Second)
+		first.End(nil)
+		second.End(nil)
+		acc.MarkCompleted()
+		turnSpan.End(nil)
+
+		categories := fixture.sums(t, "coderd_chatd_turn_time_seconds", "category")
+		require.Equal(t, 8.0, categories[CategoryChatdOverhead], "categories are emitted as measured")
+		require.Equal(t, 0.0, categories[CategoryUnattributed])
+		require.Equal(t, 1.0, fixture.anomalies(t)[StageAnomalyOverattributed])
+	})
+
+	t.Run("NonPositiveTurn", func(t *testing.T) {
+		t.Parallel()
+		fixture := newTurnFixture(t)
+
+		acc := NewTurnAccumulator()
+		ctx := ContextWithTurnAccumulator(t.Context(), acc)
+		_, turnSpan := fixture.tracer.StartRootAt(ctx, StageChatTurn, fixture.clock.Now(), nil)
+		acc.MarkCompleted()
+		turnSpan.End(nil)
+
+		require.Empty(t, fixture.sums(t, "coderd_chatd_turn_time_seconds", "category"))
+		require.Equal(t, 1.0, fixture.anomalies(t)[StageAnomalyNonPositiveTurn])
+	})
+
+	t.Run("InvertedWindow", func(t *testing.T) {
+		t.Parallel()
+		fixture := newTurnFixture(t)
+
+		now := fixture.clock.Now()
+		fixture.tracer.Record(t.Context(), StageQueueWait, StageModel{}, now, now.Add(-time.Second), nil)
+		fixture.tracer.Record(t.Context(), StageQueueWait, StageModel{}, time.Time{}, now, nil)
+
+		require.Empty(t, fixture.sums(t, "coderd_chatd_stage_duration_seconds", "stage"))
+		require.Equal(t, 2.0, fixture.anomalies(t)[StageAnomalyInvertedWindow])
+	})
+
+	t.Run("CleanTurnCountsNothing", func(t *testing.T) {
+		t.Parallel()
+		fixture := newTurnFixture(t)
+		fixture.syntheticTurn(t, StageModel{})
+		require.Empty(t, fixture.anomalies(t))
+	})
+}
+
+func TestTurnMetricBuckets(t *testing.T) {
+	t.Parallel()
+	registry := prometheus.NewRegistry()
+	metrics := NewMetrics(registry)
+	// A stage that repeats can occupy more than the whole turn, and a
+	// turn can run up to 1200 steps.
+	metrics.RecordTurnStage(StageStream, ChatKindRoot, "", "", time.Minute, 3.5, 1200)
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	topBucket := func(name string) *dto.Bucket {
+		for _, family := range families {
+			if family.GetName() != name {
+				continue
+			}
+			buckets := family.GetMetric()[0].GetHistogram().GetBucket()
+			return buckets[len(buckets)-1]
+		}
+		t.Fatalf("metric %s not found", name)
+		return nil
+	}
+	share := topBucket("coderd_chatd_stage_share_of_turn")
+	require.Greater(t, share.GetUpperBound(), 3.5)
+	require.Equal(t, uint64(1), share.GetCumulativeCount(), "a share above 1 must fall inside the buckets")
+	count := topBucket("coderd_chatd_turn_stage_count")
+	require.Greater(t, count.GetUpperBound(), 1200.0)
+	require.Equal(t, uint64(1), count.GetCumulativeCount(), "a 1200 step turn must fall inside the buckets")
+}
+
 func TestTurnAccountingStampsModelOnRoot(t *testing.T) {
 	t.Parallel()
 	fixture := newTurnFixture(t)

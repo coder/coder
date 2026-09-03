@@ -364,14 +364,19 @@ func recordAttribution(ctx context.Context, stage string, elapsed time.Duration)
 // emitTurnAccounting observes the per-stage totals and the category
 // partition of one turn. turnDuration is the turn's own wall time, and
 // the categories that did not add up to it become the unattributed
-// remainder. Attributed time above the turn duration is clamped, which
-// only happens if a stage is counted twice.
+// remainder. Categories that add up to more than the turn are emitted
+// as measured, with no unattributed time, and counted as an anomaly:
+// the turn's shares then sum to more than 1.
 func (t *StageTracer) emitTurnAccounting(acc *TurnAccumulator, chatKind string, turnDuration time.Duration) {
-	if t == nil || t.metrics == nil || turnDuration <= 0 {
+	if t == nil || t.metrics == nil {
 		return
 	}
 	snapshot := acc.snapshot()
 	if !snapshot.emit {
+		return
+	}
+	if turnDuration <= 0 {
+		t.recordAnomaly(StageAnomalyNonPositiveTurn)
 		return
 	}
 	turnSeconds := turnDuration.Seconds()
@@ -391,6 +396,7 @@ func (t *StageTracer) emitTurnAccounting(acc *TurnAccumulator, chatKind string, 
 	unattributed := turnDuration - attributed
 	if unattributed < 0 {
 		unattributed = 0
+		t.recordAnomaly(StageAnomalyOverattributed)
 	}
 	snapshot.categories[CategoryUnattributed] = unattributed
 	for _, category := range TurnTimeCategories {

@@ -505,7 +505,10 @@ func TestStageDurationBuckets(t *testing.T) {
 		require.Len(t, family.GetMetric(), 1)
 		buckets = family.GetMetric()[0].GetHistogram().GetBucket()
 	}
-	require.Len(t, buckets, 21)
+	require.Len(t, buckets, 20)
+	// Prepare and commit typically take a few milliseconds, so the
+	// bottom bucket must resolve below that.
+	require.Less(t, buckets[0].GetUpperBound(), 0.001)
 	top := buckets[len(buckets)-1]
 	require.Greater(t, top.GetUpperBound(), (3*time.Hour).Seconds()*0.9)
 	require.Equal(t, uint64(1), top.GetCumulativeCount(),

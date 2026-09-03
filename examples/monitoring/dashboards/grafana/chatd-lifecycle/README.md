@@ -178,7 +178,11 @@ observed once per turn:
 The categories are exclusive and sum to the turn, so these panels do add
 up, unlike the stage panels. `unattributed` is the completeness check:
 if it grows, real turn time is happening outside every instrumented
-stage.
+stage. The opposite failure, categories that sum to more than the turn,
+is emitted as measured with zero `unattributed` and counted in
+`coderd_chatd_stage_anomalies_total{reason="overattributed"}`; that
+counter also records stage observations dropped for inverted clocks and
+turns dropped for a non-positive duration.
 
 These per-turn histograms replaced the earlier time-share panels that
 divided aggregated stage seconds by aggregated `chat_turn` seconds: the

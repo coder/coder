@@ -436,6 +436,7 @@ func (t *StageTracer) RecordAs(
 	attrs ...attribute.KeyValue,
 ) {
 	if start.IsZero() || end.IsZero() || end.Before(start) {
+		t.recordAnomaly(StageAnomalyInvertedWindow)
 		return
 	}
 	chatKind := chatKindFromContext(ctx)
@@ -454,6 +455,13 @@ func (t *StageTracer) RecordAs(
 	if scope == ScopeTurn {
 		recordAttribution(ctx, stage, end.Sub(start))
 	}
+}
+
+func (t *StageTracer) recordAnomaly(reason string) {
+	if t == nil || t.metrics == nil {
+		return
+	}
+	t.metrics.RecordStageAnomaly(reason)
 }
 
 func (t *StageTracer) observe(stage, scope, chatKind string, model StageModel, elapsed time.Duration) {
