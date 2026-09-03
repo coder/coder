@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import type { TemplateBuilderModule } from "#/api/typesGenerated";
+import type {
+	TemplateBuilderBase,
+	TemplateBuilderModule,
+} from "#/api/typesGenerated";
 import { ModuleSelectStep } from "./ModuleSelectStep";
 
 const baseId = "docker";
@@ -111,5 +114,66 @@ export const FilterCountsUpdateOnSearch: Story = {
 		await expect(canvas.getByText("code-server")).toBeInTheDocument();
 		await expect(canvas.getByText("Claude Code")).toBeInTheDocument();
 		await expect(canvas.queryByText("Git Clone")).not.toBeInTheDocument();
+	},
+};
+
+// Selecting an agent-aware module on a multi-agent base seeds its agent_name
+// with the base default, so the choice is explicit before the settings step.
+export const SelectingAgentModuleSeedsDefault: Story = {
+	args: {
+		onChangeModules: fn(),
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["templateBuilder", "modules", baseId],
+				data: {
+					modules: [
+						makeModule({
+							id: "zed",
+							display_name: "Zed",
+							category: "IDE",
+							variables: [
+								{
+									name: "agent_name",
+									type: "string",
+									description: "",
+									required: false,
+									sensitive: false,
+								},
+							],
+						}),
+					],
+				},
+			},
+			{
+				key: ["templateBuilder", "bases"],
+				data: {
+					bases: [
+						{
+							id: baseId,
+							name: "Docker Containers",
+							description: "",
+							icon: "/icon/docker.svg",
+							os: "linux",
+							variables: [],
+							prerequisites: "",
+							agents: [
+								{ name: "main", display_name: "Main", default: true },
+								{ name: "gpu", display_name: "GPU", default: false },
+							],
+						},
+					] satisfies TemplateBuilderBase[],
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(await canvas.findByRole("checkbox", { name: "Zed" }));
+		await expect(args.onChangeModules).toHaveBeenCalledWith(
+			[{ id: "zed", variables: { agent_name: "main" } }],
+			expect.anything(),
+		);
 	},
 };

@@ -1,10 +1,33 @@
 import type {
 	TemplateBuilderBase,
+	TemplateBuilderBaseAgent,
+	TemplateBuilderBasesResponse,
 	TemplateBuilderComposeModule,
 	TemplateBuilderComposeRequest,
 	TemplateBuilderCreateTemplateRequest,
 	TemplateBuilderModule,
 } from "#/api/typesGenerated";
+
+// Mirrors templatebuilder.AgentNameVariable. The backend only returns this
+// variable for multi-agent bases and treats its value as the agent a module
+// attaches to.
+export const AGENT_NAME_VARIABLE = "agent_name";
+
+// Agents declared by the given base, or empty when the base is unknown.
+export function baseAgents(
+	bases: TemplateBuilderBasesResponse | undefined,
+	baseId: string | null,
+): readonly TemplateBuilderBaseAgent[] {
+	return bases?.bases.find((b) => b.id === baseId)?.agents ?? [];
+}
+
+// The agent modules attach to by default: the one marked default, else the
+// first declared. Undefined when the base declares none.
+export function defaultAgentName(
+	agents: readonly TemplateBuilderBaseAgent[],
+): string | undefined {
+	return (agents.find((a) => a.default) ?? agents[0])?.name;
+}
 
 /**
  * UI-only metadata for the selected base template.
