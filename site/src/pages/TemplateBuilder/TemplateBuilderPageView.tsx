@@ -152,6 +152,20 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		moduleVarMap,
 	);
 
+	// The Continue button stays enabled at all times. When the current step's
+	// requirements are not met, clicking it reveals this validation message in
+	// red instead of advancing.
+	const [showContinueError, setShowContinueError] = useState(false);
+
+	// Hide the validation message once the step's requirements are satisfied or
+	// the user moves to a different step.
+	if (showContinueError && canContinue) {
+		setShowContinueError(false);
+	}
+	useEffect(() => {
+		setShowContinueError(false);
+	}, [currentStep.id]);
+
 	// Pushes a history entry so browser back/forward walks the steps.
 	const navigateToStep = useCallback(
 		(index: number) => {
@@ -171,6 +185,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	};
 
 	const handleNext = () => {
+		if (!canContinue) {
+			setShowContinueError(true);
+			return;
+		}
 		navigateToStep(nextIndex);
 	};
 
@@ -332,11 +350,15 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Create Template
 							</Button>
 						) : (
-							<Button onClick={handleNext} disabled={!canContinue}>
-								Continue
-							</Button>
+							<Button onClick={handleNext}>Continue</Button>
 						)}
 					</div>
+
+					{showContinueError && !canContinue && (
+						<p className="flex justify-end mt-2 mb-0 text-sm text-content-destructive">
+							{continueErrorMessage(currentStep.id)}
+						</p>
+					)}
 
 					{currentStep.id === "base-infra" && <TemplateAlternatives />}
 				</div>
@@ -440,6 +462,25 @@ function renderStepContent(
 			);
 		default:
 			return null;
+	}
+}
+
+/**
+ * Human-readable reason a step's requirements are not yet met, shown in red
+ * when the user clicks Continue on an incomplete step.
+ */
+function continueErrorMessage(stepId: StepId): string {
+	switch (stepId) {
+		case "base-infra":
+			return "Select a base template to continue.";
+		case "base-parameters":
+			return "Fill in all required parameters to continue.";
+		case "module-settings":
+			return "Fill in all required module settings to continue.";
+		case "customizations":
+			return "A provisioner must be online to continue.";
+		default:
+			return "Complete this step to continue.";
 	}
 }
 
