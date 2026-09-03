@@ -2824,6 +2824,32 @@ COMMENT ON COLUMN oauth2_provider_apps.registration_access_token IS 'RFC 7592: H
 
 COMMENT ON COLUMN oauth2_provider_apps.registration_client_uri IS 'RFC 7592: URI for client configuration endpoint';
 
+CREATE TABLE oauth2_provider_device_codes (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    secret_prefix bytea NOT NULL,
+    hashed_secret bytea NOT NULL,
+    user_code text NOT NULL,
+    app_id uuid NOT NULL,
+    user_id uuid,
+    status text DEFAULT 'pending'::text NOT NULL,
+    scope text NOT NULL,
+    resource_uri text,
+    CONSTRAINT oauth2_provider_device_codes_scope_not_empty CHECK ((scope <> ''::text)),
+    CONSTRAINT oauth2_provider_device_codes_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'authorized'::text, 'denied'::text])))
+);
+
+COMMENT ON TABLE oauth2_provider_device_codes IS 'RFC 8628 device authorization grant codes. A device code is exchanged for a token once a user approves the matching user code.';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.user_code IS 'Short human-typed code displayed by the device. Compared case-insensitively.';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.user_id IS 'The user who approved or denied. NULL while the request is pending.';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.scope IS 'Negotiated scope, persisted at authorization and applied to the issued API key at redemption.';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.resource_uri IS 'RFC 8707 resource parameter for audience restriction.';
+
 CREATE TABLE organizations (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -4568,6 +4594,12 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 ALTER TABLE ONLY oauth2_provider_apps
     ADD CONSTRAINT oauth2_provider_apps_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY oauth2_provider_device_codes
+    ADD CONSTRAINT oauth2_provider_device_codes_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY oauth2_provider_device_codes
+    ADD CONSTRAINT oauth2_provider_device_codes_secret_prefix_key UNIQUE (secret_prefix);
+
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
@@ -4996,6 +5028,10 @@ CREATE INDEX idx_mcp_server_configs_organization_id ON mcp_server_configs USING 
 CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
+
+CREATE INDEX idx_oauth2_provider_device_codes_expires_at ON oauth2_provider_device_codes USING btree (expires_at);
+
+CREATE UNIQUE INDEX idx_oauth2_provider_device_codes_user_code ON oauth2_provider_device_codes USING btree (upper(user_code));
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
@@ -5482,6 +5518,12 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_fkey FOREIGN KEY (app_secret_id) REFERENCES oauth2_provider_app_secrets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_device_codes
+    ADD CONSTRAINT oauth2_provider_device_codes_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_device_codes
+    ADD CONSTRAINT oauth2_provider_device_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

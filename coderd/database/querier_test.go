@@ -19676,3 +19676,51 @@ func TestGetChatSiteConfigValue(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, database.GetChatSiteConfigValueRow{}, value)
 }
+
+// The status update and the redeeming delete both carry a status predicate so
+// that a lost race surfaces as sql.ErrNoRows instead of succeeding twice.
+// This pins those predicates at the layer that owns them.
+func TestOAuth2ProviderDeviceCodeGuards(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	user := dbgen.User(t, db, database.User{})
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+	code := dbgen.OAuth2ProviderDeviceCode(t, db, database.OAuth2ProviderDeviceCode{AppID: app.ID})
+	decision := database.UpdateOAuth2ProviderDeviceCodeStatusParams{
+		ID:     code.ID,
+		Status: "authorized",
+		UserID: uuid.NullUUID{UUID: user.ID, Valid: true},
+	}
+
+	// A pending code cannot be redeemed.
+	_, err := db.DeleteOAuth2ProviderDeviceCodeByID(ctx, code.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// Only the first decision wins.
+	decided, err := db.UpdateOAuth2ProviderDeviceCodeStatus(ctx, decision)
+	require.NoError(t, err)
+	require.Equal(t, "authorized", decided.Status)
+	require.Equal(t, decision.UserID, decided.UserID)
+
+	_, err = db.UpdateOAuth2ProviderDeviceCodeStatus(ctx, database.UpdateOAuth2ProviderDeviceCodeStatusParams{
+		ID:     code.ID,
+		Status: "denied",
+		UserID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// The lost race left the row untouched.
+	got, err := db.GetOAuth2ProviderDeviceCodeByID(ctx, code.ID)
+	require.NoError(t, err)
+	require.Equal(t, decided, got)
+
+	// Only the first redemption wins.
+	deleted, err := db.DeleteOAuth2ProviderDeviceCodeByID(ctx, code.ID)
+	require.NoError(t, err)
+	require.Equal(t, decided, deleted)
+
+	_, err = db.DeleteOAuth2ProviderDeviceCodeByID(ctx, code.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}

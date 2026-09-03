@@ -696,6 +696,14 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx conte
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOAuth2ProviderDeviceCodeByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteOAuth2ProviderDeviceCodeByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOAuth2ProviderDeviceCodeByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldAIBridgeRecords(ctx, beforeTime)
@@ -2584,6 +2592,30 @@ func (m queryMetricsStore) GetOAuth2ProviderAppsByUserID(ctx context.Context, us
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderDeviceCodeByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderDeviceCodeByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderDeviceCodeByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderDeviceCodeByPrefix(ctx, secretPrefix)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderDeviceCodeByPrefix").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderDeviceCodeByPrefix").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOAuth2ProviderDeviceCodeByUserCode(ctx context.Context, userCode string) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderDeviceCodeByUserCode(ctx, userCode)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderDeviceCodeByUserCode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderDeviceCodeByUserCode").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOldUnlinkedChatFileIDs(ctx context.Context, arg database.GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOldUnlinkedChatFileIDs(ctx, arg)
@@ -4408,6 +4440,14 @@ func (m queryMetricsStore) InsertOAuth2ProviderAppToken(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertOAuth2ProviderDeviceCode(ctx context.Context, arg database.InsertOAuth2ProviderDeviceCodeParams) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertOAuth2ProviderDeviceCode(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertOAuth2ProviderDeviceCode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertOAuth2ProviderDeviceCode").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertOrganization(ctx, arg)
@@ -5597,6 +5637,14 @@ func (m queryMetricsStore) UpdateOAuth2ProviderAppByID(ctx context.Context, arg 
 	r0, r1 := m.s.UpdateOAuth2ProviderAppByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateOAuth2ProviderAppByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOAuth2ProviderAppByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateOAuth2ProviderDeviceCodeStatus(ctx context.Context, arg database.UpdateOAuth2ProviderDeviceCodeStatusParams) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOAuth2ProviderDeviceCodeStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOAuth2ProviderDeviceCodeStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOAuth2ProviderDeviceCodeStatus").Inc()
 	return r0, r1
 }
 
