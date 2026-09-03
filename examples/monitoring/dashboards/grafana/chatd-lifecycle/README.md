@@ -99,15 +99,19 @@ and quantiles are not additive, so a child frame can read wider than its
 parent at high percentiles; a stage whose series first appears inside the
 window reads 0 until its second sample.
 
-**Stage profile in hierarchy order ($stat)** - the same query as the
-flamegraph, as a table in depth-first order: a Stage column indented by
-level, the level itself, and the duration drawn as a gauge bar scaled to
-the widest stage, so the bar lengths stay comparable to the flamegraph
-frames. Dimensions: identical to the flamegraph. Use it to read stages
+**Stage profile in hierarchy order ($stat)** - the flamegraph query as a
+table in depth-first order: a Stage column indented by level, the level
+itself, the number of occurrences of the stage in the selected time
+range, and the duration drawn as a gauge bar scaled to the widest stage,
+so the bar lengths stay comparable to the flamegraph frames. Dimensions:
+identical to the flamegraph. The Count column is an exact counter
+increase over the range rather than a rate, so a stage that never ran
+reads 0 and a stage that ran once reads 1. Use it to read stages
 too small to see as frames (prepare, commit, tool_call are typically
-milliseconds next to multi-second streams) and as a numeric check on the
-flamegraph. The indentation uses fixed-width spacing rather than a
-drawn tree, so rows at the same depth line up in any font.
+milliseconds next to multi-second streams), to tell a rare stage from an
+absent one, and as a numeric check on the flamegraph. The indentation
+uses fixed-width spacing rather than a drawn tree, so rows at the same
+depth line up in any font.
 
 ### Reading the levels
 
