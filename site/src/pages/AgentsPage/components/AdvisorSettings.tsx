@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import { type FC, useId } from "react";
 import { getErrorMessage } from "#/api/errors";
@@ -8,7 +9,6 @@ import type {
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
-import { cn } from "#/utils/cn";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;

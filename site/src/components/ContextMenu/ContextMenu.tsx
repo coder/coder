@@ -5,8 +5,9 @@
  * by construction.
  * @see {@link https://www.radix-ui.com/primitives/docs/components/context-menu}
  */
+
+import { cn } from "cn";
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
-import { cn } from "#/utils/cn";
 import {
 	menuContentClass,
 	menuItemClass,

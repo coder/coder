@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	LoaderIcon,
@@ -18,7 +19,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolIcon } from "./ToolIcon";

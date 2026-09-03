@@ -2,6 +2,8 @@
  * Copied from shadc/ui on 13/01/2025
  * @see {@link https://ui.shadcn.com/docs/components/select}
  */
+
+import { cn } from "cn";
 import {
 	CheckIcon,
 	ChevronUpIcon,
@@ -9,7 +11,6 @@ import {
 } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { cn } from "#/utils/cn";
 
 export const Select = SelectPrimitive.Root;
 

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type {
@@ -19,7 +20,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { AgenticLoopTable } from "./AgenticLoopTable";

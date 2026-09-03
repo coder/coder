@@ -1,8 +1,8 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { cn } from "cn";
 import type { FC } from "react";
 import type { Chat } from "#/api/typesGenerated";
-import { cn } from "#/utils/cn";
 import { ChatTreeNode } from "./ChatTreeNode";
 
 export const SortableChatTreeNode: FC<{

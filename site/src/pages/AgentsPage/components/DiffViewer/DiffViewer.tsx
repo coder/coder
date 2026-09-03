@@ -9,6 +9,7 @@ import type {
 import { CodeView } from "@pierre/diffs/react";
 import type { FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
+import { cn } from "cn";
 import {
 	type ComponentProps,
 	type CSSProperties,
@@ -22,7 +23,6 @@ import {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
-import { cn } from "#/utils/cn";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
 import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
