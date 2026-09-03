@@ -2117,13 +2117,15 @@ func TestChatRuntimeRequests(t *testing.T) {
 		}
 		// The SDK omits an empty list, so send the raw body a non-SDK
 		// client would.
-		for _, harness := range chatacp.Harnesses() {
-			body := fmt.Sprintf(`{"organization_id":%q,"runtime":%q,"mcp_server_ids":[],"content":[{"type":"text","text":"runtime create"}]}`, user.OrganizationID, harness.Runtime)
-			res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats", []byte(body))
-			require.NoError(t, err)
-			sdkErr := requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
-			_ = res.Body.Close()
-			require.Equal(t, unsupported, sdkErr.Message, "EmptyMCPServerIDs on %s", harness.Runtime)
+		for _, field := range []string{"mcp_server_ids", "unsafe_dynamic_tools"} {
+			for _, harness := range chatacp.Harnesses() {
+				body := fmt.Sprintf(`{"organization_id":%q,"runtime":%q,%q:[],"content":[{"type":"text","text":"runtime create"}]}`, user.OrganizationID, harness.Runtime, field)
+				res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats", []byte(body))
+				require.NoError(t, err)
+				sdkErr := requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
+				_ = res.Body.Close()
+				require.Equal(t, unsupported, sdkErr.Message, "empty %s on %s", field, harness.Runtime)
+			}
 		}
 
 		workspaces, err := db.GetWorkspacesAndAgentsByOwnerID(dbauthz.AsSystemRestricted(ctx), user.UserID)

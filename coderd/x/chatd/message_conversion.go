@@ -699,9 +699,18 @@ type partialToolCall struct {
 	argsDelta strings.Builder
 	valid     bool
 	durable   bool
-	// flushed marks a call whose assistant message was already emitted,
-	// so index no longer addresses assistantParts.
-	flushed bool
+	// flushed is the assistant message already emitted with this call;
+	// index then addresses flushed.parts (or is -1 when the call was
+	// dropped as invalid) instead of assistantParts.
+	flushed *flushedAssistant
+}
+
+// flushedAssistant retains the parts of an emitted assistant message so a
+// tool call that an adapter re-emits with patched input after a parallel
+// sibling's result can still be updated in place.
+type flushedAssistant struct {
+	messageIndex int
+	parts        []codersdk.ChatMessagePart
 }
 
 type partialToolResult struct {
@@ -814,10 +823,8 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 		return
 	}
 	call := s.toolCall(part.ToolCallID)
-	if call.flushed {
-		// Adapters may re-emit a call with patched input after a
-		// parallel sibling's result already flushed the message.
-		s.logSkippedPart(buffered, "tool call part arrived after its message was flushed")
+	if call.flushed != nil {
+		s.patchFlushedToolCall(buffered, call)
 		return
 	}
 	call.part.Type = codersdk.ChatMessagePartTypeToolCall
@@ -857,6 +864,30 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	call.valid = true
 	call.durable = true
 	s.assistantParts[call.index] = durable
+}
+
+// patchFlushedToolCall applies a durable tool call re-emitted after its
+// assistant message was flushed, so an interrupted parallel call keeps the
+// input the adapter patched in rather than its opening placeholder.
+func (s *partialMessageConversionState) patchFlushedToolCall(buffered messagepartbuffer.Part, call *partialToolCall) {
+	part := buffered.MessagePart
+	if part.ArgsDelta != "" || call.index < 0 {
+		s.logSkippedPart(buffered, "tool call part arrived after its message was flushed")
+		return
+	}
+	if len(part.Args) > 0 && !json.Valid(part.Args) {
+		s.logSkippedPart(buffered, "tool call part has invalid durable args")
+		return
+	}
+	call.flushed.parts[call.index] = part
+	content, err := chatprompt.MarshalParts(call.flushed.parts)
+	if err != nil {
+		call.flushed.parts[call.index] = call.part
+		s.logSkippedPart(buffered, "tool call part could not be marshaled into its flushed message")
+		return
+	}
+	call.part = part
+	s.messages[call.flushed.messageIndex].Content = content
 }
 
 func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuffer.Part) error {
@@ -946,7 +977,7 @@ func (s *partialMessageConversionState) toolResult(id string) *partialToolResult
 func (s *partialMessageConversionState) finalizeToolCallPlaceholders() error {
 	for _, id := range s.toolCallOrder {
 		call := s.toolCalls[id]
-		if call == nil || call.durable || !call.valid || call.flushed {
+		if call == nil || call.durable || !call.valid || call.flushed != nil {
 			continue
 		}
 		args := json.RawMessage(call.argsDelta.String())
@@ -971,24 +1002,34 @@ func (s *partialMessageConversionState) flushAssistant() error {
 	if len(s.assistantParts) == 0 {
 		return nil
 	}
-	durable := make([]codersdk.ChatMessagePart, 0, len(s.assistantParts))
-	for _, part := range s.assistantParts {
+	flushed := &flushedAssistant{messageIndex: len(s.messages)}
+	position := make(map[int]int, len(s.assistantParts))
+	for i, part := range s.assistantParts {
 		if part.Type == "" {
 			continue
 		}
 		part.ArgsDelta = ""
 		part.ResultDelta = ""
 		part.ResultReset = false
-		durable = append(durable, part)
+		position[i] = len(flushed.parts)
+		flushed.parts = append(flushed.parts, part)
 	}
 	for _, call := range s.toolCalls {
-		call.flushed = true
+		if call.flushed != nil {
+			continue
+		}
+		call.flushed = flushed
+		if i, ok := position[call.index]; ok {
+			call.index = i
+		} else {
+			call.index = -1
+		}
 	}
 	s.assistantParts = nil
-	if len(durable) == 0 {
+	if len(flushed.parts) == 0 {
 		return nil
 	}
-	content, err := chatprompt.MarshalParts(durable)
+	content, err := chatprompt.MarshalParts(flushed.parts)
 	if err != nil {
 		return xerrors.Errorf("marshal partial assistant: %w", err)
 	}
