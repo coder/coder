@@ -411,6 +411,7 @@ export const LayoutMetrics: Story = {
 			throw new Error("sidebar container not rendered");
 		}
 		const edge = sidebar.getBoundingClientRect();
+		const scrollArea = canvas.getByTestId("sidebar-scroll-area");
 		const rect = (element: Element) => element.getBoundingClientRect();
 
 		const headerToggle = canvas.getByRole("button", {
@@ -454,7 +455,12 @@ export const LayoutMetrics: Story = {
 			iconLeft: rect(deploymentIcon).left - edge.left,
 			iconSize: rect(deploymentIcon).width,
 			labelGap: rect(deploymentLabel).left - rect(deploymentIcon).right,
-			chevronRight: edge.right - rect(deploymentChevron).right,
+			// Measured against the scroll area's content box so a reserved
+			// scrollbar gutter does not skew the result.
+			chevronRight:
+				rect(scrollArea).left +
+				scrollArea.clientWidth -
+				rect(deploymentChevron).right,
 			nestedHeaderHeight: rect(general).height,
 			nestedLabelOffset: rect(generalLabel).left - rect(deploymentLabel).left,
 			nestedChevronOffset:

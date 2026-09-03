@@ -115,12 +115,15 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 				drawerOpen ? "w-full" : "w-[240px]",
 			)}
 		>
-			{header}
+			{/* Both the header and the list reserve a stable scrollbar gutter
+			    so chevrons and the toggle stay put when the list starts to
+			    scroll (only matters with classic, non-overlay scrollbars). */}
+			<div className="overflow-hidden [scrollbar-gutter:stable]">{header}</div>
 			<nav
 				ref={navRef}
 				data-testid="sidebar-scroll-area"
 				className={cn(
-					"flex-1 min-h-0 overflow-y-auto",
+					"flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]",
 					"flex flex-col",
 					"px-3 pt-3 pb-6",
 					className,
