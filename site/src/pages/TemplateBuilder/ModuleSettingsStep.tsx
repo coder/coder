@@ -17,6 +17,7 @@ import {
 } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
+import { getModuleFieldPlaceholder } from "./moduleFieldPlaceholders";
 
 interface ModuleSettingsStepProps {
 	baseId: string;
@@ -59,8 +60,9 @@ function variableToField(
 		description: variable.description || undefined,
 		required: variable.required,
 		placeholder:
+			getModuleFieldPlaceholder(moduleId, variable.name) ??
 			defaultPlaceholder(variable.default) ??
-			(variable.required ? "Required" : "Optional"),
+			(variable.required ? "Required" : ""),
 		field: {
 			name: variable.name,
 			id,

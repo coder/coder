@@ -104,6 +104,10 @@ const TextField: FC<TextFieldDefinition> = ({
 		description={description}
 		required={required}
 		placeholder={placeholder}
+		// Placeholder text is instructional (a hint of what to enter), so it
+		// uses the dimmer content-disabled tone instead of the default
+		// content-secondary. The important flag beats the base Input class.
+		className="placeholder:!text-content-disabled"
 	/>
 );
 
@@ -123,15 +127,13 @@ const SelectField: FC<SelectFieldDefinition> = ({
 		<div className="col-end-1! flex flex-col gap-2">
 			<Label htmlFor={id}>
 				{label}
-				{required ? (
+				{required && (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
-				) : (
-					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -173,15 +175,13 @@ const RadioField: FC<RadioFieldDefinition> = ({
 		<div className="flex flex-col gap-2">
 			<Label id={labelId}>
 				{label}
-				{required ? (
+				{required && (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
-				) : (
-					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -298,15 +298,13 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 		<div className="flex flex-col gap-2">
 			<Label id={labelId}>
 				{label}
-				{required ? (
+				{required && (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
-				) : (
-					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -343,22 +341,8 @@ export const ConfigurationFieldContainer: FC<PropsWithChildren> = ({
 	);
 };
 
-const OptionalIndicator: FC = () => {
-	return (
-		<>
-			{" "}
-			<span className="text-content-secondary">(optional)</span>
-		</>
-	);
-};
-
 export const ConfigurationFieldLabel: FC<{
 	variable: TemplateBuilderModuleVariable;
 }> = ({ variable }) => {
-	return (
-		<>
-			{variable.name}
-			{!variable.required && <OptionalIndicator />}
-		</>
-	);
+	return <>{variable.name}</>;
 };
