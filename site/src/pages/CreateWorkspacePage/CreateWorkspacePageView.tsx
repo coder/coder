@@ -487,29 +487,21 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								)
 							}
 						>
-							<AlertTitle>
-								This template uses the classic parameter flow
-							</AlertTitle>
+							<AlertTitle>This template uses deprecated parameters</AlertTitle>
 							<AlertDescription>
-								Real-time validation, conditional parameters, and richer input
-								types are unavailable on this form.
-								{canUpdateTemplate ? (
-									<>
-										{" "}
-										<Link
-											href={docs(
-												"/admin/templates/extending-templates/dynamic-parameters",
-											)}
-											target="_blank"
-											rel="noreferrer"
-										>
-											View docs
-											<span className="sr-only"> (opens in new tab)</span>
-										</Link>
-									</>
-								) : (
-									" Please contact your template admin."
-								)}
+								Some features like real-time validation and conditional
+								parameters won&apos;t work here until the template is switched
+								to dynamic parameters.{" "}
+								<Link
+									href={docs(
+										"/admin/templates/extending-templates/dynamic-parameters",
+									)}
+									target="_blank"
+									rel="noreferrer"
+								>
+									View docs
+									<span className="sr-only"> (opens in new tab)</span>
+								</Link>
 							</AlertDescription>
 						</Alert>
 					)}

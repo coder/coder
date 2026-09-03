@@ -517,10 +517,16 @@ export const ClassicParameterFlowTemplate: Story = {
 
 		const alert = canvas.getByRole("alert");
 		expect(
-			within(alert).getByText("This template uses the classic parameter flow"),
+			within(alert).getByText("This template uses deprecated parameters"),
 		).toBeVisible();
-		expect(alert).toHaveTextContent("Please contact your template admin.");
-		expect(within(alert).queryByRole("link")).not.toBeInTheDocument();
+		expect(
+			within(alert).getByRole("link", {
+				name: /view docs \(opens in new tab\)/i,
+			}),
+		).toBeVisible();
+		expect(
+			within(alert).queryByRole("link", { name: "Open template settings" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -564,7 +570,7 @@ export const DynamicParameterFlowTemplate: Story = {
 		const canvas = within(canvasElement);
 
 		expect(
-			canvas.queryByText("This template uses the classic parameter flow"),
+			canvas.queryByText("This template uses deprecated parameters"),
 		).not.toBeInTheDocument();
 	},
 };

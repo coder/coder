@@ -265,9 +265,7 @@ export const ClassicParameterFlowWarning: Story = {
 
 		const alert = canvas.getByRole("alert");
 		expect(
-			within(alert).getByText(
-				"2 templates still use the classic parameter flow",
-			),
+			within(alert).getByText("2 templates still use classic parameters"),
 		).toBeVisible();
 		const docsLink = within(alert).getByRole("link", {
 			name: /view docs \(opens in new tab\)/i,
@@ -282,18 +280,18 @@ export const ClassicParameterFlowWarning: Story = {
 		expect(docsLink).toHaveAttribute("rel", "noreferrer");
 
 		const classicCell = canvas.getByRole("cell", { name: /Classic One/ });
-		expect(within(classicCell).getByText("Classic parameters")).toBeVisible();
+		expect(within(classicCell).getByText("Deprecated")).toBeVisible();
 
 		const inaccessibleCell = canvas.getByRole("cell", {
 			name: /Classic Without Permission/,
 		});
 		expect(
-			within(inaccessibleCell).queryByText("Classic parameters"),
+			within(inaccessibleCell).queryByText("Deprecated"),
 		).not.toBeInTheDocument();
 
 		const dynamicCell = canvas.getByRole("cell", { name: /Dynamic One/ });
 		expect(
-			within(dynamicCell).queryByText("Classic parameters"),
+			within(dynamicCell).queryByText("Deprecated"),
 		).not.toBeInTheDocument();
 	},
 };
@@ -316,7 +314,7 @@ export const SingleClassicParameterFlowWarning: Story = {
 
 		expect(
 			within(canvas.getByRole("alert")).getByText(
-				"1 template still uses the classic parameter flow",
+				"1 template still uses classic parameters",
 			),
 		).toBeVisible();
 	},
@@ -334,7 +332,7 @@ export const ClassicParameterFlowWarningHiddenWithoutPermission: Story = {
 		const canvas = within(canvasElement);
 
 		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
-		expect(canvas.queryByText("Classic parameters")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Deprecated")).not.toBeInTheDocument();
 	},
 };
 
@@ -347,7 +345,7 @@ export const ClassicParameterFlowWarningWithoutCreatePermission: Story = {
 		const canvas = within(canvasElement);
 
 		expect(canvas.getByRole("alert")).toBeVisible();
-		expect(canvas.getAllByText("Classic parameters")).toHaveLength(2);
+		expect(canvas.getAllByText("Deprecated")).toHaveLength(2);
 	},
 };
 
@@ -364,6 +362,6 @@ export const WithoutClassicParameterFlowTemplates: Story = {
 		const canvas = within(canvasElement);
 
 		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
-		expect(canvas.queryByText("Classic parameters")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Deprecated")).not.toBeInTheDocument();
 	},
 };

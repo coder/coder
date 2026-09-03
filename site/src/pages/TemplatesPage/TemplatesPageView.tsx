@@ -64,13 +64,12 @@ const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
 		<Alert severity="warning" prominent className="mt-6">
 			<AlertTitle>
 				{templateCount === 1
-					? "1 template still uses the classic parameter flow"
-					: `${templateCount} templates still use the classic parameter flow`}
+					? "1 template still uses classic parameters"
+					: `${templateCount} templates still use classic parameters`}
 			</AlertTitle>
 			<AlertDescription>
-				The classic parameter flow is deprecated. Move these templates to
-				dynamic parameters to get real-time validation, conditional parameters,
-				and richer input types.{" "}
+				Classic parameters are deprecated. Switch to dynamic parameters for
+				real-time validation, conditional parameters, and richer input types.{" "}
 				<Link
 					href={docs("/admin/templates/extending-templates/dynamic-parameters")}
 					target="_blank"
@@ -188,9 +187,13 @@ const TemplateRow: FC<TemplateRowProps> = ({
 						<span className="flex flex-row items-center gap-2">
 							{template.display_name || template.name}
 							{canUpdateTemplate && template.use_classic_parameter_flow && (
-								<Badge variant="warning" size="sm">
+								<Badge
+									variant="warning"
+									size="sm"
+									className="border-0 shadow-none"
+								>
 									<TriangleAlertIcon aria-hidden="true" />
-									Classic parameters
+									Deprecated
 								</Badge>
 							)}
 						</span>
