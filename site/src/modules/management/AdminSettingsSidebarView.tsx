@@ -1,6 +1,5 @@
 import {
 	ActivityIcon,
-	ArrowUpRightIcon,
 	BoxIcon,
 	BuildingIcon,
 	FileTextIcon,
@@ -117,7 +116,6 @@ function useOpenSections(storageKey: string, activeChain: string[]) {
 interface AdminSettingsSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
-	showOrganizations: boolean;
 	hasPremiumLicense: boolean;
 	experiments: Experiment[];
 	buildInfo: BuildInfoResponse;
@@ -143,7 +141,6 @@ interface AdminSettingsSidebarViewProps {
  */
 export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 	permissions,
-	showOrganizations,
 	hasPremiumLicense,
 	experiments,
 	buildInfo,
@@ -182,13 +179,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 			.filter((item) => item.visible)
 			.map((item) => (
 				<SettingsSidebarNavItem key={item.href} href={item.href} end={item.end}>
-					{item.external && showOrganizations ? (
-						<div className="flex flex-row items-center gap-1">
-							{item.label} <ArrowUpRightIcon size={16} />
-						</div>
-					) : (
-						item.label
-					)}
+					{item.label}
 				</SettingsSidebarNavItem>
 			));
 

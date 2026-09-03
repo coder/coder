@@ -73,7 +73,6 @@ const meta: Meta<typeof AdminSettingsSidebarView> = {
 	parameters: { reactRouter: routing("/deployment/overview") },
 	args: {
 		permissions: MockPermissions,
-		showOrganizations: true,
 		hasPremiumLicense: false,
 		experiments: [],
 		buildInfo: MockBuildInfo,

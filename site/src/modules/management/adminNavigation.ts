@@ -11,8 +11,6 @@ export interface AdminNavItem {
 	end?: boolean;
 	/** Route prefix that marks this item active when it differs from href. */
 	matchPrefix?: string;
-	/** Marks a link that leaves the current section (shown with an arrow). */
-	external?: boolean;
 	/**
 	 * Pages with wide content (large tables) where the sidebar should
 	 * settle collapsed so the content gets the full width.
@@ -73,12 +71,6 @@ export const deploymentNavSections = ({
 				label: "Notifications",
 				href: "/deployment/notifications",
 				visible: permissions.viewNotificationTemplate,
-			},
-			{
-				label: "Groups",
-				href: "/deployment/groups",
-				visible: permissions.viewAnyGroup,
-				external: true,
 			},
 			{
 				label: "Premium",

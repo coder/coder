@@ -18,7 +18,6 @@ export const AdminSettingsSidebar: FC = () => {
 	const { permissions } = useAuthenticated();
 	const {
 		entitlements,
-		showOrganizations,
 		experiments,
 		buildInfo,
 		organizations,
@@ -44,7 +43,6 @@ export const AdminSettingsSidebar: FC = () => {
 	return (
 		<AdminSettingsSidebarView
 			permissions={permissions}
-			showOrganizations={showOrganizations}
 			hasPremiumLicense={entitlements.features.multiple_organizations.enabled}
 			experiments={experiments}
 			buildInfo={buildInfo}
