@@ -126,10 +126,7 @@ const GroupPage: FC = () => {
 
 			<div className="flex justify-between items-center">
 				<Button variant="subtle" asChild className="-ml-3">
-					<Link
-						to={activeTab === "settings" ? "../.." : ".."}
-						relative="path"
-					>
+					<Link to={activeTab === "settings" ? "../.." : ".."} relative="path">
 						<ArrowLeftIcon />
 						<span>Back to groups</span>
 					</Link>
