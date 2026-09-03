@@ -127,9 +127,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	return (
 		<>
 			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
-			<TemplateBuilderSubtitle>
-				Customise your modules.
-			</TemplateBuilderSubtitle>
+			<TemplateBuilderSubtitle>Customise your modules.</TemplateBuilderSubtitle>
 
 			<div className="flex flex-col gap-6">
 				{selectedModules.map((mod) => {
