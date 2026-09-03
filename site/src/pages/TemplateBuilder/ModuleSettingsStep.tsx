@@ -128,7 +128,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 		<>
 			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
-				Set values for module variables.
+				Customise your modules.
 			</TemplateBuilderSubtitle>
 
 			<div className="flex flex-col gap-6">
