@@ -8,8 +8,10 @@ import {
 	DateRangePicker,
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
+import { useFilterParamsKey } from "#/components/Filter/Filter";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { queryWithTimeRange } from "#/pages/AIBridgePage/ListSessionsPage/timeRange";
 import { BackButton } from "./BackButton";
 import { SpendSectionHeader } from "./SpendSectionHeader";
 import { SpendSummaryView } from "./SpendSummaryView";
@@ -21,6 +23,7 @@ interface SpendDrillInViewProps {
 	onRetry: () => void;
 	onBack: () => void;
 	displayDateRange: DateRangeValue;
+	queryDateRange: DateRangeValue;
 	onDateRangeChange: (value: DateRangeValue) => void;
 	dateRangeLabel: string;
 	summaryData: TypesGen.AIGatewaySpendUserSummary | undefined;
@@ -29,10 +32,16 @@ interface SpendDrillInViewProps {
 	onSummaryRetry: () => void;
 }
 
-// Mirrors the AI Sessions page filter syntax so the link lands on that
-// user's sessions.
-const sessionsHref = (username: string) =>
-	`/ai-gateway/sessions?filter=${encodeURIComponent(`initiator:${username}`)}`;
+// Links to the AI Sessions page for the same user and window. The user ID
+// rather than the username keeps the link pointing at this account even if
+// the username is later reused.
+const sessionsHref = (userId: string, queryDateRange: DateRangeValue) => {
+	const filter = queryWithTimeRange(
+		{ initiator: userId },
+		{ start: queryDateRange.startDate, end: queryDateRange.endDate },
+	);
+	return `/ai-gateway/sessions?${useFilterParamsKey}=${encodeURIComponent(filter)}`;
+};
 
 export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 	selectedUser,
@@ -41,6 +50,7 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 	onRetry,
 	onBack,
 	displayDateRange,
+	queryDateRange,
 	onDateRangeChange,
 	dateRangeLabel,
 	summaryData,
@@ -108,7 +118,7 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 				<div className="flex min-w-0 flex-col items-end gap-1 text-xs text-content-secondary">
 					<div>{dateRangeLabel}</div>
 					<Link asChild showExternalIcon={false} size="sm">
-						<RouterLink to={sessionsHref(selectedUser.username)}>
+						<RouterLink to={sessionsHref(selectedUser.id, queryDateRange)}>
 							View sessions
 						</RouterLink>
 					</Link>

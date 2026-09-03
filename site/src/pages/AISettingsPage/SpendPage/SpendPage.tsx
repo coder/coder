@@ -43,7 +43,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		entitlements,
 		permissions,
 	);
-	const canViewSpend = isEntitled && isEnabled;
+	const canViewSpend = isEntitled && isEnabled && hasPermission;
 
 	const [searchParams, setSearchParams] = useSearchParams();
 

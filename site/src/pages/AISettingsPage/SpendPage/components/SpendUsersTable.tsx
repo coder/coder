@@ -170,12 +170,15 @@ const UserRow: FC<{
 						<Tooltip>
 							<TooltipTrigger asChild>
 								{/* Focusable so keyboard users can open the tooltip; the
-								    clickable row itself never announces the warning. */}
+								    clickable row itself never announces the warning. Events
+								    stop here so the row does not open the drill-in. */}
 								<button
 									type="button"
 									aria-label={unpricedRequestsMessage(
 										user.unpriced_request_count,
 									)}
+									onClick={(event) => event.stopPropagation()}
+									onKeyDown={(event) => event.stopPropagation()}
 									className="inline-flex rounded-sm border-0 bg-transparent p-0 text-content-warning outline-none focus-visible:ring-2 focus-visible:ring-content-link"
 								>
 									<TriangleAlertIcon aria-hidden className="size-icon-xs" />

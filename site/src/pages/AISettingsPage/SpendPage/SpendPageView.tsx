@@ -88,6 +88,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 				onRetry={onDrillInUserRetry}
 				onBack={onClearSelectedUser}
 				displayDateRange={displayDateRange}
+				queryDateRange={dateRange}
 				onDateRangeChange={onDateRangeChange}
 				dateRangeLabel={dateRangeLabel}
 				summaryData={summaryData}

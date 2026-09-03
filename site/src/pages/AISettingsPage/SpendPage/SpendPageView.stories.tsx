@@ -298,9 +298,15 @@ export const DrillIn: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("The Builder, Bob")).toBeVisible();
-		await expect(
-			canvas.getByRole("link", { name: "View sessions" }),
-		).toHaveAttribute("href", "/ai-gateway/sessions?filter=initiator%3Abob");
+		const sessionsLink = canvas.getByRole("link", { name: "View sessions" });
+		const sessionsUrl = new URL(
+			sessionsLink.getAttribute("href") ?? "",
+			"http://localhost",
+		);
+		expect(sessionsUrl.pathname).toBe("/ai-gateway/sessions");
+		expect(sessionsUrl.searchParams.get("filter")).toBe(
+			`initiator:${MockAIGatewaySpendUser.id} started_after:"2026-02-10T00:00:00Z" started_before:"2026-03-12T00:00:00Z"`,
+		);
 
 		const byModel = canvas.getByRole("table", { name: "Spend by model" });
 		await expect(within(byModel).getByText("claude-opus-4-6")).toBeVisible();
