@@ -65,7 +65,7 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	if err != nil {
 		return nil, xerrors.Errorf("register key validator service: %w", err)
 	}
-	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+	server := drpcsdk.NewServer(api.Logger, &tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {
