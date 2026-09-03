@@ -1,4 +1,11 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { useQuery } from "react-query";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { appearanceSettings } from "#/api/queries/users";
@@ -83,19 +90,18 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
 	const shouldMountTerminal = Boolean(isHot) || isWarm;
 	const hasSignaledReadyRef = useRef(false);
-	const signalReady = useEffectEvent(() => {
+	const signalReady = useCallback(() => {
 		if (hasSignaledReadyRef.current) {
 			return;
 		}
 		hasSignaledReadyRef.current = true;
 		onReady?.();
-	});
+	}, [onReady]);
 	const handleStatusChange = (status: ConnectionStatus) => {
 		setConnectionStatus(status);
 		// A dropped connection produces no output, so signal readiness to surface
 		// the terminal alerts instead of waiting on the fallback timer.
 		if (status === "disconnected") {
-			// oxlint-disable-next-line react-hooks/rules-of-hooks -- signalReady is a useEffectEvent used to read the latest onReady without re-running effects; intentionally invoked from this handler.
 			signalReady();
 		}
 	};
@@ -170,7 +176,6 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 						isVisible={shouldMountTerminal}
 						autoFocus={Boolean(isHot) && autoFocus}
 						onStatusChange={handleStatusChange}
-						// oxlint-disable-next-line react-hooks/rules-of-hooks -- signalReady is a useEffectEvent passed as a ready callback so it always reads the latest onReady without re-subscribing.
 						onContentReady={signalReady}
 						onError={handleTerminalError}
 						reconnectionToken={reconnectionToken}
