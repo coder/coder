@@ -360,7 +360,7 @@ export const TallListScrolls: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const scrollArea = canvas.getByTestId("sidebar-scroll-area");
-		const header = canvas.getByRole("button", { name: /admin settings/i });
+		const header = canvas.getByRole("button", { name: /collapse sidebar/i });
 		const headerTop = header.getBoundingClientRect().top;
 
 		await waitFor(() => {
@@ -414,7 +414,7 @@ export const LayoutMetrics: Story = {
 		const rect = (element: Element) => element.getBoundingClientRect();
 
 		const headerToggle = canvas.getByRole("button", {
-			name: /admin settings/i,
+			name: /collapse sidebar/i,
 		});
 		const deployment = canvas.getByRole("button", { name: "Deployment" });
 		const deploymentIcon = deployment.querySelector("svg");
@@ -508,5 +508,78 @@ export const RefreshCollapsesOtherSections: Story = {
 		expect(canvas.queryByRole("button", { name: "General" })).toBeNull();
 		expect(canvas.queryByRole("link", { name: "Members" })).toBeNull();
 		expect(canvas.queryByRole("link", { name: "Audit logs" })).toBeNull();
+	},
+};
+
+// Below md, expanding the rail opens a full-width drawer over the page
+// instead of pushing the content aside.
+export const MobileExpanded: Story = {
+	decorators: [
+		(Story) => (
+			<CollapsibleSidebar
+				storageKey="story-admin-mobile-width"
+				header={<AdminSettingsSidebarHeader />}
+			>
+				<Story />
+			</CollapsibleSidebar>
+		),
+	],
+	parameters: {
+		realSidebar: true,
+		viewport: { defaultViewport: "iphone12" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByRole("button", { name: "Deployment" })).toBeNull();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /expand sidebar/i }),
+		);
+		await waitFor(() =>
+			expect(canvas.getByRole("button", { name: "Deployment" })).toBeVisible(),
+		);
+		const panel = canvas.getByTestId("sidebar-panel");
+		// Spans the full page width (the html box, which excludes the
+		// scrollbar gutter reserved by the global stylesheet).
+		expect(panel.getBoundingClientRect().width).toBe(
+			document.documentElement.getBoundingClientRect().width,
+		);
+		expect(panel.getBoundingClientRect().left).toBe(0);
+		// Mobile expansion is environmental and never persisted.
+		expect(localStorage.getItem("story-admin-mobile-width")).toBeNull();
+	},
+};
+
+export const MobileLinkClickCollapses: Story = {
+	decorators: [
+		(Story) => (
+			<CollapsibleSidebar
+				storageKey="story-admin-mobile-link-width"
+				header={<AdminSettingsSidebarHeader />}
+			>
+				<Story />
+			</CollapsibleSidebar>
+		),
+	],
+	parameters: {
+		realSidebar: true,
+		viewport: { defaultViewport: "iphone12" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /expand sidebar/i }),
+		);
+		const overview = await canvas.findByRole("link", { name: "Overview" });
+		// Accordion headers only toggle; the drawer stays open.
+		await userEvent.click(canvas.getByRole("button", { name: "Logs" }));
+		expect(canvas.getByRole("link", { name: "Overview" })).toBeVisible();
+		await userEvent.click(overview);
+		await waitFor(() =>
+			expect(canvas.queryByRole("link", { name: "Overview" })).toBeNull(),
+		);
+		expect(canvas.queryByRole("button", { name: "Deployment" })).toBeNull();
+		expect(
+			canvas.getByTestId("sidebar-panel").getBoundingClientRect().width,
+		).toBe(240);
 	},
 };

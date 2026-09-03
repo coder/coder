@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsBelowLgViewport } from "#/hooks/useIsBelowLgViewport";
-import { isBelowLgViewport } from "#/utils/mobile";
+import { useIsBelowMdViewport } from "#/hooks/useIsBelowMdViewport";
+import { isBelowLgViewport, isBelowMdViewport } from "#/utils/mobile";
 
 const EXPANDED_WIDTH = 240;
 // Icon center sits at nav-pl(12) + btn-px(12) + icon/2(8) = 32px.
 // Double that so the icon is horizontally centered when collapsed.
-const COLLAPSED_WIDTH = 64;
+export const COLLAPSED_WIDTH = 64;
 
 function readCollapsed(key: string): boolean {
 	try {
@@ -40,8 +41,15 @@ interface UseSidebarResizeReturn {
 	 * showing the expanded nav as a flyout over the content.
 	 */
 	peeking: boolean;
+	/**
+	 * Below the md breakpoint the expanded sidebar is a full-width drawer
+	 * over the content rather than a column beside it.
+	 */
+	mobile: boolean;
 	/** Force the sidebar to expand. */
 	expand: () => void;
+	/** Force the sidebar to collapse. */
+	collapse: () => void;
 	/** Toggle collapsed/expanded state. */
 	toggle: () => void;
 	onDragStart: (e: React.PointerEvent) => () => void;
@@ -68,6 +76,7 @@ export function useSidebarResize(
 	const [peeking, setPeeking] = useState(false);
 	const peekTimerRef = useRef<number | undefined>(undefined);
 	const isNarrowViewport = useIsBelowLgViewport();
+	const mobile = useIsBelowMdViewport();
 
 	const endPeek = useCallback(() => {
 		if (peekTimerRef.current !== undefined) {
@@ -95,6 +104,21 @@ export function useSidebarResize(
 			setCollapsed(preferCollapsed || readCollapsed(storageKey));
 		}
 	}, [isNarrowViewport, preferCollapsed, storageKey, endPeek]);
+
+	// Crossing the md breakpoint in either direction recomputes the
+	// environmental state: entering mobile closes any open drawer, and
+	// leaving it re-applies the lg rule or the persisted preference.
+	const prevMobileRef = useRef(mobile);
+	useEffect(() => {
+		if (prevMobileRef.current === mobile) {
+			return;
+		}
+		prevMobileRef.current = mobile;
+		endPeek();
+		setCollapsed(
+			isBelowLgViewport() || preferCollapsed || readCollapsed(storageKey),
+		);
+	}, [mobile, preferCollapsed, storageKey, endPeek]);
 
 	// Entering the wide-content set collapses the sidebar in layout flow
 	// and, when it was expanded, peeks the nav as a flyout so the user
@@ -146,20 +170,37 @@ export function useSidebarResize(
 		};
 	}, [peeking, endPeek]);
 
+	// Mobile drawer state is environmental and never written to storage,
+	// so leaving mobile restores the desktop preference.
+	const persistUnlessMobile = useCallback(
+		(next: boolean) => {
+			if (!isBelowMdViewport()) {
+				persistCollapsed(storageKey, next);
+			}
+		},
+		[storageKey],
+	);
+
 	const expand = useCallback(() => {
 		endPeek();
 		setCollapsed(false);
-		persistCollapsed(storageKey, false);
-	}, [storageKey, endPeek]);
+		persistUnlessMobile(false);
+	}, [persistUnlessMobile, endPeek]);
+
+	const collapse = useCallback(() => {
+		endPeek();
+		setCollapsed(true);
+		persistUnlessMobile(true);
+	}, [persistUnlessMobile, endPeek]);
 
 	const toggle = useCallback(() => {
 		endPeek();
 		setCollapsed((prev) => {
 			const next = !prev;
-			persistCollapsed(storageKey, next);
+			persistUnlessMobile(next);
 			return next;
 		});
-	}, [storageKey, endPeek]);
+	}, [persistUnlessMobile, endPeek]);
 
 	const onDragStart = useCallback(
 		(e: React.PointerEvent): (() => void) => {
@@ -241,5 +282,14 @@ export function useSidebarResize(
 
 	const width = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
-	return { width, collapsed, peeking, expand, toggle, onDragStart };
+	return {
+		width,
+		collapsed,
+		peeking,
+		mobile,
+		expand,
+		collapse,
+		toggle,
+		onDragStart,
+	};
 }

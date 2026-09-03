@@ -52,6 +52,7 @@ export const AdminSettingsSidebarHeader: FC = () => {
 				<button
 					type="button"
 					onClick={toggle}
+					aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
 					className={cn(
 						"group flex items-center bg-transparent border-none cursor-pointer p-0",
 						collapsed

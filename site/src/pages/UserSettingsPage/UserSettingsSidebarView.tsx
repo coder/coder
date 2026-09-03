@@ -73,6 +73,7 @@ export const UserSettingsSidebarHeader: FC<UserSettingsSidebarHeaderProps> = ({
 					<button
 						type="button"
 						onClick={toggle}
+						aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
 						className="group flex items-center justify-center w-10 h-10 rounded-md cursor-pointer bg-transparent border-none p-0"
 					>
 						<PanelLeftIcon className="size-4 text-content-secondary group-hover:text-content-primary transition-colors" />
@@ -98,6 +99,7 @@ export const UserSettingsSidebarHeader: FC<UserSettingsSidebarHeaderProps> = ({
 				<button
 					type="button"
 					onClick={toggle}
+					aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
 					className="group flex h-10 shrink-0 items-center bg-transparent border-none cursor-pointer p-0 pr-1"
 				>
 					<PanelLeftIcon className="size-4 text-content-secondary group-hover:text-content-primary transition-colors" />
