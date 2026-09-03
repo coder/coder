@@ -2,7 +2,7 @@ import {
 	ActivityIcon,
 	ArrowUpRightIcon,
 	BoxIcon,
-	Building2Icon,
+	BuildingIcon,
 	FileTextIcon,
 	PanelLeftIcon,
 	SparklesIcon,
@@ -247,7 +247,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 
 			{canViewOrganizations && (
 				<SidebarAccordion
-					icon={Building2Icon}
+					icon={BuildingIcon}
 					label="Organizations"
 					open={openSections.has("organizations")}
 					onToggle={() => toggleSection("organizations")}
