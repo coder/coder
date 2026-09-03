@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/support"
@@ -52,7 +51,7 @@ func TestRun(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues: cfg,
-			Logger:           ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+			Logger:           new(slog.Make(sloghuman.Sink(io.Discard))),
 		})
 		admin := coderdtest.CreateFirstUser(t, client)
 		ws, agt := setupWorkspaceAndAgent(ctx, t, client, db, admin)
@@ -122,7 +121,7 @@ func TestRun(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues: cfg,
-			Logger:           ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+			Logger:           new(slog.Make(sloghuman.Sink(io.Discard))),
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		bun, err := support.Run(ctx, &support.Deps{
@@ -158,7 +157,7 @@ func TestRun(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{
-			Logger: ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+			Logger: new(slog.Make(sloghuman.Sink(io.Discard))),
 		})
 		bun, err := support.Run(ctx, &support.Deps{
 			Client: client,
@@ -174,7 +173,7 @@ func TestRun(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{
-			Logger: ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+			Logger: new(slog.Make(sloghuman.Sink(io.Discard))),
 		})
 		admin := coderdtest.CreateFirstUser(t, client)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -214,7 +213,7 @@ func TestRunCollectsWorkspaceFiles(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		DeploymentValues: cfg,
-		Logger:           ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+		Logger:           new(slog.Make(sloghuman.Sink(io.Discard))),
 	})
 	admin := coderdtest.CreateFirstUser(t, client)
 	ws, agt := setupWorkspaceAndAgent(ctx, t, client, db, admin)

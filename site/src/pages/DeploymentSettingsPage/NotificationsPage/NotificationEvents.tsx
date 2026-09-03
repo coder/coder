@@ -8,7 +8,7 @@ import {
 } from "#/api/queries/notifications";
 import type { DeploymentValues } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
-import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import {
 	Select,
 	SelectContent,
@@ -66,15 +66,14 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 					severity="warning"
 					prominent
 					actions={
-						<Button size="sm" asChild>
-							<a
-								target="_blank"
-								rel="noreferrer"
-								href={docs("/admin/monitoring/notifications#webhook")}
-							>
-								Read the docs
-							</a>
-						</Button>
+						<Link
+							href={docs("/admin/monitoring/notifications#webhook")}
+							target="_blank"
+							rel="noreferrer"
+						>
+							View docs
+							<span className="sr-only"> (opens in new tab)</span>
+						</Link>
 					}
 				>
 					Webhook notifications are enabled, but not properly configured.
@@ -86,15 +85,14 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 					severity="warning"
 					prominent
 					actions={
-						<Button size="sm" asChild>
-							<a
-								target="_blank"
-								rel="noreferrer"
-								href={docs("/admin/monitoring/notifications#smtp-email")}
-							>
-								Read the docs
-							</a>
-						</Button>
+						<Link
+							href={docs("/admin/monitoring/notifications#smtp-email")}
+							target="_blank"
+							rel="noreferrer"
+						>
+							View docs
+							<span className="sr-only"> (opens in new tab)</span>
+						</Link>
 					}
 				>
 					SMTP notifications are enabled but not properly configured.
@@ -117,7 +115,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 							<div
 								key={tpl.id}
 								data-testid="notification-template-row"
-								className="flex items-center justify-between gap-3 px-4 py-3 border-0 [&:not(:last-child)]:border-b border-solid"
+								className="flex items-center justify-between gap-3 px-4 py-3 border-0 not-last:border-b border-solid"
 							>
 								<span className="font-medium text-sm">{tpl.name}</span>
 								<MethodSelect

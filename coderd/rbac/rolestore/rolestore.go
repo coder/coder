@@ -82,6 +82,14 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier)
 	roles := make([]rbac.Role, 0, len(names))
 
 	for _, name := range names {
+		if rbac.IsRetiredRoleName(name.Name) {
+			// Retired built-in role names may linger in stored role arrays
+			// until a cleanup migration lands. They grant nothing and stay
+			// reserved, so skip them instead of falling through to the
+			// custom-role lookup, which could resurrect an unrelated
+			// pre-reservation custom role with the same name.
+			continue
+		}
 		// Remove any built in roles
 		expanded, err := rbac.RoleByName(name)
 		if err == nil {

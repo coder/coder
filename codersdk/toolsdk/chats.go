@@ -97,11 +97,11 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				},
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Optional organization UUID. Defaults to the authenticated user's first organization.",
+					"description": "Optional organization UUID. Defaults to the organization of the authenticated user's most recently updated chat. If the user has never created a chat, defaults only when they belong to one organization.",
 				},
 				"model_config_id": map[string]any{
 					"type":        "string",
-					"description": "Optional chat model config UUID from coder_list_chat_model_configs. Defaults to the organization's default model.",
+					"description": "Optional chat model config UUID from coder_list_chat_model_configs. Must belong to the chat's organization. Defaults to the organization's default model.",
 				},
 				"labels": map[string]any{
 					"type":                 "object",
@@ -125,15 +125,11 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				return ChatToolStatus{}, xerrors.New("organization_id must be a valid UUID")
 			}
 		} else {
-			me, err := deps.coderClient.User(ctx, codersdk.Me)
+			var err error
+			orgID, err = defaultChatOrganization(ctx, deps)
 			if err != nil {
 				return ChatToolStatus{}, err
 			}
-			// Admins can remove a user's only organization membership.
-			if len(me.OrganizationIDs) == 0 {
-				return ChatToolStatus{}, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
-			}
-			orgID = me.OrganizationIDs[0]
 		}
 		var modelConfigID *uuid.UUID
 		if args.ModelConfigID != "" {
@@ -157,6 +153,69 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 		}
 		return chatToolStatus(deps, chat), nil
 	},
+}
+
+// defaultChatOrganization resolves the organization used by chat tools when
+// organization_id is omitted, keeping coder_create_chat and
+// coder_list_chat_model_configs consistent for multi-organization users.
+func defaultChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, error) {
+	me, err := deps.coderClient.User(ctx, codersdk.Me)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	// Admins can remove a user's only organization membership.
+	if len(me.OrganizationIDs) == 0 {
+		return uuid.Nil, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
+	}
+	if len(me.OrganizationIDs) == 1 {
+		return me.OrganizationIDs[0], nil
+	}
+
+	expClient := codersdk.NewExperimentalClient(deps.coderClient)
+	chats, err := expClient.ListChats(ctx, &codersdk.ListChatsOptions{
+		Source: codersdk.ChatListSourceCreatedByMe,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("list chats to determine organization: %w", err)
+	}
+	// The chat list excludes archived chats by default and archiving bumps
+	// updated_at, so the most recently updated chat can be archived even
+	// when active chats exist. Fetch both states and scan the union.
+	archivedChats, err := expClient.ListChats(ctx, &codersdk.ListChatsOptions{
+		Query:  "archived:true",
+		Source: codersdk.ChatListSourceCreatedByMe,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("list archived chats to determine organization: %w", err)
+	}
+	chats = append(chats, archivedChats...)
+	// Pinned chats sort before recently updated chats. If the user has 100
+	// pinned chats, this batch may not contain their latest chat, which is an
+	// acceptable tradeoff for keeping organization selection to one page.
+	var latest *codersdk.Chat
+	consider := func(chat *codersdk.Chat) {
+		if latest == nil || chat.UpdatedAt.After(latest.UpdatedAt) {
+			latest = chat
+		}
+	}
+	for i := range chats {
+		consider(&chats[i])
+		// Subagent activity bumps only the child row's UpdatedAt, so roots
+		// alone can misreport the most recently updated organization.
+		for j := range chats[i].Children {
+			consider(&chats[i].Children[j])
+		}
+	}
+	if latest != nil {
+		return latest.OrganizationID, nil
+	}
+	return uuid.Nil, xerrors.New("organization_id is required because the authenticated user belongs to multiple organizations and has not created a chat yet")
 }
 
 type GetChatArgs struct {
@@ -864,7 +923,8 @@ type ListChatModelConfigsArgs struct {
 }
 
 type ListChatModelConfigsResponse struct {
-	ModelConfigs []ChatModelConfigSummary `json:"model_configs"`
+	OrganizationID string                   `json:"organization_id"`
+	ModelConfigs   []ChatModelConfigSummary `json:"model_configs"`
 }
 
 var ListChatModelConfigs = Tool[ListChatModelConfigsArgs, ListChatModelConfigsResponse]{
@@ -872,12 +932,14 @@ var ListChatModelConfigs = Tool[ListChatModelConfigsArgs, ListChatModelConfigsRe
 		Name: ToolNameListChatModelConfigs,
 		Description: `List the enabled chat models available for Coder Agents chats. Use a model config ID with coder_create_chat to pick a model.
 
+Model configs are organization-scoped. The response includes the organization_id the models belong to; pass it as coder_create_chat's organization_id together with the chosen model config ID.
+
 Per-user provider credentials are validated when creating a chat, so coder_create_chat can still reject a listed model with an explanatory error.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Optional organization UUID. Defaults to the authenticated user's first organization.",
+					"description": "Optional organization UUID. Defaults to the organization of the authenticated user's most recently updated chat. If the user has never created a chat, defaults only when they belong to one organization.",
 				},
 			},
 			Required: []string{},
@@ -893,14 +955,11 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 				return ListChatModelConfigsResponse{}, xerrors.New("organization_id must be a valid UUID")
 			}
 		} else {
-			me, err := deps.coderClient.User(ctx, codersdk.Me)
+			var err error
+			organizationID, err = defaultChatOrganization(ctx, deps)
 			if err != nil {
-				return ListChatModelConfigsResponse{}, xerrors.Errorf("get authenticated user: %w", err)
+				return ListChatModelConfigsResponse{}, err
 			}
-			if len(me.OrganizationIDs) == 0 {
-				return ListChatModelConfigsResponse{}, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
-			}
-			organizationID = me.OrganizationIDs[0]
 		}
 
 		response, err := codersdk.NewExperimentalClient(deps.coderClient).ChatModels(ctx, organizationID)
@@ -923,6 +982,9 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 				IsDefault:   config.IsDefault,
 			})
 		}
-		return ListChatModelConfigsResponse{ModelConfigs: summaries}, nil
+		return ListChatModelConfigsResponse{
+			OrganizationID: organizationID.String(),
+			ModelConfigs:   summaries,
+		}, nil
 	},
 }

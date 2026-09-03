@@ -1,7 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC, PropsWithChildren, ReactNode } from "react";
-import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { cn } from "#/utils/cn";
 
 type SettingsHeaderProps = Readonly<
@@ -26,20 +25,22 @@ export const SettingsHeader: FC<SettingsHeaderProps> = ({
 };
 
 type SettingsHeaderDocsLinkProps = Readonly<
-	PropsWithChildren<{ href: string }>
+	PropsWithChildren<{
+		href: string;
+		context?: string;
+	}>
 >;
 export const SettingsHeaderDocsLink: FC<SettingsHeaderDocsLinkProps> = ({
 	href,
-	children = "Read the docs",
+	context,
+	children = "View docs",
 }) => {
 	return (
-		<Button asChild variant="outline">
-			<a href={href} target="_blank" rel="noreferrer">
-				<SquareArrowOutUpRightIcon />
-				{children}
-				<span className="sr-only"> (link opens in new tab)</span>
-			</a>
-		</Button>
+		<Link href={href} target="_blank" rel="noreferrer">
+			{children}
+			{context && <span className="sr-only"> {context}</span>}
+			<span className="sr-only"> (opens in new tab)</span>
+		</Link>
 	);
 };
 

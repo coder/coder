@@ -29,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -328,7 +327,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
 		keyID := keys[0].ID
-		capturePS.target.Store(ptr.Ref(pubsub.ProvisionerKeyDeletedChannel(keyID)))
+		capturePS.target.Store(new(pubsub.ProvisionerKeyDeletedChannel(keyID)))
 
 		srv, err := orgAdmin.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			Name:         testutil.MustRandString(t, 63),
@@ -401,7 +400,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
 		keyID := keys[0].ID
-		capturePS.target.Store(ptr.Ref(pubsub.ProvisionerKeyDeletedChannel(keyID)))
+		capturePS.target.Store(new(pubsub.ProvisionerKeyDeletedChannel(keyID)))
 
 		srv, err := orgAdmin.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			Name:         testutil.MustRandString(t, 63),
@@ -475,7 +474,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.Len(t, keys, 1)
 		keyID := keys[0].ID
 		store.keyID.Store(&keyID)
-		capturePS.target.Store(ptr.Ref(pubsub.ProvisionerKeyDeletedChannel(keyID)))
+		capturePS.target.Store(new(pubsub.ProvisionerKeyDeletedChannel(keyID)))
 
 		srv, err := orgAdmin.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			Name:         testutil.MustRandString(t, 63),
@@ -794,7 +793,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		// Patch the 'Everyone' group to give the user quota to build their workspace.
 		//nolint:gocritic // Not testing RBAC here.
 		_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
-			QuotaAllowance: ptr.Ref(1),
+			QuotaAllowance: new(1),
 		})
 		require.NoError(t, err)
 

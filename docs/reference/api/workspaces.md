@@ -249,10 +249,7 @@ of the template will be used.
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -331,10 +328,7 @@ of the template will be used.
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "task_id": "string",
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -632,10 +626,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -714,10 +705,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "task_id": "string",
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -982,10 +970,7 @@ of the template will be used.
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -1064,10 +1049,7 @@ of the template will be used.
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "task_id": "string",
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -1282,10 +1264,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 ],
                 "name": "string",
                 "operating_system": "string",
-                "parent_id": {
-                  "uuid": "string",
-                  "valid": true
-                },
+                "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
                 "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "scripts": [
@@ -1364,10 +1343,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           ]
         }
       ],
-      "task_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "task_id": "string",
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
@@ -1608,10 +1584,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -1690,10 +1663,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "task_id": "string",
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -2244,10 +2214,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -2326,10 +2293,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "task_id": "string",
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",

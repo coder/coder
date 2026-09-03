@@ -58,6 +58,7 @@ const withOrganizationModels = (Story: React.FC) => (
 	<OrganizationModelsContext.Provider
 		value={{
 			organization: MockDefaultOrganization,
+			accessibleOrganizations: [MockDefaultOrganization],
 			permissions: MockOrganizationPermissions,
 			requestedOrganizationDenied: false,
 		}}
@@ -156,7 +157,10 @@ export const AddSetAsDefault: Story = {
 export const LeaveWithUnsavedChanges: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
+		// Dirty the form through a plain input. The model identifier
+		// autocomplete only commits to Formik on blur, which races the
+		// leaving click and would skip the unsaved-changes blocker.
+		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
 		await userEvent.click(
 			canvas.getByRole("link", { name: /back to models/i }),
 		);
@@ -298,8 +302,8 @@ export const ShareOnlyAccess: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatModelACL").mockResolvedValue({
-			user_roles: {},
-			group_roles: {},
+			users: [],
+			groups: [],
 		});
 		spyOn(API.experimental, "updateChatModelACL").mockResolvedValue();
 		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
@@ -317,7 +321,7 @@ export const ShareOnlyAccess: Story = {
 			canvas.getByRole("button", { name: /model actions/i }),
 		);
 		expect(
-			screen.getByRole("menuitem", { name: /share model/i }),
+			screen.getByRole("menuitem", { name: /manage permissions/i }),
 		).toBeInTheDocument();
 		expect(
 			screen.queryByRole("menuitem", { name: /duplicate model/i }),
@@ -339,7 +343,7 @@ export const FullAccessActions: Story = {
 			canvas.getByRole("button", { name: /model actions/i }),
 		);
 		expect(
-			screen.getByRole("menuitem", { name: /share model/i }),
+			screen.getByRole("menuitem", { name: /manage permissions/i }),
 		).toBeInTheDocument();
 		expect(
 			screen.getByRole("menuitem", { name: /duplicate model/i }),

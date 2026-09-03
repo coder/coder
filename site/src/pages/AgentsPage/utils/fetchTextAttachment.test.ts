@@ -69,7 +69,7 @@ describe("fetchTextAttachmentContent", () => {
 			content: "hello from the server",
 		});
 		expect(globalThis.fetch).toHaveBeenCalledWith(
-			"/api/experimental/chats/files/folder%2Ffile-1%3Fpreview%3Dyes",
+			"/api/v2/chats/files/folder%2Ffile-1%3Fpreview%3Dyes",
 			expect.anything(),
 		);
 	});

@@ -596,6 +596,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 		AgentsAllowed:                seed.AgentsAllowed,
+		AllowWorkspaceRenames:        seed.AllowWorkspaceRenames,
 	})
 	require.NoError(t, err, "insert template")
 

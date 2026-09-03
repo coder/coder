@@ -120,14 +120,6 @@ Coder supports the following OAuth2 client authentication methods at the token e
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
 - `none`: No client secret. The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1). Available only through [Dynamic Client Registration](#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
-> [!NOTE]
-> Registration accepts `none` today, but the token endpoint does not yet
-> honor it: an `authorization_code` exchange still requires
-> `client_secret`, so a public client cannot obtain a token yet. Discovery
-> omits `none` from `token_endpoint_auth_methods_supported` for the same
-> reason, so a conforming client is not told to attempt an exchange that
-> would be rejected.
-
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
@@ -144,6 +136,14 @@ If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_
 > Which schemes a redirect URI may use is a separate restriction that
 > also differs by client type. See
 > [Callback URL schemes](#callback-url-schemes).
+
+A client's type is fixed when it registers.
+An RFC 7592 update that would move a client between public and confidential is rejected with `invalid_client_metadata`, since the client either holds a secret that would stop being required or has none and no way to be issued one.
+Switching between `client_secret_basic` and `client_secret_post` is allowed, because both are confidential.
+To change type, register a new client.
+
+Clients registered with `token_endpoint_auth_method: none` before Coder honored it are stored as confidential and still require their `client_secret`.
+Coder reports `client_secret_basic` for those clients so that what it reports matches what it enforces, and the mismatch clears the next time the client updates its registration using the value Coder reported.
 
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
@@ -231,6 +231,8 @@ confidential clients must include PKCE parameters:
 
 3. Include the code verifier in the token exchange (see [Client Authentication Methods](#client-authentication-methods)):
 
+   **Confidential client**
+
    ```sh
    curl -X POST \
      -u "$CLIENT_ID:$CLIENT_SECRET" \
@@ -242,6 +244,45 @@ confidential clients must include PKCE parameters:
      "$CODER_URL/oauth2/tokens"
    ```
 
+   **Public client (`token_endpoint_auth_method: none`)**
+
+   Send `client_id` in the form body and omit `client_secret` entirely. The code
+   verifier is the only proof of possession, and must satisfy RFC 7636 §4.1
+   (43-128 characters from `[A-Za-z0-9-._~]`).
+
+   ```sh
+   curl -X POST \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "grant_type=authorization_code" \
+     -d "code=$AUTH_CODE" \
+     -d "client_id=$CLIENT_ID" \
+     -d "code_verifier=$CODE_VERIFIER" \
+     -d "redirect_uri=https://yourapp.example.com/callback" \
+     "$CODER_URL/oauth2/tokens"
+   ```
+
+## Scopes
+
+An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions. A token can never do more than its user can.
+
+Scope names come from the same vocabulary as [API key scopes](../users/sessions-tokens.md#api-key-scopes): individual `resource:action` names such as `workspace:ssh`, and `coder:` composites such as `coder:workspaces.access` that stand for a set of them. `coder:all` records an unrestricted grant.
+
+A client asks for a scope with the `scope` parameter on the authorization request, space separated:
+
+```txt
+https://coder.example.com/oauth2/authorize?
+  client_id=your-client-id&
+  response_type=code&
+  scope=coder:workspaces.access&
+  code_challenge=$CODE_CHALLENGE&
+  code_challenge_method=S256&
+  redirect_uri=https://yourapp.example.com/callback
+```
+
+An application registered through [Dynamic Client Registration](#dynamic-client-registration) can declare a `scope` field, which acts as an allowlist. The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing. Applications created through the web UI or the management API declare no allowlist, so any requested scope is honored and a request that names no scope is granted `coder:all`.
+
+The consent page states the scope being granted before the user approves it, and refreshing a token keeps the scope originally granted.
+
 ## Discovery Endpoints
 
 Coder provides OAuth2 discovery endpoints for programmatic integration:
@@ -250,6 +291,8 @@ Coder provides OAuth2 discovery endpoints for programmatic integration:
 - **Protected Resource Metadata**: `GET /.well-known/oauth-protected-resource`
 
 These endpoints return server capabilities and endpoint URLs according to [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) and [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728).
+
+`token_endpoint_auth_methods_supported` lists every method the token endpoint accepts, including `none`. It is not gated on [Dynamic Client Registration](#dynamic-client-registration), since existing public clients still exchange tokens when new registrations are disabled. `registration_endpoint` is advertised only while Dynamic Client Registration is enabled, so that field, not this one, tells a client whether it can register a new public client.
 
 ## Token Management
 
@@ -277,6 +320,17 @@ curl -X POST \
   -d "refresh_token=$REFRESH_TOKEN" \
   -d "client_id=$CLIENT_ID" \
   -d "client_secret=$CLIENT_SECRET" \
+  "$CODER_URL/oauth2/tokens"
+```
+
+**Option C: Public client (`none`)**
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=$REFRESH_TOKEN" \
+  -d "client_id=$CLIENT_ID" \
   "$CODER_URL/oauth2/tokens"
 ```
 
@@ -351,6 +405,63 @@ blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). Update the
 application's callback URL to a valid scheme (see
 [Callback URL schemes](#callback-url-schemes)).
 
+### "invalid_scope" returned to your callback
+
+The authorization endpoint validates the `scope` parameter. When it cannot
+grant what was asked for, it redirects to your registered callback with
+`error=invalid_scope` rather than issuing a code. The `error_description`
+opens with the name that caused the rejection:
+
+- `unknown or unsupported scope`: this deployment does not offer that scope
+  name. Read the current list from `scopes_supported` in
+  `GET /.well-known/oauth-authorization-server`.
+- `scope requests permissions beyond this app's allowed scopes`: the name is
+  supported, but the application was registered with a narrower `scope`.
+  Request less, or re-register the application with a wider one.
+- `none of the scopes registered for this app are supported by this
+  deployment`: the application's own registered `scope` names nothing this
+  deployment offers, so no request against it can succeed, including one
+  that omits `scope`. Re-register the application with supported scopes.
+
+Omitting `scope` requests the application's registered scopes, or full access
+if it was registered without any.
+
+The negotiated scope is recorded on the authorization, shown on the consent
+page, and applied to the access token issued when the code is exchanged.
+
+### "invalid_grant" for a scope the deployment cannot mint
+
+`POST /oauth2/tokens` mints the access token with the scope recorded on the
+authorization code, or on the refresh token when refreshing. If that stored
+scope names something this deployment cannot mint, the exchange answers HTTP
+400 with `error=invalid_grant` and an `error_description` naming the value.
+
+The usual cause is a grant made against a scope the deployment has since
+dropped. Authorize again to negotiate a scope it still supports; the stored
+scope is not something the client can change by requesting a different one.
+
+### "unsupported_response_type" returned to your callback
+
+Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.
+`GET /.well-known/oauth-authorization-server` reports it in `response_types_supported`.
+
+`response_type=token`, the implicit grant, redirects to your registered callback with `error=unsupported_response_type`, an `error_description` of `Only response_type=code is supported`, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
+A value Coder does not recognize at all, or an omitted `response_type`, fails query parameter validation instead and is answered on Coder rather than redirected: `GET` renders an "Invalid Query Parameters" page and `POST` returns a 400 with a JSON `invalid_request` body.
+
+Earlier releases answered `response_type=token` on Coder as well: `GET` rendered an "Unsupported Response Type" page and `POST` returned a 400 with a JSON body.
+An integration that watched for either now has to read the error from its own callback.
+
+### "invalid_request" for `code_challenge_method`
+
+Coder supports the `S256` challenge method only.
+`plain` sends the verifier itself as the challenge, so anything that can observe the authorization request can complete the exchange, which is what PKCE exists to prevent.
+Omitting the parameter is allowed and means `S256`.
+
+An unsupported method redirects to your registered callback with `error=invalid_request`, an `error_description` that names the method, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
 ### "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
@@ -391,11 +502,10 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 
 As an experimental feature, the current implementation has limitations:
 
-- No scope system - all tokens have full API access
+- A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
+- A client cannot narrow the token's scope on refresh; the `scope` parameter is ignored and the refreshed token always keeps the scope originally granted
 - No client credentials grant support
-- Implicit grant (`response_type=token`) is not supported; OAuth 2.1
-  deprecated this flow due to token leakage risks, and requests return
-  `unsupported_response_type`
+- Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 
 ## Standards Compliance

@@ -1,7 +1,7 @@
+import { SquareTerminalIcon } from "lucide-react";
 import type { FC } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
-import { TerminalIcon } from "#/components/Icons/TerminalIcon";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { cn } from "#/utils/cn";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
@@ -23,11 +23,11 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 	return (
 		<div
 			key={agent.id}
-			className="relative flex flex-row items-center justify-between gap-4 bg-surface-secondary px-8 pb-4 pt-4 text-base [&:not(:last-child)]:pb-0 after:absolute after:left-[43px] after:top-0 after:h-full after:w-0.5 after:bg-border after:content-['']"
+			className="relative flex flex-row items-center justify-between gap-4 bg-surface-secondary px-8 pb-4 pt-4 text-base not-last:pb-0 after:absolute after:left-[43px] after:top-0 after:h-full after:w-0.5 after:bg-border after:content-['']"
 		>
 			<div className="flex flex-row items-baseline gap-4">
 				<div className="flex w-6 shrink-0 justify-center">
-					<div className="relative z-[1] size-2.5 rounded-full border-solid border-2 border-content-secondary bg-surface-secondary" />
+					<div className="relative z-1 size-2.5 rounded-full border-solid border-2 border-content-secondary bg-surface-secondary" />
 				</div>
 				<div className="flex flex-row items-baseline gap-8 font-normal text-sm text-content-secondary max-md:flex-wrap max-md:gap-4">
 					<div
@@ -66,7 +66,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               apps that are included in agent.display_apps */}
 							{agent.display_apps.includes("web_terminal") && (
 								<AppPreview>
-									<TerminalIcon className="size-3" />
+									<SquareTerminalIcon className="size-3" />
 									{DisplayAppNameMap.web_terminal}
 								</AppPreview>
 							)}
@@ -81,13 +81,21 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 							{/* VSCode display apps (vscode, vscode_insiders) get special presentation */}
 							{agent.display_apps.includes("vscode") ? (
 								<AppPreview>
-									<VSCodeIcon className="size-3" />
+									<ExternalImage
+										src="/icon/code.svg"
+										alt=""
+										className="size-3"
+									/>
 									{DisplayAppNameMap.vscode}
 								</AppPreview>
 							) : (
 								agent.display_apps.includes("vscode_insiders") && (
 									<AppPreview>
-										<VSCodeIcon className="size-3" />
+										<ExternalImage
+											src="/icon/code-insiders.svg"
+											alt=""
+											className="size-3"
+										/>
 										{DisplayAppNameMap.vscode_insiders}
 									</AppPreview>
 								)

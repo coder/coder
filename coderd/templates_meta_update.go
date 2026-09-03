@@ -34,6 +34,7 @@ type templateMetaUpdate struct {
 	deprecationMessage                   string
 	useClassicTemplateFlow               bool
 	disableModuleCache                   bool
+	allowWorkspaceRenames                bool
 	corsBehavior                         database.CorsBehavior
 	autostopRequirementDaysOfWeekParsed  uint8
 	autostartRequirementDaysOfWeekParsed uint8
@@ -87,6 +88,7 @@ func resolveTemplateMetaUpdate(
 		deprecationMessage:             ptr.NilToDefault(req.DeprecationMessage, template.Deprecated),
 		useClassicTemplateFlow:         ptr.NilToDefault(req.UseClassicParameterFlow, template.UseClassicParameterFlow),
 		disableModuleCache:             ptr.NilToDefault(req.DisableModuleCache, template.DisableModuleCache),
+		allowWorkspaceRenames:          ptr.NilToDefault(req.AllowWorkspaceRenames, template.AllowWorkspaceRenames),
 		groupACL:                       template.GroupACL,
 
 		// Default to the original values

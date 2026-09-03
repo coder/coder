@@ -17,9 +17,8 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 export default meta;
 type Story = StoryObj<typeof ContextUsageIndicator>;
 
-// Clean pin: the ring carries no change marker and the popover lists the
-// pinned resources.
-export const Clean: Story = {
+// A pinned resource issue flags the ring and appears under Issues.
+export const ResourceIssue: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
@@ -29,8 +28,9 @@ export const Clean: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
-		expect(button.getAttribute("aria-label") ?? "").not.toContain(
-			"Context changed",
+		expect(button).not.toHaveAccessibleName(/Context changed/);
+		expect(button).toHaveAccessibleName(
+			/Some context resources failed to load/,
 		);
 
 		await userEvent.hover(button);
@@ -120,6 +120,10 @@ export const MultipleContextRoots: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
+		expect(button).toHaveAccessibleName(/Context usage 24%/);
+		expect(button).not.toHaveAccessibleName(
+			/Context changed|failed to load|Context error/,
+		);
 		await userEvent.hover(button);
 		const body = within(document.body);
 		// Both directories that contribute instruction files are listed, so the
@@ -186,8 +190,9 @@ export const Dirty: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const button = within(canvasElement).getByRole("button");
-		expect(button.getAttribute("aria-label") ?? "").toContain(
-			"Context changed",
+		expect(button).toHaveAccessibleName(/Context changed/);
+		expect(button).toHaveAccessibleName(
+			/Some context resources failed to load/,
 		);
 
 		await userEvent.hover(button);
@@ -279,6 +284,7 @@ export const SnapshotError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
+		expect(button).toHaveAccessibleName(/Context error/);
 		await userEvent.hover(button);
 		const body = within(document.body);
 		await waitFor(() => expect(body.getByText("Context error")).toBeVisible());

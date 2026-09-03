@@ -3,11 +3,14 @@ package oauth2provider
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -15,6 +18,68 @@ import (
 // per RFC 6749.
 func parseScopes(scope string) []string {
 	return strings.Fields(strings.TrimSpace(scope))
+}
+
+// Named so call sites state the client type they mean rather than leaning on
+// the zero value. IsPublic itself is pinned in TestOAuth2ProviderAppIsPublic.
+var (
+	confidentialApp = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypeConfidential}
+	publicApp       = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypePublic}
+)
+
+func TestScopeStringToAPIKeyScopes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EveryNameKept", func(t *testing.T) {
+		t.Parallel()
+
+		scopes, err := scopeStringToAPIKeyScopes("workspace:ssh template:read")
+		require.NoError(t, err)
+		require.Equal(t, database.APIKeyScopes{
+			database.ApiKeyScopeWorkspaceSsh,
+			database.ApiKeyScopeTemplateRead,
+		}, scopes)
+	})
+
+	// The catalog and the api_key_scope enum are maintained separately. A name
+	// negotiable at authorization but unmintable at exchange leaves the client
+	// holding a code it can never redeem.
+	t.Run("EveryCatalogNameMintable", func(t *testing.T) {
+		t.Parallel()
+
+		// ExternalScopeNames omits the aliases IsExternalScope accepts, and the
+		// catalog cannot enumerate them, so a new alias has to be added here.
+		names := append(rbac.ExternalScopeNames(), "all", "application_connect")
+		require.NotEmpty(t, names)
+		for _, name := range names {
+			require.Truef(t, rbac.IsExternalScope(rbac.ScopeName(name)),
+				"scope %q is not negotiable, so this loop is not driving the catalog", name)
+
+			canonical := string(rbac.CanonicalScopeName(rbac.ScopeName(name)))
+			scopes, err := scopeStringToAPIKeyScopes(canonical)
+			require.NoErrorf(t, err, "scope %q can be negotiated but not minted", name)
+			require.Equal(t, database.APIKeyScopes{database.APIKeyScope(canonical)}, scopes)
+		}
+	})
+
+	t.Run("UnknownNameRejectsTheWholeList", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := scopeStringToAPIKeyScopes("workspace:ssh not_a_real_scope")
+		require.ErrorIs(t, err, errUnmintableScope)
+		require.Contains(t, err.Error(), "not_a_real_scope")
+	})
+
+	// Unreachable through the NOT NULL column, but pinned: apikey.Generate reads
+	// an empty list as unrestricted, so anything but an error widens the grant.
+	t.Run("EmptyRejected", func(t *testing.T) {
+		t.Parallel()
+
+		for _, scope := range []string{"", "   "} {
+			_, err := scopeStringToAPIKeyScopes(scope)
+			require.ErrorIs(t, err, errUnmintableScope, "scope %q", scope)
+		}
+	})
 }
 
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
@@ -110,10 +175,9 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			form.Set("client_id", "test-client")
 			form.Set("client_secret", "test-secret")
 			form.Set("code", "test-code")
-			// This test only exercises scope parsing, but code_verifier is
-			// validated unconditionally for this grant type, so use a value
-			// that satisfies the RFC 7636 §4.1 length floor.
-			form.Set("code_verifier", strings.Repeat("a", 43))
+			// Validated unconditionally for this grant type, so it has to satisfy
+			// the RFC 7636 §4.1 length floor even here.
+			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 			if tc.scopeParam != "" {
 				form.Set("scope", tc.scopeParam)
 			}
@@ -127,7 +191,7 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
 
 			// Verify no errors occurred
 			require.NoError(t, err, "extractTokenRequest should not return error for: %s", tc.description)
@@ -190,7 +254,7 @@ func TestExtractTokenParams_ScopesURLEncoded(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
 
 			// Verify no errors
 			require.NoError(t, err)
@@ -220,7 +284,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
-				form.Set("code_verifier", strings.Repeat("a", 43))
+				form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 				return form
 			},
 			expectedScopes: []string{},
@@ -234,7 +298,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
-				form.Set("code_verifier", strings.Repeat("a", 43))
+				form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 				form.Set("scope", "   ")
 				return form
 			},
@@ -250,7 +314,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
-				form.Set("code_verifier", strings.Repeat("a", 43))
+				form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 				form.Set("scope", longScope)
 				return form
 			},
@@ -273,7 +337,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				Form:     form,
 			}
 
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
 
 			require.NoError(t, err, "extractTokenRequest should not error for: %s", tc.description)
 			require.Empty(t, validationErrs)
@@ -448,6 +512,91 @@ func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T
 	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
 
+func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		app  database.OAuth2ProviderApp
+		// Omitted from the form when empty, rather than sent as empty strings.
+		clientID       string
+		clientSecret   string
+		wantErrorField string // Empty means no validation error is expected.
+	}{
+		{
+			name:           "ConfidentialClientMissingSecretIsRejected",
+			app:            confidentialApp,
+			clientID:       "test-client",
+			wantErrorField: "client_secret",
+		},
+		{
+			name:         "ConfidentialClientWithSecretIsAccepted",
+			app:          confidentialApp,
+			clientID:     "test-client",
+			clientSecret: "test-secret",
+		},
+		{
+			name:     "PublicClientMissingSecretIsAccepted",
+			app:      publicApp,
+			clientID: "test-client",
+		},
+		{
+			// No secret to check, so one sent anyway is ignored, not rejected
+			// (RFC 7591 §2, OAuth 2.1 §2.1).
+			name:         "PublicClientWithSecretIsAccepted",
+			app:          publicApp,
+			clientID:     "test-client",
+			clientSecret: "unnecessary-secret",
+		},
+		{
+			name:           "PublicClientMissingClientIDIsRejected",
+			app:            publicApp,
+			wantErrorField: "client_id",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			callbackURL, err := url.Parse("http://localhost:3000/callback")
+			require.NoError(t, err)
+
+			form := url.Values{}
+			form.Set("grant_type", "authorization_code")
+			form.Set("code", "test-code")
+			// Validated unconditionally for this grant type, so it has to satisfy
+			// the RFC 7636 §4.1 length floor even here.
+			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
+			if tc.clientID != "" {
+				form.Set("client_id", tc.clientID)
+			}
+			if tc.clientSecret != "" {
+				form.Set("client_secret", tc.clientSecret)
+			}
+
+			req := &http.Request{
+				Method:   http.MethodPost,
+				PostForm: form,
+				Form:     form,
+			}
+
+			_, validationErrs, err := extractTokenRequest(req, callbackURL, tc.app)
+
+			if tc.wantErrorField == "" {
+				require.NoError(t, err)
+				require.Empty(t, validationErrs)
+				return
+			}
+
+			require.Error(t, err)
+			require.True(t, slices.ContainsFunc(validationErrs, func(v codersdk.ValidationError) bool {
+				return v.Field == tc.wantErrorField
+			}), "expected a validation error for field %q, got: %+v", tc.wantErrorField, validationErrs)
+		})
+	}
+}
+
 // TestRefreshTokenGrant_Scopes tests that scopes can be requested during refresh
 func TestRefreshTokenGrant_Scopes(t *testing.T) {
 	t.Parallel()
@@ -468,7 +617,7 @@ func TestRefreshTokenGrant_Scopes(t *testing.T) {
 		Form:     form,
 	}
 
-	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
 
 	require.NoError(t, err)
 	require.Empty(t, validationErrs)

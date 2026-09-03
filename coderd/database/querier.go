@@ -132,6 +132,12 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	// Deletes cached Terraform module archives ingested in the given time range and
+	// clears the template version references to them. created_by and mimetype
+	// identify a provisionerd-written module archive, matching the checks in
+	// provisionerdserver, so user-uploaded template tarballs are never removed.
+	// Only archives referenced by a template version are considered.
+	DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg DeleteCachedModuleFilesCreatedBetweenParams) (int64, error)
 	// Clears a chat's pinned context resources. Used as the first half of a
 	// clear-then-copy re-pin, and on its own when the chat's current agent
 	// has no snapshot.
@@ -554,6 +560,7 @@ type sqlcQuerier interface {
 	// invariant (parent archived implies child archived) is enforced
 	// at write time, not here.
 	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
+	GetCodernautsEnabled(ctx context.Context) (bool, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
@@ -610,15 +617,14 @@ type sqlcQuerier interface {
 	GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error)
 	// Returns each user's AI spend attributed to the queried group, on or after
 	// period_start until NOW. Only current members of the queried group are
-	// returned. spend_limit_micros and limit_source are populated only when the
-	// queried group is the user's effective budget source. The effective group
-	// falls back to the Everyone group, and effective_group_id is null only when
-	// that group belongs to a different organization than the queried group.
+	// returned. effective_spend_limit_micros and effective_limit_source describe
+	// the user's effective budget when its group belongs to the queried group's
+	// organization. The effective group falls back to the Everyone group, and
+	// effective_group_id is null only when that group belongs to a different
+	// organization than the queried group.
 	// The period_start parameter is normalized to its UTC calendar day.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	// Spend is aggregated for the queried group, not the user's effective group.
-	// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
-	// whose effective budget source is not the queried group.
 	GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error)
 	GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error)
 	GetGroupMembersByGroupIDPaginated(ctx context.Context, arg GetGroupMembersByGroupIDPaginatedParams) ([]GetGroupMembersByGroupIDPaginatedRow, error)
@@ -911,6 +917,15 @@ type sqlcQuerier interface {
 	// rollup and accept day-granularity bounds.
 	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
+	// Returns the models used since the given time that hold no price, most used
+	// first. openai-compat providers cannot be priced, so their models are excluded.
+	GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error)
+	// Counts unpublished usage events in the last 60 days:
+	//   pending: created within the last 30 days (still eligible to publish)
+	//   expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+	// Events older than 60 days are ignored so this query stays bounded and the
+	// expired gauge can recover to zero.
+	GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)
 	// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use
@@ -958,6 +973,7 @@ type sqlcQuerier interface {
 	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserSecret, error)
 	GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error)
+	GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg GetUserSecretByUserIDAndNameForUpdateParams) (UserSecret, error)
 	// Returns deployment-wide aggregates for the telemetry snapshot.
 	//
 	// The denominator for both user-level counts and the per-user
@@ -1353,6 +1369,7 @@ type sqlcQuerier interface {
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
+	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
@@ -1396,6 +1413,10 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	// MCP resources bypass context drift and are live-synced on each push.
+	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
+	// cannot interleave with the replacement.
+	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has
@@ -1681,6 +1702,7 @@ type sqlcQuerier interface {
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error
 	UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error
+	UpsertCodernautsEnabled(ctx context.Context, enabled bool) error
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.
 	// The functional values are immutable and controlled implicitly.

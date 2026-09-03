@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
@@ -261,6 +262,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		GenerationAttempt: chat.GenerationAttempt,
 	}
 	modelInvokedAt := s.opts.MessagePartBuffer.ModelInvokedAt(key)
+	toolCompletions := s.opts.MessagePartBuffer.ToolCompletions(key)
 	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
@@ -302,7 +304,9 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		messages := partialMessages
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, s.opts.Clock.Now("chatworker", "interrupt"))
+		// Reuse the captured interrupt instant so database delay does not
+		// inflate billing.
+		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions)
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
 		}
@@ -685,6 +689,7 @@ func committedPendingLocalToolCancellationMessages(
 	store database.Store,
 	chat database.Chat,
 	interruptedAt time.Time,
+	toolCompletions map[int]messagepartbuffer.ToolCompletion,
 ) ([]chatstate.Message, error) {
 	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
@@ -700,8 +705,9 @@ func committedPendingLocalToolCancellationMessages(
 	if len(localCalls) == 0 {
 		return nil, nil
 	}
+	var intervals []chatloop.BilledInterval
 	result := make([]chatstate.Message, 0, len(localCalls))
-	for _, call := range localCalls {
+	for i, call := range localCalls {
 		payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
@@ -721,6 +727,38 @@ func committedPendingLocalToolCancellationMessages(
 			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
+		if unbilledSubagentToolNames[call.ToolName] {
+			continue
+		}
+		// Bill only started calls. Completed calls end at completion and
+		// running calls end at the interrupt.
+		occurrence, ok := toolCompletions[i]
+		if !ok {
+			continue
+		}
+		start := occurrence.StartedAt
+		if start.IsZero() {
+			continue
+		}
+		end := occurrence.CompletedAt
+		if end.IsZero() {
+			end = interruptedAt
+		}
+		intervals = append(intervals, chatloop.BilledInterval{Start: start, End: end})
+	}
+	// Bill the interval union once on a dedicated usage record so
+	// cancellation rows stay free of batch-level runtime.
+	stamp, ok, err := batchUsageMessage(
+		chat.LastModelConfigID,
+		chatprompt.CurrentContentVersion,
+		chatloop.BilledIntervalsDuration(intervals),
+		len(intervals),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		result = append(result, stamp)
 	}
 	return result, nil
 }

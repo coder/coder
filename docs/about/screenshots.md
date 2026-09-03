@@ -1,4 +1,6 @@
-# Screenshots
+---
+title: Screenshots
+---
 
 ## Log in
 

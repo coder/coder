@@ -76,21 +76,20 @@ func TestScaleTestChat(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, mockURL, provider.BaseURL)
 
-	expClient := codersdk.NewExperimentalClient(client)
 	defaultOrg, err := client.OrganizationByName(ctx, codersdk.DefaultOrganization)
 	require.NoError(t, err)
-	configs, err := expClient.ChatModels(ctx, defaultOrg.ID)
+	configs, err := client.ChatModels(ctx, defaultOrg.ID)
 	require.NoError(t, err)
 	matchingConfigs := scaletestModelConfigsForProvider(configs.Models, provider.ID)
 	require.Len(t, matchingConfigs, 1)
 	require.True(t, matchingConfigs[0].Enabled)
 
-	chats, err := expClient.ListChats(ctx, &codersdk.ListChatsOptions{Query: "archived:true"})
+	chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "archived:true"})
 	require.NoError(t, err)
 
 	var scaletestMessages []codersdk.ChatMessage
 	for _, chat := range chats {
-		resp, err := expClient.GetChatMessages(ctx, chat.ID, nil)
+		resp, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		if userText, ok := chatMessageText(resp.Messages, codersdk.ChatMessageRoleUser); ok &&
 			strings.Contains(userText, scaletestChatPrompt) {

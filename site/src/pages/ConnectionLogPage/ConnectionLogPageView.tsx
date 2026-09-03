@@ -50,13 +50,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 
 	return (
 		<Margins className="pb-12">
-			<PageHeader
-				actions={
-					<SettingsHeaderDocsLink
-						href={docs("/admin/monitoring/connection-logs")}
-					/>
-				}
-			>
+			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
 						<span>Connection Log</span>
@@ -64,7 +58,10 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
-					View workspace connection events.
+					View workspace connection events.{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/admin/monitoring/connection-logs")}
+					/>
 				</PageHeaderSubtitle>
 			</PageHeader>
 

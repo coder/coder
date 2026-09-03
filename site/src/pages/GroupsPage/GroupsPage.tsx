@@ -110,18 +110,15 @@ const GroupsPage: FC = () => {
 	}
 
 	return (
-		<div className="w-full max-w-screen-2xl pb-10">
+		<div className="w-full max-w-(--breakpoint-2xl) pb-10">
 			{title}
 
-			<SettingsHeader
-				actions={
-					<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
-				}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Manage groups for this{" "}
-					{showOrganizations ? "organization" : "deployment"}.
+					{showOrganizations ? "organization" : "deployment"}.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

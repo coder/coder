@@ -1,5 +1,5 @@
 import type { FormikContextType } from "formik";
-import { type FC, useId } from "react";
+import { type FC, type ReactNode, useId } from "react";
 import { Button } from "#/components/Button/Button";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
@@ -15,6 +15,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 import { MCPServerAuthSection } from "./MCPServerAuthSection";
 import { MCPServerBehaviorSection } from "./MCPServerBehaviorSection";
 import { CollapsibleSection, Field } from "./MCPServerFormFieldPrimitives";
@@ -31,6 +32,7 @@ interface MCPServerFormFieldsProps {
 	canSubmit: boolean;
 	isEditing: boolean;
 	canSelectUserOIDC: boolean;
+	organizationPicker?: ReactNode;
 	onCancel?: () => void;
 	showDetails: boolean;
 	setShowDetails: (open: boolean) => void;
@@ -47,6 +49,7 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	canSubmit,
 	isEditing,
 	canSelectUserOIDC,
+	organizationPicker,
 	onCancel,
 	showDetails,
 	setShowDetails,
@@ -65,7 +68,12 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 				autoComplete="off"
 				className="flex flex-col gap-6"
 			>
-				<div className="grid items-start gap-4 sm:grid-cols-2">
+				<div
+					className={cn(
+						"grid items-start gap-4",
+						organizationPicker ? "sm:grid-cols-3" : "sm:grid-cols-2",
+					)}
+				>
 					<Field label="Slug" htmlFor={`${formId}-slug`} required>
 						<Input
 							id={`${formId}-slug`}
@@ -97,7 +105,13 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 							disabled={isDisabled}
 						/>
 					</Field>
-					<div className="grid items-start gap-4 sm:col-span-2 sm:grid-cols-[1fr_224px]">
+					{organizationPicker}
+					<div
+						className={cn(
+							"grid items-start gap-4 sm:grid-cols-[1fr_224px]",
+							organizationPicker ? "sm:col-span-3" : "sm:col-span-2",
+						)}
+					>
 						<Field label="Server URL" htmlFor={`${formId}-url`} required>
 							<InputGroup>
 								<InputGroupInput

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import { docs } from "#/utils/docs";
 import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
 const meta: Meta<typeof ExternalAuthSettingsPageView> = {
@@ -49,6 +50,9 @@ export const Page: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "Start trial for free" }),
 		).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute("href", docs("/admin/external-auth"));
 	},
 };
 

@@ -189,13 +189,12 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 		seesDenied bool
 	}{
 		{
-			name: "AgentsAccess",
+			name: "Member",
 			client: func(t *testing.T, _ context.Context) *codersdk.ExperimentalClient {
 				rawClient, _ := coderdtest.CreateAnotherUser(
 					t,
 					client.Client,
 					defaultOrg.ID,
-					rbac.ScopedRoleAgentsAccess(defaultOrg.ID),
 				)
 				return codersdk.NewExperimentalClient(rawClient)
 			},

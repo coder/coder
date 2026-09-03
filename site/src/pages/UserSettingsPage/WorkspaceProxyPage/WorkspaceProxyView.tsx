@@ -46,17 +46,14 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 }) => {
 	return (
 		<div>
-			<SettingsHeader
-				actions={
-					<SettingsHeaderDocsLink
-						href={docs("/admin/networking/workspace-proxies")}
-					/>
-				}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>Workspace Proxies</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Workspace proxies improve terminal and web app connections to
-					workspaces.
+					workspaces.{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/admin/networking/workspace-proxies")}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -122,15 +119,11 @@ const ProxiesTableBody: FC<ProxiesTableBodyProps> = ({
 	if (hasLoaded && proxies?.length === 0) {
 		return <TableEmpty message="No workspace proxies found" />;
 	}
-	return (
-		<>
-			{proxies?.map((proxy) => (
-				<ProxyRow
-					latency={proxyLatencies?.[proxy.id]}
-					key={proxy.id}
-					proxy={proxy}
-				/>
-			))}
-		</>
-	);
+	return proxies?.map((proxy) => (
+		<ProxyRow
+			latency={proxyLatencies?.[proxy.id]}
+			key={proxy.id}
+			proxy={proxy}
+		/>
+	));
 };

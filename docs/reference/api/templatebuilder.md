@@ -26,6 +26,13 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
 {
   "bases": [
     {
+      "agents": [
+        {
+          "default": true,
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
       "description": "string",
       "icon": "string",
       "id": "string",
@@ -81,6 +88,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
   },
   "modules": [
     {
+      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
@@ -133,6 +141,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
   "icon": "string",
   "modules": [
     {
+      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
@@ -169,6 +178,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
+    "allow_workspace_renames": true,
     "autostart_requirement": {
       "days_of_week": [
         "monday"

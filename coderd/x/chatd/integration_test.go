@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -105,7 +104,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 		ModelConfig: &codersdk.ChatModelCallConfig{
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
-					WebSearchEnabled: ptr.Ref(true),
+					WebSearchEnabled: new(true),
 				},
 			},
 		},
@@ -363,7 +362,7 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 		ModelConfig: &codersdk.ChatModelCallConfig{
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-					Store:            ptr.Ref(true),
+					Store:            new(true),
 					ReasoningSummary: &reasoningSummary,
 				},
 			},
@@ -512,7 +511,7 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 		ModelConfig: &codersdk.ChatModelCallConfig{
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-					Store:            ptr.Ref(false),
+					Store:            new(false),
 					ReasoningSummary: &reasoningSummary,
 				},
 			},

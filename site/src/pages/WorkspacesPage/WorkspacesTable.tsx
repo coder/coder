@@ -41,8 +41,6 @@ import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -74,7 +72,6 @@ import {
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { abilitiesByWorkspaceStatus } from "#/modules/workspaces/actions";
 import { WorkspaceBuildCancelDialog } from "#/modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import { WorkspaceMoreActions } from "#/modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
@@ -116,7 +113,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	chatsByWorkspace,
 }) => {
 	const dashboard = useDashboard();
-	const aiTasksEnabled = useAITasksEnabled();
 	const isLoading = !workspaces;
 	const isEmpty = workspaces && workspaces.length === 0;
 	const hideHeaders = isLoading || isEmpty;
@@ -224,11 +220,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												)}
 												{workspace.outdated && (
 													<WorkspaceOutdatedTooltip workspace={workspace} />
-												)}
-												{aiTasksEnabled && workspace.task_id && (
-													<Badge size="xs" variant="default">
-														Task
-													</Badge>
 												)}
 												{chatsByWorkspace?.[workspace.id] && (
 													<Badge size="xs" variant="info" hover asChild>
@@ -706,9 +697,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				workspace={workspace.name}
 				agent={agent.name}
 				folder={agent.expanded_directory}
-			>
-				<VSCodeIcon />
-			</VSCodeIconLink>,
+			/>,
 		);
 	}
 
@@ -722,9 +711,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				workspace={workspace.name}
 				agent={agent.name}
 				folder={agent.expanded_directory}
-			>
-				<VSCodeInsidersIcon />
-			</VSCodeIconLink>,
+			/>,
 		);
 	}
 
@@ -755,7 +742,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				}}
 				label="Open Terminal"
 			>
-				<SquareTerminalIcon className="!size-7" />
+				<SquareTerminalIcon className="size-7!" />
 			</BaseIconLink>,
 		);
 	}
@@ -845,14 +832,14 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 	);
 };
 
-type VSCodeIconLinkProps = PropsWithChildren<{
+type VSCodeIconLinkProps = {
 	variant: "vscode" | "vscode-insiders";
 	label: string;
 	owner: string;
 	workspace: string;
 	agent: string;
 	folder?: string;
-}>;
+};
 
 // Generates an API key on click instead of on page load, since
 // key generation is a POST request that should only fire when
@@ -864,7 +851,6 @@ const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
 	workspace,
 	agent,
 	folder,
-	children,
 }) => {
 	const generateKeyMutation = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -891,7 +877,12 @@ const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
 				}
 			}}
 		>
-			{children}
+			<ExternalImage
+				src={
+					variant === "vscode" ? "/icon/code.svg" : "/icon/code-insiders.svg"
+				}
+				alt=""
+			/>
 		</BaseIconLink>
 	);
 };

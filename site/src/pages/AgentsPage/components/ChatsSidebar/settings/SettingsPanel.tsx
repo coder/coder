@@ -20,7 +20,7 @@ interface SettingsPanelProps {
 	readonly settingsSection: string | undefined;
 	readonly showApiKeysItem: boolean;
 	readonly isPersonalModelOverridesEnabled: boolean;
-	readonly isAdmin: boolean;
+	readonly canManageAgentSettings: boolean;
 	readonly location: Location;
 	readonly onCollapse?: () => void;
 }
@@ -30,7 +30,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 	settingsSection,
 	showApiKeysItem,
 	isPersonalModelOverridesEnabled,
-	isAdmin,
+	canManageAgentSettings,
 	location,
 	onCollapse,
 }) => {
@@ -113,7 +113,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						state={location.state}
 					/>
 				)}
-				{isAdmin && (
+				{canManageAgentSettings && (
 					<SettingsNavItem
 						icon={Settings2Icon}
 						label="Manage agents"

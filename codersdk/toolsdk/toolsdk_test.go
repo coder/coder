@@ -1238,8 +1238,8 @@ func TestTools(t *testing.T) {
 						Workspace: workspace.Name,
 						Path:      "/tmp/file",
 						Edits: []workspacesdk.FileEdit{{
-							Search:  "hello",
-							Replace: "goodbye",
+							OldText: "hello",
+							NewText: "goodbye",
 						}},
 					})
 					return err
@@ -1253,8 +1253,8 @@ func TestTools(t *testing.T) {
 						Files: []workspacesdk.FileEdits{{
 							Path: "/tmp/file",
 							Edits: []workspacesdk.FileEdit{{
-								Search:  "hello",
-								Replace: "goodbye",
+								OldText: "hello",
+								NewText: "goodbye",
 							}},
 						}},
 					})
@@ -1450,8 +1450,8 @@ func TestTools(t *testing.T) {
 			Path:      filePath,
 			Edits: []workspacesdk.FileEdit{
 				{
-					Search:  "foo",
-					Replace: "bar",
+					OldText: "foo",
+					NewText: "bar",
 				},
 			},
 		})
@@ -1495,8 +1495,8 @@ func TestTools(t *testing.T) {
 					Path: filePath1,
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo1",
-							Replace: "bar1",
+							OldText: "foo1",
+							NewText: "bar1",
 						},
 					},
 				},
@@ -1504,8 +1504,8 @@ func TestTools(t *testing.T) {
 					Path: filePath2,
 					Edits: []workspacesdk.FileEdit{
 						{
-							Search:  "foo2",
-							Replace: "bar2",
+							OldText: "foo2",
+							NewText: "bar2",
 						},
 					},
 				},
@@ -1738,6 +1738,24 @@ func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsd
 	var ret Ret
 	require.NoError(t, json.Unmarshal(result, &ret), "failed to unmarshal result %q", string(result))
 	return ret, err
+}
+
+// TestEditFileTools_DecodeDeprecatedKeys pins that deprecated-key
+// MCP args survive decoding into the typed edit args.
+func TestEditFileTools_DecodeDeprecatedKeys(t *testing.T) {
+	t.Parallel()
+
+	var single toolsdk.WorkspaceEditFileArgs
+	require.NoError(t, json.Unmarshal([]byte(
+		`{"workspace":"w","path":"/p","edits":[{"search":"foo","replace":"bar"}]}`), &single))
+	require.Equal(t, "foo", single.Edits[0].OldText)
+	require.Equal(t, "bar", single.Edits[0].NewText)
+
+	var multi toolsdk.WorkspaceEditFilesArgs
+	require.NoError(t, json.Unmarshal([]byte(
+		`{"workspace":"w","files":[{"path":"/p","edits":[{"search":"foo","replace":"bar"}]}]}`), &multi))
+	require.Equal(t, "foo", multi.Files[0].Edits[0].OldText)
+	require.Equal(t, "bar", multi.Files[0].Edits[0].NewText)
 }
 
 func TestWithRecovery(t *testing.T) {

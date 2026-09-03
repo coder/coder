@@ -72,11 +72,6 @@ const flagDescriptions: Record<BooleanKeys<NetcheckReport>, FlagInfo> = {
 			"Whether STUN results are consistent across destinations. Symmetric NAT may degrade peer-to-peer connectivity.",
 		invert: true,
 	},
-	HairPinning: {
-		label: "NAT Hairpinning",
-		description:
-			"Whether the router supports communication between local devices through the public IP address.",
-	},
 	UPnP: {
 		label: "UPnP",
 		description: "Whether Universal Plug and Play was detected on the LAN.",
@@ -113,7 +108,7 @@ const flagGroups: FlagGroup[] = [
 	},
 	{
 		title: "NAT Traversal",
-		flags: ["MappingVariesByDestIP", "HairPinning"],
+		flags: ["MappingVariesByDestIP"],
 	},
 	{
 		title: "Port Mapping",

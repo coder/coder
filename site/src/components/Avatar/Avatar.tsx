@@ -20,9 +20,9 @@ const avatarVariants = cva(
 	{
 		variants: {
 			size: {
-				lg: "size-[--avatar-lg] rounded-[6px] text-sm font-medium",
-				md: "size-[--avatar-default] text-2xs",
-				sm: "size-[--avatar-sm] text-[8px]",
+				lg: "size-(--avatar-lg) rounded-[6px] text-sm font-medium",
+				md: "size-(--avatar-default) text-2xs",
+				sm: "size-(--avatar-sm) text-[8px]",
 			},
 			variant: {
 				default: null,
@@ -79,6 +79,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 	const { externalImages } = useAppearance();
 
 	const isEmoji = src?.startsWith("/emojis/");
+	const avatarSizeToken = size === "lg" || size === "sm" ? size : "default";
 
 	return (
 		<AvatarPrimitive.Root
@@ -91,7 +92,9 @@ export const Avatar: React.FC<AvatarProps> = ({
 			)}
 			style={{
 				...style,
-				padding: isEmoji ? `calc(var(--avatar-${size}) * 0.2)` : style?.padding,
+				padding: isEmoji
+					? `calc(var(--avatar-${avatarSizeToken}) * 0.2)`
+					: style?.padding,
 			}}
 			{...props}
 		>

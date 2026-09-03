@@ -97,6 +97,22 @@ WHERE
     AND cardinality(@ids::text[]) = cardinality(@failure_messages::text[])
     AND cardinality(@ids::text[]) = cardinality(@set_published_ats::boolean[]);
 
+-- name: GetUsageEventsStats :one
+-- Counts unpublished usage events in the last 60 days:
+--   pending: created within the last 30 days (still eligible to publish)
+--   expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+-- Events older than 60 days are ignored so this query stays bounded and the
+-- expired gauge can recover to zero.
+SELECT
+    (COUNT(*) FILTER (WHERE created_at > (@now::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
+    COALESCE(MIN(created_at) FILTER (WHERE created_at > (@now::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
+    (COUNT(*) FILTER (WHERE created_at <= (@now::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
+FROM
+    usage_events
+WHERE
+    published_at IS NULL
+    AND created_at > (@now::timestamptz) - INTERVAL '60 days';
+
 -- name: GetTotalUsageDCManagedAgentsV1 :one
 -- Gets the total number of managed agents created between two dates. Uses the
 -- aggregate table to avoid large scans or a complex index on the usage_events

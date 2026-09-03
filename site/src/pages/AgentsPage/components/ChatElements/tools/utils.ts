@@ -13,7 +13,9 @@ export interface EditFilesFileEntry {
 
 // Validates that the edit has at least the shape of an object with
 // string-typed text fields. Accepts both current field names
-// (old_text/new_text) and deprecated names (search/replace).
+// (old_text/new_text) and old names (search/replace): tool-call args
+// persisted from older chats use the old names and are immutable, so
+// this branch must stay to keep their diffs rendering.
 const normalizeEdit = (
 	e: unknown,
 ): { search: string; replace: string } | null => {

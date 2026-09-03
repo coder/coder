@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -50,7 +49,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                "NotFinishedYet",
 			transition:          database.WorkspaceTransitionStart,
 			jobCompletedAt:      sql.NullTime{},
-			buildDeadlineOffset: ptr.Ref(8 * time.Hour),
+			buildDeadlineOffset: new(8 * time.Hour),
 			workspaceTTL:        8 * time.Hour,
 			expectedBump:        0,
 		},
@@ -65,7 +64,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                "NotTimeToBumpYet",
 			transition:          database.WorkspaceTransitionStart,
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
-			buildDeadlineOffset: ptr.Ref(8 * time.Hour),
+			buildDeadlineOffset: new(8 * time.Hour),
 			workspaceTTL:        8 * time.Hour,
 			expectedBump:        0,
 		},
@@ -75,7 +74,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                "BumpLessThanDeadline",
 			transition:          database.WorkspaceTransitionStart,
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
-			buildDeadlineOffset: ptr.Ref(8*time.Hour - 30*time.Minute),
+			buildDeadlineOffset: new(8*time.Hour - 30*time.Minute),
 			workspaceTTL:        8 * time.Hour,
 			expectedBump:        0,
 		},
@@ -83,7 +82,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                "TimeToBump",
 			transition:          database.WorkspaceTransitionStart,
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
-			buildDeadlineOffset: ptr.Ref(-30 * time.Minute),
+			buildDeadlineOffset: new(-30 * time.Minute),
 			workspaceTTL:        8 * time.Hour,
 			expectedBump:        time.Hour,
 		},
@@ -91,7 +90,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                "TimeToBumpNextAutostart",
 			transition:          database.WorkspaceTransitionStart,
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
-			buildDeadlineOffset: ptr.Ref(-30 * time.Minute),
+			buildDeadlineOffset: new(-30 * time.Minute),
 			workspaceTTL:        8 * time.Hour,
 			expectedBump:        8*time.Hour + 30*time.Minute,
 			nextAutostart:       func(now time.Time) time.Time { return now.Add(time.Minute * 30) },
@@ -100,8 +99,8 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                "MaxDeadline",
 			transition:          database.WorkspaceTransitionStart,
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
-			buildDeadlineOffset: ptr.Ref(time.Minute), // last chance to bump!
-			maxDeadlineOffset:   ptr.Ref(time.Minute * 30),
+			buildDeadlineOffset: new(time.Minute), // last chance to bump!
+			maxDeadlineOffset:   new(time.Minute * 30),
 			workspaceTTL:        8 * time.Hour,
 			expectedBump:        time.Minute * 30,
 		},
@@ -111,7 +110,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                "PastDeadlineStillBumps",
 			transition:          database.WorkspaceTransitionStart,
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
-			buildDeadlineOffset: ptr.Ref(-time.Minute),
+			buildDeadlineOffset: new(-time.Minute),
 			workspaceTTL:        8 * time.Hour,
 			expectedBump:        time.Hour,
 		},
@@ -120,7 +119,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                "StoppedWorkspace",
 			transition:          database.WorkspaceTransitionStop,
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-time.Minute)},
-			buildDeadlineOffset: ptr.Ref(-time.Minute),
+			buildDeadlineOffset: new(-time.Minute),
 			workspaceTTL:        8 * time.Hour,
 		},
 		{
@@ -129,7 +128,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                          "TemplateDisallowsUserAutostop",
 			transition:                    database.WorkspaceTransitionStart,
 			jobCompletedAt:                sql.NullTime{Valid: true, Time: dbtime.Now().Add(-3 * time.Hour)},
-			buildDeadlineOffset:           ptr.Ref(-30 * time.Minute),
+			buildDeadlineOffset:           new(-30 * time.Minute),
 			workspaceTTL:                  2 * time.Hour,
 			templateTTL:                   10 * time.Hour,
 			templateDisallowsUserAutostop: true,
@@ -141,7 +140,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                 "TemplateCustomActivityBump",
 			transition:           database.WorkspaceTransitionStart,
 			jobCompletedAt:       sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
-			buildDeadlineOffset:  ptr.Ref(-30 * time.Minute),
+			buildDeadlineOffset:  new(-30 * time.Minute),
 			workspaceTTL:         8 * time.Hour,
 			templateActivityBump: 5 * time.Hour, // instead of default 1h
 			expectedBump:         5 * time.Hour,
@@ -151,7 +150,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			name:                 "TemplateCustomActivityBumpZero",
 			transition:           database.WorkspaceTransitionStart,
 			jobCompletedAt:       sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
-			buildDeadlineOffset:  ptr.Ref(-30 * time.Minute),
+			buildDeadlineOffset:  new(-30 * time.Minute),
 			workspaceTTL:         8 * time.Hour,
 			templateActivityBump: -1, // negative values get changed to 0 in the test
 			expectedBump:         0,

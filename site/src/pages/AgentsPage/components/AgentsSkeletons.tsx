@@ -38,7 +38,7 @@ export const AgentsPageLayoutSkeleton: FC = () => {
 				style={{
 					"--agents-left-sidebar-width": `${leftSidebarWidth}px`,
 				}}
-				className="order-2 sm:order-none flex-1 min-h-0 border-t border-border-default sm:flex-none sm:border-t-0 sm:h-full sm:w-[var(--agents-left-sidebar-width)] sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
+				className="order-2 sm:order-0 flex-1 min-h-0 border-t border-border-default sm:flex-none sm:border-t-0 sm:h-full sm:w-(--agents-left-sidebar-width) sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
 			>
 				<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 					<div className="absolute inset-0 flex flex-col">
@@ -76,7 +76,7 @@ export const AgentsPageLayoutSkeleton: FC = () => {
 					</div>
 				</div>
 			</div>
-			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary order-1 sm:order-none" />
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary order-1 sm:order-0" />
 		</div>
 	);
 };
@@ -138,11 +138,11 @@ export const RightPanelSkeleton: FC = () => (
  * the loaded component doesn't cause a vertical layout shift.
  */
 const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
-	<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+	<div className="shrink-0 overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin">
 		<div
 			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
 		>
-			<div className="rounded-2xl bg-surface-secondary/45 p-1 shadow-sm">
+			<div className="rounded-2xl bg-surface-secondary/45 p-1 shadow-xs">
 				<div className="min-h-[60px] sm:min-h-24 px-3 py-2" />
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<Skeleton className="h-6 w-24 rounded" />
@@ -196,7 +196,7 @@ export const AgentChatPageSkeleton: FC = () => {
 					style={{
 						"--panel-width": `${rightPanel.width}px`,
 					}}
-					className="relative flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[var(--panel-width)] sm:min-w-[360px] sm:max-w-[70vw]"
+					className="relative flex h-full w-screen min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-(--panel-width) sm:min-w-[360px] sm:max-w-[70vw]"
 				>
 					<RightPanelSkeleton />
 				</div>
