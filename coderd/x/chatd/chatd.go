@@ -2194,7 +2194,7 @@ func (p *Server) PromoteQueued(
 		if refreshedOK {
 			chatKind = chatKindAttr(refreshChat)
 		}
-		p.recordQueueWait(ctx, opts.ChatID, chatKind, promotedQueuedAt, time.Now())
+		p.recordQueueWait(ctx, opts.ChatID, chatKind, promotedQueuedAt, p.stages.Now())
 	}
 	return result, nil
 }
