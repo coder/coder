@@ -263,6 +263,9 @@ func (t *StageTracer) startSpan(
 	start time.Time,
 	opts []trace.SpanStartOption,
 ) (context.Context, *StageSpan) {
+	if t == nil {
+		return ctx, nil
+	}
 	now := t.Now()
 	if start.IsZero() || start.After(now) {
 		start = now
@@ -271,7 +274,13 @@ func (t *StageTracer) startSpan(
 	}
 	chatKind := chatKindFromContext(ctx)
 	opts = append(opts, trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...))
-	acc := turnAccumulatorFromContext(ctx)
+	// Only turn-scoped stages report to the turn on ctx. A background
+	// stage may run on a context derived from a turn's, and its time is
+	// not the turn's.
+	var acc *TurnAccumulator
+	if scope == ScopeTurn {
+		acc = turnAccumulatorFromContext(ctx)
+	}
 	var node *stageNode
 	if acc != nil {
 		if _, attributing := attributingStages[stage]; attributing {
@@ -442,7 +451,9 @@ func (t *StageTracer) RecordAs(
 	}
 	span.End(trace.WithTimestamp(end))
 	t.observe(stage, scope, chatKind, model, end.Sub(start))
-	recordAttribution(ctx, stage, end.Sub(start))
+	if scope == ScopeTurn {
+		recordAttribution(ctx, stage, end.Sub(start))
+	}
 }
 
 func (t *StageTracer) observe(stage, scope, chatKind string, model StageModel, elapsed time.Duration) {

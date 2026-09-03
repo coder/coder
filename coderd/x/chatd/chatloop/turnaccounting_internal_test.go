@@ -402,6 +402,79 @@ func TestTurnAccountingSkipsUnfinishedTurns(t *testing.T) {
 	})
 }
 
+func TestTurnAccountingIgnoresWorkOutsideTheTurn(t *testing.T) {
+	t.Parallel()
+
+	t.Run("BackgroundScope", func(t *testing.T) {
+		t.Parallel()
+		fixture := newTurnFixture(t)
+
+		acc := NewTurnAccumulator()
+		ctx := ContextWithTurnAccumulator(t.Context(), acc)
+		turnCtx, turnSpan := fixture.tracer.StartRootAt(ctx, StageChatTurn, fixture.clock.Now(), nil)
+		stepCtx, step := fixture.tracer.Start(turnCtx, StageGenerationStep)
+		step.SetGenerationAction("generate_assistant")
+		fixture.clock.Advance(time.Second)
+
+		// Detached work derives its context from the step's but runs
+		// in the background scope, so the accumulator it inherits must
+		// not receive its stages.
+		backgroundCtx := ContextWithScope(stepCtx, ScopeBackground)
+		bgCtx, bgStream := fixture.tracer.Start(backgroundCtx, StageStream)
+		_, bgTTFT := fixture.tracer.Start(bgCtx, StageTimeToFirstToken)
+		fixture.clock.Advance(3 * time.Second)
+		bgTTFT.End(nil)
+		fixture.clock.Advance(4 * time.Second)
+		bgStream.End(nil)
+		fixture.tracer.Record(backgroundCtx, StageQueueWait, StageModel{},
+			fixture.clock.Now().Add(-time.Second), fixture.clock.Now(), nil)
+
+		step.End(nil)
+		acc.MarkCompleted()
+		turnSpan.End(nil)
+
+		stages := fixture.sums(t, "coderd_chatd_turn_stage_seconds", "stage")
+		require.NotContains(t, stages, StageStream)
+		require.NotContains(t, stages, StageTimeToFirstToken)
+		require.NotContains(t, stages, StageQueueWait)
+		categories := fixture.sums(t, "coderd_chatd_turn_time_seconds", "category")
+		require.Zero(t, categories[CategoryStreaming])
+		require.Zero(t, categories[CategoryTimeToFirstToken])
+		require.Zero(t, categories[CategoryScheduling])
+		// The step's own time is intact: the background stream did not
+		// report itself as the step's child.
+		require.Equal(t, 8.0, categories[CategoryChatdOverhead])
+	})
+
+	t.Run("NilTracer", func(t *testing.T) {
+		t.Parallel()
+		fixture := newTurnFixture(t)
+
+		acc := NewTurnAccumulator()
+		ctx := ContextWithTurnAccumulator(t.Context(), acc)
+		turnCtx, turnSpan := fixture.tracer.StartRootAt(ctx, StageChatTurn, fixture.clock.Now(), nil)
+		stepCtx, step := fixture.tracer.Start(turnCtx, StageGenerationStep)
+		step.SetGenerationAction("generate_assistant")
+		fixture.clock.Advance(time.Second)
+
+		// A caller without a tracer runs on the turn's context. Its
+		// stages are discarded rather than folded into the turn.
+		var none *StageTracer
+		_, stream := none.Start(stepCtx, StageStream)
+		fixture.clock.Advance(2 * time.Second)
+		stream.End(nil)
+
+		step.End(nil)
+		acc.MarkCompleted()
+		turnSpan.End(nil)
+
+		require.NotContains(t, fixture.sums(t, "coderd_chatd_turn_stage_seconds", "stage"), StageStream)
+		categories := fixture.sums(t, "coderd_chatd_turn_time_seconds", "category")
+		require.Zero(t, categories[CategoryStreaming])
+		require.Equal(t, 3.0, categories[CategoryChatdOverhead])
+	})
+}
+
 func TestTurnAccountingStampsModelOnRoot(t *testing.T) {
 	t.Parallel()
 	fixture := newTurnFixture(t)
