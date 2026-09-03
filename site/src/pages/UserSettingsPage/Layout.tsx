@@ -1,54 +1,41 @@
 import { type FC, Suspense } from "react";
 import { Outlet } from "react-router";
-import { Avatar } from "#/components/Avatar/Avatar";
-import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator,
-} from "#/components/Breadcrumb/Breadcrumb";
 import { Loader } from "#/components/Loader/Loader";
+import { CollapsibleSidebar } from "#/components/Sidebar/CollapsibleSidebar";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import {
+	DEPLOYMENT_BANNER_HEIGHT,
+	useIsDeploymentBannerVisible,
+} from "#/modules/dashboard/DeploymentBanner/DeploymentBanner";
 import { pageTitle } from "#/utils/page";
-import { Sidebar } from "./Sidebar";
+import { UserSettingsSidebar } from "./UserSettingsSidebar";
+import { UserSettingsSidebarHeader } from "./UserSettingsSidebarView";
 
 const Layout: FC = () => {
 	const { user: me } = useAuthenticated();
+	const isBannerVisible = useIsDeploymentBannerVisible();
 
 	return (
 		<>
 			<title>{pageTitle("Settings")}</title>
 
-			<div>
-				<Breadcrumb>
-					<BreadcrumbList>
-						<BreadcrumbItem>
-							<BreadcrumbPage className="text-content-primary">
-								User Settings
-							</BreadcrumbPage>
-						</BreadcrumbItem>
-						<BreadcrumbSeparator />
-						<BreadcrumbItem>
-							<BreadcrumbPage className="flex items-center gap-2">
-								<Avatar size="sm" fallback={me.username} src={me.avatar_url} />
-								{me.username}
-							</BreadcrumbPage>
-						</BreadcrumbItem>
-					</BreadcrumbList>
-				</Breadcrumb>
-				<div className="h-px border-none bg-border" />
-
-				<section className="px-4 sm:px-6 lg:px-10 max-w-(--breakpoint-2xl) mx-auto">
-					<div className="flex flex-col gap-8 py-6 lg:flex-row lg:gap-28 lg:py-10">
-						<Sidebar />
-						<div className="grow min-w-0">
-							<Suspense fallback={<Loader />}>
-								<Outlet />
-							</Suspense>
-						</div>
+			<div className="flex flex-row min-h-screen">
+				<div className="relative z-30 border-0 border-r border-solid border-border">
+					<CollapsibleSidebar
+						storageKey="user-settings-sidebar-width"
+						header={<UserSettingsSidebarHeader user={me} />}
+						bottomInset={isBannerVisible ? DEPLOYMENT_BANNER_HEIGHT : 0}
+					>
+						<UserSettingsSidebar />
+					</CollapsibleSidebar>
+				</div>
+				<div className="flex-1 min-w-0 pt-6 pb-10 px-4 sm:px-6 lg:px-10">
+					<div className="max-w-(--breakpoint-2xl) mx-auto">
+						<Suspense fallback={<Loader />}>
+							<Outlet />
+						</Suspense>
 					</div>
-				</section>
+				</div>
 			</div>
 		</>
 	);

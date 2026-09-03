@@ -769,6 +769,10 @@ export const router = createBrowserRouter(
 					</Route>
 
 					<Route path="/settings" element={<UserSettingsLayout />}>
+						<Route
+							index
+							element={<Navigate to="/settings/account" replace />}
+						/>
 						<Route path="account" element={<AccountPage />} />
 						<Route path="appearance" element={<AppearancePage />} />
 						<Route path="schedule" element={<SchedulePage />} />

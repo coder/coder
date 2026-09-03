@@ -6,14 +6,8 @@ import {
 	PanelLeftIcon,
 	SparklesIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useState,
-} from "react";
-import { Link, NavLink, useLocation } from "react-router";
+import type { FC } from "react";
+import { useLocation } from "react-router";
 import type {
 	BuildInfoResponse,
 	Experiment,
@@ -38,85 +32,12 @@ import {
 	logsNavItems,
 } from "./adminNavigation";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
+import { SidebarNavLink } from "./SidebarNavLink";
 import { SidebarTopLevelNavItem } from "./SidebarTopLevelNavItem";
+import { useOpenSections } from "./useOpenSections";
 
 const DEFAULT_OPEN_SECTIONS_STORAGE_KEY = "admin-sidebar-open-sections";
 const DEFAULT_OPEN_SECTIONS = ["deployment", "deployment-general"];
-
-function readOpenSections(key: string): Set<string> | undefined {
-	try {
-		const raw = localStorage.getItem(key);
-		if (!raw) {
-			return undefined;
-		}
-		const parsed: unknown = JSON.parse(raw);
-		if (!Array.isArray(parsed)) {
-			return undefined;
-		}
-		return new Set(
-			parsed.filter((value): value is string => typeof value === "string"),
-		);
-	} catch {
-		return undefined;
-	}
-}
-
-function persistOpenSections(key: string, sections: Set<string>): void {
-	try {
-		localStorage.setItem(key, JSON.stringify([...sections]));
-	} catch {
-		// Silently ignore write failures.
-	}
-}
-
-/**
- * Tracks which accordions are open. State is fully manual and
- * persisted; the only automatic change is opening the chain that
- * contains the current route so the active link is always visible.
- * Nothing is ever closed automatically.
- */
-function useOpenSections(storageKey: string, activeChain: string[]) {
-	const [openSections, setOpenSections] = useState<Set<string>>(
-		() => readOpenSections(storageKey) ?? new Set(DEFAULT_OPEN_SECTIONS),
-	);
-
-	const chainKey = activeChain.join(",");
-	useEffect(() => {
-		const chain = chainKey ? chainKey.split(",") : [];
-		if (chain.length === 0) {
-			return;
-		}
-		setOpenSections((prev) => {
-			if (chain.every((key) => prev.has(key))) {
-				return prev;
-			}
-			const next = new Set(prev);
-			for (const key of chain) {
-				next.add(key);
-			}
-			persistOpenSections(storageKey, next);
-			return next;
-		});
-	}, [chainKey, storageKey]);
-
-	const toggleSection = useCallback(
-		(key: string) => {
-			setOpenSections((prev) => {
-				const next = new Set(prev);
-				if (next.has(key)) {
-					next.delete(key);
-				} else {
-					next.add(key);
-				}
-				persistOpenSections(storageKey, next);
-				return next;
-			});
-		},
-		[storageKey],
-	);
-
-	return { openSections, toggleSection };
-}
 
 /**
  * Pinned header for the admin sidebar: the section title and the
@@ -154,57 +75,6 @@ export const AdminSettingsSidebarHeader: FC = () => {
 			</div>
 			<div className="h-px shrink-0 bg-border" />
 		</>
-	);
-};
-
-interface AdminNavLinkProps {
-	href: string;
-	children: ReactNode;
-	/** Match the route exactly instead of by prefix. */
-	end?: boolean;
-	/**
-	 * Items under a nested accordion use tighter 32px rows; items directly
-	 * under an icon section keep 40px rows.
-	 */
-	nested?: boolean;
-	/** Overrides NavLink matching for pages reachable from several URLs. */
-	activeOverride?: boolean;
-}
-
-const AdminNavLink: FC<AdminNavLinkProps> = ({
-	href,
-	children,
-	end,
-	nested = false,
-	activeOverride,
-}) => {
-	const sizeClass = nested ? "h-8 px-2" : "h-10 px-2 -mx-2";
-	const baseClass = cn(
-		"flex items-center rounded-md text-sm font-medium text-content-secondary no-underline hover:bg-surface-secondary transition-colors",
-		sizeClass,
-	);
-	const activeClass = "font-semibold text-content-primary";
-
-	if (activeOverride !== undefined) {
-		return (
-			<Link
-				to={href}
-				aria-current={activeOverride ? "page" : undefined}
-				className={cn(baseClass, activeOverride && activeClass)}
-			>
-				{children}
-			</Link>
-		);
-	}
-
-	return (
-		<NavLink
-			to={href}
-			end={end}
-			className={({ isActive }) => cn(baseClass, isActive && activeClass)}
-		>
-			{children}
-		</NavLink>
 	);
 };
 
@@ -271,6 +141,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 	const { openSections, toggleSection } = useOpenSections(
 		openSectionsStorageKey,
 		activeChain,
+		DEFAULT_OPEN_SECTIONS,
 	);
 
 	const logsItems = logsNavItems({
@@ -283,7 +154,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 		items
 			.filter((item) => item.visible)
 			.map((item) => (
-				<AdminNavLink
+				<SidebarNavLink
 					key={item.href}
 					href={item.href}
 					end={item.end}
@@ -298,7 +169,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 					}
 				>
 					{item.label}
-				</AdminNavLink>
+				</SidebarNavLink>
 			));
 
 	const renderNestedSection = (section: AdminNavSection) =>
@@ -349,14 +220,16 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 					</div>
 					{orgBase && orgPermissions && (
 						<>
-							<AdminNavLink end href={orgBase}>
+							<SidebarNavLink end href={orgBase}>
 								Members
-							</AdminNavLink>
+							</SidebarNavLink>
 							{orgPermissions.viewGroups && (
-								<AdminNavLink href={`${orgBase}/groups`}>Groups</AdminNavLink>
+								<SidebarNavLink href={`${orgBase}/groups`}>
+									Groups
+								</SidebarNavLink>
 							)}
 							{orgPermissions.viewOrgRoles && (
-								<AdminNavLink href={`${orgBase}/roles`}>Roles</AdminNavLink>
+								<SidebarNavLink href={`${orgBase}/roles`}>Roles</SidebarNavLink>
 							)}
 							{orgPermissions.viewProvisioners &&
 								orgPermissions.viewProvisionerJobs && (
@@ -366,26 +239,26 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 										onToggle={() => toggleSection("organizations-provisioners")}
 										active={activeChain.includes("organizations-provisioners")}
 									>
-										<AdminNavLink nested href={`${orgBase}/provisioners`}>
+										<SidebarNavLink nested href={`${orgBase}/provisioners`}>
 											Daemons
-										</AdminNavLink>
-										<AdminNavLink nested href={`${orgBase}/provisioner-keys`}>
+										</SidebarNavLink>
+										<SidebarNavLink nested href={`${orgBase}/provisioner-keys`}>
 											Keys
-										</AdminNavLink>
-										<AdminNavLink nested href={`${orgBase}/provisioner-jobs`}>
+										</SidebarNavLink>
+										<SidebarNavLink nested href={`${orgBase}/provisioner-jobs`}>
 											Jobs
-										</AdminNavLink>
+										</SidebarNavLink>
 									</SidebarAccordion>
 								)}
 							{orgPermissions.viewIdpSyncSettings && (
-								<AdminNavLink href={`${orgBase}/idp-sync`}>
+								<SidebarNavLink href={`${orgBase}/idp-sync`}>
 									IdP sync
-								</AdminNavLink>
+								</SidebarNavLink>
 							)}
 							{orgPermissions.editSettings && (
-								<AdminNavLink href={`${orgBase}/settings`}>
+								<SidebarNavLink href={`${orgBase}/settings`}>
 									Settings
-								</AdminNavLink>
+								</SidebarNavLink>
 							)}
 						</>
 					)}
