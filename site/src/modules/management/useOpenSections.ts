@@ -1,45 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
 
-function readOpenSections(key: string): Set<string> | undefined {
-	try {
-		const raw = localStorage.getItem(key);
-		if (!raw) {
-			return undefined;
-		}
-		const parsed: unknown = JSON.parse(raw);
-		if (!Array.isArray(parsed)) {
-			return undefined;
-		}
-		return new Set(
-			parsed.filter((value): value is string => typeof value === "string"),
-		);
-	} catch {
-		return undefined;
-	}
-}
-
-function persistOpenSections(key: string, sections: Set<string>): void {
-	try {
-		localStorage.setItem(key, JSON.stringify([...sections]));
-	} catch {
-		// Silently ignore write failures.
-	}
-}
-
 /**
- * Tracks which sidebar accordions are open, persisted under storageKey.
- * State is fully manual; the only automatic change is opening the chain
- * of sections that contains the current route so the active link is
- * always visible. Nothing is ever closed automatically. defaultOpen is
- * used when nothing has been persisted yet.
+ * Tracks which sidebar accordions are open for the current page session.
+ * On first load only the chain of sections containing the current route
+ * is open (falling back to defaultOpen when the route is not in the nav),
+ * so every other section starts collapsed. After that the state is fully
+ * manual: navigating opens the chain for the new route, but nothing is
+ * ever closed automatically. State is not persisted, so a refresh returns
+ * to the collapsed default. initialOpen replaces the computed initial
+ * state entirely (used by stories to show specific sections open).
  */
 export function useOpenSections(
-	storageKey: string,
 	activeChain: string[],
 	defaultOpen: string[],
+	initialOpen?: string[],
 ) {
 	const [openSections, setOpenSections] = useState<Set<string>>(
-		() => readOpenSections(storageKey) ?? new Set(defaultOpen),
+		() =>
+			new Set(
+				initialOpen ?? (activeChain.length > 0 ? activeChain : defaultOpen),
+			),
 	);
 
 	const chainKey = activeChain.join(",");
@@ -56,26 +36,21 @@ export function useOpenSections(
 			for (const key of chain) {
 				next.add(key);
 			}
-			persistOpenSections(storageKey, next);
 			return next;
 		});
-	}, [chainKey, storageKey]);
+	}, [chainKey]);
 
-	const toggleSection = useCallback(
-		(key: string) => {
-			setOpenSections((prev) => {
-				const next = new Set(prev);
-				if (next.has(key)) {
-					next.delete(key);
-				} else {
-					next.add(key);
-				}
-				persistOpenSections(storageKey, next);
-				return next;
-			});
-		},
-		[storageKey],
-	);
+	const toggleSection = useCallback((key: string) => {
+		setOpenSections((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) {
+				next.delete(key);
+			} else {
+				next.add(key);
+			}
+			return next;
+		});
+	}, []);
 
 	return { openSections, toggleSection };
 }

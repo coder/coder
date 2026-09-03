@@ -24,7 +24,6 @@ import { SidebarNavLink } from "#/modules/management/SidebarNavLink";
 import { SidebarTopLevelNavItem } from "#/modules/management/SidebarTopLevelNavItem";
 import { useOpenSections } from "#/modules/management/useOpenSections";
 
-const DEFAULT_OPEN_SECTIONS_STORAGE_KEY = "user-settings-sidebar-open-sections";
 const GENERAL_SECTION = "general";
 const GENERAL_ROUTES = [
 	"/settings/account",
@@ -114,8 +113,8 @@ interface UserSettingsSidebarViewProps {
 	showSchedulePage: boolean;
 	/** OAuth2 applications page is behind an experiment or dev builds. */
 	showOAuth2Page: boolean;
-	/** Overridable so stories do not share persisted accordion state. */
-	openSectionsStorageKey?: string;
+	/** Sections open on first render; overrides the route-derived default. */
+	initialOpenSections?: string[];
 }
 
 /**
@@ -125,16 +124,16 @@ interface UserSettingsSidebarViewProps {
 export const UserSettingsSidebarView: FC<UserSettingsSidebarViewProps> = ({
 	showSchedulePage,
 	showOAuth2Page,
-	openSectionsStorageKey = DEFAULT_OPEN_SECTIONS_STORAGE_KEY,
+	initialOpenSections,
 }) => {
 	const { pathname } = useLocation();
 	const generalActive = GENERAL_ROUTES.some(
 		(route) => pathname === route || pathname.startsWith(`${route}/`),
 	);
 	const { openSections, toggleSection } = useOpenSections(
-		openSectionsStorageKey,
 		generalActive ? [GENERAL_SECTION] : [],
 		[GENERAL_SECTION],
+		initialOpenSections,
 	);
 	const isActive = (href: string) =>
 		pathname === href || pathname.startsWith(`${href}/`);

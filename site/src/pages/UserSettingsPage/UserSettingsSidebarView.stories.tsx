@@ -45,19 +45,8 @@ const routing = (path: string) =>
 const meta: Meta<typeof UserSettingsSidebarView> = {
 	title: "pages/UserSettingsPage/UserSettingsSidebarView",
 	component: UserSettingsSidebarView,
-	// Each story gets its own persisted accordion state, seeded from the
-	// `openSections` parameter (or cleared), so interactions in one story
-	// cannot leak into another.
 	decorators: [
-		(Story, { args, parameters }) => {
-			const key =
-				args.openSectionsStorageKey ?? "user-settings-sidebar-open-sections";
-			const seed = parameters.openSections as string[] | undefined;
-			if (seed) {
-				localStorage.setItem(key, JSON.stringify(seed));
-			} else {
-				localStorage.removeItem(key);
-			}
+		(Story, { parameters }) => {
 			// Stories that mount a real CollapsibleSidebar supply the header
 			// through its header slot instead.
 			const usesRealSidebar = Boolean(parameters.realSidebar);
@@ -83,12 +72,9 @@ export default meta;
 type Story = StoryObj<typeof UserSettingsSidebarView>;
 
 /** First load with no persisted state: General open, Account active. */
-export const Default: Story = {
-	args: { openSectionsStorageKey: "story-user-default" },
-};
+export const Default: Story = {};
 
 export const Collapsed: Story = {
-	args: { openSectionsStorageKey: "story-user-collapsed" },
 	decorators: [
 		(Story) => (
 			<SidebarContext.Provider
@@ -102,22 +88,18 @@ export const Collapsed: Story = {
 
 export const GatesOff: Story = {
 	args: {
-		openSectionsStorageKey: "story-user-gates-off",
 		showSchedulePage: false,
 		showOAuth2Page: false,
 	},
 };
 
 export const SecurityActive: Story = {
-	args: { openSectionsStorageKey: "story-user-security" },
 	parameters: {
-		openSections: [],
 		reactRouter: routing("/settings/security"),
 	},
 };
 
 export const HeaderClickDoesNotNavigate: Story = {
-	args: { openSectionsStorageKey: "story-user-header-click" },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "General" }));
@@ -132,7 +114,6 @@ export const HeaderClickDoesNotNavigate: Story = {
 
 // A short viewport with the header pinned: only the nav list scrolls.
 export const TallListScrolls: Story = {
-	args: { openSectionsStorageKey: "story-user-tall" },
 	decorators: [
 		(Story) => {
 			localStorage.setItem("story-user-tall-width", "expanded");
@@ -148,7 +129,6 @@ export const TallListScrolls: Story = {
 	],
 	parameters: {
 		realSidebar: true,
-		openSections: ["general"],
 		viewport: {
 			options: {
 				shortDesktop: {
@@ -181,7 +161,6 @@ export const TallListScrolls: Story = {
 
 // Measures header and row geometry against the admin sidebar spec.
 export const LayoutMetrics: Story = {
-	args: { openSectionsStorageKey: "story-user-metrics" },
 	decorators: [
 		(Story) => {
 			localStorage.setItem("story-user-metrics-width", "expanded");
@@ -195,7 +174,7 @@ export const LayoutMetrics: Story = {
 			);
 		},
 	],
-	parameters: { realSidebar: true, openSections: ["general"] },
+	parameters: { realSidebar: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const sidebar = canvasElement.querySelector("[data-sidebar-container]");

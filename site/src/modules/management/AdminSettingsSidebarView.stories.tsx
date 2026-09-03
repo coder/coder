@@ -53,18 +53,8 @@ const routing = (path: string) =>
 const meta: Meta<typeof AdminSettingsSidebarView> = {
 	title: "modules/management/AdminSettingsSidebarView",
 	component: AdminSettingsSidebarView,
-	// Each story gets its own persisted accordion state, seeded from the
-	// `openSections` parameter (or cleared), so interactions in one story
-	// cannot leak into another.
 	decorators: [
-		(Story, { args, parameters }) => {
-			const key = args.openSectionsStorageKey ?? "admin-sidebar-open-sections";
-			const seed = parameters.openSections as string[] | undefined;
-			if (seed) {
-				localStorage.setItem(key, JSON.stringify(seed));
-			} else {
-				localStorage.removeItem(key);
-			}
+		(Story, { parameters }) => {
 			// Stories that mount a real CollapsibleSidebar supply the header
 			// through its header slot instead.
 			const usesRealSidebar = Boolean(parameters.realSidebar);
@@ -99,38 +89,29 @@ export default meta;
 type Story = StoryObj<typeof AdminSettingsSidebarView>;
 
 /** First load with no persisted state: Deployment > General open, Overview active. */
-export const Default: Story = {
-	args: { openSectionsStorageKey: "story-admin-default" },
-};
+export const Default: Story = {};
 
 export const OrganizationsOpen: Story = {
-	args: { openSectionsStorageKey: "story-admin-organizations" },
 	parameters: {
-		openSections: ["organizations", "organizations-provisioners"],
 		reactRouter: routing("/organizations/my-organization/provisioners"),
 	},
 };
 
 export const AIOpen: Story = {
-	args: { openSectionsStorageKey: "story-admin-ai" },
 	parameters: {
-		openSections: ["ai", "ai-coder-agents"],
 		reactRouter: routing("/ai/settings/mcp-servers"),
 	},
 };
 
 export const LogsOpen: Story = {
-	args: { openSectionsStorageKey: "story-admin-logs" },
 	parameters: {
-		openSections: ["logs"],
 		reactRouter: routing("/audit"),
 	},
 };
 
 export const AllSectionsOpen: Story = {
-	args: { openSectionsStorageKey: "story-admin-all" },
-	parameters: {
-		openSections: [
+	args: {
+		initialOpenSections: [
 			"deployment",
 			"deployment-general",
 			"deployment-infrastructure",
@@ -145,7 +126,6 @@ export const AllSectionsOpen: Story = {
 };
 
 export const Collapsed: Story = {
-	args: { openSectionsStorageKey: "story-admin-collapsed" },
 	decorators: [
 		(Story) => (
 			<SidebarContext.Provider
@@ -159,7 +139,6 @@ export const Collapsed: Story = {
 
 export const NoAI: Story = {
 	args: {
-		openSectionsStorageKey: "story-admin-no-ai",
 		permissions: {
 			...MockPermissions,
 			viewAnyAIProvider: false,
@@ -171,7 +150,6 @@ export const NoAI: Story = {
 
 export const NoLogs: Story = {
 	args: {
-		openSectionsStorageKey: "story-admin-no-logs",
 		canViewAuditLog: false,
 		canViewConnectionLog: false,
 		canViewAIBridge: false,
@@ -180,7 +158,6 @@ export const NoLogs: Story = {
 
 export const NoOrganizations: Story = {
 	args: {
-		openSectionsStorageKey: "story-admin-no-orgs",
 		canViewOrganizations: false,
 	},
 };
@@ -188,31 +165,26 @@ export const NoOrganizations: Story = {
 /** Can see the organizations section but has no permissions in the org. */
 export const OrganizationViewerOnly: Story = {
 	args: {
-		openSectionsStorageKey: "story-admin-org-viewer",
 		orgPermissions: MockNoOrganizationPermissions,
 	},
 	parameters: {
-		openSections: ["organizations"],
 		reactRouter: routing("/organizations/my-organization"),
 	},
 };
 
 export const MemberWithAuditOnly: Story = {
 	args: {
-		openSectionsStorageKey: "story-admin-member",
 		permissions: MockNoPermissions,
 		canViewOrganizations: false,
 		canViewConnectionLog: false,
 		canViewAIBridge: false,
 	},
 	parameters: {
-		openSections: ["logs"],
 		reactRouter: routing("/audit"),
 	},
 };
 
 export const ExpandInfrastructure: Story = {
-	args: { openSectionsStorageKey: "story-admin-expand-infra" },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.queryByRole("link", { name: "Security" })).toBeNull();
@@ -232,7 +204,6 @@ export const ExpandInfrastructure: Story = {
 };
 
 export const HeaderClickDoesNotNavigate: Story = {
-	args: { openSectionsStorageKey: "story-admin-header-click" },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "Deployment" }));
@@ -256,7 +227,6 @@ export const HeaderClickDoesNotNavigate: Story = {
 // though the persisted width preference is "expanded", the sidebar must
 // auto-collapse to the icon rail below the lg breakpoint.
 export const NarrowViewportAutoCollapse: Story = {
-	args: { openSectionsStorageKey: "story-admin-narrow" },
 	decorators: [
 		(Story) => {
 			localStorage.setItem("story-admin-narrow-width", "expanded");
@@ -287,7 +257,6 @@ export const NarrowViewportAutoCollapse: Story = {
 // Wide-content pages: the sidebar settles collapsed. If the preference
 // was expanded, the nav peeks as a flyout first, then collapses.
 export const WideContentPeek: Story = {
-	args: { openSectionsStorageKey: "story-admin-wide-peek" },
 	decorators: [
 		(Story) => {
 			localStorage.setItem("story-admin-wide-peek-width", "expanded");
@@ -304,7 +273,6 @@ export const WideContentPeek: Story = {
 	],
 	parameters: {
 		realSidebar: true,
-		openSections: ["logs"],
 		reactRouter: routing("/audit"),
 	},
 	play: async ({ canvasElement }) => {
@@ -322,7 +290,6 @@ export const WideContentPeek: Story = {
 };
 
 export const WideContentStartsCollapsedWhenPreferenceCollapsed: Story = {
-	args: { openSectionsStorageKey: "story-admin-wide-collapsed" },
 	decorators: [
 		(Story) => {
 			localStorage.setItem("story-admin-wide-collapsed-width", "collapsed");
@@ -339,7 +306,6 @@ export const WideContentStartsCollapsedWhenPreferenceCollapsed: Story = {
 	],
 	parameters: {
 		realSidebar: true,
-		openSections: ["logs"],
 		reactRouter: routing("/audit"),
 	},
 	play: async ({ canvasElement }) => {
@@ -365,7 +331,6 @@ const ALL_SECTIONS = [
 // A short, wide viewport with every section open: the list overflows,
 // the header stays pinned, and only the nav list scrolls.
 export const TallListScrolls: Story = {
-	args: { openSectionsStorageKey: "story-admin-tall" },
 	decorators: [
 		(Story) => {
 			localStorage.setItem("story-admin-tall-width", "expanded");
@@ -379,9 +344,9 @@ export const TallListScrolls: Story = {
 			);
 		},
 	],
+	args: { initialOpenSections: ALL_SECTIONS },
 	parameters: {
 		realSidebar: true,
-		openSections: ALL_SECTIONS,
 		viewport: {
 			options: {
 				shortDesktop: {
@@ -419,7 +384,6 @@ export const TallListScrolls: Story = {
 // label, 32px nested leaves 20px right of the connecting line, 4px between
 // leaves, 16px before the next nested header, 12px between sections.
 export const LayoutMetrics: Story = {
-	args: { openSectionsStorageKey: "story-admin-metrics" },
 	decorators: [
 		(Story) => {
 			localStorage.setItem("story-admin-metrics-width", "expanded");
@@ -433,9 +397,11 @@ export const LayoutMetrics: Story = {
 			);
 		},
 	],
+	args: {
+		initialOpenSections: ["deployment", "deployment-general", "organizations"],
+	},
 	parameters: {
 		realSidebar: true,
-		openSections: ["deployment", "deployment-general", "organizations"],
 		reactRouter: routing("/organizations/my-organization"),
 	},
 	play: async ({ canvasElement }) => {
@@ -525,5 +491,22 @@ export const LayoutMetrics: Story = {
 		expect(metrics.sectionGap).toBe(12);
 		expect(metrics.healthcheckRowHeight).toBe(40);
 		expect(metrics.healthcheckIconLeft).toBe(16);
+	},
+};
+
+// A refresh (fresh mount) opens only the chain for the current route.
+export const RefreshCollapsesOtherSections: Story = {
+	parameters: { reactRouter: routing("/ai/settings/mcp-servers") },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(canvas.getByRole("link", { name: "MCP servers" })).toBeVisible(),
+		);
+		expect(canvas.getByRole("link", { name: "Providers" })).toBeVisible();
+		// Other sections start collapsed: their headers render, children do not.
+		expect(canvas.getByRole("button", { name: "Deployment" })).toBeVisible();
+		expect(canvas.queryByRole("button", { name: "General" })).toBeNull();
+		expect(canvas.queryByRole("link", { name: "Members" })).toBeNull();
+		expect(canvas.queryByRole("link", { name: "Audit logs" })).toBeNull();
 	},
 };

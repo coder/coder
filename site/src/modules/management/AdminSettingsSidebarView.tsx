@@ -36,7 +36,6 @@ import { SidebarNavLink } from "./SidebarNavLink";
 import { SidebarTopLevelNavItem } from "./SidebarTopLevelNavItem";
 import { useOpenSections } from "./useOpenSections";
 
-const DEFAULT_OPEN_SECTIONS_STORAGE_KEY = "admin-sidebar-open-sections";
 const DEFAULT_OPEN_SECTIONS = ["deployment", "deployment-general"];
 
 /**
@@ -100,8 +99,8 @@ interface AdminSettingsSidebarViewProps {
 	canAccessOrganizationModels: boolean;
 	/** The user can share MCP servers in at least one organization. */
 	canShareOrganizationMCPServers: boolean;
-	/** Overridable so stories do not share persisted accordion state. */
-	openSectionsStorageKey?: string;
+	/** Sections open on first render; overrides the route-derived default. */
+	initialOpenSections?: string[];
 }
 
 /**
@@ -123,7 +122,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 	canViewAIBridge,
 	canAccessOrganizationModels,
 	canShareOrganizationMCPServers,
-	openSectionsStorageKey = DEFAULT_OPEN_SECTIONS_STORAGE_KEY,
+	initialOpenSections,
 }) => {
 	const { pathname } = useLocation();
 
@@ -139,9 +138,9 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 	};
 	const activeChain = adminSectionChainForRoute(pathname, deploymentSections);
 	const { openSections, toggleSection } = useOpenSections(
-		openSectionsStorageKey,
 		activeChain,
 		DEFAULT_OPEN_SECTIONS,
+		initialOpenSections,
 	);
 
 	const logsItems = logsNavItems({
