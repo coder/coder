@@ -795,16 +795,14 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasygoogle.New(options...)
 	case fantasyopenai.Name:
+		override := openAIResponsesAPIOverride(openAIConfig)
 		options := []fantasyopenai.Option{
 			fantasyopenai.WithAPIKey(apiKey),
 			fantasyopenai.WithUseResponsesAPI(),
+			fantasyopenai.WithResponsesAPIFunc(func(modelID string) bool {
+				return chatopenai.UsesResponsesAPI(modelID, override)
+			}),
 			fantasyopenai.WithUserAgent(userAgent),
-		}
-		if override := openAIResponsesAPIOverride(openAIConfig); override != nil {
-			forced := *override
-			options = append(options, fantasyopenai.WithResponsesAPIFunc(func(string) bool {
-				return forced
-			}))
 		}
 		if len(extraHeaders) > 0 {
 			options = append(options, fantasyopenai.WithHeaders(extraHeaders))
