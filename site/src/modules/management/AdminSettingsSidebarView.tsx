@@ -211,7 +211,7 @@ export const AdminSettingsSidebarView: FC<AdminSettingsSidebarViewProps> = ({
 					onToggle={() => toggleSection("organizations")}
 					active={activeChain[0] === "organizations"}
 				>
-					<div className="py-1 -ml-6">
+					<div className="py-1 -ml-7 -mr-1">
 						<OrganizationSwitcher
 							activeOrganization={activeOrganization}
 							organizations={organizations}

@@ -97,8 +97,8 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 						// Rows bleed into the sidebar's horizontal padding so the
 						// hover surface is not cramped; content keeps its position.
 						Icon
-							? "w-[calc(100%+1.5rem)] -mx-3 pl-4 pr-3"
-							: "w-[calc(100%+0.75rem)] pl-0 -mr-3 pr-3",
+							? "w-[calc(100%+0.5rem)] -mx-1 px-2"
+							: "w-[calc(100%+0.75rem)] -ml-2 -mr-1 px-2",
 					)}
 				>
 					{Icon && <Icon className={iconClass} />}

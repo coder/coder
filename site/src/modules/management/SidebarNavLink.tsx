@@ -27,9 +27,12 @@ export const SidebarNavLink: FC<SidebarNavLinkProps> = ({
 	nested = false,
 	activeOverride,
 }) => {
+	// Every row keeps 8px of inner padding and stops 8px short of the
+	// sidebar edge; nested rows also leave a 4px gap from the connecting
+	// line so the hover surface never touches it.
 	const sizeClass = nested
-		? "h-7 text-xs pl-2 -mr-3 pr-3"
-		: "h-10 text-sm pl-2 -ml-2 -mr-3 pr-3";
+		? "h-7 text-xs px-2 -mr-1"
+		: "h-10 text-sm px-2 -ml-2 -mr-1";
 	const baseClass = cn(
 		"flex items-center rounded-md font-medium text-content-secondary no-underline hover:bg-surface-secondary transition-colors",
 		sizeClass,

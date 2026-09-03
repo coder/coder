@@ -62,7 +62,7 @@ export const SidebarTopLevelNavItem: FC<SidebarTopLevelNavItemProps> = ({
 			end={end}
 			className={({ isActive }) =>
 				cn(
-					"flex items-center gap-2 -mx-3 pl-4 pr-3 h-10 rounded-md no-underline text-sm font-medium text-content-secondary hover:bg-surface-secondary transition-colors",
+					"flex items-center gap-2 -mx-1 px-2 h-10 rounded-md no-underline text-sm font-medium text-content-secondary hover:bg-surface-secondary transition-colors",
 					isActive && "text-content-primary font-semibold",
 				)
 			}

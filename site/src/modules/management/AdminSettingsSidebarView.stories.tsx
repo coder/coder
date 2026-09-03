@@ -479,7 +479,7 @@ export const LayoutMetrics: Story = {
 		expect(metrics.iconLeft).toBe(16);
 		expect(metrics.iconSize).toBe(16);
 		expect(metrics.labelGap).toBe(8);
-		expect(metrics.chevronRight).toBe(12);
+		expect(metrics.chevronRight).toBe(16);
 		expect(metrics.nestedHeaderHeight).toBe(40);
 		expect(metrics.nestedLabelOffset).toBe(0);
 		expect(metrics.nestedChevronOffset).toBe(0);
