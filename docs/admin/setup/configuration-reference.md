@@ -527,7 +527,7 @@ Maximum number of files that can be attached to a single chat over its lifetime,
 
 ### Max concurrent recording uploads
 
-Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload can buffer about 110 MB in memory, so this bounds the daemon's peak memory use for recordings.
+Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings.
 
 - Environment variable: `CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`
 - CLI flag: [`--chat-max-concurrent-recording-uploads`](../../reference/cli/server.md#--chat-max-concurrent-recording-uploads)

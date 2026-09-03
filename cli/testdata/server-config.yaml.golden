@@ -869,8 +869,8 @@ chat:
   # (default: 32768, type: int)
   maxToolOutputBytes: 32768
   # Maximum number of virtual desktop recordings the chat daemon stores
-  # concurrently. Each upload can buffer about 110 MB in memory, so this bounds the
-  # daemon's peak memory use for recordings.
+  # concurrently. Each upload buffers the whole recording in memory, so this bounds
+  # the daemon's peak memory use for recordings.
   # (default: 25, type: int)
   maxConcurrentRecordingUploads: 25
   # Maximum number of characters of each message part, tool argument, and tool

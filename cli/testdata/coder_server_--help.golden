@@ -301,8 +301,8 @@ Configure the background chat processing daemon.
 
       --chat-max-concurrent-recording-uploads int, $CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS (default: 25)
           Maximum number of virtual desktop recordings the chat daemon stores
-          concurrently. Each upload can buffer about 110 MB in memory, so this
-          bounds the daemon's peak memory use for recordings.
+          concurrently. Each upload buffers the whole recording in memory, so
+          this bounds the daemon's peak memory use for recordings.
 
       --chat-max-dynamic-tools-per-chat int, $CODER_CHAT_MAX_DYNAMIC_TOOLS_PER_CHAT (default: 250)
           Maximum number of client-provided dynamic tools a chat can be created

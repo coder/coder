@@ -1854,7 +1854,7 @@ Maximum number of bytes of workspace command output the execute and process tool
 | YAML        | <code>chat.maxConcurrentRecordingUploads</code>           |
 | Default     | <code>25</code>                                           |
 
-Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload can buffer about 110 MB in memory, so this bounds the daemon's peak memory use for recordings.
+Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings.
 
 ### --chat-debug-max-text-runes
 
