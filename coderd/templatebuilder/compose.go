@@ -78,7 +78,7 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	if len(req.Modules) == 0 {
 		return &ComposeResult{
 			MainTF:     formatHCL(mainTF),
-			Readme:     []byte(BaseReadme(req.BaseTemplateID)),
+			Readme:     composedReadme(req.BaseTemplateID),
 			ExtraFiles: extraFiles,
 		}, nil
 	}
@@ -119,10 +119,22 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	result := &ComposeResult{
 		MainTF:     formatHCL(mainTF),
 		ModulesTF:  formatHCL(modulesTF),
-		Readme:     []byte(BaseReadme(req.BaseTemplateID)),
+		Readme:     composedReadme(req.BaseTemplateID),
 		ExtraFiles: extraFiles,
 	}
 	return result, nil
+}
+
+// composedReadme returns the base README prepared for delivery in the
+// output archive. The prerequisites markers are stripped so they do not
+// render as literal text when the README is viewed. Returns nil when the
+// base has no README.
+func composedReadme(baseTemplateID string) []byte {
+	readme := StripPrerequisiteMarkers(BaseReadme(baseTemplateID))
+	if readme == "" {
+		return nil
+	}
+	return []byte(readme)
 }
 
 // formatHCL applies canonical HCL formatting to src. If src is not valid

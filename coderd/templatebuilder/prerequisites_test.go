@@ -84,3 +84,59 @@ func TestExtractPrerequisites(t *testing.T) {
 		})
 	}
 }
+
+func TestStripPrerequisiteMarkers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		readme   string
+		expected string
+	}{
+		{
+			name: "BothMarkers",
+			readme: "# Title\n\n" +
+				"<!-- prerequisites:start -->\n\n" +
+				"## Prerequisites\n\n" +
+				"Install Docker.\n\n" +
+				"<!-- prerequisites:end -->\n\n" +
+				"## Architecture\n",
+			expected: "# Title\n\n## Prerequisites\n\nInstall Docker.\n\n## Architecture\n",
+		},
+		{
+			name:     "NoMarkers",
+			readme:   "# Title\n\n## Prerequisites\n\nSome content.\n",
+			expected: "# Title\n\n## Prerequisites\n\nSome content.\n",
+		},
+		{
+			name: "StartMarkerOnly",
+			readme: "# Title\n\n" +
+				"<!-- prerequisites:start -->\n\n" +
+				"## Prerequisites\n",
+			expected: "# Title\n\n## Prerequisites\n",
+		},
+		{
+			name: "MarkerWithoutTrailingBlankLine",
+			readme: "# Title\n" +
+				"<!-- prerequisites:start -->\n" +
+				"## Prerequisites\n",
+			expected: "# Title\n## Prerequisites\n",
+		},
+		{
+			name: "EndMarkerAtEOF",
+			readme: "Content.\n\n" +
+				"<!-- prerequisites:end -->\n",
+			expected: "Content.\n\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := templatebuilder.StripPrerequisiteMarkers(tt.readme)
+			require.Equal(t, tt.expected, result)
+			require.NotContains(t, result, "prerequisites:start")
+			require.NotContains(t, result, "prerequisites:end")
+		})
+	}
+}
