@@ -10,7 +10,11 @@ import {
 } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
-import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
+import {
+	withDashboardProvider,
+	withProxyProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -32,7 +36,7 @@ const defaultModelOptions = [
 const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
 	component: AgentChatInput,
-	decorators: [withProxyProvider()],
+	decorators: [withDashboardProvider, withProxyProvider()],
 	args: {
 		onSend: fn(),
 		sendShortcut: "enter",

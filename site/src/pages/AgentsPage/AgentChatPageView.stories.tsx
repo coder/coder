@@ -689,6 +689,7 @@ export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
+			organizationId={MockDefaultOrganization.id}
 			providerCount={0}
 			modelCount={0}
 			hasModelOptions={false}
@@ -715,7 +716,7 @@ export const MissingProviderAndModelSetup: Story = {
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/ai/settings/models",
+			`/ai/settings/models?org=${MockDefaultOrganization.name}`,
 		);
 	},
 };
@@ -724,6 +725,7 @@ export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
+			organizationId={MockDefaultOrganization.id}
 			providerCount={1}
 			modelCount={0}
 			hasModelOptions={false}
@@ -746,7 +748,7 @@ export const MissingModelSetup: Story = {
 		});
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/ai/settings/models",
+			`/ai/settings/models?org=${MockDefaultOrganization.name}`,
 		);
 	},
 };
