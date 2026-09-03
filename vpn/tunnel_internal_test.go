@@ -2,10 +2,12 @@ package vpn
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"net"
 	"net/netip"
 	"net/url"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -20,6 +22,7 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/util/dnsname"
 
+	"github.com/coder/coder/v2/buildinfo"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -39,11 +42,26 @@ type fakeClient struct {
 	t   *testing.T
 	ctx context.Context
 	ch  chan *fakeConn
+
+	mu       sync.Mutex
+	lastOpts *Options
 }
 
 var _ Client = (*fakeClient)(nil)
 
-func (f *fakeClient) NewConn(context.Context, *url.URL, string, *Options) (Conn, error) {
+// LastOptions returns the Options passed to the most recent NewConn call, or nil if there
+// hasn't been one.
+func (f *fakeClient) LastOptions() *Options {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastOpts
+}
+
+func (f *fakeClient) NewConn(_ context.Context, _ *url.URL, _ string, opts *Options) (Conn, error) {
+	f.mu.Lock()
+	f.lastOpts = opts
+	f.mu.Unlock()
+
 	select {
 	case <-f.ctx.Done():
 		return nil, f.ctx.Err()
@@ -175,6 +193,14 @@ func TestTunnel_StartStop(t *testing.T) {
 	_, ok := resp.Msg.(*TunnelMessage_Start)
 	require.True(t, ok)
 
+	// The user-agent identifies itself, alongside the caller-supplied headers. Setting these headers covers every transport.
+	opts := client.LastOptions()
+	require.NotNil(t, opts)
+	require.Equal(t, "test", opts.Headers.Get("X-Test-Header"))
+	require.Equal(t,
+		fmt.Sprintf("coder-vpn-daemon/%s (%s/%s)", buildinfo.Version(), runtime.GOOS, runtime.GOARCH),
+		opts.Headers.Get("User-Agent"))
+
 	// When: we stop the tunnel
 	go func() {
 		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
@@ -190,6 +216,45 @@ func TestTunnel_StartStop(t *testing.T) {
 	require.NoError(t, err)
 	_, ok = resp.Msg.(*TunnelMessage_Stop)
 	require.True(t, ok)
+
+	err = mgr.Close()
+	require.NoError(t, err)
+}
+
+func TestTunnel_StartUserAgentOverride(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	client := newFakeClient(ctx, t)
+	conn := newFakeConn(tailnet.WorkspaceUpdate{}, time.Time{})
+
+	_, mgr := setupTunnel(t, ctx, client, quartz.NewMock(t))
+
+	errCh := make(chan error, 1)
+	// When: the manager supplies its own User-Agent
+	go func() {
+		_, err := mgr.unaryRPC(ctx, &ManagerMessage{
+			Msg: &ManagerMessage_Start{
+				Start: &StartRequest{
+					TunnelFileDescriptor: 2,
+					CoderUrl:             "https://coder.example.com",
+					ApiToken:             "fakeToken",
+					Headers: []*StartRequest_Header{
+						{Name: "User-Agent", Value: "coder-desktop-core/1.2.3 (windows/amd64)"},
+					},
+				},
+			},
+		})
+		errCh <- err
+	}()
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	err := testutil.TryReceive(ctx, t, errCh)
+	require.NoError(t, err)
+
+	// Then: it is preserved rather than replaced by the daemon's own.
+	opts := client.LastOptions()
+	require.NotNil(t, opts)
+	require.Equal(t, "coder-desktop-core/1.2.3 (windows/amd64)", opts.Headers.Get("User-Agent"))
 
 	err = mgr.Close()
 	require.NoError(t, err)

@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"reflect"
+	"runtime"
 	"sort"
 	"strconv"
 	"sync"
@@ -27,6 +28,7 @@ import (
 	"tailscale.com/wgengine/router"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
@@ -35,6 +37,10 @@ import (
 // netStatusInterval is the interval at which the tunnel records latencies,
 // and sends network status updates to the manager.
 const netStatusInterval = 5 * time.Second
+
+// userAgentFmt matches the shape used by the CLI (see cli/root.go) so that one pattern identifies
+// traffic from any Coder client. Takes the version, GOOS and GOARCH.
+const userAgentFmt = "coder-vpn-daemon/%s (%s/%s)"
 
 type Tunnel struct {
 	speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
@@ -256,6 +262,11 @@ func (t *Tunnel) start(req *StartRequest) error {
 		} else {
 			t.logger.Warn(t.ctx, "failed to marshal telemetry data")
 		}
+	}
+
+	// Apply a custom user-agent if one is not supplied
+	if header.Get("User-Agent") == "" {
+		header.Set("User-Agent", fmt.Sprintf(userAgentFmt, buildinfo.Version(), runtime.GOOS, runtime.GOARCH))
 	}
 
 	var networkingStack NetworkStack

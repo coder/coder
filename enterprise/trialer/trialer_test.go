@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -22,12 +23,16 @@ func TestTrialer(t *testing.T) {
 		Trial: true,
 	})
 	type capture struct {
-		contentType string
-		body        map[string]any
+		contentType  string
+		coderVersion string
+		body         map[string]any
 	}
 	captured := make(chan capture, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c := capture{contentType: r.Header.Get("Content-Type")}
+		c := capture{
+			contentType:  r.Header.Get("Content-Type"),
+			coderVersion: r.Header.Get(trialer.VersionHeader),
+		}
 		if err := json.NewDecoder(r.Body).Decode(&c.body); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -60,6 +65,7 @@ func TestTrialer(t *testing.T) {
 	require.Len(t, captured, 1)
 	got := <-captured
 	require.Equal(t, "application/json", got.contentType)
+	require.Equal(t, buildinfo.Version(), got.coderVersion)
 	require.Equal(t, map[string]any{
 		"deployment_id": "test-deployment",
 		"source":        "Product",
@@ -102,17 +108,19 @@ func TestTrialerRequest(t *testing.T) {
 		// The handler and the assertions run on different goroutines, so the
 		// captured request travels over a channel to stay race-free.
 		type capture struct {
-			method      string
-			path        string
-			contentType string
-			body        map[string]any
+			method       string
+			path         string
+			contentType  string
+			coderVersion string
+			body         map[string]any
 		}
 		captured := make(chan capture, 1)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			c := capture{
-				method:      r.Method,
-				path:        r.URL.Path,
-				contentType: r.Header.Get("Content-Type"),
+				method:       r.Method,
+				path:         r.URL.Path,
+				contentType:  r.Header.Get("Content-Type"),
+				coderVersion: r.Header.Get(trialer.VersionHeader),
 			}
 			if err := json.NewDecoder(r.Body).Decode(&c.body); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -134,6 +142,7 @@ func TestTrialerRequest(t *testing.T) {
 		require.Equal(t, http.MethodPost, got.method)
 		require.Equal(t, "/", got.path)
 		require.Equal(t, "application/json", got.contentType)
+		require.Equal(t, buildinfo.Version(), got.coderVersion)
 		require.Equal(t, map[string]any{
 			"deployment_id": "test-deployment",
 			"source":        codersdk.LicensorTrialSourceNewUser,

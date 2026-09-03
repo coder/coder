@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
@@ -21,6 +22,9 @@ import (
 
 // LicenseRequestURL is the Coder licensor endpoint that issues trial licenses.
 const LicenseRequestURL = "https://v2-licensor.coder.com/trial"
+
+// VersionHeader reports the deployment's Coder version to the licensor.
+const VersionHeader = "X-Coder-Version"
 
 const (
 	// defaultLicenseRequestSource tells the licensor where a trial request
@@ -69,6 +73,7 @@ func (t *Trialer) Request(ctx context.Context, body codersdk.LicensorTrialReques
 		return "", xerrors.Errorf("create license request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(VersionHeader, buildinfo.Version())
 	res, err := t.client.Do(req)
 	if err != nil {
 		return "", xerrors.Errorf("perform license request: %w", err)
