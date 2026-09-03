@@ -22,8 +22,8 @@ import (
 	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/notifications"
 	"github.com/coder/coder/v2/scaletest/smtpmock"
 	"github.com/coder/coder/v2/testutil"
@@ -62,13 +62,13 @@ func TestRun(t *testing.T) {
 
 	// Start receiving runners who will receive notifications
 	receivingRunners := make([]*notifications.Runner, 0, numReceivingUsers)
+	receivingUsernames := make([]string, 0, numReceivingUsers)
 	for i := range numReceivingUsers {
+		userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
+		receivingUsernames = append(receivingUsernames, user.Username)
 		runnerCfg := notifications.Config{
-			User: createusers.Config{
-				OrganizationID: firstUser.OrganizationID,
-				Username:       "receiving-user-" + strconv.Itoa(i),
-			},
-			Roles:                    []string{codersdk.RoleOwner},
+			SessionToken:             userClient.SessionToken(),
+			PreCreatedUser:           user,
 			NotificationTimeout:      testutil.WaitLong,
 			DialTimeout:              testutil.WaitLong,
 			Metrics:                  metrics,
@@ -89,11 +89,10 @@ func TestRun(t *testing.T) {
 	// Start regular user runners who will maintain websocket connections
 	regularRunners := make([]*notifications.Runner, 0, numRegularUsers)
 	for i := range numRegularUsers {
+		userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		runnerCfg := notifications.Config{
-			User: createusers.Config{
-				OrganizationID: firstUser.OrganizationID,
-			},
-			Roles:                 []string{},
+			SessionToken:          userClient.SessionToken(),
+			PreCreatedUser:        user,
 			NotificationTimeout:   testutil.WaitLong,
 			DialTimeout:           testutil.WaitLong,
 			Metrics:               metrics,
@@ -116,9 +115,9 @@ func TestRun(t *testing.T) {
 		dialBarrier.Wait()
 
 		for i := 0; i < numReceivingUsers; i++ {
-			err := sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountCreated)
+			err := sendInboxNotification(runCtx, t, db, inboxHandler, receivingUsernames[i], notificationsLib.TemplateUserAccountCreated)
 			require.NoError(t, err)
-			err = sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountDeleted)
+			err = sendInboxNotification(runCtx, t, db, inboxHandler, receivingUsernames[i], notificationsLib.TemplateUserAccountDeleted)
 			require.NoError(t, err)
 		}
 
@@ -142,10 +141,11 @@ func TestRun(t *testing.T) {
 	err = cleanupEg.Wait()
 	require.NoError(t, err)
 
+	// The runner reuses existing users and never deletes them, so every
+	// pre-created user remains alongside the first user.
 	users, err := client.Users(ctx, codersdk.UsersRequest{})
 	require.NoError(t, err)
-	require.Len(t, users.Users, 1)
-	require.Equal(t, firstUser.UserID, users.Users[0].ID)
+	require.Len(t, users.Users, 1+numReceivingUsers+numRegularUsers)
 
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
@@ -216,13 +216,13 @@ func TestRunWithSMTP(t *testing.T) {
 
 	// Start receiving runners who will receive notifications
 	receivingRunners := make([]*notifications.Runner, 0, numReceivingUsers)
+	receivingUsernames := make([]string, 0, numReceivingUsers)
 	for i := range numReceivingUsers {
+		userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
+		receivingUsernames = append(receivingUsernames, user.Username)
 		runnerCfg := notifications.Config{
-			User: createusers.Config{
-				OrganizationID: firstUser.OrganizationID,
-				Username:       "receiving-user-" + strconv.Itoa(i),
-			},
-			Roles:                    []string{codersdk.RoleOwner},
+			SessionToken:             userClient.SessionToken(),
+			PreCreatedUser:           user,
 			NotificationTimeout:      testutil.WaitLong,
 			DialTimeout:              testutil.WaitLong,
 			Metrics:                  metrics,
@@ -246,11 +246,10 @@ func TestRunWithSMTP(t *testing.T) {
 	// Start regular user runners who will maintain websocket connections
 	regularRunners := make([]*notifications.Runner, 0, numRegularUsers)
 	for i := range numRegularUsers {
+		userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		runnerCfg := notifications.Config{
-			User: createusers.Config{
-				OrganizationID: firstUser.OrganizationID,
-			},
-			Roles:                 []string{},
+			SessionToken:          userClient.SessionToken(),
+			PreCreatedUser:        user,
 			NotificationTimeout:   testutil.WaitLong,
 			DialTimeout:           testutil.WaitLong,
 			Metrics:               metrics,
@@ -277,9 +276,9 @@ func TestRunWithSMTP(t *testing.T) {
 		}
 
 		for i := 0; i < numReceivingUsers; i++ {
-			err := sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountCreated)
+			err := sendInboxNotification(runCtx, t, db, inboxHandler, receivingUsernames[i], notificationsLib.TemplateUserAccountCreated)
 			require.NoError(t, err)
-			err = sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountDeleted)
+			err = sendInboxNotification(runCtx, t, db, inboxHandler, receivingUsernames[i], notificationsLib.TemplateUserAccountDeleted)
 			require.NoError(t, err)
 		}
 
@@ -306,10 +305,11 @@ func TestRunWithSMTP(t *testing.T) {
 	err = cleanupEg.Wait()
 	require.NoError(t, err)
 
+	// The runner reuses existing users and never deletes them, so every
+	// pre-created user remains alongside the first user.
 	users, err := client.Users(ctx, codersdk.UsersRequest{})
 	require.NoError(t, err)
-	require.Len(t, users.Users, 1)
-	require.Equal(t, firstUser.UserID, users.Users[0].ID)
+	require.Len(t, users.Users, 1+numReceivingUsers+numRegularUsers)
 
 	// Verify that notifications were received via both websocket and SMTP
 	for _, runner := range receivingRunners {
