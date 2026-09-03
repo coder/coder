@@ -252,19 +252,27 @@ export const logsNavItems = ({
 ];
 
 /**
+ * Pages whose content needs the full width, so the sidebar peeks and then
+ * collapses on entry. Healthcheck has its own internal navigation, so it
+ * behaves the same way.
+ */
+const wideContentHrefs = (): string[] => [
+	...logsNavItems({
+		canViewAuditLog: true,
+		canViewConnectionLog: true,
+		canViewAIBridge: true,
+	})
+		.filter((item) => item.wideContent)
+		.map((item) => item.matchPrefix ?? item.href),
+	"/health",
+];
+
+/**
  * Whether the route belongs to a page flagged as wide content, including
  * its detail sub-pages (for example individual AI sessions).
  */
 export const isWideContentRoute = (pathname: string): boolean =>
-	logsNavItems({
-		canViewAuditLog: true,
-		canViewConnectionLog: true,
-		canViewAIBridge: true,
-	}).some(
-		(item) =>
-			item.wideContent &&
-			isRouteActive(pathname, item.matchPrefix ?? item.href),
-	);
+	wideContentHrefs().some((href) => isRouteActive(pathname, href));
 
 /**
  * The first log page the user can see: audit, then connection, then AI
