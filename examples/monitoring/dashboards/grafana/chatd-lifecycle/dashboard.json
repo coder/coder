@@ -255,6 +255,10 @@
                   "mode": "gradient",
                   "type": "gauge"
                 }
+              },
+              {
+                "id": "fieldMinMax",
+                "value": true
               }
             ]
           },
