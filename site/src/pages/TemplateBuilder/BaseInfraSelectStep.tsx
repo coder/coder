@@ -49,10 +49,10 @@ export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
 				Select your infrastructure foundation.
 			</TemplateBuilderSubtitle>
 
-			{/* Show two rows of cards (sized to the common 214px card height plus
-			    the row gap) and let any extra rows scroll, so the Continue button
+			{/* Show three rows of cards (sized to the common 214px card height plus
+			    the row gaps) and let any extra rows scroll, so the Continue button
 			    stays high and is easy to discover. */}
-			<div className="max-h-[452px] overflow-y-auto p-1 -m-1">
+			<div className="max-h-[682px] overflow-y-auto p-1 -m-1">
 				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 					{bases.map((base) => (
 						<TemplateCard
