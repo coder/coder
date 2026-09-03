@@ -216,10 +216,10 @@ export const LayoutMetrics: Story = {
 		expect(metrics.avatarTop).toBe(12);
 		expect(metrics.generalRowHeight).toBe(40);
 		expect(metrics.generalIconLeft).toBe(16);
-		expect(metrics.leafHeight).toBe(32);
+		expect(metrics.leafHeight).toBe(28);
 		expect(metrics.leafGap).toBe(4);
 		expect(metrics.lineAtLabelEdge).toBe(0);
-		expect(metrics.leafTextFromLine).toBe(20);
+		expect(metrics.leafTextFromLine).toBe(12);
 		expect(metrics.flatRowHeight).toBe(40);
 		expect(metrics.flatIconLeft).toBe(16);
 	},

@@ -28,10 +28,10 @@ export const SidebarNavLink: FC<SidebarNavLinkProps> = ({
 	activeOverride,
 }) => {
 	const sizeClass = nested
-		? "h-8 pl-2 -mr-3 pr-3"
-		: "h-10 pl-2 -ml-2 -mr-3 pr-3";
+		? "h-7 text-xs pl-2 -mr-3 pr-3"
+		: "h-10 text-sm pl-2 -ml-2 -mr-3 pr-3";
 	const baseClass = cn(
-		"flex items-center rounded-md text-sm font-medium text-content-secondary no-underline hover:bg-surface-secondary transition-colors",
+		"flex items-center rounded-md font-medium text-content-secondary no-underline hover:bg-surface-secondary transition-colors",
 		sizeClass,
 	);
 	const activeClass = "font-semibold text-content-primary";

@@ -483,8 +483,8 @@ export const LayoutMetrics: Story = {
 		expect(metrics.nestedHeaderHeight).toBe(40);
 		expect(metrics.nestedLabelOffset).toBe(0);
 		expect(metrics.nestedChevronOffset).toBe(0);
-		expect(metrics.nestedLeafHeight).toBe(32);
-		expect(metrics.leafTextFromLine).toBe(20);
+		expect(metrics.nestedLeafHeight).toBe(28);
+		expect(metrics.leafTextFromLine).toBe(12);
 		expect(metrics.leafGap).toBe(4);
 		expect(metrics.listToNextHeader).toBe(16);
 		expect(metrics.sectionLeafHeight).toBe(40);

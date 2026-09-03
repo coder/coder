@@ -119,7 +119,7 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 						"flex flex-col gap-1",
 						Icon
 							? "ml-7"
-							: "pl-3 pb-3 border-0 border-l border-solid border-border",
+							: "pl-1 pb-3 border-0 border-l border-solid border-border",
 					)}
 				>
 					{children}

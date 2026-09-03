@@ -150,7 +150,7 @@ export const UserSettingsSidebarView: FC<UserSettingsSidebarViewProps> = ({
 				active={generalActive}
 			>
 				{/* Nested leaf rows hang off a connecting line at the label edge. */}
-				<div className="flex flex-col gap-1 pl-3 border-0 border-l border-solid border-border">
+				<div className="flex flex-col gap-1 pl-1 border-0 border-l border-solid border-border">
 					<SidebarNavLink nested href="/settings/account">
 						Account
 					</SidebarNavLink>
