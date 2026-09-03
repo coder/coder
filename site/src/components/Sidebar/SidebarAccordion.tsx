@@ -100,13 +100,13 @@ export const SidebarAccordion: FC<SidebarAccordionProps> = ({
 				</button>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
-				{/* Children of an icon section align under its label with no
-				    connecting line; nested sections draw the line along their
-				    sub-items. */}
+				{/* Children of an icon section align under its label. Nested
+				    sections draw a connecting line at the label's left edge,
+				    with their sub-items indented past it. */}
 				<div
 					className={cn(
 						"flex flex-col gap-1",
-						Icon ? "ml-6" : "border-0 border-l border-solid border-border",
+						Icon ? "ml-6" : "ml-3 border-0 border-l border-solid border-border",
 					)}
 				>
 					{children}
