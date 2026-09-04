@@ -666,7 +666,6 @@ resource "coder_script" "install-deps" {
     # writes this file when it's absent.
     [settings]
     trusted_config_paths = [
-      "/home/coder/coder",
       "/etc/mise",
     ]
     TRUST
