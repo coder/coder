@@ -440,6 +440,33 @@ export const DrillInClampedToRetention: Story = {
 	},
 };
 
+export const DrillInOutsideRetention: Story = {
+	args: {
+		drillInUserId: MockAIGatewaySpendUser.id,
+		drillInUser: mockUserProfile,
+		summaryData: {
+			...MockAIGatewaySpendUserSummary,
+			start_date: "2026-03-12T00:00:00Z",
+			total_cost_micros: 0,
+			request_count: 0,
+			session_count: 0,
+			model_count: 0,
+			client_count: 0,
+			by_model: [],
+			by_client: [],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			"No AI Gateway spend is retained for the selected period.",
+		);
+		expect(
+			canvas.queryByRole("link", { name: "View sessions" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const DrillInTruncatedBreakdowns: Story = {
 	args: {
 		drillInUserId: MockAIGatewaySpendUser.id,

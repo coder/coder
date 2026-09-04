@@ -51,6 +51,17 @@ const sessionsHref = (
 	return `/ai-gateway/sessions?${useFilterParamsKey}=${encodeURIComponent(filter)}`;
 };
 
+// A window that lies entirely outside retained data comes back collapsed to
+// start_date == end_date, which the sessions filter rejects, so there is
+// nothing to link to.
+const hasEmptyAppliedWindow = (applied?: {
+	start_date: string;
+	end_date: string;
+}) =>
+	applied !== undefined &&
+	new Date(applied.start_date).getTime() >=
+		new Date(applied.end_date).getTime();
+
 export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 	selectedUser,
 	isLoading,
@@ -125,13 +136,15 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 				/>
 				<div className="flex min-w-0 flex-col items-end gap-1 text-xs text-content-secondary">
 					<div>{dateRangeLabel}</div>
-					<Link asChild showExternalIcon={false} size="sm">
-						<RouterLink
-							to={sessionsHref(selectedUser.id, queryDateRange, summaryData)}
-						>
-							View sessions
-						</RouterLink>
-					</Link>
+					{!hasEmptyAppliedWindow(summaryData) && (
+						<Link asChild showExternalIcon={false} size="sm">
+							<RouterLink
+								to={sessionsHref(selectedUser.id, queryDateRange, summaryData)}
+							>
+								View sessions
+							</RouterLink>
+						</Link>
+					)}
 				</div>
 			</div>
 			{summaryData && (
