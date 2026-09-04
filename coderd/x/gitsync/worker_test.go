@@ -607,6 +607,7 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 
 	var mu sync.Mutex
 	var upsertRefCalls []database.UpsertChatDiffStatusReferenceParams
+	var freezeCalls []database.FreezeChatDiffStatusRefsParams
 	var publishedIDs []uuid.UUID
 
 	ctrl := gomock.NewController(t)
@@ -626,6 +627,13 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 		mu.Unlock()
 		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 	}).Times(2)
+	store.EXPECT().FreezeChatDiffStatusRefs(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.FreezeChatDiffStatusRefsParams) (int64, error) {
+			mu.Lock()
+			freezeCalls = append(freezeCalls, arg)
+			mu.Unlock()
+			return 0, nil
+		}).Times(2)
 
 	pub := func(_ context.Context, chatID uuid.UUID) error {
 		mu.Lock()
@@ -712,6 +720,11 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 			}
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 		}).Times(2)
+	// Only the chat whose upsert succeeded reaches the freeze step.
+	store.EXPECT().FreezeChatDiffStatusRefs(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ database.FreezeChatDiffStatusRefsParams) (int64, error) {
+			return 0, nil
+		}).Times(1)
 
 	pub := func(_ context.Context, _ uuid.UUID) error {
 		publishCount.Add(1)
@@ -820,6 +833,7 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 
 	var mu sync.Mutex
 	var upsertRefCalls []database.UpsertChatDiffStatusReferenceParams
+	var freezeCalls []database.FreezeChatDiffStatusRefsParams
 	var publishedIDs []uuid.UUID
 
 	ctrl := gomock.NewController(t)
@@ -833,6 +847,13 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 		mu.Unlock()
 		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 	}).Times(1)
+	store.EXPECT().FreezeChatDiffStatusRefs(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.FreezeChatDiffStatusRefsParams) (int64, error) {
+			mu.Lock()
+			freezeCalls = append(freezeCalls, arg)
+			mu.Unlock()
+			return 0, nil
+		}).Times(1)
 
 	pub := func(_ context.Context, chatID uuid.UUID) error {
 		mu.Lock()
@@ -863,6 +884,11 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 	assert.Equal(t, "https://github.com/org/repo", upsertRefCalls[0].GitRemoteOrigin)
 	assert.True(t, upsertRefCalls[0].StaleAt.Before(now),
 		"stale_at should be in the past, got %v vs now %v", upsertRefCalls[0].StaleAt, now)
+
+	require.Len(t, freezeCalls, 1)
+	assert.Equal(t, targetChat, freezeCalls[0].ChatID)
+	assert.Equal(t, "my-branch", freezeCalls[0].GitBranch)
+	assert.Equal(t, "https://github.com/org/repo", freezeCalls[0].GitRemoteOrigin)
 
 	require.Len(t, publishedIDs, 1)
 	assert.Equal(t, targetChat, publishedIDs[0])
@@ -898,6 +924,10 @@ func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
 		mu.Unlock()
 		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 	}).Times(1)
+	store.EXPECT().FreezeChatDiffStatusRefs(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ database.FreezeChatDiffStatusRefsParams) (int64, error) {
+			return 0, nil
+		}).Times(1)
 
 	pub := func(_ context.Context, chatID uuid.UUID) error {
 		mu.Lock()
@@ -993,8 +1023,10 @@ func TestWorker(t *testing.T) {
 	require.Equal(t, int32(1), publishCount.Load())
 
 	// 9. Read back and verify persisted fields.
-	status, err := db.GetChatDiffStatusByChatID(ctx, chat.ID)
+	statuses, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
+	require.Len(t, statuses, 1)
+	status := statuses[0]
 
 	// The mock resolveBranchPR returns PRRef{Owner: "o", Repo: "r", Number: 1}
 	// and buildPullRequestURL formats it as https://github.com/o/r/pull/1.

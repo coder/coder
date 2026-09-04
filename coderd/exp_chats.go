@@ -623,9 +623,10 @@ func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat, s
 func (api *API) getChatDiffStatusesByChatID(
 	ctx context.Context,
 	chats []database.Chat,
-) (map[uuid.UUID]database.ChatDiffStatus, error) {
+) (map[uuid.UUID]db2sdk.ChatDiffStatuses, error) {
+	result := make(map[uuid.UUID]db2sdk.ChatDiffStatuses, len(chats))
 	if len(chats) == 0 {
-		return map[uuid.UUID]database.ChatDiffStatus{}, nil
+		return result, nil
 	}
 
 	chatIDs := make([]uuid.UUID, 0, len(chats))
@@ -638,11 +639,15 @@ func (api *API) getChatDiffStatusesByChatID(
 		return nil, xerrors.Errorf("get chat diff statuses: %w", err)
 	}
 
-	statusesByChatID := make(map[uuid.UUID]database.ChatDiffStatus, len(statuses))
+	statusesByChatID := make(map[uuid.UUID][]database.ChatDiffStatus, len(statuses))
 	for _, status := range statuses {
-		statusesByChatID[status.ChatID] = status
+		statusesByChatID[status.ChatID] = append(statusesByChatID[status.ChatID], status)
 	}
-	return statusesByChatID, nil
+	for chatID, list := range statusesByChatID {
+		primary := db2sdk.PrimaryChatDiffStatus(list)
+		result[chatID] = db2sdk.ChatDiffStatuses{Primary: primary, All: list}
+	}
+	return result, nil
 }
 
 func planModeToNullChatPlanMode(mode codersdk.ChatPlanMode) database.NullChatPlanMode {
@@ -1464,17 +1469,13 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	// Use the cached diff status from the database rather than
-	// resolving it inline. Inline resolution calls out to the
+	// Use the cached diff statuses from the database rather than
+	// resolving them inline. Inline resolution calls out to the
 	// git provider API (e.g. GitHub) on every request which
 	// blocks the response for 200-800ms. The background gitsync
-	// worker keeps the cached status fresh.
-	var diffStatus *database.ChatDiffStatus
-	status, err := api.Database.GetChatDiffStatusByChatID(ctx, chat.ID)
-	switch {
-	case err == nil:
-		diffStatus = &status
-	case !xerrors.Is(err, sql.ErrNoRows):
+	// worker keeps the cached statuses fresh.
+	diffStatuses, err := api.Database.GetChatDiffStatusesByChatID(ctx, chat.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		api.Logger.Error(ctx, "failed to get cached chat diff status",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
@@ -1484,7 +1485,14 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// Hydrate file metadata for all files linked to this chat.
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
-	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
+	sdkChat := db2sdk.Chat(chat, db2sdk.PrimaryChatDiffStatus(diffStatuses), chatFiles)
+	if len(diffStatuses) > 0 {
+		sdkStatuses := make([]codersdk.ChatDiffStatus, 0, len(diffStatuses))
+		for i := range diffStatuses {
+			sdkStatuses = append(sdkStatuses, db2sdk.ChatDiffStatus(chat.ID, &diffStatuses[i]))
+		}
+		sdkChat.DiffStatuses = sdkStatuses
+	}
 
 	if api.chatDaemon != nil {
 		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
@@ -3523,6 +3531,8 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
+// @Param origin query string false "Remote origin selecting the ref to diff"
+// @Param branch query string false "Git branch selecting the ref to diff"
 // @Success 200 {object} codersdk.ChatDiffContents
 // @Router /api/v2/chats/{chat}/diff [get]
 //
@@ -3531,9 +3541,18 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	diff, err := api.resolveChatDiffContents(ctx, chat)
+	// Both params are optional. With neither, the chat's most recently
+	// updated ref is used, which is the pre-selector behavior.
+	selector := codersdk.DiffStatusRef{
+		RemoteOrigin: strings.TrimSpace(r.URL.Query().Get("origin")),
+		GitBranch:    strings.TrimSpace(r.URL.Query().Get("branch")),
+	}
+
+	diff, err := api.resolveChatDiffContents(ctx, chat, selector)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		// A ref selector that matches nothing is the client naming a
+		// stale ref, not a server failure.
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get chat diff.",
 			Detail:  err.Error(),
 		})
@@ -3777,19 +3796,25 @@ func chatWorkspaceAuditStatus(err error) int {
 func (api *API) resolveChatDiffContents(
 	ctx context.Context,
 	chat database.Chat,
+	selector codersdk.DiffStatusRef,
 ) (codersdk.ChatDiffContents, error) {
 	result := codersdk.ChatDiffContents{ChatID: chat.ID}
 
-	status, found, err := api.getCachedChatDiffStatus(ctx, chat.ID)
-	if err != nil {
+	statuses, err := api.Database.GetChatDiffStatusesByChatID(ctx, chat.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return result, err
+	}
+
+	status, found := selectChatDiffStatus(statuses, selector)
+	if !found && len(statuses) > 0 {
+		// The selector named a ref the chat does not track.
+		return result, xerrors.Errorf("no diff status for ref %s/%s", selector.RemoteOrigin, selector.GitBranch)
 	}
 
 	reference, err := api.resolveChatDiffReference(ctx, chat, found, status)
 	if err != nil {
 		return result, err
 	}
-
 	if reference.RepositoryRef != nil {
 		provider := strings.TrimSpace(reference.RepositoryRef.Provider)
 		if provider != "" {
@@ -3810,12 +3835,6 @@ func (api *API) resolveChatDiffContents(
 	if reference.PullRequestURL != "" {
 		pullRequestURL := strings.TrimSpace(reference.PullRequestURL)
 		result.PullRequestURL = &pullRequestURL
-		if !found || !strings.EqualFold(strings.TrimSpace(status.Url.String), pullRequestURL) {
-			_, err := api.upsertChatDiffStatusReference(ctx, chat.ID, pullRequestURL, time.Now().UTC().Add(-time.Second))
-			if err != nil {
-				return result, err
-			}
-		}
 	}
 
 	if reference.RepositoryRef == nil {
@@ -3970,48 +3989,27 @@ func (api *API) buildChatRepositoryRefFromStatus(ctx context.Context, status dat
 	return repoRef
 }
 
-func (api *API) upsertChatDiffStatusReference(
-	ctx context.Context,
-	chatID uuid.UUID,
-	pullRequestURL string,
-	staleAt time.Time,
-) (database.ChatDiffStatus, error) {
-	status, err := api.Database.UpsertChatDiffStatusReference(
-		ctx,
-		database.UpsertChatDiffStatusReferenceParams{
-			ChatID: chatID,
-			Url: sql.NullString{
-				String: pullRequestURL,
-				Valid:  strings.TrimSpace(pullRequestURL) != "",
-			},
-			// Empty strings preserve existing values via the
-			// CASE expression in the SQL query.
-			GitBranch:       "",
-			GitRemoteOrigin: "",
-			StaleAt:         staleAt,
-		},
-	)
-	if err != nil {
-		return database.ChatDiffStatus{}, xerrors.Errorf("upsert chat diff status reference: %w", err)
+// selectChatDiffStatus picks the status row a diff request targets. A
+// non-empty selector must match a stored ref exactly; GetChatDiffStatusesByChatID
+// already orders by updated_at DESC, so the empty selector takes the first
+// row, matching the pre-selector behavior of resolving the chat's single
+// status.
+func selectChatDiffStatus(
+	statuses []database.ChatDiffStatus,
+	selector codersdk.DiffStatusRef,
+) (database.ChatDiffStatus, bool) {
+	if selector.RemoteOrigin == "" && selector.GitBranch == "" {
+		if len(statuses) == 0 {
+			return database.ChatDiffStatus{}, false
+		}
+		return statuses[0], true
 	}
-	return status, nil
-}
-
-func (api *API) getCachedChatDiffStatus(
-	ctx context.Context,
-	chatID uuid.UUID,
-) (database.ChatDiffStatus, bool, error) {
-	status, err := api.Database.GetChatDiffStatusByChatID(ctx, chatID)
-	if err == nil {
-		return status, true, nil
+	for i := range statuses {
+		if statuses[i].GitRemoteOrigin == selector.RemoteOrigin && statuses[i].GitBranch == selector.GitBranch {
+			return statuses[i], true
+		}
 	}
-	if xerrors.Is(err, sql.ErrNoRows) {
-		return database.ChatDiffStatus{}, false, nil
-	}
-	return database.ChatDiffStatus{}, false, xerrors.Errorf(
-		"get chat diff status: %w",
-		err,
-	)
+	return database.ChatDiffStatus{}, false
 }
 
 // resolveExternalAuth finds the external auth config matching the

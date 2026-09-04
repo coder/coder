@@ -1896,13 +1896,17 @@ WHERE
     AND status = 'running'::chat_status
 RETURNING id;
 
--- name: GetChatDiffStatusByChatID :one
+-- name: GetChatDiffStatusesByChatID :many
 SELECT
     *
 FROM
     chat_diff_statuses
 WHERE
-    chat_id = @chat_id::uuid;
+    chat_id = @chat_id::uuid
+ORDER BY
+    updated_at DESC,
+    git_remote_origin,
+    git_branch;
 
 -- name: GetChatDiffStatusesByChatIDs :many
 SELECT
@@ -1913,6 +1917,10 @@ WHERE
     chat_id = ANY(@chat_ids::uuid[]);
 
 -- name: UpsertChatDiffStatusReference :one
+-- Marks a chat's git ref as stale so the worker refreshes it. A null URL
+-- keeps the ref's known pull request. The stale_at parameter un-freezes
+-- a ref the freeze query put on hold, so re-checking out an old branch
+-- resumes polling it.
 INSERT INTO chat_diff_statuses (
     chat_id,
     url,
@@ -1926,29 +1934,39 @@ INSERT INTO chat_diff_statuses (
     @git_remote_origin::text,
     @stale_at::timestamptz
 )
-ON CONFLICT (chat_id) DO UPDATE
+ON CONFLICT (chat_id, git_remote_origin, git_branch) DO UPDATE
 SET
     url = CASE
         WHEN EXCLUDED.url IS NOT NULL THEN EXCLUDED.url
         ELSE chat_diff_statuses.url
-    END,
-    git_branch = CASE
-        WHEN EXCLUDED.git_branch != '' THEN EXCLUDED.git_branch
-        ELSE chat_diff_statuses.git_branch
-    END,
-    git_remote_origin = CASE
-        WHEN EXCLUDED.git_remote_origin != '' THEN EXCLUDED.git_remote_origin
-        ELSE chat_diff_statuses.git_remote_origin
     END,
     stale_at = EXCLUDED.stale_at,
     updated_at = NOW()
 RETURNING
     *;
 
+-- name: FreezeChatDiffStatusRefs :execrows
+-- Pauses polling for a chat's other refs of the same origin so only the
+-- ref just reported keeps refreshing. The far-future stale_at keeps the
+-- row readable as a plain timestamp and out of the worker's stale scan.
+-- The comparison on (git_remote_origin, git_branch) skips the reported
+-- ref itself; the timestamp guard avoids re-freezing a ref the upsert
+-- above just un-froze in the same request.
+UPDATE chat_diff_statuses
+SET
+    stale_at = '3000-01-01'::timestamptz
+WHERE
+    chat_id = @chat_id::uuid
+    AND git_remote_origin = @git_remote_origin::text
+    AND (git_remote_origin, git_branch) != (@git_remote_origin::text, @git_branch::text)
+    AND stale_at < '3000-01-01'::timestamptz;
+
 -- name: UpsertChatDiffStatus :one
 INSERT INTO chat_diff_statuses (
     chat_id,
     url,
+    git_branch,
+    git_remote_origin,
     pull_request_state,
     pull_request_title,
     pull_request_draft,
@@ -1969,6 +1987,8 @@ INSERT INTO chat_diff_statuses (
 ) VALUES (
     @chat_id::uuid,
     sqlc.narg('url')::text,
+    @git_branch::text,
+    @git_remote_origin::text,
     sqlc.narg('pull_request_state')::text,
     @pull_request_title::text,
     @pull_request_draft::boolean,
@@ -1987,7 +2007,7 @@ INSERT INTO chat_diff_statuses (
     @refreshed_at::timestamptz,
     @stale_at::timestamptz
 )
-ON CONFLICT (chat_id) DO UPDATE
+ON CONFLICT (chat_id, git_remote_origin, git_branch) DO UPDATE
 SET
     url = EXCLUDED.url,
     pull_request_state = EXCLUDED.pull_request_state,
@@ -2237,9 +2257,11 @@ WITH acquired AS (
         -- refresh).
         stale_at = NOW() + INTERVAL '5 minutes'
     WHERE
-        chat_id IN (
+        (chat_id, git_remote_origin, git_branch) IN (
             SELECT
-                cds.chat_id
+                cds.chat_id,
+                cds.git_remote_origin,
+                cds.git_branch
             FROM
                 chat_diff_statuses cds
             INNER JOIN
@@ -2276,7 +2298,9 @@ SET
     -- refresh).
     stale_at = @stale_at::timestamptz
 WHERE
-    chat_id = @chat_id::uuid;
+    chat_id = @chat_id::uuid
+    AND git_remote_origin = @git_remote_origin::text
+    AND git_branch = @git_branch::text;
 
 -- name: ClearChatDiffStatusPR :exec
 UPDATE
@@ -2300,7 +2324,9 @@ SET
     reviewer_count = NULL,
     stale_at = @stale_at::timestamptz
 WHERE
-    chat_id = @chat_id::uuid;
+    chat_id = @chat_id::uuid
+    AND git_remote_origin = @git_remote_origin::text
+    AND git_branch = @git_branch::text;
 
 -- name: GetChatDiffStatusSummary :one
 -- Returns aggregate PR counts across all agent chats for telemetry.
@@ -2369,7 +2395,10 @@ WHERE chats.id = deletable.id
 -- Retrieves chats updated after the given timestamp for telemetry
 -- snapshot collection. Uses updated_at so that long-running chats
 -- still appear in each snapshot window while they are active.
-SELECT
+-- A chat can track several refs, but the snapshot reports one per chat:
+-- the most recently updated one, with the ref key breaking ties so the
+-- pick is deterministic.
+SELECT DISTINCT ON (c.id)
     c.id, c.owner_id, c.organization_id, c.created_at, c.updated_at, c.status,
     (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
     c.root_chat_id, c.workspace_id,
@@ -2377,7 +2406,8 @@ SELECT
     cds.pull_request_state
 FROM chats c
 LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
-WHERE c.updated_at > @updated_after;
+WHERE c.updated_at > @updated_after
+ORDER BY c.id, cds.updated_at DESC NULLS LAST, cds.git_remote_origin, cds.git_branch;
 
 -- name: GetChatMessageSummariesPerChat :many
 -- Aggregates message-level metrics per chat for messages created

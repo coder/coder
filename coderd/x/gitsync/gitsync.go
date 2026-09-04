@@ -331,12 +331,34 @@ func (r *Refresher) refreshOne(
 		if err != nil {
 			return nil, xerrors.Errorf("fetch pull request status: %w", err)
 		}
+	} else if status.State == "merged" || status.State == "closed" {
+		// The stored PR was merged or closed. A new PR for the same
+		// branch would otherwise go unnoticed because the head branch
+		// still matches, so resolve by branch and adopt the open
+		// replacement when one exists. Without a replacement, keep
+		// the terminal PR: the branch's history is still worth
+		// showing.
+		resolved, err := resolveByBranch()
+		if err != nil {
+			return nil, err
+		}
+		if resolved != nil {
+			ref = *resolved
+			prURL = provider.BuildPullRequestURL(ref)
+
+			status, err = provider.FetchPullRequestStatus(ctx, token, ref)
+			if err != nil {
+				return nil, xerrors.Errorf("fetch pull request status: %w", err)
+			}
+		}
 	}
 
 	now := r.clock.Now().UTC()
 	params := &database.UpsertChatDiffStatusParams{
-		ChatID: row.ChatID,
-		Url:    sql.NullString{String: prURL, Valid: prURL != ""},
+		ChatID:          row.ChatID,
+		GitRemoteOrigin: row.GitRemoteOrigin,
+		GitBranch:       row.GitBranch,
+		Url:             sql.NullString{String: prURL, Valid: prURL != ""},
 		PullRequestState: sql.NullString{
 			String: string(status.State),
 			Valid:  status.State != "",

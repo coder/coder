@@ -31,6 +31,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
@@ -41,7 +42,16 @@ import {
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
 
-type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
+type GitView =
+	| { type: "remote"; refId: string }
+	| { type: "local"; repoRoot: string };
+
+// Stable identity for a ref's view item. Falls back to the PR URL when
+// the server did not report origin/branch (a legacy or URL-only row).
+const refItemId = (status: ChatDiffStatus): string =>
+	`remote:${status.remote_origin ?? ""}:${status.git_branch ?? ""}:${
+		status.url ?? ""
+	}`;
 
 const GIT_NOT_SETUP_TITLE = "Git is not set up for this chat";
 const GIT_NOT_SETUP_SENTENCE = "Git is not set up for this chat.";
@@ -71,8 +81,8 @@ interface GitPanelProps {
 	isExpanded?: boolean;
 	/** Whether the watcher is loading its initial repository state. */
 	isGitStatusLoading?: boolean;
-	/** Diff status for the remote/branch view (includes PR metadata). */
-	remoteDiffStats?: ChatDiffStatus;
+	/** Diff statuses for the remote views, one per tracked ref. */
+	remoteDiffStats?: readonly ChatDiffStatus[];
 	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	/**
@@ -118,18 +128,24 @@ export const GitPanel: FC<GitPanelProps> = ({
 	chatInputRef,
 	everDirty,
 }) => {
-	const hasRemoteDiff =
-		(remoteDiffStats?.changed_files ?? 0) > 0 ||
-		(remoteDiffStats?.additions ?? 0) > 0 ||
-		(remoteDiffStats?.deletions ?? 0) > 0;
+	const hasRemoteDiff = Boolean(
+		remoteDiffStats?.some(
+			(s) =>
+				(s.changed_files ?? 0) > 0 ||
+				(s.additions ?? 0) > 0 ||
+				(s.deletions ?? 0) > 0,
+		),
+	);
 
 	const showRemoteTab = Boolean(prTab) || hasRemoteDiff;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
 	const isWaitingForGitStatus = !hasGitContext && isGitStatusLoading;
 
-	const prTitle = remoteDiffStats?.pull_request_title;
-	const prState = remoteDiffStats?.pull_request_state;
-	const prDraft = remoteDiffStats?.pull_request_draft;
+	// The status backing the remote view the user selected. Falls back
+	// to the first (most recently updated) ref when the selection does
+	// not resolve, which keeps the view populated across ref churn.
+	const selectedRemoteStatus: ChatDiffStatus | undefined = remoteDiffStats?.[0];
+	const prTitle = selectedRemoteStatus?.pull_request_title;
 
 	// Compute per-repo diff stats from unified diffs. The React
 	// Compiler memoizes these derivations.
@@ -169,11 +185,15 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	// Default to the first local repo when nothing has been pushed
 	// upstream yet, so the panel opens on the diff the user just made.
+	const defaultRemoteRefId =
+		remoteDiffStats && remoteDiffStats.length > 0
+			? refItemId(remoteDiffStats[0])
+			: "remote";
 	const [view, setView] = useState<GitView>(() => {
 		if (!showRemoteTab && localRepos.length > 0) {
 			return { type: "local", repoRoot: localRepos[0] };
 		}
-		return { type: "remote" };
+		return { type: "remote", refId: defaultRemoteRefId };
 	});
 
 	// If the active view gets hidden, switch to the first available.
@@ -187,15 +207,15 @@ export const GitPanel: FC<GitPanelProps> = ({
 			// the active view stays valid until its root leaves the set.
 			if (!localRepos.includes(view.repoRoot)) {
 				if (showRemoteTab) {
-					setView({ type: "remote" });
+					setView({ type: "remote", refId: defaultRemoteRefId });
 				} else if (localRepos.length > 0) {
 					setView({ type: "local", repoRoot: localRepos[0] });
 				} else {
-					setView({ type: "remote" });
+					setView({ type: "remote", refId: defaultRemoteRefId });
 				}
 			}
 		}
-	}, [view, showRemoteTab, localRepos]);
+	}, [view, showRemoteTab, localRepos, defaultRemoteRefId]);
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
@@ -235,10 +255,10 @@ export const GitPanel: FC<GitPanelProps> = ({
 			: localRepos.includes(view.repoRoot)
 				? view
 				: showRemoteTab
-					? { type: "remote" }
+					? { type: "remote", refId: defaultRemoteRefId }
 					: localRepos.length > 0
 						? { type: "local", repoRoot: localRepos[0] }
-						: { type: "remote" };
+						: { type: "remote", refId: defaultRemoteRefId };
 
 	const showPrTitleRow = effectiveView.type === "remote" && prTab && prTitle;
 
@@ -258,36 +278,57 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return () => observer.disconnect();
 	};
 
-	const remoteHeadBranch = remoteDiffStats?.head_branch;
-	const remoteItem: ViewItem | null = showRemoteTab
-		? prTab
-			? {
+	const remoteItems: ViewItem[] = [];
+	if (showRemoteTab && remoteDiffStats) {
+		for (const status of remoteDiffStats) {
+			const prNumber =
+				status.pr_number ?? parsePullRequestUrl(status.url ?? "")?.number;
+			const state = status.pull_request_state;
+			const draft = status.pull_request_draft;
+			if (prNumber) {
+				remoteItems.push({
 					kind: "remote",
-					id: "remote",
-					stateLabel: prStateLabel(prState, prDraft),
-					triggerIdentifier: `PR #${prTab.prNumber}`,
-					itemPrimary: `PR #${prTab.prNumber}`,
-					itemSecondary: prTitle || undefined,
-					stateClasses: prStateClasses(prState, prDraft),
+					id: refItemId(status),
+					stateLabel: prStateLabel(state, draft),
+					triggerIdentifier: `PR #${prNumber}`,
+					itemPrimary: `PR #${prNumber}`,
+					itemSecondary: status.pull_request_title || undefined,
+					stateClasses: prStateClasses(state, draft),
 					icon: (
 						<PrStateIcon
-							state={prState}
-							draft={prDraft}
+							state={state}
+							draft={draft}
 							className="size-3.5! shrink-0"
 						/>
 					),
-				}
-			: {
+				});
+			} else {
+				remoteItems.push({
 					kind: "remote",
-					id: "remote",
+					id: refItemId(status),
 					stateLabel: "Branch",
-					triggerIdentifier: remoteHeadBranch || "Branch",
+					triggerIdentifier:
+						status.git_branch || status.head_branch || "Branch",
 					itemPrimary: "Branch",
-					itemSecondary: remoteHeadBranch || undefined,
+					itemSecondary: status.git_branch || status.head_branch || undefined,
 					stateClasses: "text-content-secondary",
 					icon: <GitBranchIcon className="size-3.5! shrink-0" />,
-				}
-		: null;
+				});
+			}
+		}
+	}
+	// A prTab without statuses still shows the remote view.
+	if (remoteItems.length === 0 && prTab) {
+		remoteItems.push({
+			kind: "remote",
+			id: "remote",
+			stateLabel: "Branch",
+			triggerIdentifier: `PR #${prTab.prNumber}`,
+			itemPrimary: `PR #${prTab.prNumber}`,
+			stateClasses: "text-content-secondary",
+			icon: <GitBranchIcon className="size-3.5! shrink-0" />,
+		});
+	}
 
 	const localItems: ViewItem[] = localRepos.map((repoRoot) => ({
 		kind: "local" as const,
@@ -301,14 +342,11 @@ export const GitPanel: FC<GitPanelProps> = ({
 		icon: <CircleDotIcon className="size-3.5! shrink-0 text-content-warning" />,
 	}));
 
-	const items: ViewItem[] = [
-		...(remoteItem ? [remoteItem] : []),
-		...localItems,
-	];
+	const items: ViewItem[] = [...remoteItems, ...localItems];
 
 	const activeItem: ViewItem | undefined =
 		effectiveView.type === "remote"
-			? (remoteItem ?? undefined)
+			? items.find((item) => item.id === effectiveView.refId)
 			: items.find(
 					(item) =>
 						item.kind === "local" && item.repoRoot === effectiveView.repoRoot,
@@ -316,7 +354,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	const handleSelectItem = (item: ViewItem) => {
 		if (item.kind === "remote") {
-			setView({ type: "remote" });
+			setView({ type: "remote", refId: item.id });
 		} else {
 			setView({ type: "local", repoRoot: item.repoRoot });
 		}
@@ -330,7 +368,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 					<GitViewSwitcher
 						items={items}
 						activeItem={activeItem}
-						hasRemoteItem={remoteItem !== null}
+						hasRemoteItem={remoteItems.length > 0}
 						onSelect={handleSelectItem}
 					/>
 				</div>
@@ -428,7 +466,15 @@ export const GitPanel: FC<GitPanelProps> = ({
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
-						diffStatus={remoteDiffStats}
+						diffStatus={selectedRemoteStatus}
+						remoteRef={
+							selectedRemoteStatus
+								? {
+										remote_origin: selectedRemoteStatus.remote_origin ?? "",
+										git_branch: selectedRemoteStatus.git_branch ?? "",
+									}
+								: undefined
+						}
 					/>
 				) : (
 					<LocalRepoContent
@@ -583,6 +629,7 @@ const RemoteContent: FC<{
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: ChatDiffStatus;
+	remoteRef?: { remote_origin: string; git_branch: string };
 }> = ({
 	prTab,
 	hasGitContext,
@@ -591,6 +638,7 @@ const RemoteContent: FC<{
 	chatInputRef,
 	diffStyle,
 	diffStatus,
+	remoteRef,
 }) => {
 	if (!prTab) {
 		return (
@@ -627,6 +675,7 @@ const RemoteContent: FC<{
 			chatInputRef={chatInputRef}
 			diffStyle={diffStyle}
 			diffStatus={diffStatus}
+			remoteRef={remoteRef}
 		/>
 	);
 };

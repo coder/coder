@@ -123,11 +123,15 @@ type Chat struct {
 	LastTurnSummary     *string      `json:"last_turn_summary"`
 	// Summary is the persisted whole-chat summary, generated in the background.
 	// It is nil until the first summary has been produced.
-	Summary    *string         `json:"summary"`
-	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
-	Archived   bool            `json:"archived"`
+	Summary *string `json:"summary"`
+	// DiffStatus is the chat's primary pull request, picked by the
+	// server. New consumers should use DiffStatuses, which lists every
+	// pull request the chat tracks.
+	DiffStatus   *ChatDiffStatus  `json:"diff_status,omitempty"`
+	DiffStatuses []ChatDiffStatus `json:"diff_statuses,omitempty"`
+	CreatedAt    time.Time        `json:"created_at" format:"date-time"`
+	UpdatedAt    time.Time        `json:"updated_at" format:"date-time"`
+	Archived     bool             `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
 	Shared       bool               `json:"shared"`
 	PinOrder     int32              `json:"pin_order"`
@@ -1591,7 +1595,11 @@ type ChatGitChange struct {
 // may point to a pull request or a branch page depending on whether
 // a PR has been opened.
 type ChatDiffStatus struct {
-	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
+	ChatID uuid.UUID `json:"chat_id" format:"uuid"`
+	// RemoteOrigin and GitBranch identify the ref this status belongs
+	// to. Both are empty when the ref was never reported by the agent.
+	RemoteOrigin     *string    `json:"remote_origin,omitempty"`
+	GitBranch        *string    `json:"git_branch,omitempty"`
 	URL              *string    `json:"url,omitempty"`
 	PullRequestState *string    `json:"pull_request_state,omitempty"`
 	PullRequestTitle string     `json:"pull_request_title"`
@@ -1610,6 +1618,24 @@ type ChatDiffStatus struct {
 	ReviewerCount    *int32     `json:"reviewer_count,omitempty"`
 	RefreshedAt      *time.Time `json:"refreshed_at,omitempty" format:"date-time"`
 	StaleAt          *time.Time `json:"stale_at,omitempty" format:"date-time"`
+}
+
+// DiffStatusRef identifies one tracked ref within a chat.
+type DiffStatusRef struct {
+	RemoteOrigin string `json:"remote_origin"`
+	GitBranch    string `json:"git_branch"`
+}
+
+// ChangedDiffStatus carries the single ref that changed in a
+// diff_status_change event. The event's embedded chat still carries the
+// server-picked primary in diff_status; clients that track multiple
+// pull requests merge this entry into their per-ref state.
+type ChangedDiffStatus struct {
+	// Ref identifies the row that changed.
+	Ref DiffStatusRef `json:"ref"`
+	// Status is the ref's new state, or nil when the ref no longer has
+	// a pull request.
+	Status *ChatDiffStatus `json:"status"`
 }
 
 // ChatDiffContents represents the resolved diff text for a chat.
@@ -1891,6 +1917,10 @@ type ChatWatchEvent struct {
 	Kind      ChatWatchEventKind   `json:"kind"`
 	Chat      Chat                 `json:"chat"`
 	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
+	// ChangedDiffStatus is set only on diff_status_change events and
+	// identifies the single ref whose status changed. The embedded
+	// chat's diff_status carries the server-picked primary.
+	ChangedDiffStatus *ChangedDiffStatus `json:"changed_diff_status,omitempty"`
 }
 
 // ChatStreamEvent represents a real-time update for chat streaming.

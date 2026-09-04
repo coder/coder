@@ -174,7 +174,7 @@ interface AgentChatPageViewProps {
 
 	// Sidebar content data.
 	prNumber: number | undefined;
-	diffStatusData: ChatDiffStatus | undefined;
+	diffStatusData: readonly ChatDiffStatus[] | undefined;
 	debugLoggingEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
@@ -905,7 +905,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									isArchiveBlocked={isArchiveBlocked}
 									hasWorkspace={Boolean(workspace)}
 									isArchived={isArchived}
-									diffStatusData={diffStatusData}
+									diffStatusData={
+										// The top bar pill shows the primary PR, the same
+										// rule the server uses for the legacy field.
+										diffStatusData?.find(
+											(s) => s.pull_request_state === "open",
+										) ?? diffStatusData?.[0]
+									}
 									isSharedChat={isSharedChat}
 									isSidebarCollapsed={isSidebarCollapsed}
 									onToggleSidebarCollapsed={onToggleSidebarCollapsed}

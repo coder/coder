@@ -4422,7 +4422,7 @@ ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT chat_debug_steps_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_diff_statuses
-    ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
+    ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id, git_remote_origin, git_branch);
 
 ALTER TABLE ONLY chat_file_links
     ADD CONSTRAINT chat_file_links_chat_id_file_id_key UNIQUE (chat_id, file_id);

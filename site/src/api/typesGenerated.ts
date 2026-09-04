@@ -1961,6 +1961,25 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 
 // From codersdk/chats.go
 /**
+ * ChangedDiffStatus carries the single ref that changed in a
+ * diff_status_change event. The event's embedded chat still carries the
+ * server-picked primary in diff_status; clients that track multiple
+ * pull requests merge this entry into their per-ref state.
+ */
+export interface ChangedDiffStatus {
+	/**
+	 * Ref identifies the row that changed.
+	 */
+	readonly ref: DiffStatusRef;
+	/**
+	 * Status is the ref's new state, or nil when the ref no longer has
+	 * a pull request.
+	 */
+	readonly status: ChatDiffStatus | null;
+}
+
+// From codersdk/chats.go
+/**
  * Chat represents a chat session with an AI agent.
  */
 export interface Chat {
@@ -1986,7 +2005,13 @@ export interface Chat {
 	 * It is nil until the first summary has been produced.
 	 */
 	readonly summary: string | null;
+	/**
+	 * DiffStatus is the chat's primary pull request, picked by the
+	 * server. New consumers should use DiffStatuses, which lists every
+	 * pull request the chat tracks.
+	 */
 	readonly diff_status?: ChatDiffStatus;
+	readonly diff_statuses?: readonly ChatDiffStatus[];
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
@@ -2424,6 +2449,12 @@ export interface ChatDiffContents {
  */
 export interface ChatDiffStatus {
 	readonly chat_id: string;
+	/**
+	 * RemoteOrigin and GitBranch identify the ref this status belongs
+	 * to. Both are empty when the ref was never reported by the agent.
+	 */
+	readonly remote_origin?: string;
+	readonly git_branch?: string;
 	readonly url?: string;
 	readonly pull_request_state?: string;
 	readonly pull_request_title: string;
@@ -3625,6 +3656,12 @@ export interface ChatWatchEvent {
 	readonly kind: ChatWatchEventKind;
 	readonly chat: Chat;
 	readonly tool_calls?: readonly ChatStreamToolCall[];
+	/**
+	 * ChangedDiffStatus is set only on diff_status_change events and
+	 * identifies the single ref whose status changed. The embedded
+	 * chat's diff_status carries the server-picked primary.
+	 */
+	readonly changed_diff_status?: ChangedDiffStatus;
 }
 
 // From codersdk/chats.go
@@ -4882,6 +4919,15 @@ export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
 	"error",
 	"warning",
 ];
+
+// From codersdk/chats.go
+/**
+ * DiffStatusRef identifies one tracked ref within a chat.
+ */
+export interface DiffStatusRef {
+	readonly remote_origin: string;
+	readonly git_branch: string;
+}
 
 // From codersdk/disconnect.go
 export type DisconnectInitiator =

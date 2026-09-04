@@ -528,7 +528,7 @@ export const WithSidebarPanel: Story = {
 		<StoryAgentChatPageView
 			showSidebarPanel
 			prNumber={123}
-			diffStatusData={
+			diffStatusData={[
 				{
 					chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
@@ -538,8 +538,8 @@ export const WithSidebarPanel: Story = {
 					additions: 42,
 					deletions: 7,
 					changed_files: 5,
-				} satisfies ChatDiffStatus
-			}
+				} satisfies ChatDiffStatus,
+			]}
 		/>
 	),
 	beforeEach: () => {
@@ -612,7 +612,7 @@ export const RefreshInvalidatesPRDiff: Story = {
 		<StoryAgentChatPageView
 			showSidebarPanel
 			prNumber={123}
-			diffStatusData={
+			diffStatusData={[
 				{
 					chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
@@ -622,8 +622,8 @@ export const RefreshInvalidatesPRDiff: Story = {
 					additions: 42,
 					deletions: 7,
 					changed_files: 5,
-				} satisfies ChatDiffStatus
-			}
+				} satisfies ChatDiffStatus,
+			]}
 		/>
 	),
 	beforeEach: () => {

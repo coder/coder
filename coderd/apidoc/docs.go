@@ -2725,6 +2725,18 @@ const docTemplate = `{
                         "name": "chat",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Remote origin selecting the ref to diff",
+                        "name": "origin",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Git branch selecting the ref to diff",
+                        "name": "branch",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -19452,6 +19464,27 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChangedDiffStatus": {
+            "type": "object",
+            "properties": {
+                "ref": {
+                    "description": "Ref identifies the row that changed.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.DiffStatusRef"
+                        }
+                    ]
+                },
+                "status": {
+                    "description": "Status is the ref's new state, or nil when the ref no longer has\na pull request.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.Chat": {
             "type": "object",
             "properties": {
@@ -19489,7 +19522,18 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "diff_status": {
-                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                    "description": "DiffStatus is the chat's primary pull request, picked by the\nserver. New consumers should use DiffStatuses, which lists every\npull request the chat tracks.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                        }
+                    ]
+                },
+                "diff_statuses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                    }
                 },
                 "files": {
                     "type": "array",
@@ -19873,6 +19917,9 @@ const docTemplate = `{
                 "deletions": {
                     "type": "integer"
                 },
+                "git_branch": {
+                    "type": "string"
+                },
                 "head_branch": {
                     "type": "string"
                 },
@@ -19891,6 +19938,10 @@ const docTemplate = `{
                 "refreshed_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "remote_origin": {
+                    "description": "RemoteOrigin and GitBranch identify the ref this status belongs\nto. Both are empty when the ref was never reported by the agent.",
+                    "type": "string"
                 },
                 "reviewer_count": {
                     "type": "integer"
@@ -21350,6 +21401,14 @@ const docTemplate = `{
         "codersdk.ChatWatchEvent": {
             "type": "object",
             "properties": {
+                "changed_diff_status": {
+                    "description": "ChangedDiffStatus is set only on diff_status_change events and\nidentifies the single ref whose status changed. The embedded\nchat's diff_status carries the server-picked primary.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChangedDiffStatus"
+                        }
+                    ]
+                },
                 "chat": {
                     "$ref": "#/definitions/codersdk.Chat"
                 },
@@ -23256,6 +23315,17 @@ const docTemplate = `{
                 "DiagnosticSeverityError",
                 "DiagnosticSeverityWarning"
             ]
+        },
+        "codersdk.DiffStatusRef": {
+            "type": "object",
+            "properties": {
+                "git_branch": {
+                    "type": "string"
+                },
+                "remote_origin": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.DisplayApp": {
             "type": "string",

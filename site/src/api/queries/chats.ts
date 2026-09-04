@@ -514,6 +514,47 @@ const diffStatusEqual = (
 	);
 };
 
+const diffStatusRefKey = (status: TypesGen.ChatDiffStatus): string =>
+	`${status.remote_origin ?? ""}\u0000${status.git_branch ?? ""}`;
+
+const diffStatusesEqual = (
+	a: readonly TypesGen.ChatDiffStatus[] | undefined,
+	b: readonly TypesGen.ChatDiffStatus[] | undefined,
+): boolean => {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b || a.length !== b.length) {
+		return false;
+	}
+	const bByKey = new Map(b.map((s) => [diffStatusRefKey(s), s]));
+	return a.every((s) => diffStatusEqual(s, bByKey.get(diffStatusRefKey(s))));
+};
+
+// Merges updated statuses into a chat's per-ref list. Changed refs
+// replace their entries by (origin, branch) key; other refs are
+// preserved. An update without ref keys (a pre-ref-key event or a
+// legacy server) replaces the whole list.
+const mergeDiffStatuses = (
+	cached: readonly TypesGen.ChatDiffStatus[] | undefined,
+	incoming: readonly TypesGen.ChatDiffStatus[] | undefined,
+): TypesGen.ChatDiffStatus[] | undefined => {
+	if (!incoming || incoming.length === 0) {
+		return cached ? [...cached] : undefined;
+	}
+	if (!cached || cached.length === 0) {
+		return [...incoming];
+	}
+	if (incoming.some((s) => !s.remote_origin && !s.git_branch)) {
+		return [...incoming];
+	}
+	const merged = new Map(cached.map((s) => [diffStatusRefKey(s), s]));
+	for (const s of incoming) {
+		merged.set(diffStatusRefKey(s), s);
+	}
+	return [...merged.values()];
+};
+
 /**
  * Merges event-scoped chat fields into a cached summary, using updated_at
  * as a stale guard while still adopting the latest DB-backed model config.
@@ -544,6 +585,12 @@ export const mergeWatchedChatSummary = (
 	const nextDiffStatus = isDiffStatusEvent
 		? watchedChat.diff_status
 		: cachedChat.diff_status;
+	// A diff_status_change carries either the changed ref alone or the
+	// server's full list. Either way, merge by ref key so the other
+	// refs' cached statuses survive the event.
+	const nextDiffStatuses = isDiffStatusEvent
+		? mergeDiffStatuses(cachedChat.diff_statuses, watchedChat.diff_statuses)
+		: cachedChat.diff_statuses;
 	// Context drift is tracked outside chats.updated_at (it is driven by
 	// agent context pushes), so apply context_dirty payloads regardless of
 	// the summary timestamp. Merge rather than replace so the pinned
@@ -596,6 +643,7 @@ export const mergeWatchedChatSummary = (
 		nextStatus === cachedChat.status &&
 		nextTitle === cachedChat.title &&
 		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
+		diffStatusesEqual(nextDiffStatuses, cachedChat.diff_statuses) &&
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
@@ -614,6 +662,7 @@ export const mergeWatchedChatSummary = (
 		status: nextStatus,
 		title: nextTitle,
 		diff_status: nextDiffStatus,
+		diff_statuses: nextDiffStatuses,
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
@@ -784,8 +833,8 @@ export const invalidateChatDiffContents = (
 	chatId: string,
 ) =>
 	queryClient.invalidateQueries({
-		queryKey: chatDiffContentsKey(chatId),
-		exact: true,
+		// Prefix match so every ref's diff contents are invalidated.
+		queryKey: [...chatEntityKey(chatId), "diff-contents"],
 	});
 
 export const invalidateChatPrompts = (
@@ -1883,12 +1932,23 @@ export const promoteChatQueuedMessage = (
 	},
 });
 
-export const chatDiffContentsKey = (chatId: string) =>
-	[...chatEntityKey(chatId), "diff-contents"] as const;
+export const chatDiffContentsKey = (
+	chatId: string,
+	ref?: TypesGen.DiffStatusRef,
+) =>
+	[
+		...chatEntityKey(chatId),
+		"diff-contents",
+		ref?.remote_origin ?? "",
+		ref?.git_branch ?? "",
+	] as const;
 
-export const chatDiffContents = (chatId: string) => ({
-	queryKey: chatDiffContentsKey(chatId),
-	queryFn: () => API.experimental.getChatDiffContents(chatId),
+export const chatDiffContents = (
+	chatId: string,
+	ref?: TypesGen.DiffStatusRef,
+) => ({
+	queryKey: chatDiffContentsKey(chatId, ref),
+	queryFn: () => API.experimental.getChatDiffContents(chatId, ref),
 });
 
 const chatSystemPromptKey = [...chatConfigKey, "system-prompt"] as const;

@@ -75,22 +75,24 @@ const defaultDiffContents: ChatDiffContents = {
 	chat_id: "test-chat",
 };
 
-/** Reusable PR diff status with head/base branches. */
+/** Reusable PR diff status list with head/base branches. */
 const makePrStatus = (
 	overrides: Partial<ChatDiffStatus> = {},
-): ChatDiffStatus => ({
-	...defaultDiffStatus,
-	url: "https://github.com/coder/coder/pull/23020",
-	pull_request_title: "feat(agents): add MCP server configuration to agents",
-	pull_request_state: "open",
-	pull_request_draft: false,
-	base_branch: "main",
-	head_branch: "feat/add-mcp-config",
-	additions: 4037,
-	deletions: 7,
-	changed_files: 12,
-	...overrides,
-});
+): ChatDiffStatus[] => [
+	{
+		...defaultDiffStatus,
+		url: "https://github.com/coder/coder/pull/23020",
+		pull_request_title: "feat(agents): add MCP server configuration to agents",
+		pull_request_state: "open",
+		pull_request_draft: false,
+		base_branch: "main",
+		head_branch: "feat/add-mcp-config",
+		additions: 4037,
+		deletions: 7,
+		changed_files: 12,
+		...overrides,
+	},
+];
 
 // ---------------------------------------------------------------------------
 // Meta
@@ -154,6 +156,63 @@ export const PullRequestAndWorkingChanges: Story = {
 		await expect(title).toHaveTextContent(
 			"feat(agents): add MCP server configuration to agents",
 		);
+	},
+};
+
+/**
+ * Two tracked PRs on different branches. The play function opens the
+ * dropdown, asserts both PRs are listed, and switches to the second
+ * one, verifying the per-ref view swap.
+ */
+export const MultiplePullRequests: Story = {
+	args: {
+		prTab: { prNumber: 23020, chatId: "test-chat" },
+		remoteDiffStats: [
+			...makePrStatus({
+				pull_request_title: "feat: first change",
+				head_branch: "feat/first",
+				git_branch: "feat/first",
+				pr_number: 23020,
+			}),
+			...makePrStatus({
+				pull_request_title: "fix: second change",
+				head_branch: "fix/second",
+				git_branch: "fix/second",
+				pr_number: 23021,
+				url: "https://github.com/coder/coder/pull/23021",
+				pull_request_state: "merged",
+				additions: 12,
+				deletions: 3,
+				changed_files: 2,
+			}),
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
+			...defaultDiffContents,
+			diff: sampleDiff,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const switcher = canvas.getByTestId("git-panel-view-switcher");
+		// The first (most recently updated) ref is active by default.
+		await expect(switcher).toHaveTextContent("PR #23020");
+		await userEvent.click(switcher);
+
+		const menu = await waitFor(() => {
+			const el = document.querySelector<HTMLElement>("[role='menu']");
+			if (!el) {
+				throw new Error("menu not open yet");
+			}
+			return el;
+		});
+		await expect(within(menu).getByText("PR #23020")).toBeVisible();
+		await expect(within(menu).getByText("PR #23021")).toBeVisible();
+
+		await userEvent.click(within(menu).getByText("PR #23021"));
+		await expect(switcher).toHaveTextContent("Merged");
+		await expect(switcher).toHaveTextContent("PR #23021");
 	},
 };
 
@@ -306,12 +365,14 @@ export const ClosedPullRequest: Story = {
 /** Branch pushed but no PR opened yet. */
 export const BranchOnly: Story = {
 	args: {
-		remoteDiffStats: {
-			...defaultDiffStatus,
-			additions: 42,
-			deletions: 7,
-			changed_files: 3,
-		},
+		remoteDiffStats: [
+			{
+				...defaultDiffStatus,
+				additions: 42,
+				deletions: 7,
+				changed_files: 3,
+			},
+		],
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
 };
