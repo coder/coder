@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/user"
@@ -115,6 +116,7 @@ import (
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
+	"github.com/coder/safedial"
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
@@ -731,6 +733,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
+			mcpAllowedPrivateCIDRs := make([]netip.Prefix, 0, len(vals.MCPAllowedPrivateCIDRs))
+			for _, cidr := range vals.MCPAllowedPrivateCIDRs {
+				prefix, err := safedial.ParseAllowedPrefix(cidr)
+				if err != nil {
+					return xerrors.Errorf("parse MCP allowed private CIDR %q: %w", cidr, err)
+				}
+				mcpAllowedPrivateCIDRs = append(mcpAllowedPrivateCIDRs, prefix)
+			}
+
 			// Resolve this replica's cluster host: the explicit Cluster.Host,
 			// else the DERP relay host for older HA deployments that predate the
 			// setting. Used as the NATS cluster route host and, when an IP, the
@@ -768,6 +779,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
+				MCPAllowedPrivateCIDRs:      mcpAllowedPrivateCIDRs,
 				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				UserQuietHoursScheduleStore: &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{},
 				SSHConfig:                   sshConfigResponse,
@@ -1141,10 +1153,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// nolint:gocritic // We need to run the manager in a notifier context.
 			notificationsManager.Run(dbauthz.AsNotifier(ctx))
 
-			// Run report generator to distribute periodic reports.
-			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
-			defer notificationReportGenerator.Close()
-
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have its own close functions. This is cleaner
 			// than abstracting the Coder API itself.
@@ -1172,6 +1180,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			// Must run after newAPI so options.Database is dbcrypt-wrapped.
 			coderd.BackfillBedrockProviderType(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
+
+			// Run report generator to distribute periodic reports.
+			// Must run after newAPI so prices and providers are initialized.
+			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+			defer notificationReportGenerator.Close()
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without

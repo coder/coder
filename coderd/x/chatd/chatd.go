@@ -188,6 +188,7 @@ type Server struct {
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
+	mcpHTTPClient                  *http.Client
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -440,13 +441,8 @@ func (p *Server) resolveWorkspaceMCPTools(
 }
 
 // pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
-// context snapshot (chat_context_resources). Each tool still proxies its calls
-// back through the workspace agent connection; the snapshot carries tool
-// definitions, not a way to execute them, so execution requires a reachable
-// agent. There is no per-chat cache to invalidate: a server removed or renamed
-// in the workspace surfaces as a dirty chat on the agent's next push, and the
-// user refreshes to re-pin, so a nil invalidate callback (a 404 no-op) is
-// correct here.
+// definitions. Calls still proxy through the agent connection, and agent pushes
+// live-sync definitions, so no invalidation callback is needed.
 func (p *Server) pinnedWorkspaceMCPTools(
 	ctx context.Context,
 	chat database.Chat,
@@ -3069,6 +3065,7 @@ type Config struct {
 	// May be nil if the deployment has no OIDC provider; servers
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
+	MCPHTTPClient   *http.Client
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -3115,6 +3112,11 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		instructionLookupTimeout = homeInstructionLookupTimeout
 	}
 
+	mcpHTTPClient := cfg.MCPHTTPClient
+	if mcpHTTPClient == nil {
+		mcpHTTPClient = mcpclient.NewHTTPClient(nil)
+	}
+
 	workerID := cfg.ReplicaID
 	if workerID == uuid.Nil {
 		workerID = uuid.New()
@@ -3153,6 +3155,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,
+		mcpHTTPClient:                  mcpHTTPClient,
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,
@@ -5184,7 +5187,7 @@ func (p *Server) refreshMCPTokenIfNeeded(
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (database.MCPServerUserToken, error) {
-	result, err := mcpclient.RefreshOAuth2Token(ctx, cfg, tok)
+	result, err := mcpclient.RefreshOAuth2Token(ctx, p.mcpHTTPClient, cfg, tok)
 	if err != nil {
 		if mcpclient.IsPermanentRefreshError(err) {
 			return p.markMCPTokenRefreshFailure(ctx, logger, cfg, tok, err), nil

@@ -1590,6 +1590,7 @@ export interface AppearanceConfig {
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
 	readonly support_links?: readonly LinkConfig[];
+	readonly codernauts_enabled: boolean;
 }
 
 // From codersdk/templates.go
@@ -3902,8 +3903,9 @@ export interface CreateChatMessageResponse {
  * ChatModel. AIProviderID, Model, and a positive ContextLimit are required.
  * Enabled defaults to true. IsDefault defaults to false when the organization
  * already has a default model. The first model created in an organization is
- * automatically promoted to default. CompressionThreshold defaults to 70. An
- * omitted ModelConfig uses the provider defaults.
+ * automatically promoted to default. CompressionThreshold defaults to 70, or
+ * 30 when ContextLimit is at least 500k tokens. An omitted ModelConfig uses the
+ * provider defaults.
  */
 export interface CreateChatModelRequest {
 	readonly ai_provider_id?: string;
@@ -4338,8 +4340,9 @@ export interface CreateUserRequestWithOrgs {
  * secret. Name and Value are required. An enabled secret must have at
  * least one of EnvName or FilePath non-empty so it has an injection
  * target; to keep a secret without injecting it, set Enabled to false.
- * All other fields are optional and default to empty string. Enabled
- * defaults to true when omitted.
+ * A deployment may disable file path delivery, which rejects a
+ * non-empty FilePath. All other fields are optional and default to
+ * empty string. Enabled defaults to true when omitted.
  */
 export interface CreateUserSecretRequest {
 	readonly name: string;
@@ -4841,6 +4844,7 @@ export interface DeploymentValues {
 	readonly disable_workspace_sharing?: boolean;
 	readonly disable_chat_sharing?: boolean;
 	readonly disable_workspace_agent_context_sync?: boolean;
+	readonly disable_user_secret_file_path?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
@@ -4858,6 +4862,7 @@ export interface DeploymentValues {
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly enable_ai_tasks?: boolean;
+	readonly mcp_allowed_private_cidrs?: string;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
 	readonly template_builder?: TemplateBuilderConfig;
@@ -5927,6 +5932,20 @@ export const LicenseManagedAgentLimitExceededWarningText =
 // From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
 	"License requires telemetry but telemetry is disabled";
+
+// From codersdk/users.go
+/**
+ * Trial request source origination reported to the licensor.
+ * LicensorTrialSourceNewUser is the first user setup flow.
+ */
+export const LicensorTrialSourceNewUser = "NewUser";
+
+// From codersdk/users.go
+/**
+ * Trial request source origination reported to the licensor.
+ * LicensorTrialSourceProduct is a request from within the product in-app trial request
+ */
+export const LicensorTrialSourceProduct = "Product";
 
 // From codersdk/deployment.go
 export interface LinkConfig {
@@ -9246,6 +9265,22 @@ export interface TemplateBuilderBase {
 	readonly os: string;
 	readonly variables: readonly TemplateBuilderModuleVariable[];
 	readonly prerequisites: string;
+	readonly agents: readonly TemplateBuilderBaseAgent[];
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderBaseAgent is a coder_agent a base template declares. Modules
+ * composed onto the base target one of these by Name.
+ */
+export interface TemplateBuilderBaseAgent {
+	readonly name: string;
+	readonly display_name: string;
+	/**
+	 * Default reports whether modules attach to this agent when they do not
+	 * name one.
+	 */
+	readonly default: boolean;
 }
 
 // From codersdk/templatebuilder.go
@@ -9263,6 +9298,10 @@ export interface TemplateBuilderBasesResponse {
  */
 export interface TemplateBuilderComposeModule {
 	readonly id: string;
+	/**
+	 * AgentName targets a base coder_agent by name. Empty uses the base default.
+	 */
+	readonly agent_name?: string;
 	readonly variables?: Record<string, string>;
 }
 
@@ -9760,6 +9799,7 @@ export interface UpdateAppearanceConfig {
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
+	readonly codernauts_enabled: boolean;
 }
 
 // From codersdk/chats.go
@@ -10281,6 +10321,8 @@ export interface UpdateUserQuietHoursScheduleRequest {
  * to empty string). If the post-update row is enabled it must still
  * have at least one of EnvName or FilePath non-empty; clearing both
  * targets is only allowed when the secret is (or becomes) disabled.
+ * When a deployment disables file path delivery, an enabled row also
+ * requires EnvName.
  */
 export interface UpdateUserSecretRequest {
 	readonly value?: string;
@@ -10836,6 +10878,20 @@ export const UserSecretNameField = "name";
  * name used in coderd route segments.
  */
 export const UserSecretValueField = "value";
+
+// From codersdk/usersecrets.go
+/**
+ * UserSecretsCapabilities reports which user secret delivery targets the
+ * deployment allows. Any authenticated user can read it, unlike the full
+ * deployment configuration.
+ */
+export interface UserSecretsCapabilities {
+	/**
+	 * FilePathDeliveryEnabled reports whether Coder writes stored file paths
+	 * into workspaces. Stored paths are preserved either way.
+	 */
+	readonly file_path_delivery_enabled: boolean;
+}
 
 // From codersdk/userskills.go
 /**

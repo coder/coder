@@ -3885,6 +3885,31 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/deployment/user-secrets/capabilities": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get user secrets capabilities",
+                "operationId": "get-user-secrets-capabilities",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserSecretsCapabilities"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/derp-map": {
             "get": {
                 "tags": [
@@ -5781,6 +5806,12 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.OAuth2ProviderAppSecretFull"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Public clients cannot have secrets",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -8131,7 +8162,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "object",
+                        "type": "string",
                         "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
                         "in": "query"
@@ -8242,7 +8273,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "object",
+                        "type": "string",
                         "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
                         "in": "query"
@@ -13242,6 +13273,18 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -13433,6 +13476,18 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -16501,15 +16556,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "A random unguessable string",
+                        "description": "A random unguessable string, echoed back on the callback",
                         "name": "state",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "enum": [
-                            "code",
-                            "token"
+                            "code"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -16525,14 +16578,45 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Token scopes (currently ignored)",
+                        "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)",
+                        "name": "code_challenge",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "S256"
+                        ],
+                        "type": "string",
+                        "description": "PKCE challenge method. S256 only; omitting it means S256",
+                        "name": "code_challenge_method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC 8707 resource indicator: an absolute URI without a fragment",
+                        "name": "resource",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "Returns HTML authorization page"
+                    },
+                    "302": {
+                        "description": "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
+                    },
+                    "400": {
+                        "description": "HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback"
+                    },
+                    "500": {
+                        "description": "HTML error page. The app's registered callback URL is not usable"
                     }
                 },
                 "security": [
@@ -16542,6 +16626,9 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -16557,15 +16644,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "A random unguessable string",
+                        "description": "A random unguessable string, echoed back on the callback",
                         "name": "state",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "enum": [
-                            "code",
-                            "token"
+                            "code"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -16581,14 +16666,48 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Token scopes (currently ignored)",
+                        "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)",
+                        "name": "code_challenge",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "S256"
+                        ],
+                        "type": "string",
+                        "description": "PKCE challenge method. S256 only; omitting it means S256",
+                        "name": "code_challenge_method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC 8707 resource indicator: an absolute URI without a fragment",
+                        "name": "resource",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "302": {
-                        "description": "Returns redirect with authorization code"
+                        "description": "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
+                    },
+                    "400": {
+                        "description": "The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
+                    "500": {
+                        "description": "The app's registered callback URL is not usable",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 },
                 "security": [
@@ -16782,7 +16901,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Client secret, required if grant_type=authorization_code",
+                        "description": "Client secret, required if grant_type=authorization_code and the client is confidential. Public clients (token_endpoint_auth_method=none) send no secret.",
                         "name": "client_secret",
                         "in": "formData"
                     },
@@ -16790,6 +16909,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Authorization code, required if grant_type=authorization_code",
                         "name": "code",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636.",
+                        "name": "code_verifier",
                         "in": "formData"
                     },
                     {
@@ -16817,7 +16942,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/oauth2.Token"
+                            "$ref": "#/definitions/codersdk.OAuth2TokenResponse"
                         }
                     }
                 }
@@ -18878,6 +19003,9 @@ const docTemplate = `{
                 },
                 "application_name": {
                     "type": "string"
+                },
+                "codernauts_enabled": {
+                    "type": "boolean"
                 },
                 "docs_url": {
                     "type": "string"
@@ -22915,6 +23043,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
+                "disable_user_secret_file_path": {
+                    "type": "boolean"
+                },
                 "disable_workspace_agent_context_sync": {
                     "type": "boolean"
                 },
@@ -22969,6 +23100,12 @@ const docTemplate = `{
                 },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
+                },
+                "mcp_allowed_private_cidrs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "metrics_cache_refresh_interval": {
                     "type": "integer"
@@ -25139,6 +25276,51 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2Error": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/codersdk.OAuth2ErrorCode"
+                },
+                "error_description": {
+                    "type": "string"
+                },
+                "error_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ErrorCode": {
+            "type": "string",
+            "enum": [
+                "invalid_request",
+                "invalid_client",
+                "invalid_grant",
+                "unauthorized_client",
+                "unsupported_grant_type",
+                "invalid_scope",
+                "access_denied",
+                "unsupported_response_type",
+                "server_error",
+                "temporarily_unavailable",
+                "unsupported_token_type",
+                "invalid_target"
+            ],
+            "x-enum-varnames": [
+                "OAuth2ErrorCodeInvalidRequest",
+                "OAuth2ErrorCodeInvalidClient",
+                "OAuth2ErrorCodeInvalidGrant",
+                "OAuth2ErrorCodeUnauthorizedClient",
+                "OAuth2ErrorCodeUnsupportedGrantType",
+                "OAuth2ErrorCodeInvalidScope",
+                "OAuth2ErrorCodeAccessDenied",
+                "OAuth2ErrorCodeUnsupportedResponseType",
+                "OAuth2ErrorCodeServerError",
+                "OAuth2ErrorCodeTemporarilyUnavailable",
+                "OAuth2ErrorCodeUnsupportedTokenType",
+                "OAuth2ErrorCodeInvalidTarget"
+            ]
+        },
         "codersdk.OAuth2GithubConfig": {
             "type": "object",
             "properties": {
@@ -25314,6 +25496,42 @@ const docTemplate = `{
                 "OAuth2TokenEndpointAuthMethodClientSecretBasic",
                 "OAuth2TokenEndpointAuthMethodClientSecretPost",
                 "OAuth2TokenEndpointAuthMethodNone"
+            ]
+        },
+        "codersdk.OAuth2TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "expiry": {
+                    "description": "Expiry is not part of RFC 6749 but is included for compatibility with\ngolang.org/x/oauth2.Token and clients that expect a timestamp.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "$ref": "#/definitions/codersdk.OAuth2TokenType"
+                }
+            }
+        },
+        "codersdk.OAuth2TokenType": {
+            "type": "string",
+            "enum": [
+                "Bearer",
+                "DPoP"
+            ],
+            "x-enum-varnames": [
+                "OAuth2TokenTypeBearer",
+                "OAuth2TokenTypeDPoP"
             ]
         },
         "codersdk.OAuthConversionResponse": {
@@ -27994,6 +28212,12 @@ const docTemplate = `{
         "codersdk.TemplateBuilderBase": {
             "type": "object",
             "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderBaseAgent"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
@@ -28020,6 +28244,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateBuilderBaseAgent": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "description": "Default reports whether modules attach to this agent when they do not\nname one.",
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TemplateBuilderBasesResponse": {
             "type": "object",
             "properties": {
@@ -28034,6 +28273,10 @@ const docTemplate = `{
         "codersdk.TemplateBuilderComposeModule": {
             "type": "object",
             "properties": {
+                "agent_name": {
+                    "description": "AgentName targets a base coder_agent by name. Empty uses the base default.",
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -28991,6 +29234,9 @@ const docTemplate = `{
                 },
                 "application_name": {
                     "type": "string"
+                },
+                "codernauts_enabled": {
+                    "type": "boolean"
                 },
                 "logo_url": {
                     "type": "string"
@@ -30364,6 +30610,15 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.UserSecretsCapabilities": {
+            "type": "object",
+            "properties": {
+                "file_path_delivery_enabled": {
+                    "description": "FilePathDeliveryEnabled reports whether Coder writes stored file paths\ninto workspaces. Stored paths are preserved either way.",
+                    "type": "boolean"
                 }
             }
         },
@@ -32852,31 +33107,6 @@ const docTemplate = `{
                 },
                 "upnP": {
                     "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
-                    "type": "string"
-                }
-            }
-        },
-        "oauth2.Token": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "description": "AccessToken is the token that authorizes and authenticates\nthe requests.",
-                    "type": "string"
-                },
-                "expires_in": {
-                    "description": "ExpiresIn is the OAuth2 wire format \"expires_in\" field,\nwhich specifies how many seconds later the token expires,\nrelative to an unknown time base approximately around \"now\".\nIt is the application's responsibility to populate\n` + "`" + `Expiry` + "`" + ` from ` + "`" + `ExpiresIn` + "`" + ` when required.",
-                    "type": "integer"
-                },
-                "expiry": {
-                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, [TokenSource] implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
-                    "type": "string"
-                },
-                "refresh_token": {
-                    "description": "RefreshToken is a token that's used by the application\n(as opposed to the user) to refresh the access token\nif it expires.",
-                    "type": "string"
-                },
-                "token_type": {
-                    "description": "TokenType is the type of token.\nThe Type method returns either this or \"Bearer\", the default.",
                     "type": "string"
                 }
             }

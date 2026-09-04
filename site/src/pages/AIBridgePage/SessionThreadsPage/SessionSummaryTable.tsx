@@ -133,7 +133,7 @@ export const SessionSummaryTable = ({
 				<dt className="shrink-0 font-normal whitespace-nowrap">Client</dt>
 				<dd className="ml-4 min-w-0 truncate text-content-primary">
 					<Badge className="gap-1.5 max-w-full min-w-0 overflow-hidden">
-						<div className="flex-shrink-0 flex items-center">
+						<div className="shrink-0 flex items-center">
 							<AIBridgeClientIcon client={client} className="size-icon-xs" />
 						</div>
 						<span
@@ -216,7 +216,7 @@ export const SessionSummaryTable = ({
 					<dd className="ml-4 min-w-0 truncate text-content-primary">
 						{networkCalls.blocked > 0 ? (
 							<Badge svgSize="xs" className="gap-1 text-content-warning">
-								<BanIcon className="flex-shrink-0" />
+								<BanIcon className="shrink-0" />
 								{networkCalls.blocked.toLocaleString("en-US")}
 							</Badge>
 						) : (

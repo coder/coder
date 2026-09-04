@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
@@ -18,7 +19,6 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 type OrganizationAutocompleteProps = {
 	value: Organization | null;
@@ -113,12 +113,12 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 							Select an organization{required ? "…" : " (optional)"}
 						</span>
 					)}
-					<ChevronDownIcon className="ml-auto !size-icon-sm shrink-0 text-content-secondary" />
+					<ChevronDownIcon className="ml-auto size-icon-sm! shrink-0 text-content-secondary" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
 				align="start"
-				className="w-[var(--radix-popover-trigger-width)] p-0"
+				className="w-(--radix-popover-trigger-width) p-0"
 			>
 				<Command loop>
 					<CommandInput placeholder="Find organization…" />

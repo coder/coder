@@ -5,6 +5,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
+import { cn } from "cn";
 import {
 	type Ref,
 	useCallback,
@@ -29,7 +30,6 @@ import {
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import { useClipboard } from "#/hooks/useClipboard";
-import { cn } from "#/utils/cn";
 import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
 import type { ConnectionStatus } from "./types";
@@ -52,6 +52,12 @@ type WorkspaceTerminalProps = {
 	onError?: (error: Error) => void;
 	onContentReady?: () => void;
 	reconnectionToken: string;
+	/**
+	 * The session ID correlates all logs, requests, and telemetry for this
+	 * terminal session. Unlike the reconnection token, it is not persisted in
+	 * the URL: a new page load (including a reload) is a new session.
+	 */
+	sessionId: string;
 	baseUrl?: string;
 	terminalFontFamily?: string;
 	renderer?: string;
@@ -83,6 +89,7 @@ export const WorkspaceTerminal = ({
 	onError,
 	onContentReady,
 	reconnectionToken,
+	sessionId,
 	baseUrl,
 	terminalFontFamily = DEFAULT_TERMINAL_FONT_FAMILY,
 	renderer,
@@ -142,7 +149,7 @@ export const WorkspaceTerminal = ({
 		onError?.(error);
 	});
 
-	const getTerminalDimensions = useCallback(
+	const getTerminalDimensions = useEffectEvent(
 		(terminal: Terminal): { height: number; width: number } | null => {
 			if (terminal.rows <= 0 || terminal.cols <= 0) {
 				reportTerminalError(
@@ -158,7 +165,6 @@ export const WorkspaceTerminal = ({
 				width: terminal.cols,
 			};
 		},
-		[],
 	);
 
 	const refit = useCallback(() => {
@@ -458,6 +464,7 @@ export const WorkspaceTerminal = ({
 			initialDimensions.width,
 			containerName,
 			containerUser,
+			sessionId,
 		)
 			.then((url) => {
 				if (disposed) {
@@ -504,7 +511,10 @@ export const WorkspaceTerminal = ({
 					if (disposed) {
 						return;
 					}
-					console.error("WebSocket error:", event);
+					console.error("WebSocket error:", {
+						client_session_id: sessionId,
+						event,
+					});
 					terminal.options.disableStdin = true;
 					handleStatusChange("disconnected");
 				});
@@ -550,7 +560,10 @@ export const WorkspaceTerminal = ({
 				if (disposed) {
 					return;
 				}
-				console.error("WebSocket connection failed:", error);
+				console.error("WebSocket connection failed:", {
+					client_session_id: sessionId,
+					error,
+				});
 				reportTerminalError(
 					error instanceof Error ? error : new Error(String(error)),
 				);
@@ -572,11 +585,11 @@ export const WorkspaceTerminal = ({
 		containerName,
 		containerUser,
 		errorMessage,
-		getTerminalDimensions,
 		initialCommand,
 		loading,
 		operatingSystem,
 		reconnectionToken,
+		sessionId,
 		refit,
 		terminal,
 	]);

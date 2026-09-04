@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { CircleQuestionMarkIcon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { cn } from "#/utils/cn";
 
 // Infers the model family from a model name string.
 // See official model naming docs:
@@ -43,7 +43,7 @@ export const AIBridgeModelIcon = ({
 }: {
 	model: string;
 } & React.ComponentProps<"svg">) => {
-	const iconClassName = "flex-shrink-0";
+	const iconClassName = "shrink-0";
 	const family = inferModelFamily(model);
 	switch (family) {
 		case "claude":

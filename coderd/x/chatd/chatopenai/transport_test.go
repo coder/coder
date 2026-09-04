@@ -32,6 +32,10 @@ func TestTransportFor(t *testing.T) {
 		{"OpenAIUnknownModel", fantasyopenai.Name, nonResponsesModel, nil, chatopenai.TransportChatCompletions},
 		{"OpenAIForceResponses", fantasyopenai.Name, nonResponsesModel, &forceResponses, chatopenai.TransportResponses},
 		{"OpenAIForceCompletions", fantasyopenai.Name, responsesModel, &forceCompletions, chatopenai.TransportChatCompletions},
+		// GPT-6 Astra postdates the SDK's known-model list.
+		{"OpenAIGPT6AstraDefaultsToResponses", fantasyopenai.Name, "gpt-6-astra", nil, chatopenai.TransportResponses},
+		{"OpenAIGPT6AstraSnapshotDefaultsToResponses", fantasyopenai.Name, "gpt-6-astra-2026-09-03", nil, chatopenai.TransportResponses},
+		{"OpenAIGPT6AstraForceCompletions", fantasyopenai.Name, "gpt-6-astra", &forceCompletions, chatopenai.TransportChatCompletions},
 		{"AzureIgnoresOverride", fantasyazure.Name, responsesModel, &forceCompletions, chatopenai.TransportResponses},
 		{"AzureKnownModelList", fantasyazure.Name, nonResponsesModel, nil, chatopenai.TransportChatCompletions},
 		{"OpenAICompat", fantasyopenaicompat.Name, responsesModel, &forceResponses, chatopenai.TransportChatCompletions},
@@ -44,6 +48,15 @@ func TestTransportFor(t *testing.T) {
 			require.Equal(t, tt.want, chatopenai.TransportFor(tt.provider, tt.modelID, tt.override))
 		})
 	}
+}
+
+func TestIsGPT6Astra(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, chatopenai.IsGPT6Astra("gpt-6-astra"))
+	require.True(t, chatopenai.IsGPT6Astra("GPT-6-Astra-2026-09-03"))
+	require.False(t, chatopenai.IsGPT6Astra("gpt-5.6-sol"))
+	require.False(t, chatopenai.IsGPT6Astra("gpt-6"))
 }
 
 func TestTransportUsesResponses(t *testing.T) {

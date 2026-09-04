@@ -9,7 +9,6 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
-import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { docs } from "#/utils/docs";
 
 const warnBoxClassName =
@@ -33,7 +32,6 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	const confirmId = useId();
 	const errorId = `${confirmId}-error`;
 	const orphanId = `${confirmId}-orphan`;
-	const aiTasksEnabled = useAITasksEnabled();
 
 	const [userConfirmationText, setUserConfirmationText] = useState("");
 	const [orphanWorkspace, setOrphanWorkspace] =
@@ -63,8 +61,6 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		canDeleteFailedWorkspace &&
 		(workspace.latest_build.status === "failed" ||
 			workspace.latest_build.status === "canceled");
-
-	const hasTask = aiTasksEnabled && Boolean(workspace.task_id);
 
 	return (
 		<ConfirmDialog
@@ -119,27 +115,6 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							<span id={errorId} className="text-xs text-content-destructive">
 								{userConfirmationText} does not match the name of this workspace
 							</span>
-						)}
-
-						{hasTask && (
-							<div className={warnBoxClassName}>
-								<div>
-									<p className="m-0 text-sm font-semibold">
-										This workspace is related to a task
-									</p>
-									<span className="mt-1 block text-xs text-content-secondary">
-										Deleting this workspace will also delete{" "}
-										<Link
-											href={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
-											size="sm"
-											showExternalIcon={false}
-										>
-											this task
-										</Link>
-										.
-									</span>
-								</div>
-							</div>
 						)}
 
 						{canOrphan && (

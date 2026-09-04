@@ -116,9 +116,10 @@ func TestScaleTestCreateUsers(t *testing.T) {
 	require.Equal(t, 1, templateAdmins)
 }
 
-// TestScaleTestNotifications_ReuseUsersInsufficient verifies that --reuse-users
-// checks the pool up front and exits with an actionable error when not enough
-// scaletest users (or template admins) exist, rather than creating any.
+// TestScaleTestNotifications_ReuseUsersInsufficient verifies that the
+// notifications scaletest checks the user pool up front and exits with an
+// actionable error when not enough scaletest users (or template admins) exist,
+// rather than creating any.
 func TestScaleTestNotifications_ReuseUsersInsufficient(t *testing.T) {
 	t.Parallel()
 
@@ -138,7 +139,6 @@ func TestScaleTestNotifications_ReuseUsersInsufficient(t *testing.T) {
 	inv, root := clitest.New(t, "exp", "scaletest", "notifications",
 		"--user-count", "2",
 		"--template-admin-percentage", "50",
-		"--reuse-users",
 		"--dial-timeout", "5s",
 		"--notification-timeout", "5s",
 		"--scaletest-prometheus-address", "127.0.0.1:0",

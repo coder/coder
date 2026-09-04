@@ -541,7 +541,9 @@ func TestOAuth2ClientNameValidation(t *testing.T) {
 	}
 }
 
-// TestOAuth2ClientScopeValidation tests scope parameter validation
+// Registration stores the scope verbatim, so every value below is accepted.
+// The catalog is enforced at authorization: see
+// TestOAuth2AuthorizeDCRScopeCompatibility in coderd/oauth2provider.
 func TestOAuth2ClientScopeValidation(t *testing.T) {
 	t.Parallel()
 
@@ -598,7 +600,7 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 		{
 			name:        "InvalidAdmin",
 			scope:       "admin",
-			expectError: false, // Admin scope should be allowed but validated during authorization
+			expectError: false, // Rejected at authorization, not registration.
 		},
 		{
 			name:        "ValidCustom",

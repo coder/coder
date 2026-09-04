@@ -17,6 +17,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { WorkspaceUserAutocomplete } from "#/components/Autocomplete/WorkspaceUserAutocomplete";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -38,7 +39,6 @@ import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import { WorkspaceUserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
 import { useDebouncedFunction } from "#/hooks/debounce";
 import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
@@ -405,7 +405,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					<span>Go back</span>
 				</Button>
 			</div>
-			<div className="flex flex-col gap-6 w-full max-w-screen-md mx-auto pb-96">
+			<div className="flex flex-col gap-6 w-full max-w-(--breakpoint-md) mx-auto pb-96">
 				<header className="flex flex-col items-start gap-3 mt-10">
 					<div className="flex items-center gap-2 justify-between w-full">
 						<span className="flex items-center gap-2">

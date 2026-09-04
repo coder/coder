@@ -3410,6 +3410,71 @@ func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart
 	return items, nil
 }
 
+const getUnpricedAIModelsSince = `-- name: GetUnpricedAIModelsSince :many
+SELECT
+	providers.type::text AS provider_type,
+	interceptions.model AS model,
+	SUM(
+		token_usages.input_tokens
+		+ token_usages.output_tokens
+		+ token_usages.cache_read_input_tokens
+		+ token_usages.cache_write_input_tokens
+	)::bigint AS token_count
+FROM aibridge_interceptions AS interceptions
+JOIN aibridge_token_usages AS token_usages
+	ON token_usages.interception_id = interceptions.id
+JOIN ai_providers AS providers
+	ON providers.name = interceptions.provider_name
+	AND providers.deleted = false
+WHERE interceptions.started_at >= $1::timestamptz
+	AND token_usages.cost_micros IS NULL
+	AND providers.type::text = ANY($2::text[])
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ai_model_prices AS prices
+		WHERE prices.provider = providers.type::text
+			AND prices.model = interceptions.model
+	)
+GROUP BY providers.type, interceptions.model
+ORDER BY token_count DESC, provider_type ASC, model ASC
+`
+
+type GetUnpricedAIModelsSinceParams struct {
+	Since              time.Time `db:"since" json:"since"`
+	PriceableProviders []string  `db:"priceable_providers" json:"priceable_providers"`
+}
+
+type GetUnpricedAIModelsSinceRow struct {
+	ProviderType string `db:"provider_type" json:"provider_type"`
+	Model        string `db:"model" json:"model"`
+	TokenCount   int64  `db:"token_count" json:"token_count"`
+}
+
+// Returns the models used since the given time that hold no price, most used
+// first. openai-compat providers cannot be priced, so their models are excluded.
+func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, arg.Since, pq.Array(arg.PriceableProviders))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUnpricedAIModelsSinceRow
+	for rows.Next() {
+		var i GetUnpricedAIModelsSinceRow
+		if err := rows.Scan(&i.ProviderType, &i.Model, &i.TokenCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserAIBudgetOverride = `-- name: GetUserAIBudgetOverride :one
 SELECT user_id, group_id, spend_limit_micros, created_at, updated_at
 FROM user_ai_budget_overrides
@@ -11519,6 +11584,108 @@ func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID u
 	return err
 }
 
+const syncAgentChatsContextMCPResources = `-- name: SyncAgentChatsContextMCPResources :many
+WITH agent_mcp AS (
+    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    FROM workspace_agent_context_resources
+    WHERE workspace_agent_id = $1::uuid
+        AND body_kind IN ('mcp_config', 'mcp_server')
+),
+changed AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.agent_id = $1::uuid
+        AND chats.archived = false
+        AND chats.context_aggregate_hash IS NOT NULL
+        AND (
+            EXISTS (
+                SELECT 1 FROM agent_mcp m
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM chat_context_resources ccr
+                    WHERE ccr.chat_id = chats.id
+                        AND ccr.source = m.source
+                        AND ccr.body_kind = m.body_kind
+                        AND ccr.content_hash = m.content_hash
+                        AND ccr.status = m.status
+                        AND ccr.error = m.error
+                )
+            )
+            OR EXISTS (
+                SELECT 1 FROM chat_context_resources ccr
+                WHERE ccr.chat_id = chats.id
+                    AND ccr.body_kind IN ('mcp_config', 'mcp_server')
+                    AND NOT EXISTS (
+                        SELECT 1 FROM agent_mcp m
+                        WHERE m.source = ccr.source
+                            AND m.body_kind = ccr.body_kind
+                            AND m.content_hash = ccr.content_hash
+                            AND m.status = ccr.status
+                            AND m.error = ccr.error
+                    )
+            )
+        )
+),
+locked AS (
+    SELECT id FROM chats
+    WHERE id IN (SELECT id FROM changed)
+    ORDER BY id
+    FOR UPDATE
+),
+deleted AS (
+    DELETE FROM chat_context_resources
+    USING locked
+    WHERE chat_context_resources.chat_id = locked.id
+        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
+        AND chat_context_resources.source NOT IN (SELECT source FROM agent_mcp)
+),
+upserted AS (
+    INSERT INTO chat_context_resources (
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    )
+    SELECT
+        locked.id, m.source, m.body_kind, m.body, m.content_hash,
+        m.size_bytes, m.status, m.error, m.source_path
+    FROM locked
+    CROSS JOIN agent_mcp m
+    ON CONFLICT (chat_id, source) DO UPDATE SET
+        body_kind = EXCLUDED.body_kind,
+        body = EXCLUDED.body,
+        content_hash = EXCLUDED.content_hash,
+        size_bytes = EXCLUDED.size_bytes,
+        status = EXCLUDED.status,
+        error = EXCLUDED.error,
+        source_path = EXCLUDED.source_path,
+        updated_at = now()
+)
+SELECT id FROM locked
+`
+
+// MCP resources bypass context drift and are live-synced on each push.
+// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
+// cannot interleave with the replacement.
+func (q *sqlQuerier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextMCPResources, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unarchiveChatByID = `-- name: UnarchiveChatByID :many
 WITH updated_chats AS (
     UPDATE chats SET
@@ -14757,6 +14924,58 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
+}
+
+const deleteCachedModuleFilesCreatedBetween = `-- name: DeleteCachedModuleFilesCreatedBetween :execrows
+WITH doomed AS (
+	SELECT
+		files.id
+	FROM
+		files
+	INNER JOIN
+		template_version_terraform_values
+		ON template_version_terraform_values.cached_module_files = files.id
+	WHERE
+		files.created_by = '00000000-0000-0000-0000-000000000000'
+		AND files.mimetype = 'application/x-tar'
+		AND files.created_at >= $1
+		AND files.created_at < $2
+), cleared AS (
+	-- The foreign key is NO ACTION, so references must be cleared before the
+	-- files rows can be deleted. Data-modifying CTEs always run to completion,
+	-- and the constraint is checked at the end of the statement.
+	UPDATE
+		template_version_terraform_values
+	SET
+		cached_module_files = NULL
+	WHERE
+		cached_module_files IN (SELECT id FROM doomed)
+	RETURNING 1
+)
+DELETE FROM
+	files
+USING
+	doomed
+WHERE
+	files.id = doomed.id
+`
+
+type DeleteCachedModuleFilesCreatedBetweenParams struct {
+	CreatedAtAfter  time.Time `db:"created_at_after" json:"created_at_after"`
+	CreatedAtBefore time.Time `db:"created_at_before" json:"created_at_before"`
+}
+
+// Deletes cached Terraform module archives ingested in the given time range and
+// clears the template version references to them. created_by and mimetype
+// identify a provisionerd-written module archive, matching the checks in
+// provisionerdserver, so user-uploaded template tarballs are never removed.
+// Only archives referenced by a template version are considered.
+func (q *sqlQuerier) DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg DeleteCachedModuleFilesCreatedBetweenParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCachedModuleFilesCreatedBetween, arg.CreatedAtAfter, arg.CreatedAtBefore)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
@@ -25877,6 +26096,18 @@ func (q *sqlQuerier) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
 	return workspace_ttl, err
 }
 
+const getCodernautsEnabled = `-- name: GetCodernautsEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'codernauts_enabled'), true) :: boolean AS codernauts_enabled
+`
+
+func (q *sqlQuerier) GetCodernautsEnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getCodernautsEnabled)
+	var codernauts_enabled bool
+	err := row.Scan(&codernauts_enabled)
+	return codernauts_enabled, err
+}
+
 const getDERPMeshKey = `-- name: GetDERPMeshKey :one
 SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
 `
@@ -26254,6 +26485,28 @@ WHERE site_configs.key = 'agents_workspace_ttl'
 
 func (q *sqlQuerier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatWorkspaceTTL, workspaceTtl)
+	return err
+}
+
+const upsertCodernautsEnabled = `-- name: UpsertCodernautsEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'codernauts_enabled',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'codernauts_enabled'
+`
+
+func (q *sqlQuerier) UpsertCodernautsEnabled(ctx context.Context, enabled bool) error {
+	_, err := q.db.ExecContext(ctx, upsertCodernautsEnabled, enabled)
 	return err
 }
 
@@ -29470,6 +29723,38 @@ func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetT
 	return total_runtime_ms, err
 }
 
+const getUsageEventsStats = `-- name: GetUsageEventsStats :one
+SELECT
+    (COUNT(*) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
+    COALESCE(MIN(created_at) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
+    (COUNT(*) FILTER (WHERE created_at <= ($1::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
+FROM
+    usage_events
+WHERE
+    published_at IS NULL
+    AND created_at > ($1::timestamptz) - INTERVAL '60 days'
+`
+
+type GetUsageEventsStatsRow struct {
+	PendingCount           int64     `db:"pending_count" json:"pending_count"`
+	OldestPendingCreatedAt time.Time `db:"oldest_pending_created_at" json:"oldest_pending_created_at"`
+	ExpiredCount           int64     `db:"expired_count" json:"expired_count"`
+}
+
+// Counts unpublished usage events in the last 60 days:
+//
+//	pending: created within the last 30 days (still eligible to publish)
+//	expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+//
+// Events older than 60 days are ignored so this query stays bounded and the
+// expired gauge can recover to zero.
+func (q *sqlQuerier) GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getUsageEventsStats, now)
+	var i GetUsageEventsStatsRow
+	err := row.Scan(&i.PendingCount, &i.OldestPendingCreatedAt, &i.ExpiredCount)
+	return i, err
+}
+
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
 INSERT INTO
     usage_events (
@@ -30509,6 +30794,37 @@ type GetUserSecretByUserIDAndNameParams struct {
 
 func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error) {
 	row := q.db.QueryRowContext(ctx, getUserSecretByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ValueKeyID,
+		&i.Enabled,
+	)
+	return i, err
+}
+
+const getUserSecretByUserIDAndNameForUpdate = `-- name: GetUserSecretByUserIDAndNameForUpdate :one
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
+FROM user_secrets
+WHERE user_id = $1 AND name = $2
+FOR UPDATE
+`
+
+type GetUserSecretByUserIDAndNameForUpdateParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg GetUserSecretByUserIDAndNameForUpdateParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecretByUserIDAndNameForUpdate, arg.UserID, arg.Name)
 	var i UserSecret
 	err := row.Scan(
 		&i.ID,

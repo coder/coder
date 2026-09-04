@@ -42,7 +42,7 @@ jobs:
           install-args: "go"
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v3.29.5
+        uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v3.29.5
         with:
           languages: go, javascript
 
@@ -52,7 +52,7 @@ jobs:
           rm Makefile
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v3.29.5
+        uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v3.29.5
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}
@@ -114,7 +114,7 @@ jobs:
 
       - name: Upload OSV-Scanner scan results to GitHub Security tab
         if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v3.29.5
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v3.29.5
         with:
           sarif_file: osv-results.sarif
           category: "OSV-Scanner"

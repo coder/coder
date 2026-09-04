@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	FileIcon,
 	FolderIcon,
@@ -27,7 +28,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
 import { getPathBasename, getPathDirname } from "../utils/path";
@@ -130,7 +130,7 @@ const SectionSize: FC<{ bytes: number }> = ({ bytes }) =>
 
 const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	if (percentUsed === null) {
-		return "text-content-secondary/60";
+		return "text-content-secondary";
 	}
 	if (percentUsed >= 95) {
 		return "text-content-destructive";
@@ -138,7 +138,7 @@ const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	if (percentUsed >= 85) {
 		return "text-content-warning";
 	}
-	return "text-content-secondary/60";
+	return "text-content-secondary";
 };
 
 // A set of context resources that share a parent directory. Lists are grouped
@@ -169,8 +169,40 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-const RING_SIZE = 18;
-const RING_STROKE = 2.5;
+const RING_SIZE = 21.5;
+const RING_STROKE = 2.25;
+
+const GLYPH_HEIGHT = 11;
+const GLYPH_STROKE = 1.75;
+const GLYPH_BAR_LENGTH = 8.1;
+const GLYPH_TOP = (RING_SIZE - GLYPH_HEIGHT) / 2;
+const GLYPH_CX = RING_SIZE / 2;
+
+const ExclamationGlyph: FC = () => (
+	<svg
+		width={RING_SIZE}
+		height={RING_SIZE}
+		viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+		fill="none"
+		aria-hidden="true"
+	>
+		<line
+			x1={GLYPH_CX}
+			y1={GLYPH_TOP + GLYPH_STROKE / 2}
+			x2={GLYPH_CX}
+			y2={GLYPH_TOP + GLYPH_BAR_LENGTH - GLYPH_STROKE / 2}
+			stroke="currentColor"
+			strokeWidth={GLYPH_STROKE}
+			strokeLinecap="round"
+		/>
+		<circle
+			cx={GLYPH_CX}
+			cy={GLYPH_TOP + GLYPH_HEIGHT - GLYPH_STROKE / 2}
+			r={GLYPH_STROKE / 2}
+			fill="currentColor"
+		/>
+	</svg>
+);
 
 // Delay before the popover closes after the mouse leaves, giving
 // the user time to move into the popover content.
@@ -244,8 +276,7 @@ export const ContextUsageIndicator: FC<{
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
-		: 100;
-	const toneClassName = getIndicatorToneClassName(percentUsed);
+		: 0;
 
 	const context = usage?.context;
 	const isDirty = context?.dirty ?? false;
@@ -324,6 +355,14 @@ export const ContextUsageIndicator: FC<{
 		skillItems.length > 0 ||
 		hasMcp ||
 		issueItems.length > 0;
+
+	const hasResourceIssues = issueItems.length > 0;
+	const needsAttention = isDirty || hasContextError || hasResourceIssues;
+	const toneClassName = hasContextError
+		? "text-content-destructive"
+		: isDirty || hasResourceIssues
+			? "text-content-warning"
+			: getIndicatorToneClassName(percentUsed);
 	const fileBytes = sumResourceBytes(pinnedResources ?? [], [
 		"instruction_file",
 	]);
@@ -338,10 +377,16 @@ export const ContextUsageIndicator: FC<{
 	const fileGroups = groupByDirectory(fileItems);
 	const skillGroups = groupByDirectory(skillItems);
 
+	const statusNotes = [
+		hasContextError ? "Context error." : "",
+		isDirty ? "Context changed." : "",
+		hasResourceIssues ? "Some context resources failed to load." : "",
+	].filter((note) => note !== "");
+	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
 	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${isDirty ? " Context changed." : ""}`
-		: isDirty
-			? "Context usage. Context changed."
+		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`
+		: statusNote !== ""
+			? `Context usage.${statusNote}`
 			: "Context usage";
 
 	const panelContent = (
@@ -550,11 +595,11 @@ export const ContextUsageIndicator: FC<{
 					{onRefreshContext && (
 						<div className="flex flex-wrap gap-2">
 							<Button
-								size="sm"
+								size="xs"
 								disabled={isRefreshingContext}
 								onClick={() => onRefreshContext()}
 							>
-								<Spinner loading={isRefreshingContext} />
+								<Spinner size="sm" loading={isRefreshingContext} />
 								Refresh context
 							</Button>
 						</div>
@@ -568,26 +613,26 @@ export const ContextUsageIndicator: FC<{
 		<button
 			type="button"
 			aria-label={ariaLabel}
-			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 		>
 			<SvgRingProgress
 				size={RING_SIZE}
 				strokeWidth={RING_STROKE}
 				percent={clampedPercent}
-				trackClassName="stroke-content-secondary/25"
+				trackClassName="stroke-border"
 				progressClassName="stroke-current"
-				className={cn("size-icon-sm", toneClassName)}
+				className={toneClassName}
 			/>
-			{(isDirty || hasContextError) && (
-				<TriangleAlertIcon
-					aria-hidden
+			{needsAttention && (
+				<span
+					aria-hidden="true"
 					className={cn(
-						"absolute -right-0.5 -top-0.5 size-3",
-						hasContextError
-							? "text-content-destructive"
-							: "text-content-warning",
+						"absolute inset-0 flex items-center justify-center",
+						toneClassName,
 					)}
-				/>
+				>
+					<ExclamationGlyph />
+				</span>
 			)}
 		</button>
 	);
@@ -612,7 +657,11 @@ export const ContextUsageIndicator: FC<{
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				<div onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
+				<div
+					className="flex"
+					onMouseEnter={handleMouseEnter}
+					onMouseLeave={scheduleClose}
+				>
 					{triggerButton}
 				</div>
 			</PopoverTrigger>

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
@@ -15,7 +16,6 @@ import { Label } from "#/components/Label/Label";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
 import { useTheme } from "#/theme/context";
-import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 
 interface AnnouncementBannerDialogProps {
@@ -64,7 +64,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 			{/* Banner preview. Rendered outside DialogContent so its fixed
 			    positioning is relative to the viewport, not the dialog's
 			    transformed containing block. */}
-			<div className="pointer-events-none fixed top-0 right-0 left-0 z-[60]">
+			<div className="pointer-events-none fixed top-0 right-0 left-0 z-60">
 				<AnnouncementBannerView
 					message={bannerForm.values.message}
 					backgroundColor={bannerForm.values.background_color}
