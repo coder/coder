@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/agenttime"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridge/prices"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
@@ -305,6 +306,8 @@ type Options struct {
 	// DatabaseRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	DatabaseRolluper *dbrollup.Rolluper
+	// AgentTimeBackfiller backfills recorded agent time into durable daily totals.
+	AgentTimeBackfiller *agenttime.Backfiller
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
 	// BoundaryUsageTracker tracks boundary usage for telemetry.
@@ -552,6 +555,9 @@ func New(options *Options) *API {
 	if options.DatabaseRolluper == nil {
 		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
 	}
+	if options.AgentTimeBackfiller == nil {
+		options.AgentTimeBackfiller = agenttime.New(options.Logger.Named("agenttime"), options.Database)
+	}
 
 	if options.WorkspaceUsageTracker == nil {
 		options.WorkspaceUsageTracker = workspacestats.NewTracker(options.Database,
@@ -740,6 +746,7 @@ func New(options *Options) *API {
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer:                    acquirer,
 		dbRolluper:                  options.DatabaseRolluper,
+		agentTimeBackfiller:         options.AgentTimeBackfiller,
 		ProfileCollector:            defaultProfileCollector{},
 		AISeatTracker:               aiseats.Noop{},
 	}
@@ -2328,6 +2335,8 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
+	// agentTimeBackfiller preserves historical recorded agent time.
+	agentTimeBackfiller *agenttime.Backfiller
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
 	// gitSyncWorker refreshes stale chat diff statuses in the background.
@@ -2392,6 +2401,7 @@ func (api *API) Close() error {
 		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
 	}
 	api.dbRolluper.Close()
+	api.agentTimeBackfiller.Close()
 	// chatDiffWorker is unconditionally initialized in New().
 	select {
 	case <-api.gitSyncWorker.Done():

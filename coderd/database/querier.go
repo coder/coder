@@ -13,6 +13,7 @@ import (
 
 type sqlcQuerier interface {
 	AccountAgentTimeMessages(ctx context.Context, messageIds []int64) (int64, error)
+	AcquireAgentTimeBackfillOrganization(ctx context.Context) (AgentTimeBackfillStatus, error)
 	// Set the lease to expire according to the provided timeout.  If there is
 	// already a lease, an exception is raised.
 	AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg AcquireExternalAuthLinkRefreshLeaseParams) (ExternalAuthLink, error)
@@ -70,6 +71,7 @@ type sqlcQuerier interface {
 	// created_at ASC flows through to dbpurge's digest truncation; see
 	// buildDigestData in dbpurge.go for the tradeoff rationale.
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
+	BackfillAgentTimeBatch(ctx context.Context, arg BackfillAgentTimeBatchParams) (BackfillAgentTimeBatchRow, error)
 	// Backfills chat_messages.search_tsv for pending rows, newest first.
 	// The WHERE clause must match the predicate of
 	// idx_chat_messages_search_tsv_pending exactly so the partial index
@@ -95,6 +97,7 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
+	CompleteAgentTimeBackfillOrganization(ctx context.Context, organizationID uuid.UUID) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
@@ -260,6 +263,7 @@ type sqlcQuerier interface {
 	// of the test-only in-memory database. Do not use this in new code.
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
+	EnsureAgentTimeBackfillStatuses(ctx context.Context) (int64, error)
 	// Firstly, collect api_keys owned by the prebuilds user that correlate
 	// to workspaces no longer owned by the prebuilds user.
 	// Next, collect api_keys that belong to the prebuilds user but have no token name.
@@ -385,6 +389,7 @@ type sqlcQuerier interface {
 	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
+	GetAgentTimeStatus(ctx context.Context, organizationID uuid.UUID) (GetAgentTimeStatusRow, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)
@@ -1106,6 +1111,7 @@ type sqlcQuerier interface {
 	// module-file downloads so a daemon cannot read another organization's cached
 	// Terraform module source.
 	HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error)
+	HasUnaccountedAgentTimeMessages(ctx context.Context, organizationID uuid.UUID) (bool, error)
 	// Stamps the pinned hash and error on every not-yet-hydrated chat for
 	// an agent (context_aggregate_hash IS NULL) and copies the agent's
 	// current context resources onto those chats in the same statement, so
@@ -1339,6 +1345,9 @@ type sqlcQuerier interface {
 	// is held the key cannot be deleted, and a committed deletion is observed as
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Status discovery can roll back with the first batch. Persist the failure even
+	// when that transaction created the organization's first status row.
+	MarkAgentTimeBackfillFailed(ctx context.Context, arg MarkAgentTimeBackfillFailedParams) error
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
@@ -1381,6 +1390,7 @@ type sqlcQuerier interface {
 	// Sets the target queued message's position to one less than the
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
+	ResetAgentTimeBackfillCursor(ctx context.Context, organizationID uuid.UUID) error
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1466,6 +1476,7 @@ type sqlcQuerier interface {
 	UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error)
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
+	UpdateAgentTimeBackfillProgress(ctx context.Context, arg UpdateAgentTimeBackfillProgressParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)

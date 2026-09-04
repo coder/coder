@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/v2/coderd/agenttime"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -186,6 +187,163 @@ func TestAgentTimeAccountingDoesNotBumpChatState(t *testing.T) {
 	require.Equal(t, revisionBefore, revisionAfter)
 }
 
+func TestAgentTimeStatusCoverageDates(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	fixture := setupAgentTimeFixture(t, db)
+
+	_, err := sqlDB.ExecContext(ctx, `UPDATE agent_time_capture SET capture_started_at = $1 WHERE id = 1`, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+	status, err := db.GetAgentTimeStatus(ctx, fixture.org.ID)
+	require.NoError(t, err)
+	require.False(t, status.BackfillComplete)
+	require.Empty(t, status.BackfillError)
+	require.Zero(t, status.ProcessedMessages)
+	require.Equal(t, "2025-01-01", status.EarliestDate.Format("2006-01-02"))
+
+	_, err = sqlDB.ExecContext(ctx, `UPDATE agent_time_capture SET capture_started_at = $1 WHERE id = 1`, time.Date(2025, 1, 1, 0, 0, 0, int(time.Microsecond), time.UTC))
+	require.NoError(t, err)
+	status, err = db.GetAgentTimeStatus(ctx, fixture.org.ID)
+	require.NoError(t, err)
+	require.Equal(t, "2025-01-02", status.EarliestDate.Format("2006-01-02"))
+}
+
+func TestAgentTimeBackfillIsResumableAndMarkerBased(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	fixture := setupAgentTimeFixture(t, db)
+	ids := []int64{
+		insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, time.Date(2025, 2, 1, 12, 0, 0, 0, time.UTC), int64Ptr(100), false),
+		insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, time.Date(2025, 2, 1, 13, 0, 0, 0, time.UTC), int64Ptr(200), false),
+		insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, time.Date(2025, 2, 2, 12, 0, 0, 0, time.UTC), int64Ptr(300), false),
+	}
+	clearAgentTimeAccounting(ctx, t, sqlDB, ids)
+	isolateBackfillOrg(ctx, t, sqlDB, fixture.org.ID, ids[len(ids)-1])
+
+	event, err := agenttime.RunOnce(ctx, db, 2)
+	require.NoError(t, err)
+	require.True(t, event.Locked)
+	require.True(t, event.ResetCursor)
+	require.False(t, event.Completed)
+	status := readBackfillStatus(ctx, t, sqlDB, fixture.org.ID)
+	require.Zero(t, status.CursorMessageID)
+
+	event, err = agenttime.RunOnce(ctx, db, 2)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, event.SelectedMessages)
+	require.EqualValues(t, 2, event.ProcessedMessages)
+
+	event, err = agenttime.RunOnce(ctx, db, 2)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, event.SelectedMessages)
+	require.EqualValues(t, 1, event.ProcessedMessages)
+
+	event, err = agenttime.RunOnce(ctx, db, 2)
+	require.NoError(t, err)
+	require.True(t, event.Completed)
+	status = readBackfillStatus(ctx, t, sqlDB, fixture.org.ID)
+	require.True(t, status.CompletedAt.Valid)
+	require.EqualValues(t, 3, status.ProcessedMessages)
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 2, 1), 300)
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 2, 2), 300)
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, ids, 3)
+}
+
+func TestAgentTimeBackfillSkipsBusyChats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	fixture := setupAgentTimeFixture(t, db)
+	busyChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    fixture.org.ID,
+		OwnerID:           fixture.user.ID,
+		LastModelConfigID: fixture.chat.LastModelConfigID,
+	})
+	busyID := insertAgentTimeMessage(ctx, t, sqlDB, busyChat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, time.Date(2025, 3, 1, 12, 0, 0, 0, time.UTC), int64Ptr(100), false)
+	freeID := insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, time.Date(2025, 3, 1, 13, 0, 0, 0, time.UTC), int64Ptr(200), false)
+	clearAgentTimeAccounting(ctx, t, sqlDB, []int64{busyID, freeID})
+	isolateBackfillOrg(ctx, t, sqlDB, fixture.org.ID, 0)
+
+	lockTx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = lockTx.Rollback() }()
+	_, err = lockTx.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, busyChat.ID)
+	require.NoError(t, err)
+
+	event, err := agenttime.RunOnce(ctx, db, 10)
+	require.NoError(t, err)
+	require.True(t, event.Locked)
+	require.EqualValues(t, 1, event.SelectedMessages)
+	require.EqualValues(t, 1, event.ProcessedMessages)
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, []int64{freeID}, 1)
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, []int64{busyID}, 0)
+
+	require.NoError(t, lockTx.Rollback())
+	event, err = agenttime.RunOnce(ctx, db, 10)
+	require.NoError(t, err)
+	require.True(t, event.ResetCursor)
+	event, err = agenttime.RunOnce(ctx, db, 10)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, event.SelectedMessages)
+	require.EqualValues(t, 1, event.ProcessedMessages)
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 3, 1), 300)
+}
+
+func TestAgentTimeBackfillPersistsFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	fixture := setupAgentTimeFixture(t, db)
+	id := insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, time.Date(2025, 3, 2, 12, 0, 0, 0, time.UTC), int64Ptr(100), false)
+	clearAgentTimeAccounting(ctx, t, sqlDB, []int64{id})
+	isolateBackfillOrg(ctx, t, sqlDB, fixture.org.ID, 0)
+	_, err := sqlDB.ExecContext(ctx, `
+		CREATE FUNCTION fail_agent_time_daily_write_for_backfill()
+		RETURNS trigger
+		LANGUAGE plpgsql
+		AS $$
+		BEGIN
+			RAISE EXCEPTION 'agent time backfill daily write failed';
+		END;
+		$$;
+		CREATE TRIGGER trigger_fail_agent_time_daily_write_for_backfill
+		BEFORE INSERT OR UPDATE ON agent_time_daily
+		FOR EACH ROW
+		EXECUTE FUNCTION fail_agent_time_daily_write_for_backfill();
+	`)
+	require.NoError(t, err)
+
+	_, err = agenttime.RunOnce(ctx, db, 10)
+	require.ErrorContains(t, err, "agent time backfill daily write failed")
+	status := readBackfillStatus(ctx, t, sqlDB, fixture.org.ID)
+	require.Contains(t, status.LastError, "agent time backfill daily write failed")
+	require.True(t, status.LastErrorAt.Valid)
+	require.False(t, status.CompletedAt.Valid)
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, []int64{id}, 0)
+}
+
+func TestAgentTimeBackfillUsesAdvisoryLock(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	lockTx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = lockTx.Rollback() }()
+	_, err = lockTx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, database.LockIDAgentTimeBackfill)
+	require.NoError(t, err)
+
+	event, err := agenttime.RunOnce(ctx, db, 1)
+	require.NoError(t, err)
+	require.False(t, event.Locked)
+}
+
 type chatState struct {
 	SnapshotVersion   int64
 	HistoryVersion    int64
@@ -312,4 +470,35 @@ func requireAgentTimeSummaryInvariant(ctx context.Context, t testing.TB, db *sql
  )`).Scan(&mismatch)
 	require.NoError(t, err)
 	require.False(t, mismatch, "organization summaries must equal canonical user/day sums")
+}
+
+func isolateBackfillOrg(ctx context.Context, t testing.TB, db *sql.DB, orgID uuid.UUID, cursorMessageID int64) {
+	t.Helper()
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO agent_time_backfill_status (organization_id, cursor_message_id, completed_at)
+		SELECT id, CASE WHEN id = $1 THEN $2::bigint ELSE 0 END, CASE WHEN id = $1 THEN NULL ELSE now() END
+		FROM organizations
+		ON CONFLICT (organization_id) DO UPDATE SET
+			cursor_message_id = EXCLUDED.cursor_message_id,
+			completed_at = EXCLUDED.completed_at,
+			processed_messages = 0,
+			last_error = '',
+			last_error_at = NULL,
+			updated_at = now()
+	`, orgID, cursorMessageID)
+	require.NoError(t, err)
+}
+
+func readBackfillStatus(ctx context.Context, t testing.TB, db *sql.DB, orgID uuid.UUID) database.AgentTimeBackfillStatus {
+	t.Helper()
+
+	var status database.AgentTimeBackfillStatus
+	err := db.QueryRowContext(ctx, `
+		SELECT organization_id, cursor_message_id, processed_messages, completed_at, last_error, last_error_at, updated_at
+		FROM agent_time_backfill_status
+		WHERE organization_id = $1
+	`, orgID).Scan(&status.OrganizationID, &status.CursorMessageID, &status.ProcessedMessages, &status.CompletedAt, &status.LastError, &status.LastErrorAt, &status.UpdatedAt)
+	require.NoError(t, err)
+	return status
 }
