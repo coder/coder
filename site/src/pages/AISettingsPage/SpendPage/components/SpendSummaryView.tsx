@@ -17,6 +17,7 @@ import {
 import { formatTokenCount } from "#/utils/analytics";
 import { formatCostMicros } from "#/utils/currency";
 import { paginateItems } from "#/utils/paginateItems";
+import { CostCell } from "./CostCell";
 import { unpricedRequestsMessage } from "./unpricedRequests";
 
 const BREAKDOWN_PAGE_SIZE = 10;
@@ -160,9 +161,10 @@ export const SpendSummaryView: FC<SpendSummaryViewProps> = ({
 										<TableCell className="text-content-secondary">
 											{model.provider_name || model.provider}
 										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											{formatCostMicros(model.total_cost_micros)}
-										</TableCell>
+										<CostCell
+											costMicros={model.total_cost_micros}
+											unpricedRequestCount={model.unpriced_request_count}
+										/>
 										<TableCell className="text-right tabular-nums">
 											{model.request_count.toLocaleString("en-US")}
 										</TableCell>
@@ -220,9 +222,10 @@ export const SpendSummaryView: FC<SpendSummaryViewProps> = ({
 								{clients.pagedItems.map((client) => (
 									<TableRow key={client.client}>
 										<TableCell>{client.client}</TableCell>
-										<TableCell className="text-right tabular-nums">
-											{formatCostMicros(client.total_cost_micros)}
-										</TableCell>
+										<CostCell
+											costMicros={client.total_cost_micros}
+											unpricedRequestCount={client.unpriced_request_count}
+										/>
 										<TableCell className="text-right tabular-nums">
 											{client.request_count.toLocaleString("en-US")}
 										</TableCell>

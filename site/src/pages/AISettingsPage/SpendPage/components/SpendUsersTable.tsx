@@ -1,4 +1,3 @@
-import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import {
 	Link as RouterLink,
@@ -26,8 +25,8 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { formatTokenCount } from "#/utils/analytics";
-import { formatCostMicros } from "#/utils/currency";
 import type { SpendUsersQuery } from "../SpendPageView";
+import { CostCell } from "./CostCell";
 import { RetentionNotice } from "./RetentionNotice";
 import { SpendSectionHeader } from "./SpendSectionHeader";
 
@@ -194,15 +193,10 @@ const UserRow: FC<{
 					imgFallbackText={user.username}
 				/>
 			</TableCell>
-			<TableCell className="text-right tabular-nums">
-				{formatCostMicros(user.total_cost_micros)}
-				{user.unpriced_request_count > 0 && (
-					<span className="mt-0.5 flex items-center justify-end gap-1 text-content-warning">
-						<TriangleAlertIcon aria-hidden className="size-icon-xs" />
-						{user.unpriced_request_count.toLocaleString("en-US")} unpriced
-					</span>
-				)}
-			</TableCell>
+			<CostCell
+				costMicros={user.total_cost_micros}
+				unpricedRequestCount={user.unpriced_request_count}
+			/>
 			<TableCell className="text-right tabular-nums">
 				{user.request_count.toLocaleString("en-US")}
 			</TableCell>

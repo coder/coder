@@ -91,7 +91,6 @@ const meta = {
 		isEntitled: true,
 		isEnabled: true,
 		dateRange: defaultDateRange,
-		endDateIsExclusive: false,
 		searchFilter: "",
 		usersQuery: mockUsersQuery({ data: mockUsersResponse }),
 		drillInUserId: null,
@@ -399,6 +398,9 @@ export const DrillInWithUnpricedRequests: Story = {
 		summaryData: {
 			...MockAIGatewaySpendUserSummary,
 			unpriced_request_count: 1,
+			by_model: MockAIGatewaySpendUserSummary.by_model.map((model, i) =>
+				i === 1 ? { ...model, unpriced_request_count: 1 } : model,
+			),
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -406,6 +408,10 @@ export const DrillInWithUnpricedRequests: Story = {
 		await expect(canvas.getByRole("note")).toHaveTextContent(
 			"Cost is unavailable for 1 request. The total excludes that usage.",
 		);
+		const byModel = canvas.getByRole("table", { name: "Spend by model" });
+		await expect(within(byModel).getByText("1 unpriced")).toBeVisible();
+		const byClient = canvas.getByRole("table", { name: "Spend by client" });
+		expect(within(byClient).queryByText(/unpriced/)).not.toBeInTheDocument();
 	},
 };
 

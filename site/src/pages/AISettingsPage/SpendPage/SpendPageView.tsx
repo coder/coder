@@ -25,7 +25,6 @@ interface SpendPageViewProps {
 	isEntitled: boolean;
 	isEnabled: boolean;
 	dateRange: DateRangeValue;
-	endDateIsExclusive: boolean;
 	onDateRangeChange: (value: DateRangeValue) => void;
 	searchFilter: string;
 	onSearchFilterChange: (value: string) => void;
@@ -46,7 +45,6 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 	isEntitled,
 	isEnabled,
 	dateRange,
-	endDateIsExclusive,
 	onDateRangeChange,
 	searchFilter,
 	onSearchFilterChange,
@@ -72,9 +70,11 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 		return <AIBridgeSetupAlert />;
 	}
 
-	const displayDateRange = toInclusiveDateRange(dateRange, endDateIsExclusive);
+	// Both the default range and URL ranges carry the exclusive API end
+	// boundary that DateRangePicker emits.
+	const displayDateRange = toInclusiveDateRange(dateRange, true);
 	const dateRangeLabel = formatUsageDateRange(dateRange, {
-		endDateIsExclusive,
+		endDateIsExclusive: true,
 	});
 
 	if (drillInUserId) {

@@ -81,7 +81,6 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	// the page is open.
 	const [defaultDateRange] = useState(() => getDefaultDateRange(now));
 	let dateRange = defaultDateRange;
-	let endDateIsExclusive = false;
 
 	if (startDateParam && endDateParam) {
 		const parsedStartDate = new Date(startDateParam);
@@ -96,7 +95,6 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				startDate: parsedStartDate,
 				endDate: parsedEndDate,
 			};
-			endDateIsExclusive = true;
 		}
 	}
 
@@ -148,7 +146,6 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				isEntitled={isEntitled}
 				isEnabled={isEnabled}
 				dateRange={dateRange}
-				endDateIsExclusive={endDateIsExclusive}
 				onDateRangeChange={onDateRangeChange}
 				searchFilter={searchFilter}
 				onSearchFilterChange={setSearchFilter}
