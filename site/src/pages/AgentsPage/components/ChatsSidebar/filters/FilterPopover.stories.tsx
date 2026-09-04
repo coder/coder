@@ -14,7 +14,7 @@ const meta: Meta<typeof FilterPopover> = {
 		filters: DEFAULT_AGENT_SIDEBAR_FILTERS,
 		onFiltersChange: fn(),
 	},
-	render: (args) => {
+	render: function FilterPopoverRender(args) {
 		const [filters, setFilters] = useState(args.filters);
 		return (
 			<FilterPopover

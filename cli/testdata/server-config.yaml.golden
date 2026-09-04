@@ -580,6 +580,10 @@ disableChatSharing: false
 # deployments.
 # (default: <unset>, type: bool)
 disableWorkspaceAgentContextSync: false
+# Disable Coder-managed file path delivery for user secrets. Stored paths remain
+# until users clear them and resume if this setting is turned off.
+# (default: <unset>, type: bool)
+disableUserSecretFilePath: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:

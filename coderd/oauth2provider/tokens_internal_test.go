@@ -1,15 +1,20 @@
 package oauth2provider
 
 import (
+	"database/sql"
 	"net/http"
 	"net/url"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -25,6 +30,180 @@ var (
 	confidentialApp = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypeConfidential}
 	publicApp       = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypePublic}
 )
+
+func TestScopeStringToAPIKeyScopes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EveryNameKept", func(t *testing.T) {
+		t.Parallel()
+
+		scopes, err := scopeStringToAPIKeyScopes("workspace:ssh template:read")
+		require.NoError(t, err)
+		require.Equal(t, database.APIKeyScopes{
+			database.ApiKeyScopeWorkspaceSsh,
+			database.ApiKeyScopeTemplateRead,
+		}, scopes)
+	})
+
+	// The catalog and the api_key_scope enum are maintained separately. A name
+	// negotiable at authorization but unmintable at exchange leaves the client
+	// holding a code it can never redeem.
+	t.Run("EveryCatalogNameMintable", func(t *testing.T) {
+		t.Parallel()
+
+		// ExternalScopeNames omits the aliases IsExternalScope accepts, and the
+		// catalog cannot enumerate them, so a new alias has to be added here.
+		names := append(rbac.ExternalScopeNames(), "all", "application_connect")
+		require.NotEmpty(t, names)
+		for _, name := range names {
+			require.Truef(t, rbac.IsExternalScope(rbac.ScopeName(name)),
+				"scope %q is not negotiable, so this loop is not driving the catalog", name)
+
+			canonical := string(rbac.CanonicalScopeName(rbac.ScopeName(name)))
+			scopes, err := scopeStringToAPIKeyScopes(canonical)
+			require.NoErrorf(t, err, "scope %q can be negotiated but not minted", name)
+			require.Equal(t, database.APIKeyScopes{database.APIKeyScope(canonical)}, scopes)
+		}
+	})
+
+	t.Run("UnknownNameRejectsTheWholeList", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := scopeStringToAPIKeyScopes("workspace:ssh not_a_real_scope")
+		require.ErrorIs(t, err, errUnmintableScope)
+		require.Contains(t, err.Error(), "not_a_real_scope")
+	})
+
+	// Unreachable through the NOT NULL column, but pinned: apikey.Generate reads
+	// an empty list as unrestricted, so anything but an error widens the grant.
+	t.Run("EmptyRejected", func(t *testing.T) {
+		t.Parallel()
+
+		for _, scope := range []string{"", "   "} {
+			_, err := scopeStringToAPIKeyScopes(scope)
+			require.ErrorIs(t, err, errUnmintableScope, "scope %q", scope)
+		}
+	})
+}
+
+var (
+	ReasonUnmintableScope = errUnmintableScope.Error()
+	ReasonStaleScope      = errStaleScope.Error()
+)
+
+func TestCheckScopeStillCovered(t *testing.T) {
+	t.Parallel()
+
+	const (
+		inCatalog     = "coder:workspaces.access"
+		alsoInCatalog = "coder:templates.build"
+	)
+
+	tests := []struct {
+		name        string
+		granted     string
+		appScope    sql.NullString
+		wantErr     error
+		wantBareErr bool
+	}{
+		{
+			name:     "NoAllowlistConstrainsNothing",
+			granted:  string(database.ApiKeyScopeCoderAll),
+			appScope: sql.NullString{},
+		},
+		{
+			name:     "EmptyAllowlistConstrainsNothing",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: "", Valid: true},
+		},
+		{
+			name:     "UnchangedAllowlistStillCovers",
+			granted:  inCatalog,
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+		},
+		{
+			name:     "CompositeStillCoversItsParts",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+		},
+		{
+			name:     "WidenedAllowlistStillCovers",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: inCatalog + " " + alsoInCatalog, Valid: true},
+		},
+		{
+			name:     "AllowlistNarrowedAwayRejected",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: alsoInCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:     "PartiallyCoveredRejectedWhole",
+			granted:  "workspace:ssh file:create",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:     "UnrestrictedGrantNarrowedRejected",
+			granted:  string(database.ApiKeyScopeCoderAll),
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:        "AllowlistFilteredToEmptyRejected",
+			granted:     "workspace:ssh",
+			appScope:    sql.NullString{String: "openid profile", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
+		},
+		{
+			name:        "WhitespaceOnlyAllowlistRejected",
+			granted:     "workspace:ssh",
+			appScope:    sql.NullString{String: "   ", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
+		},
+		{
+			name:     "LegacyAliasAllowlistCoversCanonicalGrant",
+			granted:  "coder:all",
+			appScope: sql.NullString{String: "all", Valid: true},
+		},
+		{
+			// The mirror image, and the only row that exercises canonicalizing
+			// the granted side: `all` is not expandable, so a code stored
+			// before canonicalization landed would refuse without it.
+			name:     "LegacyAliasGrantCoveredByCanonicalAllowlist",
+			granted:  "all",
+			appScope: sql.NullString{String: "coder:all", Valid: true},
+		},
+		{
+			name:     "GrantOutsideTheCatalogUndecidable",
+			granted:  "some_removed_scope",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errCoverageUndecidable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := database.OAuth2ProviderApp{ID: uuid.New(), Scope: test.appScope}
+			err := checkScopeStillCovered(t.Context(), slogtest.Make(t, nil), app, test.granted)
+			if test.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, test.wantErr)
+			assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
+				"the rejection reason must appear once, not doubled by the wrap")
+			if test.wantBareErr {
+				assert.Equal(t, test.wantErr.Error(), err.Error(),
+					"the rejection must not name the app's unvalidated registered scope")
+			}
+		})
+	}
+}
 
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
 // to ensure RFC 6749 compliance where scopes are space-delimited
@@ -325,9 +504,6 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			callbackURL, err := url.Parse("http://localhost:3000/callback")
-			require.NoError(t, err)
-
 			// Build query parameters for GET request
 			query := url.Values{}
 			query.Set("response_type", "code")
@@ -351,10 +527,9 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			}
 
 			// Extract authorize params
-			params, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
 
-			require.NoError(t, err)
-			require.Empty(t, validationErrs)
+			require.Nil(t, failure)
 			require.Equal(t, tc.expectedScopes, params.scope)
 		})
 	}
@@ -398,9 +573,6 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			callbackURL, err := url.Parse("http://localhost:3000/callback")
-			require.NoError(t, err)
-
 			query := url.Values{}
 			query.Set("response_type", "code")
 			query.Set("client_id", "test-client")
@@ -415,45 +587,48 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 				URL:    reqURL,
 			}
 
-			_, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+			_, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
 			if tc.expectValid {
-				require.NoError(t, err)
-				require.Empty(t, validationErrs)
+				require.Nil(t, failure)
 			} else {
-				require.Error(t, err)
-				require.Len(t, validationErrs, 1)
-				require.Equal(t, "code_challenge", validationErrs[0].Field)
+				require.NotNil(t, failure)
+				require.Len(t, failure.validationErrors, 1)
+				require.Equal(t, "code_challenge", failure.validationErrors[0].Field)
 			}
 		})
 	}
 }
 
-// TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE ensures
-// response_type=token is parsed without requiring PKCE fields so callers can
-// return unsupported_response_type instead of invalid_request.
-func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T) {
+// TestExtractAuthorizeParams_NonCodeResponseTypeDoesNotRequirePKCE ensures a
+// response type other than code is parsed without requiring PKCE fields so
+// callers can answer unsupported_response_type instead of invalid_request.
+func TestExtractAuthorizeParams_NonCodeResponseTypeDoesNotRequirePKCE(t *testing.T) {
 	t.Parallel()
 
-	callbackURL, err := url.Parse("http://localhost:3000/callback")
-	require.NoError(t, err)
+	// id_token has no SDK constant, so it also pins that the value is read as
+	// plain text.
+	for _, responseType := range []string{string(codersdk.OAuth2ProviderResponseTypeToken), "id_token"} {
+		t.Run(responseType, func(t *testing.T) {
+			t.Parallel()
 
-	query := url.Values{}
-	query.Set("response_type", string(codersdk.OAuth2ProviderResponseTypeToken))
-	query.Set("client_id", "test-client")
-	query.Set("redirect_uri", "http://localhost:3000/callback")
+			query := url.Values{}
+			query.Set("response_type", responseType)
+			query.Set("client_id", "test-client")
+			query.Set("redirect_uri", "http://localhost:3000/callback")
 
-	reqURL, err := url.Parse("http://localhost:8080/oauth2/authorize?" + query.Encode())
-	require.NoError(t, err)
+			reqURL, err := url.Parse("http://localhost:8080/oauth2/authorize?" + query.Encode())
+			require.NoError(t, err)
 
-	req := &http.Request{
-		Method: http.MethodGet,
-		URL:    reqURL,
+			req := &http.Request{
+				Method: http.MethodGet,
+				URL:    reqURL,
+			}
+
+			params, failure := extractAuthorizeParams(req, slogtest.Make(t, nil), database.OAuth2ProviderApp{CallbackURL: "http://localhost:3000/callback"})
+			require.Nil(t, failure)
+			require.Equal(t, responseType, params.responseType)
+		})
 	}
-
-	params, validationErrs, err := extractAuthorizeParams(req, callbackURL)
-	require.NoError(t, err)
-	require.Empty(t, validationErrs)
-	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
 
 func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {

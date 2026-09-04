@@ -71,24 +71,25 @@ func init() {
 }
 
 type Options struct {
-	CacheDir          string
-	Database          database.Store
-	Authorizer        rbac.Authorizer
-	SiteFS            fs.FS
-	OAuth2Configs     *httpmw.OAuth2Configs
-	DocsURL           string
-	BuildInfo         codersdk.BuildInfoResponse
-	AppearanceFetcher *atomic.Pointer[appearance.Fetcher]
-	Entitlements      *entitlements.Set
-	Telemetry         telemetry.Reporter
-	Logger            slog.Logger
-	AIGatewayEnabled  bool
+	CacheDir                  string
+	Database                  database.Store
+	Authorizer                rbac.Authorizer
+	SiteFS                    fs.FS
+	OAuth2Configs             *httpmw.OAuth2Configs
+	DocsURL                   string
+	BuildInfo                 codersdk.BuildInfoResponse
+	AppearanceFetcher         *atomic.Pointer[appearance.Fetcher]
+	Entitlements              *entitlements.Set
+	Telemetry                 telemetry.Reporter
+	Logger                    slog.Logger
+	AIGatewayEnabled          bool
+	UserSecretFilePathEnabled bool
 }
 
 func New(opts *Options) (*Handler, error) {
 	if opts.AppearanceFetcher == nil {
 		daf := atomic.Pointer[appearance.Fetcher]{}
-		f := appearance.NewDefaultFetcher(opts.DocsURL)
+		f := appearance.NewDefaultFetcher(opts.Database, opts.DocsURL)
 		daf.Store(&f)
 		opts.AppearanceFetcher = &daf
 	}
@@ -266,9 +267,10 @@ type htmlState struct {
 	Regions        string
 	DocsURL        string
 
-	AIGatewayEnabled string
-	Permissions      string
-	Organizations    string
+	AIGatewayEnabled          string
+	UserSecretFilePathEnabled string
+	Permissions               string
+	Organizations             string
 }
 
 type csrfState struct {
@@ -518,6 +520,12 @@ func (h *Handler) populateHTMLState(
 		data, err := json.Marshal(h.opts.AIGatewayEnabled)
 		if err == nil {
 			state.AIGatewayEnabled = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		data, err := json.Marshal(h.opts.UserSecretFilePathEnabled)
+		if err == nil {
+			state.UserSecretFilePathEnabled = html.EscapeString(string(data))
 		}
 	})
 	wg.Go(func() {

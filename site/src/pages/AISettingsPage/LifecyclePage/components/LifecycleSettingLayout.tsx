@@ -1,9 +1,9 @@
+import { cn } from "cn";
 import type { FC, FormEventHandler, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { TemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
-import { cn } from "#/utils/cn";
 
 interface LifecycleSettingLayoutProps {
 	title: string;

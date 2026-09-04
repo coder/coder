@@ -1,4 +1,5 @@
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
+import { cn } from "cn";
 import {
 	$getNodeByKey,
 	DecoratorNode,
@@ -9,7 +10,6 @@ import {
 	type Spread,
 } from "lexical";
 import { type FC, type ReactNode, useSyncExternalStore } from "react";
-import { cn } from "#/utils/cn";
 import { EditableFileReferenceChip } from "./FileReferenceChip";
 import { getFileReferenceSiblingSpacing } from "./fileReferenceDisplay";
 

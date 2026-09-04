@@ -311,6 +311,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
+    "disable_user_secret_file_path": true,
     "disable_workspace_agent_context_sync": true,
     "disable_workspace_sharing": true,
     "docs_url": {
@@ -813,6 +814,37 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 | Status | Meaning                                                 | Description | Schema                                                         |
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentStats](schemas.md#codersdkdeploymentstats) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get user secrets capabilities
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/deployment/user-secrets/capabilities \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/deployment/user-secrets/capabilities`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "file_path_delivery_enabled": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                         |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserSecretsCapabilities](schemas.md#codersdkusersecretscapabilities) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

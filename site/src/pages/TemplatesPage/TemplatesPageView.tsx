@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ArrowRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
@@ -40,7 +41,6 @@ import {
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
-import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { docs } from "#/utils/docs";
 import {

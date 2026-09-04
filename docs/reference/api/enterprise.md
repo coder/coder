@@ -356,6 +356,7 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "docs_url": "string",
   "logo_url": "string",
   "service_banner": {
@@ -408,6 +409,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -437,6 +439,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -4878,7 +4881,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=string&response_type=code \
+curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&response_type=code&code_challenge=string \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -4886,25 +4889,32 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=str
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
-|-----------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_id`     | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
-| `state`         | query | string | true     | A random unguessable string                                                                                                                                                                                                                                        |
-| `response_type` | query | string | true     | Response type                                                                                                                                                                                                                                                      |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
-| `scope`         | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
+| Name                    | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
+|-------------------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`             | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `state`                 | query | string | false    | A random unguessable string, echoed back on the callback                                                                                                                                                                                                           |
+| `response_type`         | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `redirect_uri`          | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
+| `scope`                 | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
+| `code_challenge`        | query | string | true     | PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)                                                                                                                                                                                          |
+| `code_challenge_method` | query | string | false    | PKCE challenge method. S256 only; omitting it means S256                                                                                                                                                                                                           |
+| `resource`              | query | string | false    | RFC 8707 resource indicator: an absolute URI without a fragment                                                                                                                                                                                                    |
 
 #### Enumerated Values
 
-| Parameter       | Value(s)        |
-|-----------------|-----------------|
-| `response_type` | `code`, `token` |
+| Parameter               | Value(s) |
+|-------------------------|----------|
+| `response_type`         | `code`   |
+| `code_challenge_method` | `S256`   |
 
 ### Responses
 
-| Status | Meaning                                                 | Description                     | Schema |
-|--------|---------------------------------------------------------|---------------------------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Returns HTML authorization page |        |
+| Status | Meaning                                                                    | Description                                                                                                   | Schema |
+|--------|----------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | Returns HTML authorization page                                                                               |        |
+| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3)                 | Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)                        |        |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback |        |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | HTML error page. The app's registered callback URL is not usable                                              |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4914,7 +4924,8 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=string&response_type=code \
+curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&response_type=code&code_challenge=string \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -4922,25 +4933,43 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=st
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
-|-----------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_id`     | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
-| `state`         | query | string | true     | A random unguessable string                                                                                                                                                                                                                                        |
-| `response_type` | query | string | true     | Response type                                                                                                                                                                                                                                                      |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
-| `scope`         | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
+| Name                    | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
+|-------------------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`             | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `state`                 | query | string | false    | A random unguessable string, echoed back on the callback                                                                                                                                                                                                           |
+| `response_type`         | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `redirect_uri`          | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
+| `scope`                 | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
+| `code_challenge`        | query | string | true     | PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)                                                                                                                                                                                          |
+| `code_challenge_method` | query | string | false    | PKCE challenge method. S256 only; omitting it means S256                                                                                                                                                                                                           |
+| `resource`              | query | string | false    | RFC 8707 resource indicator: an absolute URI without a fragment                                                                                                                                                                                                    |
 
 #### Enumerated Values
 
-| Parameter       | Value(s)        |
-|-----------------|-----------------|
-| `response_type` | `code`, `token` |
+| Parameter               | Value(s) |
+|-------------------------|----------|
+| `response_type`         | `code`   |
+| `code_challenge_method` | `S256`   |
+
+### Example responses
+
+> 400 Response
+
+```json
+{
+  "error": "invalid_request",
+  "error_description": "string",
+  "error_uri": "string"
+}
+```
 
 ### Responses
 
-| Status | Meaning                                                    | Description                              | Schema |
-|--------|------------------------------------------------------------|------------------------------------------|--------|
-| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Returns redirect with authorization code |        |
+| Status | Meaning                                                                    | Description                                                                                                            | Schema                                                 |
+|--------|----------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3)                 | Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1) |                                                        |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback                           | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | The app's registered callback URL is not usable                                                                        | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -5303,17 +5332,18 @@ grant_type: authorization_code
 {
   "access_token": "string",
   "expires_in": 0,
-  "expiry": "string",
+  "expiry": "2019-08-24T14:15:22Z",
   "refresh_token": "string",
-  "token_type": "string"
+  "scope": "string",
+  "token_type": "Bearer"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                 |
-|--------|---------------------------------------------------------|-------------|----------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [oauth2.Token](schemas.md#oauth2token) |
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2TokenResponse](schemas.md#codersdkoauth2tokenresponse) |
 
 ## Delete OAuth2 application tokens
 

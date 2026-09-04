@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { mcpServerOAuth2ConnectPath } from "#/api/api";
@@ -17,7 +18,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 // ── Types ──────────────────────────────────────────────────────
 

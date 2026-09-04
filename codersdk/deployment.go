@@ -738,6 +738,7 @@ type DeploymentValues struct {
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
 	DisableWorkspaceAgentContextSync        serpent.Bool                         `json:"disable_workspace_agent_context_sync,omitempty" typescript:",notnull"`
+	DisableUserSecretFilePath               serpent.Bool                         `json:"disable_user_secret_file_path,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
@@ -3810,6 +3811,15 @@ communicating directly.`,
 			YAML:  "disableWorkspaceAgentContextSync",
 		},
 		{
+			Name:        "Disable User Secret File Path",
+			Description: "Disable Coder-managed file path delivery for user secrets. Stored paths remain until users clear them and resume if this setting is turned off.",
+			Flag:        "disable-user-secret-file-path",
+			Env:         "CODER_DISABLE_USER_SECRET_FILE_PATH",
+
+			Value: &c.DisableUserSecretFilePath,
+			YAML:  "disableUserSecretFilePath",
+		},
+		{
 			Name:        "Session Duration",
 			Description: "The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.",
 			Flag:        "session-duration",
@@ -5344,6 +5354,7 @@ type AppearanceConfig struct {
 	ServiceBanner       BannerConfig   `json:"service_banner"`
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
+	CodernautsEnabled   bool           `json:"codernauts_enabled"`
 }
 
 type UpdateAppearanceConfig struct {
@@ -5352,6 +5363,7 @@ type UpdateAppearanceConfig struct {
 	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
+	CodernautsEnabled   bool           `json:"codernauts_enabled"`
 }
 
 // Deprecated: ServiceBannerConfig has been renamed to BannerConfig.
