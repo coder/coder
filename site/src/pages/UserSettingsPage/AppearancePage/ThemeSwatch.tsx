@@ -28,8 +28,10 @@ export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 	const copy = THEME_COPY[theme];
 	const isDefaultTheme = theme === "light" || theme === "dark";
 	const accentClass = theme.includes("protan-deuter")
-		? "bg-[#bf8700]"
-		: "bg-[#cf222e]";
+		? // biome-ignore lint: design-token: literal swatch preview color; needs design decision
+			"bg-[#bf8700]"
+		: // biome-ignore lint: design-token: literal swatch preview color; needs design decision
+			"bg-[#cf222e]";
 	return (
 		<Tooltip delayDuration={1000}>
 			<TooltipTrigger asChild>
@@ -66,6 +68,7 @@ export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 						{!isDefaultTheme && (
 							<>
 								<span
+									// biome-ignore lint: design-token: literal swatch preview color; needs design decision
 									className="absolute inset-0 bg-[#0969da]"
 									style={{
 										clipPath: "polygon(0 100%, 50% 50%, 100% 100%)",

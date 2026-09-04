@@ -47,7 +47,7 @@ export const ListTemplatesTool: React.FC<{
 
 						if (!name) {
 							return (
-								<div key={index} className="text-[13px] text-content-secondary">
+								<div key={index} className="text-sm text-content-secondary">
 									{templateName}
 								</div>
 							);
@@ -57,7 +57,7 @@ export const ListTemplatesTool: React.FC<{
 							<div key={name} className="flex items-center gap-1.5">
 								<Link
 									to={`/templates/${name}`}
-									className="flex items-center gap-1.5 text-[13px] text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+									className="flex items-center gap-1.5 text-sm text-content-secondary opacity-50 transition-opacity hover:opacity-100"
 								>
 									<span>{templateName}</span>
 									<ExternalLinkIcon className="size-3 shrink-0" />

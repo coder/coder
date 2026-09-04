@@ -211,7 +211,7 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 			<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
 				<span
 					className={cn(
-						"shrink-0 text-[11px] font-semibold leading-none",
+						"shrink-0 text-xs font-semibold leading-none",
 						changeColor(fileDiff.type),
 					)}
 				>

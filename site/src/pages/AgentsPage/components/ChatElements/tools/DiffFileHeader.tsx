@@ -17,7 +17,7 @@ export function DiffFileHeader({
 				{isDiff && (
 					<span
 						className={cn(
-							"shrink-0 text-[11px] font-semibold leading-none",
+							"shrink-0 text-xs font-semibold leading-none",
 							changeColor(file.type),
 						)}
 					>

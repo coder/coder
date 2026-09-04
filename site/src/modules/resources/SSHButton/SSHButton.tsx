@@ -41,7 +41,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 
 			<PopoverContent
 				align="end"
-				className="py-4 px-6 w-80 text-content-secondary mt-[2px] bg-surface-secondary"
+				className="py-4 px-6 w-80 text-content-secondary mt-0.5 bg-surface-secondary"
 			>
 				<HelpPopoverText>
 					Run the following commands to connect with SSH:

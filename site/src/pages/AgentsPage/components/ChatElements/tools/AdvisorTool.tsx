@@ -72,7 +72,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 					scrollBarClassName="w-1.5"
 				>
 					<div className="space-y-2 px-3 py-2">
-						<p className="m-0 whitespace-pre-wrap wrap-break-word text-[13px] italic leading-5 text-content-secondary wrap-anywhere">
+						<p className="m-0 whitespace-pre-wrap wrap-break-word text-sm italic leading-5 text-content-secondary wrap-anywhere">
 							{questionText}
 						</p>
 						<div className="border-0 border-t border-solid border-border-default pt-2">
@@ -95,17 +95,11 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 									</p>
 								</div>
 							) : isRunning && adviceText.length === 0 ? (
-								<div
-									role="status"
-									className="text-[13px] text-content-secondary"
-								>
+								<div role="status" className="text-sm text-content-secondary">
 									Reviewing context and preparing guidance.
 								</div>
 							) : (
-								<Response
-									streaming={isRunning}
-									className="text-[13px] leading-5"
-								>
+								<Response streaming={isRunning} className="text-sm leading-5">
 									{adviceText || "Advisor returned no guidance."}
 								</Response>
 							)}

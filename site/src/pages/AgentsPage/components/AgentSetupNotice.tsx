@@ -144,7 +144,7 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 
 const NoticeContainer: FC<{ children: ReactNode }> = ({ children }) => {
 	return (
-		<div className="rounded-2xl bg-surface-tertiary px-4 pb-14 pt-2.5 text-[13px] text-content-primary">
+		<div className="rounded-2xl bg-surface-tertiary px-4 pb-14 pt-2.5 text-sm text-content-primary">
 			{children}
 		</div>
 	);

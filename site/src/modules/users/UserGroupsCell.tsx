@@ -57,7 +57,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 								return (
 									<li
 										key={group.id}
-										className="flex gap-x-[10px] items-center px-2 py-1.5"
+										className="flex gap-x-2.5 items-center px-2 py-1.5"
 									>
 										<Avatar
 											size="sm"

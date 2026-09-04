@@ -148,6 +148,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 					)}
 					{link?.validate_error && (
 						<span>
+							{/* biome-ignore lint: design-token: em-relative padding; needs design decision on tokenization */}
 							<span className="pl-[1em] text-content-destructive">Error: </span>
 							{link?.validate_error}
 						</span>

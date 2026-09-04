@@ -20,7 +20,7 @@ const LiveActivitySlot: FC<{ interrupting?: boolean }> = ({
 		) : (
 			<ToolIcon name="thinking" />
 		)}
-		<Shimmer as="span" className="text-[13px] leading-6">
+		<Shimmer as="span" className="text-sm leading-6">
 			{interrupting ? "Interrupting" : "Thinking"}
 		</Shimmer>
 	</div>

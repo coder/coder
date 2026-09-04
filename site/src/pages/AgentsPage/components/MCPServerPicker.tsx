@@ -198,7 +198,7 @@ const TriggerIconStack: FC<{
 				</span>
 			))}
 			{servers.length > ICON_STACK_MAX && (
-				<span className="-ml-1 inline-flex size-4 items-center justify-center rounded-full bg-surface-secondary text-[9px] font-medium text-content-secondary ring-1 ring-surface-primary">
+				<span className="-ml-1 inline-flex size-4 items-center justify-center rounded-full bg-surface-secondary text-2xs font-medium text-content-secondary ring-1 ring-surface-primary">
 					+{servers.length - ICON_STACK_MAX}
 				</span>
 			)}
@@ -338,7 +338,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 												<Button
 													variant="outline"
 													size="sm"
-													className="h-6 w-fit min-w-0 shrink-0 gap-0 px-2 text-[10px] leading-none border-border/50"
+													className="h-6 w-fit min-w-0 shrink-0 gap-0 px-2 text-2xs leading-none border-border/50"
 													onClick={(e) => {
 														e.stopPropagation();
 														handleConnect(server);

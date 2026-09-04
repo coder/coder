@@ -482,7 +482,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 									<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-[120px]">
 										{formatTime(usage.seconds)}
 										{usage.times_used > 0 && (
-											<span className="text-[12px] text-content-disabled">
+											<span className="text-xs text-content-disabled">
 												Opened {usage.times_used.toLocaleString()}{" "}
 												{usage.times_used === 1 ? "time" : "times"}
 											</span>

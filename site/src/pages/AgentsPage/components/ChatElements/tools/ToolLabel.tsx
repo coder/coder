@@ -26,14 +26,14 @@ const ProcessSignalLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 			: isTerminate
 				? "Terminating process…"
 				: "Sending signal…";
-		return <span className="truncate text-[13px]">{inFlightVerb}</span>;
+		return <span className="truncate text-sm">{inFlightVerb}</span>;
 	}
 
 	const success = parsedResult ? Boolean(parsedResult.success) : false;
 	if (success) {
 		const verb = isKill ? "Killed" : "Terminated";
 		return (
-			<span className="truncate text-[13px]">
+			<span className="truncate text-sm">
 				{verb} process{suffix}
 			</span>
 		);
@@ -41,7 +41,7 @@ const ProcessSignalLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 
 	const failedVerb = isKill ? "kill" : isTerminate ? "terminate" : "signal";
 	return (
-		<span className="truncate text-[13px]">
+		<span className="truncate text-sm">
 			Failed to {failedVerb} process{suffix}
 		</span>
 	);
@@ -55,9 +55,7 @@ const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	const argPath = parsed ? asString(parsed.path) : "";
 	const attachedName =
 		resultName || argName || getPathBasename(argPath) || "file";
-	return (
-		<span className="truncate text-[13px]">{`Attached ${attachedName}`}</span>
-	);
+	return <span className="truncate text-sm">{`Attached ${attachedName}`}</span>;
 };
 
 export const genericToolLabels: Partial<
@@ -65,11 +63,11 @@ export const genericToolLabels: Partial<
 > = {
 	process_signal: ProcessSignalLabel,
 	process_list: () => (
-		<span className="truncate text-[13px]">Listing processes</span>
+		<span className="truncate text-sm">Listing processes</span>
 	),
 	attach_file: AttachFileLabel,
 	advisor: () => (
-		<span className="truncate text-[13px] leading-4 text-content-secondary">
+		<span className="truncate text-sm leading-4 text-content-secondary">
 			Advisor
 		</span>
 	),
@@ -83,5 +81,5 @@ export const ToolLabel: React.FC<ToolLabelProps> = (props) => {
 	const displayName = props.mcpSlug
 		? humanizeMCPToolName(props.mcpSlug, props.name)
 		: props.name;
-	return <span className="truncate text-[13px]">{displayName}</span>;
+	return <span className="truncate text-sm">{displayName}</span>;
 };

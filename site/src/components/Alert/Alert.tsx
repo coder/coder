@@ -103,7 +103,7 @@ export const Alert: FC<AlertProps> = ({
 				)}
 			>
 				<div className="flex min-w-0 flex-1 flex-row items-start gap-3">
-					<Icon className={cn("size-icon-sm mt-[3px]", iconClassName)} />
+					<Icon className={cn("size-icon-sm mt-0.75", iconClassName)} />
 					<div className="flex min-w-0 flex-1 flex-col gap-4">
 						<div className="min-w-0 flex-1">{children}</div>
 						{actions && (

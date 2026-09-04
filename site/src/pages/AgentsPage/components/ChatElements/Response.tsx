@@ -131,7 +131,7 @@ const createComponents = (
 			</h2>
 		),
 		h3: ({ children }: MarkdownComponentProps) => (
-			<h3 className="mb-1.5 mt-3 text-[15px] font-semibold leading-snug first:mt-0">
+			<h3 className="mb-1.5 mt-3 text-sm font-semibold leading-snug first:mt-0">
 				{children}
 			</h3>
 		),
@@ -141,7 +141,7 @@ const createComponents = (
 			</h4>
 		),
 		h5: ({ children }: MarkdownComponentProps) => (
-			<h5 className="mb-1 mt-2 text-[13px] font-semibold leading-snug first:mt-0">
+			<h5 className="mb-1 mt-2 text-sm font-semibold leading-snug first:mt-0">
 				{children}
 			</h5>
 		),
@@ -282,10 +282,7 @@ export const Response = ({
 	return (
 		<div
 			ref={ref}
-			className={cn(
-				"text-[13px] leading-relaxed text-content-primary",
-				className,
-			)}
+			className={cn("text-sm leading-relaxed text-content-primary", className)}
 			{...props}
 		>
 			<Streamdown

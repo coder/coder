@@ -276,7 +276,7 @@ const SwitchField: FC<SwitchFieldDefinition> = ({
 			{description && (
 				<div
 					id={descriptionId}
-					className="ml-[44px] text-xs font-normal text-content-secondary"
+					className="ml-11 text-xs font-normal text-content-secondary"
 				>
 					{description}
 				</div>

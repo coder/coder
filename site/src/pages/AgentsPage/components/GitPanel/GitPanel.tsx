@@ -686,7 +686,7 @@ const RepoHeader: FC<{
 }> = ({ repoRoot, repo, diffStats, onCommit }) => {
 	return (
 		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
-			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
+			<div className="flex min-w-0 items-center gap-1.5 text-sm text-content-secondary">
 				<GitBranchIcon className="size-3.5 shrink-0" />
 				<span className="truncate">
 					{repo.branch?.trim() || repoLabel(repoRoot)}
@@ -702,7 +702,7 @@ const RepoHeader: FC<{
 					type="button"
 					onClick={onCommit}
 					disabled={!repo.unified_diff}
-					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
+					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-sm font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
 				>
 					<CheckIcon className="size-3" />
 					Commit

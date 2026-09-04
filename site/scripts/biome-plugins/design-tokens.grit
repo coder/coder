@@ -1,0 +1,29 @@
+// Design token rules for Coder's frontend, enforced by Biome's analyzer.
+// Keeps Tailwind usage aligned with the tokens defined in src/index.css.
+//
+// Each branch matches a string or template literal (a className value, or an
+// argument to cn()/cva()/clsx()) that contains a forbidden utility. The
+// delimiter anchors ([\"'`] ... [\"'`]) keep the diagnostic on the class
+// string itself rather than every enclosing JSX or expression node.
+language js
+
+or {
+	// Arbitrary font sizes bypass the --text-* type scale.
+	// text-[length:var(...)] and text-[length:inherit] stay allowed.
+	r"[\"'`][^\"'`]*\btext-\[[0-9.]+(?:px|rem|em|pt|%|vw|vh)\][^\"'`]*[\"'`]" as $font where {
+		register_diagnostic(span=$font, message="Arbitrary font size. Use a token from the --text-* scale (e.g. text-sm, text-2xs).")
+	},
+	// Arbitrary spacing bypasses the 4px scale. var()/calc()/keyword values
+	// are allowed because they are not hard-coded lengths.
+	r"[\"'`][^\"'`]*\b(?:p[xytblrse]?|m[xytblrse]?|gap(?:-[xy])?|space-[xy])-\[[0-9.]+(?:px|rem|em)\][^\"'`]*[\"'`]" as $spacing where {
+		register_diagnostic(span=$spacing, message="Arbitrary spacing. Use the 4px spacing scale (e.g. p-2, gap-4).")
+	},
+	// Raw hex/rgb/hsl colors bypass the semantic color tokens.
+	r"[\"'`][^\"'`]*\b(?:text|bg|border|fill|stroke|from|to|via|ring|outline|shadow|decoration|divide|accent|caret|placeholder)-\[(?:#[0-9a-fA-F]{3,8}|(?:rgb|rgba|hsl|hsla|oklch|oklab|lab|lch)\()[^\"'`]*[\"'`]" as $colorArbitrary where {
+		register_diagnostic(span=$colorArbitrary, message="Raw color value. Use a semantic color token (e.g. text-content-primary, bg-surface-secondary).")
+	},
+	// The default Tailwind palette bypasses the semantic color tokens.
+	r"[\"'`][^\"'`]*\b(?:text|bg|border|fill|stroke|from|to|via|ring|outline|shadow|decoration|divide|accent|caret|placeholder)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?:50|100|200|300|400|500|600|700|800|900|950)\b[^\"'`]*[\"'`]" as $colorPalette where {
+		register_diagnostic(span=$colorPalette, message="Default palette color. Use a semantic color token (e.g. text-content-primary, bg-surface-secondary).")
+	}
+}

@@ -59,7 +59,7 @@ export const ListAgentsTool: React.FC<{
 
 						if (!agentChatPath) {
 							return (
-								<div key={index} className="text-[13px] text-content-secondary">
+								<div key={index} className="text-sm text-content-secondary">
 									{row}
 								</div>
 							);
@@ -72,7 +72,7 @@ export const ListAgentsTool: React.FC<{
 										pathname: agentChatPath,
 										search: location.search,
 									}}
-									className="flex items-center gap-1.5 text-[13px] text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+									className="flex items-center gap-1.5 text-sm text-content-secondary opacity-50 transition-opacity hover:opacity-100"
 								>
 									{row}
 									<ExternalLinkIcon className="size-3 shrink-0" />

@@ -187,7 +187,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 	// could be buggy. But, how common is that anyways?
 	const value =
 		status === "loading" ? (
-			<Skeleton width={65} height={12} variant="text" className="mt-[6px]" />
+			<Skeleton width={65} height={12} variant="text" className="mt-1.5" />
 		) : status === "stale" ? (
 			<Tooltip>
 				<TooltipTrigger asChild>
@@ -212,7 +212,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 
 	return (
 		<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
-			<div className="text-content-secondary text-ellipsis overflow-hidden whitespace-nowrap text-[13px]">
+			<div className="text-content-secondary text-ellipsis overflow-hidden whitespace-nowrap text-sm">
 				{item.description.display_name}
 			</div>
 			<div>{value}</div>

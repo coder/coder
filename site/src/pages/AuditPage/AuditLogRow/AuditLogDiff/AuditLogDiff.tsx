@@ -11,6 +11,7 @@ export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
 
 	return (
 		<div className="relative z-2 flex items-start border-t border-border font-mono text-sm">
+			{/* biome-ignore lint: design-token: fixed high-contrast diff palette; needs semantic token mapping decision */}
 			<div className="flex-1 self-stretch bg-red-950 pb-5 pr-4 pt-4 leading-[160%] text-red-50 wrap-anywhere">
 				{diffEntries.map(([attrName, valueDiff], index) => (
 					<div key={attrName} className="flex items-baseline">
@@ -20,6 +21,7 @@ export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
 						<div className="w-8 shrink-0 text-center text-base">-</div>
 						<div>
 							{attrName}:{" "}
+							{/* biome-ignore lint: design-token: fixed high-contrast diff palette; needs semantic token mapping decision */}
 							<span className="rounded p-px bg-red-800">
 								{valueDiff.secret
 									? "••••••••"
@@ -29,6 +31,7 @@ export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
 					</div>
 				))}
 			</div>
+			{/* biome-ignore lint: design-token: fixed high-contrast diff palette; needs semantic token mapping decision */}
 			<div className="flex-1 self-stretch bg-green-950 pb-5 pr-4 pt-4 leading-[160%] text-green-50 wrap-anywhere">
 				{diffEntries.map(([attrName, valueDiff], index) => (
 					<div key={attrName} className="flex items-baseline">
@@ -38,6 +41,7 @@ export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
 						<div className="w-8 shrink-0 text-center text-base">+</div>
 						<div>
 							{attrName}:{" "}
+							{/* biome-ignore lint: design-token: fixed high-contrast diff palette; needs semantic token mapping decision */}
 							<span className="rounded p-px bg-green-800">
 								{valueDiff.secret
 									? "••••••••"

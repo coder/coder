@@ -32,6 +32,7 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 			<div className="pt-4">
 				<RouterLink
 					to="/workspaces"
+					// biome-ignore lint: design-token: semi-transparent underline color; no token equivalent, needs design decision
 					className="block py-4 text-center text-content-primary underline decoration-[hsla(0,0%,100%,0.7)] underline-offset-[3px] hover:no-underline"
 				>
 					Go to workspaces

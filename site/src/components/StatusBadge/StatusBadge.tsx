@@ -47,7 +47,7 @@ export const StatusBadge: FC<StatusBadgeProps> = ({
 			: "error";
 	const badge = (
 		<Badge
-			className="text-[10px] h-5 px-2.5 font-semibold"
+			className="text-2xs h-5 px-2.5 font-semibold"
 			variant={themeRoleToBadgeVariant(role)}
 		>
 			{code.toString()}

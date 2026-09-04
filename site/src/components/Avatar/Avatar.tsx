@@ -22,7 +22,7 @@ const avatarVariants = cva(
 			size: {
 				lg: "size-(--avatar-lg) rounded-[6px] text-sm font-medium",
 				md: "size-(--avatar-default) text-2xs",
-				sm: "size-(--avatar-sm) text-[8px]",
+				sm: "size-(--avatar-sm) text-2xs",
 			},
 			variant: {
 				default: null,
@@ -46,7 +46,7 @@ const avatarVariants = cva(
 			{
 				size: "sm",
 				variant: "icon",
-				className: "p-[3px]",
+				className: "p-0.75",
 			},
 		],
 	},
