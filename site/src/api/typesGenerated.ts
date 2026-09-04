@@ -416,15 +416,22 @@ export interface AIGatewaySpendUserSummary extends AIGatewaySpendTotals {
 
 // From codersdk/aibridge.go
 /**
- * AIGatewaySpendUsersFilter filters the per-user AI Gateway spend list.
+ * AIGatewaySpendUsersFilter filters the per-user AI Gateway spend list. The
+ * list is offset paginated only; it has no cursor.
  */
-export interface AIGatewaySpendUsersFilter
-	extends AIGatewaySpendWindow,
-		Pagination {
+export interface AIGatewaySpendUsersFilter extends AIGatewaySpendWindow {
 	/**
 	 * Search matches the username or display name, case-insensitively.
 	 */
 	readonly search?: string;
+	/**
+	 * Limit is the page size. Zero applies the server default.
+	 */
+	readonly limit?: number;
+	/**
+	 * Offset is the number of users to skip; the first page is offset 0.
+	 */
+	readonly offset?: number;
 }
 
 // From codersdk/aibridge.go

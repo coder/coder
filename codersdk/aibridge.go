@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -489,25 +490,33 @@ func (w AIGatewaySpendWindow) asRequestOption() RequestOption {
 	}
 }
 
-// AIGatewaySpendUsersFilter filters the per-user AI Gateway spend list.
+// AIGatewaySpendUsersFilter filters the per-user AI Gateway spend list. The
+// list is offset paginated only; it has no cursor.
 type AIGatewaySpendUsersFilter struct {
 	AIGatewaySpendWindow
 	// Search matches the username or display name, case-insensitively.
 	Search string `json:"search,omitempty"`
-	Pagination
+	// Limit is the page size. Zero applies the server default.
+	Limit int `json:"limit,omitempty"`
+	// Offset is the number of users to skip; the first page is offset 0.
+	Offset int `json:"offset,omitempty"`
 }
 
 // AIGatewaySpendUsers returns per-user AI Gateway spend for the deployment.
 func (c *Client) AIGatewaySpendUsers(ctx context.Context, filter AIGatewaySpendUsersFilter) (AIGatewaySpendUsersResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/spend/users", nil,
-		filter.AIGatewaySpendWindow.asRequestOption(),
-		filter.Pagination.asRequestOption(),
+		filter.asRequestOption(),
 		func(r *http.Request) {
-			if filter.Search == "" {
-				return
-			}
 			q := r.URL.Query()
-			q.Set("search", filter.Search)
+			if filter.Search != "" {
+				q.Set("search", filter.Search)
+			}
+			if filter.Limit > 0 {
+				q.Set("limit", strconv.Itoa(filter.Limit))
+			}
+			if filter.Offset > 0 {
+				q.Set("offset", strconv.Itoa(filter.Offset))
+			}
 			r.URL.RawQuery = q.Encode()
 		},
 	)

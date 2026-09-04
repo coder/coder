@@ -177,6 +177,7 @@ export const Users: Story = {
 		await expect(within(table).getByText("$1.00")).toBeVisible();
 		await expect(within(table).getByText("300,000")).toBeVisible();
 		expect(within(table).queryByText(/unpriced/)).not.toBeInTheDocument();
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
 
 		const detailsLink = within(table).getByRole("link", {
 			name: "Alice Liddell",
@@ -201,6 +202,36 @@ export const UsersWithUnpricedRequests: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("3 unpriced")).toBeVisible();
+	},
+};
+
+export const UsersClampedToRetention: Story = {
+	args: {
+		usersQuery: mockUsersQuery({
+			data: { ...mockUsersResponse, start_date: "2026-02-26T12:00:00Z" },
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			/Showing spend since .*Feb 26, 2026/,
+		);
+		await expect(
+			canvas.getByRole("link", { name: "data retention period" }),
+		).toBeVisible();
+	},
+};
+
+export const UsersSearchNoMatch: Story = {
+	args: {
+		searchFilter: "nobody",
+		usersQuery: mockUsersQuery({
+			data: { ...mockUsersResponse, count: 0, users: [] },
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("No users match this search.")).toBeVisible();
 	},
 };
 
@@ -302,11 +333,17 @@ export const DrillIn: Story = {
 			`initiator:${MockAIGatewaySpendUser.id} started_after:"2026-02-10T00:00:00Z" started_before:"2026-03-12T00:00:00Z"`,
 		);
 
+		await expect(
+			canvas.getByRole("heading", { name: "By model" }),
+		).toBeVisible();
 		const byModel = canvas.getByRole("table", { name: "Spend by model" });
 		await expect(within(byModel).getByText("claude-opus-4-6")).toBeVisible();
 		await expect(within(byModel).getByText("anthropic-main")).toBeVisible();
 		await expect(within(byModel).getByText("$2.00")).toBeVisible();
 
+		await expect(
+			canvas.getByRole("heading", { name: "By client" }),
+		).toBeVisible();
 		const byClient = canvas.getByRole("table", { name: "Spend by client" });
 		await expect(within(byClient).getByText("Claude Code")).toBeVisible();
 		await expect(within(byClient).getByText("$1.80")).toBeVisible();
@@ -331,6 +368,23 @@ export const DrillInWithUnpricedRequests: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("note")).toHaveTextContent(
 			"Cost is unavailable for 1 request. The total excludes that usage.",
+		);
+	},
+};
+
+export const DrillInClampedToRetention: Story = {
+	args: {
+		drillInUserId: MockAIGatewaySpendUser.id,
+		drillInUser: mockUserProfile,
+		summaryData: {
+			...MockAIGatewaySpendUserSummary,
+			start_date: "2026-02-26T12:00:00Z",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			/Showing spend since .*Feb 26, 2026/,
 		);
 	},
 };

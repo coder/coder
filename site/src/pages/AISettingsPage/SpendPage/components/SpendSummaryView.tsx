@@ -132,6 +132,7 @@ export const SpendSummaryView: FC<SpendSummaryViewProps> = ({
 			) : (
 				<>
 					<div>
+						<h3 className="m-0 mb-3 text-sm font-medium">By model</h3>
 						<Table aria-label="Spend by model">
 							<TableHeader>
 								<TableRow>
@@ -191,6 +192,7 @@ export const SpendSummaryView: FC<SpendSummaryViewProps> = ({
 					</div>
 
 					<div>
+						<h3 className="m-0 mb-3 text-sm font-medium">By client</h3>
 						<Table aria-label="Spend by client">
 							<TableHeader>
 								<TableRow>

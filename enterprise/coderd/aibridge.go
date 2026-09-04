@@ -614,12 +614,16 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 
 // aiGatewaySpendWindow parses the optional start_date and end_date query
 // parameters. end_date defaults to now and start_date to 30 days before
-// end_date. On invalid input it writes the error response and returns false.
+// end_date. Records older than the AI Gateway retention period have been
+// purged, so start is raised to that boundary when it falls earlier; the
+// response echoes the applied window so callers can tell. On invalid input it
+// writes the error response and returns false.
 func (api *API) aiGatewaySpendWindow(rw http.ResponseWriter, r *http.Request) (start, end time.Time, ok bool) {
 	ctx := r.Context()
 	query := r.URL.Query()
+	now := api.Clock.Now().UTC()
 	parser := httpapi.NewQueryParamParser()
-	end = parser.Time3339Nano(query, api.Clock.Now().UTC(), "end_date")
+	end = parser.Time3339Nano(query, now, "end_date")
 	start = parser.Time3339Nano(query, end.Add(-defaultAIGatewaySpendWindow), "start_date")
 	if len(parser.Errors) == 0 && !start.Before(end) {
 		parser.Errors = append(parser.Errors, codersdk.ValidationError{
@@ -634,6 +638,17 @@ func (api *API) aiGatewaySpendWindow(rw http.ResponseWriter, r *http.Request) (s
 		})
 		return time.Time{}, time.Time{}, false
 	}
+	// A retention of zero disables purging.
+	if retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value(); retention > 0 {
+		if retentionStart := now.Add(-retention); start.Before(retentionStart) {
+			// A window that ends before the boundary collapses to an empty one
+			// rather than inverting.
+			start = retentionStart
+			if start.After(end) {
+				start = end
+			}
+		}
+	}
 	return start, end, true
 }
 
@@ -641,11 +656,12 @@ func (api *API) aiGatewaySpendWindow(rw http.ResponseWriter, r *http.Request) (s
 //
 // @Summary List AI Gateway spend by user
 // @Description Returns AI Gateway spend for every user with finished requests in the window, most expensive first. Requires permission to read any AI Gateway interception.
+// @Description start_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.
 // @ID list-ai-gateway-spend-by-user
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param start_date query string false "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date." format(date-time)
+// @Param start_date query string false "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary." format(date-time)
 // @Param end_date query string false "Exclusive upper bound (RFC3339). Defaults to now." format(date-time)
 // @Param search query string false "Case-insensitive match on username or name"
 // @Param limit query int false "Page limit (default 10, maximum 100)"
@@ -764,12 +780,13 @@ func (api *API) aiGatewaySpendUsers(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary Get AI Gateway spend summary for a user
 // @Description Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Requires permission to read any AI Gateway interception.
+// @Description start_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.
 // @ID get-ai-gateway-spend-summary-for-a-user
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param user path string true "User ID, username, or me"
-// @Param start_date query string false "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date." format(date-time)
+// @Param start_date query string false "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary." format(date-time)
 // @Param end_date query string false "Exclusive upper bound (RFC3339). Defaults to now." format(date-time)
 // @Success 200 {object} codersdk.AIGatewaySpendUserSummary
 // @Router /api/v2/ai-gateway/spend/users/{user}/summary [get]

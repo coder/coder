@@ -878,7 +878,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/spend/users": {
             "get": {
-                "description": "Returns AI Gateway spend for every user with finished requests in the window, most expensive first. Requires permission to read any AI Gateway interception.",
+                "description": "Returns AI Gateway spend for every user with finished requests in the window, most expensive first. Requires permission to read any AI Gateway interception.\nstart_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.",
                 "produces": [
                     "application/json"
                 ],
@@ -891,7 +891,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date.",
+                        "description": "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary.",
                         "name": "start_date",
                         "in": "query"
                     },
@@ -938,7 +938,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/spend/users/{user}/summary": {
             "get": {
-                "description": "Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Requires permission to read any AI Gateway interception.",
+                "description": "Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Requires permission to read any AI Gateway interception.\nstart_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.",
                 "produces": [
                     "application/json"
                 ],
@@ -958,7 +958,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date.",
+                        "description": "Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary.",
                         "name": "start_date",
                         "in": "query"
                     },

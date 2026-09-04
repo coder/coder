@@ -1443,6 +1443,77 @@ func TestAIGatewaySpend(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
+	t.Run("WindowClampedToRetention", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		retention := 14 * 24 * time.Hour
+		opts := aibridgeOpts(t)
+		opts.DeploymentValues.AI.BridgeConfig.Retention = serpent.Duration(retention)
+		opts.Clock = clock
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		retentionStart := now.Add(-retention)
+
+		// The request just before the boundary is still in the database, as
+		// it would be between purge runs, but the reported window excludes it.
+		for _, seed := range []struct {
+			at   time.Time
+			cost int64
+		}{
+			{at: retentionStart.Add(-time.Hour), cost: 9999},
+			{at: retentionStart.Add(time.Hour), cost: 1000},
+		} {
+			endedAt := seed.at.Add(time.Minute)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: firstUser.UserID,
+				StartedAt:   seed.at,
+			}, &endedAt)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID,
+				CostMicros:     sql.NullInt64{Int64: seed.cost, Valid: true},
+			})
+		}
+
+		// An explicit window reaching past the boundary is narrowed and the
+		// applied bounds are echoed.
+		window := codersdk.AIGatewaySpendWindow{StartDate: now.Add(-30 * 24 * time.Hour), EndDate: now}
+		//nolint:gocritic // Owner role is irrelevant here.
+		res, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{AIGatewaySpendWindow: window})
+		require.NoError(t, err)
+		require.True(t, retentionStart.Equal(res.StartDate), "start %s", res.StartDate)
+		require.True(t, now.Equal(res.EndDate))
+		require.Len(t, res.Users, 1)
+		require.EqualValues(t, 1000, res.Users[0].TotalCostMicros)
+		require.EqualValues(t, 1, res.Users[0].RequestCount)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		summary, err := client.AIGatewaySpendUserSummary(ctx, codersdk.Me, window)
+		require.NoError(t, err)
+		require.True(t, retentionStart.Equal(summary.StartDate))
+		require.EqualValues(t, 1000, summary.TotalCostMicros)
+
+		// The default window also starts at the boundary.
+		//nolint:gocritic // Owner role is irrelevant here.
+		defaulted, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{})
+		require.NoError(t, err)
+		require.True(t, retentionStart.Equal(defaulted.StartDate))
+		require.True(t, now.Equal(defaulted.EndDate))
+
+		// A window that ends before the boundary collapses to an empty one.
+		//nolint:gocritic // Owner role is irrelevant here.
+		stale, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{
+			AIGatewaySpendWindow: codersdk.AIGatewaySpendWindow{
+				StartDate: retentionStart.Add(-48 * time.Hour),
+				EndDate:   retentionStart.Add(-24 * time.Hour),
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, stale.EndDate.Equal(stale.StartDate))
+		require.Empty(t, stale.Users)
+	})
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
@@ -1567,7 +1638,8 @@ func TestAIGatewaySpend(t *testing.T) {
 		//nolint:gocritic // Owner role is irrelevant here.
 		page2, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{
 			AIGatewaySpendWindow: window,
-			Pagination:           codersdk.Pagination{Limit: 1, Offset: 1},
+			Limit:                1,
+			Offset:               1,
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 2, page2.Count)
@@ -1578,7 +1650,8 @@ func TestAIGatewaySpend(t *testing.T) {
 		//nolint:gocritic // Owner role is irrelevant here.
 		overshot, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{
 			AIGatewaySpendWindow: window,
-			Pagination:           codersdk.Pagination{Limit: 1, Offset: 5},
+			Limit:                1,
+			Offset:               5,
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 2, overshot.Count)

@@ -28,6 +28,7 @@ import {
 import { formatTokenCount } from "#/utils/analytics";
 import { formatCostMicros } from "#/utils/currency";
 import type { SpendUsersQuery } from "../SpendPageView";
+import { RetentionNotice } from "./RetentionNotice";
 import { SpendSectionHeader } from "./SpendSectionHeader";
 
 export const userSearchParam = "user";
@@ -97,6 +98,12 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 				</div>
 			)}
 			{usersQuery.data && (
+				<RetentionNotice
+					requestedStart={displayDateRange.startDate}
+					appliedStart={usersQuery.data.start_date}
+				/>
+			)}
+			{usersQuery.data && (
 				<div className="relative pt-3">
 					{usersQuery.isFetching && !usersQuery.isLoading && (
 						<div
@@ -109,7 +116,9 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 					)}
 					{usersQuery.data.users.length === 0 ? (
 						<p className="py-12 text-center text-content-secondary">
-							No AI Gateway spend for this period.
+							{searchFilter
+								? "No users match this search."
+								: "No AI Gateway spend for this period."}
 						</p>
 					) : (
 						<PaginationContainer query={usersQuery} paginationUnitLabel="users">

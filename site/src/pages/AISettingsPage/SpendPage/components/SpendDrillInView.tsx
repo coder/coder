@@ -13,6 +13,7 @@ import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { queryWithTimeRange } from "#/pages/AIBridgePage/ListSessionsPage/timeRange";
 import { BackButton } from "./BackButton";
+import { RetentionNotice } from "./RetentionNotice";
 import { SpendSectionHeader } from "./SpendSectionHeader";
 import { SpendSummaryView } from "./SpendSummaryView";
 
@@ -124,6 +125,12 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 					</Link>
 				</div>
 			</div>
+			{summaryData && (
+				<RetentionNotice
+					requestedStart={queryDateRange.startDate}
+					appliedStart={summaryData.start_date}
+				/>
+			)}
 			<SpendSummaryView
 				key={selectedUser.id}
 				summary={summaryData}

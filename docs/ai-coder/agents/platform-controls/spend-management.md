@@ -78,3 +78,4 @@ The AI Gateway [sessions views](../../ai-gateway/audit.md#navigating-the-ui) sho
 
 AI Gateway data is subject to its own [retention period](../../ai-gateway/monitoring.md#data-retention), 60 days by default, which is configured independently of chat retention.
 Spend for requests older than that period is no longer reported, so a chat for which gateway records have been pruned reports no cost.
+The **Spend** page narrows a date range that starts before the retention boundary and shows the start date it applied.

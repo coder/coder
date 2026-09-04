@@ -343,16 +343,17 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/spend/users \
 `GET /api/v2/ai-gateway/spend/users`
 
 Returns AI Gateway spend for every user with finished requests in the window, most expensive first. Requires permission to read any AI Gateway interception.
+start_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.
 
 ### Parameters
 
-| Name         | In    | Type              | Required | Description                                                           |
-|--------------|-------|-------------------|----------|-----------------------------------------------------------------------|
-| `start_date` | query | string(date-time) | false    | Inclusive lower bound (RFC3339). Defaults to 30 days before end_date. |
-| `end_date`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339). Defaults to now.                     |
-| `search`     | query | string            | false    | Case-insensitive match on username or name                            |
-| `limit`      | query | integer           | false    | Page limit (default 10, maximum 100)                                  |
-| `offset`     | query | integer           | false    | Page offset                                                           |
+| Name         | In    | Type              | Required | Description                                                                                                   |
+|--------------|-------|-------------------|----------|---------------------------------------------------------------------------------------------------------------|
+| `start_date` | query | string(date-time) | false    | Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary. |
+| `end_date`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339). Defaults to now.                                                             |
+| `search`     | query | string            | false    | Case-insensitive match on username or name                                                                    |
+| `limit`      | query | integer           | false    | Page limit (default 10, maximum 100)                                                                          |
+| `offset`     | query | integer           | false    | Page offset                                                                                                   |
 
 ### Example responses
 
@@ -404,14 +405,15 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/spend/users/{user}/summar
 `GET /api/v2/ai-gateway/spend/users/{user}/summary`
 
 Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Requires permission to read any AI Gateway interception.
+start_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.
 
 ### Parameters
 
-| Name         | In    | Type              | Required | Description                                                           |
-|--------------|-------|-------------------|----------|-----------------------------------------------------------------------|
-| `user`       | path  | string            | true     | User ID, username, or me                                              |
-| `start_date` | query | string(date-time) | false    | Inclusive lower bound (RFC3339). Defaults to 30 days before end_date. |
-| `end_date`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339). Defaults to now.                     |
+| Name         | In    | Type              | Required | Description                                                                                                   |
+|--------------|-------|-------------------|----------|---------------------------------------------------------------------------------------------------------------|
+| `user`       | path  | string            | true     | User ID, username, or me                                                                                      |
+| `start_date` | query | string(date-time) | false    | Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary. |
+| `end_date`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339). Defaults to now.                                                             |
 
 ### Example responses
 
