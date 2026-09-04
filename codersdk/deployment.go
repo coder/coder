@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -4450,6 +4451,106 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "hookAllowInsecure",
 		},
 		{
+			Name:        "Chat: Max Steps Per Turn",
+			Description: "Maximum number of model and tool steps a single agent chat turn may run before Coder stops the turn.",
+			Flag:        "chat-max-steps-per-turn",
+			Env:         "CODER_CHAT_MAX_STEPS_PER_TURN",
+			Value:       &c.AI.Chat.MaxStepsPerTurn,
+			Default:     strconv.Itoa(DefaultChatMaxStepsPerTurn),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxStepsPerTurn",
+		},
+		{
+			Name:        "Chat: Max Generation Retries",
+			Description: "Maximum number of times a chat turn retries a model call that failed with a transient provider error, such as a rate limit or an overloaded response, before the turn fails.",
+			Flag:        "chat-max-generation-retries",
+			Env:         "CODER_CHAT_MAX_GENERATION_RETRIES",
+			Value:       &c.AI.Chat.MaxGenerationRetries,
+			Default:     strconv.Itoa(DefaultChatMaxGenerationRetries),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxGenerationRetries",
+		},
+		{
+			Name:        "Chat: Max Queued Messages Per Chat",
+			Description: "Maximum number of user messages that can wait in a chat's queue while a turn is running.",
+			Flag:        "chat-max-queued-messages-per-chat",
+			Env:         "CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT",
+			Value:       &c.AI.Chat.MaxQueuedMessagesPerChat,
+			Default:     strconv.Itoa(DefaultChatMaxQueuedMessagesPerChat),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxQueuedMessagesPerChat",
+		},
+		{
+			Name:        "Chat: Max Attachments Per Chat",
+			Description: "Maximum number of files that can be attached to a single chat over its lifetime, counting uploads and files the agent attaches from the workspace.",
+			Flag:        "chat-max-attachments-per-chat",
+			Env:         "CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT",
+			Value:       &c.AI.Chat.MaxAttachmentsPerChat,
+			Default:     strconv.Itoa(DefaultChatMaxAttachmentsPerChat),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxAttachmentsPerChat",
+		},
+		{
+			Name:        "Chat: Max Prompt Bytes",
+			Description: "Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt.",
+			Flag:        "chat-max-prompt-bytes",
+			Env:         "CODER_CHAT_MAX_PROMPT_BYTES",
+			Value:       &c.AI.Chat.MaxPromptBytes,
+			Default:     strconv.Itoa(DefaultChatMaxPromptBytes),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxPromptBytes",
+		},
+		{
+			Name:        "Chat: Max Dynamic Tools Per Chat",
+			Description: "Maximum number of client-provided dynamic tools a chat can be created with.",
+			Flag:        "chat-max-dynamic-tools-per-chat",
+			Env:         "CODER_CHAT_MAX_DYNAMIC_TOOLS_PER_CHAT",
+			Value:       &c.AI.Chat.MaxDynamicToolsPerChat,
+			Default:     strconv.Itoa(DefaultChatMaxDynamicToolsPerChat),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxDynamicToolsPerChat",
+		},
+		{
+			Name:        "Chat: Max Tool Output Bytes",
+			Description: "Maximum number of bytes of workspace command output the execute and process tools return to the model. Longer output is truncated.",
+			Flag:        "chat-max-tool-output-bytes",
+			Env:         "CODER_CHAT_MAX_TOOL_OUTPUT_BYTES",
+			Value:       &c.AI.Chat.MaxToolOutputBytes,
+			Default:     strconv.Itoa(DefaultChatMaxToolOutputBytes),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxToolOutputBytes",
+		},
+		{
+			Name:        "Chat: Max Concurrent Recording Uploads",
+			Description: "Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings.",
+			Flag:        "chat-max-concurrent-recording-uploads",
+			Env:         "CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS",
+			Value:       &c.AI.Chat.MaxConcurrentRecordingUploads,
+			Default:     strconv.Itoa(DefaultChatMaxConcurrentRecordingUploads),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxConcurrentRecordingUploads",
+		},
+		{
+			Name:        "Chat: Debug Max Text Runes",
+			Description: "Maximum number of characters of each message part, tool argument, and tool result kept in chat debug run records. Longer text is truncated.",
+			Flag:        "chat-debug-max-text-runes",
+			Env:         "CODER_CHAT_DEBUG_MAX_TEXT_RUNES",
+			Value:       &c.AI.Chat.DebugMaxTextRunes,
+			Default:     strconv.Itoa(DefaultChatDebugMaxTextRunes),
+			Group:       &deploymentGroupChat,
+			YAML:        "debugMaxTextRunes",
+		},
+		{
+			Name:        "Chat: Debug Max Body Bytes",
+			Description: "Maximum number of bytes of streamed model output and of each recorded provider HTTP request or response body kept in chat debug run records.",
+			Flag:        "chat-debug-max-body-bytes",
+			Env:         "CODER_CHAT_DEBUG_MAX_BODY_BYTES",
+			Value:       &c.AI.Chat.DebugMaxBodyBytes,
+			Default:     strconv.Itoa(DefaultChatDebugMaxBodyBytes),
+			Group:       &deploymentGroupChat,
+			YAML:        "debugMaxBodyBytes",
+		},
+		{
 			Name:        "Chat: AI Gateway Routing Enabled",
 			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
@@ -5130,6 +5231,8 @@ type AIBridgeProxyConfig struct {
 	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
+// ChatConfig configures Coder Agents chats. A zero limit selects the
+// matching DefaultChat* constant.
 type ChatConfig struct {
 	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
 	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
@@ -5138,6 +5241,34 @@ type ChatConfig struct {
 	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
 	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
 	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	// MaxStepsPerTurn bounds the model and tool steps one turn may run.
+	MaxStepsPerTurn serpent.Int64 `json:"max_steps_per_turn" typescript:",notnull"`
+	// MaxGenerationRetries bounds how many times a turn retries a model
+	// call that failed with a transient provider error.
+	MaxGenerationRetries serpent.Int64 `json:"max_generation_retries" typescript:",notnull"`
+	// MaxQueuedMessagesPerChat bounds the user messages waiting in a
+	// chat's queue while a turn runs.
+	MaxQueuedMessagesPerChat serpent.Int64 `json:"max_queued_messages_per_chat" typescript:",notnull"`
+	// MaxAttachmentsPerChat bounds the files linked to one chat.
+	MaxAttachmentsPerChat serpent.Int64 `json:"max_attachments_per_chat" typescript:",notnull"`
+	// MaxPromptBytes bounds the deployment system prompt, plan mode
+	// instructions, and per-user custom prompts.
+	MaxPromptBytes serpent.Int64 `json:"max_prompt_bytes" typescript:",notnull"`
+	// MaxDynamicToolsPerChat bounds the client-provided dynamic tools a
+	// chat is created with.
+	MaxDynamicToolsPerChat serpent.Int64 `json:"max_dynamic_tools_per_chat" typescript:",notnull"`
+	// MaxToolOutputBytes bounds the command output the execute and
+	// process tools return to the model.
+	MaxToolOutputBytes serpent.Int64 `json:"max_tool_output_bytes" typescript:",notnull"`
+	// MaxConcurrentRecordingUploads bounds the virtual desktop recordings
+	// chatd stores concurrently.
+	MaxConcurrentRecordingUploads serpent.Int64 `json:"max_concurrent_recording_uploads" typescript:",notnull"`
+	// DebugMaxTextRunes bounds each text, argument, and result field kept
+	// in chat debug records.
+	DebugMaxTextRunes serpent.Int64 `json:"debug_max_text_runes" typescript:",notnull"`
+	// DebugMaxBodyBytes bounds accumulated streamed model output and each
+	// recorded provider HTTP body in chat debug runs.
+	DebugMaxBodyBytes serpent.Int64 `json:"debug_max_body_bytes" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -5250,6 +5381,27 @@ func (c *DeploymentValues) Validate() error {
 			if hookTimeout <= 0 || hookTimeout > 5*time.Second {
 				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
 			}
+		}
+	}
+
+	for _, limit := range []struct {
+		flag  string
+		value int64
+	}{
+		{"chat-max-steps-per-turn", c.AI.Chat.MaxStepsPerTurn.Value()},
+		{"chat-max-generation-retries", c.AI.Chat.MaxGenerationRetries.Value()},
+		{"chat-max-queued-messages-per-chat", c.AI.Chat.MaxQueuedMessagesPerChat.Value()},
+		{"chat-max-attachments-per-chat", c.AI.Chat.MaxAttachmentsPerChat.Value()},
+		{"chat-max-prompt-bytes", c.AI.Chat.MaxPromptBytes.Value()},
+		{"chat-max-dynamic-tools-per-chat", c.AI.Chat.MaxDynamicToolsPerChat.Value()},
+		{"chat-max-tool-output-bytes", c.AI.Chat.MaxToolOutputBytes.Value()},
+		{"chat-max-concurrent-recording-uploads", c.AI.Chat.MaxConcurrentRecordingUploads.Value()},
+		{"chat-debug-max-text-runes", c.AI.Chat.DebugMaxTextRunes.Value()},
+		{"chat-debug-max-body-bytes", c.AI.Chat.DebugMaxBodyBytes.Value()},
+	} {
+		// Zero is accepted and resolves to the default at runtime.
+		if limit.value < 0 || limit.value > math.MaxInt32 {
+			return xerrors.Errorf("--%s (%d) must be between 0 and %d", limit.flag, limit.value, math.MaxInt32)
 		}
 	}
 

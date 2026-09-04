@@ -540,6 +540,39 @@ func TestTransitionInputValidation(t *testing.T) {
 	})
 }
 
+// TestSendMessageQueueCapUsesConfiguredMax verifies that a
+// SendMessageInput.MaxQueueSize below the default is enforced.
+func TestSendMessageQueueCapUsesConfiguredMax(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	const maxQueueSize = 2
+	send := func(body string) error {
+		return m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			_, err := tx.SendMessage(chatstate.SendMessageInput{
+				Message:      userTextMessage(body, f.User.ID, f.Model.ID),
+				BusyBehavior: chatstate.BusyBehaviorQueue,
+				MaxQueueSize: maxQueueSize,
+			})
+			return err
+		})
+	}
+	for range maxQueueSize {
+		require.NoError(t, send("filler"))
+	}
+
+	err := send("overflow")
+	var typed *chatstate.MessageQueueFullError
+	require.ErrorAs(t, err, &typed)
+	require.EqualValues(t, maxQueueSize, typed.Max)
+	count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, maxQueueSize, count)
+}
+
 // TestSendMessageQueueCapRejectsQueueAppend seeds a chat with the
 // maximum queued messages and asserts that the next SendMessage in
 // a queue-appending state returns chatstate.ErrMessageQueueFull and
@@ -553,12 +586,12 @@ func TestSendMessageQueueCapRejectsQueueAppend(t *testing.T) {
 
 	// createTestChat lands the chat in R0; SendMessage in R0 with
 	// BusyBehaviorQueue queues. Fill the queue to MaxQueueSize.
-	for i := 0; i < chatstate.MaxQueueSize; i++ {
+	for i := 0; i < codersdk.DefaultChatMaxQueuedMessagesPerChat; i++ {
 		sendQueuedMessage(t, f, m, "filler")
 	}
 	count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.EqualValues(t, chatstate.MaxQueueSize, count)
+	require.EqualValues(t, codersdk.DefaultChatMaxQueuedMessagesPerChat, count)
 	chatBefore := f.readChat(ctx, t, created.Chat.ID)
 
 	// The next queue append must fail with ErrMessageQueueFull and a
@@ -575,13 +608,13 @@ func TestSendMessageQueueCapRejectsQueueAppend(t *testing.T) {
 		"queue-append over the cap returns ErrMessageQueueFull")
 	var typed *chatstate.MessageQueueFullError
 	require.ErrorAs(t, err, &typed, "ErrMessageQueueFull is carried as a typed error")
-	require.EqualValues(t, chatstate.MaxQueueSize, typed.Max)
+	require.EqualValues(t, codersdk.DefaultChatMaxQueuedMessagesPerChat, typed.Max)
 
 	// The transaction rolled back: queue size, snapshot version,
 	// and queue version are unchanged.
 	countAfter, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.EqualValues(t, chatstate.MaxQueueSize, countAfter,
+	require.EqualValues(t, codersdk.DefaultChatMaxQueuedMessagesPerChat, countAfter,
 		"queue size must not change when the cap rejects the append")
 	chatAfter := f.readChat(ctx, t, created.Chat.ID)
 	require.Equal(t, chatBefore.SnapshotVersion, chatAfter.SnapshotVersion,

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
@@ -34,17 +35,24 @@ func TestTruncateOutput(t *testing.T) {
 
 	t.Run("ExactlyAtLimit", func(t *testing.T) {
 		t.Parallel()
-		output := strings.Repeat("a", maxOutputToModel)
+		output := strings.Repeat("a", codersdk.DefaultChatMaxToolOutputBytes)
 		result := runForegroundWithOutput(t, output)
-		assert.Equal(t, maxOutputToModel, len(result.Output))
+		assert.Equal(t, codersdk.DefaultChatMaxToolOutputBytes, len(result.Output))
 		assert.Equal(t, output, result.Output)
 	})
 
 	t.Run("OverLimit", func(t *testing.T) {
 		t.Parallel()
-		output := strings.Repeat("b", maxOutputToModel+1024)
+		output := strings.Repeat("b", codersdk.DefaultChatMaxToolOutputBytes+1024)
 		result := runForegroundWithOutput(t, output)
-		assert.Equal(t, maxOutputToModel, len(result.Output))
+		assert.Equal(t, codersdk.DefaultChatMaxToolOutputBytes, len(result.Output))
+	})
+
+	t.Run("ConfiguredLimit", func(t *testing.T) {
+		t.Parallel()
+		output := strings.Repeat("c", 100)
+		result := runForegroundWithOutputLimit(t, output, 64)
+		assert.Equal(t, output[:64], result.Output)
 	})
 
 	t.Run("MultiByteCutMidCharacter", func(t *testing.T) {
@@ -52,10 +60,10 @@ func TestTruncateOutput(t *testing.T) {
 		// Build output that places a 3-byte UTF-8 character
 		// (U+2603, snowman ☃) right at the truncation boundary
 		// so the cut falls mid-character.
-		padding := strings.Repeat("x", maxOutputToModel-1)
+		padding := strings.Repeat("x", codersdk.DefaultChatMaxToolOutputBytes-1)
 		output := padding + "☃" // ☃ is 3 bytes, only 1 byte fits
 		result := runForegroundWithOutput(t, output)
-		assert.LessOrEqual(t, len(result.Output), maxOutputToModel)
+		assert.LessOrEqual(t, len(result.Output), codersdk.DefaultChatMaxToolOutputBytes)
 		assert.True(t, utf8.ValidString(result.Output),
 			"truncated output must be valid UTF-8")
 	})
@@ -65,6 +73,11 @@ func TestTruncateOutput(t *testing.T) {
 // Execute tool with a mock that returns the given output, and
 // returns the parsed result.
 func runForegroundWithOutput(t *testing.T, output string) ExecuteResult {
+	t.Helper()
+	return runForegroundWithOutputLimit(t, output, 0)
+}
+
+func runForegroundWithOutputLimit(t *testing.T, output string, maxOutputBytes int) ExecuteResult {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -85,6 +98,7 @@ func runForegroundWithOutput(t *testing.T, output string) ExecuteResult {
 		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
 			return mockConn, nil
 		},
+		MaxOutputBytes: maxOutputBytes,
 	})
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	resp, err := tool.Run(ctx, fantasy.ToolCall{

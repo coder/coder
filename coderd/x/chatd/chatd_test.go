@@ -1739,8 +1739,8 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	capFileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
-	for i := range codersdk.MaxChatFileIDs {
+	capFileIDs := make([]uuid.UUID, 0, codersdk.DefaultChatMaxAttachmentsPerChat)
+	for i := range codersdk.DefaultChatMaxAttachmentsPerChat {
 		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
@@ -1753,7 +1753,7 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	}
 	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
 		ChatID:       chat.ID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 		FileIds:      capFileIDs,
 	})
 	require.NoError(t, err)
@@ -1796,7 +1796,7 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	require.Len(t, messagesAfter, len(messagesBefore), "rejected send must not persist a message")
 	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, files, codersdk.MaxChatFileIDs)
+	require.Len(t, files, codersdk.DefaultChatMaxAttachmentsPerChat)
 
 	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID: chat.ID,

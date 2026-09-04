@@ -480,8 +480,12 @@ func (server *Server) prepareGeneration(
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
 			AgentBrowserSession: chat.ID.String(),
+			MaxOutputBytes:      server.limits().MaxToolOutputBytes,
 		}),
-		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+		chattool.ProcessOutput(chattool.ProcessToolOptions{
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			MaxOutputBytes:   server.limits().MaxToolOutputBytes,
+		}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 	}
@@ -747,7 +751,7 @@ func (server *Server) prepareGeneration(
 		ExclusiveToolNames:   exclusiveToolNames,
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
-		MaxSteps:             maxChatSteps,
+		MaxSteps:             server.limits().MaxStepsPerTurn,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			ChatModelConfig: modelConfig,

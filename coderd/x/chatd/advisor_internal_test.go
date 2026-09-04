@@ -629,8 +629,25 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			MaxOutputTokens: 16384,
 		}, nil)
 		require.NotNil(t, rt, "zero max uses must default rather than bail out")
-		require.Equal(t, maxChatSteps, rt.RemainingUses(),
-			"zero max uses must be replaced with maxChatSteps")
+		require.Equal(t, codersdk.DefaultChatMaxStepsPerTurn, rt.RemainingUses(),
+			"zero max uses must be replaced with the per-turn step limit")
+	})
+
+	t.Run("ZeroMaxUsesFollowsConfiguredStepLimit", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		chat, store := advisorChatModelFixture(t, nil)
+		p := newAdvisorTestServer(ctx, t, store)
+		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(advisorTestTransportFactory())
+		p.chatLimits = Limits{MaxStepsPerTurn: 7}
+
+		rt, err := p.newAdvisorRuntime(ctx, chat, advisorRuntimeConfig{
+			Enabled:         true,
+			MaxOutputTokens: 16384,
+		}, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()}, logger)
+		require.NoError(t, err)
+		require.NotNil(t, rt)
+		require.Equal(t, 7, rt.RemainingUses())
 	})
 
 	t.Run("NegativeMaxUsesReturnsNil", func(t *testing.T) {

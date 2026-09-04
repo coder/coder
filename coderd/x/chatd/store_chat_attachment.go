@@ -11,7 +11,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func (p *Server) newStoreChatAttachmentFunc(workspaceCtx *turnWorkspaceContext) chattool.StoreFileFunc {
@@ -63,6 +62,7 @@ func (p *Server) storeChatAttachment(
 			storedName,
 			mediaType,
 			data,
+			p.limits().MaxAttachmentsPerChat,
 		)
 		return err
 	}, database.DefaultTXOptions().WithID("store_chat_attachment"))
@@ -81,6 +81,7 @@ func storeLinkedChatFileTx(
 	name string,
 	mediaType string,
 	data []byte,
+	maxLinks int,
 ) (chattool.AttachmentMetadata, error) {
 	row, err := tx.InsertChatFile(ctx, database.InsertChatFileParams{
 		OwnerID:        ownerID,
@@ -93,9 +94,9 @@ func storeLinkedChatFileTx(
 		return chattool.AttachmentMetadata{}, xerrors.Errorf("insert chat file: %w", err)
 	}
 
-	if err := chatstate.LinkFiles(ctx, tx, chatID, []uuid.UUID{row.ID}); err != nil {
+	if err := chatstate.LinkFiles(ctx, tx, chatID, []uuid.UUID{row.ID}, maxLinks); err != nil {
 		if errors.Is(err, chatstate.ErrChatFileCapExceeded) {
-			return chattool.AttachmentMetadata{}, xerrors.Errorf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs)
+			return chattool.AttachmentMetadata{}, xerrors.Errorf("chat already has the maximum of %d linked files", maxLinks)
 		}
 		return chattool.AttachmentMetadata{}, err
 	}

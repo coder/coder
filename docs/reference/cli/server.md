@@ -1768,6 +1768,116 @@ How often to reconcile workspace prebuilds state.
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
+### --chat-max-steps-per-turn
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>int</code>                            |
+| Environment | <code>$CODER_CHAT_MAX_STEPS_PER_TURN</code> |
+| YAML        | <code>chat.maxStepsPerTurn</code>           |
+| Default     | <code>1200</code>                           |
+
+Maximum number of model and tool steps a single agent chat turn may run before Coder stops the turn.
+
+### --chat-max-generation-retries
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>int</code>                                |
+| Environment | <code>$CODER_CHAT_MAX_GENERATION_RETRIES</code> |
+| YAML        | <code>chat.maxGenerationRetries</code>          |
+| Default     | <code>25</code>                                 |
+
+Maximum number of times a chat turn retries a model call that failed with a transient provider error, such as a rate limit or an overloaded response, before the turn fails.
+
+### --chat-max-queued-messages-per-chat
+
+|             |                                                       |
+|-------------|-------------------------------------------------------|
+| Type        | <code>int</code>                                      |
+| Environment | <code>$CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT</code> |
+| YAML        | <code>chat.maxQueuedMessagesPerChat</code>            |
+| Default     | <code>20</code>                                       |
+
+Maximum number of user messages that can wait in a chat's queue while a turn is running.
+
+### --chat-max-attachments-per-chat
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>int</code>                                  |
+| Environment | <code>$CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT</code> |
+| YAML        | <code>chat.maxAttachmentsPerChat</code>           |
+| Default     | <code>50</code>                                   |
+
+Maximum number of files that can be attached to a single chat over its lifetime, counting uploads and files the agent attaches from the workspace.
+
+### --chat-max-prompt-bytes
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>int</code>                          |
+| Environment | <code>$CODER_CHAT_MAX_PROMPT_BYTES</code> |
+| YAML        | <code>chat.maxPromptBytes</code>          |
+| Default     | <code>131072</code>                       |
+
+Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt.
+
+### --chat-max-dynamic-tools-per-chat
+
+|             |                                                     |
+|-------------|-----------------------------------------------------|
+| Type        | <code>int</code>                                    |
+| Environment | <code>$CODER_CHAT_MAX_DYNAMIC_TOOLS_PER_CHAT</code> |
+| YAML        | <code>chat.maxDynamicToolsPerChat</code>            |
+| Default     | <code>250</code>                                    |
+
+Maximum number of client-provided dynamic tools a chat can be created with.
+
+### --chat-max-tool-output-bytes
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>int</code>                               |
+| Environment | <code>$CODER_CHAT_MAX_TOOL_OUTPUT_BYTES</code> |
+| YAML        | <code>chat.maxToolOutputBytes</code>           |
+| Default     | <code>32768</code>                             |
+
+Maximum number of bytes of workspace command output the execute and process tools return to the model. Longer output is truncated.
+
+### --chat-max-concurrent-recording-uploads
+
+|             |                                                           |
+|-------------|-----------------------------------------------------------|
+| Type        | <code>int</code>                                          |
+| Environment | <code>$CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS</code> |
+| YAML        | <code>chat.maxConcurrentRecordingUploads</code>           |
+| Default     | <code>25</code>                                           |
+
+Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings.
+
+### --chat-debug-max-text-runes
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>int</code>                              |
+| Environment | <code>$CODER_CHAT_DEBUG_MAX_TEXT_RUNES</code> |
+| YAML        | <code>chat.debugMaxTextRunes</code>           |
+| Default     | <code>10000</code>                            |
+
+Maximum number of characters of each message part, tool argument, and tool result kept in chat debug run records. Longer text is truncated.
+
+### --chat-debug-max-body-bytes
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>int</code>                              |
+| Environment | <code>$CODER_CHAT_DEBUG_MAX_BODY_BYTES</code> |
+| YAML        | <code>chat.debugMaxBodyBytes</code>           |
+| Default     | <code>50000</code>                            |
+
+Maximum number of bytes of streamed model output and of each recorded provider HTTP request or response body kept in chat debug run records.
+
 ### --ai-gateway-enabled
 
 |             |                                        |

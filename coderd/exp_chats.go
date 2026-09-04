@@ -68,12 +68,19 @@ import (
 const (
 	chatStreamBatchSize = 256
 
+	// maxChatRequestBodyBytes caps JSON bodies that carry dynamic tool
+	// schemas or tool results, which are unrelated to the prompt limit.
+	maxChatRequestBodyBytes = 256 * 1024
+	// chatPromptRequestEnvelopeBytes covers the JSON field names and
+	// quoting around a prompt so a small prompt limit cannot reject
+	// structurally valid bodies.
+	chatPromptRequestEnvelopeBytes = 1024
+
 	chatContextLimitModelConfigKey                = "context_limit"
 	chatContextCompressionThresholdModelConfigKey = "context_compression_threshold"
 	defaultChatContextCompressionThreshold        = int32(70)
 	minChatContextCompressionThreshold            = int32(0)
 	maxChatContextCompressionThreshold            = int32(100)
-	maxSystemPromptLenBytes                       = 131072 // 128 KiB
 )
 
 var allowedReasoningEffortValues = strings.Join(codersdk.ChatModelReasoningEffortValues(), ", ")
@@ -1199,7 +1206,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	// Limit memory used to decode dynamic tool schemas.
 	var req codersdk.CreateChatRequest
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, maxChatRequestBodyBytes, &req) {
 		return
 	}
 
@@ -1300,10 +1307,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.UnsafeDynamicTools) > 250 {
+	if len(req.UnsafeDynamicTools) > api.chatLimits.MaxDynamicToolsPerChat {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Too many dynamic tools.",
-			Detail:  "Maximum 250 dynamic tools per chat.",
+			Detail:  fmt.Sprintf("Maximum %d dynamic tools per chat.", api.chatLimits.MaxDynamicToolsPerChat),
 		})
 		return
 	}
@@ -1387,7 +1394,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
 			return
 		}
-		if writeChatFileError(ctx, rw, err) {
+		if api.writeChatFileError(ctx, rw, err) {
 			return
 		}
 		if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
@@ -2668,7 +2675,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		if writeChatHookErr(ctx, rw, sendErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
-		if writeChatFileError(ctx, rw, sendErr) {
+		if api.writeChatFileError(ctx, rw, sendErr) {
 			return
 		}
 		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
@@ -2840,7 +2847,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
-		if writeChatFileError(ctx, rw, editErr) {
+		if api.writeChatFileError(ctx, rw, editErr) {
 			return
 		}
 
@@ -4436,16 +4443,14 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var req codersdk.UpdateChatSystemPromptRequest
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.chatPromptRequestBodyLimit(), &req) {
 		return
 	}
 	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
-	// 128 KiB is generous for a system prompt while still
-	// preventing abuse or accidental pastes of large content.
-	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
+	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
 		})
 		return
 	}
@@ -4592,15 +4597,15 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var req codersdk.UpdateChatPlanModeInstructionsRequest
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.chatPromptRequestBodyLimit(), &req) {
 		return
 	}
 
 	sanitizedInstructions := codersdk.SanitizePromptText(req.PlanModeInstructions)
-	if len(sanitizedInstructions) > maxSystemPromptLenBytes {
+	if len(sanitizedInstructions) > api.chatLimits.MaxPromptBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Plan mode instructions exceed maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedInstructions)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedInstructions)),
 		})
 		return
 	}
@@ -5938,16 +5943,16 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var params codersdk.UserChatCustomPrompt
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &params) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.chatPromptRequestBodyLimit(), &params) {
 		return
 	}
 
 	sanitizedPrompt := codersdk.SanitizePromptText(params.CustomPrompt)
-	// Apply the same 128 KiB limit as the deployment system prompt.
-	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
+	// The same limit applies as for the deployment system prompt.
+	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Custom prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
 		})
 		return
 	}
@@ -6611,12 +6616,21 @@ func createChatInputFromParts(
 	return content, pasteData, nil
 }
 
-func writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+// chatPromptRequestBodyLimit bounds JSON bodies that carry a prompt. It
+// allows twice the prompt limit so payloads padded with characters that
+// sanitize away still decode, plus the envelope allowance. The product
+// is computed in int64 because the limit may be up to MaxInt32 and int
+// is 32 bits on some release targets.
+func (api *API) chatPromptRequestBodyLimit() int64 {
+	return 2*int64(api.chatLimits.MaxPromptBytes) + chatPromptRequestEnvelopeBytes
+}
+
+func (api *API) writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	switch {
 	case errors.Is(err, chatstate.ErrChatFileCapExceeded):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Chat attachment limit reached.",
-			Detail:  fmt.Sprintf("A chat can reference at most %d attachments. Remove some attachments or start a new chat.", codersdk.MaxChatFileIDs),
+			Detail:  fmt.Sprintf("A chat can reference at most %d attachments. Remove some attachments or start a new chat.", api.chatLimits.MaxAttachmentsPerChat),
 		})
 	case errors.Is(err, chatstate.ErrChatFileUnavailable):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -8134,7 +8148,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// Cap the raw request body to prevent excessive memory use.
 	var req codersdk.SubmitToolResultsRequest
 
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, maxChatRequestBodyBytes, &req) {
 		return
 	}
 
