@@ -685,12 +685,21 @@ func (server *Server) prepareGeneration(
 	// models' context limits: the history must also fit the summarizer's
 	// window.
 	compactionContextLimit := modelConfig.ContextLimit
-	compactionOverride, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	resolvedCompactionOverride, err := server.resolveModelOverride(ctx, modelOverrideSpec{
+		context:         compactionOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeHard,
+		configFailure:   modelOverrideFailureModeSoft,
+		providerFailure: modelOverrideFailureModeSoft,
+	})
 	if err != nil {
 		cleanup()
 		return generationPrepared{}, err
 	}
-	if compactionOverride != nil {
+	var compactionOverride *resolvedModelOverride
+	if resolvedCompactionOverride.Set {
+		compactionOverride = &resolvedCompactionOverride
 		if overrideLimit := compactionOverride.Config.ContextLimit; overrideLimit > 0 &&
 			(compactionContextLimit <= 0 || overrideLimit < compactionContextLimit) {
 			compactionContextLimit = overrideLimit

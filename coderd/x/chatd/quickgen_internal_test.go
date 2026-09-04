@@ -643,7 +643,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 	}
 
 	db := dbmock.NewMockStore(gomock.NewController(t))
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: "Reasoning title",
