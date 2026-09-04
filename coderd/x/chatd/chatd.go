@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -199,6 +200,7 @@ type Server struct {
 	usageTracker         *workspacestats.UsageTracker
 	clock                quartz.Clock
 	metrics              *chatloop.Metrics
+	stages               *chatloop.StageTracer
 	chatWorker           *chatWorker
 	messagePartBuffer    *messagepartbuffer.Buffer
 	streamSyncPoller     *streamSyncPoller
@@ -3063,7 +3065,8 @@ type Config struct {
 	PrometheusRegistry             prometheus.Registerer
 	// StageMetrics selects which chat lifecycle stage metric families
 	// are registered. The zero value means codersdk.ChatStageMetricsLevelOff.
-	StageMetrics codersdk.ChatStageMetricsLevel
+	StageMetrics   codersdk.ChatStageMetricsLevel
+	TracerProvider trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -3195,6 +3198,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	} else {
 		p.metrics = chatloop.NopMetrics()
 	}
+	p.stages = chatloop.NewStageTracer(cfg.TracerProvider, p.metrics)
 	p.messagePartBuffer = messagepartbuffer.New(messagepartbuffer.Options{Clock: clk})
 	localStreamPartsDialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
 		Buffer: p.messagePartBuffer,
