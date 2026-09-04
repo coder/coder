@@ -7,7 +7,10 @@ import {
 	paginatedAIGatewaySpendUsers,
 } from "#/api/queries/aiBridge";
 import { user } from "#/api/queries/users";
-import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
+import {
+	type DateRangeValue,
+	toBoundary,
+} from "#/components/DateRangePicker/DateRangePicker";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
@@ -24,12 +27,17 @@ const DEFAULT_DATE_RANGE_DAYS = 30;
 const SEARCH_DEBOUNCE_MS = 300;
 const SPEND_USERS_PAGE_SIZE = 10;
 
+// Same calendar-day boundaries as the picker's "Last 30 days" preset, so the
+// default range is what that preset would select.
 const getDefaultDateRange = (now?: dayjs.Dayjs): DateRangeValue => {
-	const end = now ?? dayjs();
-	return {
-		startDate: end.subtract(DEFAULT_DATE_RANGE_DAYS, "day").toDate(),
-		endDate: end.toDate(),
-	};
+	const current = (now ?? dayjs()).toDate();
+	return toBoundary(
+		dayjs(current)
+			.subtract(DEFAULT_DATE_RANGE_DAYS - 1, "day")
+			.toDate(),
+		current,
+		current,
+	);
 };
 
 interface SpendPageProps {
@@ -151,11 +159,14 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				drillInUserError={selectedUserQuery.error}
 				onDrillInUserRetry={() => void selectedUserQuery.refetch()}
 				onClearSelectedUser={() => {
-					setSearchParams((prev) => {
-						const next = new URLSearchParams(prev);
-						next.delete(userSearchParam);
-						return next;
-					});
+					setSearchParams(
+						(prev) => {
+							const next = new URLSearchParams(prev);
+							next.delete(userSearchParam);
+							return next;
+						},
+						{ replace: true },
+					);
 				}}
 				summaryData={summaryQuery.data}
 				isSummaryLoading={summaryQuery.isLoading}

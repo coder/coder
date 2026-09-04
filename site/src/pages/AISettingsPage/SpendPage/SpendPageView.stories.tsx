@@ -423,6 +423,14 @@ export const DrillInClampedToRetention: Story = {
 		await expect(canvas.getByRole("alert")).toHaveTextContent(
 			/Showing spend since .*Feb 26, 2026/,
 		);
+		const sessionsLink = canvas.getByRole("link", { name: "View sessions" });
+		const sessionsUrl = new URL(
+			sessionsLink.getAttribute("href") ?? "",
+			"http://localhost",
+		);
+		expect(sessionsUrl.searchParams.get("filter")).toContain(
+			'started_after:"2026-02-26T12:00:00Z"',
+		);
 	},
 };
 

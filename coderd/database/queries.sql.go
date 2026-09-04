@@ -2839,7 +2839,7 @@ SELECT
 	COUNT(*) OVER()::bigint AS total_count
 FROM per_request
 GROUP BY provider, provider_name, model
-ORDER BY total_cost_micros DESC, provider ASC, model ASC
+ORDER BY total_cost_micros DESC, provider ASC, provider_name ASC, model ASC
 LIMIT $1::int
 `
 

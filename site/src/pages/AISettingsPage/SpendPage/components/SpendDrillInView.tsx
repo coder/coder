@@ -35,11 +35,18 @@ interface SpendDrillInViewProps {
 
 // Links to the AI Sessions page for the same user and window. The user ID
 // rather than the username keeps the link pointing at this account even if
-// the username is later reused.
-const sessionsHref = (userId: string, queryDateRange: DateRangeValue) => {
+// the username is later reused. The sessions page applies no retention clamp,
+// so the applied window from the summary is preferred over the requested one.
+const sessionsHref = (
+	userId: string,
+	queryDateRange: DateRangeValue,
+	applied?: { start_date: string; end_date: string },
+) => {
 	const filter = queryWithTimeRange(
 		{ initiator: userId },
-		{ start: queryDateRange.startDate, end: queryDateRange.endDate },
+		applied
+			? { start: new Date(applied.start_date), end: new Date(applied.end_date) }
+			: { start: queryDateRange.startDate, end: queryDateRange.endDate },
 	);
 	return `/ai-gateway/sessions?${useFilterParamsKey}=${encodeURIComponent(filter)}`;
 };
@@ -119,7 +126,9 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 				<div className="flex min-w-0 flex-col items-end gap-1 text-xs text-content-secondary">
 					<div>{dateRangeLabel}</div>
 					<Link asChild showExternalIcon={false} size="sm">
-						<RouterLink to={sessionsHref(selectedUser.id, queryDateRange)}>
+						<RouterLink
+							to={sessionsHref(selectedUser.id, queryDateRange, summaryData)}
+						>
 							View sessions
 						</RouterLink>
 					</Link>
