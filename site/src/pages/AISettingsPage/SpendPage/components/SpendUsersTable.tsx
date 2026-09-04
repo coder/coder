@@ -32,13 +32,15 @@ import { SpendSectionHeader } from "./SpendSectionHeader";
 
 export const userSearchParam = "user";
 
-const fromSpendListState = { fromSpendList: true };
-
-export const openedFromSpendList = (state: unknown): boolean =>
+// The list's query string travels in the drill-in's location state so Back
+// can tell whether the history entry beneath it is the list it would show.
+export const spendListSearchFromState = (state: unknown): string | null =>
 	typeof state === "object" &&
 	state !== null &&
 	"fromSpendList" in state &&
-	state.fromSpendList === true;
+	typeof state.fromSpendList === "string"
+		? state.fromSpendList
+		: null;
 
 interface SpendUsersTableProps {
 	displayDateRange: DateRangeValue;
@@ -56,6 +58,7 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 	usersQuery,
 }) => {
 	const [searchParams] = useSearchParams();
+	const detailsState = { fromSpendList: searchParams.toString() };
 	const userDetailsTo = (user: TypesGen.AIGatewaySpendUser): To => {
 		const next = new URLSearchParams(searchParams);
 		next.set(userSearchParam, user.id);
@@ -159,6 +162,7 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 													key={user.id}
 													user={user}
 													detailsTo={userDetailsTo(user)}
+													detailsState={detailsState}
 												/>
 											))}
 										</TableBody>
@@ -176,7 +180,8 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 const UserRow: FC<{
 	user: TypesGen.AIGatewaySpendUser;
 	detailsTo: To;
-}> = ({ user, detailsTo }) => {
+	detailsState: { fromSpendList: string };
+}> = ({ user, detailsTo, detailsState }) => {
 	const navigate = useNavigate();
 
 	// The row keeps its native <tr> semantics so screen readers announce every
@@ -186,7 +191,7 @@ const UserRow: FC<{
 		<TableRow
 			hover
 			className="text-xs"
-			onClick={() => navigate(detailsTo, { state: fromSpendListState })}
+			onClick={() => navigate(detailsTo, { state: detailsState })}
 		>
 			<TableCell className="max-w-[200px] px-3 py-2">
 				<AvatarData
@@ -194,7 +199,7 @@ const UserRow: FC<{
 					title={
 						<RouterLink
 							to={detailsTo}
-							state={fromSpendListState}
+							state={detailsState}
 							className="hover:underline"
 							onClick={(event) => event.stopPropagation()}
 						>

@@ -19,7 +19,7 @@ import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import { pageTitle } from "#/utils/page";
 import {
-	openedFromSpendList,
+	spendListSearchFromState,
 	userSearchParam,
 } from "./components/SpendUsersTable";
 import { SpendPageView } from "./SpendPageView";
@@ -119,10 +119,15 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				next.delete("page");
 				return next;
 			},
+			// Keep the drill-in's origin state across range changes.
 			{ replace: true, state: location.state },
 		);
 	};
 
+	const selectedUserId = searchParams.get(userSearchParam) || null;
+
+	// The deployment-wide list is hidden behind a drill-in, so do not keep
+	// fetching it there.
 	const usersQuery = usePaginatedQuery({
 		...paginatedAIGatewaySpendUsers({
 			...dateRangeParams,
@@ -130,10 +135,9 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		}),
 		recordsPerPage: SPEND_USERS_PAGE_SIZE,
 		preventScrollReset: true,
-		enabled: canViewSpend,
+		enabled: canViewSpend && selectedUserId === null,
 	});
 
-	const selectedUserId = searchParams.get(userSearchParam) || null;
 	const selectedUserQuery = useQuery({
 		...user(selectedUserId ?? ""),
 		enabled: canViewSpend && selectedUserId !== null,
@@ -161,21 +165,16 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				drillInUserError={selectedUserQuery.error}
 				onDrillInUserRetry={() => void selectedUserQuery.refetch()}
 				onClearSelectedUser={() => {
-					// A drill-in opened from the list sits on top of the list entry,
-					// so popping it keeps browser Back working. Direct links have no
-					// list entry beneath them and are replaced instead.
-					if (openedFromSpendList(location.state)) {
+					const next = new URLSearchParams(searchParams);
+					next.delete(userSearchParam);
+					// Pop the drill-in when the entry beneath it is the list Back
+					// would show. Direct links and filters changed inside the
+					// drill-in replace the entry instead so the list reflects them.
+					if (spendListSearchFromState(location.state) === next.toString()) {
 						navigate(-1);
 						return;
 					}
-					setSearchParams(
-						(prev) => {
-							const next = new URLSearchParams(prev);
-							next.delete(userSearchParam);
-							return next;
-						},
-						{ replace: true },
-					);
+					setSearchParams(next, { replace: true });
 				}}
 				summaryData={summaryQuery.data}
 				isSummaryLoading={summaryQuery.isLoading}
