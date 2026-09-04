@@ -33,6 +33,13 @@ const (
 	// timestamps whose end preceded its start, or which lacked one of
 	// them, and was not observed.
 	StageAnomalyInvertedWindow = "inverted_window"
+	// StageAnomalyNonPositiveTurn is a finished turn whose duration
+	// was not positive, so its accounting was not emitted.
+	StageAnomalyNonPositiveTurn = "nonpositive_turn"
+	// StageAnomalyOverattributed is a finished turn whose categories
+	// summed to more than its duration. The categories were emitted as
+	// measured and the turn's shares sum to more than 1.
+	StageAnomalyOverattributed = "overattributed"
 )
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
@@ -45,6 +52,11 @@ type Metrics struct {
 	ToolErrorsTotal           *prometheus.CounterVec
 	TTFTSeconds               *prometheus.HistogramVec
 	StageDurationSeconds      *prometheus.HistogramVec
+	TurnStageSeconds          *prometheus.HistogramVec
+	TurnStageCount            *prometheus.HistogramVec
+	StageShareOfTurn          *prometheus.HistogramVec
+	TurnTimeSeconds           *prometheus.HistogramVec
+	TurnTimeShare             *prometheus.HistogramVec
 	StageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
@@ -114,11 +126,46 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The chat_kind label is empty for stages recorded without a known chat, and the model and effort labels are empty for stages that run before a model is resolved.",
 			Buckets:   stageDurationBuckets(),
 		}, []string{"stage", "scope", "chat_kind", "model", "effort"}),
+		TurnStageSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_stage_seconds",
+			Help:      "Total wall time one chat turn spent in a stage, observed once per turn when the turn ends. Stages overlap, so these do not partition the turn. Only turns that finished normally are counted.",
+			Buckets:   stageDurationBuckets(),
+		}, []string{"stage", "chat_kind", "model", "effort"}),
+		TurnStageCount: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_stage_count",
+			Help:      "Number of times a stage occurred within one chat turn, observed once per turn per stage that occurred. Only turns that finished normally are counted.",
+			Buckets:   turnStageCountBuckets(),
+		}, []string{"stage", "chat_kind", "model", "effort"}),
+		StageShareOfTurn: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_share_of_turn",
+			Help:      "Fraction of a chat turn's wall time spent in a stage, observed once per turn when the turn ends. Stages overlap, so shares can exceed 1 and do not sum to 1. Only turns that finished normally are counted.",
+			Buckets:   stageShareBuckets(),
+		}, []string{"stage", "chat_kind", "model", "effort"}),
+		TurnTimeSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_time_seconds",
+			Help:      "Wall time of one chat turn split into disjoint categories that sum to the turn duration, observed once per turn per category when the turn ends. Every category is observed, including the ones with no time. Only turns that finished normally are counted.",
+			Buckets:   stageDurationBuckets(),
+		}, []string{"category", "chat_kind", "model", "effort"}),
+		TurnTimeShare: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_time_share",
+			Help:      "Fraction of a chat turn's wall time in each disjoint category, observed once per turn per category when the turn ends. The shares of one turn sum to 1. Only turns that finished normally are counted.",
+			Buckets:   turnShareBuckets(),
+		}, []string{"category", "chat_kind", "model", "effort"}),
 		StageAnomaliesTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_anomalies_total",
-			Help:      "Chat lifecycle stage observations that were dropped, by reason. A steady rate means the stage timings are missing samples: negative_elapsed and inverted_window are stages whose clocks disagreed.",
+			Help:      "Chat lifecycle stage observations that were dropped or emitted with a known inconsistency, by reason. A steady rate means the stage timings are missing or skewing samples: negative_elapsed and inverted_window are stages whose clocks disagreed, nonpositive_turn is a finished turn whose accounting was not emitted, and overattributed is a turn whose categories summed to more than its duration.",
 		}, []string{"reason"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
@@ -172,12 +219,33 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 	}
 }
 
-// stageDurationBuckets returns the duration buckets for the stage
-// timing histogram: 0.5ms to 3h, log-spaced. The bottom of the range
-// resolves the sub-10ms stages (prepare, commit, a warm mcp_connect);
-// the top covers long-lived stages such as a chat turn.
+// stageDurationBuckets returns the duration buckets shared by the
+// stage and turn timing histograms: 0.5ms to 3h, log-spaced. The
+// bottom of the range resolves the sub-10ms stages (prepare, commit,
+// a warm mcp_connect); the top covers long-lived stages such as a
+// chat turn.
 func stageDurationBuckets() []float64 {
 	return prometheus.ExponentialBucketsRange(0.0005, 3*60*60, 20)
+}
+
+// turnShareBuckets returns the buckets for the category share
+// histogram, whose values partition a turn: 0 to 1 in twentieths.
+func turnShareBuckets() []float64 {
+	return prometheus.LinearBuckets(0, 0.05, 21)
+}
+
+// stageShareBuckets returns the buckets for the per-stage share
+// histogram. Stages overlap in wall time and repeat within a turn, so
+// a stage's share can exceed 1; the range extends to 10 so those turns
+// are resolved instead of collapsing into the overflow bucket.
+func stageShareBuckets() []float64 {
+	return []float64{0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.5, 2, 3, 5, 10}
+}
+
+// turnStageCountBuckets returns the buckets for per-turn stage counts:
+// every small count, then doubling past the 1200 step limit of a turn.
+func turnStageCountBuckets() []float64 {
+	return []float64{1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 128, 256, 512, 1024, 2048}
 }
 
 // NopMetrics returns a Metrics instance that discards all data.
@@ -201,13 +269,38 @@ func (m *Metrics) RecordStageDuration(stage, scope, chatKind, model, effort stri
 	m.StageDurationSeconds.WithLabelValues(stage, scope, chatKind, model, effort).Observe(elapsed.Seconds())
 }
 
-// RecordStageAnomaly counts a stage observation that was dropped, by
-// reason. No-op when m is nil.
+// RecordStageAnomaly counts a stage observation that was dropped or
+// emitted inconsistent, by reason. No-op when m is nil.
 func (m *Metrics) RecordStageAnomaly(reason string) {
 	if m == nil {
 		return
 	}
 	m.StageAnomaliesTotal.WithLabelValues(reason).Inc()
+}
+
+// RecordTurnStage observes the total time one turn spent in a stage,
+// that time as a fraction of the turn, and how many times the stage
+// occurred. All three come from the same turn so they cannot describe
+// different turns. No-op when m is nil.
+func (m *Metrics) RecordTurnStage(stage, chatKind, model, effort string, elapsed time.Duration, share float64, count int) {
+	if m == nil || elapsed < 0 {
+		return
+	}
+	m.TurnStageSeconds.WithLabelValues(stage, chatKind, model, effort).Observe(elapsed.Seconds())
+	m.StageShareOfTurn.WithLabelValues(stage, chatKind, model, effort).Observe(share)
+	m.TurnStageCount.WithLabelValues(stage, chatKind, model, effort).Observe(float64(count))
+}
+
+// RecordTurnCategory observes one category of a turn's time partition
+// and that category as a fraction of the turn. Categories with no time
+// are observed as zero so the shares of a turn always sum to 1. No-op
+// when m is nil.
+func (m *Metrics) RecordTurnCategory(category, chatKind, model, effort string, elapsed time.Duration, share float64) {
+	if m == nil || elapsed < 0 {
+		return
+	}
+	m.TurnTimeSeconds.WithLabelValues(category, chatKind, model, effort).Observe(elapsed.Seconds())
+	m.TurnTimeShare.WithLabelValues(category, chatKind, model, effort).Observe(share)
 }
 
 // RecordCompaction classifies and records a compaction attempt.
