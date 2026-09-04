@@ -167,7 +167,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)
 
-	// Serialize writes per app so the duplicate check doesn't act on a stale
+	// Serialize writes per app. The duplicate check must not use a stale
 	// read while a concurrent report commits.
 	var (
 		latestAppStatus database.WorkspaceAppStatus
@@ -186,8 +186,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		// If no rows were found, latest is a zero-value struct (ID == uuid.Nil).
 		latestAppStatus = latest
 
-		// Skip duplicate reports (e.g. the watcher re-reporting idle) so
-		// workspace_app_statuses doesn't grow unboundedly.
+		// Skip duplicate reports (for example, the watcher re-reports idle)
+		// so workspace_app_statuses does not grow without limit.
 		if isDuplicateAppStatus(latestAppStatus, a.AgentID, dbState, cleaned, req.Uri) {
 			return nil
 		}
@@ -243,8 +243,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 }
 
 // isDuplicateAppStatus reports whether the incoming status matches the latest
-// status from the same agent. A different agent's status must always be stored,
-// since consumers discard statuses older than the latest start build.
+// status from the same agent. The handler must store a status from a different
+// agent, because consumers discard statuses older than the latest start build.
 func isDuplicateAppStatus(latest database.WorkspaceAppStatus, agentID uuid.UUID, state database.WorkspaceAppStatusState, message, uri string) bool {
 	return latest.ID != uuid.Nil &&
 		latest.AgentID == agentID &&

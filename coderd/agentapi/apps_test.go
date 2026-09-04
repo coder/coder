@@ -390,8 +390,8 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			},
 		)
 		mTx.EXPECT().AcquireLock(gomock.Any(), database.GenLockID("workspace_app_status_writes:"+app.ID.String())).Times(1).Return(nil)
-		// The latest status matches the incoming request and comes from the same
-		// agent, so no insert or workspace update is expected.
+		// The latest status matches the request, and the same agent sent both.
+		// The handler must not insert a row or publish an update.
 		mTx.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(database.WorkspaceAppStatus{
 			ID:      uuid.UUID{6},
 			AgentID: agent.ID,
@@ -411,7 +411,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// A no-op update must not publish a workspace update.
+		// An update that changes nothing must not publish a workspace update.
 		select {
 		case kind := <-workspaceUpdates:
 			t.Fatalf("unexpected workspace update published: %v", kind)
@@ -419,8 +419,9 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		}
 	})
 
-	// A status left behind by an earlier agent build must not suppress the
-	// current agent's first report, since stale statuses are discarded.
+	// Consumers discard statuses older than the latest start build. The
+	// current agent must store its first report, even when an earlier agent
+	// left an identical status.
 	t.Run("DifferentAgentIsStored", func(t *testing.T) {
 		t.Parallel()
 
@@ -458,7 +459,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			},
 		)
 		mTx.EXPECT().AcquireLock(gomock.Any(), database.GenLockID("workspace_app_status_writes:"+app.ID.String())).Times(1).Return(nil)
-		// Same state/message/URI, but reported by a previous agent.
+		// A previous agent reported the same state, message, and URI.
 		mTx.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(database.WorkspaceAppStatus{
 			ID:      uuid.UUID{6},
 			AgentID: uuid.UUID{3},
@@ -480,8 +481,9 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// A report committed while another report waits on the per-app lock must
-	// be observed by the waiting report, so neither report is dropped.
+	// One report waits for the per-app lock. A second report commits during
+	// the wait. The waiting report must see the second report, and the handler
+	// must store both reports.
 	t.Run("ConcurrentReportsAreBothStored", func(t *testing.T) {
 		t.Parallel()
 
@@ -515,8 +517,8 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			State:   database.WorkspaceAppStatusStateIdle,
 		}
 
-		// Emulate the advisory lock: a transaction takes the token in
-		// AcquireLock and returns it when InTx completes.
+		// This test emulates the advisory lock. A transaction takes the token
+		// in AcquireLock and returns the token when InTx completes.
 		lock := make(chan struct{}, 1)
 		lock <- struct{}{}
 
@@ -539,7 +541,8 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			},
 		)
 
-		// B (complete) takes the lock first and inserts while A (idle) waits.
+		// Report B (complete) takes the lock first and inserts. Report A (idle)
+		// waits for the lock.
 		mTx.EXPECT().AcquireLock(gomock.Any(), database.GenLockID("workspace_app_status_writes:"+app.ID.String())).DoAndReturn(func(context.Context, int64) error {
 			<-lock
 			bLocked <- struct{}{}
