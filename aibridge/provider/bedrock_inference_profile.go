@@ -57,7 +57,7 @@ func resolveInferenceProfile(ctx context.Context, awsCfg aws.Config, profileARN 
 		InferenceProfileIdentifier: aws.String(profileARN),
 	})
 	if err != nil {
-		return "", xerrors.Errorf("get inference profile %q (requires the %s:GetInferenceProfile permission): %w", profileARN, bedrockService, err)
+		return "", xerrors.Errorf("get inference profile %q: %w", profileARN, err)
 	}
 	if len(out.Models) == 0 || out.Models[0].ModelArn == nil {
 		return "", xerrors.Errorf("inference profile %q references no model", profileARN)
