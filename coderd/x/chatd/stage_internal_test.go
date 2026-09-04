@@ -4,9 +4,12 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -15,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 )
 
@@ -181,4 +185,236 @@ func TestStageSpanRoundTripperModel(t *testing.T) {
 		attribute.String(chatloop.AttrModel, model.Model))
 	require.Contains(t, ended[0].Attributes(),
 		attribute.String(chatloop.AttrReasoningEffort, model.Effort))
+}
+
+func TestRunnerTurnSpanStartsAtTriggerMessage(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New()}
+	triggerAt := time.Now().Add(-2 * time.Second)
+
+	turnCtx, _ := turn.Ensure(t.Context(), chat, triggerAt)
+	turn.End(nil)
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 2)
+	acquisition, chatTurn := ended[0], ended[1]
+	require.Equal(t, chatloop.StageAcquisition, acquisition.Name())
+	require.Equal(t, chatloop.StageChatTurn, chatTurn.Name())
+	require.Equal(t, triggerAt.UTC(), chatTurn.StartTime().UTC())
+	require.Equal(t, triggerAt.UTC(), acquisition.StartTime().UTC())
+	require.False(t, acquisition.StartTime().Before(chatTurn.StartTime()))
+	require.False(t, acquisition.EndTime().After(chatTurn.EndTime()))
+	require.Equal(t, chatTurn.SpanContext().SpanID(), acquisition.Parent().SpanID())
+	require.Equal(t, chatTurn.SpanContext().TraceID(), trace.SpanContextFromContext(turnCtx).TraceID())
+}
+
+func TestRunnerTurnSpanParentsRecordedStages(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New()}
+
+	turnCtx, _ := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	stepCtx, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
+	step.End(nil)
+
+	// The step has already ended, so the queue wait is recorded
+	// against the turn context the runner keeps.
+	tracer.Record(turn.Context(stepCtx), chatloop.StageQueueWait, chatloop.StageModel{},
+		time.Now().Add(-500*time.Millisecond), time.Now(), nil)
+	turn.End(nil)
+
+	var queueWait, chatTurn, generationStep sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		switch span.Name() {
+		case chatloop.StageQueueWait:
+			queueWait = span
+		case chatloop.StageChatTurn:
+			chatTurn = span
+		case chatloop.StageGenerationStep:
+			generationStep = span
+		}
+	}
+	require.NotNil(t, queueWait)
+	require.NotNil(t, chatTurn)
+	require.NotNil(t, generationStep)
+	require.Equal(t, chatTurn.SpanContext().SpanID(), queueWait.Parent().SpanID())
+	require.NotEqual(t, generationStep.SpanContext().SpanID(), queueWait.Parent().SpanID())
+}
+
+func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	server := &Server{stages: tracer}
+
+	// The promoting request has its own span, which the queue wait must
+	// not join.
+	requestCtx, requestSpan := tracer.Start(t.Context(), chatloop.StageCommit)
+	queuedAt := time.Now().Add(-30 * time.Second)
+	server.recordQueueWait(requestCtx, uuid.New(), chatloop.ChatKindSubagent, queuedAt, queuedAt.Add(20*time.Second))
+	requestSpan.End(nil)
+
+	var queueWait, request sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		switch span.Name() {
+		case chatloop.StageQueueWait:
+			queueWait = span
+		case chatloop.StageCommit:
+			request = span
+		}
+	}
+	require.NotNil(t, queueWait)
+	require.NotNil(t, request)
+	require.False(t, queueWait.Parent().IsValid())
+	require.NotEqual(t, request.SpanContext().TraceID(), queueWait.SpanContext().TraceID())
+	require.Contains(t, queueWait.Attributes(),
+		attribute.String(chatloop.AttrScope, chatloop.ScopeTurn))
+	require.Contains(t, queueWait.Attributes(),
+		attribute.String(chatloop.AttrChatKind, chatloop.ChatKindSubagent))
+}
+
+func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	t.Cleanup(serverCancel)
+	server := &Server{ctx: serverCtx, stages: tracer}
+
+	chat := database.Chat{ID: uuid.New()}
+	turn := newRunnerTurnSpan(tracer)
+	turnCtx, _ := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	inflightCtx, stop := server.inflightChatContext(turnCtx, chat)
+	t.Cleanup(stop)
+
+	_, span := tracer.Start(inflightCtx, chatloop.StageGenerationStep)
+	span.End(nil)
+	turn.End(nil)
+
+	for _, ended := range recorder.Ended() {
+		if ended.Name() != chatloop.StageGenerationStep {
+			continue
+		}
+		require.False(t, ended.Parent().IsValid())
+		require.Contains(t, ended.Attributes(),
+			attribute.String(chatloop.AttrScope, chatloop.ScopeBackground))
+		// Detached work keeps the chat it belongs to, so background
+		// stages stay attributable to a chat kind.
+		require.Contains(t, ended.Attributes(),
+			attribute.String(chatloop.AttrChatKind, chatloop.ChatKindRoot))
+	}
+}
+
+func TestRunnerTurnSpanCarriesChatKind(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New(), ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+
+	turnCtx, _ := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	_, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
+	step.End(nil)
+	turn.End(nil)
+
+	require.NotEmpty(t, recorder.Ended())
+	for _, span := range recorder.Ended() {
+		require.Contains(t, span.Attributes(),
+			attribute.String(chatloop.AttrChatKind, chatloop.ChatKindSubagent),
+			"stage %s must carry the turn's chat kind", span.Name())
+	}
+}
+
+// turnSpansByStart returns the chat_turn spans the recorder saw,
+// ordered by start time.
+func turnSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder) []sdktrace.ReadOnlySpan {
+	t.Helper()
+	var turns []sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		if span.Name() == chatloop.StageChatTurn {
+			turns = append(turns, span)
+		}
+	}
+	sort.Slice(turns, func(i, j int) bool {
+		return turns[i].StartTime().Before(turns[j].StartTime())
+	})
+	return turns
+}
+
+func TestRunnerTurnSpanSettleRotatesOnPromotion(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New()}
+
+	turnCtx, token := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Minute))
+	_, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
+	queuedAt := time.Now().Add(-30 * time.Second)
+	turn.Complete(token, queuedAt)
+	promotedBy := time.Now()
+	step.End(nil)
+	turn.Settle(t.Context(), token)
+
+	// The next turn is open, anchored at the promoted message.
+	_, nextToken := turn.Ensure(t.Context(), chat, queuedAt)
+	require.NotEqual(t, token, nextToken)
+	turn.End(nil)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 2)
+	require.Equal(t, queuedAt.UTC(), turns[1].StartTime().UTC())
+	require.NotEqual(t, turns[0].SpanContext().TraceID(), turns[1].SpanContext().TraceID())
+	require.Contains(t, turns[1].Attributes(),
+		attribute.String(chatloop.AttrChatKind, chatloop.ChatKindRoot))
+
+	// The promoted message's wait belongs to the turn it opens and ends
+	// when the promotion happened, not when the turn settled.
+	var queueWait sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		if span.Name() == chatloop.StageQueueWait {
+			queueWait = span
+		}
+	}
+	require.NotNil(t, queueWait)
+	require.Equal(t, turns[1].SpanContext().SpanID(), queueWait.Parent().SpanID())
+	require.Equal(t, queuedAt.UTC(), queueWait.StartTime().UTC())
+	require.False(t, queueWait.EndTime().After(promotedBy))
+
+	// The rotated turn's head is the queue wait, so it records no
+	// acquisition: both windows start at the same instant and both
+	// would count as scheduling time.
+	var acquisitions int
+	for _, span := range recorder.Ended() {
+		if span.Name() == chatloop.StageAcquisition {
+			acquisitions++
+			require.Equal(t, turns[0].SpanContext().SpanID(), span.Parent().SpanID())
+		}
+	}
+	require.Equal(t, 1, acquisitions)
+}
+
+func TestRunnerTurnSpanEnsureOpensTurnPerPrompt(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer)
+	chat := database.Chat{ID: uuid.New()}
+
+	firstTrigger := time.Now().Add(-2 * time.Minute)
+	_, first := turn.Ensure(t.Context(), chat, firstTrigger)
+	// A second prompt on the same runner reuses the open turn until it
+	// finishes.
+	_, again := turn.Ensure(t.Context(), chat, firstTrigger)
+	require.Equal(t, first, again)
+	require.Len(t, turnSpansByStart(t, recorder), 0)
+
+	turn.Complete(first, time.Time{})
+	secondTrigger := time.Now().Add(-time.Minute)
+	_, second := turn.Ensure(t.Context(), chat, secondTrigger)
+	require.NotEqual(t, first, second)
+	turn.End(nil)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 2)
+	require.Equal(t, firstTrigger.UTC(), turns[0].StartTime().UTC())
+	require.Equal(t, secondTrigger.UTC(), turns[1].StartTime().UTC())
 }
