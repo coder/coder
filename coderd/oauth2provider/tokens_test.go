@@ -286,20 +286,23 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 }
 
 // The redemptions race rather than run in sequence: a sequential pair passes
-// whether or not the delete arbitrates single use.
+// whether or not the delete arbitrates single use. barrierStore makes that
+// overlap deterministic instead of probabilistic.
 func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	t.Parallel()
 
 	db, pubsub := dbtestutil.NewDB(t)
+	var reads sync.WaitGroup
+	reads.Add(2)
 	client := coderdtest.New(t, &coderdtest.Options{
-		Database: db,
+		Database: barrierStore{Store: db, reads: &reads},
 		Pubsub:   pubsub,
 	})
-	owner := coderdtest.CreateFirstUser(t, client)
+	coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
-	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+	app := seedAppWithSecret(t, db, sql.NullString{})
+	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
 	form := tokenExchangeForm(app, code, verifier)
 
 	type exchange struct {
@@ -308,11 +311,7 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 		err    error
 	}
 
-	var barrier sync.WaitGroup
-	barrier.Add(2)
 	redeem := func() exchange {
-		barrier.Done()
-		barrier.Wait()
 		status, body, err := tryTokenRequest(ctx, t, client, form)
 		return exchange{status: status, body: body, err: err}
 	}
@@ -321,11 +320,13 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	go func() { other <- redeem() }()
 	results := []exchange{redeem(), <-other}
 
+	var winner codersdk.OAuth2TokenResponse
 	var minted, rejected int
 	for _, result := range results {
 		require.NoError(t, result.err)
 		switch result.status {
 		case http.StatusOK:
+			winner = requireTokenResponse(t, result.status, result.body)
 			minted++
 		case http.StatusBadRequest:
 			require.Contains(t, result.body, string(codersdk.OAuth2ErrorCodeInvalidGrant), result.body)
@@ -336,7 +337,7 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	}
 	require.Equal(t, 1, minted, "a code may mint at most one token")
 	require.Equal(t, 1, rejected)
-	requireOneTokenForApp(ctx, t, db, owner.UserID, app.ID)
+	requireTokenAuthenticates(ctx, t, client, winner.AccessToken)
 }
 
 // The ordinary replay: a client retries a redemption whose answer it never saw.
@@ -351,42 +352,55 @@ func TestOAuth2TokenExchangeReplay(t *testing.T) {
 		Database: db,
 		Pubsub:   pubsub,
 	})
-	owner := coderdtest.CreateFirstUser(t, client)
+	coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
-	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
-	exchangeCode(ctx, t, client, app, code, verifier)
+	app := seedAppWithSecret(t, db, sql.NullString{})
+	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+	token := exchangeCode(ctx, t, client, app, code, verifier)
 
 	status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
 	requireTokenGrantError(t, status, body)
-	requireOneTokenForApp(ctx, t, db, owner.UserID, app.ID)
+	requireTokenAuthenticates(ctx, t, client, token.AccessToken)
 }
 
-// requireOneTokenForApp pins what a status code cannot show: a redemption that
-// wrote rows and then failed looks the same from outside as one that never
-// wrote. Counts both rows because the key is written before the token.
-func requireOneTokenForApp(ctx context.Context, t *testing.T, db database.Store, userID, appID uuid.UUID) {
+// barrierStore holds each redemption at its code read until every redemption
+// has read, so both reach the delete with the same stale view. Starting the
+// requests together is not enough on its own: nothing stops one handler from
+// committing before the other reads, and the read then refuses the second
+// before the delete ever arbitrates.
+//
+// InTx hands its closure a fresh Store, so this intercepts only the read that
+// precedes the transaction, which is the one that fixes the interleaving.
+type barrierStore struct {
+	database.Store
+	reads *sync.WaitGroup
+}
+
+// GetOAuth2ProviderAppCodeByPrefix has one production caller, the code read in
+// authorizationCodeGrant, so every arrival here is a redemption.
+func (s barrierStore) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, prefix []byte) (database.OAuth2ProviderAppCode, error) {
+	code, err := s.Store.GetOAuth2ProviderAppCodeByPrefix(ctx, prefix)
+	s.reads.Done()
+	s.reads.Wait()
+	return code, err
+}
+
+// requireTokenAuthenticates asserts the accepted redemption's own credential
+// still works. Callers grant coder:all so the probed endpoint is in scope.
+//
+// Row counts cannot show this: the grant deletes whatever key already holds
+// the name it is about to write, and oauth2_provider_app_tokens cascades on
+// that delete, so the rows converge on one key and one token however many
+// redemptions succeed. Only the winner's token separates "its key survived"
+// from "a second redemption rotated it out".
+func requireTokenAuthenticates(ctx context.Context, t *testing.T, client *codersdk.Client, accessToken string) {
 	t.Helper()
 
-	ctx = dbauthz.AsSystemRestricted(ctx)
-	keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
-		LoginType:      database.LoginTypeOAuth2ProviderApp,
-		UserID:         userID,
-		IncludeExpired: true,
-	})
-	require.NoError(t, err)
-	require.Len(t, keys, 1, "expected exactly one minted API key")
-
-	apps, err := db.GetOAuth2ProviderAppsByUserID(ctx, userID)
-	require.NoError(t, err)
-	for _, app := range apps {
-		if app.OAuth2ProviderApp.ID == appID {
-			require.EqualValues(t, 1, app.TokenCount, "expected exactly one minted token")
-			return
-		}
-	}
-	t.Fatalf("app %s holds no tokens for user %s", appID, userID)
+	asApp := codersdk.New(client.URL)
+	asApp.SetSessionToken(accessToken)
+	_, err := asApp.User(ctx, codersdk.Me)
+	require.NoError(t, err, "a refused redemption must leave the accepted one's token usable")
 }
 
 // appWithSecret is seeded directly because the management API registers no

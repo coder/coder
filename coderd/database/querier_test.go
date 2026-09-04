@@ -19359,7 +19359,7 @@ func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
 	})
 }
 
-func TestSingleUseDeleteByIDReturningRow(t *testing.T) {
+func TestSingleUseDelete(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -19379,11 +19379,11 @@ func TestSingleUseDeleteByIDReturningRow(t *testing.T) {
 			UserID: user.ID,
 		})
 
-		deleted, err := db.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, code.ID)
+		deleted, err := db.DeleteOAuth2ProviderAppCodeByID(ctx, code.ID)
 		require.NoError(t, err)
 		require.Equal(t, code, deleted)
 
-		_, err = db.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, code.ID)
+		_, err = db.DeleteOAuth2ProviderAppCodeByID(ctx, code.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
