@@ -655,6 +655,8 @@ For every matching chat, it locks it, checks if the chat still meets the aforeme
 
 When a chat is successfully acquired, the acquisition loop requests the [Runner manager](#runner-manager) to spawn a chat runner for it.
 
+<!-- TODO: document the acquisition loop's per-chat capacity refusal tracking, which now emits the `capacity_wait` lifecycle stage on the acquisition that follows a refusal. -->
+
 ### Load balancing
 
 The design doesn't attempt to distribute load between workers fairly. Whenever a chat needs an owner, all replicas race to acquire it. If there's a coder replica that has a lower latency to the database, it'll tend to acquire chats more frequently than other replicas.
