@@ -40,6 +40,9 @@ export const UpdateAutomaticUpdatesPolicy: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: /always/i }),
 		);
+		await waitFor(() =>
+			expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+		);
 
 		await userEvent.click(canvas.getByRole("button", { name: /save/i }));
 
