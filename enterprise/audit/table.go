@@ -36,6 +36,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatRuntimeConfig":             {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -504,6 +505,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
+		"runtime":                     ActionTrack,  // Immutable after creation.
+		"runtime_state":               ActionIgnore, // Internal runtime session state.
 	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.
@@ -524,6 +527,16 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"organization_id":       ActionIgnore,
 		"group_acl":             ActionTrack,
 		"user_acl":              ActionTrack,
+	},
+	&database.ChatRuntimeConfig{}: {
+		"organization_id": ActionIgnore,
+		"runtime":         ActionIgnore, // Conveyed by resource_target.
+		"template_id":     ActionTrack,
+		"enabled":         ActionTrack,
+		"model":           ActionTrack,
+		"permission_mode": ActionTrack,
+		"created_at":      ActionIgnore,
+		"updated_at":      ActionIgnore,
 	},
 	&database.MCPServerConfig{}: {
 		"id":                          ActionIgnore, // Conveyed by resource_id, not useful in a diff.

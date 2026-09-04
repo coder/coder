@@ -2,6 +2,7 @@ import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	ArrowUpIcon,
+	BotIcon,
 	CheckIcon,
 	ChevronRightIcon,
 	MicIcon,
@@ -18,6 +19,7 @@ import type React from "react";
 import {
 	type FC,
 	useEffect,
+	useId,
 	useImperativeHandle,
 	useRef,
 	useState,
@@ -72,7 +74,11 @@ import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
-import type { ChatSlashCommand } from "../utils/slashCommands";
+import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "../utils/chatRuntimes";
+import type { ChatComposerCommand } from "../utils/slashCommands";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -131,6 +137,11 @@ interface AgentChatInputProps {
 	onReasoningEffortChange?: (value: string) => void;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	// External runtime chats can send without model options; the runtime
+	// menu is available only on the landing composer.
+	runtime?: ExternalChatRuntime;
+	onRuntimeChange?: (runtime: ExternalChatRuntime | undefined) => void;
+	availableRuntimes?: readonly ExternalChatRuntime[];
 	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
@@ -198,9 +209,10 @@ interface AgentChatInputProps {
 	// AI Gateway is disabled deployment-wide, independent of provider/model
 	// configuration. Forces the setup notice regardless of the counts above.
 	aiGatewayDisabled?: boolean;
-	// Built-in commands offered by the "/" trigger menu ahead of
-	// personal skills.
-	slashCommands?: readonly ChatSlashCommand[];
+	// The chat's external runtime is no longer enabled for its organization.
+	runtimeUnavailable?: boolean;
+	// Commands offered by the "/" trigger menu ahead of personal skills.
+	slashCommands?: readonly ChatComposerCommand[];
 }
 
 export interface AttachedWorkspaceInfo {
@@ -378,6 +390,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onReasoningEffortChange,
 	planModeEnabled = false,
 	onPlanModeToggle,
+	runtime,
+	onRuntimeChange,
+	availableRuntimes = [],
 	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
@@ -419,16 +434,24 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelCount,
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
+	runtimeUnavailable = false,
 	slashCommands,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const runtimeDescriptionId = useId();
+	const runtimeInfo = runtime ? externalChatRuntimes[runtime] : undefined;
+	const canChooseRuntime =
+		onRuntimeChange !== undefined && availableRuntimes.length > 0;
+	// External runtime chats generate through the runtime agent, so missing
+	// chat models are irrelevant; the AI gateway gate still applies.
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
-		(canConfigureAgentSetup
-			? providerCount !== undefined &&
-				modelCount !== undefined &&
-				(providerCount === 0 || modelCount === 0)
-			: modelCount !== undefined && modelCount === 0);
+		(!runtimeInfo &&
+			(canConfigureAgentSetup
+				? providerCount !== undefined &&
+					modelCount !== undefined &&
+					(providerCount === 0 || modelCount === 0)
+				: modelCount !== undefined && modelCount === 0));
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
@@ -641,6 +664,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	};
 
 	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+
+	const handleRuntimeSelect = (nextRuntime: ExternalChatRuntime) => {
+		onRuntimeChange?.(runtime === nextRuntime ? undefined : nextRuntime);
+		setPlusMenuOpen(false);
+	};
+
+	const handleClearRuntime = () => onRuntimeChange?.(undefined);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
@@ -904,7 +934,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const canSend =
 		!isDisabled &&
 		!isLoading &&
-		hasModelOptions &&
+		// External runtime chats manage their own model, so the model
+		// catalog is not required to send.
+		(hasModelOptions || runtimeInfo !== undefined) &&
 		hasSendableContent &&
 		!hasActiveUploads;
 	const handleSubmit = () => {
@@ -931,7 +963,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			isDisabled ||
 			isLoading ||
 			hasActiveUploads ||
-			!hasModelOptions
+			(!hasModelOptions && !runtimeInfo)
 		) {
 			return;
 		}
@@ -1085,6 +1117,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					className="mb-2"
 				/>
 			)}
+			{runtimeInfo && runtimeUnavailable && (
+				<Alert severity="warning" className="mb-2">
+					<AlertDescription>
+						{runtimeInfo.label} is disabled for this organization. Messages sent
+						here will fail until an administrator enables it again.
+					</AlertDescription>
+				</Alert>
+			)}
 			{showAgentSetupNotice && (
 				<div className="relative z-0 -mb-10">
 					{(aiGatewayDisabled ||
@@ -1229,7 +1269,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									disabled={
 										isDisabled &&
 										!showAgentSetupNotice &&
-										!canUseWorkspacePicker
+										!canUseWorkspacePicker &&
+										// Runtimes must stay selectable even when the
+										// composer is disabled for missing models or
+										// gateway, since they need neither.
+										!canChooseRuntime
 									}
 									aria-label="More options"
 								>
@@ -1294,6 +1338,39 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												)}
 											</button>
 										)}
+										{canChooseRuntime &&
+											availableRuntimes.map((runtimeOption) => {
+												const { label, description } =
+													externalChatRuntimes[runtimeOption];
+												const descriptionId = `${runtimeDescriptionId}-${runtimeOption}`;
+												return (
+													<button
+														key={runtimeOption}
+														type="button"
+														role="menuitemcheckbox"
+														aria-checked={runtime === runtimeOption}
+														aria-label={`Run with ${label}`}
+														aria-describedby={descriptionId}
+														onClick={() => handleRuntimeSelect(runtimeOption)}
+														disabled={isLoading}
+														className="group flex min-h-8 w-full cursor-pointer items-start gap-1.5 border-none bg-transparent px-1 py-1.5 text-left text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+													>
+														<BotIcon className="mt-0.5 size-3.5 shrink-0" />
+														<span className="flex min-w-0 flex-col gap-0.5">
+															<span>Run with {label}</span>
+															<span
+																id={descriptionId}
+																className="max-w-72 text-2xs font-normal leading-4 text-content-secondary"
+															>
+																{description}
+															</span>
+														</span>
+														{runtime === runtimeOption && (
+															<CheckIcon className="ml-auto mt-0.5 size-icon-sm shrink-0" />
+														)}
+													</button>
+												);
+											})}
 										{workspaceOptions &&
 											onWorkspaceChange &&
 											(isBelowMdViewport() ? (
@@ -1429,7 +1506,39 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</PopoverContent>
 						</Popover>
-						{isModelCatalogLoading ? (
+						{runtimeInfo ? (
+							<>
+								<span
+									data-testid="chat-runtime-badge"
+									className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary"
+								>
+									<BotIcon className="size-3" />
+									{runtimeInfo.label}
+									{onRuntimeChange && (
+										<BadgeDismissButton
+											onClick={handleClearRuntime}
+											ariaLabel={`Disable ${runtimeInfo.label}`}
+											isDisabled={isDisabled}
+										/>
+									)}
+								</span>
+								{modelOptions.length > 0 && (
+									<ModelSelector
+										value={selectedModel}
+										onValueChange={onModelChange}
+										options={modelOptions}
+										disabled={isDisabled}
+										placeholder="Default"
+										unsetLabel="Default"
+										unsetHint={`Uses the model your administrator pinned for this runtime. If none is pinned, ${runtimeInfo.label} uses its own default model.`}
+										className="md:shrink"
+										dropdownSide="top"
+										dropdownAlign="start"
+										enableMobileFullWidthDropdown
+									/>
+								)}
+							</>
+						) : isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
 						) : (
 							<ModelSelector

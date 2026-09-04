@@ -3238,7 +3238,7 @@ func TestGetWorkspaceConnBumpsWorkspaceUsage(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OwnerID:           user.ID,
 		OrganizationID:    org.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 	})
 
@@ -3360,7 +3360,7 @@ func TestResolveModelConfigProviderLookupError(t *testing.T) {
 	}
 	_, err := server.resolveModelConfig(ctx, database.Chat{
 		OrganizationID:    organizationID,
-		LastModelConfigID: modelConfigID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 	})
 	require.ErrorIs(t, err, sql.ErrConnDone)
 	require.ErrorContains(t, err, "get chat model config")
@@ -3391,7 +3391,7 @@ func TestResolveModelConfigOrganizationScope(t *testing.T) {
 
 		got, err := server.resolveModelConfig(ctx, database.Chat{
 			OrganizationID:    chatOrg.ID,
-			LastModelConfigID: foreignModel.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: foreignModel.ID, Valid: true},
 		})
 		require.NoError(t, err)
 		require.Equal(t, localDefault.ID, got.ID)
@@ -3415,7 +3415,7 @@ func TestResolveModelConfigOrganizationScope(t *testing.T) {
 
 		_, err = server.resolveModelConfig(ctx, database.Chat{
 			OrganizationID:    chatOrg.ID,
-			LastModelConfigID: foreignModel.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: foreignModel.ID, Valid: true},
 		})
 		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
 	})
@@ -3565,7 +3565,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, orgID, provider.ID, false)
 
-		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
+		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID, Runtime: database.ChatRuntimeCoder}, model.ID)
 		require.NoError(t, err)
 		require.Equal(t, model.ID, resolved)
 	})
@@ -3584,7 +3584,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		_, err = resolveSendMessageModelConfigID(
 			ctx,
 			db,
-			database.Chat{OrganizationID: chatOrgID},
+			database.Chat{OrganizationID: chatOrgID, Runtime: database.ChatRuntimeCoder},
 			model.ID,
 		)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
@@ -3603,7 +3603,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		_, err := resolveSendMessageModelConfigID(
 			ctx,
 			db,
-			database.Chat{OrganizationID: chatOrgID},
+			database.Chat{OrganizationID: chatOrgID, Runtime: database.ChatRuntimeCoder},
 			model.ID,
 		)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
@@ -3620,7 +3620,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		disabledProvider := newProvider(t, db, false)
 		model := newModelConfig(t, db, orgID, disabledProvider.ID, false)
 
-		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
+		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID, Runtime: database.ChatRuntimeCoder}, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 

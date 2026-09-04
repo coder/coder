@@ -26,13 +26,13 @@ func TestSetFamilyArchivedRejectsChildChat(t *testing.T) {
 	root := dbgen.Chat(t, f.DB, database.Chat{
 		OrganizationID:    f.Org.ID,
 		OwnerID:           f.User.ID,
-		LastModelConfigID: f.Model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 		Title:             "root",
 	})
 	child := dbgen.Chat(t, f.DB, database.Chat{
 		OrganizationID:    f.Org.ID,
 		OwnerID:           f.User.ID,
-		LastModelConfigID: f.Model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 		Title:             "child",
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
@@ -61,7 +61,7 @@ func TestSetFamilyArchivedRollsBackWhenMemberCannotArchive(t *testing.T) {
 	root := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "root",
 		Status:            database.ChatStatusWaiting,
 	})
@@ -70,7 +70,7 @@ func TestSetFamilyArchivedRollsBackWhenMemberCannotArchive(t *testing.T) {
 	child := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "child",
 		Status:            database.ChatStatusRunning,
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
@@ -107,14 +107,14 @@ func TestSetFamilyArchivedRejectsInvalidStateEvenWhenAlreadyDesired(t *testing.T
 	root := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "root",
 		Status:            database.ChatStatusWaiting,
 	})
 	child := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "child",
 		// status=waiting, archived=true; we will add a queued message
 		// to produce the chatstate-invalid combination (archived chat
@@ -168,14 +168,14 @@ func TestSetFamilyArchivedAcceptsAlreadyDesiredMembers(t *testing.T) {
 	root := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "root",
 		Status:            database.ChatStatusWaiting,
 	})
 	child := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "child",
 		Status:            database.ChatStatusWaiting,
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},

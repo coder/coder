@@ -56,6 +56,10 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "./utils/chatRuntimes";
 
 const defaultModelID = "model-config-1";
 
@@ -492,6 +496,91 @@ export const OrganizationScopedMCPServers: Story = {
 		expect(
 			body.queryByText("Default organization MCP"),
 		).not.toBeInTheDocument();
+	},
+};
+
+const createsRuntimeChatStory = (runtime: ExternalChatRuntime): Story => ({
+	parameters: {
+		experiments: ["agents-runtime-config"],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatRuntimeAvailability").mockResolvedValue([
+			{ organization_id: MockDefaultOrganization.id, runtime },
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const createSpy = spyOn(API.experimental, "createChat").mockResolvedValue({
+			...MockChat,
+			id: "runtime-chat",
+			runtime,
+			organization_id: MockDefaultOrganization.id,
+		});
+		const { label } = externalChatRuntimes[runtime];
+
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await screen.findByRole("menuitemcheckbox", {
+				name: `Run with ${label}`,
+			}),
+		);
+		expect(await canvas.findByText(label)).toBeVisible();
+
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.type(input, "Build a server");
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+
+		await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+		expect(createSpy).toHaveBeenCalledWith({
+			organization_id: MockDefaultOrganization.id,
+			content: [{ type: "text", text: "Build a server" }],
+			client_type: "ui",
+			runtime,
+		});
+	},
+});
+
+export const CreatesClaudeCodeChat = createsRuntimeChatStory("claude_code");
+export const CreatesCodexChat = createsRuntimeChatStory("codex");
+
+export const RuntimeAvailabilityLoading: Story = {
+	parameters: {
+		experiments: ["agents-runtime-config"],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatRuntimeAvailability").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByRole("alert")).toHaveTextContent(
+			"Checking agent runtime availability...",
+		);
+	},
+};
+
+export const RuntimeAvailabilityError: Story = {
+	parameters: {
+		experiments: ["agents-runtime-config"],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatRuntimeAvailability").mockRejectedValue(
+			new Error("Runtime availability could not be loaded"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The loading alert renders first, so wait for the alert text to
+		// change instead of asserting on whichever alert appears first.
+		await waitFor(
+			() =>
+				expect(canvas.getByRole("alert")).toHaveTextContent(
+					"Runtime availability could not be loaded",
+				),
+			{ timeout: 5000 },
+		);
 	},
 };
 

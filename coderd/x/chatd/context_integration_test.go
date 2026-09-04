@@ -72,7 +72,7 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		OwnerID:           user.UserID,
 		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
 		AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Status:            database.ChatStatusWaiting,
 	})
 
@@ -82,7 +82,7 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	otherChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    user.OrganizationID,
 		OwnerID:           user.UserID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Status:            database.ChatStatusWaiting,
 	})
 
@@ -318,7 +318,7 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 			OwnerID:           user.UserID,
 			WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
 			AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
-			LastModelConfigID: model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 			Status:            database.ChatStatusWaiting,
 		})
 	}
@@ -327,7 +327,7 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 	otherChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    user.OrganizationID,
 		OwnerID:           user.UserID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Status:            database.ChatStatusWaiting,
 	})
 
@@ -537,13 +537,13 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 		OwnerID:           user.UserID,
 		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
 		AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Status:            database.ChatStatusWaiting,
 	})
 	otherChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    user.OrganizationID,
 		OwnerID:           user.UserID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Status:            database.ChatStatusWaiting,
 	})
 

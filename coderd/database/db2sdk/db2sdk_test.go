@@ -816,8 +816,9 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		AgentID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		ParentChatID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		RootChatID:          uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		LastModelConfigID:   uuid.New(),
+		LastModelConfigID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		LastReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
+		Runtime:             database.ChatRuntimeCoder,
 		Title:               "all-fields-test",
 		Status:              database.ChatStatusRunning,
 		ClientType:          database.ChatClientTypeUi,
@@ -841,6 +842,10 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		ContextAggregateHash: []byte{0x01, 0x02, 0x03},
 		ContextDirtySince:    sql.NullTime{Time: now, Valid: true},
 		ContextError:         "context boom",
+		RuntimeState: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`{"session_id":"s1","available_commands":[{"name":"review","description":"Review the diff"}]}`),
+			Valid:      true,
+		},
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus
@@ -868,7 +873,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	v := reflect.ValueOf(got)
 	typ := v.Type()
 	// These fields are set outside db2sdk.Chat and intentionally remain zero.
-	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
+	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true, "RuntimeCommands": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {
@@ -879,6 +884,26 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 			field.Name,
 		)
 	}
+}
+
+// TestChat_RuntimeCommandsOmitted pins the list and watch contract: the
+// shared conversion never parses runtime_state, and the unset field is
+// omitted from JSON.
+func TestChat_RuntimeCommandsOmitted(t *testing.T) {
+	t.Parallel()
+
+	got := db2sdk.Chat(database.Chat{
+		ID:      uuid.New(),
+		Runtime: database.ChatRuntimeClaudeCode,
+		RuntimeState: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`{"session_id":"s1","available_commands":[{"name":"review"}]}`),
+			Valid:      true,
+		},
+	}, nil, nil)
+	require.Nil(t, got.RuntimeCommands)
+	encoded, err := json.Marshal(got)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "runtime_commands")
 }
 
 func TestChat_Shared(t *testing.T) {
@@ -918,7 +943,7 @@ func TestChat_Shared(t *testing.T) {
 			chat := database.Chat{
 				ID:                uuid.New(),
 				OwnerID:           uuid.New(),
-				LastModelConfigID: uuid.New(),
+				LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 				Title:             tc.name,
 				Status:            database.ChatStatusWaiting,
 				CreatedAt:         dbtime.Now(),
@@ -944,7 +969,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 	chat := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           ownerID,
-		LastModelConfigID: uuid.New(),
+		LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		Title:             "file metadata test",
 		Status:            database.ChatStatusWaiting,
 		CreatedAt:         now,
@@ -988,7 +1013,7 @@ func TestChat_NilFilesOmitted(t *testing.T) {
 	chat := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           uuid.New(),
-		LastModelConfigID: uuid.New(),
+		LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		Title:             "no files",
 		Status:            database.ChatStatusWaiting,
 		CreatedAt:         dbtime.Now(),
@@ -1068,7 +1093,7 @@ func TestChat_LastErrorFallback(t *testing.T) {
 			chat := database.Chat{
 				ID:                uuid.New(),
 				OwnerID:           uuid.New(),
-				LastModelConfigID: uuid.New(),
+				LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 				Title:             "fallback payload",
 				Status:            database.ChatStatusError,
 				CreatedAt:         dbtime.Now(),
@@ -1095,7 +1120,7 @@ func TestChat_MultipleFiles(t *testing.T) {
 	chat := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           uuid.New(),
-		LastModelConfigID: uuid.New(),
+		LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		Title:             "multi file test",
 		Status:            database.ChatStatusWaiting,
 		CreatedAt:         now,

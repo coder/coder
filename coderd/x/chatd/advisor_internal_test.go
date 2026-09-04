@@ -179,7 +179,7 @@ func advisorChatModelFixture(t *testing.T, options json.RawMessage) (database.Ch
 			return aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil
 		},
 	}
-	return database.Chat{LastModelConfigID: configID, OrganizationID: organizationID}, store
+	return database.Chat{LastModelConfigID: uuid.NullUUID{UUID: configID, Valid: true}, OrganizationID: organizationID}, store
 }
 
 func advisorTestTransportFactory() *aibridgeTestFactory {
@@ -683,7 +683,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 
 		rt, err := p.newAdvisorRuntime(
 			ctx,
-			database.Chat{LastModelConfigID: uuid.New()},
+			database.Chat{LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
 			advisorRuntimeConfig{
 				Enabled:         true,
 				MaxUsesPerRun:   3,

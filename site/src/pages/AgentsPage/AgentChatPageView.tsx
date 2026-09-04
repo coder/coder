@@ -61,6 +61,7 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import type { ExternalChatRuntime } from "./utils/chatRuntimes";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -154,6 +155,8 @@ interface AgentChatPageViewProps {
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	chatRuntime?: ExternalChatRuntime;
+	runtimeUnavailable?: boolean;
 	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
@@ -228,6 +231,7 @@ interface AgentChatPageViewProps {
 
 	chatContext?: TypesGen.ChatContext;
 	workspaceSkills?: readonly SkillMetadata[];
+	runtimeCommands?: readonly TypesGen.ChatRuntimeCommand[];
 }
 
 const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
@@ -352,6 +356,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isModelCatalogLoading = false,
 	planModeEnabled,
 	onPlanModeToggle,
+	chatRuntime,
+	runtimeUnavailable,
 	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
@@ -398,6 +404,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	desktopChatId,
 	chatContext,
 	workspaceSkills,
+	runtimeCommands,
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
@@ -1027,6 +1034,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									onReasoningEffortChange={onReasoningEffortChange}
 									planModeEnabled={planModeEnabled}
 									onPlanModeToggle={onPlanModeToggle}
+									chatRuntime={chatRuntime}
+									runtimeUnavailable={runtimeUnavailable}
 									isModelCatalogLoading={isModelCatalogLoading}
 									workspaceOptions={workspaceOptions}
 									chatOrganizationId={organizationId}
@@ -1047,6 +1056,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									onMCPAuthComplete={onMCPAuthComplete}
 									chatContext={chatContext}
 									workspaceSkills={workspaceSkills}
+									runtimeCommands={runtimeCommands}
 									workspace={workspace}
 									workspaceAgent={workspaceAgent}
 									chatId={agentId}
@@ -1119,6 +1129,7 @@ interface AgentChatPageLoadingViewProps {
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	chatRuntime?: ExternalChatRuntime;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	showRightPanel: boolean;
@@ -1141,6 +1152,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	isModelCatalogLoading = false,
 	planModeEnabled,
 	onPlanModeToggle,
+	chatRuntime,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	showRightPanel,
@@ -1196,6 +1208,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={onPlanModeToggle}
+						runtime={chatRuntime}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 						canConfigureAgentSetup={false}

@@ -16,6 +16,7 @@ import {
 	chatListKey,
 	chatMessagesKey,
 	chatPromptsKey,
+	chatRuntimeAvailability,
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
 	toChatListParams,
@@ -53,6 +54,10 @@ import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "./utils/chatRuntimes";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -177,6 +182,30 @@ const userApiKeyRequiredModelCatalog: TypesGen.OrganizationChatModelsResponse =
 		})),
 	};
 
+const CLAUDE_MODEL_CONFIG_ID = "model-config-claude-sonnet";
+const claudeModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [
+		{
+			...MockChatModel,
+			id: CLAUDE_MODEL_CONFIG_ID,
+			organization_id: "test-org-id",
+			ai_provider_id: "provider-anthropic",
+			model: "claude-sonnet-4-5",
+			display_name: "Claude Sonnet 4.5",
+			is_default: false,
+		},
+	],
+	providers: [
+		{
+			...MockChatModelProviderDescriptor,
+			id: "provider-anthropic",
+			type: "anthropic",
+			display_name: "Anthropic",
+		},
+	],
+	unsupported_providers: [],
+};
+
 const baseChatFields = {
 	organization_id: "test-org-id",
 	owner_id: MockUserOwner.id,
@@ -184,6 +213,7 @@ const baseChatFields = {
 	owner_name: MockUserOwner.name,
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
+	runtime: "coder",
 	mcp_server_ids: [],
 	labels: {},
 	created_at: "2026-02-18T00:00:00.000Z",
@@ -304,6 +334,7 @@ const buildQueries = (
 	messagesData: TypesGen.ChatMessagesResponse,
 	opts?: {
 		diffUrl?: string;
+		modelCatalog?: TypesGen.OrganizationChatModelsResponse;
 		mcpServers?: readonly TypesGen.MCPServerConfig[];
 	},
 ) => {
@@ -351,7 +382,7 @@ const buildQueries = (
 		},
 		{
 			key: organizationChatModelsKey(chat.organization_id),
-			data: mockModelCatalog,
+			data: opts?.modelCatalog ?? mockModelCatalog,
 		},
 		{
 			key: userChatProviderConfigsKey,
@@ -943,9 +974,122 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 export default meta;
 type Story = StoryObj<typeof AgentChatPageLayout>;
 
+const sendRuntimeChatMessage = async (
+	canvasElement: HTMLElement,
+	text: string,
+	modelConfigId?: string,
+) => {
+	const sendSpy = spyOn(
+		API.experimental,
+		"createChatMessage",
+	).mockResolvedValue({
+		queued: false,
+		message: {
+			...MockChatMessage,
+			id: 100,
+			chat_id: CHAT_ID,
+			role: "user",
+			content: [{ type: "text", text }],
+			...(modelConfigId ? { model_config_id: modelConfigId } : {}),
+		},
+	});
+	const canvas = within(canvasElement);
+	const editor = await canvas.findByRole("textbox", { name: "Chat message" });
+	await userEvent.click(editor);
+	await userEvent.type(editor, text);
+	await userEvent.keyboard("{Enter}");
+	await waitFor(() => expect(sendSpy).toHaveBeenCalledTimes(1));
+	return sendSpy;
+};
+
 // ---------------------------------------------------------------------------
 // Stories
 // ---------------------------------------------------------------------------
+
+const runtimeSendsWithoutModelStory = (
+	runtime: ExternalChatRuntime,
+): Story => ({
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Runtime default",
+				status: "waiting",
+				runtime,
+				last_model_config_id: "",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ modelCatalog: { ...claudeModelCatalog, models: [] } },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTestId("chat-runtime-badge")).toHaveTextContent(
+			externalChatRuntimes[runtime].label,
+		);
+		const text = "Use the runtime default";
+		const sendSpy = await sendRuntimeChatMessage(canvasElement, text);
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				model_config_id: undefined,
+				content: [{ type: "text", text }],
+			}),
+		);
+	},
+});
+
+export const ClaudeCodeSendsWithoutModel =
+	runtimeSendsWithoutModelStory("claude_code");
+export const CodexSendsWithoutModel = runtimeSendsWithoutModelStory("codex");
+
+export const ClaudeCodeSendsSelectedModel: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Claude Code model selection",
+				status: "waiting",
+				runtime: "claude_code",
+				last_model_config_id: "",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ modelCatalog: claudeModelCatalog },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("combobox", { name: "Default" }),
+		);
+		await userEvent.click(
+			await within(canvasElement.ownerDocument.body).findByRole("option", {
+				name: /Claude Sonnet 4.5/,
+			}),
+		);
+		const text = "Use Claude Sonnet";
+		const sendSpy = await sendRuntimeChatMessage(
+			canvasElement,
+			text,
+			CLAUDE_MODEL_CONFIG_ID,
+		);
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				model_config_id: CLAUDE_MODEL_CONFIG_ID,
+				content: [{ type: "text", text }],
+			}),
+		);
+	},
+};
 
 /** Multi-turn conversation with rich markdown rendering: headings, tables,
  *  ordered/unordered lists, nested lists, code blocks, blockquotes,
@@ -3493,6 +3637,223 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 
 		await waitFor(() => {
 			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(compactSpy).not.toHaveBeenCalled();
+	},
+};
+
+const runtimeCommandChat = (
+	runtimeCommands: readonly TypesGen.ChatRuntimeCommand[] | undefined,
+): TypesGen.Chat => ({
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Runtime commands",
+	status: "waiting",
+	runtime: "claude_code",
+	last_model_config_id: "",
+	...(runtimeCommands ? { runtime_commands: runtimeCommands } : {}),
+});
+
+const runtimeCommands: readonly TypesGen.ChatRuntimeCommand[] = [
+	{ name: "review", description: "Review the current diff" },
+	{
+		name: "model",
+		description: "Switch the model for the rest of the session",
+		input_hint: "<model name>",
+	},
+];
+
+const runtimeDisabledWarning =
+	"Claude Code is disabled for this organization. Messages sent here will fail until an administrator enables it again.";
+
+const runtimeAvailabilityStory = (
+	availability: readonly TypesGen.ChatRuntimeAvailability[],
+): Story => ({
+	parameters: {
+		experiments: ["agents-runtime-config"],
+		queries: [
+			...buildQueries(runtimeCommandChat(runtimeCommands), {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			{ key: chatRuntimeAvailability().queryKey, data: availability },
+		],
+	},
+});
+
+/** An open chat whose runtime an administrator has since disabled warns
+ *  before a send is wasted. */
+export const RuntimeDisabledForOrganizationWarns: Story = {
+	...runtimeAvailabilityStory([
+		{ organization_id: "other-org-id", runtime: "claude_code" },
+		{ organization_id: baseChatFields.organization_id, runtime: "codex" },
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByTestId("chat-message-input");
+		expect(await canvas.findByText(runtimeDisabledWarning)).toBeVisible();
+	},
+};
+
+export const RuntimeEnabledForOrganizationHasNoWarning: Story = {
+	...runtimeAvailabilityStory([
+		{ organization_id: baseChatFields.organization_id, runtime: "claude_code" },
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByTestId("chat-message-input");
+		expect(canvas.queryByText(runtimeDisabledWarning)).not.toBeInTheDocument();
+	},
+};
+
+/** A runtime chat's "/" menu lists the commands the runtime advertised in
+ *  place of the coder built-ins; choosing one that takes input inserts the
+ *  command with the caret ready for its arguments. */
+export const RuntimeCommandsInComposerMenu: Story = {
+	parameters: {
+		queries: buildQueries(runtimeCommandChat(runtimeCommands), {
+			messages: [],
+			queued_messages: [],
+			has_more: false,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/");
+		await waitFor(() => {
+			expect(
+				body.getByRole("option", { name: /\/review Review the current diff/ }),
+			).toBeVisible();
+		});
+		expect(body.getByText("<model name>")).toBeVisible();
+		expect(body.queryByRole("option", { name: /\/compact/ })).toBeNull();
+		expect(body.queryByRole("option", { name: /\/clear/ })).toBeNull();
+
+		await userEvent.keyboard("mod");
+		await waitFor(() => {
+			expect(body.getByRole("option", { name: /\/model/ })).toBeVisible();
+		});
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/model ");
+		});
+
+		// Sending consumes the composer draft so it cannot leak into later
+		// stories that reuse this chat id.
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: false,
+			message: {
+				...MockChatMessage,
+				id: 1,
+				chat_id: CHAT_ID,
+				role: "user",
+				content: [{ type: "text", text: "/model opus" }],
+			},
+		});
+		await userEvent.keyboard("opus{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledWith(
+				CHAT_ID,
+				expect.objectContaining({
+					content: [{ type: "text", text: "/model opus" }],
+				}),
+			);
+		});
+	},
+};
+
+/** Without advertised commands a runtime chat offers no "/" menu at all:
+ *  the coder built-ins do not apply and "/" stays plain text. */
+export const RuntimeChatWithoutCommandsHidesBuiltIns: Story = {
+	parameters: {
+		queries: buildQueries(runtimeCommandChat(undefined), {
+			messages: [],
+			queued_messages: [],
+			has_more: false,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/comp");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/comp");
+		});
+		expect(
+			within(document.body).queryByRole("option", { name: /\/compact/ }),
+		).toBeNull();
+		// Empty the composer so its draft cannot leak into later stories
+		// that reuse this chat id.
+		await userEvent.keyboard("{Control>}a{/Control}{Backspace}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("");
+		});
+	},
+};
+
+/** A runtime command that shares a built-in's name is sent to the runtime
+ *  as message text instead of triggering the coder-side action. */
+export const RuntimeCompactCommandIsSentToRuntime: Story = {
+	parameters: {
+		queries: buildQueries(
+			runtimeCommandChat([
+				{ name: "compact", description: "Compact the runtime session" },
+			]),
+			slashCommandMessages,
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const compactSpy = spyOn(API.experimental, "compactChat");
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: false,
+			message: {
+				id: 3,
+				chat_id: CHAT_ID,
+				role: "user",
+				created_at: "2024-01-01T00:01:00Z",
+				content: [{ type: "text", text: "/compact" }],
+			},
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/compact");
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText("Compact the runtime session"),
+			).toBeVisible();
+		});
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledWith(
+				CHAT_ID,
+				expect.objectContaining({
+					content: [{ type: "text", text: "/compact" }],
+				}),
+			);
 		});
 		expect(compactSpy).not.toHaveBeenCalled();
 	},

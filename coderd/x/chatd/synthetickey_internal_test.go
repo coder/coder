@@ -215,7 +215,7 @@ func TestSyntheticAPIKeyDeletionDoesNotMutateChatState(t *testing.T) {
 			chat := dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,
-				LastModelConfigID: model.ID,
+				LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 			})
 			dbgen.ChatMessage(t, db, database.ChatMessage{
 				ChatID:        chat.ID,

@@ -194,7 +194,7 @@ func (f *workerTestFixture) createArchiveCandidateForOwner(t *testing.T, ownerID
 	chat := dbgen.Chat(t, f.db, database.Chat{
 		OrganizationID:    f.org.ID,
 		OwnerID:           ownerID,
-		LastModelConfigID: f.model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.model.ID, Valid: true},
 		Title:             testutil.GetRandomName(t),
 		Status:            database.ChatStatusWaiting,
 	})

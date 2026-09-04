@@ -41,7 +41,7 @@ func TestStopWorkspace(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-stop-no-workspace",
 		})
 
@@ -83,7 +83,7 @@ func TestStopWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-stop-deleted-workspace",
 		})
 
@@ -125,7 +125,7 @@ func TestStopWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-stop-already-stopped",
 		})
 
@@ -173,7 +173,7 @@ func TestStopWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-stop-running-workspace",
 		})
 
@@ -247,7 +247,7 @@ func TestStopWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-stop-in-progress-build",
 		})
 
@@ -336,7 +336,7 @@ func TestStopWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-stop-failed-latest-build",
 		})
 
@@ -388,7 +388,7 @@ func TestStopWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-stop-triggered-build-failure",
 		})
 

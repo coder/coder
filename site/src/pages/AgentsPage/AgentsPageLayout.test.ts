@@ -4,6 +4,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatCostIdToInvalidate,
 	shouldInvalidateFilteredChatList,
+	shouldRefetchRuntimeCommands,
 } from "./AgentsPageLayout";
 import {
 	emptyInputStorageKey,
@@ -1052,5 +1053,53 @@ describe(chatCostIdToInvalidate.name, () => {
 		},
 	])("$name", ({ updatedChat, eventKind, expected }) => {
 		expect(chatCostIdToInvalidate(updatedChat, eventKind)).toBe(expected);
+	});
+});
+
+describe(shouldRefetchRuntimeCommands.name, () => {
+	it.each<{
+		name: string;
+		updatedChat: TypesGen.Chat;
+		eventKind: TypesGen.ChatWatchEventKind;
+		expected: boolean;
+	}>([
+		{
+			name: "refetches when a runtime chat's turn ends",
+			updatedChat: chatForFilterInvalidation({
+				runtime: "claude_code",
+				status: "waiting",
+			}),
+			eventKind: "status_change",
+			expected: true,
+		},
+		{
+			name: "skips the status change that starts a runtime turn",
+			updatedChat: chatForFilterInvalidation({
+				runtime: "codex",
+				status: "running",
+			}),
+			eventKind: "status_change",
+			expected: false,
+		},
+		{
+			name: "skips coder chats",
+			updatedChat: chatForFilterInvalidation({
+				runtime: "coder",
+				status: "waiting",
+			}),
+			eventKind: "status_change",
+			expected: false,
+		},
+		{
+			name: "skips other event kinds",
+			updatedChat: chatForFilterInvalidation({
+				runtime: "claude_code",
+				status: "waiting",
+			}),
+			eventKind: "title_change",
+			expected: false,
+		},
+	])("$name", ({ updatedChat, eventKind, expected }) => {
+		expect(shouldRefetchRuntimeCommands(updatedChat, eventKind)).toBe(expected);
 	});
 });

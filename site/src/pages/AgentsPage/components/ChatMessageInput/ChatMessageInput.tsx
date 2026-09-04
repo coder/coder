@@ -46,7 +46,7 @@ import {
 	filterSkillsByQuery,
 	isPersonalSkillTriggerToken,
 } from "../../utils/personalSkills";
-import type { ChatSlashCommand } from "../../utils/slashCommands";
+import type { ChatComposerCommand } from "../../utils/slashCommands";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
@@ -523,11 +523,11 @@ interface ChatMessageInputProps
 	 */
 	workspaceSkills?: readonly SkillMetadata[];
 	/**
-	 * Built-in commands offered by the "/" trigger menu ahead of
-	 * skills. Selection inserts the command text; the parent
-	 * composer intercepts it at submit time.
+	 * Commands offered by the "/" trigger menu ahead of skills.
+	 * Selection inserts the command text; built-ins are intercepted by
+	 * the parent composer at submit time, runtime commands are sent.
 	 */
-	slashCommands?: readonly ChatSlashCommand[];
+	slashCommands?: readonly ChatComposerCommand[];
 	/**
 	 * Composer box element the skills menu is pinned above and sized
 	 * to match. Falls back to this component's own container.
@@ -774,7 +774,10 @@ const ChatMessageInput = ({
 
 			selection.anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
 			selection.focus.set(trigger.nodeKey, caretOffset, "text");
-			selection.insertText(skill.triggerText);
+			// Commands that take arguments leave the caret ready for them.
+			selection.insertText(
+				skill.inputHint ? `${skill.triggerText} ` : skill.triggerText,
+			);
 		});
 		setSkillsTrigger(null);
 		setSkillsMenuSelectedIndex(0);

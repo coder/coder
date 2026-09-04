@@ -192,6 +192,7 @@ const makeChat = (
 	owner_id: "owner-1",
 	owner_username: "owner",
 	last_model_config_id: "model-1",
+	runtime: "coder",
 	mcp_server_ids: [],
 	labels: {},
 	title: `Chat ${id}`,
@@ -3853,6 +3854,30 @@ describe("semantic cache operations: cancellation", () => {
 			queryKey: chatEntityKey("chat-1"),
 			exact: true,
 		});
+	});
+
+	it("cancelLoadedChatEntityRefetch reports an interrupted refetch that must be re-requested", async () => {
+		const queryClient = createTestQueryClient();
+		const chatKey = chatEntityKey("chat-1");
+		queryClient.setQueryData(chatKey, makeChat("chat-1"));
+
+		expect(cancelLoadedChatEntityRefetch(queryClient, "chat-1")).toBe(false);
+
+		const deferred = createDeferred<TypesGen.Chat>();
+		const refetch = queryClient.fetchQuery({
+			queryKey: chatKey,
+			queryFn: () => deferred.promise,
+			staleTime: 0,
+		});
+		expect(queryClient.getQueryState(chatKey)?.fetchStatus).toBe("fetching");
+
+		expect(cancelLoadedChatEntityRefetch(queryClient, "chat-1")).toBe(true);
+		await refetch.catch(() => undefined);
+
+		// The interrupted fetch stops silently: no observer restarts it, so
+		// only a fresh invalidation can deliver the data it carried.
+		expect(queryClient.getQueryState(chatKey)?.fetchStatus).toBe("idle");
+		expect(queryClient.getQueryData(chatKey)).toEqual(makeChat("chat-1"));
 	});
 
 	it("resetUnloadedChatEntity resets exactly when detail data is absent", async () => {

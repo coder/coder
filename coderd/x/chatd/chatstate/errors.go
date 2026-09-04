@@ -30,6 +30,11 @@ var (
 	// target chat_messages row is missing or belongs to another chat.
 	ErrMessageNotFound = xerrors.New("chat message not found")
 
+	// ErrInvalidModelConfigID indicates the requested model config does
+	// not exist, is disabled, its provider is disabled, or it cannot be
+	// used on the chat's runtime.
+	ErrInvalidModelConfigID = xerrors.New("invalid model config ID")
+
 	// ErrChatNotFound is returned when a non-create transition is
 	// applied to a chat row that does not exist (or has been deleted
 	// since the transition started).

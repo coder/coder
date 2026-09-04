@@ -992,6 +992,18 @@ The dynamic tools timeout goroutine is responsible for waiting for the dynamic t
 
 The abandon chat goroutine is responsible for abandoning the chat. It is spawned whenever the event processing logic determines that the chat no longer needs to be owned by the runner. It applies the `Abandon` transition on the core state machine after checking that the chat is still owned by the runner.
 
+## TODO: External chat runtimes
+
+TODO(PR author): Document the experiment-gated external runtime dispatch, ACP turn lifecycle, runtime state persistence, model selection, and shared completion behavior introduced by this change.
+
+TODO(PR author): Document gateway-only model routing for external runtimes, per-turn Coder token expiry and revocation, and the boundary that keeps upstream provider credentials outside the workspace.
+
+TODO(PR author): Document how ACP available_commands updates are captured per turn, persisted in runtime_state, exposed as Chat.runtime_commands, and omitted from watch event payloads.
+
+TODO(PR author): Document how lifecycle hooks interact with external runtimes: session_start runs before the ACP dispatch, hook user_message notices are user-visible system rows that the ACP prompt skips, and hook model_context rows are model-visible only and are not forwarded to the adapter.
+
+TODO(PR author): Document the runtime_state session invariants: a message edit resets the persisted ACP session so the next turn reseeds from the truncated transcript, a turn records its session only while runtime_state.updated_at is unchanged since the turn started, new sessions wait for the agent's expanded directory, and queue promotion never stamps the organization default model on runtime chats.
+
 ## Runner cleanup
 
 When the manager cleans up a runner, the runner must cancel all goroutines it has spawned and unsubscribe from pubsub.

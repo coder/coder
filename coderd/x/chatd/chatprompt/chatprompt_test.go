@@ -2029,7 +2029,7 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "nul-roundtrip-test",
 	})
 
@@ -2673,7 +2673,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 			Title:             "media-roundtrip-" + callID,
 		})
 

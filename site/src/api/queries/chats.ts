@@ -843,19 +843,28 @@ export const cancelChatEntity = (queryClient: QueryClient, chatId: string) =>
 		exact: true,
 	});
 
-// Cancelling a first-time fetch leaves the query pending with no retry,
-// which the page shows as "Chat not found".
+/**
+ * Cancels an in-flight refetch of a loaded chat entity so its response
+ * cannot overwrite the watch merge that follows. Cancelling a first-time
+ * fetch instead leaves the query pending with no retry, which the page
+ * shows as "Chat not found". Returns whether a fetch was interrupted: an
+ * interrupted fetch leaves the entity invalidated but idle, so the caller
+ * must request it again after merging or the data that fetch carried
+ * (runtime commands after a turn) never arrives.
+ */
 export const cancelLoadedChatEntityRefetch = (
 	queryClient: QueryClient,
 	chatId: string,
-) => {
-	if (queryClient.getQueryData(chatEntityKey(chatId)) === undefined) {
-		return;
+): boolean => {
+	const state = queryClient.getQueryState(chatEntityKey(chatId));
+	if (state?.data === undefined) {
+		return false;
 	}
-	return queryClient.cancelQueries({
+	void queryClient.cancelQueries({
 		queryKey: chatEntityKey(chatId),
 		exact: true,
 	});
+	return state.fetchStatus !== "idle";
 };
 
 /**
@@ -1174,6 +1183,11 @@ export const openChat = (chatId: string) =>
 
 export const chatACLKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "acl"] as const;
+
+export const chatRuntimeAvailability = () => ({
+	queryKey: [...chatConfigKey, "runtime-availability"] as const,
+	queryFn: () => API.experimental.getChatRuntimeAvailability(),
+});
 
 export const chatACL = (chatId: string) => ({
 	queryKey: chatACLKey(chatId),

@@ -33,22 +33,24 @@ func TestActiveAgentChatsIncludeInheritedACLs(t *testing.T) {
 	modelConfig := insertAgentChatTestModelConfig(t, db, owner.ID)
 
 	root, err := db.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "root-active-chat",
 		AgentID:           uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
 	})
 	require.NoError(t, err)
 
 	child, err := db.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusRunning,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "child-active-chat",
 		AgentID:           uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},

@@ -2364,6 +2364,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "plan_mode": "plan",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "runtime": "coder",
+      "runtime_commands": [
+        {
+          "description": "string",
+          "input_hint": "string",
+          "name": "string"
+        }
+      ],
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -2460,6 +2468,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "plan_mode": "plan",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "runtime": "coder",
+  "runtime_commands": [
+    {
+      "description": "string",
+      "input_hint": "string",
+      "name": "string"
+    }
+  ],
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -2474,42 +2490,44 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
-|-------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `archived`              | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
-| `build_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `children`              | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
-| `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
-| `context`               | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
-| `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
-| `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
-| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
-| `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| » `[any property]`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_model_config_id`  | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_reasoning_effort` | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_turn_summary`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `owner_name`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `owner_username`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
-| `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `queued_for_capacity`   | boolean                                                         | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
-| `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
-| `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
-| `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
-| `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| Name                    | Type                                                                | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|-------------------------|---------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id`              | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `archived`              | boolean                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `build_id`              | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `children`              | array of [codersdk.Chat](#codersdkchat)                             | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
+| `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `context`               | [codersdk.ChatContext](#codersdkchatcontext)                        | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
+| `created_at`            | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata)     | false    |              |                                                                                                                                                                                                                                                                            |
+| `has_unread`            | boolean                                                             | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `id`                    | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `labels`                | object                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| » `[any property]`      | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_error`            | [codersdk.ChatError](#codersdkchaterror)                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_model_config_id`  | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_reasoning_effort` | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_turn_summary`     | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `mcp_server_ids`        | array of string                                                     | false    |              |                                                                                                                                                                                                                                                                            |
+| `organization_id`       | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_id`              | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_name`            | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_username`        | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `parent_chat_id`        | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `pin_order`             | integer                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                      | false    |              |                                                                                                                                                                                                                                                                            |
+| `queued_for_capacity`   | boolean                                                             | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
+| `root_chat_id`          | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `runtime`               | [codersdk.ChatRuntime](#codersdkchatruntime)                        | false    |              |                                                                                                                                                                                                                                                                            |
+| `runtime_commands`      | array of [codersdk.ChatRuntimeCommand](#codersdkchatruntimecommand) | false    |              | Runtime commands lists the slash commands an external runtime advertised for this chat. Omitted for chats on the built-in runtime and stripped from watch event payloads; read it from the chat endpoints.                                                                 |
+| `shared`                | boolean                                                             | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
+| `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `summary`               | string                                                              | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
+| `title`                 | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `updated_at`            | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `warnings`              | array of string                                                     | false    |              |                                                                                                                                                                                                                                                                            |
+| `workspace_id`          | string                                                              | false    |              |                                                                                                                                                                                                                                                                            |
 
 ## codersdk.ChatACL
 
@@ -4800,6 +4818,82 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|
 | ``, `read` |
 
+## codersdk.ChatRuntime
+
+```json
+"coder"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                        |
+|---------------------------------|
+| `claude_code`, `coder`, `codex` |
+
+## codersdk.ChatRuntimeAvailability
+
+```json
+{
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "runtime": "coder"
+}
+```
+
+### Properties
+
+| Name              | Type                                         | Required | Restrictions | Description |
+|-------------------|----------------------------------------------|----------|--------------|-------------|
+| `organization_id` | string                                       | false    |              |             |
+| `runtime`         | [codersdk.ChatRuntime](#codersdkchatruntime) | false    |              |             |
+
+## codersdk.ChatRuntimeCommand
+
+```json
+{
+  "description": "string",
+  "input_hint": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description                                                                                                     |
+|---------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------|
+| `description` | string | false    |              |                                                                                                                 |
+| `input_hint`  | string | false    |              | Input hint is placeholder text for the arguments after the command name; empty when the command takes no input. |
+| `name`        | string | false    |              |                                                                                                                 |
+
+## codersdk.ChatRuntimeConfig
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "enabled": true,
+  "model": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "permission_mode": "string",
+  "runtime": "coder",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name              | Type                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                   |
+|-------------------|----------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`      | string                                       | false    |              |                                                                                                                                                                                                                                                               |
+| `enabled`         | boolean                                      | false    |              |                                                                                                                                                                                                                                                               |
+| `model`           | string                                       | false    |              | Model optionally pins the default model the runtime agent uses. A per-message model selection on the chat overrides this pin; empty falls through to the runtime agent's own default.                                                                         |
+| `organization_id` | string                                       | false    |              |                                                                                                                                                                                                                                                               |
+| `permission_mode` | string                                       | false    |              | Permission mode optionally sets the permission mode the runtime agent runs with (e.g. acceptEdits). Empty means the runtime's least restrictive mode: bypassPermissions for Claude Code and agent-full-access for Codex. Modes that prompt are auto-declined. |
+| `runtime`         | [codersdk.ChatRuntime](#codersdkchatruntime) | false    |              |                                                                                                                                                                                                                                                               |
+| `template_id`     | string                                       | false    |              | Template ID is the template chat workspaces are created from. The template must provide the runtime's ACP adapter executable (claude-agent-acp for claude_code, codex-acp for codex).                                                                         |
+| `updated_at`      | string                                       | false    |              |                                                                                                                                                                                                                                                               |
+
 ## codersdk.ChatStatus
 
 ```json
@@ -5384,6 +5478,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "plan_mode": "plan",
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "runtime": "coder",
+    "runtime_commands": [
+      {
+        "description": "string",
+        "input_hint": "string",
+        "name": "string"
+      }
+    ],
     "shared": true,
     "status": "waiting",
     "summary": "string",
@@ -6255,6 +6357,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "plan_mode": "plan",
   "reasoning_effort": "string",
+  "runtime": "coder",
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
     {
@@ -6271,20 +6374,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
-|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
-| `labels`               | object                                                    | false    |              |                                                                                                                                            |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                            |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                                                                         |
+|------------------------|-----------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                                                                                                                                                                                     |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                                                                                                                                                     |
+| `labels`               | object                                                    | false    |              |                                                                                                                                                                                                                                                                                                     |
+| » `[any property]`     | string                                                    | false    |              |                                                                                                                                                                                                                                                                                                     |
+| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                                                                                                                                                                                     |
+| `model_config_id`      | string                                                    | false    |              |                                                                                                                                                                                                                                                                                                     |
+| `organization_id`      | string                                                    | false    |              |                                                                                                                                                                                                                                                                                                     |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                                                                                                                                                                                     |
+| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                                                                                                                                                                                     |
+| `runtime`              | [codersdk.ChatRuntime](#codersdkchatruntime)              | false    |              | Runtime selects the generation runtime for the chat. Empty means the built-in coder runtime. External runtimes (claude_code, codex) require an enabled org runtime config; the server creates and binds a workspace from the configured template, and the runtime cannot be changed after creation. |
+| `system_prompt`        | string                                                    | false    |              |                                                                                                                                                                                                                                                                                                     |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                                                                                                                          |
+| `workspace_id`         | string                                                    | false    |              |                                                                                                                                                                                                                                                                                                     |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -9047,9 +9151,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                     |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                              |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `agents-runtime-config`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -13303,9 +13407,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_runtime_config`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -16366,6 +16470,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name     | Type                                                                | Required | Restrictions | Description |
 |----------|---------------------------------------------------------------------|----------|--------------|-------------|
 | `prices` | array of [codersdk.AIModelPriceUpsert](#codersdkaimodelpriceupsert) | false    |              |             |
+
+## codersdk.UpsertChatRuntimeConfigRequest
+
+```json
+{
+  "enabled": true,
+  "model": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "permission_mode": "string",
+  "runtime": "coder",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+}
+```
+
+### Properties
+
+| Name              | Type                                         | Required | Restrictions | Description |
+|-------------------|----------------------------------------------|----------|--------------|-------------|
+| `enabled`         | boolean                                      | false    |              |             |
+| `model`           | string                                       | false    |              |             |
+| `organization_id` | string                                       | false    |              |             |
+| `permission_mode` | string                                       | false    |              |             |
+| `runtime`         | [codersdk.ChatRuntime](#codersdkchatruntime) | false    |              |             |
+| `template_id`     | string                                       | false    |              |             |
 
 ## codersdk.UpsertGroupAIBudgetRequest
 

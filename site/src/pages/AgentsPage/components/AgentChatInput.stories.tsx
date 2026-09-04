@@ -12,6 +12,10 @@ import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
 import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "../utils/chatRuntimes";
+import {
 	AgentChatInput,
 	type AgentContextUsage,
 	type UploadState,
@@ -1657,6 +1661,235 @@ export const LongWorkspaceNameMobile: Story = {
 		}
 	},
 };
+
+const claudeModelOptions = [
+	{
+		id: "model-config-claude-sonnet",
+		provider: "anthropic",
+		model: "claude-sonnet-4-5",
+		displayName: "Claude Sonnet 4.5",
+	},
+	{
+		id: "model-config-claude-haiku",
+		provider: "anthropic",
+		model: "claude-haiku-4-5",
+		displayName: "Claude Haiku 4.5",
+	},
+] as const;
+
+/**
+ * A runtime pinned with no matching model options: the composer shows
+ * only the runtime badge and sending works without model options.
+ */
+const runtimePinnedStory = (runtime: ExternalChatRuntime): Story => ({
+	args: {
+		runtime,
+		onRuntimeChange: fn(),
+		availableRuntimes: [runtime],
+		hasModelOptions: false,
+		modelOptions: [],
+		selectedModel: "",
+		onSend: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const badge = await canvas.findByTestId("chat-runtime-badge");
+		expect(badge).toBeVisible();
+		expect(badge).toHaveTextContent(externalChatRuntimes[runtime].label);
+		expect(canvas.queryByText("Select model")).not.toBeInTheDocument();
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.type(input, "Use the runtime default");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("Use the runtime default");
+		});
+	},
+});
+
+export const ClaudeCodePinned = runtimePinnedStory("claude_code");
+export const CodexPinned = runtimePinnedStory("codex");
+
+/**
+ * Runtime chats need no chat model, so the "set up a model" notice
+ * stays hidden even when the model catalog is empty.
+ */
+export const ClaudeCodeHidesModelSetupNotice: Story = {
+	args: {
+		runtime: "claude_code",
+		onRuntimeChange: fn(),
+		availableRuntimes: ["claude_code"],
+		hasModelOptions: false,
+		modelOptions: [],
+		selectedModel: "",
+		canConfigureAgentSetup: false,
+		modelCount: 0,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTestId("chat-runtime-badge")).toBeVisible();
+		expect(
+			canvas.queryByText(/To chat with Coder Agents/),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** The plus menu offers "Run with <runtime>" for each available runtime. */
+const runtimeMenuItemStory = (runtime: ExternalChatRuntime): Story => ({
+	args: {
+		onRuntimeChange: fn(),
+		availableRuntimes: [runtime],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		const body = within(document.body);
+		const { label, description } = externalChatRuntimes[runtime];
+		const item = await body.findByRole("menuitemcheckbox", {
+			name: `Run with ${label}`,
+		});
+		const descriptionElement = body.getByText(description);
+		await waitFor(() => expect(descriptionElement).toBeVisible());
+		expect(item).toHaveAttribute("aria-describedby", descriptionElement.id);
+		expect(item).toHaveAccessibleDescription(description);
+		expect(item).toHaveAttribute("aria-checked", "false");
+		await userEvent.click(item);
+		await waitFor(() => {
+			expect(args.onRuntimeChange).toHaveBeenCalledWith(runtime);
+		});
+	},
+});
+
+export const ClaudeCodeMenuItem = runtimeMenuItemStory("claude_code");
+export const CodexMenuItem = runtimeMenuItemStory("codex");
+
+/**
+ * With several runtimes available, each gets its own menu entry; picking
+ * another runtime replaces the current one and picking the checked one
+ * clears it.
+ */
+export const RuntimeMenuSwitchesRuntime: Story = {
+	args: {
+		runtime: "claude_code",
+		onRuntimeChange: fn(),
+		availableRuntimes: ["claude_code", "codex"],
+		modelOptions: [],
+		selectedModel: "",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		const body = within(document.body);
+		const claudeItem = await body.findByRole("menuitemcheckbox", {
+			name: "Run with Claude Code",
+		});
+		expect(claudeItem).toHaveAttribute("aria-checked", "true");
+		const codexItem = body.getByRole("menuitemcheckbox", {
+			name: "Run with Codex",
+		});
+		expect(codexItem).toHaveAttribute("aria-checked", "false");
+		await userEvent.click(codexItem);
+		await waitFor(() => {
+			expect(args.onRuntimeChange).toHaveBeenCalledWith("codex");
+		});
+
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", {
+				name: "Run with Claude Code",
+			}),
+		);
+		await waitFor(() => {
+			expect(args.onRuntimeChange).toHaveBeenCalledWith(undefined);
+		});
+	},
+};
+
+/**
+ * Runtime chats with matching model options render a picker with an
+ * explicit Default row next to the badge; picking a model reports its
+ * config id.
+ */
+export const ClaudeCodeModelPicker: Story = {
+	args: {
+		runtime: "claude_code",
+		onRuntimeChange: fn(),
+		availableRuntimes: ["claude_code"],
+		hasModelOptions: false,
+		modelOptions: [...claudeModelOptions],
+		selectedModel: "",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTestId("chat-runtime-badge")).toBeVisible();
+		const trigger = canvas.getByRole("combobox", { name: "Default" });
+		await userEvent.click(trigger);
+		const body = within(document.body);
+		const defaultOption = await body.findByRole("option", {
+			name: /Default/,
+		});
+		// The popover fades in; wait out the enter animation.
+		await waitFor(() => expect(defaultOption).toBeVisible());
+		await userEvent.click(
+			await body.findByRole("option", { name: /Claude Haiku 4.5/ }),
+		);
+		await waitFor(() => {
+			expect(args.onModelChange).toHaveBeenCalledWith(
+				"model-config-claude-haiku",
+			);
+		});
+	},
+};
+
+/** Picking the Default row clears an active runtime model pick. */
+export const ClaudeCodeModelPickerClearsToDefault: Story = {
+	args: {
+		runtime: "claude_code",
+		onRuntimeChange: fn(),
+		availableRuntimes: ["claude_code"],
+		hasModelOptions: false,
+		modelOptions: [...claudeModelOptions],
+		selectedModel: "model-config-claude-sonnet",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("combobox", {
+			name: "Claude Sonnet 4.5",
+		});
+		await userEvent.click(trigger);
+		const body = within(document.body);
+		await userEvent.click(await body.findByRole("option", { name: /Default/ }));
+		await waitFor(() => {
+			expect(args.onModelChange).toHaveBeenCalledWith("");
+		});
+	},
+};
+
+/** Dismissing the pinned badge clears the runtime. */
+const runtimeBadgeDismissStory = (runtime: ExternalChatRuntime): Story => ({
+	args: {
+		runtime,
+		onRuntimeChange: fn(),
+		availableRuntimes: [runtime],
+		modelOptions: [],
+		selectedModel: "",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const badge = await canvas.findByTestId("chat-runtime-badge");
+		await userEvent.click(
+			within(badge).getByRole("button", {
+				name: `Disable ${externalChatRuntimes[runtime].label}`,
+			}),
+		);
+		await waitFor(() => {
+			expect(args.onRuntimeChange).toHaveBeenCalledWith(undefined);
+		});
+	},
+});
+
+export const ClaudeCodeBadgeDismiss = runtimeBadgeDismissStory("claude_code");
+export const CodexBadgeDismiss = runtimeBadgeDismissStory("codex");
 
 // Pill floor (8ch + fixed chrome) resolved against the pills' font so
 // width assertions do not hardcode metrics.

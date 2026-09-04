@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -40,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
@@ -182,6 +184,7 @@ type Server struct {
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	stopWorkspaceFn                chattool.StopWorkspaceFn
+	acpTransportFn                 ACPTransportFunc
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	hooks                          *chathooks.Trigger
@@ -207,6 +210,7 @@ type Server struct {
 	agentCapacityLimiter AgentCapacityLimiter
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
+	accessURL                *url.URL
 	experiments              codersdk.Experiments
 
 	// Configuration
@@ -1087,7 +1091,7 @@ type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.Ag
 var (
 	// ErrInvalidModelConfigID indicates the requested model config does not
 	// exist, is disabled, or its provider is disabled.
-	ErrInvalidModelConfigID = xerrors.New("invalid model config ID")
+	ErrInvalidModelConfigID = chatstate.ErrInvalidModelConfigID
 	// ErrEditedMessageNotFound indicates the edited message does not exist
 	// in the target chat.
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
@@ -1110,6 +1114,36 @@ var (
 	ErrNothingToClear = xerrors.New("nothing to clear")
 )
 
+// externalHarness resolves the ACP harness for a chat runtime. The
+// built-in runtime has none; an external runtime needs both a harness
+// and the runtime-config experiment, and either gap is a classified
+// configuration error.
+func (p *Server) externalHarness(runtime database.ChatRuntime) (chatacp.Harness, bool, error) {
+	if runtime == database.ChatRuntimeCoder {
+		return chatacp.Harness{}, false, nil
+	}
+	harness, ok := chatacp.HarnessFor(codersdk.ChatRuntime(runtime))
+	if !ok {
+		return chatacp.Harness{}, false, chaterror.WithClassification(
+			xerrors.Errorf("unsupported chat runtime %q", runtime),
+			chaterror.ClassifiedError{
+				Kind:    codersdk.ChatErrorKindConfig,
+				Message: "This chat uses an unsupported runtime.",
+			},
+		)
+	}
+	if !p.experiments.Enabled(codersdk.ExperimentAgentsRuntimeConfig) {
+		return chatacp.Harness{}, false, chaterror.WithClassification(
+			xerrors.Errorf("chat runtime %q requires the %q experiment", runtime, codersdk.ExperimentAgentsRuntimeConfig),
+			chaterror.ClassifiedError{
+				Kind:    codersdk.ChatErrorKindConfig,
+				Message: "This chat uses an external runtime, but the agents-runtime-config experiment is disabled.",
+			},
+		)
+	}
+	return harness, true, nil
+}
+
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
 	OrganizationID          uuid.UUID
@@ -1123,6 +1157,7 @@ type CreateOptions struct {
 	TitleDerivedFromContent bool
 	ModelConfigID           uuid.UUID
 	ReasoningEffort         *string
+	Runtime                 database.ChatRuntime
 	ChatMode                database.NullChatMode
 	PlanMode                database.NullChatPlanMode
 	ClientType              database.ChatClientType
@@ -1301,20 +1336,29 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if len(opts.InitialUserContent) == 0 {
 		return database.Chat{}, xerrors.New("initial user content is required")
 	}
+	if opts.Runtime == "" {
+		opts.Runtime = database.ChatRuntimeCoder
+	}
+	harness, isExternal, err := p.externalHarness(opts.Runtime)
+	if err != nil {
+		return database.Chat{}, err
+	}
 	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'
 	// instead of SQL NULL, which violates the NOT NULL column
 	// constraint.
 	if opts.MCPServerIDs == nil {
 		opts.MCPServerIDs = []uuid.UUID{}
 	}
-	// Force On MCP servers are enforced server-side so a caller
-	// cannot exclude them by stripping IDs from the request
-	// (Cure53 CDM-02-010).
-	enforcedMCPServerIDs, err := enforceForcedMCPServerIDs(ctx, p.db, opts.OrganizationID, opts.OwnerID, opts.MCPServerIDs)
-	if err != nil {
-		return database.Chat{}, err
+	if opts.Runtime == database.ChatRuntimeCoder {
+		// Force On MCP servers are enforced server-side so a caller
+		// cannot exclude them by stripping IDs from the request
+		// (Cure53 CDM-02-010).
+		enforcedMCPServerIDs, err := enforceForcedMCPServerIDs(ctx, p.db, opts.OrganizationID, opts.OwnerID, opts.MCPServerIDs)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		opts.MCPServerIDs = enforcedMCPServerIDs
 	}
-	opts.MCPServerIDs = enforcedMCPServerIDs
 	if opts.Labels == nil {
 		opts.Labels = database.StringMap{}
 	}
@@ -1328,7 +1372,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 
 	if opts.ModelConfigID != uuid.Nil {
-		if err := requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
+		var err error
+		if isExternal {
+			_, _, err = chatstate.FetchACPModelConfig(ctx, p.db, opts.OrganizationID, harness, opts.ModelConfigID)
+		} else {
+			err = requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID)
+		}
+		if err != nil {
 			return database.Chat{}, err
 		}
 	}
@@ -1341,9 +1391,11 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
 	if p.hooks.Enabled() {
-		// Validate model admission before dispatch, matching the insert path.
-		if err := validateCreateModelConfigID(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
-			return database.Chat{}, err
+		if opts.Runtime == database.ChatRuntimeCoder {
+			// Validate model admission before dispatch, matching the insert path.
+			if err := validateCreateModelConfigID(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
+				return database.Chat{}, err
+			}
 		}
 		turnID := uuid.New()
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
@@ -1409,18 +1461,22 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort))
 
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
-		OrganizationID:    opts.OrganizationID,
-		OwnerID:           opts.OwnerID,
-		WorkspaceID:       opts.WorkspaceID,
-		BuildID:           opts.BuildID,
-		AgentID:           opts.AgentID,
-		ParentChatID:      opts.ParentChatID,
-		RootChatID:        opts.RootChatID,
-		LastModelConfigID: opts.ModelConfigID,
-		Title:             opts.Title,
-		Mode:              opts.ChatMode,
-		PlanMode:          opts.PlanMode,
-		MCPServerIDs:      opts.MCPServerIDs,
+		OrganizationID: opts.OrganizationID,
+		OwnerID:        opts.OwnerID,
+		WorkspaceID:    opts.WorkspaceID,
+		BuildID:        opts.BuildID,
+		AgentID:        opts.AgentID,
+		ParentChatID:   opts.ParentChatID,
+		RootChatID:     opts.RootChatID,
+		LastModelConfigID: uuid.NullUUID{
+			UUID:  opts.ModelConfigID,
+			Valid: opts.ModelConfigID != uuid.Nil,
+		},
+		Runtime:      opts.Runtime,
+		Title:        opts.Title,
+		Mode:         opts.ChatMode,
+		PlanMode:     opts.PlanMode,
+		MCPServerIDs: opts.MCPServerIDs,
 		Labels: pqtype.NullRawMessage{
 			RawMessage: labelsJSON,
 			Valid:      true,
@@ -1649,8 +1705,29 @@ func resolveSendMessageModelConfigID(
 	chat database.Chat,
 	requested uuid.UUID,
 ) (uuid.UUID, error) {
+	if chat.Runtime != database.ChatRuntimeCoder {
+		// Absent means the runtime default chain (admin pin, then
+		// adapter default). Never fall back to last_model_config_id
+		// here: a sticky server fallback would make the default
+		// unreachable once any model was ever picked.
+		if requested == uuid.Nil {
+			return uuid.Nil, nil
+		}
+		harness, ok := chatacp.HarnessFor(codersdk.ChatRuntime(chat.Runtime))
+		if !ok {
+			return uuid.Nil, xerrors.Errorf(
+				"%w: model config cannot be set on %s runtime chats",
+				ErrInvalidModelConfigID,
+				chat.Runtime,
+			)
+		}
+		if _, _, err := chatstate.FetchACPModelConfig(ctx, store, chat.OrganizationID, harness, requested); err != nil {
+			return uuid.Nil, err
+		}
+		return requested, nil
+	}
 	if requested == uuid.Nil {
-		return resolveFallbackModelConfigID(ctx, store, chat, chat.LastModelConfigID)
+		return resolveFallbackModelConfigID(ctx, store, chat, chat.LastModelConfigID.UUID)
 	}
 
 	if err := requireEnabledChatModelConfig(ctx, store, chat.OrganizationID, requested); err != nil {
@@ -1911,25 +1988,37 @@ func (p *Server) EditMessage(
 			return err
 		}
 
-		modelOverride, err := validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
-		if err != nil {
-			return err
-		}
-		if !modelOverride.Valid {
-			// Without an explicit override the transition preserves
-			// the edited message's original model, which may have been
-			// disabled since; resolve it like a normal message send.
-			preserved := uuid.Nil
-			if target.ModelConfigID.Valid {
-				preserved = target.ModelConfigID.UUID
-			}
-			resolved, err := resolveFallbackModelConfigID(ctx, store, lockedChat, preserved)
+		var modelOverride uuid.NullUUID
+		if lockedChat.Runtime == database.ChatRuntimeCoder {
+			modelOverride, err = validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
 			if err != nil {
 				return err
 			}
-			if resolved != preserved {
-				modelOverride = uuid.NullUUID{UUID: resolved, Valid: true}
+			if !modelOverride.Valid {
+				// Without an explicit override the transition preserves
+				// the edited message's original model, which may have been
+				// disabled since; resolve it like a normal message send.
+				preserved := uuid.Nil
+				if target.ModelConfigID.Valid {
+					preserved = target.ModelConfigID.UUID
+				}
+				resolved, err := resolveFallbackModelConfigID(ctx, store, lockedChat, preserved)
+				if err != nil {
+					return err
+				}
+				if resolved != preserved {
+					modelOverride = uuid.NullUUID{UUID: resolved, Valid: true}
+				}
 			}
+		} else {
+			// External runtimes treat an omitted selection as the runtime
+			// default, exactly like send, so the replacement row must not
+			// inherit the edited row's pick.
+			resolved, err := resolveSendMessageModelConfigID(ctx, store, lockedChat, opts.ModelConfigID)
+			if err != nil {
+				return err
+			}
+			modelOverride = uuid.NullUUID{UUID: resolved, Valid: true}
 		}
 
 		modelConfigID := target.ModelConfigID.UUID
@@ -2271,7 +2360,7 @@ func (p *Server) SubmitToolResults(
 		}
 		modelConfigID := opts.ModelConfigID
 		if modelConfigID == uuid.Nil {
-			modelConfigID = locked.LastModelConfigID
+			modelConfigID = locked.LastModelConfigID.UUID
 		}
 		if _, err := tx.CompleteRequiresAction(chatstate.CompleteRequiresActionInput{
 			CreatedBy:      opts.UserID,
@@ -2487,7 +2576,7 @@ func (p *Server) ClearChat(
 			return xerrors.Errorf("load chat messages: %w", err)
 		}
 		clearMessages, err := buildClearMessages(buildClearMessagesInput{
-			modelConfigID: lockedChat.LastModelConfigID,
+			modelConfigID: lockedChat.LastModelConfigID.UUID,
 			toolCallID:    "chat_cleared_" + uuid.NewString(),
 		})
 		if err != nil {
@@ -3046,6 +3135,7 @@ type Config struct {
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	StopWorkspace                  chattool.StopWorkspaceFn
+	ACPTransport                   ACPTransportFunc
 	ProviderAPIKeys                chatprovider.ProviderAPIKeys
 	AllowBYOK                      bool
 	AllowBYOKSet                   bool
@@ -3055,6 +3145,7 @@ type Config struct {
 	UsageTracker                   *workspacestats.UsageTracker
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
+	AccessURL                      *url.URL
 	Experiments                    codersdk.Experiments
 	PrometheusRegistry             prometheus.Registerer
 
@@ -3148,6 +3239,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
+		acpTransportFn:                 cfg.ACPTransport,
 		stopWorkspaceFn:                cfg.StopWorkspace,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
@@ -3171,6 +3263,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 			return debugSvc
 		},
 		aibridgeTransportFactory:   cfg.AIBridgeTransportFactory,
+		accessURL:                  cfg.AccessURL,
 		experiments:                cfg.Experiments,
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		maxChatsPerAcquire:         maxChatsPerAcquire,
@@ -4315,10 +4408,10 @@ func (p *Server) resolveModelConfig(
 	if err != nil {
 		return database.ChatModelConfig{}, err
 	}
-	if chat.LastModelConfigID != uuid.Nil {
+	if chat.LastModelConfigID.Valid && chat.LastModelConfigID.UUID != uuid.Nil {
 		modelConfig, err := p.db.GetEnabledChatModelConfigByID(
 			modelCtx,
-			chat.LastModelConfigID,
+			chat.LastModelConfigID.UUID,
 		)
 		if err == nil {
 			if modelConfig.OrganizationID == chat.OrganizationID {
@@ -4329,7 +4422,7 @@ func (p *Server) resolveModelConfig(
 		if !xerrors.Is(err, sql.ErrNoRows) && !dbauthz.IsNotAuthorizedError(err) {
 			return database.ChatModelConfig{}, xerrors.Errorf(
 				"get chat model config %s: %w",
-				chat.LastModelConfigID, err,
+				chat.LastModelConfigID.UUID, err,
 			)
 		}
 		// The model config is unavailable or belongs to another organization.

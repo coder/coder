@@ -1,12 +1,21 @@
 /**
- * A built-in chat command offered by the "/" trigger menu. Unlike
- * personal skills, commands are fixed client-side actions: the
- * composer intercepts them at submit time instead of sending the
- * text as a message.
+ * A command offered by the "/" trigger menu. Selecting one inserts
+ * "/name" into the composer; inputHint is placeholder text for the
+ * arguments a command accepts after its name.
  */
-export type ChatSlashCommand = {
-	name: "clear" | "compact";
+export type ChatComposerCommand = {
+	name: string;
 	description: string;
+	inputHint?: string;
+};
+
+/**
+ * A built-in chat command. Unlike personal skills and runtime commands,
+ * built-ins are fixed client-side actions: the composer intercepts them
+ * at submit time instead of sending the text as a message.
+ */
+type ChatSlashCommand = ChatComposerCommand & {
+	name: "clear" | "compact";
 };
 
 export const COMPACT_SLASH_COMMAND: ChatSlashCommand = {

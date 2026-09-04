@@ -47,11 +47,13 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -1078,15 +1080,34 @@ func (api *API) validateUserChatModelConfigAvailable(
 
 // validateExplicitChatModelConfigAvailable validates a caller-supplied
 // model config ID. A nil ID keeps the chat's current model and is
-// validated by the daemon's fallback resolution instead.
+// validated by the daemon's fallback resolution instead. External
+// runtimes validate the selection through chatd's harness policy rather
+// than the user availability check.
 func (api *API) validateExplicitChatModelConfigAvailable(
 	ctx context.Context,
 	userID uuid.UUID,
 	organizationID uuid.UUID,
+	runtime database.ChatRuntime,
 	modelConfigID uuid.UUID,
 ) (int, *codersdk.Response) {
 	if modelConfigID == uuid.Nil {
 		return 0, nil
+	}
+	if harness, ok := chatacp.HarnessFor(codersdk.ChatRuntime(runtime)); ok {
+		_, _, err := chatstate.FetchACPModelConfig(ctx, api.Database, organizationID, harness, modelConfigID)
+		if err == nil {
+			return 0, nil
+		}
+		if xerrors.Is(err, chatstate.ErrInvalidModelConfigID) {
+			return http.StatusBadRequest, &codersdk.Response{
+				Message: "Invalid model config ID.",
+				Detail:  fmt.Sprintf("%s chats accept enabled %s model configs only.", harness.DisplayName, harness.ProviderLabel),
+			}
+		}
+		return http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to validate model config.",
+			Detail:  err.Error(),
+		}
 	}
 	_, status, resp := api.validateUserChatModelConfigAvailable(ctx, userID, organizationID, modelConfigID)
 	return status, resp
@@ -1248,18 +1269,71 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, r, req)
-	if validationError != nil {
-		httpapi.Write(ctx, rw, validationStatus, *validationError)
-		return
+	runtime := database.ChatRuntimeCoder
+	if req.Runtime != "" && req.Runtime != codersdk.ChatRuntimeCoder {
+		runtime = database.ChatRuntime(req.Runtime)
+		if !runtime.Valid() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid runtime.",
+				Detail:  fmt.Sprintf("got %q, want one of %v", req.Runtime, database.AllChatRuntimeValues()),
+			})
+			return
+		}
+		if !api.requireChatRuntimeExperiment(ctx, rw) {
+			return
+		}
+		if req.ModelConfigID != nil {
+			if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, req.OrganizationID, runtime, *req.ModelConfigID); resp != nil {
+				httpapi.Write(ctx, rw, status, *resp)
+				return
+			}
+		}
+		if req.WorkspaceID != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "workspace_id cannot be set for runtime chats.",
+				Detail:  "The server creates and binds a workspace from the configured runtime template.",
+			})
+			return
+		}
+		if req.PlanMode != "" || req.MCPServerIDs != nil || req.UnsafeDynamicTools != nil || req.SystemPrompt != "" || req.ReasoningEffort != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "plan_mode, mcp_server_ids, unsafe_dynamic_tools, system_prompt, and reasoning_effort are not supported on runtime chats.",
+			})
+			return
+		}
+		if resp := runtimeChatTextOnlyError(req.Content); resp != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
+			return
+		}
+	}
+
+	var workspaceSelection createChatWorkspaceSelection
+	if runtime == database.ChatRuntimeCoder {
+		var validationStatus int
+		var validationError *codersdk.Response
+		workspaceSelection, validationStatus, validationError = api.validateCreateChatWorkspaceSelection(ctx, r, req)
+		if validationError != nil {
+			httpapi.Write(ctx, rw, validationStatus, *validationError)
+			return
+		}
 	}
 
 	title := chatprompt.FallbackTitle(titleSource)
 
-	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, apiKey.UserID, req)
-	if modelConfigError != nil {
-		httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
-		return
+	var (
+		modelConfigID          uuid.UUID
+		personalOverrideEffort *string
+	)
+	if runtime == database.ChatRuntimeCoder {
+		var modelConfigStatus int
+		var modelConfigError *codersdk.Response
+		modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError = api.resolveCreateChatModelConfigID(ctx, apiKey.UserID, req)
+		if modelConfigError != nil {
+			httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
+			return
+		}
+	} else if req.ModelConfigID != nil {
+		modelConfigID = *req.ModelConfigID
 	}
 
 	if !validateChatPlanMode(req.PlanMode) {
@@ -1365,6 +1439,18 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Provision only after request validation so earlier failures cannot
+	// orphan a workspace.
+	if runtime != database.ChatRuntimeCoder {
+		workspace, ok := api.createChatRuntimeWorkspace(rw, r, runtime, req.OrganizationID, apiKey.UserID)
+		if !ok {
+			return
+		}
+		workspaceSelection = createChatWorkspaceSelection{
+			WorkspaceID: uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		}
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:          req.OrganizationID,
 		OwnerID:                 apiKey.UserID,
@@ -1373,6 +1459,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		TitleDerivedFromContent: true,
 		ModelConfigID:           modelConfigID,
 		ReasoningEffort:         reasoningEffort,
+		Runtime:                 runtime,
 		PlanMode:                planModeToNullChatPlanMode(req.PlanMode),
 		ClientType:              clientType,
 		SystemPrompt:            req.SystemPrompt,
@@ -1384,6 +1471,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ParentChatID: uuid.NullUUID{},
 	})
 	if err != nil {
+		if runtime != database.ChatRuntimeCoder && workspaceSelection.WorkspaceID.Valid {
+			api.deleteChatRuntimeWorkspace(ctx, apiKey.UserID, workspaceSelection.WorkspaceID.UUID)
+		}
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
 			return
 		}
@@ -1442,12 +1532,23 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// Kick off best-effort automatic title generation now that the
 	// chat and its initial user message are persisted. It runs
 	// detached so it never blocks the create response, and only acts
-	// on the first user turn.
-	api.chatDaemon.GenerateChatTitleAsync(ctx, chat)
+	// on the first user turn. Runtime chats keep the fallback title
+	// because title generation calls the built-in LLM pipeline.
+	if chat.Runtime == database.ChatRuntimeCoder {
+		api.chatDaemon.GenerateChatTitleAsync(ctx, chat)
+	}
 
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
-	response := db2sdk.Chat(chat, nil, chatFiles)
-	httpapi.Write(ctx, rw, http.StatusCreated, response)
+	httpapi.Write(ctx, rw, http.StatusCreated, chatResponse(chat, nil, chatFiles))
+}
+
+// chatResponse converts a chat for the endpoints a composer reads,
+// hydrating the runtime command list from runtime_state. List responses
+// and watch payloads skip that parse.
+func chatResponse(chat database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
+	sdkChat := db2sdk.Chat(chat, diffStatus, files)
+	sdkChat.RuntimeCommands = chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage).AvailableCommands
+	return sdkChat
 }
 
 // @Summary Get chat by ID
@@ -1484,7 +1585,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// Hydrate file metadata for all files linked to this chat.
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
-	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
+	sdkChat := chatResponse(chat, diffStatus, chatFiles)
 
 	if api.chatDaemon != nil {
 		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
@@ -2178,7 +2279,7 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sdkChat := db2sdk.Chat(updated, nil, nil)
+	sdkChat := chatResponse(updated, nil, nil)
 
 	// Enrich the context summary with the freshly pinned resources so the
 	// client reflects the refresh immediately, without a full reload. This
@@ -2237,6 +2338,14 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if chat.Runtime != database.ChatRuntimeCoder && (req.WorkspaceID != nil || req.PlanMode != nil) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "workspace_id and plan_mode cannot be changed on runtime chats.",
+			Detail:  "The workspace binding is managed by the runtime.",
+		})
 		return
 	}
 
@@ -2585,10 +2694,26 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if chat.Runtime != database.ChatRuntimeCoder && !api.requireChatRuntimeExperiment(ctx, rw) {
+		return
+	}
 
 	var req codersdk.CreateChatMessageRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
+	}
+
+	if chat.Runtime != database.ChatRuntimeCoder {
+		if req.PlanMode != nil || req.MCPServerIDs != nil || req.ReasoningEffort != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "plan_mode, mcp_server_ids, and reasoning_effort are not supported on runtime chats.",
+			})
+			return
+		}
+		if resp := runtimeChatTextOnlyError(req.Content); resp != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
+			return
+		}
 	}
 
 	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
@@ -2640,7 +2765,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if req.ModelConfigID != nil {
 		modelConfigID = *req.ModelConfigID
 	}
-	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, chat.OrganizationID, modelConfigID); resp != nil {
+	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, chat.OrganizationID, chat.Runtime, modelConfigID); resp != nil {
 		httpapi.Write(ctx, rw, status, *resp)
 		return
 	}
@@ -2781,6 +2906,9 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if chat.Runtime != database.ChatRuntimeCoder && !api.requireChatRuntimeExperiment(ctx, rw) {
+		return
+	}
 
 	messageIDStr := chi.URLParam(r, "message")
 	messageID, err := strconv.ParseInt(messageIDStr, 10, 64)
@@ -2797,6 +2925,19 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if chat.Runtime != database.ChatRuntimeCoder {
+		if req.MCPServerIDs != nil || req.ReasoningEffort != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "mcp_server_ids and reasoning_effort are not supported on runtime chats.",
+			})
+			return
+		}
+		if resp := runtimeChatTextOnlyError(req.Content); resp != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
+			return
+		}
+	}
+
 	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2810,7 +2951,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	if req.ModelConfigID != nil {
 		editModelConfigID = *req.ModelConfigID
 	}
-	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, chat.OrganizationID, editModelConfigID); resp != nil {
+	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, chat.OrganizationID, chat.Runtime, editModelConfigID); resp != nil {
 		httpapi.Write(ctx, rw, status, *resp)
 		return
 	}
@@ -3267,7 +3408,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	}
 	chat = updated
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, chatResponse(chat, nil, nil))
 }
 
 // @Summary Compact chat
@@ -3311,6 +3452,14 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if chat.Runtime != database.ChatRuntimeCoder {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Context compaction is not supported on runtime chats.",
+			Detail:  "The runtime manages its own context.",
+		})
+		return
+	}
+
 	updated, err := api.chatDaemon.CompactChat(ctx, chat)
 	if err != nil {
 		if writeCommonChatMutationError(ctx, rw, err, "Cannot compact an archived chat.") {
@@ -3337,7 +3486,7 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, chatResponse(updated, nil, nil))
 }
 
 // @Summary Clear chat context
@@ -3380,6 +3529,14 @@ func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if chat.Runtime != database.ChatRuntimeCoder {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Context clearing is not supported on runtime chats.",
+			Detail:  "The runtime manages its own context.",
+		})
+		return
+	}
+
 	updated, err := api.chatDaemon.ClearChat(ctx, chat)
 	if err != nil {
 		if writeCommonChatMutationError(ctx, rw, err, "Cannot clear an archived chat.") {
@@ -3406,7 +3563,7 @@ func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, chatResponse(updated, nil, nil))
 }
 
 // @Summary Reconcile invalid chat state
@@ -3455,7 +3612,7 @@ func (api *API) reconcileInvalidChatState(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, chatResponse(updated, nil, nil))
 }
 
 // @Summary Propose chat title
@@ -3704,6 +3861,18 @@ func (api *API) chatStopWorkspace(
 	workspaceID uuid.UUID,
 	req codersdk.CreateWorkspaceBuildRequest,
 ) (codersdk.WorkspaceBuild, error) {
+	req.Transition = codersdk.WorkspaceTransitionStop
+	return api.chatTransitionWorkspace(ctx, ownerID, workspaceID, req)
+}
+
+// chatTransitionWorkspace creates a workspace build as the chat owner
+// for the transition the request names.
+func (api *API) chatTransitionWorkspace(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	workspaceID uuid.UUID,
+	req codersdk.CreateWorkspaceBuildRequest,
+) (codersdk.WorkspaceBuild, error) {
 	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
@@ -3714,8 +3883,6 @@ func (api *API) chatStopWorkspace(
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
 	}
-
-	req.Transition = codersdk.WorkspaceTransitionStop
 
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator.
@@ -4190,6 +4357,94 @@ func (api *API) validateChatWorkspaceSelection(
 	}
 
 	return selection, workspace, 0, nil
+}
+
+func (api *API) createChatRuntimeWorkspace(
+	rw http.ResponseWriter,
+	r *http.Request,
+	runtime database.ChatRuntime,
+	organizationID uuid.UUID,
+	ownerID uuid.UUID,
+) (codersdk.Workspace, bool) {
+	ctx := r.Context()
+	config, err := api.Database.GetChatRuntimeConfig(ctx, database.GetChatRuntimeConfigParams{
+		OrganizationID: organizationID,
+		Runtime:        runtime,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "This organization has no runtime configuration.",
+				Detail:  fmt.Sprintf("An administrator must configure a template for the %q runtime first.", runtime),
+			})
+			return codersdk.Workspace{}, false
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat runtime config.",
+			Detail:  err.Error(),
+		})
+		return codersdk.Workspace{}, false
+	}
+	if !config.Enabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("The %q runtime is disabled for this organization.", runtime),
+		})
+		return codersdk.Workspace{}, false
+	}
+
+	user, err := api.Database.GetUserByID(ctx, ownerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat owner.",
+			Detail:  err.Error(),
+		})
+		return codersdk.Workspace{}, false
+	}
+	owner := workspaceOwner{
+		ID:        user.ID,
+		Username:  user.Username,
+		AvatarURL: user.AvatarURL,
+	}
+
+	auditor := api.Auditor.Load()
+	aReqWS, commitAuditWS := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionCreate,
+		OrganizationID: organizationID,
+	})
+	defer commitAuditWS()
+
+	// Workspace names are unique per user; a random name avoids
+	// collisions across a user's runtime chats.
+	name := namesgenerator.NameDigitWith("-")
+
+	workspace, err := createWorkspace(ctx, aReqWS, ownerID, api, owner, codersdk.CreateWorkspaceRequest{
+		Name:       name,
+		TemplateID: config.TemplateID,
+	}, &createWorkspaceOptions{
+		remoteAddr: r.RemoteAddr,
+	})
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return codersdk.Workspace{}, false
+	}
+	return workspace, true
+}
+
+// deleteChatRuntimeWorkspace uses a detached context so failed chat
+// creation does not leave a running workspace.
+func (api *API) deleteChatRuntimeWorkspace(ctx context.Context, ownerID uuid.UUID, workspaceID uuid.UUID) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	_, err := api.chatTransitionWorkspace(ctx, ownerID, workspaceID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to clean up runtime chat workspace after chat creation failure",
+			slog.F("workspace_id", workspaceID), slog.F("owner_id", ownerID), slog.Error(err))
+	}
 }
 
 func (api *API) validateCreateChatWorkspaceSelection(
@@ -5888,6 +6143,299 @@ func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary List chat runtime configs
+// @ID list-chat-runtime-configs
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {array} codersdk.ChatRuntimeConfig
+// @Router /api/experimental/chats/config/runtimes [get]
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) listChatRuntimeConfigs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	configs, err := api.Database.ListChatRuntimeConfigs(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat runtime configs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	resp := make([]codersdk.ChatRuntimeConfig, 0, len(configs))
+	for _, c := range configs {
+		resp = append(resp, convertChatRuntimeConfig(c))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary Upsert chat runtime config
+// @ID upsert-chat-runtime-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param request body codersdk.UpsertChatRuntimeConfigRequest true "Request body"
+// @Success 200 {object} codersdk.ChatRuntimeConfig
+// @Router /api/experimental/chats/config/runtimes [put]
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) putChatRuntimeConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	var req codersdk.UpsertChatRuntimeConfigRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	harness, ok := requireExternalChatRuntime(ctx, rw, req.Runtime)
+	if !ok {
+		return
+	}
+	if req.OrganizationID == uuid.Nil || req.TemplateID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "organization_id and template_id are required.",
+		})
+		return
+	}
+	template, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Template does not exist.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error validating template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if template.OrganizationID != req.OrganizationID {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Template belongs to a different organization.",
+		})
+		return
+	}
+	if template.Deleted || template.Deprecated != "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Template is deleted or deprecated.",
+		})
+		return
+	}
+	existing, err := api.Database.GetChatRuntimeConfig(ctx, database.GetChatRuntimeConfigParams{
+		OrganizationID: req.OrganizationID,
+		Runtime:        database.ChatRuntime(req.Runtime),
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error loading chat runtime config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	action := database.AuditActionCreate
+	if err == nil {
+		action = database.AuditActionWrite
+	}
+	aReq, commitAudit := audit.InitRequest[database.ChatRuntimeConfig](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         action,
+		OrganizationID: req.OrganizationID,
+	})
+	defer commitAudit()
+	aReq.Old = existing
+	if req.Model != "" {
+		configs, err := api.Database.GetEnabledChatModelConfigsByOrganization(ctx, req.OrganizationID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error validating model.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		accepted := make([]string, 0, len(configs))
+		for _, config := range configs {
+			if config.Provider == string(harness.ProviderType) {
+				accepted = append(accepted, config.ChatModelConfig.Model)
+			}
+		}
+		if !slices.Contains(accepted, req.Model) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model.",
+				Detail: fmt.Sprintf("%s runtimes accept the model of an enabled %s model config in the organization; got %q, want one of %v.",
+					harness.DisplayName, harness.ProviderLabel, req.Model, accepted),
+			})
+			return
+		}
+	}
+	config, err := api.Database.UpsertChatRuntimeConfig(ctx, database.UpsertChatRuntimeConfigParams{
+		OrganizationID: req.OrganizationID,
+		Runtime:        database.ChatRuntime(req.Runtime),
+		TemplateID:     req.TemplateID,
+		Enabled:        req.Enabled,
+		Model:          req.Model,
+		PermissionMode: req.PermissionMode,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error saving chat runtime config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.New = config
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatRuntimeConfig(config))
+}
+
+// requireExternalChatRuntime rejects runtime config writes for anything
+// without an ACP harness, the built-in runtime included. It returns the
+// harness and whether the handler may continue.
+func requireExternalChatRuntime(ctx context.Context, rw http.ResponseWriter, runtime codersdk.ChatRuntime) (chatacp.Harness, bool) {
+	if harness, ok := chatacp.HarnessFor(runtime); ok {
+		return harness, true
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Invalid runtime.",
+		Detail:  fmt.Sprintf("Only external runtimes can be configured, got %q.", runtime),
+	})
+	return chatacp.Harness{}, false
+}
+
+// @Summary Delete chat runtime config
+// @ID delete-chat-runtime-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param organization_id query string true "Organization ID" format(uuid)
+// @Param runtime query string true "Chat runtime"
+// @Success 204
+// @Router /api/experimental/chats/config/runtimes [delete]
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) deleteChatRuntimeConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	orgID, err := uuid.Parse(r.URL.Query().Get("organization_id"))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "organization_id query parameter is required and must be a UUID.",
+		})
+		return
+	}
+	runtime := codersdk.ChatRuntime(r.URL.Query().Get("runtime"))
+	if _, ok := requireExternalChatRuntime(ctx, rw, runtime); !ok {
+		return
+	}
+	existing, err := api.Database.GetChatRuntimeConfig(ctx, database.GetChatRuntimeConfigParams{
+		OrganizationID: orgID,
+		Runtime:        database.ChatRuntime(runtime),
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error loading chat runtime config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq, commitAudit := audit.InitRequest[database.ChatRuntimeConfig](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionDelete,
+		OrganizationID: orgID,
+	})
+	defer commitAudit()
+	aReq.Old = existing
+	if err := api.Database.DeleteChatRuntimeConfig(ctx, database.DeleteChatRuntimeConfigParams{
+		OrganizationID: orgID,
+		Runtime:        database.ChatRuntime(runtime),
+	}); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting chat runtime config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary List chat runtime availability
+// @ID list-chat-runtime-availability
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {array} codersdk.ChatRuntimeAvailability
+// @Router /api/experimental/chats/runtime-availability [get]
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) listChatRuntimeAvailability(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	organizations, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+		UserID: apiKey.UserID,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching organizations.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	memberOrgs := make(map[uuid.UUID]struct{}, len(organizations))
+	for _, org := range organizations {
+		memberOrgs[org.ID] = struct{}{}
+	}
+	//nolint:gocritic // Members cannot read deployment config; this
+	// exposes only whether a runtime is enabled for their own orgs.
+	configs, err := api.Database.ListChatRuntimeConfigs(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat runtime availability.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	availability := []codersdk.ChatRuntimeAvailability{}
+	for _, config := range configs {
+		if !config.Enabled {
+			continue
+		}
+		if _, ok := memberOrgs[config.OrganizationID]; !ok {
+			continue
+		}
+		availability = append(availability, codersdk.ChatRuntimeAvailability{
+			OrganizationID: config.OrganizationID,
+			Runtime:        codersdk.ChatRuntime(config.Runtime),
+		})
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, availability)
+}
+
+func convertChatRuntimeConfig(c database.ChatRuntimeConfig) codersdk.ChatRuntimeConfig {
+	return codersdk.ChatRuntimeConfig{
+		OrganizationID: c.OrganizationID,
+		Runtime:        codersdk.ChatRuntime(c.Runtime),
+		TemplateID:     c.TemplateID,
+		Enabled:        c.Enabled,
+		Model:          c.Model,
+		PermissionMode: c.PermissionMode,
+		CreatedAt:      c.CreatedAt,
+		UpdatedAt:      c.UpdatedAt,
+	}
+}
+
 // @Summary Get user chat custom prompt
 // @ID get-user-chat-custom-prompt
 // @Security CoderSessionToken
@@ -6508,6 +7056,32 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 		titleSource = chatprompt.TitleText(content, pasteText)
 	}
 	return content, titleSource, nil
+}
+
+func (api *API) requireChatRuntimeExperiment(ctx context.Context, rw http.ResponseWriter) bool {
+	if api.Experiments.Enabled(codersdk.ExperimentAgentsRuntimeConfig) {
+		return true
+	}
+	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		Message: "The agents-runtime-config experiment is not enabled.",
+	})
+	return false
+}
+
+// runtimeChatTextOnlyError rejects non-text input parts for chats on
+// external runtimes. Runtime prompt paths forward only text parts to
+// the adapter, so accepting attachments here would silently drop them.
+func runtimeChatTextOnlyError(parts []codersdk.ChatInputPart) *codersdk.Response {
+	for i, part := range parts {
+		if strings.EqualFold(strings.TrimSpace(string(part.Type)), string(codersdk.ChatInputPartTypeText)) {
+			continue
+		}
+		return &codersdk.Response{
+			Message: "Runtime chats support text content only.",
+			Detail:  fmt.Sprintf("content[%d] has type %q. Attachments are not supported on runtime chats.", i, part.Type),
+		}
+	}
+	return nil
 }
 
 // createChatInputFromParts validates input parts and converts them to
@@ -8158,7 +8732,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	err := api.chatDaemon.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        apiKey.UserID,
-		ModelConfigID: chat.LastModelConfigID,
+		ModelConfigID: chat.LastModelConfigID.UUID,
 		Results:       req.Results,
 		DynamicTools:  dynamicTools,
 	})

@@ -102,6 +102,62 @@ const (
 	ChatClientTypeAPI ChatClientType = "api"
 )
 
+// ChatRuntime identifies the generation runtime backing a chat.
+// Coder chats use the built-in LLM pipeline; external runtimes
+// delegate turns to an agent process running inside the chat's
+// workspace. The runtime is immutable after chat creation.
+type ChatRuntime string
+
+const (
+	ChatRuntimeCoder      ChatRuntime = "coder"
+	ChatRuntimeClaudeCode ChatRuntime = "claude_code"
+	ChatRuntimeCodex      ChatRuntime = "codex"
+)
+
+// ChatRuntimeConfig is the per-organization admin configuration for an
+// external chat runtime.
+type ChatRuntimeConfig struct {
+	OrganizationID uuid.UUID   `json:"organization_id" format:"uuid"`
+	Runtime        ChatRuntime `json:"runtime"`
+	// TemplateID is the template chat workspaces are created from. The
+	// template must provide the runtime's ACP adapter executable
+	// (claude-agent-acp for claude_code, codex-acp for codex).
+	TemplateID uuid.UUID `json:"template_id" format:"uuid"`
+	Enabled    bool      `json:"enabled"`
+	// Model optionally pins the default model the runtime agent uses.
+	// A per-message model selection on the chat overrides this pin;
+	// empty falls through to the runtime agent's own default.
+	Model string `json:"model,omitempty"`
+	// PermissionMode optionally sets the permission mode the runtime
+	// agent runs with (e.g. acceptEdits). Empty means the runtime's
+	// least restrictive mode: bypassPermissions for Claude Code and
+	// agent-full-access for Codex. Modes that prompt are auto-declined.
+	PermissionMode string    `json:"permission_mode,omitempty"`
+	CreatedAt      time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time `json:"updated_at" format:"date-time"`
+}
+
+// UpsertChatRuntimeConfigRequest creates or replaces the runtime
+// configuration for an organization.
+//
+// External runtimes use Coder's AI Gateway with a per-turn Coder token.
+// Upstream provider credentials never enter the workspace.
+type UpsertChatRuntimeConfigRequest struct {
+	OrganizationID uuid.UUID   `json:"organization_id" format:"uuid"`
+	Runtime        ChatRuntime `json:"runtime"`
+	TemplateID     uuid.UUID   `json:"template_id" format:"uuid"`
+	Enabled        bool        `json:"enabled"`
+	Model          string      `json:"model,omitempty"`
+	PermissionMode string      `json:"permission_mode,omitempty"`
+}
+
+// ChatRuntimeAvailability reports whether an external runtime is
+// available for new chats in an organization the user is a member of.
+type ChatRuntimeAvailability struct {
+	OrganizationID uuid.UUID   `json:"organization_id" format:"uuid"`
+	Runtime        ChatRuntime `json:"runtime"`
+}
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
 	ID                  uuid.UUID    `json:"id" format:"uuid"`
@@ -114,8 +170,9 @@ type Chat struct {
 	AgentID             *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
 	ParentChatID        *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
 	RootChatID          *uuid.UUID   `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID   uuid.UUID    `json:"last_model_config_id" format:"uuid"`
+	LastModelConfigID   *uuid.UUID   `json:"last_model_config_id,omitempty" format:"uuid"`
 	LastReasoningEffort *string      `json:"last_reasoning_effort,omitempty"`
+	Runtime             ChatRuntime  `json:"runtime"`
 	Title               string       `json:"title"`
 	Status              ChatStatus   `json:"status"`
 	PlanMode            ChatPlanMode `json:"plan_mode,omitempty"`
@@ -147,12 +204,27 @@ type Chat struct {
 	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
 	Warnings          []string       `json:"warnings,omitempty"`
 	ClientType        ChatClientType `json:"client_type"`
+	// RuntimeCommands lists the slash commands an external runtime
+	// advertised for this chat. Omitted for chats on the built-in runtime
+	// and stripped from watch event payloads; read it from the chat
+	// endpoints.
+	RuntimeCommands []ChatRuntimeCommand `json:"runtime_commands,omitempty"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
 	// subagents, so nesting depth is capped at 1 and this slice is
 	// always empty for child chats.
 	Children []Chat `json:"children"`
+}
+
+// ChatRuntimeCommand is a slash command an external runtime accepts. A
+// client invokes it by sending the message "/name args".
+type ChatRuntimeCommand struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	// InputHint is placeholder text for the arguments after the command
+	// name; empty when the command takes no input.
+	InputHint string `json:"input_hint,omitempty"`
 }
 
 // ChatContext reports a chat's pinned workspace context and whether it has
@@ -579,6 +651,12 @@ type CreateChatRequest struct {
 	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
 	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
 	ClientType         ChatClientType `json:"client_type,omitempty"`
+	// Runtime selects the generation runtime for the chat. Empty means
+	// the built-in coder runtime. External runtimes (claude_code, codex)
+	// require an enabled org runtime config; the server creates and
+	// binds a workspace from the configured template, and the runtime
+	// cannot be changed after creation.
+	Runtime ChatRuntime `json:"runtime,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -2672,6 +2750,62 @@ func (c *Client) UpdateChatAutoArchiveDays(ctx context.Context, req UpdateChatAu
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ListChatRuntimeConfigs returns all org-scoped chat runtime configs.
+func (c *ExperimentalClient) ListChatRuntimeConfigs(ctx context.Context) ([]ChatRuntimeConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/runtimes", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ChatRuntimeConfig
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpsertChatRuntimeConfig creates or replaces an org's runtime config.
+func (c *ExperimentalClient) UpsertChatRuntimeConfig(ctx context.Context, req UpsertChatRuntimeConfigRequest) (ChatRuntimeConfig, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/runtimes", req)
+	if err != nil {
+		return ChatRuntimeConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatRuntimeConfig{}, ReadBodyAsError(res)
+	}
+	var resp ChatRuntimeConfig
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// DeleteChatRuntimeConfig removes an org's runtime config.
+func (c *ExperimentalClient) DeleteChatRuntimeConfig(ctx context.Context, organizationID uuid.UUID, runtime ChatRuntime) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/config/runtimes?organization_id=%s&runtime=%s", organizationID, runtime), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatRuntimeAvailability reports enabled external runtimes for the
+// organizations the requesting user belongs to.
+func (c *ExperimentalClient) ChatRuntimeAvailability(ctx context.Context) ([]ChatRuntimeAvailability, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/runtime-availability", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ChatRuntimeAvailability
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateUserChatCustomPrompt updates the user's custom chat prompt.

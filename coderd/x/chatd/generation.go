@@ -370,7 +370,7 @@ func applySessionStartResponse(
 		return sessionStartResult{Chat: chat}, nil
 	}
 
-	eventMessages, err := chathooks.EventMessages(result, chat.LastModelConfigID)
+	eventMessages, err := chathooks.EventMessages(result, chat.LastModelConfigID.UUID)
 	if err != nil {
 		return sessionStartResult{}, err
 	}
@@ -441,6 +441,10 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
+		harness, isExternal, err := s.server.externalHarness(chat.Runtime)
+		if err != nil {
+			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+		}
 		if s.server.hooks.Enabled() {
 			result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
 			if err != nil {
@@ -453,6 +457,9 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				input.HistoryVersion = result.Chat.HistoryVersion
 				continue
 			}
+		}
+		if isExternal {
+			return s.startACPGeneration(ctx, machine, input, harness, chat, messages)
 		}
 		prepareInput := generationPrepareInput{
 			Chat:                      chat,
@@ -1473,7 +1480,7 @@ func (s *taskStarter) finishGenerationTurn(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, chathooks.GenerationDispatchError(agenthooks.EventStop, err), fence)
 	}
-	stopMessages, err := chathooks.EventMessages(response, chat.LastModelConfigID)
+	stopMessages, err := chathooks.EventMessages(response, chat.LastModelConfigID.UUID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, fence)
 	}

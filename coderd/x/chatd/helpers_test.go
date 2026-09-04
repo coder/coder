@@ -138,7 +138,7 @@ func (f *workerTestFixture) createRunningChat(t *testing.T) database.Chat {
 	res, err := chatstate.CreateChat(ctx, f.db, f.pubsub, chatstate.CreateChatInput{
 		OrganizationID:    f.org.ID,
 		OwnerID:           f.user.ID,
-		LastModelConfigID: f.model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.model.ID, Valid: true},
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages: []chatstate.Message{
@@ -155,7 +155,7 @@ func (f *workerTestFixture) createRunningSubagentChat(t *testing.T, parentID uui
 	res, err := chatstate.CreateChat(ctx, f.db, f.pubsub, chatstate.CreateChatInput{
 		OrganizationID:    f.org.ID,
 		OwnerID:           f.user.ID,
-		LastModelConfigID: f.model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.model.ID, Valid: true},
 		Title:             "subagent",
 		ClientType:        database.ChatClientTypeApi,
 		ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: true},
@@ -181,7 +181,7 @@ func (f *workerTestFixture) createRequiresActionChat(t *testing.T) database.Chat
 	res, err := chatstate.CreateChat(ctx, f.db, f.pubsub, chatstate.CreateChatInput{
 		OrganizationID:    f.org.ID,
 		OwnerID:           f.user.ID,
-		LastModelConfigID: f.model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.model.ID, Valid: true},
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
 		DynamicTools: pqtype.NullRawMessage{

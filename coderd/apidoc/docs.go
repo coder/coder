@@ -154,6 +154,137 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/config/runtimes": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat runtime configs",
+                "operationId": "list-chat-runtime-configs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatRuntimeConfig"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Upsert chat runtime config",
+                "operationId": "upsert-chat-runtime-config",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertChatRuntimeConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatRuntimeConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat runtime config",
+                "operationId": "delete-chat-runtime-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Chat runtime",
+                        "name": "runtime",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/runtime-availability": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat runtime availability",
+                "operationId": "list-chat-runtime-availability",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatRuntimeAvailability"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -19563,6 +19694,16 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "runtime": {
+                    "$ref": "#/definitions/codersdk.ChatRuntime"
+                },
+                "runtime_commands": {
+                    "description": "RuntimeCommands lists the slash commands an external runtime\nadvertised for this chat. Omitted for chats on the built-in runtime\nand stripped from watch event payloads; read it from the chat\nendpoints.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatRuntimeCommand"
+                    }
+                },
                 "shared": {
                     "description": "Shared is true when this chat's root chat has explicit user or group ACL entries.",
                     "type": "boolean"
@@ -21119,6 +21260,82 @@ const docTemplate = `{
                 "ChatRoleDeleted"
             ]
         },
+        "codersdk.ChatRuntime": {
+            "type": "string",
+            "enum": [
+                "coder",
+                "claude_code",
+                "codex"
+            ],
+            "x-enum-varnames": [
+                "ChatRuntimeCoder",
+                "ChatRuntimeClaudeCode",
+                "ChatRuntimeCodex"
+            ]
+        },
+        "codersdk.ChatRuntimeAvailability": {
+            "type": "object",
+            "properties": {
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "runtime": {
+                    "$ref": "#/definitions/codersdk.ChatRuntime"
+                }
+            }
+        },
+        "codersdk.ChatRuntimeCommand": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "input_hint": {
+                    "description": "InputHint is placeholder text for the arguments after the command\nname; empty when the command takes no input.",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatRuntimeConfig": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "model": {
+                    "description": "Model optionally pins the default model the runtime agent uses.\nA per-message model selection on the chat overrides this pin;\nempty falls through to the runtime agent's own default.",
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "permission_mode": {
+                    "description": "PermissionMode optionally sets the permission mode the runtime\nagent runs with (e.g. acceptEdits). Empty means the runtime's\nleast restrictive mode: bypassPermissions for Claude Code and\nagent-full-access for Codex. Modes that prompt are auto-declined.",
+                    "type": "string"
+                },
+                "runtime": {
+                    "$ref": "#/definitions/codersdk.ChatRuntime"
+                },
+                "template_id": {
+                    "description": "TemplateID is the template chat workspaces are created from. The\ntemplate must provide the runtime's ACP adapter executable\n(claude-agent-acp for claude_code, codex-acp for codex).",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.ChatStatus": {
             "type": "string",
             "enum": [
@@ -21781,6 +21998,14 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "runtime": {
+                    "description": "Runtime selects the generation runtime for the chat. Empty means\nthe built-in coder runtime. External runtimes (claude_code, codex)\nrequire an enabled org runtime config; the server creates and\nbinds a workspace from the configured template, and the runtime\ncannot be changed after creation.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatRuntime"
+                        }
+                    ]
                 },
                 "system_prompt": {
                     "type": "string"
@@ -23452,11 +23677,13 @@ const docTemplate = `{
                 "ai-gateway-seat-exclusion",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "agents-runtime-config"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
+                "ExperimentAgentsRuntimeConfig": "Enables external runtime configuration and execution for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
@@ -23484,7 +23711,8 @@ const docTemplate = `{
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Enables external runtime configuration and execution for agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23500,7 +23728,8 @@ const docTemplate = `{
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentAgentsRuntimeConfig"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -27513,6 +27742,7 @@ const docTemplate = `{
                 "chat",
                 "mcp_server_config",
                 "chat_model_config",
+                "chat_runtime_config",
                 "user_secret",
                 "user_skill",
                 "chat_instruction_settings",
@@ -27555,6 +27785,7 @@ const docTemplate = `{
                 "ResourceTypeChat",
                 "ResourceTypeMCPServerConfig",
                 "ResourceTypeChatModelConfig",
+                "ResourceTypeChatRuntimeConfig",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill",
                 "ResourceTypeChatInstructionSettings",
@@ -30030,6 +30261,31 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.AIModelPriceUpsert"
                     }
+                }
+            }
+        },
+        "codersdk.UpsertChatRuntimeConfigRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "permission_mode": {
+                    "type": "string"
+                },
+                "runtime": {
+                    "$ref": "#/definitions/codersdk.ChatRuntime"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

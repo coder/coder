@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
@@ -133,7 +132,7 @@ func synthesizePendingToolCancellations(
 			Content:        raw,
 			Visibility:     database.ChatMessageVisibilityBoth,
 			ContentVersion: chatprompt.CurrentContentVersion,
-			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+			ModelConfigID:  chat.LastModelConfigID,
 		})
 	}
 	if len(out) == 0 {

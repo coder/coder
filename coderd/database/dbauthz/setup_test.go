@@ -247,6 +247,7 @@ func (s *MethodTestSuite) SubtestWithDB(db database.Store, testCaseF func(db dat
 				"GetAuthorizedWorkspaces",
 				"GetAuthorizedTemplates",
 				"GetDefaultChatModelConfig",
+				"GetChatRuntimeConfig",
 			}, methodName) {
 			// Some methods do not make RBAC assertions because they use
 			// SQL. We still want to test that they return an error if the

@@ -87,6 +87,7 @@ import {
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
+import { isExternalChatRuntime } from "./utils/chatRuntimes";
 import { maybePlayChime } from "./utils/chime";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
@@ -153,6 +154,17 @@ export const chatCostIdToInvalidate = (
 	}
 	return getChatCostTreeID(chat);
 };
+
+// Runtime commands are omitted from watch payloads (NOTIFY size cap) and
+// persisted before the turn finishes, so the turn-ending status change is
+// the point to refetch them from the single-chat GET.
+export const shouldRefetchRuntimeCommands = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean =>
+	eventKind === "status_change" &&
+	isExternalChatRuntime(chat.runtime) &&
+	!isActiveChatStatus(chat.status);
 
 const AgentsPageLayout: FC = () => {
 	useAgentsPWA();
@@ -608,7 +620,10 @@ const AgentsPageLayout: FC = () => {
 					// title generation finished, so its response carries
 					// the fallback title.
 					void cancelChatListRefetches(queryClient);
-					void cancelLoadedChatEntityRefetch(queryClient, updatedChat.id);
+					const interruptedEntityRefetch = cancelLoadedChatEntityRefetch(
+						queryClient,
+						updatedChat.id,
+					);
 
 					if (chatEvent.kind === "created") {
 						if (updatedChat.parent_chat_id) {
@@ -659,13 +674,21 @@ const AgentsPageLayout: FC = () => {
 						if (costChatId) {
 							void invalidateChatCostTree(queryClient, costChatId);
 						}
-						if (chatEvent.kind === "context_dirty") {
+						if (
+							interruptedEntityRefetch ||
+							chatEvent.kind === "context_dirty" ||
+							shouldRefetchRuntimeCommands(updatedChat, chatEvent.kind)
+						) {
 							// The watch payload carries only the lightweight
 							// context flags (the merge above applies them);
 							// refetch the open chat to pull the pinned
 							// resources the single-chat GET computes. Only the
 							// active chat has an observer, so other chats are
-							// merely marked stale.
+							// merely marked stale. A refetch the cancel above
+							// interrupted is re-requested here: runtime chats
+							// publish summary_change right after the turn-ending
+							// status_change, which otherwise loses the runtime
+							// commands refetch until the next turn.
 							void invalidateChatEntity(queryClient, updatedChat.id);
 						}
 					}

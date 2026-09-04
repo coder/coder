@@ -1120,7 +1120,7 @@ func insertChat(
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    orgID,
 		OwnerID:           ownerID,
-		LastModelConfigID: modelID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
 		Title:             "chat-" + uuid.NewString(),
 	})
 	return chat

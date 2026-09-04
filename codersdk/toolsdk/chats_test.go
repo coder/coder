@@ -812,12 +812,12 @@ func TestChatTools(t *testing.T) {
 		defaultOrgChat := dbgen.Chat(t, api.Database, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
-			LastModelConfigID: model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		})
 		dbgen.Chat(t, api.Database, database.Chat{
 			OrganizationID:    organization.ID,
 			OwnerID:           firstUser.UserID,
-			LastModelConfigID: model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		})
 
 		err := expClient.UpdateChat(ctx, defaultOrgChat.ID, codersdk.UpdateChatRequest{
@@ -881,7 +881,7 @@ func TestChatTools(t *testing.T) {
 		dbgen.Chat(t, api.Database, database.Chat{
 			OrganizationID:    organization.ID,
 			OwnerID:           member.ID,
-			LastModelConfigID: model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		})
 
 		memberDeps, err := toolsdk.NewDeps(memberClient)
@@ -919,7 +919,7 @@ func TestChatTools(t *testing.T) {
 		chat := dbgen.Chat(t, api.Database, database.Chat{
 			OrganizationID:    organization.ID,
 			OwnerID:           member.ID,
-			LastModelConfigID: defaultModelConfig.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: defaultModelConfig.ID, Valid: true},
 		})
 		memberExpClient := codersdk.NewExperimentalClient(memberClient)
 		err := memberExpClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
@@ -945,12 +945,12 @@ func TestChatTools(t *testing.T) {
 		activeChat := dbgen.Chat(t, api.Database, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           member.ID,
-			LastModelConfigID: defaultModelConfig.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: defaultModelConfig.ID, Valid: true},
 		})
 		archivedChat := dbgen.Chat(t, api.Database, database.Chat{
 			OrganizationID:    organization.ID,
 			OwnerID:           member.ID,
-			LastModelConfigID: defaultModelConfig.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: defaultModelConfig.ID, Valid: true},
 		})
 		require.True(t, archivedChat.UpdatedAt.After(activeChat.UpdatedAt))
 		// Archiving bumps updated_at, so the archived chat stays newest.
@@ -977,17 +977,17 @@ func TestChatTools(t *testing.T) {
 		childOrgRoot := dbgen.Chat(t, api.Database, database.Chat{
 			OrganizationID:    organization.ID,
 			OwnerID:           member.ID,
-			LastModelConfigID: defaultModelConfig.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: defaultModelConfig.ID, Valid: true},
 		})
 		rootOrgChat := dbgen.Chat(t, api.Database, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           member.ID,
-			LastModelConfigID: defaultModelConfig.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: defaultModelConfig.ID, Valid: true},
 		})
 		child := dbgen.Chat(t, api.Database, database.Chat{
 			OrganizationID:    organization.ID,
 			OwnerID:           member.ID,
-			LastModelConfigID: defaultModelConfig.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: defaultModelConfig.ID, Valid: true},
 			ParentChatID:      uuid.NullUUID{UUID: childOrgRoot.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: childOrgRoot.ID, Valid: true},
 		})

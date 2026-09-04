@@ -14,6 +14,7 @@ import {
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
 import {
+	chatRuntimeAvailability,
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,
@@ -35,11 +36,16 @@ import {
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
+	type ExternalChatRuntime,
+	externalChatRuntimes,
+} from "../utils/chatRuntimes";
+import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
 import {
 	AgentCreateForm,
+	type CreateChatOptions,
 	emptyInputStorageKey,
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
@@ -56,6 +62,7 @@ const permittedOrgsKey = permittedOrganizationsKey({
 
 const modelID = "model-config-1";
 const claudeModelConfigID = "model-config-claude";
+const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModel> = {},
@@ -357,10 +364,10 @@ const getCreateOptions = (onCreateChat: unknown): CreateChatSubmission => {
 	return options;
 };
 
-type CreateChatSubmission = {
-	model?: string;
-	reasoningEffort?: string;
-};
+type CreateChatSubmission = Pick<
+	CreateChatOptions,
+	"model" | "reasoningEffort" | "runtime" | "workspaceId"
+>;
 
 export const RootPersonalModelOverrideModelSelected: Story = {
 	args: {
@@ -490,7 +497,7 @@ export const LastUsedModelFallbackWithoutRootOverride: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem("agents.last-model-config-id", claudeModelConfigID);
+		localStorage.setItem(lastModelConfigIDStorageKey, claudeModelConfigID);
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -2425,6 +2432,305 @@ export const MemberScopedPermissionsShowOrgPicker: Story = {
 				name: `Organization: ${MockOrganization2.display_name}`,
 			}),
 		).toBeInTheDocument();
+	},
+};
+
+// Runtime availability comes from the runtime-availability query, gated
+// on the agents-runtime-config experiment.
+const runtimeParameters = (
+	availability: readonly TypesGen.ChatRuntimeAvailability[],
+) => ({
+	experiments: ["agents-runtime-config"],
+	queries: [
+		{
+			key: organizationChatModelsKey(MockDefaultOrganization.id),
+			data: defaultModelCatalog,
+		},
+		{
+			key: userChatProviderConfigsKey,
+			data: defaultUserProviderConfigs,
+		},
+		{
+			key: userChatPersonalModelOverrides(MockDefaultOrganization.id).queryKey,
+			data: buildPersonalModelOverridesResponse(),
+		},
+		{ key: chatRuntimeAvailability().queryKey, data: availability },
+	],
+});
+const runtimeAvailableParameters = (runtime: ExternalChatRuntime) =>
+	runtimeParameters([{ organization_id: MockDefaultOrganization.id, runtime }]);
+const claudeCodeAvailableParameters = runtimeAvailableParameters("claude_code");
+
+// The default catalog carries one model per runtime provider family.
+const runtimeModelFixtures = {
+	claude_code: {
+		modelName: "Claude Sonnet 4",
+		modelConfigID: claudeModelConfigID,
+		otherModelName: "GPT-4o",
+	},
+	codex: {
+		modelName: "GPT-4o",
+		modelConfigID: modelID,
+		otherModelName: "Claude Sonnet 4",
+	},
+} satisfies Record<
+	ExternalChatRuntime,
+	{
+		modelName: string;
+		modelConfigID: string;
+		otherModelName: string;
+	}
+>;
+
+const chooseRuntime = async (
+	canvas: ReturnType<typeof within>,
+	label: string,
+) => {
+	await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	await userEvent.click(
+		await screen.findByRole("menuitemcheckbox", {
+			name: `Run with ${label}`,
+		}),
+	);
+	expect(await canvas.findByTestId("chat-runtime-badge")).toHaveTextContent(
+		label,
+	);
+};
+
+/** A coder pick that the runtime could accept is still dropped in favor of
+ * the runtime default, and comes back when the runtime is deselected. */
+export const ClaudeCodeResetsCompatibleCoderModel: Story = {
+	args: defaultArgs,
+	parameters: claudeCodeAvailableParameters,
+	beforeEach: () => {
+		localStorage.setItem(lastModelConfigIDStorageKey, claudeModelConfigID);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeVisible();
+
+		await chooseRuntime(canvas, "Claude Code");
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
+
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		const enabledItem = await screen.findByRole("menuitemcheckbox", {
+			name: /Run with Claude Code/,
+		});
+		expect(enabledItem).toHaveAttribute("aria-checked", "true");
+		await userEvent.click(enabledItem);
+
+		expect(canvas.queryByTestId("chat-runtime-badge")).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeVisible();
+	},
+};
+
+export const ClaudeCodeKeepsDefaultForNonAnthropicModel: Story = {
+	args: defaultArgs,
+	parameters: claudeCodeAvailableParameters,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
+
+		await chooseRuntime(canvas, "Claude Code");
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
+	},
+};
+
+/** Both runtimes are offered; picking the second replaces the first and
+ * re-filters the model picker to the new provider family. */
+export const RuntimeMenuSwitchesBetweenRuntimes: Story = {
+	args: defaultArgs,
+	parameters: runtimeParameters([
+		{ organization_id: MockDefaultOrganization.id, runtime: "claude_code" },
+		{ organization_id: MockDefaultOrganization.id, runtime: "codex" },
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await chooseRuntime(canvas, "Claude Code");
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
+
+		await chooseRuntime(canvas, "Codex");
+		expect(canvas.queryByText("Claude Code")).not.toBeInTheDocument();
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
+	},
+};
+
+/** Runtimes do not accept attachments, so picking one with a staged file
+ * asks before dropping it; canceling keeps both the file and the coder
+ * runtime. */
+export const RuntimeSelectionConfirmsAttachmentRemoval: Story = {
+	args: defaultArgs,
+	parameters: claudeCodeAvailableParameters,
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([
+				{
+					fileId: "file-default-org",
+					fileName: "notes.txt",
+					fileType: "text/plain",
+					lastModified: 1700000000000,
+					organizationId: MockDefaultOrganization.id,
+				},
+			]),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await waitFor(() =>
+			expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument(),
+		);
+
+		const openRuntimeMenuItem = async () => {
+			// The closed dialog lifts aria-hidden from the page asynchronously.
+			await userEvent.click(
+				await canvas.findByRole("button", { name: "More options" }),
+			);
+			await userEvent.click(
+				await screen.findByRole("menuitemcheckbox", {
+					name: "Run with Claude Code",
+				}),
+			);
+			return body.findByRole("dialog", { name: "Run with Claude Code?" });
+		};
+
+		let dialog = await openRuntimeMenuItem();
+		expect(
+			within(dialog).getByText(
+				"Claude Code does not accept file attachments. Continuing will remove your current attachments.",
+			),
+		).toBeInTheDocument();
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Cancel" }),
+		);
+		await waitFor(() =>
+			expect(
+				body.queryByRole("dialog", { name: "Run with Claude Code?" }),
+			).not.toBeInTheDocument(),
+		);
+		expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument();
+		expect(canvas.queryByTestId("chat-runtime-badge")).not.toBeInTheDocument();
+
+		dialog = await openRuntimeMenuItem();
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Continue" }),
+		);
+		expect(await canvas.findByTestId("chat-runtime-badge")).toHaveTextContent(
+			"Claude Code",
+		);
+		expect(canvas.queryByLabelText("Remove notes.txt")).not.toBeInTheDocument();
+	},
+};
+
+/** An untouched picker sends no model even when the coder pick belongs to
+ * the runtime's provider family, so the administrator pin applies. */
+const runtimeSubmissionStory = (runtime: ExternalChatRuntime): Story => ({
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	parameters: runtimeAvailableParameters(runtime),
+	beforeEach: () => {
+		localStorage.setItem(
+			lastModelConfigIDStorageKey,
+			runtimeModelFixtures[runtime].modelConfigID,
+		);
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", {
+				name: runtimeModelFixtures[runtime].modelName,
+			}),
+		).toBeVisible();
+		await chooseRuntime(canvas, externalChatRuntimes[runtime].label);
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
+
+		await submitMessage(canvasElement, "build me a server");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = getCreateOptions(args.onCreateChat);
+		expect(options.runtime).toBe(runtime);
+		expect(options.model).toBeUndefined();
+		expect(options.workspaceId).toBeUndefined();
+	},
+});
+
+export const ClaudeCodeRuntimeSubmission =
+	runtimeSubmissionStory("claude_code");
+export const CodexRuntimeSubmission = runtimeSubmissionStory("codex");
+
+const runtimeModelPickStory = (runtime: ExternalChatRuntime): Story => ({
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	parameters: runtimeAvailableParameters(runtime),
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const { modelName, modelConfigID, otherModelName } =
+			runtimeModelFixtures[runtime];
+		await chooseRuntime(canvas, externalChatRuntimes[runtime].label);
+
+		await userEvent.click(
+			await canvas.findByRole("combobox", { name: "Default" }),
+		);
+		const body = within(document.body);
+		expect(
+			body.queryByRole("option", { name: new RegExp(otherModelName) }),
+		).not.toBeInTheDocument();
+		await userEvent.click(
+			await body.findByRole("option", { name: new RegExp(modelName) }),
+		);
+
+		await submitMessage(canvasElement, "build me a server");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = getCreateOptions(args.onCreateChat);
+		expect(options.runtime).toBe(runtime);
+		expect(options.model).toBe(modelConfigID);
+	},
+});
+
+export const ClaudeCodeRuntimeModelPick = runtimeModelPickStory("claude_code");
+export const CodexRuntimeModelPick = runtimeModelPickStory("codex");
+
+export const ClaudeCodeStillGatedWithoutGateway: Story = {
+	args: {
+		...defaultArgs,
+		aiGatewayDisabled: true,
+	},
+	parameters: claudeCodeAvailableParameters,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
+export const RuntimesHiddenWithoutOrgConfig: Story = {
+	args: defaultArgs,
+	parameters: runtimeParameters([
+		// Another organization's runtime must not leak into this composer.
+		{ organization_id: MockOrganization2.id, runtime: "codex" },
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await screen.findByRole("menuitemcheckbox", { name: /Plan first/ });
+		expect(
+			screen.queryByRole("menuitemcheckbox", { name: /Run with/ }),
+		).not.toBeInTheDocument();
 	},
 };
 

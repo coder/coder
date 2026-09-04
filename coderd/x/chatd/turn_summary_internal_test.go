@@ -64,7 +64,7 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "summary-chat",
 		ClientType:        database.ChatClientTypeUi,
 		InitialMessages: []chatstate.Message{
@@ -156,23 +156,25 @@ func TestSuccessfulChildChatOutcomeStoresReportSummaryWithoutPush(t *testing.T) 
 	require.NoError(t, err)
 
 	parent, err := db.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "summary-parent-chat",
 		MCPServerIDs:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 	child, err := db.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           owner.ID,
 		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "summary-child-chat",
 		MCPServerIDs:      []uuid.UUID{},
 	})

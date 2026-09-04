@@ -35,6 +35,7 @@ import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
 	chatQueueConvergence,
+	chatRuntimeAvailability,
 	clearChat,
 	compactChat,
 	createChatMessage,
@@ -113,6 +114,11 @@ import {
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
+import {
+	availableExternalChatRuntimes,
+	filterModelOptionsForRuntime,
+	isExternalChatRuntime,
+} from "./utils/chatRuntimes";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -851,6 +857,11 @@ const AgentChatPage: FC = () => {
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
 	const isEditReasoningEffortDirtyRef = useRef(false);
+	const [clearedModelToDefault, setClearedModelToDefault] = useState(false);
+	const handleModelChange = (value: string) => {
+		setSelectedModel(value);
+		setClearedModelToDefault(value === "");
+	};
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -1167,6 +1178,22 @@ const AgentChatPage: FC = () => {
 				}
 			: undefined;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
+	const chatRecordRuntime = chatRecord?.runtime;
+	const chatRuntime = isExternalChatRuntime(chatRecordRuntime)
+		? chatRecordRuntime
+		: undefined;
+	const isRuntimeChat = chatRuntime !== undefined;
+	const runtimeAvailabilityQuery = useQuery({
+		...chatRuntimeAvailability(),
+		enabled: isRuntimeChat && experiments.includes("agents-runtime-config"),
+	});
+	const runtimeUnavailable =
+		chatRuntime !== undefined &&
+		runtimeAvailabilityQuery.isSuccess &&
+		!availableExternalChatRuntimes(
+			runtimeAvailabilityQuery.data,
+			chatOrganizationId,
+		).includes(chatRuntime);
 
 	// Destructure mutation results directly so the React Compiler
 	// tracks stable primitives/functions instead of the whole result
@@ -1250,6 +1277,7 @@ const AgentChatPage: FC = () => {
 		void trackedSync.catch(() => undefined);
 	};
 
+	// Runtime chats skip model setup, but all sends still require chatd and the AI gateway.
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const { scrollToEnd } = useMessageScroller();
 	const {
@@ -1314,36 +1342,29 @@ const AgentChatPage: FC = () => {
 	);
 	const prNumber =
 		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
+	const selectableModelOptions = chatRuntime
+		? filterModelOptionsForRuntime(modelOptions, chatRuntime)
+		: modelOptions;
 	// Validate explicit and historical choices against organization options.
-	// Prefer the usable organization default before another organization model.
-	const effectiveSelectedModel = (() => {
-		const resolvedSelectedModel = resolveModelOptionId(
-			selectedModel,
-			modelOptions,
-		);
-		if (resolvedSelectedModel) {
-			return resolvedSelectedModel;
-		}
-
-		const resolvedChatModel = resolveModelOptionId(
-			chatLastModelConfigID,
-			modelOptions,
-		);
-		if (resolvedChatModel) {
-			return resolvedChatModel;
-		}
-
-		return (
-			getUsableDefaultModelIDForOrganization(
-				models,
-				modelOptions,
-				chatOrganizationId,
-			) ||
-			modelOptions[0]?.id ||
-			""
-		);
-	})();
-	const hasModelOptions = modelOptions.length > 0;
+	// An untouched picker reuses the chat's last model. Runtime chats fall
+	// back to the runtime default (empty) once the user clears the picker;
+	// coder chats prefer the usable organization default before another
+	// organization model.
+	const effectiveSelectedModel =
+		resolveModelOptionId(selectedModel, selectableModelOptions) ||
+		(isRuntimeChat && clearedModelToDefault
+			? ""
+			: resolveModelOptionId(chatLastModelConfigID, selectableModelOptions)) ||
+		(isRuntimeChat
+			? ""
+			: getUsableDefaultModelIDForOrganization(
+					models,
+					modelOptions,
+					chatOrganizationId,
+				) ||
+				modelOptions[0]?.id ||
+				"");
+	const hasModelOptions = selectableModelOptions.length > 0;
 	const hasResolvedModelData =
 		!isModelDataPending &&
 		modelsQuery.data !== undefined &&
@@ -1364,7 +1385,7 @@ const AgentChatPage: FC = () => {
 				: "No usable chat model is currently available. Generation is disabled."
 			: undefined;
 
-	const effectiveModelOption = modelOptions.find(
+	const effectiveModelOption = selectableModelOptions.find(
 		(option) => option.id === effectiveSelectedModel,
 	);
 	const effectiveReasoningEffort = effectiveModelOption
@@ -1381,7 +1402,7 @@ const AgentChatPage: FC = () => {
 		models,
 	);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
-		modelOptions,
+		selectableModelOptions,
 		isModelDataPending,
 		hasConfiguredModels,
 		modelCatalog,
@@ -1401,12 +1422,13 @@ const AgentChatPage: FC = () => {
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
-		!hasModelOptions ||
+		(!hasModelOptions && !isRuntimeChat) ||
 		isArchived ||
 		isChatSettingsPending ||
 		isViewerNotOwner ||
 		aiGatewayDisabled;
-	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
+	const canUpdateChatWorkspace =
+		!isArchived && !isViewerNotOwner && !isRuntimeChat;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1665,7 +1687,12 @@ const AgentChatPage: FC = () => {
 			attachments,
 			useComposerContent,
 		});
-		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
+		if (
+			!hasContent ||
+			isSubmissionPending ||
+			!agentId ||
+			(!hasModelOptions && !isRuntimeChat)
+		) {
 			return;
 		}
 		// Wait for chat-setting mutations to settle before sending so the
@@ -1675,10 +1702,12 @@ const AgentChatPage: FC = () => {
 			pendingWorkspaceSyncRef.current,
 		]);
 
-		// Built-ins only intercept new, text-only sends. A personal or workspace
-		// skill with the same name takes precedence.
+		// Built-ins only intercept new, text-only sends on coder chats. A
+		// personal or workspace skill with the same name takes precedence,
+		// and runtime chats forward every "/name" to the runtime instead.
 		const builtInCommand =
 			editedMessageID === undefined &&
+			!isRuntimeChat &&
 			content.length === 1 &&
 			content[0].type === "text"
 				? CHAT_SLASH_COMMANDS.find(
@@ -1738,10 +1767,12 @@ const AgentChatPage: FC = () => {
 			const pickerModelConfigID = effectiveSelectedModel || undefined;
 			const originalIsSelectable =
 				originalModelConfigID !== undefined &&
-				modelOptions.some((option) => option.id === originalModelConfigID);
+				selectableModelOptions.some(
+					(option) => option.id === originalModelConfigID,
+				);
 			const originalIsUnavailable = isUnavailableHistoricalModelID(
 				originalModelConfigID,
-				modelOptions,
+				selectableModelOptions,
 			);
 			// Use the picker fallback for an unavailable historical model.
 			// Override a selectable model only after the user changes it.
@@ -1757,10 +1788,11 @@ const AgentChatPage: FC = () => {
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
-				reasoning_effort: isEditReasoningEffortDirtyRef.current
-					? effectiveReasoningEffort
-					: undefined,
-				mcp_server_ids: [...effectiveMCPServerIds],
+				reasoning_effort:
+					!isRuntimeChat && isEditReasoningEffortDirtyRef.current
+						? effectiveReasoningEffort
+						: undefined,
+				mcp_server_ids: isRuntimeChat ? undefined : [...effectiveMCPServerIds],
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -1793,7 +1825,7 @@ const AgentChatPage: FC = () => {
 				},
 			});
 			scrollToEnd({ behavior: "smooth" });
-			if (editSelectedModelConfigID) {
+			if (editSelectedModelConfigID && !isRuntimeChat) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,
 					editSelectedModelConfigID,
@@ -1803,18 +1835,22 @@ const AgentChatPage: FC = () => {
 		}
 
 		const selectedModelConfigID = effectiveSelectedModel || undefined;
-		const request: CreateChatMessageRequestWithClearablePlanMode = {
-			content,
-			model_config_id: selectedModelConfigID,
-			reasoning_effort: effectiveReasoningEffort,
-			mcp_server_ids: [...effectiveMCPServerIds],
-			...(planModeSwitch !== undefined
-				? {
-						plan_mode:
-							planModeSwitch === "clear" ? clearChatPlanMode : planModeSwitch,
-					}
-				: {}),
-		};
+		const request: CreateChatMessageRequestWithClearablePlanMode = isRuntimeChat
+			? { content, model_config_id: selectedModelConfigID }
+			: {
+					content,
+					model_config_id: selectedModelConfigID,
+					reasoning_effort: effectiveReasoningEffort,
+					mcp_server_ids: [...effectiveMCPServerIds],
+					...(planModeSwitch !== undefined
+						? {
+								plan_mode:
+									planModeSwitch === "clear"
+										? clearChatPlanMode
+										: planModeSwitch,
+							}
+						: {}),
+				};
 		clearChatErrorReason(agentId);
 		clearStreamError();
 
@@ -1901,10 +1937,16 @@ const AgentChatPage: FC = () => {
 				}
 			}
 		}
-		if (selectedModelConfigID) {
-			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
-		} else {
-			localStorage.removeItem(lastModelConfigIDStorageKey);
+		// Runtime picks stay out of the coder-runtime last-used hint.
+		if (!isRuntimeChat) {
+			if (selectedModelConfigID) {
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					selectedModelConfigID,
+				);
+			} else {
+				localStorage.removeItem(lastModelConfigIDStorageKey);
+			}
 		}
 		if (planModeSwitch !== undefined) {
 			setCachedChatPlanMode(
@@ -1956,8 +1998,8 @@ const AgentChatPage: FC = () => {
 				onContentChange={editing.handleLoadingDraftChange}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
-				setSelectedModel={setSelectedModel}
-				modelOptions={modelOptions}
+				setSelectedModel={handleModelChange}
+				modelOptions={selectableModelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				hasModelOptions={hasModelOptions}
 				isModelCatalogLoading={isModelDataPending}
@@ -2035,8 +2077,8 @@ const AgentChatPage: FC = () => {
 			initialMessages={chatMessagesList ?? []}
 			editing={{ ...editing, handleEditUserMessage }}
 			effectiveSelectedModel={effectiveSelectedModel}
-			setSelectedModel={setSelectedModel}
-			modelOptions={modelOptions}
+			setSelectedModel={handleModelChange}
+			modelOptions={selectableModelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
 			modelCatalogError={modelsQuery.error}
@@ -2055,8 +2097,10 @@ const AgentChatPage: FC = () => {
 			aiGatewayDisabled={aiGatewayDisabled}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelDataPending}
-			planModeEnabled={planModeEnabled}
-			onPlanModeToggle={handlePlanModeToggle}
+			chatRuntime={chatRuntime}
+			runtimeUnavailable={runtimeUnavailable}
+			planModeEnabled={isRuntimeChat ? false : planModeEnabled}
+			onPlanModeToggle={isRuntimeChat ? undefined : handlePlanModeToggle}
 			compressionThreshold={compressionThreshold}
 			isInputDisabled={isInputDisabled}
 			isSubmissionPending={isSubmissionPending}
@@ -2113,6 +2157,7 @@ const AgentChatPage: FC = () => {
 			chatContext={chatQuery.data?.context}
 			queuedForCapacity={chatQuery.data?.queued_for_capacity ?? false}
 			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
+			runtimeCommands={chatQuery.data?.runtime_commands}
 		/>
 	);
 };

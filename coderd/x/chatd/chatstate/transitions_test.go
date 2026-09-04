@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -57,7 +58,7 @@ func TestCreateChat_RejectsEmptyInitialMessages(t *testing.T) {
 	_, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
 		OrganizationID:    f.Org.ID,
 		OwnerID:           f.User.ID,
-		LastModelConfigID: f.Model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 		ClientType:        database.ChatClientTypeApi,
 		Title:             "t",
 		InitialMessages:   nil,
@@ -76,7 +77,7 @@ func TestCreateChat_AllowsNoUserMessages(t *testing.T) {
 	res, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
 		OrganizationID:    f.Org.ID,
 		OwnerID:           f.User.ID,
-		LastModelConfigID: f.Model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 		Title:             "t",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages:   []chatstate.Message{assistant},
@@ -92,7 +93,7 @@ func TestCreateChat_AllowsNonFinalUserMessage(t *testing.T) {
 	res, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
 		OrganizationID:    f.Org.ID,
 		OwnerID:           f.User.ID,
-		LastModelConfigID: f.Model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 		Title:             "t",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages: []chatstate.Message{
@@ -173,6 +174,58 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		require.Equal(t, chatstate.StateE1, f.classify(ctx, t, created.Chat.ID))
 	})
 
+	// External runtime chats resolve their default at turn time from the
+	// runtime config, so promotion must never stamp the organization
+	// default on them.
+	for _, harness := range chatacp.Harnesses() {
+		runtime := database.ChatRuntime(harness.Runtime)
+		providerType := database.AIProviderType(harness.ProviderType)
+		otherProviderType := database.AIProviderTypeAnthropic
+		if providerType == otherProviderType {
+			otherProviderType = database.AIProviderTypeOpenai
+		}
+		harnessModel := func(t *testing.T, f *testFixture, providerType database.AIProviderType) database.ChatModelConfig {
+			t.Helper()
+			provider := dbgen.AIProvider(t, f.DB, database.AIProvider{Type: providerType})
+			return dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
+				OrganizationID: f.Org.ID,
+				AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			})
+		}
+
+		t.Run(string(runtime)+" without selection stays unstamped", func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			promoted := promoteQueuedMessage(t, f, runtime, uuid.NullUUID{})
+			require.False(t, promoted.ModelConfigID.Valid)
+		})
+
+		t.Run(string(runtime)+" keeps harness provider selection", func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			selected := harnessModel(t, f, providerType)
+			promoted := promoteQueuedMessage(t, f, runtime, uuid.NullUUID{UUID: selected.ID, Valid: true})
+			require.Equal(t, uuid.NullUUID{UUID: selected.ID, Valid: true}, promoted.ModelConfigID)
+		})
+
+		t.Run(string(runtime)+" drops other provider selection", func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			selected := harnessModel(t, f, otherProviderType)
+			promoted := promoteQueuedMessage(t, f, runtime, uuid.NullUUID{UUID: selected.ID, Valid: true})
+			require.False(t, promoted.ModelConfigID.Valid)
+		})
+
+		t.Run(string(runtime)+" drops disabled selection", func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			selected := harnessModel(t, f, providerType)
+			setChatModelConfigEnabled(t, f.DB, selected, false)
+			promoted := promoteQueuedMessage(t, f, runtime, uuid.NullUUID{UUID: selected.ID, Valid: true})
+			require.False(t, promoted.ModelConfigID.Valid)
+		})
+	}
+
 	t.Run("database error rejects promotion", func(t *testing.T) {
 		t.Parallel()
 		f := newTestFixture(t)
@@ -226,13 +279,38 @@ func promoteQueuedMessageWithModel(
 	modelConfigID uuid.UUID,
 ) database.ChatMessage {
 	t.Helper()
+	promoted := promoteQueuedMessage(t, f, database.ChatRuntimeCoder, uuid.NullUUID{UUID: modelConfigID, Valid: true})
+	require.True(t, promoted.ModelConfigID.Valid)
+	return promoted
+}
+
+// promoteQueuedMessage queues one message carrying modelConfigID on a
+// fresh chat of the given runtime, fails the initial turn, promotes the
+// queued message, and returns the promoted history row.
+func promoteQueuedMessage(
+	t *testing.T,
+	f *testFixture,
+	runtime database.ChatRuntime,
+	modelConfigID uuid.NullUUID,
+) database.ChatMessage {
+	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	message := userTextMessage("queued model resolution", f.User.ID, modelConfigID)
+	created, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+		OrganizationID: f.Org.ID,
+		OwnerID:        f.User.ID,
+		Runtime:        runtime,
+		Title:          "queued model resolution",
+		ClientType:     database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			userTextMessage("hello", f.User.ID, f.Model.ID),
+		},
+	})
+	require.NoError(t, err)
+	message := userTextMessage("queued model resolution", f.User.ID, uuid.Nil)
 	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
 		ChatID:        created.Chat.ID,
 		Content:       message.Content.RawMessage,
-		ModelConfigID: message.ModelConfigID,
+		ModelConfigID: modelConfigID,
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
@@ -252,9 +330,7 @@ func promoteQueuedMessageWithModel(
 		return err
 	}))
 	require.NotNil(t, result.InsertedMessage)
-	promoted := requireChatMessageByID(ctx, t, f, result.InsertedMessage.ID)
-	require.True(t, promoted.ModelConfigID.Valid)
-	return promoted
+	return requireChatMessageByID(ctx, t, f, result.InsertedMessage.ID)
 }
 
 func setChatModelConfigEnabled(
@@ -742,6 +818,84 @@ func TestEditMessageInsertsSuffixMessages(t *testing.T) {
 		require.NotEqual(t, targetID, message.ID,
 			"the edited message must not stay in active history")
 	}
+}
+
+// TestEditMessageResetsRuntimeSession verifies that truncating an
+// external runtime chat's transcript also drops the persisted ACP
+// session, while built-in chats keep their runtime_state untouched.
+func TestEditMessageResetsRuntimeSession(t *testing.T) {
+	t.Parallel()
+
+	const seededState = `{"session_id":"s1","cwd":"/home/coder/project","usage":{"input_tokens":3},"available_commands":[{"name":"review"}],"updated_at":"2024-01-02T03:04:05Z"}`
+
+	runtimes := []database.ChatRuntime{database.ChatRuntimeCoder}
+	for _, harness := range chatacp.Harnesses() {
+		runtimes = append(runtimes, database.ChatRuntime(harness.Runtime))
+	}
+	for _, runtime := range runtimes {
+		t.Run(string(runtime), func(t *testing.T) {
+			t.Parallel()
+			assertEditResetsRuntimeSession(t, runtime, seededState)
+		})
+	}
+
+	// State that no longer parses must still be replaced, or the chat can
+	// never be edited again.
+	t.Run("MalformedState", func(t *testing.T) {
+		t.Parallel()
+		const malformed = `{"session_id":1,"updated_at":"2024-01-02T03:04:05Z"}`
+		for _, harness := range chatacp.Harnesses() {
+			t.Run(string(harness.Runtime), func(t *testing.T) {
+				t.Parallel()
+				assertEditResetsRuntimeSession(t, database.ChatRuntime(harness.Runtime), malformed)
+			})
+		}
+	})
+}
+
+func assertEditResetsRuntimeSession(t *testing.T, runtime database.ChatRuntime, seededState string) {
+	t.Helper()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+		OrganizationID:  f.Org.ID,
+		OwnerID:         f.User.ID,
+		Runtime:         runtime,
+		Title:           "edit resets session",
+		ClientType:      database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{userTextMessage("hello", f.User.ID, f.Model.ID)},
+	})
+	require.NoError(t, err)
+	_, err = f.DB.UpdateChatRuntimeState(ctx, database.UpdateChatRuntimeStateParams{
+		ID:           created.Chat.ID,
+		RuntimeState: pqtype.NullRawMessage{RawMessage: json.RawMessage(seededState), Valid: true},
+	})
+	require.NoError(t, err)
+
+	rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")})
+	require.NoError(t, err)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.EditMessage(chatstate.EditMessageInput{
+			MessageID: created.InitialMessages[0].ID,
+			CreatedBy: f.User.ID,
+			Content:   rawContent,
+		})
+		return err
+	}))
+
+	chat := f.readChat(ctx, t, created.Chat.ID)
+	state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
+	if runtime == database.ChatRuntimeCoder {
+		require.JSONEq(t, seededState, string(chat.RuntimeState.RawMessage))
+		return
+	}
+	require.Empty(t, state.SessionID)
+	require.Empty(t, state.Cwd)
+	require.Nil(t, state.Usage)
+	seeded := chatacp.ParseRuntimeState([]byte(seededState))
+	require.Equal(t, seeded.AvailableCommands, state.AvailableCommands)
+	require.True(t, state.UpdatedAt.After(seeded.UpdatedAt))
 }
 
 // TestTransitionAbandon_RejectsUnowned verifies that calling Abandon

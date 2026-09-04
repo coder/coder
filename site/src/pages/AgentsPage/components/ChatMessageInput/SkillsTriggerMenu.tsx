@@ -23,6 +23,8 @@ export type SkillMetadata = {
 export type SkillMenuItem = SkillMetadata & {
 	source: SkillSource | "command";
 	triggerText: string;
+	// Placeholder for the arguments a command accepts after its name.
+	inputHint?: string;
 	// The qualified alias stays searchable even when the displayed
 	// trigger is bare, so a typed qualified query keeps matching after
 	// collision state changes mid-trigger.
@@ -33,10 +35,11 @@ export type SkillMenuItem = SkillMetadata & {
 // combined keyboard-selection list and trigger replacement work
 // unchanged; their trigger text is never source-qualified.
 export const createCommandMenuItem = (
-	command: SkillMetadata,
+	command: SkillMetadata & { inputHint?: string },
 ): SkillMenuItem => ({
 	name: command.name,
 	description: command.description,
+	inputHint: command.inputHint,
 	source: "command",
 	triggerText: `/${command.name}`,
 	altTriggerText: `/${command.name}`,
@@ -139,6 +142,9 @@ const SkillCommandItem = ({
 			<div className="min-w-0 space-y-1">
 				<div className="truncate font-mono text-content-primary text-xs">
 					{skill.triggerText}
+					{skill.inputHint && (
+						<span className="text-content-secondary"> {skill.inputHint}</span>
+					)}
 				</div>
 				{skill.description.trim() && (
 					<div className="line-clamp-2 text-content-secondary text-xs leading-snug">

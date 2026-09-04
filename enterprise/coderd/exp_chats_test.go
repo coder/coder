@@ -1137,7 +1137,7 @@ func TestCreateChatUsesOrganizationLocalModel(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, secondOrg.ID, chat.OrganizationID)
 	require.Equal(t, member.ID, chat.OwnerID)
-	require.Equal(t, localModel.ID, chat.LastModelConfigID)
+	require.Equal(t, localModel.ID, *chat.LastModelConfigID)
 
 	// Verify the chat is visible when listing.
 	chats, err := memberClient.ListChats(ctx, nil)

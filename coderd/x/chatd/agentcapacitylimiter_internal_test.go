@@ -39,7 +39,7 @@ func (f admissionFixture) chat(t *testing.T, seed database.Chat) database.Chat {
 	t.Helper()
 	seed.OwnerID = f.owner.ID
 	seed.OrganizationID = f.org.ID
-	seed.LastModelConfigID = f.modelConfig.ID
+	seed.LastModelConfigID = uuid.NullUUID{UUID: f.modelConfig.ID, Valid: true}
 	if seed.Status == "" {
 		seed.Status = database.ChatStatusRunning
 	}

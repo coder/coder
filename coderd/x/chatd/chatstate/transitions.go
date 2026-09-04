@@ -13,21 +13,26 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 // CreateChatInput configures [CreateChat].
 type CreateChatInput struct {
-	OrganizationID    uuid.UUID
-	OwnerID           uuid.UUID
-	WorkspaceID       uuid.NullUUID
-	BuildID           uuid.NullUUID
-	AgentID           uuid.NullUUID
-	ParentChatID      uuid.NullUUID
-	RootChatID        uuid.NullUUID
-	LastModelConfigID uuid.UUID
+	OrganizationID uuid.UUID
+	OwnerID        uuid.UUID
+	WorkspaceID    uuid.NullUUID
+	BuildID        uuid.NullUUID
+	AgentID        uuid.NullUUID
+	ParentChatID   uuid.NullUUID
+	RootChatID     uuid.NullUUID
+	// LastModelConfigID may be unset when an external runtime uses its
+	// default model.
+	LastModelConfigID uuid.NullUUID
+	Runtime           database.ChatRuntime
 	Title             string
 	Mode              database.NullChatMode
 	PlanMode          database.NullChatPlanMode
@@ -101,6 +106,9 @@ func insertChat(
 			"initial messages must include at least one message",
 		)
 	}
+	if input.Runtime == "" {
+		input.Runtime = database.ChatRuntimeCoder
+	}
 	var result CreateChatResult
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
@@ -115,6 +123,7 @@ func insertChat(
 			ParentChatID:      input.ParentChatID,
 			RootChatID:        input.RootChatID,
 			LastModelConfigID: input.LastModelConfigID,
+			Runtime:           input.Runtime,
 			Title:             input.Title,
 			Mode:              input.Mode,
 			PlanMode:          input.PlanMode,
@@ -298,12 +307,79 @@ func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueue
 	}, nil
 }
 
+// FetchACPModelConfig loads an explicitly selected model config for an
+// external runtime chat together with its provider. The config is read
+// as the caller, so the organization scope and model ACLs that govern
+// built-in chats apply here too; only the provider row, which chat
+// owners cannot read, is loaded with metadata access. Only enabled,
+// non-deleted configs on an enabled provider of the harness type are
+// selectable: the adapter requires a compatible gateway API. Failures wrap
+// ErrInvalidModelConfigID unless the lookup itself errored.
+func FetchACPModelConfig(
+	ctx context.Context,
+	store database.Store,
+	organizationID uuid.UUID,
+	harness chatacp.Harness,
+	id uuid.UUID,
+) (database.ChatModelConfig, database.AIProvider, error) {
+	config, err := store.GetEnabledChatModelConfigByID(ctx, id)
+	if err == nil && config.OrganizationID != organizationID {
+		err = sql.ErrNoRows
+	}
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+			return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+				"%w: %s", ErrInvalidModelConfigID, id,
+			)
+		}
+		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+			"get model config %s: %w", id, err,
+		)
+	}
+	//nolint:gocritic // The harness only needs the provider type; chat owners cannot read provider rows.
+	provider, err := store.GetAIProviderByID(dbauthz.AsAIProviderMetadataReader(ctx), config.AIProviderID.UUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+				"%w: %s", ErrInvalidModelConfigID, id,
+			)
+		}
+		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+			"get ai provider for model config %s: %w", id, err,
+		)
+	}
+	if provider.Type != database.AIProviderType(harness.ProviderType) {
+		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+			"%w: model config %s is not an %s model", ErrInvalidModelConfigID, id, harness.ProviderLabel,
+		)
+	}
+	return config, provider, nil
+}
+
+// resolveQueuedMessageModelConfigID mirrors the send path: a queued
+// selection survives promotion only while the chat can still use it.
+// Built-in chats fall back to the organization default; external
+// runtimes fall back to no selection (the runtime default chain) and
+// must never inherit the organization default.
 func (tx *Tx) resolveQueuedMessageModelConfigID(
 	chat database.Chat,
 	queued database.ChatQueuedMessage,
 ) (uuid.NullUUID, error) {
 	//nolint:gocritic // Queue promotion needs daemon access to deployment model configuration.
 	ctx := dbauthz.AsChatd(tx.ctx)
+	if harness, external := chatacp.HarnessFor(codersdk.ChatRuntime(chat.Runtime)); external {
+		if !queued.ModelConfigID.Valid {
+			return uuid.NullUUID{}, nil
+		}
+		_, _, err := FetchACPModelConfig(ctx, tx.store, chat.OrganizationID, harness, queued.ModelConfigID.UUID)
+		if err == nil {
+			return queued.ModelConfigID, nil
+		}
+		if errors.Is(err, ErrInvalidModelConfigID) {
+			return uuid.NullUUID{}, nil
+		}
+		return uuid.NullUUID{}, err
+	}
 	if queued.ModelConfigID.Valid {
 		config, err := tx.store.GetEnabledChatModelConfigByID(ctx, queued.ModelConfigID.UUID)
 		if err == nil && config.OrganizationID == chat.OrganizationID {
@@ -328,6 +404,34 @@ func (tx *Tx) resolveQueuedMessageModelConfigID(
 		}
 	}
 	return uuid.NullUUID{}, ErrNoDefaultChatModelConfig
+}
+
+// resetRuntimeSession drops the persisted ACP session once an edit has
+// truncated the transcript. Resuming it would replay the discarded
+// turns, so the next turn starts a new session and reseeds it from the
+// surviving history. The fresh UpdatedAt lets an in-flight turn detect
+// the reset and skip recording its now stale session.
+func (tx *Tx) resetRuntimeSession(chat database.Chat) error {
+	state := chatacp.ParseRuntimeState(chat.RuntimeState.RawMessage)
+	state.SessionID = ""
+	state.Cwd = ""
+	state.Usage = nil
+	state.UpdatedAt = dbtime.Now()
+	encoded, err := json.Marshal(state)
+	if err != nil {
+		return xerrors.Errorf("marshal runtime state: %w", err)
+	}
+	// The row is locked by the machine transaction, so the reset never
+	// races a turn and must also replace state that no longer parses.
+	_, err = tx.store.UpdateChatRuntimeState(tx.ctx, database.UpdateChatRuntimeStateParams{
+		ID:                tx.chatID,
+		RuntimeState:      pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
+		ExpectedUpdatedAt: sql.NullString{},
+	})
+	if err != nil {
+		return xerrors.Errorf("reset runtime session: %w", err)
+	}
+	return nil
 }
 
 // SetArchivedInput configures [Tx.SetArchived].
@@ -647,6 +751,11 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		AfterID: target.ID,
 	}); err != nil {
 		return EditMessageResult{}, xerrors.Errorf("soft-delete suffix: %w", err)
+	}
+	if _, external := chatacp.HarnessFor(codersdk.ChatRuntime(chat.Runtime)); external {
+		if err := tx.resetRuntimeSession(chat); err != nil {
+			return EditMessageResult{}, err
+		}
 	}
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by message edit", false)
 	if err != nil {

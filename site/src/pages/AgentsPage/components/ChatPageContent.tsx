@@ -10,6 +10,7 @@ import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
+import type { ExternalChatRuntime } from "../utils/chatRuntimes";
 import { getProviderForModelOption } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
@@ -268,6 +269,9 @@ interface ChatPageInputProps {
 	aiGatewayDisabled?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	chatRuntime?: ExternalChatRuntime;
+	runtimeUnavailable?: boolean;
+	runtimeCommands?: readonly TypesGen.ChatRuntimeCommand[];
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -336,6 +340,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	aiGatewayDisabled,
 	planModeEnabled,
 	onPlanModeToggle,
+	chatRuntime,
+	runtimeUnavailable,
+	runtimeCommands,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -503,6 +510,17 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
 
+	// Built-ins operate on coder-side context, which external runtimes do
+	// not use; those chats get the commands the runtime advertised, sent
+	// as message text ("/name args").
+	const slashCommands = chatRuntime
+		? (runtimeCommands ?? []).map((command) => ({
+				name: command.name,
+				description: command.description,
+				inputHint: command.input_hint || undefined,
+			}))
+		: CHAT_SLASH_COMMANDS;
+
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
@@ -554,7 +572,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			}}
 			sendShortcut={sendShortcut}
 			attachments={attachments}
-			onAttach={handleAttach}
+			onAttach={chatRuntime ? undefined : handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
@@ -587,6 +605,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onReasoningEffortChange={onReasoningEffortChange}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
+			runtime={chatRuntime}
+			runtimeUnavailable={runtimeUnavailable}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={chatOrganizationId}
@@ -611,7 +631,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			aiGatewayDisabled={aiGatewayDisabled}
 			// Commands act on the whole chat, so they only make sense
 			// for new sends: hide them while editing a history message.
-			slashCommands={isEditing ? undefined : CHAT_SLASH_COMMANDS}
+			slashCommands={isEditing ? undefined : slashCommands}
 		/>
 	);
 
