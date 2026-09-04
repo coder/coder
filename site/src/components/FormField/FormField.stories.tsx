@@ -170,9 +170,9 @@ export const IgnorePasswordManagers: Story = {
 		const canvas = within(canvasElement);
 		const input = canvas.getByRole("textbox", { name: /Provider name/ });
 		await expect(input).toHaveAttribute("autocomplete", "off");
-		await expect(input).toHaveAttribute("data-1p-ignore");
+		await expect(input).toHaveAttribute("data-1p-ignore", "true");
 		await expect(input).toHaveAttribute("data-lpignore", "true");
 		await expect(input).toHaveAttribute("data-form-type", "other");
-		await expect(input).toHaveAttribute("data-bwignore");
+		await expect(input).toHaveAttribute("data-bwignore", "true");
 	},
 };
