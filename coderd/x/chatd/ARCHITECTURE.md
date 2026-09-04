@@ -655,6 +655,14 @@ For every matching chat, it locks it, checks if the chat still meets the aforeme
 
 When a chat is successfully acquired, the acquisition loop requests the [Runner manager](#runner-manager) to spawn a chat runner for it.
 
+### Capacity wait
+
+The [Concurrent agent limiter](#concurrent-agent-limiter) can refuse an otherwise acquirable chat when its pool is full. The acquisition loop remembers, per chat, when this worker first saw the chat refused for capacity. When the same worker later acquires the chat, it records a `capacity_wait` lifecycle stage from that first refusal to the acquisition (see [Lifecycle tracing](#lifecycle-tracing)). Chats admitted on their first attempt record nothing.
+
+The bookkeeping is local to the worker. The wait start is dropped when the worker skips the chat for a reason other than capacity (it is owned by a live runner, archived, or no longer runnable), and entries for chats that have left the candidate set are pruned only when the candidate batch is shorter than its limit, since a chat missing from a truncated batch may still be waiting. The map is touched only by the acquisition goroutine.
+
+Because the capacity limit is deployment-wide but the refusal history is per worker, the recorded wait is a lower bound. A chat refused on one replica and acquired by another is measured from the acquiring replica's first refusal, or not at all if that replica admitted it on its first attempt. A replica restart also discards its history.
+
 ### Load balancing
 
 The design doesn't attempt to distribute load between workers fairly. Whenever a chat needs an owner, all replicas race to acquire it. If there's a coder replica that has a lower latency to the database, it'll tend to acquire chats more frequently than other replicas.
@@ -802,9 +810,9 @@ Work detached from the turn, such as title, summary, and status label generation
 
 #### Stages
 
-Every stage carries `scope` (`turn` or `background`) and `chat_kind` (`root` or `subagent`), and once the model is resolved, `model`. Spans additionally carry `reasoning_effort`; it is not a metric label because it multiplies series per model. Stages that are not tied to a model call (`acquisition`, `queue_wait`, `mcp_connect`, `retry_backoff`, `commit`) carry an empty `model` label. `prepare` is stamped with the model once preparation resolves it.
+Every stage carries `scope` (`turn` or `background`) and `chat_kind` (`root` or `subagent`), and once the model is resolved, `model`. Spans additionally carry `reasoning_effort`; it is not a metric label because it multiplies series per model. Stages that are not tied to a model call (`acquisition`, `queue_wait`, `capacity_wait`, `mcp_connect`, `retry_backoff`, `commit`) carry an empty `model` label. `prepare` is stamped with the model once preparation resolves it.
 
-At `--chat-stage-metrics=basic` the histogram observes `chat_turn`, `queue_wait`, `acquisition`, `mcp_connect`, `stream`, `time_to_first_token`, `provider_attempt`, `tool_call`, `commit`, and `retry_backoff`. `generation_step`, `prepare`, `thinking`, and `compaction` are span-only at that level.
+At `--chat-stage-metrics=basic` the histogram observes `chat_turn`, `queue_wait`, `capacity_wait`, `acquisition`, `mcp_connect`, `stream`, `time_to_first_token`, `provider_attempt`, `tool_call`, `commit`, and `retry_backoff`. `generation_step`, `prepare`, `thinking`, and `compaction` are span-only at that level.
 
 Live stages wrap a section of code and end when it returns:
 
