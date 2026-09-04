@@ -4367,6 +4367,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "debugLoggingEnabled",
 		},
 		{
+			Name:        "Chat: Stage Metrics",
+			Description: "How much of the chat lifecycle stage instrumentation to expose as Prometheus metrics. \"off\" exposes none. \"basic\" records per-occurrence durations for the wait, connect, and model-call stages and the per-turn time partition by category. \"full\" adds every stage and the per-turn stage distributions at a higher series count. Tracing spans are unaffected.",
+			Flag:        "chat-stage-metrics",
+			Env:         "CODER_CHAT_STAGE_METRICS",
+			Value:       serpent.EnumOf(&c.AI.Chat.StageMetrics, ChatStageMetricsLevelValues...),
+			Default:     string(ChatStageMetricsLevelOff),
+			Group:       &deploymentGroupChat,
+			YAML:        "stageMetrics",
+		},
+		{
 			Name:        "Chat: Hook URL",
 			Description: "HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
 			Flag:        "chat-hook-url",
@@ -5103,9 +5113,45 @@ type AIBridgeProxyConfig struct {
 	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
+// ChatStageMetricsLevel selects how much of the chat lifecycle stage
+// instrumentation is exposed as Prometheus metrics. Tracing spans are
+// emitted at every level.
+type ChatStageMetricsLevel string
+
+const (
+	// ChatStageMetricsLevelOff exposes no stage or turn metrics.
+	ChatStageMetricsLevelOff ChatStageMetricsLevel = "off"
+	// ChatStageMetricsLevelBasic exposes per-occurrence durations for the
+	// wait, connect, and model-call stages and the per-turn time
+	// partition by category.
+	ChatStageMetricsLevelBasic ChatStageMetricsLevel = "basic"
+	// ChatStageMetricsLevelFull exposes every stage and the per-turn stage
+	// distributions.
+	ChatStageMetricsLevelFull ChatStageMetricsLevel = "full"
+)
+
+// ChatStageMetricsLevelValues lists the supported ChatStageMetricsLevel values.
+var ChatStageMetricsLevelValues = []string{
+	string(ChatStageMetricsLevelOff),
+	string(ChatStageMetricsLevelBasic),
+	string(ChatStageMetricsLevelFull),
+}
+
+// NewChatStageMetricsLevelFromString converts s to a ChatStageMetricsLevel,
+// ignoring case and falling back to ChatStageMetricsLevelOff when s is
+// empty or not a recognized level.
+func NewChatStageMetricsLevelFromString(s string) ChatStageMetricsLevel {
+	s = strings.ToLower(s)
+	if slices.Contains(ChatStageMetricsLevelValues, s) {
+		return ChatStageMetricsLevel(s)
+	}
+	return ChatStageMetricsLevelOff
+}
+
 type ChatConfig struct {
 	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
 	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	StageMetrics        string           `json:"stage_metrics" typescript:",notnull"`
 	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
 	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
 	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`

@@ -2103,6 +2103,7 @@ export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
+	readonly stage_metrics: string;
 	readonly hook_url: string;
 	readonly hook_secret: string;
 	readonly hook_timeout: number;
@@ -3381,6 +3382,15 @@ export interface ChatSourcePart {
 	readonly source_id?: string;
 	readonly title?: string;
 }
+
+// From codersdk/deployment.go
+export type ChatStageMetricsLevel = "basic" | "full" | "off";
+
+export const ChatStageMetricsLevels: ChatStageMetricsLevel[] = [
+	"basic",
+	"full",
+	"off",
+];
 
 // From codersdk/chats.go
 export type ChatStatus =
