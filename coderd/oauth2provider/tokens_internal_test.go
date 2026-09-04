@@ -206,7 +206,7 @@ func TestCheckScopeStillCovered(t *testing.T) {
 	}
 }
 
-func TestNarrowGrantedScope(t *testing.T) {
+func TestNarrowAccessScope(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -297,7 +297,7 @@ func TestNarrowGrantedScope(t *testing.T) {
 			t.Parallel()
 
 			app := database.OAuth2ProviderApp{ID: uuid.New()}
-			got, err := narrowGrantedScope(t.Context(), slogtest.Make(t, nil), app, test.granted, test.requested)
+			got, err := narrowAccessScope(t.Context(), slogtest.Make(t, nil), app, test.granted, test.requested)
 			if test.wantErr != nil {
 				require.ErrorIs(t, err, test.wantErr)
 				assert.Empty(t, got, "a rejected refresh must not return a persistable scope")

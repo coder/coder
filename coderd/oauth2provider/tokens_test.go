@@ -69,8 +69,9 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 	})
 
 	// coder:workspaces.access covers workspace:ssh, so the narrowing is a
-	// genuine reduction of the authority the user consented to.
-	t.Run("RefreshNarrowsTheScope", func(t *testing.T) {
+	// genuine reduction of the authority the user consented to. It reduces the
+	// access token alone: the refresh token still represents the grant.
+	t.Run("RefreshNarrowsTheAccessToken", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -85,9 +86,42 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
 			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
-		require.Equal(t, "workspace:ssh", tokenRow(ctx, t, db, refreshed.RefreshToken).Scope,
-			"the next refresh inherits the persisted column, so a widened one would undo the narrowing")
 		require.Equal(t, "workspace:ssh", refreshed.Scope)
+		require.Equal(t, scopeInCatalog, tokenRow(ctx, t, db, refreshed.RefreshToken).Scope,
+			"OAuth 2.1 §4.3.3: a rotated refresh token carries the scope of the one presented")
+	})
+
+	// The case OAuth 2.1 §4.3 names as a reason to refresh: narrowed earlier,
+	// now needs a different part of the same grant. Writing the narrowed value
+	// to the token row would answer both of these with invalid_scope.
+	t.Run("NarrowingDoesNotBindLaterRefreshes", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", "workspace:ssh")
+		status, body := postTokenRequest(ctx, t, client, form)
+		narrowed := requireTokenResponse(t, status, body)
+
+		// A sibling permission of the same grant, which the user consented to.
+		form = refreshForm(app, narrowed.RefreshToken)
+		form.Set("scope", "workspace:read")
+		status, body = postTokenRequest(ctx, t, client, form)
+		sibling := requireTokenResponse(t, status, body)
+		require.Equal(t, "workspace:read", sibling.Scope)
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceRead},
+			mintedKeyScopes(ctx, t, db, sibling.RefreshToken))
+
+		// And the whole grant back, per RFC 6749 §6's omitted-scope default.
+		status, body = postTokenRequest(ctx, t, client, refreshForm(app, sibling.RefreshToken))
+		restored := requireTokenResponse(t, status, body)
+		require.Equal(t, scopeInCatalog, restored.Scope,
+			"an omitted scope is the scope originally granted by the resource owner")
+		require.Equal(t, scopeInCatalog, tokenRow(ctx, t, db, restored.RefreshToken).Scope)
 	})
 
 	t.Run("RefreshCannotWidenTheScope", func(t *testing.T) {

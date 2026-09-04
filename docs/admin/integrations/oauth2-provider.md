@@ -281,7 +281,7 @@ https://coder.example.com/oauth2/authorize?
 
 An application registered through [Dynamic Client Registration](#dynamic-client-registration) can declare a `scope` field, which acts as an allowlist. The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing. Applications created through the web UI or the management API declare no allowlist, so any requested scope is honored and a request that names no scope is granted `coder:all`.
 
-The consent page states the scope being granted before the user approves it. Refreshing a token keeps the scope originally granted unless the refresh request names a narrower one.
+The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
 ## Discovery Endpoints
 
@@ -483,15 +483,23 @@ narrower `scope`, those codes are refused with `scope is no longer allowed by
 this app's registered scopes` until they expire, which takes at most ten
 minutes. Authorizing again issues a code within the current registration.
 
-A refresh may name a `scope` of its own to give up authority. The refreshed
-token carries that narrower scope, and later refreshes are bounded by it in
-turn. The request may name anything the original grant confers, including a
-single permission out of a composite scope, so a token granted
-`coder:workspaces.access` can refresh down to `workspace:read`. Asking for
-more is refused with `scope requests permissions beyond the scope originally
-granted`, and a scope this deployment does not define with `unknown or
-unsupported scope`. A refused refresh mints nothing and leaves the refresh
-token usable.
+A refresh may name a `scope` of its own to give up authority. The narrowing
+applies to the access token that refresh mints, and to nothing else. The
+refresh token continues to represent the scope the user consented to, so the
+ceiling does not move and a later refresh may ask for a different part of the
+same grant, or omit `scope` to take the grant whole again.
+
+The request may name anything the original grant confers, including a single
+permission out of a composite scope, so a token granted
+`coder:workspaces.access` can refresh down to `workspace:read` for one call and
+to `workspace:ssh` for the next. Asking for more is refused with `scope
+requests permissions beyond the scope originally granted`, and a scope this
+deployment does not define with `unknown or unsupported scope`. A refused
+refresh mints nothing and leaves the refresh token usable.
+
+Only the resource owner lowers the ceiling, by revoking the token or
+authorizing again with less. This is also what OAuth 2.1 section 4.3.3
+requires: a rotated refresh token carries the scope of the one presented.
 
 ### "unsupported_response_type" returned to your callback
 
@@ -595,7 +603,7 @@ As an experimental feature, the current implementation has limitations:
 This implementation follows established OAuth2 standards including
 [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core),
 [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and the
-[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12).
+[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16).
 Coder enforces OAuth 2.1 requirements including mandatory PKCE for all
 authorization code grants, exact redirect URI string matching, rejection
 of the implicit grant, and CSRF protections on consent pages.

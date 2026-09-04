@@ -86,14 +86,18 @@ func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app databas
 	return nil
 }
 
-// narrowGrantedScope decides the scope a refreshed token carries. RFC 6749 §6
-// bounds a refresh by the scope originally granted, so a request may only give
-// authority up; an omitted request keeps the grant as it stands.
+// narrowAccessScope decides the scope the refreshed access token carries. RFC
+// 6749 §6 bounds the request by the scope originally granted, so a request may
+// only give authority up; an omitted request takes the grant whole.
+//
+// The grant itself does not move: only the minted access token narrows. A later
+// refresh may therefore ask for a different part of the same grant, which OAuth
+// 2.1 §4.3 gives as one of the two reasons a client refreshes at all.
 //
 // Coverage, not membership, as in negotiateScope: a grant of
 // `coder:workspaces.access` confers `workspace:read`, and `coder:all` confers
 // every scope.
-func narrowGrantedScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string, requested []string) (string, error) {
+func narrowAccessScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string, requested []string) (string, error) {
 	if len(requested) == 0 {
 		return granted, nil
 	}
@@ -654,7 +658,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 		}
 	}
 
-	grantedScope, err := narrowGrantedScope(ctx, logger, app, dbToken.Scope, strings.Fields(req.Scope))
+	accessScope, err := narrowAccessScope(ctx, logger, app, dbToken.Scope, strings.Fields(req.Scope))
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
@@ -678,7 +682,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	scopes, err := scopeStringToAPIKeyScopes(grantedScope)
+	scopes, err := scopeStringToAPIKeyScopes(accessScope)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
@@ -728,7 +732,13 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,
 			Audience:    dbToken.Audience,
-			Scope:       grantedScope,
+			// The consented grant, not accessScope. This column is the ceiling
+			// every later refresh is bounded by, and the only record of what the
+			// resource owner approved: the code row that also carried it is
+			// deleted at redemption. OAuth 2.1 §4.3.3 requires a rotated refresh
+			// token to carry the scope of the one presented, so a narrowing
+			// applies to the access token minted above and to nothing else.
+			Scope: dbToken.Scope,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
@@ -744,7 +754,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 		TokenType:    codersdk.OAuth2TokenTypeBearer,
 		RefreshToken: refreshToken.Formatted,
 		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
-		Scope:        grantedScope,
+		Scope:        accessScope,
 		Expiry:       &key.ExpiresAt,
 	}, nil
 }
