@@ -643,10 +643,6 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 	})
 }
 
-// TestBindingCompactionTrigger verifies the selection between the chat
-// trigger and the compaction override model's own trigger: the enabled
-// trigger with the lower token point wins, ties prefer the chat
-// trigger, and a fully disabled pair passes the chat trigger through.
 func TestBindingCompactionTrigger(t *testing.T) {
 	t.Parallel()
 

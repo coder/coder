@@ -339,8 +339,8 @@ export const UserCompactionThresholdSettings: FC<
 					)}
 					{compactionTriggersError != null && (
 						<p className="m-0 text-xs text-content-destructive">
-							Failed to load organization compaction settings. Warnings about
-							earlier compaction may be missing.
+							Failed to load organization compaction settings. Effective values
+							may not account for the organization override.
 						</p>
 					)}
 					{organizationOptions.length > 1 && activeOrganization && (
@@ -427,10 +427,8 @@ export const UserCompactionThresholdSettings: FC<
 									organizationTriggerPercent?.toLocaleString("en-US", {
 										maximumFractionDigits: 1,
 									});
-								// The binding helper is authoritative so the effective
-								// display matches the backend even when a draft of 100 disables
-								// the chat trigger and the organization point reaches
-								// the chat window.
+								// Setting 100% disables only the chat model
+								// trigger, not the organization override.
 								const isOrganizationTriggerEarlier =
 									chatTrigger !== undefined &&
 									organizationTrigger !== undefined &&

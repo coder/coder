@@ -340,7 +340,7 @@ export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
 			[
 				MockChatModel.organization_id,
 				{
-					model: compactionModel,
+					model: { ...compactionModel, context_limit: 256_000 },
 					trigger: { thresholdPercent: 50, contextLimit: 256_000 },
 					point: 128_000,
 				},

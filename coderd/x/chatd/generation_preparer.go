@@ -782,9 +782,6 @@ type compactionTrigger struct {
 	contextLimit     int64
 }
 
-// enabled reports whether the trigger can fire at all: a threshold of
-// 100 or more disables it and an unknown context limit cannot anchor a
-// token point.
 func (t compactionTrigger) enabled() bool {
 	return t.thresholdPercent >= 0 && t.thresholdPercent < 100 && t.contextLimit > 0
 }
@@ -794,13 +791,9 @@ func (t compactionTrigger) point() float64 {
 	return float64(t.contextLimit) * float64(t.thresholdPercent) / 100
 }
 
-// bindingCompactionTrigger selects the trigger that fires first between
-// the chat trigger and the compaction override model's own trigger.
-// Prompt usage is a single scalar, so firing when either enabled
-// trigger is reached is equivalent to using the enabled trigger with
-// the lower token point. Ties prefer the chat trigger, and when neither
-// trigger is enabled the chat pair passes through so the existing
-// threshold and limit disable semantics hold downstream.
+// bindingCompactionTrigger compares token counts because both triggers use
+// the same prompt usage. The chat trigger wins ties and passes through when
+// neither trigger is enabled.
 func bindingCompactionTrigger(chat, override compactionTrigger) compactionTrigger {
 	switch {
 	case !override.enabled():

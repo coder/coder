@@ -32,7 +32,7 @@ describe("compaction triggers", () => {
 		).toBe(false);
 	});
 
-	it("computes token points and percentages", () => {
+	it("computes compaction trigger token counts and percentages", () => {
 		expect(
 			compactionTriggerPoint({
 				thresholdPercent: 80,

@@ -956,13 +956,16 @@ The model editor scopes the field to openai-typed providers with a `providers` s
 
 #### Compaction model selection
 
+TODO: Document independent chat and override compaction triggers and the shared post-compaction limit check.
+
 Compaction is an auxiliary LLM call: when the conversation approaches the context limit, the generation goroutine asks a model to summarize the history, commits the summary as a compressed boundary, and continues the turn on the chat model.
 
-By default the summary is generated with the chat model. Organization admins can select a dedicated compaction model via `PUT /api/v2/organizations/{organization}/chats/model-overrides/compaction`. The selection is stored as a typed `chat_organization_model_overrides` row and resolved using the chat's organization. Its composite foreign key binds the model config UUID to that organization, so cross-organization and malformed string references cannot be stored. The override affects the summary call and contributes its own compaction trigger (see below); compressed-message storage and the post-compaction assistant generation keep using the chat model.
+By default the summary is generated with the chat model. Organization admins can select a dedicated compaction model via `PUT /api/v2/organizations/{organization}/chats/model-overrides/compaction`. The selection is stored as a typed `chat_organization_model_overrides` row and resolved using the chat's organization. Its composite foreign key binds the model config UUID to that organization, so cross-organization and malformed string references cannot be stored. The override affects only the summary call; compressed-message storage and the post-compaction assistant generation keep using the chat model.
 
 Details that follow from the override:
 
-- Triggers: the chat trigger and the override model's own trigger are evaluated independently, and compaction fires at whichever enabled trigger is reached first. The chat trigger applies the user's threshold override (falling back to the chat model's compression threshold) to the chat model's context limit; the override trigger applies the override model's own compression threshold to its own context limit, because the history must also fit the summarizer's window. Prompt usage is a single scalar, so this reduces to selecting the enabled trigger with the lower token point (context limit times threshold percent), ties preferring the chat trigger. The selected pair feeds both the compaction gate and the post-compaction "still over limit" check, which must compare against the same limit; otherwise a stricter override trigger would loop through repeated compactions instead of surfacing the terminal error. A threshold of 100 or an unknown context limit disables only its own trigger, so a user disabling auto-compaction does not stop an override model from protecting its own window; when neither trigger is enabled, the chat pair passes through so the existing disable semantics hold downstream.
+- Context limits: the compaction trigger uses the stricter of the chat model's and the compaction model's context limits, because the history must also fit the summarizer's window.
+  The post-compaction "still over limit" check uses that same stricter limit; otherwise a smaller compaction-model window could trigger repeated compactions instead of a terminal error.
 - Failure semantics: an unset override uses the chat model.
   A stored config that later becomes deleted or disabled, whose provider becomes disabled, or whose required credentials become unavailable is logged and falls back to the chat model during generation preparation.
   Failure to read the override row or load provider credentials stops preparation.
@@ -1005,7 +1008,7 @@ The worker periodically archives old, unused chats.
 
 ## Manual compaction
 
-Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the compaction trigger selected at prepare time (see [Compaction model selection](#compaction-model-selection)), and when the trigger is reached it makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
+Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the model's compaction threshold, and when the threshold is exceeded it makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
 
 Users can also request a compaction on demand via `POST /api/experimental/chats/{chat}/compact` (surfaced in the web UI as the `/compact` slash command). Manual compaction is a durable one-shot request executed through the normal worker loop rather than synchronously in the HTTP handler. This reuses the worker's lock fencing, retry accounting, streamed "Summarizing..." progress parts, metrics, and debug runs, and it survives replica crashes. The flow:
 

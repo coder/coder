@@ -928,10 +928,8 @@ const AgentChatPage: FC = () => {
 		modelOverridesQuery.data?.overrides,
 		models,
 	);
-	// While the override query is loading or failed the binding trigger is
-	// unknown, so withhold the compact-at hint instead of attributing it to
-	// the wrong source.
-	const isCompactionTriggerKnown = modelOverridesQuery.isSuccess;
+	// Cached overrides remain usable after a background refetch fails.
+	const isCompactionTriggerKnown = modelOverridesQuery.data !== undefined;
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,

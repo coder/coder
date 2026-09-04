@@ -112,9 +112,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 			return null;
 		}
 
-		// The binding helper is authoritative: it also catches chat models
-		// whose own threshold of 100 disables their trigger, because the
-		// organization trigger then binds regardless of token points.
+		// Setting 100% disables only the chat model trigger, not the override.
 		const undercutModelNames = enabledModels.flatMap((model) => {
 			const chatTrigger = {
 				thresholdPercent: model.compression_threshold,
@@ -134,7 +132,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 		return (
 			<Alert severity="warning">
 				<AlertDescription>
-					{`Chats using ${formatModelList(undercutModelNames)} may compact earlier than their models' default thresholds because ${compactionModelName} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds set below that point still apply first.`}
+					{`Chats using ${formatModelList(undercutModelNames)} may compact earlier than their models' default thresholds because ${compactionModelName} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
 				</AlertDescription>
 			</Alert>
 		);

@@ -16,10 +16,8 @@ type CompactionThresholdSource = "user" | "model" | "organization";
 export interface ResolvedCompactionThreshold {
 	readonly percent: number;
 	readonly source: CompactionThresholdSource;
-	// Absolute token point of an organization trigger. Consumers that
-	// display a runtime-reported context limit convert this against that
-	// limit instead of trusting percent, which is relative to the
-	// configured limit.
+	// Token count that triggers organization compaction. The gauge converts
+	// this using its runtime context limit; percent uses the configured limit.
 	readonly pointTokens?: number;
 }
 
