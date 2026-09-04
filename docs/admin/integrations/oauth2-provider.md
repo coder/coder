@@ -414,7 +414,7 @@ does not, so a bad URL is never echoed back to a browser.
 The authorization endpoint validates the `scope` parameter. When it cannot
 grant what was asked for, it redirects to your registered callback with
 `error=invalid_scope` rather than issuing a code. The `error_description`
-opens with the name that caused the rejection:
+opens with the requested name that caused the rejection:
 
 - `unknown or unsupported scope`: this deployment does not offer that scope
   name. Read the current list from `scopes_supported` in
@@ -425,7 +425,9 @@ opens with the name that caused the rejection:
 - `none of the scopes registered for this app are supported by this
   deployment`: the application's own registered `scope` names nothing this
   deployment offers, so no request against it can succeed, including one
-  that omits `scope`. Re-register the application with supported scopes.
+  that omits `scope`. Re-register the application with supported scopes. This
+  description stands alone. Nothing validates a registered `scope`, so the
+  response never echoes it; the server log records the application ID.
 
 Omitting `scope` requests the application's registered scopes, or full access
 if it was registered without any.
@@ -443,6 +445,43 @@ scope names something this deployment cannot mint, the exchange answers HTTP
 The usual cause is a grant made against a scope the deployment has since
 dropped. Authorize again to negotiate a scope it still supports; the stored
 scope is not something the client can change by requesting a different one.
+
+The exchange also re-checks the code's scope against the application's
+registered `scope`, which can change during the ten minutes a code stays valid.
+Two more descriptions can open the `error_description` here:
+
+- `scope is no longer allowed by this app's registered scopes`: the
+  registration narrowed after the code was issued and no longer covers the
+  code's scope. Authorize again to negotiate a scope within the new
+  registration.
+- `none of the scopes registered for this app are supported by this
+  deployment`: the registration names nothing this deployment offers, so no
+  code against it can be redeemed. Re-register the application with supported
+  scopes. As on the authorize endpoint, the registered value stays out of the
+  response.
+
+A coverage comparison this deployment cannot decide answers HTTP 500 with
+`error=server_error` and `The requested scope could not be evaluated`; the
+scope that could not be compared is in the server logs, not the response.
+
+Only the application itself can change its registered `scope`, through
+[Dynamic Client Registration](#dynamic-client-registration). No administrator
+surface writes the column, and an application that holds its registration
+access token can widen its own allowlist again before redeeming a code, so
+treat this re-check as reflecting the registration at redemption time rather
+than as a constraint on the client.
+
+A refresh is not re-checked against the registration. That is a Coder policy
+choice: withdrawing scope from a session already running would break it
+mid-flight, so a narrowing takes effect at the next authorization. A refresh
+token keeps its granted scope until it expires, which can be up to the
+configured refresh lifetime; revoke the token to cut a live session.
+
+Codes issued before the upgrade that added scope columns carry `coder:all`,
+recorded as an unrestricted grant. For an application registered with a
+narrower `scope`, those codes are refused with `scope is no longer allowed by
+this app's registered scopes` until they expire, which takes at most ten
+minutes. Authorizing again issues a code within the current registration.
 
 ### "unsupported_response_type" returned to your callback
 

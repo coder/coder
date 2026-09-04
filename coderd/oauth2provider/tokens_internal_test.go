@@ -1,12 +1,15 @@
 package oauth2provider
 
 import (
+	"database/sql"
 	"net/http"
 	"net/url"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -81,6 +84,125 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 			require.ErrorIs(t, err, errUnmintableScope, "scope %q", scope)
 		}
 	})
+}
+
+var (
+	ReasonUnmintableScope = errUnmintableScope.Error()
+	ReasonStaleScope      = errStaleScope.Error()
+)
+
+func TestCheckScopeStillCovered(t *testing.T) {
+	t.Parallel()
+
+	const (
+		inCatalog     = "coder:workspaces.access"
+		alsoInCatalog = "coder:templates.build"
+	)
+
+	tests := []struct {
+		name        string
+		granted     string
+		appScope    sql.NullString
+		wantErr     error
+		wantBareErr bool
+	}{
+		{
+			name:     "NoAllowlistConstrainsNothing",
+			granted:  string(database.ApiKeyScopeCoderAll),
+			appScope: sql.NullString{},
+		},
+		{
+			name:     "EmptyAllowlistConstrainsNothing",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: "", Valid: true},
+		},
+		{
+			name:     "UnchangedAllowlistStillCovers",
+			granted:  inCatalog,
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+		},
+		{
+			name:     "CompositeStillCoversItsParts",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+		},
+		{
+			name:     "WidenedAllowlistStillCovers",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: inCatalog + " " + alsoInCatalog, Valid: true},
+		},
+		{
+			name:     "AllowlistNarrowedAwayRejected",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: alsoInCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:     "PartiallyCoveredRejectedWhole",
+			granted:  "workspace:ssh file:create",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:     "UnrestrictedGrantNarrowedRejected",
+			granted:  string(database.ApiKeyScopeCoderAll),
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:        "AllowlistFilteredToEmptyRejected",
+			granted:     "workspace:ssh",
+			appScope:    sql.NullString{String: "openid profile", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
+		},
+		{
+			name:        "WhitespaceOnlyAllowlistRejected",
+			granted:     "workspace:ssh",
+			appScope:    sql.NullString{String: "   ", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
+		},
+		{
+			name:     "LegacyAliasAllowlistCoversCanonicalGrant",
+			granted:  "coder:all",
+			appScope: sql.NullString{String: "all", Valid: true},
+		},
+		{
+			// The mirror image, and the only row that exercises canonicalizing
+			// the granted side: `all` is not expandable, so a code stored
+			// before canonicalization landed would refuse without it.
+			name:     "LegacyAliasGrantCoveredByCanonicalAllowlist",
+			granted:  "all",
+			appScope: sql.NullString{String: "coder:all", Valid: true},
+		},
+		{
+			name:     "GrantOutsideTheCatalogUndecidable",
+			granted:  "some_removed_scope",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errCoverageUndecidable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := database.OAuth2ProviderApp{ID: uuid.New(), Scope: test.appScope}
+			err := checkScopeStillCovered(t.Context(), slogtest.Make(t, nil), app, test.granted)
+			if test.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, test.wantErr)
+			assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
+				"the rejection reason must appear once, not doubled by the wrap")
+			if test.wantBareErr {
+				assert.Equal(t, test.wantErr.Error(), err.Error(),
+					"the rejection must not name the app's unvalidated registered scope")
+			}
+		})
+	}
 }
 
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
