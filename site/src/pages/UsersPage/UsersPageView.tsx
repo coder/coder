@@ -31,7 +31,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 	canCreateUser,
 	...props
 }) => {
-	const [action, setAction] = useState<UserAdminAction>();
+	const [action, setAction] = useState<UserAdminAction | undefined>();
 
 	return (
 		<>
