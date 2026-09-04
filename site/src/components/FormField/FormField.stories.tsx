@@ -12,6 +12,7 @@ interface ExampleFormFieldProps {
 	required?: boolean;
 	error?: string;
 	value?: string;
+	ignorePasswordManagers?: boolean;
 }
 
 const ExampleFormField: FC<ExampleFormFieldProps> = ({
@@ -22,6 +23,7 @@ const ExampleFormField: FC<ExampleFormFieldProps> = ({
 	required,
 	error,
 	value = "",
+	ignorePasswordManagers,
 }) => {
 	const form = useFormik({
 		initialValues: { value },
@@ -43,6 +45,7 @@ const ExampleFormField: FC<ExampleFormFieldProps> = ({
 			label={label}
 			description={description}
 			required={required}
+			ignorePasswordManagers={ignorePasswordManagers}
 		/>
 	);
 };
@@ -156,5 +159,20 @@ export const RequiredWithDescription: Story = {
 			"aria-describedby",
 			"story-field-description",
 		);
+	},
+};
+
+export const IgnorePasswordManagers: Story = {
+	args: {
+		ignorePasswordManagers: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("textbox", { name: /Provider name/ });
+		await expect(input).toHaveAttribute("autocomplete", "off");
+		await expect(input).toHaveAttribute("data-1p-ignore");
+		await expect(input).toHaveAttribute("data-lpignore", "true");
+		await expect(input).toHaveAttribute("data-form-type", "other");
+		await expect(input).toHaveAttribute("data-bwignore");
 	},
 };
