@@ -155,12 +155,7 @@ INSERT INTO oauth2_provider_app_codes (
     $13
 ) RETURNING *;
 
--- name: DeleteOAuth2ProviderAppCodeByID :exec
--- Succeeds whether or not a row was there. Callers that need to know use the
--- ReturningRow variant below.
-DELETE FROM oauth2_provider_app_codes WHERE id = $1;
-
--- name: DeleteOAuth2ProviderAppCodeByIDReturningRow :one
+-- name: DeleteOAuth2ProviderAppCodeByID :one
 -- Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
 -- this the arbiter of single use. A prior read cannot arbitrate: its result is
 -- stale the moment it returns.

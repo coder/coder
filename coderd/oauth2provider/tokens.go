@@ -332,7 +332,7 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 	defer cancel()
 
 	//nolint:gocritic // OAuth2 system context, no authenticated user during token exchange
-	if err := db.DeleteOAuth2ProviderAppCodeByID(dbauthz.AsSystemOAuth2(revokeCtx), codeID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if _, err := db.DeleteOAuth2ProviderAppCodeByID(dbauthz.AsSystemOAuth2(revokeCtx), codeID); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
 			rlogger.WithFields(slog.F("oauth2_pkce_failure_code_revoke_error", err.Error()))
 		}
@@ -499,7 +499,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		ctx := dbauthz.As(ctx, actor)
 		// The delete decides the race: only the redemption that removes the row
 		// mints a token, and the loser sees the code as already spent.
-		_, err := tx.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, dbCode.ID)
+		_, err := tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errBadCode
 		}

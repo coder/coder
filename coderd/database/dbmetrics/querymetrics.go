@@ -664,19 +664,11 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppByID(ctx context.Context, id u
 	return r0
 }
 
-func (m queryMetricsStore) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error {
+func (m queryMetricsStore) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
 	start := time.Now()
-	r0 := m.s.DeleteOAuth2ProviderAppCodeByID(ctx, id)
+	r0, r1 := m.s.DeleteOAuth2ProviderAppCodeByID(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteOAuth2ProviderAppCodeByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOAuth2ProviderAppCodeByID").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
-	start := time.Now()
-	r0, r1 := m.s.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, id)
-	m.queryLatencies.WithLabelValues("DeleteOAuth2ProviderAppCodeByIDReturningRow").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOAuth2ProviderAppCodeByIDReturningRow").Inc()
 	return r0, r1
 }
 
