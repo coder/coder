@@ -117,14 +117,34 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				<-time.After(prometheusFlags.Wait)
 			}()
 
-			var adminReuse, regularReuse []notificationReuseUser
+			var adminReuse, regularReuse []loadtestutil.ReuseUser
 			_, _ = fmt.Fprintln(inv.Stderr, "Reusing existing scaletest users...")
 			// Bound token lifetime to just beyond the run so tokens orphaned by a
 			// hard kill expire quickly rather than at the deployment default.
 			tokenLifetime := notificationTimeout + dialTimeout + time.Hour
-			adminReuse, regularReuse, err = selectNotificationReuseUsers(ctx, client, usernameInfix, int(templateAdminCount), int(regularUserCount), tokenLifetime)
+			hint := createUsersCommandHint(int(userCount), templateAdminPercentage, usernameInfix)
+			// Select both groups (read-only) before minting any tokens, so an
+			// insufficient pool fails without leaving orphaned tokens. Template
+			// admins and regular users are disjoint by role, so the two selections
+			// never pick the same user.
+			isTemplateAdmin := func(u codersdk.User) bool { return loadtestutil.UserHasRole(u, codersdk.RoleTemplateAdmin) }
+			adminUsers, err := loadtestutil.SelectReuseUsers(ctx, client, usernameInfix, int(templateAdminCount), isTemplateAdmin)
 			if err != nil {
-				return err
+				return annotateInsufficientUsersError(err, hint)
+			}
+			regularUsers, err := loadtestutil.SelectReuseUsers(ctx, client, usernameInfix, int(regularUserCount), func(u codersdk.User) bool {
+				return !isTemplateAdmin(u)
+			})
+			if err != nil {
+				return annotateInsufficientUsersError(err, hint)
+			}
+			adminReuse, err = loadtestutil.MintReuseTokens(ctx, client, adminUsers, tokenLifetime)
+			if err != nil {
+				return xerrors.Errorf("mint reuse tokens: %w", err)
+			}
+			regularReuse, err = loadtestutil.MintReuseTokens(ctx, client, regularUsers, tokenLifetime)
+			if err != nil {
+				return xerrors.Errorf("mint reuse tokens: %w", err)
 			}
 
 			dialBarrier := &sync.WaitGroup{}
@@ -162,8 +182,8 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					SMTPApiURL:               smtpAPIURL,
 					SMTPRequestTimeout:       smtpRequestTimeout,
 					SMTPHttpClient:           smtpHTTPClient,
-					SessionToken:             adminReuse[i].sessionToken,
-					PreCreatedUser:           adminReuse[i].user,
+					SessionToken:             adminReuse[i].SessionToken,
+					PreCreatedUser:           adminReuse[i].User,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -177,8 +197,8 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					DialBarrier:           dialBarrier,
 					ReceivingWatchBarrier: templateAdminWatchBarrier,
 					Metrics:               metrics,
-					SessionToken:          regularReuse[i].sessionToken,
-					PreCreatedUser:        regularReuse[i].user,
+					SessionToken:          regularReuse[i].SessionToken,
+					PreCreatedUser:        regularReuse[i].User,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -484,86 +504,4 @@ func triggerNotifications(
 	// Record expected notification.
 	expectedNotifications[notificationsLib.TemplateTemplateDeleted] <- time.Now()
 	close(expectedNotifications[notificationsLib.TemplateTemplateDeleted])
-}
-
-type notificationReuseUser struct {
-	user         codersdk.User
-	sessionToken string
-}
-
-// selectNotificationReuseUsers selects existing scaletest users belonging to the
-// pool identified by usernameInfix and mints a token for each, erroring if the
-// pool lacks enough template admins or regular users. usernameInfix is inserted
-// between the mandatory "scaletest-" root and the rest of the username (empty
-// selects any scaletest- user), so it isolates this run from other load
-// generators that reuse scaletest users concurrently.
-func selectNotificationReuseUsers(ctx context.Context, client *codersdk.Client, usernameInfix string, adminCount, regularCount int, tokenLifetime time.Duration) (admins, regulars []notificationReuseUser, err error) {
-	// The scaletest- root is always kept so selection matches the users that
-	// create-users provisions; usernameInfix, when set, narrows to that pool.
-	searchPrefix := loadtestutil.ScaleTestPrefix + "-"
-	if usernameInfix != "" {
-		searchPrefix += usernameInfix + "-"
-	}
-	users, err := getScaletestUsersWithPrefix(ctx, client, searchPrefix)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("list scaletest users: %w", err)
-	}
-
-	var adminUsers, regularUsers []codersdk.User
-	for _, u := range users {
-		if userHasRole(u, codersdk.RoleTemplateAdmin) {
-			adminUsers = append(adminUsers, u)
-		} else {
-			regularUsers = append(regularUsers, u)
-		}
-	}
-
-	if len(adminUsers) < adminCount || len(regularUsers) < regularCount {
-		total := adminCount + regularCount
-		var pct float64
-		if total > 0 {
-			pct = float64(adminCount) / float64(total) * 100
-		}
-		hint := fmt.Sprintf("coder exp scaletest create-users --count %d --template-admin-percentage %.2f --no-cleanup", total, pct)
-		if usernameInfix != "" {
-			hint = fmt.Sprintf("coder exp scaletest create-users --count %d --template-admin-percentage %.2f --username-infix %q --no-cleanup", total, pct, usernameInfix)
-		}
-		return nil, nil, xerrors.Errorf(
-			"not enough scaletest users to reuse: found %d template admins and %d regular users, need %d and %d. "+
-				"Create them first, for example: %s",
-			len(adminUsers), len(regularUsers), adminCount, regularCount, hint)
-	}
-
-	// Token names are auto-generated by the server; we only need the returned key.
-	mint := func(selected []codersdk.User) ([]notificationReuseUser, error) {
-		reuse := make([]notificationReuseUser, 0, len(selected))
-		for _, u := range selected {
-			res, err := client.CreateToken(ctx, u.ID.String(), codersdk.CreateTokenRequest{
-				Lifetime: tokenLifetime,
-			})
-			if err != nil {
-				return nil, xerrors.Errorf("mint token for user %q: %w", u.Username, err)
-			}
-			reuse = append(reuse, notificationReuseUser{user: u, sessionToken: res.Key})
-		}
-		return reuse, nil
-	}
-
-	if admins, err = mint(adminUsers[:adminCount]); err != nil {
-		return nil, nil, err
-	}
-	if regulars, err = mint(regularUsers[:regularCount]); err != nil {
-		return nil, nil, err
-	}
-
-	return admins, regulars, nil
-}
-
-func userHasRole(u codersdk.User, roleName string) bool {
-	for _, role := range u.Roles {
-		if role.Name == roleName {
-			return true
-		}
-	}
-	return false
 }
