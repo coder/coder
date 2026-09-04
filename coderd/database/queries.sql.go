@@ -2024,6 +2024,62 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 	return items, nil
 }
 
+const listAIBridgeProviders = `-- name: ListAIBridgeProviders :many
+SELECT
+	provider_name
+FROM
+	aibridge_interceptions
+WHERE
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
+	AND aibridge_interceptions.provider_name != ''
+	-- Filter provider_name (prefix match, same as models and clients).
+	AND CASE
+		WHEN $1::text != '' THEN aibridge_interceptions.provider_name LIKE $1::text || '%'
+		ELSE true
+	END
+	-- We use an ` + "`" + `@authorize_filter` + "`" + ` as we are attempting to list providers
+	-- that are relevant to the user and what they are allowed to see.
+	-- Authorize Filter clause will be injected below in
+	-- ListAIBridgeProvidersAuthorized.
+	-- @authorize_filter
+GROUP BY
+	provider_name
+ORDER BY
+	provider_name ASC
+LIMIT COALESCE(NULLIF($3::integer, 0), 100)
+OFFSET $2
+`
+
+type ListAIBridgeProvidersParams struct {
+	ProviderName string `db:"provider_name" json:"provider_name"`
+	Offset       int32  `db:"offset_" json:"offset_"`
+	Limit        int32  `db:"limit_" json:"limit_"`
+}
+
+func (q *sqlQuerier) ListAIBridgeProviders(ctx context.Context, arg ListAIBridgeProvidersParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeProviders, arg.ProviderName, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var provider_name string
+		if err := rows.Scan(&provider_name); err != nil {
+			return nil, err
+		}
+		items = append(items, provider_name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeSessionNetworkCalls = `-- name: ListAIBridgeSessionNetworkCalls :many
 SELECT bl.id, bl.session_id, bl.sequence_number, bl.captured_at, bl.created_at, bl.proto, bl.method, bl.detail, bl.matched_rule, bl.owner_id
 FROM aibridge_interceptions afi

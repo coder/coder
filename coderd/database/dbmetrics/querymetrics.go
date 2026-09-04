@@ -4808,6 +4808,14 @@ func (m queryMetricsStore) ListAIBridgeModels(ctx context.Context, arg database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIBridgeProviders(ctx context.Context, arg database.ListAIBridgeProvidersParams) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeProviders(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeProviders").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeProviders").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg database.ListAIBridgeSessionNetworkCallsParams) ([]database.BoundaryLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeSessionNetworkCalls(ctx, arg)
@@ -6837,6 +6845,14 @@ func (m queryMetricsStore) ListAuthorizedAIBridgeClients(ctx context.Context, ar
 	r0, r1 := m.s.ListAuthorizedAIBridgeClients(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeClients").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeClients").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAuthorizedAIBridgeProviders(ctx context.Context, arg database.ListAIBridgeProvidersParams, prepared rbac.PreparedAuthorized) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAuthorizedAIBridgeProviders(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeProviders").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeProviders").Inc()
 	return r0, r1
 }
 

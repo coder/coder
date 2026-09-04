@@ -475,20 +475,22 @@ func TestAIBridgeListSessions(t *testing.T) {
 		// Session from user1 with provider "anthropic" and client "claude-code".
 		s1EndedAt := now.Add(time.Minute)
 		s1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			Provider:    "anthropic",
-			Model:       "claude-4",
-			StartedAt:   now,
-			Client:      sql.NullString{String: "claude-code", Valid: true},
+			InitiatorID:  firstUser.UserID,
+			Provider:     "anthropic",
+			ProviderName: "anthropic-prod",
+			Model:        "claude-4",
+			StartedAt:    now,
+			Client:       sql.NullString{String: "claude-code", Valid: true},
 		}, &s1EndedAt)
 
 		// Session from user2 with provider "openai".
 		s2EndedAt := now.Add(-time.Hour + time.Minute)
 		s2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: user2.ID,
-			Provider:    "openai",
-			Model:       "gpt-4",
-			StartedAt:   now.Add(-time.Hour),
+			InitiatorID:  user2.ID,
+			Provider:     "openai",
+			ProviderName: "openai-prod",
+			Model:        "gpt-4",
+			StartedAt:    now.Add(-time.Hour),
 		}, &s2EndedAt)
 
 		// Filter by initiator.
@@ -507,6 +509,22 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res.Count)
 		require.Equal(t, s1.ID.String(), res.Sessions[0].ID)
+
+		// Filter by provider_name. Unknown names return an empty page,
+		// not a validation error.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			ProviderName: "anthropic-prod",
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Equal(t, s1.ID.String(), res.Sessions[0].ID)
+
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			ProviderName: "does-not-exist",
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, res.Count)
+		require.Empty(t, res.Sessions)
 
 		// Filter by model.
 		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
@@ -1364,6 +1382,102 @@ func TestAIBridgeListClients(t *testing.T) {
 		string(aiblib.ClientClaudeCode),
 		"Unknown",
 	}, clients)
+}
+
+func TestAIBridgeListProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err := client.AIBridgeListProviders(ctx)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	t.Run("ListsDistinctNamesFromSessions", func(t *testing.T) {
+		t.Parallel()
+
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  firstUser.UserID,
+			Provider:     "openai",
+			ProviderName: "openai-prod",
+			StartedAt:    now,
+		}, &endedAt)
+
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  firstUser.UserID,
+			Provider:     "anthropic",
+			ProviderName: "anthropic-prod",
+			StartedAt:    now,
+		}, &endedAt)
+
+		// Duplicate name must be deduplicated.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  firstUser.UserID,
+			Provider:     "openai",
+			ProviderName: "openai-prod",
+			StartedAt:    now,
+		}, &endedAt)
+
+		// In-flight interception must not appear.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  firstUser.UserID,
+			Provider:     "openai",
+			ProviderName: "openai-inflight",
+			StartedAt:    now,
+		}, nil)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		providers, err := client.AIBridgeListProviders(ctx)
+		require.NoError(t, err)
+		require.Equal(t, []string{"anthropic-prod", "openai-prod"}, providers)
+	})
+
+	t.Run("AuditorWithoutAIProviderRead", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		auditorClient, auditorUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, rbac.RoleAuditor())
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  auditorUser.ID,
+			Provider:     "anthropic",
+			ProviderName: "anthropic-prod",
+			StartedAt:    now,
+		}, &endedAt)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		providers, err := auditorClient.AIBridgeListProviders(ctx)
+		require.NoError(t, err)
+		require.Equal(t, []string{"anthropic-prod"}, providers)
+
+		sessions, err := auditorClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			ProviderName: "anthropic-prod",
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, sessions.Count)
+	})
 }
 
 func TestAIBridgeRouting(t *testing.T) {

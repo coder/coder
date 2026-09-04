@@ -1262,6 +1262,7 @@ type sqlcQuerier interface {
 	ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error)
 	ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeModelThought, error)
 	ListAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams) ([]string, error)
+	ListAIBridgeProviders(ctx context.Context, arg ListAIBridgeProvidersParams) ([]string, error)
 	// Returns the individual Agent Firewall network calls made during an AI
 	// session, ordered chronologically. All protocols are included, unlike
 	// GetAIBridgeSessionTopDomains which considers only HTTP egress, so the list

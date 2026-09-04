@@ -416,7 +416,9 @@ func AIBridgeSessions(ctx context.Context, db database.Store, query string, page
 	parser := httpapi.NewQueryParamParser()
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
 	filter.Provider = parser.String(values, "", "provider")
-	filter.ProviderName = parseAIProviderName(ctx, db, parser, values)
+	// Match interceptions by name. Do not look up ai_providers: that requires
+	// AIProvider read, which session viewers do not have.
+	filter.ProviderName = parser.String(values, "", "provider_name")
 	filter.Model = parser.String(values, "", "model")
 	filter.Client = parser.String(values, "", "client")
 	filter.SessionID = parser.String(values, "", "session_id")
@@ -487,6 +489,34 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 
 	parser := httpapi.NewQueryParamParser()
 	filter.Client = parser.String(values, "", "client")
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
+func AIBridgeProviders(query string, page codersdk.Pagination) (database.ListAIBridgeProvidersParams, []codersdk.ValidationError) {
+	// nolint:exhaustruct // Empty values just means "don't filter by that field".
+	filter := database.ListAIBridgeProvidersParams{
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		Offset: int32(page.Offset),
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: int32(page.Limit),
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("provider_name", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.ProviderName = parser.String(values, "", "provider_name")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
@@ -742,24 +772,6 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 		}
 		return organization.ID, nil
 	})
-}
-
-// parseAIProviderName resolves a "provider_name" filter param against
-// ai_providers.name. Unknown names produce a validation error so typos
-// surface immediately rather than returning a silently-empty result set.
-func parseAIProviderName(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values) string {
-	name := parser.String(vals, "", "provider_name")
-	if name == "" {
-		return ""
-	}
-	if _, err := db.GetAIProviderByName(ctx, name); err != nil {
-		parser.Errors = append(parser.Errors, codersdk.ValidationError{
-			Field:  "provider_name",
-			Detail: `Query param "provider_name" has invalid value: provider not found or unauthorized`,
-		})
-		return ""
-	}
-	return name
 }
 
 func parseUser(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string, actorID uuid.UUID) uuid.UUID {

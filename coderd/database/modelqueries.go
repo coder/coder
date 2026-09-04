@@ -1011,6 +1011,7 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 type aibridgeQuerier interface {
 	ListAuthorizedAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error)
 	ListAuthorizedAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams, prepared rbac.PreparedAuthorized) ([]string, error)
+	ListAuthorizedAIBridgeProviders(ctx context.Context, arg ListAIBridgeProvidersParams, prepared rbac.PreparedAuthorized) ([]string, error)
 	ListAuthorizedAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionsRow, error)
 	CountAuthorizedAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) (int64, error)
 	ListAuthorizedAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionThreadsRow, error)
@@ -1070,6 +1071,35 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeClients(ctx context.Context, arg List
 			return nil, err
 		}
 		items = append(items, client)
+	}
+	return items, nil
+}
+
+func (q *sqlQuerier) ListAuthorizedAIBridgeProviders(ctx context.Context, arg ListAIBridgeProvidersParams, prepared rbac.PreparedAuthorized) ([]string, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.AIBridgeInterceptionConverter(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+	filtered, err := insertAuthorizedFilter(listAIBridgeProviders, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: ListAIBridgeProviders :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, arg.ProviderName, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var providerName string
+		if err := rows.Scan(&providerName); err != nil {
+			return nil, err
+		}
+		items = append(items, providerName)
 	}
 	return items, nil
 }
