@@ -32,6 +32,14 @@ import { SpendSectionHeader } from "./SpendSectionHeader";
 
 export const userSearchParam = "user";
 
+const fromSpendListState = { fromSpendList: true };
+
+export const openedFromSpendList = (state: unknown): boolean =>
+	typeof state === "object" &&
+	state !== null &&
+	"fromSpendList" in state &&
+	state.fromSpendList === true;
+
 interface SpendUsersTableProps {
 	displayDateRange: DateRangeValue;
 	onDateRangeChange: (value: DateRangeValue) => void;
@@ -175,13 +183,18 @@ const UserRow: FC<{
 	// cell. The name link is the keyboard-reachable control; clicking elsewhere
 	// on the row is a mouse shortcut to the same place.
 	return (
-		<TableRow hover className="text-xs" onClick={() => navigate(detailsTo)}>
+		<TableRow
+			hover
+			className="text-xs"
+			onClick={() => navigate(detailsTo, { state: fromSpendListState })}
+		>
 			<TableCell className="max-w-[200px] px-3 py-2">
 				<AvatarData
 					truncate
 					title={
 						<RouterLink
 							to={detailsTo}
+							state={fromSpendListState}
 							className="hover:underline"
 							onClick={(event) => event.stopPropagation()}
 						>

@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import {
 	aiGatewaySpendUserSummary,
 	paginatedAIGatewaySpendUsers,
@@ -18,7 +18,10 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import { pageTitle } from "#/utils/page";
-import { userSearchParam } from "./components/SpendUsersTable";
+import {
+	openedFromSpendList,
+	userSearchParam,
+} from "./components/SpendUsersTable";
 import { SpendPageView } from "./SpendPageView";
 
 const startDateSearchParam = "startDate";
@@ -54,6 +57,8 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	const canViewSpend = isEntitled && isEnabled && hasPermission;
 
 	const [searchParams, setSearchParams] = useSearchParams();
+	const location = useLocation();
+	const navigate = useNavigate();
 
 	const searchFilter = searchParams.get("search") ?? "";
 	const debouncedSearch = useDebouncedValue(searchFilter, SEARCH_DEBOUNCE_MS);
@@ -114,7 +119,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				next.delete("page");
 				return next;
 			},
-			{ replace: true },
+			{ replace: true, state: location.state },
 		);
 	};
 
@@ -156,6 +161,13 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				drillInUserError={selectedUserQuery.error}
 				onDrillInUserRetry={() => void selectedUserQuery.refetch()}
 				onClearSelectedUser={() => {
+					// A drill-in opened from the list sits on top of the list entry,
+					// so popping it keeps browser Back working. Direct links have no
+					// list entry beneath them and are replaced instead.
+					if (openedFromSpendList(location.state)) {
+						navigate(-1);
+						return;
+					}
 					setSearchParams(
 						(prev) => {
 							const next = new URLSearchParams(prev);
