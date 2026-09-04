@@ -133,6 +133,10 @@
 	],
 	"openai": [
 		{
+			"modelIdentifier": "gpt-6-astra",
+			"reasoningEffort": "medium"
+		},
+		{
 			"modelIdentifier": "gpt-5.6-sol",
 			"aliases": ["gpt-5.6"],
 			"reasoningEffort": "medium"

@@ -4,6 +4,10 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -14,6 +18,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -37,7 +42,7 @@ func TestNegotiateScope(t *testing.T) {
 		appScope    sql.NullString
 		want        string
 		wantErr     error
-		wantErrText string
+		wantBareErr bool
 	}{
 		{
 			name:      "UnknownRequestedScopeRejected",
@@ -149,10 +154,11 @@ func TestNegotiateScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
-			name:      "AllowlistFilteringToEmptyRejected",
-			requested: nil,
-			appScope:  sql.NullString{String: "openid profile email", Valid: true},
-			wantErr:   errNoGrantableScope,
+			name:        "AllowlistFilteringToEmptyRejected",
+			requested:   nil,
+			appScope:    sql.NullString{String: "openid profile email", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
 		},
 		{
 			name:      "RegisteredNonCatalogScopeRejected",
@@ -165,7 +171,7 @@ func TestNegotiateScope(t *testing.T) {
 			requested:   nil,
 			appScope:    sql.NullString{String: "   ", Valid: true},
 			wantErr:     errNoGrantableScope,
-			wantErrText: `"   "`,
+			wantBareErr: true,
 		},
 		{
 			name:      "LegacyAllAliasCanonicalized",
@@ -222,9 +228,9 @@ func TestNegotiateScope(t *testing.T) {
 				assert.Empty(t, got, "a rejected request must not return a persistable scope")
 				assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
 					"the rejection reason must appear once, not doubled by the wrap")
-				if test.wantErrText != "" {
-					assert.Contains(t, err.Error(), test.wantErrText,
-						"the rejection must name the value the app owner has to change")
+				if test.wantBareErr {
+					assert.Equal(t, test.wantErr.Error(), err.Error(),
+						"the rejection must not name the app's unvalidated registered scope")
 				}
 				return
 			}
@@ -250,13 +256,29 @@ func requirePersistableScope(t *testing.T, scope string) {
 	}
 }
 
-// Rejection reasons for the package's black-box tests, which cannot reach the
-// sentinels.
+// Rejection reasons from authorize.go for the package's black-box tests, which
+// cannot reach the sentinels.
 var (
-	ReasonUnknownScope     = errUnknownScope.Error()
-	ReasonNoGrantableScope = errNoGrantableScope.Error()
-	ReasonScopeNotAllowed  = errScopeNotAllowed.Error()
+	ReasonUnknownScope        = errUnknownScope.Error()
+	ReasonNoGrantableScope    = errNoGrantableScope.Error()
+	ReasonScopeNotAllowed     = errScopeNotAllowed.Error()
+	ReasonCoverageUndecidable = errCoverageUndecidable.Error()
 )
+
+// TestGrantableScopesNotSizedByInput pins the shape of the result, not just its
+// contents. app.Scope is unvalidated registration metadata read on every
+// authorization and redemption, so collecting duplicates and dropping them
+// afterwards would size the slice by the input rather than by the catalog.
+func TestGrantableScopesNotSizedByInput(t *testing.T) {
+	t.Parallel()
+
+	repeated := grantableScopes(strings.Repeat("coder:all ", 4096))
+	assert.Equal(t, []string{"coder:all"}, repeated)
+	assert.Less(t, cap(repeated), 8, "a repeated name must collapse as it is read")
+
+	assert.Empty(t, grantableScopes(strings.Repeat(" ", 4096)),
+		"a value naming no scope grants nothing")
+}
 
 func TestNoScopeAllowlist(t *testing.T) {
 	t.Parallel()
@@ -464,6 +486,225 @@ func TestConsentScopes(t *testing.T) {
 			names, unrestricted := consentScopes(test.granted)
 			require.Equal(t, test.want, names)
 			require.Equal(t, test.wantUnrestricted, unrestricted)
+		})
+	}
+}
+
+// TestNewAuthorizeResponse covers the two preconditions the constructor exists
+// to run together, and which of them is the server's fault.
+func TestNewAuthorizeResponse(t *testing.T) {
+	t.Parallel()
+
+	const registered = "https://app.example.com/callback"
+
+	t.Run("MatchingRedirectURI", func(t *testing.T) {
+		t.Parallel()
+
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{
+			"redirect_uri": {registered},
+			"state":        {"abc123"},
+		}, registered)
+
+		require.NoError(t, err)
+		require.Empty(t, p.Errors)
+		require.True(t, response.canRedirect())
+		require.Equal(t, registered, response.callbackURL())
+		require.Equal(t, "abc123", response.state)
+	})
+
+	t.Run("OmittedRedirectURIDefaultsToRegistered", func(t *testing.T) {
+		t.Parallel()
+
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{}, registered)
+
+		require.NoError(t, err)
+		require.Empty(t, p.Errors)
+		require.True(t, response.canRedirect())
+		require.Equal(t, registered, response.callbackURL())
+	})
+
+	t.Run("MismatchedRedirectURIHasNoDestination", func(t *testing.T) {
+		t.Parallel()
+
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{
+			"redirect_uri": {"https://elsewhere.example/cb"},
+		}, registered)
+
+		// The client's mistake, so it joins the parser's other errors rather
+		// than becoming a server fault.
+		require.NoError(t, err)
+		require.Len(t, p.Errors, 1)
+		require.Equal(t, "redirect_uri", p.Errors[0].Field)
+		require.False(t, response.canRedirect(),
+			"a URI that failed the match must not become a destination")
+	})
+
+	t.Run("DangerousClientSchemeIsNotTheServersFault", func(t *testing.T) {
+		t.Parallel()
+
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{
+			"redirect_uri": {"javascript:alert(1)"},
+		}, registered)
+
+		require.NoError(t, err, "the app registered a usable callback; the client did not send one")
+		require.NotEmpty(t, p.Errors)
+		require.False(t, response.canRedirect())
+	})
+
+	t.Run("DangerousRegisteredSchemeIsServerState", func(t *testing.T) {
+		t.Parallel()
+
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{}, "javascript:alert(1)")
+
+		require.Error(t, err)
+		require.Empty(t, p.Errors, "the registration is rejected before any parameter is read")
+		require.False(t, response.canRedirect())
+	})
+
+	t.Run("UnparsableRegisteredCallbackIsServerState", func(t *testing.T) {
+		t.Parallel()
+
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{}, "http://a b")
+
+		require.Error(t, err, "a registration that does not parse is the same class as one this server rejects")
+		require.Empty(t, p.Errors)
+		require.False(t, response.canRedirect())
+	})
+}
+
+// TestAuthorizeResponseZeroValue pins the zero value as inert, since it is what
+// a failure with no deliverable destination carries.
+func TestAuthorizeResponseZeroValue(t *testing.T) {
+	t.Parallel()
+
+	require.False(t, authorizeResponse{}.canRedirect())
+	require.False(t, (&authorizeFailure{}).redirect.canRedirect())
+	require.NotContains(t, fmt.Sprintf("%v", authorizeResponse{}), "PANIC",
+		"a String method on this type would panic through fmt on every failure path")
+}
+
+// TestFailureKind pins the precedence both handlers dispatch on, in the one
+// place it is now written.
+func TestFailureKind(t *testing.T) {
+	t.Parallel()
+
+	deliverable := authorizeResponse{callback: &url.URL{Scheme: "https", Host: "app.example.com"}}
+	unusable := xerrors.New("registered callback is not usable")
+
+	require.Equal(t, failureAnswerHere, authorizeFailure{}.kind())
+	require.Equal(t, failureDeliverToClient, authorizeFailure{redirect: deliverable}.kind())
+	require.Equal(t, failureCorruptRegistration, authorizeFailure{corruptCallback: unusable}.kind())
+	require.Equal(t, failureCorruptRegistration,
+		authorizeFailure{corruptCallback: unusable, redirect: deliverable}.kind(),
+		"the registration is what a Location header would be trusting, so its failure outranks a usable callback")
+}
+
+// TestCarveOutDelivery pins which failures reach the client's callback and which
+// stay here, the two RFC 6749 §4.1.2.1 carve-outs: an unsettled client identity
+// and a redirect URI at fault.
+func TestCarveOutDelivery(t *testing.T) {
+	t.Parallel()
+
+	app := database.OAuth2ProviderApp{
+		ID:          uuid.MustParse("6f1a9c30-0d6b-4f8e-9a71-2c4b83f0ab12"),
+		CallbackURL: "https://app.example.com/callback",
+	}
+
+	valid := func() url.Values {
+		return url.Values{
+			"client_id":             {app.ID.String()},
+			"response_type":         {"code"},
+			"redirect_uri":          {"https://app.example.com/callback"},
+			"code_challenge":        {"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"},
+			"code_challenge_method": {"S256"},
+			"state":                 {"xyz"},
+		}
+	}
+
+	cases := []struct {
+		name    string
+		mutate  func(url.Values)
+		deliver bool
+	}{
+		{
+			// Repeated: the callback was matched against one of two candidates.
+			name:    "RepeatedClientID",
+			mutate:  func(v url.Values) { v["client_id"] = []string{app.ID.String(), app.ID.String()} },
+			deliver: false,
+		},
+		{
+			name: "ClientIDIsNotTheResolvedApp",
+			mutate: func(v url.Values) {
+				v.Set("client_id", uuid.NewString())
+				v.Set("code_challenge", "short")
+			},
+			deliver: false,
+		},
+		{
+			// httpmw resolved the app from the POST form body, which this
+			// parser never reads. The identity is not in doubt.
+			name:    "ClientIDAbsentFromTheQuery",
+			mutate:  func(v url.Values) { v.Del("client_id") },
+			deliver: true,
+		},
+		{
+			// RFC 6749 §3.1: sent without a value is the absent case above, so
+			// httpmw resolved the same way and the failure is as deliverable.
+			name:    "ClientIDValuelessInTheQuery",
+			mutate:  func(v url.Values) { v.Set("client_id", "") },
+			deliver: true,
+		},
+		{
+			// Every value valueless, so httpmw had one candidate, not several.
+			name:    "ClientIDRepeatedAndValueless",
+			mutate:  func(v url.Values) { v["client_id"] = []string{"", ""} },
+			deliver: true,
+		},
+		{
+			// uuid.Parse accepts this and httpmw resolved through it.
+			name: "ClientIDInANonCanonicalSpelling",
+			mutate: func(v url.Values) {
+				v.Set("client_id", "{"+strings.ToUpper(app.ID.String())+"}")
+				v.Set("code_challenge", "short")
+			},
+			deliver: true,
+		},
+		{
+			name:    "FailureOutsideTheIdentity",
+			mutate:  func(v url.Values) { v.Set("code_challenge", "short") },
+			deliver: true,
+		},
+		{
+			// The state read shares a function with the redirect_uri match, so
+			// this used to be charged to the redirect_uri carve-out.
+			name:    "RepeatedState",
+			mutate:  func(v url.Values) { v["state"] = []string{"xyz", "xyz"} },
+			deliver: true,
+		},
+		{
+			name:    "RedirectURIDoesNotMatchTheRegistration",
+			mutate:  func(v url.Values) { v.Set("redirect_uri", "https://attacker.example.com/callback") },
+			deliver: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			vals := valid()
+			tc.mutate(vals)
+			r := httptest.NewRequest(http.MethodGet, "/oauth2/authorize?"+vals.Encode(), nil)
+
+			_, failure := extractAuthorizeParams(r, slogtest.Make(t, nil), app)
+			require.NotNil(t, failure)
+			require.Equal(t, tc.deliver, failure.redirect.canRedirect())
 		})
 	}
 }
