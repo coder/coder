@@ -484,10 +484,6 @@ type MergeWatchedChatOptions = {
 	readonly activeChatId?: string;
 };
 
-// Shallow-compare two ChatDiffStatus objects by their meaningful
-// fields, ignoring refreshed_at/stale_at which change on every poll.
-// This covers all fields the UI renders, including the branch pill's
-// base_branch/head_branch, so retargeted PRs still trigger an update.
 const diffStatusEqual = (
 	a: TypesGen.ChatDiffStatus | undefined,
 	b: TypesGen.ChatDiffStatus | undefined,
