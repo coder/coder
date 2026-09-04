@@ -390,10 +390,11 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			},
 		)
 		mTx.EXPECT().AcquireLock(gomock.Any(), database.GenLockID("workspace_app_status_writes:"+app.ID.String())).Times(1).Return(nil)
-		// The latest status matches the incoming request, so no insert or
-		// workspace update is expected.
+		// The latest status matches the incoming request and comes from the same
+		// agent, so no insert or workspace update is expected.
 		mTx.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(database.WorkspaceAppStatus{
 			ID:      uuid.UUID{6},
+			AgentID: agent.ID,
 			State:   database.WorkspaceAppStatusStateComplete,
 			Message: "testing",
 			Uri: sql.NullString{
@@ -416,6 +417,67 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			t.Fatalf("unexpected workspace update published: %v", kind)
 		default:
 		}
+	})
+
+	// A status left behind by an earlier agent build must not suppress the
+	// current agent's first report, since stale statuses are discarded.
+	t.Run("DifferentAgentIsStored", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mTx := dbmock.NewMockStore(ctrl)
+		agent := database.WorkspaceAgent{
+			ID: uuid.UUID{2},
+		}
+
+		workspace := database.Workspace{
+			ID: uuid.UUID{9},
+		}
+		cachedWs := &agentapi.CachedWorkspaceFields{}
+		cachedWs.UpdateValues(workspace)
+
+		api := &agentapi.AppsAPI{
+			AgentID:   agent.ID,
+			Database:  mDB,
+			Log:       testutil.Logger(t),
+			Workspace: cachedWs,
+		}
+
+		app := database.WorkspaceApp{
+			ID: uuid.UUID{8},
+		}
+		mDB.EXPECT().GetWorkspaceAppByAgentIDAndSlug(gomock.Any(), database.GetWorkspaceAppByAgentIDAndSlugParams{
+			AgentID: agent.ID,
+			Slug:    "vscode",
+		}).Times(1).Return(app, nil)
+		mDB.EXPECT().InTx(gomock.Any(), gomock.Eq(&database.TxOptions{Isolation: sql.LevelReadCommitted})).Times(1).DoAndReturn(
+			func(fn func(database.Store) error, _ *database.TxOptions) error {
+				return fn(mTx)
+			},
+		)
+		mTx.EXPECT().AcquireLock(gomock.Any(), database.GenLockID("workspace_app_status_writes:"+app.ID.String())).Times(1).Return(nil)
+		// Same state/message/URI, but reported by a previous agent.
+		mTx.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(database.WorkspaceAppStatus{
+			ID:      uuid.UUID{6},
+			AgentID: uuid.UUID{3},
+			State:   database.WorkspaceAppStatusStateComplete,
+			Message: "testing",
+			Uri: sql.NullString{
+				String: "https://example.com",
+				Valid:  true,
+			},
+		}, nil)
+		mTx.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), gomock.Any()).Times(1).Return(database.WorkspaceAppStatus{}, nil)
+
+		_, err := api.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+			Slug:    "vscode",
+			Message: "testing",
+			Uri:     "https://example.com",
+			State:   agentproto.UpdateAppStatusRequest_COMPLETE,
+		})
+		require.NoError(t, err)
 	})
 
 	// A report committed while another report waits on the per-app lock must
@@ -448,8 +510,9 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			ID: uuid.UUID{8},
 		}
 		idleStatus := database.WorkspaceAppStatus{
-			ID:    uuid.UUID{6},
-			State: database.WorkspaceAppStatusStateIdle,
+			ID:      uuid.UUID{6},
+			AgentID: agent.ID,
+			State:   database.WorkspaceAppStatusStateIdle,
 		}
 
 		// Emulate the advisory lock: a transaction takes the token in
@@ -492,7 +555,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		})
 		mTx.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, params database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
 			inserted = append(inserted, params.State)
-			latest = database.WorkspaceAppStatus{ID: params.ID, State: params.State, Message: params.Message, Uri: params.Uri}
+			latest = database.WorkspaceAppStatus{ID: params.ID, AgentID: params.AgentID, State: params.State, Message: params.Message, Uri: params.Uri}
 			return database.WorkspaceAppStatus{}, nil
 		})
 

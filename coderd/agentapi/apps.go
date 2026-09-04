@@ -188,7 +188,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 
 		// Skip duplicate reports (e.g. the watcher re-reporting idle) so
 		// workspace_app_statuses doesn't grow unboundedly.
-		if isDuplicateAppStatus(latestAppStatus, dbState, cleaned, req.Uri) {
+		if isDuplicateAppStatus(latestAppStatus, a.AgentID, dbState, cleaned, req.Uri) {
 			return nil
 		}
 
@@ -242,10 +242,12 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	return new(agentproto.UpdateAppStatusResponse), nil
 }
 
-// isDuplicateAppStatus reports whether the incoming status matches the
-// latest persisted status for the app, making an insert redundant.
-func isDuplicateAppStatus(latest database.WorkspaceAppStatus, state database.WorkspaceAppStatusState, message, uri string) bool {
+// isDuplicateAppStatus reports whether the incoming status matches the latest
+// status from the same agent. A different agent's status must always be stored,
+// since consumers discard statuses older than the latest start build.
+func isDuplicateAppStatus(latest database.WorkspaceAppStatus, agentID uuid.UUID, state database.WorkspaceAppStatusState, message, uri string) bool {
 	return latest.ID != uuid.Nil &&
+		latest.AgentID == agentID &&
 		latest.State == state &&
 		latest.Message == message &&
 		latest.Uri.String == uri &&
