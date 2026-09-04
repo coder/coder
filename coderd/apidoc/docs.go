@@ -609,7 +609,7 @@ const docTemplate = `{
                     "Agent time"
                 ],
                 "summary": "Get deployment agent time",
-                "operationId": "get-agent-time",
+                "operationId": "get-deployment-agent-time",
                 "parameters": [
                     {
                         "type": "string",
