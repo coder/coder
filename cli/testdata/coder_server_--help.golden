@@ -222,6 +222,14 @@ Configure the background chat processing daemon.
           Force chat debug logging on for every chat, bypassing the runtime
           admin and user opt-in settings.
 
+      --chat-stage-metrics off|basic|full, $CODER_CHAT_STAGE_METRICS (default: basic)
+          How much of the chat lifecycle stage instrumentation to expose as
+          Prometheus metrics. "basic" records per-occurrence durations for the
+          wait, connect, and model-call stages on a 12-bucket ladder. "full"
+          adds every stage, a 16-bucket ladder, and the per-turn stage
+          distributions at a higher series count. "off" exposes none. Tracing
+          spans are unaffected.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
