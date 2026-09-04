@@ -2278,6 +2278,30 @@ SET
 WHERE
     chat_id = @chat_id::uuid;
 
+-- name: ClearChatDiffStatusPR :exec
+UPDATE
+    chat_diff_statuses
+SET
+    url = NULL,
+    pull_request_state = NULL,
+    pull_request_title = '',
+    pull_request_draft = FALSE,
+    changes_requested = FALSE,
+    additions = 0,
+    deletions = 0,
+    changed_files = 0,
+    author_login = NULL,
+    author_avatar_url = NULL,
+    base_branch = NULL,
+    head_branch = NULL,
+    pr_number = NULL,
+    commits = NULL,
+    approved = NULL,
+    reviewer_count = NULL,
+    stale_at = @stale_at::timestamptz
+WHERE
+    chat_id = @chat_id::uuid;
+
 -- name: GetChatDiffStatusSummary :one
 -- Returns aggregate PR counts across all agent chats for telemetry.
 -- Deduplicates by PR URL so forked chats referencing the same pull
