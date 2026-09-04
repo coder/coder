@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	ArrowUpRightIcon,
@@ -12,7 +13,6 @@ import {
 import type { FC } from "react";
 import { Link, type Location } from "react-router";
 import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 import { SettingsNavItem } from "./SettingsNavItem";
 
 interface SettingsPanelProps {

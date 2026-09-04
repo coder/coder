@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	FileIcon,
 	FolderIcon,
@@ -27,7 +28,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
 import { getPathBasename, getPathDirname } from "../utils/path";

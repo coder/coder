@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { ExternalLinkIcon, GlobeIcon } from "lucide-react";
 import type { FC } from "react";
-import { cn } from "#/utils/cn";
 import { ToolCall } from "./ToolCall";
 
 interface WebSearchSourcesProps {

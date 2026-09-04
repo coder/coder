@@ -172,9 +172,12 @@ type sqlcQuerier interface {
 	DeleteMCPServerUserTokensByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
+	// Succeeds whether or not a row was there. Callers that need to know use the
+	// ReturningRow variant below.
 	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error
-	// Returns sql.ErrNoRows when the code is already gone, which lets a caller
-	// enforce single use by racing this delete instead of reading first.
+	// Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
+	// this the arbiter of single use. A prior read cannot arbitrate: its result is
+	// stale the moment it returns.
 	DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error

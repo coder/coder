@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type CSSProperties,
 	type FC,
@@ -18,7 +19,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
 
 // Fallback log used in places where we must always have a valid log source.

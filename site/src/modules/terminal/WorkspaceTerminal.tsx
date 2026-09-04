@@ -5,6 +5,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
+import { cn } from "cn";
 import {
 	type Ref,
 	useCallback,
@@ -29,7 +30,6 @@ import {
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import { useClipboard } from "#/hooks/useClipboard";
-import { cn } from "#/utils/cn";
 import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
 import type { ConnectionStatus } from "./types";
@@ -152,6 +152,7 @@ export const WorkspaceTerminal = ({
 	const getTerminalDimensions = useCallback(
 		(terminal: Terminal): { height: number; width: number } | null => {
 			if (terminal.rows <= 0 || terminal.cols <= 0) {
+				// oxlint-disable-next-line react-hooks/rules-of-hooks -- reportTerminalError is a useEffectEvent used only to read the latest onError without making this callback reactive; intentionally invoked outside an effect.
 				reportTerminalError(
 					new Error(
 						`Terminal has non-positive dimensions: ${terminal.rows}x${terminal.cols}`,

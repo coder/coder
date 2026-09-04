@@ -66,14 +66,9 @@ func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app databas
 
 	allowlist := grantableScopes(app.Scope.String)
 	if len(allowlist) == 0 {
-		// app.Scope may separate names with tabs or newlines, which RFC 6749 §5.2
-		// forbids in error_description, so name the scopes rejoined with single
-		// spaces. Whitespace alone names nothing, so the reason stands alone.
-		registered := strings.Fields(app.Scope.String)
-		if len(registered) == 0 {
-			return errNoGrantableScope
-		}
-		return xerrors.Errorf("'%s': %w", strings.Join(registered, " "), errNoGrantableScope)
+		logger.Warn(ctx, "oauth2 code redemption refused: no registered scope is grantable",
+			slog.F("app_id", app.ID.String()))
+		return errNoGrantableScope
 	}
 
 	// Canonicalized because the row may have been written by an older server.
@@ -546,7 +541,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		ctx := dbauthz.As(ctx, actor)
 		// The delete decides the race: only the redemption that removes the row
 		// mints a token, and the loser sees the code as already spent.
-		_, err = tx.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, dbCode.ID)
+		_, err := tx.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, dbCode.ID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errBadCode
 		}
