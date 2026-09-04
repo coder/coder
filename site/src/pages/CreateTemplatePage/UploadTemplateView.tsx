@@ -68,10 +68,17 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
 			}}
 			showOrganizationPicker={showOrganizations}
 			onSubmit={async (formData) => {
+				// The non-null assertion on uploadedFile only holds at submit
+				// time (the form requires an uploaded file). The compiler hoists
+				// dependency expressions into render, so the guard must live in
+				// here rather than as an assertion in the closure body.
+				if (!uploadedFile) {
+					return;
+				}
 				await onCreateTemplate({
 					organization: formData.organization,
 					version: firstVersionFromFile(
-						uploadedFile!.hash,
+						uploadedFile.hash,
 						formData.user_variable_values,
 						formData.provisioner_type,
 						formData.tags,

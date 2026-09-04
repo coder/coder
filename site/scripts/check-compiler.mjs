@@ -16,13 +16,21 @@ import { transform } from "oxc-transform-react";
 // Resolve the site/ directory (ESM equivalent of __dirname + "..").
 const siteDir = new URL("..", import.meta.url).pathname;
 
-// Directories opted in to React Compiler. Keep this list in sync with
-// compilerTargets in vite.config.mts.
-const targetDirs = [
-	"src/pages/AgentsPage",
-	"src/pages/AIBridgePage",
-	"src/pages/TemplateBuilder",
-];
+// The whole frontend is compiled. Keep in sync with the compiler option in
+// vite.config.mts.
+const targetDirs = ["src"];
+
+// Files with pre-existing scope pruning. The compiler leaves these closures
+// and derived values unmemoized yet still lists them as dependencies in
+// memoization guards. Babel produced the identical output shape, so this is
+// an upstream compiler limitation, not a regression; the affected JSX blocks
+// also depend on always-changing values (e.g. the useFormik object), so the
+// guards could never cache regardless. Remove entries once the upstream
+// pruning is fixed or the component is restructured.
+const knownPrunedScopes = new Set([
+	"src/pages/AISettingsPage/ModelsPage/UpdateModelPage/UpdateModelPage.tsx",
+	"src/pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm.tsx",
+]);
 
 const skipPatterns = [".test.", ".stories.", ".jest."];
 
@@ -173,17 +181,18 @@ async function compileFile(file) {
 	try {
 		const code = readFileSync(join(siteDir, file), "utf-8");
 		const result = await transform(file, code, {
-			// The compiler skips files outside the target directories by
-			// filename, mirroring the include filter in vite.config.mts.
 			lang: file.endsWith(".tsx") ? "tsx" : "ts",
 			jsx: { runtime: "automatic" },
 			reactCompiler: {
 				panicThreshold: "all_errors",
-				sources: targetDirs.map((dir) => `${dir}/`),
 			},
 		});
 
 		for (const error of result.errors) {
+			// Advice-severity diagnostics are compiler limitations (BuildHIR
+			// TODOs like try/finally), not Rules of React violations. They skip
+			// the function but the code stays correct, so only Errors fail.
+			if (error.severity !== "Error") continue;
 			diagnostics.push(toDiagnostic(error, code));
 		}
 
@@ -343,11 +352,26 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 		}
 		const pruned = findUnmemoizedClosureDeps(code);
 		if (pruned.length > 0) {
+			if (knownPrunedScopes.has(file)) {
+				// Entry is doing its job; drop it from the set so stale
+				// entries are detected below.
+				knownPrunedScopes.delete(file);
+				continue;
+			}
 			scopePruned.push({ file, closures: pruned });
 		}
 	}
 
 	printReport(failures, totalCompiled, files.length, hadCollectionErrors);
+
+	// Allowlist entries that no longer produce findings would silently rot.
+	if (knownPrunedScopes.size > 0) {
+		console.log("\nStale knownPrunedScopes entries (no longer pruned, remove them):");
+		for (const file of knownPrunedScopes) {
+			console.log(`  ✗ ${file}`);
+		}
+		process.exitCode = 1;
+	}
 
 	if (scopePruned.length > 0) {
 		console.log("\nUnmemoized closures used as reactive dependencies:");

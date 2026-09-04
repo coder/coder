@@ -1,4 +1,4 @@
-import { type FC, useId, useRef, useState } from "react";
+import { type FC, useEffect, useId, useRef, useState } from "react";
 import { API } from "#/api/api";
 import type { DisplayApp } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -40,7 +40,12 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 		return isVSCodeVariant(previousVariant) ? previousVariant : "vscode";
 	});
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
+	const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
 	const menuContentId = useId();
+
+	useEffect(() => {
+		setMenuWidth(menuAnchorRef.current?.clientWidth);
+	}, []);
 
 	const selectVariant = (nextVariant: VSCodeVariant) => {
 		localStorage.setItem(VARIANT_KEY, nextVariant);
@@ -76,7 +81,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 					id={menuContentId}
 					align="end"
 					collisionPadding={16}
-					style={{ width: menuAnchorRef.current?.clientWidth }}
+					style={{ width: menuWidth }}
 				>
 					<DropdownMenuItem
 						onClick={() => {

@@ -57,7 +57,9 @@ export type UseFilterResult = Readonly<{
 	cancelDebounce: () => void;
 }>;
 
-export const useFilterParamsKey = "filter";
+// Not a hook: the `use` prefix made the compiler reject files that pass this
+// constant around, so name it for what it is.
+export const filterParamsKey = "filter";
 
 export const useFilter = ({
 	fallbackFilter = "",
@@ -65,7 +67,7 @@ export const useFilter = ({
 	onSearchParamsChange,
 	onUpdate,
 }: UseFilterConfig): UseFilterResult => {
-	const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
+	const query = searchParams.get(filterParamsKey) ?? fallbackFilter;
 
 	const update = (newValues: string | FilterValues) => {
 		const serialized =
@@ -85,7 +87,7 @@ export const useFilter = ({
 		 * That's a sign that our other code is slightly broken, and only just
 		 * happens to work by chance right now.
 		 */
-		searchParams.set(useFilterParamsKey, serialized);
+		searchParams.set(filterParamsKey, serialized);
 		onSearchParamsChange(searchParams);
 		onUpdate?.(serialized);
 	};

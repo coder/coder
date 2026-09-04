@@ -13,26 +13,13 @@ import { defineConfig } from "vitest/config";
 // preserves performance instrumentation.
 const isProfilingBuild = process.env.CODER_REACT_PROFILING === "true";
 
-// Directories opted in to React Compiler. The compiler option only scopes
-// which files the transform runs on; keep this list in sync with targetDirs
-// in scripts/check-compiler.mjs.
-const compilerTargets = [
-	"src/pages/AgentsPage/",
-	"src/pages/AIBridgePage/",
-	"src/pages/TemplateBuilder/",
-];
-
 const plugins: PluginOption[] = [
 	tailwindcss(),
 	react({
 		// Experimental Rust React Compiler via oxc-transform-react, enabled
 		// per the Vite plugin docs. Replaces the babel-plugin-react-compiler
 		// preset previously used here.
-		compiler: {
-			// Only compile opted-in directories; files outside these are
-			// transformed without memoization.
-			sources: compilerTargets,
-		},
+		compiler: {},
 	}),
 	checker({
 		typescript: true,
