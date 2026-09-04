@@ -1485,14 +1485,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// Hydrate file metadata for all files linked to this chat.
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
-	sdkChat := db2sdk.Chat(chat, db2sdk.PrimaryChatDiffStatus(diffStatuses), chatFiles)
-	if len(diffStatuses) > 0 {
-		sdkStatuses := make([]codersdk.ChatDiffStatus, 0, len(diffStatuses))
-		for i := range diffStatuses {
-			sdkStatuses = append(sdkStatuses, db2sdk.ChatDiffStatus(chat.ID, &diffStatuses[i]))
-		}
-		sdkChat.DiffStatuses = sdkStatuses
-	}
+	sdkChat := db2sdk.ChatWithDiffStatuses(chat, db2sdk.PrimaryChatDiffStatus(diffStatuses), diffStatuses, chatFiles)
 
 	if api.chatDaemon != nil {
 		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
@@ -3541,8 +3534,6 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	// Both params are optional. With neither, the chat's most recently
-	// updated ref is used, which is the pre-selector behavior.
 	selector := codersdk.DiffStatusRef{
 		RemoteOrigin: strings.TrimSpace(r.URL.Query().Get("origin")),
 		GitBranch:    strings.TrimSpace(r.URL.Query().Get("branch")),
@@ -3807,7 +3798,9 @@ func (api *API) resolveChatDiffContents(
 
 	status, found := selectChatDiffStatus(statuses, selector)
 	if !found && len(statuses) > 0 {
-		// The selector named a ref the chat does not track.
+		// A selector that matches nothing is an error only when the chat
+		// tracks other refs. A chat with no refs falls through to inline
+		// resolution.
 		return result, xerrors.Errorf("no diff status for ref %s/%s", selector.RemoteOrigin, selector.GitBranch)
 	}
 
@@ -3989,11 +3982,10 @@ func (api *API) buildChatRepositoryRefFromStatus(ctx context.Context, status dat
 	return repoRef
 }
 
-// selectChatDiffStatus picks the status row a diff request targets. A
-// non-empty selector must match a stored ref exactly; GetChatDiffStatusesByChatID
-// already orders by updated_at DESC, so the empty selector takes the first
-// row, matching the pre-selector behavior of resolving the chat's single
-// status.
+// selectChatDiffStatus returns the status row a diff request targets.
+// A non-empty selector must match a stored ref exactly. An empty
+// selector takes the first row, which GetChatDiffStatusesByChatID
+// orders by updated_at DESC.
 func selectChatDiffStatus(
 	statuses []database.ChatDiffStatus,
 	selector codersdk.DiffStatusRef,

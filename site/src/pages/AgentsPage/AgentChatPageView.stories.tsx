@@ -158,6 +158,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		diffStatusData: undefined as ComponentProps<
 			typeof AgentChatPageView
 		>["diffStatusData"],
+		primaryDiffStatus: undefined as ComponentProps<
+			typeof AgentChatPageView
+		>["primaryDiffStatus"],
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
 		sshCommand: undefined as string | undefined,
@@ -540,6 +543,18 @@ export const WithSidebarPanel: Story = {
 					changed_files: 5,
 				} satisfies ChatDiffStatus,
 			]}
+			primaryDiffStatus={
+				{
+					chat_id: AGENT_ID,
+					url: "https://github.com/coder/coder/pull/123",
+					pull_request_title: "fix: resolve race condition in workspace builds",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				} satisfies ChatDiffStatus
+			}
 		/>
 	),
 	beforeEach: () => {
@@ -624,6 +639,18 @@ export const RefreshInvalidatesPRDiff: Story = {
 					changed_files: 5,
 				} satisfies ChatDiffStatus,
 			]}
+			primaryDiffStatus={
+				{
+					chat_id: AGENT_ID,
+					url: "https://github.com/coder/coder/pull/123",
+					pull_request_title: "fix: resolve race condition in workspace builds",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				} satisfies ChatDiffStatus
+			}
 		/>
 	),
 	beforeEach: () => {

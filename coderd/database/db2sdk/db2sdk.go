@@ -2236,21 +2236,13 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	return result
 }
 
-// ChatDiffStatusRef returns the SDK ref key for a diff status row.
-func ChatDiffStatusRef(status *database.ChatDiffStatus) codersdk.DiffStatusRef {
-	return codersdk.DiffStatusRef{
-		RemoteOrigin: status.GitRemoteOrigin,
-		GitBranch:    status.GitBranch,
-	}
-}
-
 // PrimaryChatDiffStatus picks the status that represents the chat:
 // the most recently refreshed open pull request, falling back to the
 // most recently refreshed merged or closed one. Rows without a pull
 // request only win when nothing else exists. Ties fall to the newer
 // row so the pick is deterministic.
 func PrimaryChatDiffStatus(statuses []database.ChatDiffStatus) *database.ChatDiffStatus {
-	var open, terminal, fallback *database.ChatDiffStatus
+	var open, terminal *database.ChatDiffStatus
 	for i := range statuses {
 		row := &statuses[i]
 		state := ""
@@ -2268,19 +2260,12 @@ func PrimaryChatDiffStatus(statuses []database.ChatDiffStatus) *database.ChatDif
 				terminal = row
 			}
 		}
-		if hasPR || state == "open" {
-			if fallback == nil || newerChatDiffStatus(row, fallback) {
-				fallback = row
-			}
-		}
 	}
 	switch {
 	case open != nil:
 		return open
 	case terminal != nil:
 		return terminal
-	case fallback != nil:
-		return fallback
 	case len(statuses) > 0:
 		return &statuses[0]
 	}

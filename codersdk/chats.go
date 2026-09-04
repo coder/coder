@@ -1627,11 +1627,9 @@ type DiffStatusRef struct {
 }
 
 // ChangedDiffStatus carries the single ref that changed in a
-// diff_status_change event. The event's embedded chat still carries the
-// server-picked primary in diff_status; clients that track multiple
-// pull requests merge this entry into their per-ref state.
+// diff_status_change event. The embedded chat's diff_status still
+// carries the primary.
 type ChangedDiffStatus struct {
-	// Ref identifies the row that changed.
 	Ref DiffStatusRef `json:"ref"`
 	// Status is the ref's new state, or nil when the ref no longer has
 	// a pull request.

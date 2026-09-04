@@ -3214,7 +3214,6 @@ describe("mergeWatchedChatSummary", () => {
 		const cachedChat = makeChat("chat-1", {
 			diff_statuses: [refA, refB],
 		});
-		// A per-ref event carries only the changed ref.
 		const watchedChat = makeChat("chat-1", {
 			diff_statuses: [refAUpdated],
 		});
@@ -3245,7 +3244,6 @@ describe("mergeWatchedChatSummary", () => {
 			deletions: 0,
 			changed_files: 1,
 		};
-		// A legacy server sends statuses without ref identity.
 		const legacyStatus = {
 			chat_id: "chat-1",
 			url: "https://github.com/o/r/pull/3",

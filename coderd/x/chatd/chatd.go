@@ -3335,18 +3335,23 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 		Kind: kind,
 		Chat: chatWatchEventSDKChat(chat, diffStatus),
 	}
+	p.publishChatEvent(chat.OwnerID, chat.ID, event)
+}
+
+// publishChatEvent marshals and publishes a single chat watch event.
+func (p *Server) publishChatEvent(ownerID, chatID uuid.UUID, event codersdk.ChatWatchEvent) {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
-			slog.F("chat_id", chat.ID),
+			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(ownerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.F("kind", kind),
+			slog.F("chat_id", chatID),
+			slog.F("kind", event.Kind),
 			slog.Error(err),
 		)
 	}
@@ -3373,12 +3378,10 @@ func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) 
 	})
 }
 
-// PublishDiffStatusChange broadcasts a diff_status_change event for the
-// given chat so that watching clients know to re-fetch the diff status.
-// This is called from the HTTP layer after the diff status is updated in
-// the database. With several refs per chat, each changed ref gets its own
-// event so the payload stays small; the embedded chat's diff_status is
-// always the server-picked primary.
+// PublishDiffStatusChange broadcasts a diff_status_change event for
+// the given chat so that watching clients know to re-fetch the diff
+// status. Each ref gets its own event to keep pubsub payloads small.
+// The embedded chat's diff_status carries the primary.
 func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) error {
 	chat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -3391,51 +3394,27 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) 
 	}
 
 	primary := db2sdk.PrimaryChatDiffStatus(dbStatuses)
+	var primarySDK *codersdk.ChatDiffStatus
+	if primary != nil {
+		sdk := db2sdk.ChatDiffStatus(chatID, primary)
+		primarySDK = &sdk
+	}
 	for i := range dbStatuses {
 		status := db2sdk.ChatDiffStatus(chatID, &dbStatuses[i])
-		p.publishChatDiffStatusPubsubEvent(chat, primary, &dbStatuses[i], &status)
+		event := codersdk.ChatWatchEvent{
+			Kind: codersdk.ChatWatchEventKindDiffStatusChange,
+			Chat: chatWatchEventSDKChat(chat, primarySDK),
+			ChangedDiffStatus: &codersdk.ChangedDiffStatus{
+				Ref: codersdk.DiffStatusRef{
+					RemoteOrigin: dbStatuses[i].GitRemoteOrigin,
+					GitBranch:    dbStatuses[i].GitBranch,
+				},
+				Status: &status,
+			},
+		}
+		p.publishChatEvent(chat.OwnerID, chat.ID, event)
 	}
 	return nil
-}
-
-// publishChatDiffStatusPubsubEvent broadcasts one per-ref diff status
-// change. The embedded chat carries the primary so legacy clients keep a
-// consistent badge; the changed_diff_status field names the ref that
-// actually changed.
-func (p *Server) publishChatDiffStatusPubsubEvent(
-	chat database.Chat,
-	primary *database.ChatDiffStatus,
-	changed *database.ChatDiffStatus,
-	changedSDK *codersdk.ChatDiffStatus,
-) {
-	event := codersdk.ChatWatchEvent{
-		Kind: codersdk.ChatWatchEventKindDiffStatusChange,
-		Chat: chatWatchEventSDKChat(chat, nil),
-		ChangedDiffStatus: &codersdk.ChangedDiffStatus{
-			Ref:    db2sdk.ChatDiffStatusRef(changed),
-			Status: changedSDK,
-		},
-	}
-	if primary != nil {
-		primarySDK := db2sdk.ChatDiffStatus(chat.ID, primary)
-		event.Chat.DiffStatus = &primarySDK
-	}
-
-	payload, err := json.Marshal(event)
-	if err != nil {
-		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return
-	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
-		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.F("kind", codersdk.ChatWatchEventKindDiffStatusChange),
-			slog.Error(err),
-		)
-	}
 }
 
 // Rejects oversize images on capped providers before any upstream

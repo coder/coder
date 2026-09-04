@@ -294,12 +294,10 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
-	// Pauses polling for a chat's other refs of the same origin so only the
-	// ref just reported keeps refreshing. The far-future stale_at keeps the
-	// row readable as a plain timestamp and out of the worker's stale scan.
-	// The comparison on (git_remote_origin, git_branch) skips the reported
-	// ref itself; the timestamp guard avoids re-freezing a ref the upsert
-	// above just un-froze in the same request.
+	// Pauses polling for the chat's other refs of the same origin. The
+	// sentinel is a plain far-future timestamp rather than Postgres
+	// infinity because lib/pq cannot scan infinity. The stale_at guard
+	// skips refs the upsert above just un-froze in the same request.
 	FreezeChatDiffStatusRefs(ctx context.Context, arg FreezeChatDiffStatusRefsParams) (int64, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
@@ -562,9 +560,8 @@ type sqlcQuerier interface {
 	// Retrieves chats updated after the given timestamp for telemetry
 	// snapshot collection. Uses updated_at so that long-running chats
 	// still appear in each snapshot window while they are active.
-	// A chat can track several refs, but the snapshot reports one per chat:
-	// the most recently updated one, with the ref key breaking ties so the
-	// pick is deterministic.
+	// A chat can track several refs, but the snapshot reports one per
+	// chat: the most recently updated, with the ref key breaking ties.
 	GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error)
 	// Fetches child chats of the given parents, optionally filtered by
 	// archive state (NULL = all, true/false = match). The archive
@@ -1699,10 +1696,10 @@ type sqlcQuerier interface {
 	UpsertChatDebugRetentionDays(ctx context.Context, debugRetentionDays int32) error
 	UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error
 	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
-	// Marks a chat's git ref as stale so the worker refreshes it. A null URL
-	// keeps the ref's known pull request. The stale_at parameter un-freezes
-	// a ref the freeze query put on hold, so re-checking out an old branch
-	// resumes polling it.
+	// Marks a ref stale so the worker refreshes it. A null URL keeps the
+	// ref's known pull request. stale_at also un-freezes a ref frozen by
+	// FreezeChatDiffStatusRefs, so checking out an old branch resumes
+	// polling it.
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
 	// Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses
 	// database time so callers do not depend on a local clock.

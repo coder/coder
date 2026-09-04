@@ -2304,7 +2304,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name     | Type                                               | Required | Restrictions | Description                                                                      |
 |----------|----------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------|
-| `ref`    | [codersdk.DiffStatusRef](#codersdkdiffstatusref)   | false    |              | Ref identifies the row that changed.                                             |
+| `ref`    | [codersdk.DiffStatusRef](#codersdkdiffstatusref)   | false    |              |                                                                                  |
 | `status` | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus) | false    |              | Status is the ref's new state, or nil when the ref no longer has a pull request. |
 
 ## codersdk.Chat

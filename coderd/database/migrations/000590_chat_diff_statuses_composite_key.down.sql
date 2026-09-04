@@ -1,6 +1,5 @@
--- Collapse to one row per chat before restoring the old key. Keep the
--- most recently updated row so the surviving row carries the newest
--- reference and pull request data.
+-- The old key allows one row per chat, so keep the most recently
+-- updated row and drop the rest.
 DELETE FROM chat_diff_statuses a
 USING chat_diff_statuses b
 WHERE a.chat_id = b.chat_id

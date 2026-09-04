@@ -2073,6 +2073,7 @@ const AgentChatPage: FC = () => {
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_statuses}
+			primaryDiffStatus={chatQuery.data?.diff_status}
 			debugLoggingEnabled={debugLoggingEnabled}
 			gitWatcher={gitWatcher}
 			sshCommand={sshCommand}

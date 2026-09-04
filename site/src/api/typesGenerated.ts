@@ -1962,14 +1962,10 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 // From codersdk/chats.go
 /**
  * ChangedDiffStatus carries the single ref that changed in a
- * diff_status_change event. The event's embedded chat still carries the
- * server-picked primary in diff_status; clients that track multiple
- * pull requests merge this entry into their per-ref state.
+ * diff_status_change event. The embedded chat's diff_status still
+ * carries the primary.
  */
 export interface ChangedDiffStatus {
-	/**
-	 * Ref identifies the row that changed.
-	 */
 	readonly ref: DiffStatusRef;
 	/**
 	 * Status is the ref's new state, or nil when the ref no longer has

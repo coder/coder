@@ -7837,12 +7837,10 @@ type FreezeChatDiffStatusRefsParams struct {
 	GitBranch       string    `db:"git_branch" json:"git_branch"`
 }
 
-// Pauses polling for a chat's other refs of the same origin so only the
-// ref just reported keeps refreshing. The far-future stale_at keeps the
-// row readable as a plain timestamp and out of the worker's stale scan.
-// The comparison on (git_remote_origin, git_branch) skips the reported
-// ref itself; the timestamp guard avoids re-freezing a ref the upsert
-// above just un-froze in the same request.
+// Pauses polling for the chat's other refs of the same origin. The
+// sentinel is a plain far-future timestamp rather than Postgres
+// infinity because lib/pq cannot scan infinity. The stale_at guard
+// skips refs the upsert above just un-froze in the same request.
 func (q *sqlQuerier) FreezeChatDiffStatusRefs(ctx context.Context, arg FreezeChatDiffStatusRefsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, freezeChatDiffStatusRefs, arg.ChatID, arg.GitRemoteOrigin, arg.GitBranch)
 	if err != nil {
@@ -8523,6 +8521,10 @@ FROM
     chat_diff_statuses
 WHERE
     chat_id = ANY($1::uuid[])
+ORDER BY
+    updated_at DESC,
+    git_remote_origin,
+    git_branch
 `
 
 func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error) {
@@ -10204,9 +10206,8 @@ type GetChatsUpdatedAfterRow struct {
 // Retrieves chats updated after the given timestamp for telemetry
 // snapshot collection. Uses updated_at so that long-running chats
 // still appear in each snapshot window while they are active.
-// A chat can track several refs, but the snapshot reports one per chat:
-// the most recently updated one, with the ref key breaking ties so the
-// pick is deterministic.
+// A chat can track several refs, but the snapshot reports one per
+// chat: the most recently updated, with the ref key breaking ties.
 func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatsUpdatedAfter, updatedAfter)
 	if err != nil {
@@ -13883,10 +13884,10 @@ type UpsertChatDiffStatusReferenceParams struct {
 	StaleAt         time.Time      `db:"stale_at" json:"stale_at"`
 }
 
-// Marks a chat's git ref as stale so the worker refreshes it. A null URL
-// keeps the ref's known pull request. The stale_at parameter un-freezes
-// a ref the freeze query put on hold, so re-checking out an old branch
-// resumes polling it.
+// Marks a ref stale so the worker refreshes it. A null URL keeps the
+// ref's known pull request. stale_at also un-freezes a ref frozen by
+// FreezeChatDiffStatusRefs, so checking out an old branch resumes
+// polling it.
 func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error) {
 	row := q.db.QueryRowContext(ctx, upsertChatDiffStatusReference,
 		arg.ChatID,

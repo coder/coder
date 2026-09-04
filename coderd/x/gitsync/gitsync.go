@@ -332,12 +332,10 @@ func (r *Refresher) refreshOne(
 			return nil, xerrors.Errorf("fetch pull request status: %w", err)
 		}
 	} else if status.State == "merged" || status.State == "closed" {
-		// The stored PR was merged or closed. A new PR for the same
-		// branch would otherwise go unnoticed because the head branch
+		// The stored PR was merged or closed. A replacement PR for
+		// the same branch goes unnoticed because the head branch
 		// still matches, so resolve by branch and adopt the open
-		// replacement when one exists. Without a replacement, keep
-		// the terminal PR: the branch's history is still worth
-		// showing.
+		// replacement. Otherwise keep the terminal PR.
 		resolved, err := resolveByBranch()
 		if err != nil {
 			return nil, err

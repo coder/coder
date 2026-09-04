@@ -364,9 +364,8 @@ func (w *Worker) markStaleSingle(
 		return
 	}
 
-	// Only the reported ref keeps polling; older branches of the same
-	// origin hold their data but stop spending provider requests. The
-	// upsert above already un-froze this ref, so the freeze skips it.
+	// The upsert above already un-froze this ref, so the freeze's
+	// stale_at guard skips it.
 	if _, err := w.store.FreezeChatDiffStatusRefs(ctx,
 		database.FreezeChatDiffStatusRefsParams{
 			ChatID:          chatID,

@@ -482,6 +482,7 @@ const compareUpdatedAtInstants = (a: string, b: string): number => {
 type MergeWatchedChatOptions = {
 	readonly eventKind: TypesGen.ChatWatchEventKind;
 	readonly activeChatId?: string;
+	readonly changedDiffStatus?: TypesGen.ChangedDiffStatus;
 };
 
 // Do not compare refreshed_at and stale_at: they change on every
@@ -531,10 +532,9 @@ const diffStatusesEqual = (
 	return a.every((s) => diffStatusEqual(s, bByKey.get(diffStatusRefKey(s))));
 };
 
-// Merges updated statuses into a chat's per-ref list. Changed refs
-// replace their entries by (origin, branch) key; other refs are
-// preserved. An update without ref keys (a pre-ref-key event or a
-// legacy server) replaces the whole list.
+// Merges updated statuses into a chat's per-ref list by (origin,
+// branch) key. An update without ref keys (a legacy server) replaces
+// the whole list.
 const mergeDiffStatuses = (
 	cached: readonly TypesGen.ChatDiffStatus[] | undefined,
 	incoming: readonly TypesGen.ChatDiffStatus[] | undefined,
@@ -562,7 +562,7 @@ const mergeDiffStatuses = (
 export const mergeWatchedChatSummary = (
 	cachedChat: TypesGen.Chat,
 	watchedChat: TypesGen.Chat,
-	{ eventKind, activeChatId }: MergeWatchedChatOptions,
+	{ eventKind, activeChatId, changedDiffStatus }: MergeWatchedChatOptions,
 ): TypesGen.Chat => {
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
@@ -589,7 +589,12 @@ export const mergeWatchedChatSummary = (
 	// server's full list. Either way, merge by ref key so the other
 	// refs' cached statuses survive the event.
 	const nextDiffStatuses = isDiffStatusEvent
-		? mergeDiffStatuses(cachedChat.diff_statuses, watchedChat.diff_statuses)
+		? mergeDiffStatuses(
+				cachedChat.diff_statuses,
+				changedDiffStatus?.status
+					? [changedDiffStatus.status]
+					: watchedChat.diff_statuses,
+			)
 		: cachedChat.diff_statuses;
 	// Context drift is tracked outside chats.updated_at (it is driven by
 	// agent context pushes), so apply context_dirty payloads regardless of

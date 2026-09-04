@@ -46,12 +46,10 @@ type GitView =
 	| { type: "remote"; refId: string }
 	| { type: "local"; repoRoot: string };
 
-// Stable identity for a ref's view item. Falls back to the PR URL when
-// the server did not report origin/branch (a legacy or URL-only row).
+// View item id for a tracked ref. The ref key is (origin, branch); a
+// legacy row without either keeps the distinct empty-key id.
 const refItemId = (status: ChatDiffStatus): string =>
-	`remote:${status.remote_origin ?? ""}:${status.git_branch ?? ""}:${
-		status.url ?? ""
-	}`;
+	`remote:${status.remote_origin ?? ""}:${status.git_branch ?? ""}`;
 
 const GIT_NOT_SETUP_TITLE = "Git is not set up for this chat";
 const GIT_NOT_SETUP_SENTENCE = "Git is not set up for this chat.";
@@ -140,12 +138,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const showRemoteTab = Boolean(prTab) || hasRemoteDiff;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
 	const isWaitingForGitStatus = !hasGitContext && isGitStatusLoading;
-
-	// The status backing the remote view the user selected. Falls back
-	// to the first (most recently updated) ref when the selection does
-	// not resolve, which keeps the view populated across ref churn.
-	const selectedRemoteStatus: ChatDiffStatus | undefined = remoteDiffStats?.[0];
-	const prTitle = selectedRemoteStatus?.pull_request_title;
 
 	// Compute per-repo diff stats from unified diffs. The React
 	// Compiler memoizes these derivations.
@@ -260,6 +252,14 @@ export const GitPanel: FC<GitPanelProps> = ({
 						? { type: "local", repoRoot: localRepos[0] }
 						: { type: "remote", refId: defaultRemoteRefId };
 
+	const selectedRemoteStatus: ChatDiffStatus | undefined =
+		remoteDiffStats?.find(
+			(status) =>
+				effectiveView.type === "remote" &&
+				refItemId(status) === effectiveView.refId,
+		) ?? remoteDiffStats?.[0];
+	const prTitle = selectedRemoteStatus?.pull_request_title;
+
 	const showPrTitleRow = effectiveView.type === "remote" && prTab && prTitle;
 
 	const [isPrTitleTruncated, setIsPrTitleTruncated] = useState(false);
@@ -317,7 +317,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 			}
 		}
 	}
-	// A prTab without statuses still shows the remote view.
 	if (remoteItems.length === 0 && prTab) {
 		remoteItems.push({
 			kind: "remote",
