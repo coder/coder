@@ -58,6 +58,7 @@
 		"prefer-numeric-literals": "error",
 		"prefer-optional-chain": "error",
 		"prefer-regex-literals": "error",
+		"no-extraneous-class": "error",
 
 		// --- correctness ---
 		"no-children-prop": "error",
@@ -208,7 +209,6 @@
 		"role-supports-aria-props": "off", // a11y/useAriaPropsSupportedByRole (small)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
 		"prefer-function-type": "off", // style/useShorthandFunctionType (small)
-		"no-extraneous-class": "off", // complexity/noStaticOnlyClass (small)
 		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)
 		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
