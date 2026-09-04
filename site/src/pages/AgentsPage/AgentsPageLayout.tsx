@@ -566,7 +566,27 @@ const AgentsPageLayout: FC = () => {
 						return;
 					}
 					const chatEvent = event.parsedMessage;
-					const updatedChat = chatEvent.chat;
+					// A per-ref diff event names the changed ref in
+					// changed_diff_status; graft it onto the embedded chat's
+					// diff_statuses so the merge below preserves the other
+					// refs' cached statuses.
+					const updatedChat = chatEvent.changed_diff_status?.status
+						? {
+								...chatEvent.chat,
+								diff_statuses: [
+									...(chatEvent.chat.diff_statuses ?? []).filter(
+										(s) =>
+											!(
+												s.remote_origin ===
+													chatEvent.changed_diff_status?.ref.remote_origin &&
+												s.git_branch ===
+													chatEvent.changed_diff_status?.ref.git_branch
+											),
+									),
+									chatEvent.changed_diff_status.status,
+								],
+							}
+						: chatEvent.chat;
 					// The old membership is only available before the cache write below.
 					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
 						(chat) => chat.id === updatedChat.id,

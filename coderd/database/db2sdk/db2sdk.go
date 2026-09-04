@@ -1824,6 +1824,33 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 // When files is non-empty the response includes file metadata;
 // pass nil to omit the files field (e.g. list endpoints).
 func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
+	return convertChatWithDiffStatuses(c, diffStatus, nil, files)
+}
+
+// ChatDiffStatuses carries the primary and full per-ref status list for
+// a chat. Primary is nil when the chat tracks no refs.
+type ChatDiffStatuses struct {
+	Primary *database.ChatDiffStatus
+	All     []database.ChatDiffStatus
+}
+
+// ChatWithDiffStatuses converts a chat with its full per-ref diff status
+// list. diffStatus is the server-picked primary.
+func ChatWithDiffStatuses(
+	c database.Chat,
+	diffStatus *database.ChatDiffStatus,
+	diffStatuses []database.ChatDiffStatus,
+	files []database.GetChatFileMetadataByChatIDRow,
+) codersdk.Chat {
+	return convertChatWithDiffStatuses(c, diffStatus, diffStatuses, files)
+}
+
+func convertChatWithDiffStatuses(
+	c database.Chat,
+	diffStatus *database.ChatDiffStatus,
+	diffStatuses []database.ChatDiffStatus,
+	files []database.GetChatFileMetadataByChatIDRow,
+) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
@@ -1897,6 +1924,12 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if diffStatus != nil {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
+	}
+	if len(diffStatuses) > 0 {
+		chat.DiffStatuses = make([]codersdk.ChatDiffStatus, 0, len(diffStatuses))
+		for i := range diffStatuses {
+			chat.DiffStatuses = append(chat.DiffStatuses, ChatDiffStatus(c.ID, &diffStatuses[i]))
+		}
 	}
 	if len(files) > 0 {
 		chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
@@ -2056,13 +2089,13 @@ func ChatDebugRunDetail(r database.ChatDebugRun, steps []database.ChatDebugStep)
 // is non-nil, children without an entry receive an empty DiffStatus.
 func ChildChatRows(
 	children []database.GetChildChatsByParentIDsRow,
-	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+	diffStatuses map[uuid.UUID]ChatDiffStatuses,
 ) []codersdk.Chat {
 	result := make([]codersdk.Chat, len(children))
 	for i, row := range children {
-		diffStatus, ok := diffStatuses[row.Chat.ID]
+		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, statuses.Primary, statuses.All, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2081,7 +2114,7 @@ func ChildChatRows(
 func ChatRowsWithChildren(
 	roots []database.GetChatsRow,
 	children []database.GetChildChatsByParentIDsRow,
-	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+	diffStatuses map[uuid.UUID]ChatDiffStatuses,
 ) []codersdk.Chat {
 	// Group children by parent ID.
 	childrenByParent := make(map[uuid.UUID][]database.GetChildChatsByParentIDsRow, len(children))
@@ -2092,9 +2125,9 @@ func ChatRowsWithChildren(
 
 	result := make([]codersdk.Chat, len(roots))
 	for i, row := range roots {
-		diffStatus, ok := diffStatuses[row.Chat.ID]
+		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, statuses.Primary, statuses.All, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2124,6 +2157,14 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	}
 
 	result.ChatID = status.ChatID
+	if status.GitRemoteOrigin != "" {
+		remoteOrigin := status.GitRemoteOrigin
+		result.RemoteOrigin = &remoteOrigin
+	}
+	if status.GitBranch != "" {
+		gitBranch := status.GitBranch
+		result.GitBranch = &gitBranch
+	}
 	if status.Url.Valid {
 		u := strings.TrimSpace(status.Url.String)
 		if u != "" {
@@ -2193,6 +2234,71 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	result.StaleAt = &staleAt
 
 	return result
+}
+
+// ChatDiffStatusRef returns the SDK ref key for a diff status row.
+func ChatDiffStatusRef(status *database.ChatDiffStatus) codersdk.DiffStatusRef {
+	return codersdk.DiffStatusRef{
+		RemoteOrigin: status.GitRemoteOrigin,
+		GitBranch:    status.GitBranch,
+	}
+}
+
+// PrimaryChatDiffStatus picks the status that represents the chat:
+// the most recently refreshed open pull request, falling back to the
+// most recently refreshed merged or closed one. Rows without a pull
+// request only win when nothing else exists. Ties fall to the newer
+// row so the pick is deterministic.
+func PrimaryChatDiffStatus(statuses []database.ChatDiffStatus) *database.ChatDiffStatus {
+	var open, terminal, fallback *database.ChatDiffStatus
+	for i := range statuses {
+		row := &statuses[i]
+		state := ""
+		if row.PullRequestState.Valid {
+			state = row.PullRequestState.String
+		}
+		hasPR := row.Url.Valid && row.Url.String != ""
+		switch {
+		case state == "open":
+			if open == nil || newerChatDiffStatus(row, open) {
+				open = row
+			}
+		case hasPR:
+			if terminal == nil || newerChatDiffStatus(row, terminal) {
+				terminal = row
+			}
+		}
+		if hasPR || state == "open" {
+			if fallback == nil || newerChatDiffStatus(row, fallback) {
+				fallback = row
+			}
+		}
+	}
+	switch {
+	case open != nil:
+		return open
+	case terminal != nil:
+		return terminal
+	case fallback != nil:
+		return fallback
+	case len(statuses) > 0:
+		return &statuses[0]
+	}
+	return nil
+}
+
+// newerChatDiffStatus reports whether a was refreshed more recently than
+// b. Unrefreshed rows lose to refreshed ones.
+func newerChatDiffStatus(a, b *database.ChatDiffStatus) bool {
+	aHas := a.RefreshedAt.Valid
+	bHas := b.RefreshedAt.Valid
+	if aHas != bHas {
+		return aHas
+	}
+	if !aHas {
+		return a.UpdatedAt.After(b.UpdatedAt)
+	}
+	return a.RefreshedAt.Time.After(b.RefreshedAt.Time)
 }
 
 // UserSecret converts a database ListUserSecretsRow (metadata only,

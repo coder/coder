@@ -565,12 +565,12 @@ export const WithSidebarPanel: Story = {
 		<StoryAgentChatPageView
 			showSidebarPanel
 			chat={{
-				diff_status: {
-					chat_id: AGENT_ID,
+			diff_status: {
+				chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
 					pr_number: 123,
 					pull_request_title: "fix: resolve race condition in workspace builds",
-					pull_request_draft: false,
+				pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
@@ -654,7 +654,7 @@ export const RefreshInvalidatesPRDiff: Story = {
 					url: "https://github.com/coder/coder/pull/123",
 					pr_number: 123,
 					pull_request_title: "fix: resolve race condition in workspace builds",
-					pull_request_draft: false,
+				pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,

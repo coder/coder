@@ -1292,7 +1292,7 @@ const AgentChatPage: FC = () => {
 					workspaceSkills={chatWorkspaceSkills}
 				/>
 			)}
-		</>
+			</>
 	);
 };
 

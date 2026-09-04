@@ -63,6 +63,9 @@ type Store interface {
 	ClearChatDiffStatusPR(
 		ctx context.Context, arg database.ClearChatDiffStatusPRParams,
 	) error
+	FreezeChatDiffStatusRefs(
+		ctx context.Context, arg database.FreezeChatDiffStatusRefsParams,
+	) (int64, error)
 	UpsertChatDiffStatus(
 		ctx context.Context, arg database.UpsertChatDiffStatusParams,
 	) (database.ChatDiffStatus, error)
@@ -215,7 +218,7 @@ func (w *Worker) tick(ctx context.Context) {
 
 	for _, res := range results {
 		if errors.Is(res.Error, ErrStalePullRequest) {
-			if err := w.clearStalePR(ctx, res.Request.Row.ChatID); err != nil {
+			if err := w.clearStalePR(ctx, res.Request.Row); err != nil {
 				w.logger.Warn(ctx, "clear stale chat diff status PR",
 					slog.F("chat_id", res.Request.Row.ChatID),
 					slog.Error(err))
@@ -236,8 +239,10 @@ func (w *Worker) tick(ctx context.Context) {
 			// Back off so the row isn't retried immediately.
 			if err := w.store.BackoffChatDiffStatus(ctx,
 				database.BackoffChatDiffStatusParams{
-					ChatID:  res.Request.Row.ChatID,
-					StaleAt: w.clock.Now().UTC().Add(backoff),
+					ChatID:          res.Request.Row.ChatID,
+					GitRemoteOrigin: res.Request.Row.GitRemoteOrigin,
+					GitBranch:       res.Request.Row.GitBranch,
+					StaleAt:         w.clock.Now().UTC().Add(backoff),
 				},
 			); err != nil {
 				w.logger.Warn(ctx, "backoff failed chat diff status",
@@ -258,8 +263,10 @@ func (w *Worker) tick(ctx context.Context) {
 			if age < NoPRRetryWindow {
 				if err := w.store.BackoffChatDiffStatus(ctx,
 					database.BackoffChatDiffStatusParams{
-						ChatID:  res.Request.Row.ChatID,
-						StaleAt: w.clock.Now().UTC().Add(NoPRBackoff),
+						ChatID:          res.Request.Row.ChatID,
+						GitRemoteOrigin: res.Request.Row.GitRemoteOrigin,
+						GitBranch:       res.Request.Row.GitBranch,
+						StaleAt:         w.clock.Now().UTC().Add(NoPRBackoff),
 					},
 				); err != nil {
 					w.logger.Warn(ctx, "backoff no-pr chat diff status",
@@ -333,8 +340,9 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 	}
 }
 
-// markStaleSingle upserts the git ref for a single chat and
-// publishes a diff-status change event.
+// markStaleSingle upserts the git ref for a single chat, freezes the
+// chat's other refs of the same origin, and publishes a diff-status
+// change event.
 func (w *Worker) markStaleSingle(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -355,6 +363,22 @@ func (w *Worker) markStaleSingle(
 			slog.Error(err))
 		return
 	}
+
+	// Only the reported ref keeps polling; older branches of the same
+	// origin hold their data but stop spending provider requests. The
+	// upsert above already un-froze this ref, so the freeze skips it.
+	if _, err := w.store.FreezeChatDiffStatusRefs(ctx,
+		database.FreezeChatDiffStatusRefsParams{
+			ChatID:          chatID,
+			GitRemoteOrigin: origin,
+			GitBranch:       branch,
+		},
+	); err != nil {
+		w.logger.Warn(ctx, "freeze chat diff status refs",
+			slog.F("chat_id", chatID),
+			slog.Error(err))
+	}
+
 	// Notify the frontend immediately so the UI shows the
 	// branch info even before the worker refreshes PR data.
 	if w.publishDiffStatusChangeFn != nil {
@@ -367,17 +391,19 @@ func (w *Worker) markStaleSingle(
 
 // clearStalePR drops a chat's stored PR when its branch no longer
 // has one.
-func (w *Worker) clearStalePR(ctx context.Context, chatID uuid.UUID) error {
+func (w *Worker) clearStalePR(ctx context.Context, row database.ChatDiffStatus) error {
 	if err := w.store.ClearChatDiffStatusPR(ctx, database.ClearChatDiffStatusPRParams{
-		ChatID:  chatID,
-		StaleAt: w.clock.Now().UTC().Add(NoPRBackoff),
+		ChatID:          row.ChatID,
+		GitRemoteOrigin: row.GitRemoteOrigin,
+		GitBranch:       row.GitBranch,
+		StaleAt:         w.clock.Now().UTC().Add(NoPRBackoff),
 	}); err != nil {
 		return xerrors.Errorf("clear stale chat diff status PR: %w", err)
 	}
 	if w.publishDiffStatusChangeFn != nil {
-		if err := w.publishDiffStatusChangeFn(ctx, chatID); err != nil {
+		if err := w.publishDiffStatusChangeFn(ctx, row.ChatID); err != nil {
 			w.logger.Debug(ctx, "publish diff status change",
-				slog.F("chat_id", chatID), slog.Error(err))
+				slog.F("chat_id", row.ChatID), slog.Error(err))
 		}
 	}
 	return nil
@@ -407,7 +433,7 @@ func (w *Worker) RefreshChat(
 	}
 	res := results[0]
 	if errors.Is(res.Error, ErrStalePullRequest) {
-		if err := w.clearStalePR(ctx, row.ChatID); err != nil {
+		if err := w.clearStalePR(ctx, row); err != nil {
 			return nil, err
 		}
 		return nil, nil

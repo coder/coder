@@ -1096,6 +1096,14 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) FreezeChatDiffStatusRefs(ctx context.Context, arg database.FreezeChatDiffStatusRefsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.FreezeChatDiffStatusRefs(ctx, arg)
+	m.queryLatencies.WithLabelValues("FreezeChatDiffStatusRefs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FreezeChatDiffStatusRefs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeChatCost(ctx, rootChatID)
@@ -1544,19 +1552,19 @@ func (m queryMetricsStore) GetChatDesktopEnabled(ctx context.Context) (bool, err
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatDiffStatusByChatID(ctx, chatID)
-	m.queryLatencies.WithLabelValues("GetChatDiffStatusByChatID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatDiffStatusByChatID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatDiffStatusSummary(ctx context.Context) (database.GetChatDiffStatusSummaryRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatDiffStatusSummary(ctx)
 	m.queryLatencies.WithLabelValues("GetChatDiffStatusSummary").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatDiffStatusSummary").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatDiffStatusesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatDiffStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatDiffStatusesByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatDiffStatusesByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatDiffStatusesByChatID").Inc()
 	return r0, r1
 }
 

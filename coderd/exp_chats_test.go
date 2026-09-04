@@ -11957,8 +11957,10 @@ func TestGetChatDiffStatus(t *testing.T) {
 		_, err = db.UpsertChatDiffStatus(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusParams{
-				ChatID: cachedStatusChat.ID,
-				Url:    sql.NullString{},
+				ChatID:          cachedStatusChat.ID,
+				GitRemoteOrigin: "git@github.com:coder/coder.git",
+				GitBranch:       "feature/diff-status",
+				Url:             sql.NullString{},
 				PullRequestState: sql.NullString{
 					String: " open ",
 					Valid:  true,

@@ -849,6 +849,9 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	diffStatus := &database.ChatDiffStatus{
 		ChatID: input.ID,
 	}
+	// The same row backs the array; the reflection check below
+	// only asserts the list is populated.
+	diffStatuses := []database.ChatDiffStatus{*diffStatus}
 
 	fileRows := []database.GetChatFileMetadataByChatIDRow{
 		{
@@ -861,7 +864,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		},
 	}
 
-	got := db2sdk.Chat(input, diffStatus, fileRows)
+	got := db2sdk.ChatWithDiffStatuses(input, diffStatus, diffStatuses, fileRows)
 
 	require.Equal(t, &lastErrorPayload, got.LastError)
 
