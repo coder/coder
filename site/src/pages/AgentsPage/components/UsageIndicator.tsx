@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CoinsIcon, InfoIcon, ServerIcon } from "lucide-react";
 import { type FC, Fragment, type ReactNode } from "react";
 import { useQuery } from "react-query";
@@ -30,7 +31,6 @@ import {
 	type UsageSeverity,
 	usageProgressPercentage,
 } from "#/utils/budget";
-import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
 import { SvgRingProgress } from "./SvgRingProgress";
 

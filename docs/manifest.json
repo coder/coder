@@ -1136,6 +1136,20 @@
 					]
 				},
 				{
+					"title": "Agent Relay",
+					"description": "Connect supported cloud-hosted AI agents to self-hosted Coder workspaces with Agent Relay.",
+					"path": "./ai-coder/agent-relay/index.md",
+					"state": ["early access"],
+					"children": [
+						{
+							"title": "Agent Relay for Cursor",
+							"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
+							"path": "./ai-coder/agent-relay/cursor.md",
+							"state": ["early access"]
+						}
+					]
+				},
+				{
 					"title": "AI Governance",
 					"description": "Govern AI usage at scale with AI Governance: Agent Firewall, AI Gateway, and reporting.",
 					"path": "./ai-coder/ai-governance.md",

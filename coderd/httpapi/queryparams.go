@@ -226,6 +226,10 @@ func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryPara
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid url: %s", queryParam, err.Error()),
 		})
+		// url.Parse returns a nil URL alongside its error, so the comparison
+		// below would panic. base stands in: p.Errors is already non-empty, so
+		// every caller rejects the request before reading this.
+		return base
 	}
 
 	// OAuth 2.1 requires exact redirect URI matching.

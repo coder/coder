@@ -148,9 +148,12 @@ describe("api.ts", () => {
 				{ q: "owner:me" },
 				"/api/v2/workspaces?q=owner%3Ame",
 			],
-		])("Workspaces - getURLWithSearchParams(%p, %p) returns %p", (basePath, filter, expected) => {
-			expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
-		});
+		])(
+			"Workspaces - getURLWithSearchParams(%p, %p) returns %p",
+			(basePath, filter, expected) => {
+				expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
+			},
+		);
 	});
 
 	describe("getURLWithSearchParams - users", () => {
@@ -162,9 +165,12 @@ describe("api.ts", () => {
 				"/api/v2/users?q=status%3Aactive",
 			],
 			["/api/v2/users", { q: "" }, "/api/v2/users"],
-		])("Users - getURLWithSearchParams(%p, %p) returns %p", (basePath, filter, expected) => {
-			expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
-		});
+		])(
+			"Users - getURLWithSearchParams(%p, %p) returns %p",
+			(basePath, filter, expected) => {
+				expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
+			},
+		);
 	});
 
 	describe("AI spend requests", () => {

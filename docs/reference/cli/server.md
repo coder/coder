@@ -1236,6 +1236,16 @@ Disable chat sharing. Chat ACL checking is disabled and only owners can access t
 
 Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.
 
+### --disable-user-secret-file-path
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>bool</code>                                 |
+| Environment | <code>$CODER_DISABLE_USER_SECRET_FILE_PATH</code> |
+| YAML        | <code>disableUserSecretFilePath</code>            |
+
+Disable Coder-managed file path delivery for user secrets. Stored paths remain until users clear them and resume if this setting is turned off.
+
 ### --session-duration
 
 |             |                                              |
@@ -2164,4 +2174,4 @@ Disable the template builder feature for guided template creation. When disabled
 | YAML        | <code>templateBuilder.registryURL</code>          |
 | Default     | <code>registry.coder.com</code>                   |
 
-The base URL of the module registry used by the template builder for module source paths.
+The module registry host the template builder uses for module source paths (for example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.

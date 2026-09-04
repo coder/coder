@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useState } from "react";
@@ -10,7 +11,6 @@ import {
 	TemporarySavedState,
 	useTemporarySavedState,
 } from "#/components/TemporarySavedState/TemporarySavedState";
-import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
 interface MutationCallbacks {

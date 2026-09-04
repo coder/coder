@@ -4,10 +4,12 @@ import { useNavigate, useParams } from "react-router";
 import { createGroup } from "#/api/queries/groups";
 import { pageTitle } from "#/utils/page";
 import { CreateGroupPageView } from "./CreateGroupPageView";
+import { useGroupsSettings } from "./GroupsPageProvider";
 
 const CreateGroupPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const { showOrganizations } = useGroupsSettings();
 	const { organization } = useParams() as { organization: string };
 	const createGroupMutation = useMutation(
 		createGroup(queryClient, organization ?? "default"),
@@ -15,7 +17,7 @@ const CreateGroupPage: FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Create Group")}</title>
+			<title>{pageTitle("New group")}</title>
 
 			<CreateGroupPageView
 				onSubmit={async (data) => {
@@ -26,8 +28,12 @@ const CreateGroupPage: FC = () => {
 							: `/deployment/groups/${newGroup.name}`,
 					);
 				}}
+				onCancel={() => {
+					navigate("..");
+				}}
 				error={createGroupMutation.error}
 				isLoading={createGroupMutation.isPending}
+				showOrganizations={showOrganizations}
 			/>
 		</>
 	);

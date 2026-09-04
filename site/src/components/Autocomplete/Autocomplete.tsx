@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon, XIcon } from "lucide-react";
 import {
 	type KeyboardEvent,
@@ -24,7 +25,6 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 
 interface AutocompleteProps<TOption> {
 	value: TOption | null;

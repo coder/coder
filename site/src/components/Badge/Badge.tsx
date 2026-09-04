@@ -3,8 +3,8 @@
  * @see {@link https://ui.shadcn.com/docs/components/badge}
  */
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Slot } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 const badgeVariants = cva(
 	`
@@ -91,5 +91,11 @@ export const Badge: React.FC<BadgeProps> = ({
 				className,
 			)}
 		/>
+	);
+};
+
+export const BadgeGroup: React.FC<React.PropsWithChildren> = ({ children }) => {
+	return (
+		<div className="flex flex-row items-center gap-2 mb-4">{children}</div>
 	);
 };

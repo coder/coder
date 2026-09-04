@@ -758,7 +758,7 @@ func New(options *Options) *API {
 		options.AppSigningKeyCache,
 	)
 
-	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)
@@ -776,19 +776,19 @@ func New(options *Options) *API {
 		Telemetry:             api.Telemetry.Enabled(),
 	}
 	api.SiteHandler, err = site.New(&site.Options{
-		CacheDir:          siteCacheDir,
-		Database:          options.Database,
-		Authorizer:        options.Authorizer,
-		SiteFS:            site.FS(),
-		OAuth2Configs:     oauthConfigs,
-		DocsURL:           options.DeploymentValues.DocsURL.String(),
-		AppearanceFetcher: &api.AppearanceFetcher,
-		BuildInfo:         buildInfo,
-		Entitlements:      options.Entitlements,
-		Telemetry:         options.Telemetry,
-		Logger:            options.Logger.Named("site"),
-		AITasksEnabled:    options.DeploymentValues.EnableAITasks.Value(),
-		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
+		CacheDir:                  siteCacheDir,
+		Database:                  options.Database,
+		Authorizer:                options.Authorizer,
+		SiteFS:                    site.FS(),
+		OAuth2Configs:             oauthConfigs,
+		DocsURL:                   options.DeploymentValues.DocsURL.String(),
+		AppearanceFetcher:         &api.AppearanceFetcher,
+		BuildInfo:                 buildInfo,
+		Entitlements:              options.Entitlements,
+		Telemetry:                 options.Telemetry,
+		Logger:                    options.Logger.Named("site"),
+		AIGatewayEnabled:          options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
+		UserSecretFilePathEnabled: !options.DeploymentValues.DisableUserSecretFilePath.Value(),
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
@@ -1442,6 +1442,7 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
+			r.Get("/user-secrets/capabilities", api.userSecretsCapabilities)
 			r.Post("/premium-funnel-events", api.postPremiumFunnelEvent)
 		})
 		r.Route("/experiments", func(r chi.Router) {
@@ -2586,7 +2587,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	if err != nil {
 		return nil, err
 	}
-	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+	server := drpcsdk.NewServer(logger, &tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {

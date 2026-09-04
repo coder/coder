@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { RotateCcwIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
@@ -29,7 +30,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { formatProviderLabel } from "#/utils/aiProviders";
-import { cn } from "#/utils/cn";
 import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
 
 interface UserCompactionThresholdSettingsProps {

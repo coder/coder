@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ContainerIcon, ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
@@ -35,7 +36,6 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
-import { cn } from "#/utils/cn";
 import { portForwardURL } from "#/utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";

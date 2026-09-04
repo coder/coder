@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import { CheckIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
@@ -22,7 +23,6 @@ import {
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { RoleSelector } from "#/modules/roles/RoleSelector";
-import { cn } from "#/utils/cn";
 import {
 	displayNameValidator,
 	getFormHelpers,

@@ -2,5 +2,11 @@
 	"id": "azure-linux",
 	"display_name": "Azure VM (Linux)",
 	"os": "linux",
-	"default_context": {}
+	"default_context": {},
+	"agents": [
+		{
+			"name": "main",
+			"default": true
+		}
+	]
 }

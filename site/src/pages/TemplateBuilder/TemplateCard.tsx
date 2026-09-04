@@ -1,8 +1,8 @@
+import { cn } from "cn";
 import { BadgeCheckIcon } from "lucide-react";
 import { useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Link } from "#/components/Link/Link";
-import { cn } from "#/utils/cn";
 
 type TemplateCardProps = {
 	name: string;
@@ -64,10 +64,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 				<h3 id={nameId} className="text-sm font-bold text-content-primary">
 					{name}
 					{official && (
-						<>
-							{" "}
-							<BadgeCheckIcon className="size-4 text-highlight-sky align-middle inline-block" />
-						</>
+						<BadgeCheckIcon className="relative bottom-[2px] inline size-4 ml-1 align-middle text-highlight-sky" />
 					)}
 				</h3>
 				<div>

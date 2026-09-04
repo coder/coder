@@ -1,11 +1,19 @@
 {
 	"anthropic": [
 		{
+			"modelIdentifier": "claude-fable-5-1",
+			"reasoningEffort": "high"
+		},
+		{
 			"modelIdentifier": "claude-fable-5",
 			"reasoningEffort": "high"
 		},
 		{
 			"modelIdentifier": "claude-mythos-5",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-opus-5",
 			"reasoningEffort": "high"
 		},
 		{
@@ -42,6 +50,9 @@
 		}
 	],
 	"azure": [
+		{
+			"modelIdentifier": "claude-fable-5-1"
+		},
 		{
 			"modelIdentifier": "claude-fable-5"
 		},
@@ -90,6 +101,10 @@
 			"aliases": ["global.anthropic.claude-opus-5"]
 		},
 		{
+			"modelIdentifier": "anthropic.claude-fable-5-1",
+			"aliases": ["global.anthropic.claude-fable-5-1"]
+		},
+		{
 			"modelIdentifier": "anthropic.claude-fable-5",
 			"aliases": ["global.anthropic.claude-fable-5"]
 		},
@@ -107,10 +122,20 @@
 			"modelIdentifier": "gemini-flash-latest"
 		},
 		{
+			"modelIdentifier": "gemini-3.8-flash"
+		},
+		{
+			"modelIdentifier": "gemini-3.7-flash"
+		},
+		{
 			"modelIdentifier": "gemini-3.6-flash"
 		}
 	],
 	"openai": [
+		{
+			"modelIdentifier": "gpt-6-astra",
+			"reasoningEffort": "medium"
+		},
 		{
 			"modelIdentifier": "gpt-5.6-sol",
 			"aliases": ["gpt-5.6"],
@@ -164,7 +189,13 @@
 			"modelIdentifier": "moonshotai/kimi-k3"
 		},
 		{
+			"modelIdentifier": "z-ai/glm-5.3"
+		},
+		{
 			"modelIdentifier": "z-ai/glm-5.2"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-fable-5.1"
 		},
 		{
 			"modelIdentifier": "anthropic/claude-fable-5"
@@ -214,7 +245,13 @@
 			"modelIdentifier": "moonshotai/kimi-k3"
 		},
 		{
+			"modelIdentifier": "zai/glm-5.3"
+		},
+		{
 			"modelIdentifier": "zai/glm-5.2"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-fable-5.1"
 		},
 		{
 			"modelIdentifier": "anthropic/claude-fable-5"
