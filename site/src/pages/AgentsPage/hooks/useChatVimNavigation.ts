@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { isMac } from "#/utils/platform";
+import { isLetterKey } from "../utils/keyboardShortcuts";
 
 const CHAT_ROW_SELECTOR = '[data-testid^="agents-tree-node-"]';
 const COMPOSER_SELECTOR = '[data-testid="chat-message-input"]';
@@ -66,8 +67,9 @@ export function useChatVimNavigation({
 				return;
 			}
 
-			const key = event.key.toLowerCase();
-			if (key !== "j" && key !== "k") {
+			const isNext = isLetterKey(event, "j");
+			const isPrevious = isLetterKey(event, "k");
+			if (!isNext && !isPrevious) {
 				return;
 			}
 			if (visibleChatIds.length === 0) {
@@ -75,7 +77,7 @@ export function useChatVimNavigation({
 			}
 			event.preventDefault();
 
-			const forward = key === "j";
+			const forward = isNext;
 			const targetId = event.shiftKey
 				? visibleChatIds[forward ? visibleChatIds.length - 1 : 0]
 				: findNeighbor({ visibleChatIds, allChatIds, activeChatId, forward });

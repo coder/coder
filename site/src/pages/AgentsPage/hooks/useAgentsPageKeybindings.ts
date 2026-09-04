@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { isMac } from "#/utils/platform";
+import { isLetterKey } from "../utils/keyboardShortcuts";
 
 /**
  * Global keyboard shortcuts for the Agents page.
@@ -34,8 +35,7 @@ export function useAgentsPageKeybindings({
 
 			// "/" is a shifted key on many layouts, so it is matched before
 			// the Shift branch.
-			const key = event.key.toLowerCase();
-			if (key === "/") {
+			if (event.key === "/") {
 				if (vimNavigationEnabled && onToggleSearch) {
 					event.preventDefault();
 					onToggleSearch();
@@ -47,23 +47,23 @@ export function useAgentsPageKeybindings({
 				if (!vimNavigationEnabled) {
 					return;
 				}
-				if (key === "o") {
+				if (isLetterKey(event, "o")) {
 					event.preventDefault();
 					onNewAgent();
-				} else if (key === "e" && onRenameActiveChat) {
+				} else if (isLetterKey(event, "e") && onRenameActiveChat) {
 					event.preventDefault();
 					onRenameActiveChat();
 				}
 				return;
 			}
 
-			if (key === "n") {
+			if (isLetterKey(event, "n")) {
 				event.preventDefault();
 				onNewAgent();
 				return;
 			}
 
-			if (key === "k" && !vimNavigationEnabled && onToggleSearch) {
+			if (isLetterKey(event, "k") && !vimNavigationEnabled && onToggleSearch) {
 				event.preventDefault();
 				onToggleSearch();
 			}
