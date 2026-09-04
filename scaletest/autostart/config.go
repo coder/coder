@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -14,6 +15,15 @@ import (
 type Config struct {
 	// User is the configuration for the user to create.
 	User createusers.Config `json:"user"`
+
+	// SessionToken, when set, makes the runner reuse PreCreatedUser instead of
+	// creating one. User is then ignored for user creation (its OrganizationID
+	// is still used to resolve the workspace organization).
+	SessionToken string `json:"-"`
+
+	// PreCreatedUser is the existing user to run as when SessionToken is set. It
+	// must already be able to create workspaces. Only ID and Username are used.
+	PreCreatedUser codersdk.User `json:"-"`
 
 	// Workspace is the configuration for the workspace to create. The workspace
 	// will be built using the new user.
@@ -50,7 +60,12 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
-	if err := c.User.Validate(); err != nil {
+	if c.SessionToken != "" {
+		// Reuse mode does not create a user, so only the existing user's ID is required.
+		if c.PreCreatedUser.ID == uuid.Nil {
+			return xerrors.New("pre_created_user must be set when session_token is set")
+		}
+	} else if err := c.User.Validate(); err != nil {
 		return xerrors.Errorf("user config: %w", err)
 	}
 	c.Workspace.OrganizationID = c.User.OrganizationID

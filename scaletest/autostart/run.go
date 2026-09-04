@@ -61,20 +61,36 @@ func (r *Runner) RunReturningResult(ctx context.Context, id string, logs io.Writ
 	r.client.SetLogger(logger)
 	r.client.SetLogBodies(true)
 
-	r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
-	newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
-	if err != nil {
-		return result, xerrors.Errorf("create user: %w", err)
+	var (
+		newUser       codersdk.User
+		newUserClient *codersdk.Client
+	)
+	if r.cfg.SessionToken != "" {
+		// Reuse mode does not create a user; the reused user must already be
+		// able to create workspaces.
+		newUser = r.cfg.PreCreatedUser
+		newUserClient = codersdk.New(r.client.URL,
+			codersdk.WithSessionToken(r.cfg.SessionToken),
+			codersdk.WithLogger(logger),
+			codersdk.WithLogBodies())
+
+		//nolint:gocritic // short log is fine
+		logger.Info(ctx, "reusing existing user", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
+	} else {
+		r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
+		newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
+		if err != nil {
+			return result, xerrors.Errorf("create user: %w", err)
+		}
+		newUser = newUserAndToken.User
+		newUserClient = codersdk.New(r.client.URL,
+			codersdk.WithSessionToken(newUserAndToken.SessionToken),
+			codersdk.WithLogger(logger),
+			codersdk.WithLogBodies())
+
+		//nolint:gocritic // short log is fine
+		logger.Info(ctx, "user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
 	}
-	newUser := newUserAndToken.User
-
-	newUserClient := codersdk.New(r.client.URL,
-		codersdk.WithSessionToken(newUserAndToken.SessionToken),
-		codersdk.WithLogger(logger),
-		codersdk.WithLogBodies())
-
-	//nolint:gocritic // short log is fine
-	logger.Info(ctx, "user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
 
 	workspaceBuildConfig := r.cfg.Workspace
 	workspaceBuildConfig.OrganizationID = r.cfg.User.OrganizationID
