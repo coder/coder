@@ -2442,6 +2442,51 @@ func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(ctx, templ
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), ctx, templateID)
 }
 
+// GetAgentTimeBreakdown mocks base method.
+func (m *MockStore) GetAgentTimeBreakdown(ctx context.Context, arg database.GetAgentTimeBreakdownParams) ([]database.GetAgentTimeBreakdownRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentTimeBreakdown", ctx, arg)
+	ret0, _ := ret[0].([]database.GetAgentTimeBreakdownRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentTimeBreakdown indicates an expected call of GetAgentTimeBreakdown.
+func (mr *MockStoreMockRecorder) GetAgentTimeBreakdown(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentTimeBreakdown", reflect.TypeOf((*MockStore)(nil).GetAgentTimeBreakdown), ctx, arg)
+}
+
+// GetAgentTimeBuckets mocks base method.
+func (m *MockStore) GetAgentTimeBuckets(ctx context.Context, arg database.GetAgentTimeBucketsParams) ([]database.GetAgentTimeBucketsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentTimeBuckets", ctx, arg)
+	ret0, _ := ret[0].([]database.GetAgentTimeBucketsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentTimeBuckets indicates an expected call of GetAgentTimeBuckets.
+func (mr *MockStoreMockRecorder) GetAgentTimeBuckets(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentTimeBuckets", reflect.TypeOf((*MockStore)(nil).GetAgentTimeBuckets), ctx, arg)
+}
+
+// GetAgentTimeEarliestDate mocks base method.
+func (m *MockStore) GetAgentTimeEarliestDate(ctx context.Context, arg database.GetAgentTimeEarliestDateParams) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentTimeEarliestDate", ctx, arg)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentTimeEarliestDate indicates an expected call of GetAgentTimeEarliestDate.
+func (mr *MockStoreMockRecorder) GetAgentTimeEarliestDate(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentTimeEarliestDate", reflect.TypeOf((*MockStore)(nil).GetAgentTimeEarliestDate), ctx, arg)
+}
+
 // GetAgentTimeStatus mocks base method.
 func (m *MockStore) GetAgentTimeStatus(ctx context.Context, organizationID uuid.UUID) (database.GetAgentTimeStatusRow, error) {
 	m.ctrl.T.Helper()
@@ -2455,6 +2500,21 @@ func (m *MockStore) GetAgentTimeStatus(ctx context.Context, organizationID uuid.
 func (mr *MockStoreMockRecorder) GetAgentTimeStatus(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentTimeStatus", reflect.TypeOf((*MockStore)(nil).GetAgentTimeStatus), ctx, organizationID)
+}
+
+// GetAgentTimeSummary mocks base method.
+func (m *MockStore) GetAgentTimeSummary(ctx context.Context, arg database.GetAgentTimeSummaryParams) (database.GetAgentTimeSummaryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentTimeSummary", ctx, arg)
+	ret0, _ := ret[0].(database.GetAgentTimeSummaryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentTimeSummary indicates an expected call of GetAgentTimeSummary.
+func (mr *MockStoreMockRecorder) GetAgentTimeSummary(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentTimeSummary", reflect.TypeOf((*MockStore)(nil).GetAgentTimeSummary), ctx, arg)
 }
 
 // GetAllTailnetCoordinators mocks base method.
