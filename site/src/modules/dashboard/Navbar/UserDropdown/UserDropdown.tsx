@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { OctagonAlertIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC, JSX } from "react";
 import { useQuery } from "react-query";
@@ -12,7 +13,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { getSeverity, type UsageSeverity } from "#/utils/budget";
-import { cn } from "#/utils/cn";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 import { UserDropdownPremiumTrialCTA } from "./UserDropdownPremiumTrialCTA";

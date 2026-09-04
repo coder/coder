@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { cn } from "#/utils/cn";
 
 type PaginationHeaderProps = {
 	paginationUnitLabel: string;

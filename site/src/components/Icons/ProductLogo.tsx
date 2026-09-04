@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { getApplicationName, getLogoURL } from "#/utils/appearance";
-import { cn } from "#/utils/cn";
 import { ExternalImage } from "../ExternalImage/ExternalImage";
 
 /**

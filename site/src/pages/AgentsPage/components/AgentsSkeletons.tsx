@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { type FC, useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { cn } from "#/utils/cn";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 

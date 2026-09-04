@@ -1874,7 +1874,9 @@ export const SelectedOrganizationSurvivesRemount: Story = {
 const revocablePermissions: Record<string, boolean> = {};
 let revocableQueryClient: QueryClient | undefined;
 
-const withRevocableQueryClient: Decorator = (Story) => {
+const withRevocableQueryClient: Decorator = function WithRevocableQueryClient(
+	Story,
+) {
 	const [queryClient] = useState(
 		() =>
 			new QueryClient({

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronLeftIcon,
 	ExternalLinkIcon,
@@ -51,7 +52,6 @@ import { TemplateFileTree } from "#/modules/templates/TemplateFiles/TemplateFile
 import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
-import { cn } from "#/utils/cn";
 import {
 	createFile,
 	existsFile,
