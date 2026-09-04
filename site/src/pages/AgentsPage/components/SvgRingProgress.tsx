@@ -24,34 +24,43 @@ export const SvgRingProgress: FC<{
 	progressClassName = "stroke-current",
 	className,
 }) => {
+	const center = size / 2;
 	const radius = (size - strokeWidth) / 2;
 	const circumference = 2 * Math.PI * radius;
 	const clamped = Math.min(Math.max(percent, 0), 100);
 	const offset = circumference * (1 - clamped / 100);
 
 	return (
+		// The stroke touches the viewBox edge, so overflow stays visible to keep
+		// its anti-aliased outer edge from being clipped.
 		<svg
 			width={size}
 			height={size}
 			viewBox={`0 0 ${size} ${size}`}
-			className={cn("-rotate-90", className)}
+			className={cn("overflow-visible", className)}
 			aria-hidden="true"
 		>
 			<circle
-				cx={size / 2}
-				cy={size / 2}
+				cx={center}
+				cy={center}
 				r={radius}
 				fill="none"
 				strokeWidth={strokeWidth}
 				className={trackClassName}
 			/>
+			{/*
+			  Start the arc at 12 o'clock by rotating the circle itself. In WebKit,
+			  a CSS transform on the <svg> promotes it to its own layer and snaps it
+			  to whole pixels, misaligning it from any overlay drawn on top.
+			*/}
 			<circle
-				cx={size / 2}
-				cy={size / 2}
+				cx={center}
+				cy={center}
 				r={radius}
 				fill="none"
 				strokeWidth={strokeWidth}
 				strokeLinecap="round"
+				transform={`rotate(-90 ${center} ${center})`}
 				className={cn(
 					"transition-[stroke-dashoffset] duration-300 ease-out",
 					progressClassName,
