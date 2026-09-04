@@ -102,6 +102,98 @@ const (
 	ChatClientTypeAPI ChatClientType = "api"
 )
 
+const (
+	// MaxChatGoalObjectiveBytes limits goal objective text accepted by chat goal mutations.
+	MaxChatGoalObjectiveBytes = 4096
+	// MaxChatGoalCompletionSummaryBytes limits goal completion summaries accepted by chat goal mutations.
+	MaxChatGoalCompletionSummaryBytes = 4096
+)
+
+// ChatGoalStatus represents the lifecycle state of a chat goal.
+// @Description x-apidocgen:skip experiment-gated (chat-goals) schema.
+type ChatGoalStatus string
+
+const (
+	ChatGoalStatusActive   ChatGoalStatus = "active"
+	ChatGoalStatusPaused   ChatGoalStatus = "paused"
+	ChatGoalStatusComplete ChatGoalStatus = "complete"
+	ChatGoalStatusCleared  ChatGoalStatus = "cleared"
+)
+
+// ChatGoal is a durable objective associated with a root chat.
+// @Description x-apidocgen:skip experiment-gated (chat-goals) schema.
+type ChatGoal struct {
+	ID         uuid.UUID      `json:"id" format:"uuid"`
+	RootChatID uuid.UUID      `json:"root_chat_id" format:"uuid"`
+	Objective  string         `json:"objective"`
+	Status     ChatGoalStatus `json:"status"`
+	// CreatedFromMessageID identifies the user message whose send set
+	// this goal, when the goal was set alongside a message.
+	CreatedFromMessageID *int64     `json:"created_from_message_id,omitempty"`
+	CompletionSummary    *string    `json:"completion_summary,omitempty"`
+	CreatedByUserID      uuid.UUID  `json:"created_by_user_id" format:"uuid"`
+	CompletedByUserID    *uuid.UUID `json:"completed_by_user_id,omitempty" format:"uuid"`
+	CompletedByAgent     bool       `json:"completed_by_agent"`
+	CreatedAt            time.Time  `json:"created_at" format:"date-time"`
+	UpdatedAt            time.Time  `json:"updated_at" format:"date-time"`
+	CompletedAt          *time.Time `json:"completed_at,omitempty" format:"date-time"`
+	ClearedAt            *time.Time `json:"cleared_at,omitempty" format:"date-time"`
+}
+
+// ChatGoalMutationAction identifies a goal lifecycle mutation.
+type ChatGoalMutationAction string
+
+const (
+	ChatGoalMutationActionSet      ChatGoalMutationAction = "set"
+	ChatGoalMutationActionClear    ChatGoalMutationAction = "clear"
+	ChatGoalMutationActionPause    ChatGoalMutationAction = "pause"
+	ChatGoalMutationActionResume   ChatGoalMutationAction = "resume"
+	ChatGoalMutationActionComplete ChatGoalMutationAction = "complete"
+)
+
+// ChatGoalMutation requests a goal lifecycle change.
+type ChatGoalMutation struct {
+	Action            ChatGoalMutationAction `json:"action" enums:"set,clear,pause,resume,complete"`
+	GoalID            *uuid.UUID             `json:"goal_id,omitempty" format:"uuid"`
+	Objective         string                 `json:"objective,omitempty"`
+	CompletionSummary *string                `json:"completion_summary,omitempty"`
+}
+
+// ChatGoalUpdateAction identifies a metadata-only goal lifecycle
+// mutation. Setting a goal is message-bound and uses ChatGoalSetAction.
+// @Description x-apidocgen:skip experiment-gated (chat-goals) schema.
+type ChatGoalUpdateAction string
+
+const (
+	ChatGoalUpdateActionClear    ChatGoalUpdateAction = "clear"
+	ChatGoalUpdateActionPause    ChatGoalUpdateAction = "pause"
+	ChatGoalUpdateActionResume   ChatGoalUpdateAction = "resume"
+	ChatGoalUpdateActionComplete ChatGoalUpdateAction = "complete"
+)
+
+// ChatGoalSetAction is the only action a message-bound goal request
+// accepts.
+type ChatGoalSetAction string
+
+const ChatGoalSetActionSet ChatGoalSetAction = "set"
+
+// ChatGoalUpdateRequest requests a metadata-only goal lifecycle change.
+// Setting a goal is message-bound, so `set` is not accepted here.
+// @Description x-apidocgen:skip experiment-gated (chat-goals) schema.
+type ChatGoalUpdateRequest struct {
+	Action            ChatGoalUpdateAction `json:"action" enums:"clear,pause,resume,complete"`
+	GoalID            *uuid.UUID           `json:"goal_id,omitempty" format:"uuid"`
+	CompletionSummary *string              `json:"completion_summary,omitempty"`
+}
+
+// ChatGoalSetRequest requests the message-bound `set` mutation carried
+// on a chat create or message send. Metadata mutations go through
+// ChatGoalUpdateRequest instead.
+type ChatGoalSetRequest struct {
+	Action    ChatGoalSetAction `json:"action" enums:"set"`
+	Objective string            `json:"objective"`
+}
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
 	ID                  uuid.UUID    `json:"id" format:"uuid"`
@@ -125,9 +217,12 @@ type Chat struct {
 	// It is nil until the first summary has been produced.
 	Summary    *string         `json:"summary"`
 	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
-	Archived   bool            `json:"archived"`
+	// Goal is experiment-gated (chat-goals) and excluded from the
+	// public API reference until the experiment ships.
+	Goal      *ChatGoal `json:"goal,omitempty" swaggerignore:"true"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+	Archived  bool      `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
 	Shared       bool               `json:"shared"`
 	PinOrder     int32              `json:"pin_order"`
@@ -255,7 +350,10 @@ type ChatMessage struct {
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 	Role          ChatMessageRole   `json:"role"`
 	Content       []ChatMessagePart `json:"content,omitempty"`
-	Usage         *ChatMessageUsage `json:"usage,omitempty"`
+	// SentAsGoal is experiment-gated (chat-goals) and excluded from
+	// the public API reference until the experiment ships.
+	SentAsGoal bool              `json:"sent_as_goal,omitempty" swaggerignore:"true"`
+	Usage      *ChatMessageUsage `json:"usage,omitempty"`
 }
 
 // ChatMessageUsage contains token usage information for a chat message.
@@ -563,6 +661,12 @@ type ToolResult struct {
 	IsError    bool            `json:"is_error"`
 }
 
+// ChatGoalResponse is returned by chat goal lifecycle endpoints.
+// @Description x-apidocgen:skip experiment-gated (chat-goals) schema.
+type ChatGoalResponse struct {
+	Goal *ChatGoal `json:"goal,omitempty"`
+}
+
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	OrganizationID  uuid.UUID         `json:"organization_id" format:"uuid"`
@@ -573,6 +677,9 @@ type CreateChatRequest struct {
 	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
 	MCPServerIDs    []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
 	Labels          map[string]string `json:"labels,omitempty"`
+	// GoalMutation is experiment-gated (chat-goals) and excluded from
+	// the public API reference until the experiment ships.
+	GoalMutation *ChatGoalSetRequest `json:"goal_mutation,omitempty" swaggerignore:"true"`
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
@@ -627,10 +734,13 @@ const (
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Content       []ChatInputPart  `json:"content"`
-	ModelConfigID *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
-	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	Content       []ChatInputPart `json:"content"`
+	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
+	// GoalMutation is experiment-gated (chat-goals) and excluded from
+	// the public API reference until the experiment ships.
+	GoalMutation *ChatGoalSetRequest `json:"goal_mutation,omitempty" swaggerignore:"true"`
+	BusyBehavior ChatBusyBehavior    `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
@@ -660,7 +770,10 @@ type CreateChatMessageResponse struct {
 	Messages      []ChatMessage      `json:"messages,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
-	Warnings      []string           `json:"warnings,omitempty"`
+	// Goal is experiment-gated (chat-goals) and excluded from the
+	// public API reference until the experiment ships.
+	Goal     *ChatGoal `json:"goal,omitempty" swaggerignore:"true"`
+	Warnings []string  `json:"warnings,omitempty"`
 }
 
 // EditChatMessageResponse is the response from editing a message in a chat.
@@ -1868,11 +1981,15 @@ const (
 	// summary. It is distinct from SummaryChange (bound to last_turn_summary) so
 	// the frontend updates one field without disturbing the other.
 	ChatWatchEventKindChatSummaryChange ChatWatchEventKind = "chat_summary_change"
-	ChatWatchEventKindTitleChange       ChatWatchEventKind = "title_change"
-	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
-	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
-	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
-	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
+	// ChatWatchEventKindGoalChange is experiment-gated (chat-goals): the
+	// ChatWatchEvent.Kind enums tag omits it from the public API
+	// reference until the experiment ships.
+	ChatWatchEventKindGoalChange       ChatWatchEventKind = "goal_change"
+	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
+	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
+	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context changed: it drifted from the agent's latest
 	// pushed snapshot, or hydration first populated it (a first-turn
@@ -1888,7 +2005,7 @@ const (
 // ActionRequired, ToolCalls contains the pending dynamic tool
 // invocations the client must execute and submit back.
 type ChatWatchEvent struct {
-	Kind      ChatWatchEventKind   `json:"kind"`
+	Kind      ChatWatchEventKind   `json:"kind" enums:"created,deleted,title_change,summary_change,chat_summary_change,status_change,diff_status_change,context_dirty,action_required" swaggertype:"string"`
 	Chat      Chat                 `json:"chat"`
 	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
 }
@@ -2999,6 +3116,20 @@ func (c *Client) RefreshChatContext(ctx context.Context, chatID uuid.UUID) (Chat
 	}
 	var chat Chat
 	return chat, ReadBodyAsJSON(res, &chat)
+}
+
+// UpdateChatGoal applies a metadata-only chat goal mutation.
+func (c *Client) UpdateChatGoal(ctx context.Context, chatID uuid.UUID, req ChatGoalUpdateRequest) (ChatGoalResponse, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/chats/%s/goal", chatID), req)
+	if err != nil {
+		return ChatGoalResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatGoalResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatGoalResponse
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {

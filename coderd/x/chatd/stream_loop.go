@@ -20,7 +20,11 @@ type streamLoop struct {
 	chatID uuid.UUID
 	db     database.Store
 	logger slog.Logger
-	state  streamLocalState
+	// goalMarkers enables sent-as-goal enrichment of streamed messages.
+	// It is set only for root chats with the chat-goals experiment on,
+	// matching the REST message list path.
+	goalMarkers bool
+	state       streamLocalState
 }
 
 type streamLocalState struct {
@@ -65,14 +69,17 @@ type streamDBSnapshot struct {
 	queueChanged bool
 	queue        []database.ChatQueuedMessage
 
+	goalMessageIDs map[int64]struct{}
+
 	actionRequired *codersdk.ChatStreamActionRequired
 }
 
-func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, afterMessageID int64) *streamLoop {
+func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, afterMessageID int64, goalMarkers bool) *streamLoop {
 	return &streamLoop{
-		chatID: chat.ID,
-		db:     db,
-		logger: logger,
+		chatID:      chat.ID,
+		db:          db,
+		logger:      logger,
+		goalMarkers: goalMarkers,
 		state: streamLocalState{
 			knownMessages:  make(map[int64]int64),
 			afterMessageID: afterMessageID,
@@ -170,6 +177,12 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 				})
 				if err != nil {
 					return xerrors.Errorf("get full chat history: %w", err)
+				}
+			}
+			if l.goalMarkers {
+				snapshot.goalMessageIDs, err = l.loadGoalMessageIDs(ctx, tx, snapshot)
+				if err != nil {
+					return err
 				}
 			}
 		}
@@ -311,7 +324,7 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 		clear(l.state.knownMessages)
 		for _, msg := range snapshot.fullHistory {
 			l.state.knownMessages[msg.ID] = msg.Revision
-			sdkMsg := db2sdk.ChatMessage(msg)
+			sdkMsg := streamSDKMessage(msg, snapshot.goalMessageIDs)
 			events = append(events, codersdk.ChatStreamEvent{
 				Type:    codersdk.ChatStreamEventTypeMessage,
 				ChatID:  l.chatID,
@@ -331,7 +344,7 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 		if !l.state.initialMessageSyncDone && msg.ID <= l.state.afterMessageID {
 			continue
 		}
-		sdkMsg := db2sdk.ChatMessage(msg)
+		sdkMsg := streamSDKMessage(msg, snapshot.goalMessageIDs)
 		events = append(events, codersdk.ChatStreamEvent{
 			Type:    codersdk.ChatStreamEventTypeMessage,
 			ChatID:  l.chatID,
@@ -339,6 +352,40 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 		})
 	}
 	return events
+}
+
+// loadGoalMessageIDs marks which of the snapshot's messages created a
+// chat goal so streamed messages carry the same sent-as-goal provenance
+// as the REST list path and cannot erase a truthful marker on replace.
+func (l *streamLoop) loadGoalMessageIDs(ctx context.Context, tx database.Store, snapshot streamDBSnapshot) (map[int64]struct{}, error) {
+	set := map[int64]struct{}{}
+	messages := snapshot.changedMessages
+	if snapshot.historyReset {
+		messages = snapshot.fullHistory
+	}
+	if len(messages) == 0 {
+		return set, nil
+	}
+	messageIDs := make([]int64, 0, len(messages))
+	for _, msg := range messages {
+		messageIDs = append(messageIDs, msg.ID)
+	}
+	ids, err := tx.GetChatGoalMessageIDsByChatAndMessageIDs(ctx, database.GetChatGoalMessageIDsByChatAndMessageIDsParams{
+		ChatID:     l.chatID,
+		MessageIds: messageIDs,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get goal message ids for stream: %w", err)
+	}
+	for _, id := range ids {
+		set[id] = struct{}{}
+	}
+	return set, nil
+}
+
+func streamSDKMessage(msg database.ChatMessage, goalMessageIDs map[int64]struct{}) codersdk.ChatMessage {
+	_, sentAsGoal := goalMessageIDs[msg.ID]
+	return db2sdk.ChatMessageWithSentAsGoal(msg, sentAsGoal)
 }
 
 func (l *streamLoop) chatError(chat database.Chat) *codersdk.ChatError {

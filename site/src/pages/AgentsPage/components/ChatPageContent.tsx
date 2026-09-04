@@ -14,6 +14,7 @@ import { getProviderForModelOption } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
+	type AgentChatInputSendOptions,
 	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
 	isUploadInProgress,
@@ -102,6 +103,7 @@ interface ChatPageTimelineProps {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
+	goalSourceMessageId?: number;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
@@ -121,6 +123,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	onFetchMoreMessages,
 	onEditUserMessage,
 	editingMessageId,
+	goalSourceMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	urlTransform,
@@ -208,6 +211,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					subagentVariants={subagentVariants}
 					onEditUserMessage={onEditUserMessage}
 					editingMessageId={editingMessageId}
+					goalSourceMessageId={goalSourceMessageId}
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
@@ -245,6 +249,7 @@ interface ChatPageInputProps {
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
+		options?: AgentChatInputSendOptions,
 	) => Promise<void> | void;
 	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
@@ -268,6 +273,8 @@ interface ChatPageInputProps {
 	aiGatewayDisabled?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	showPursueGoal?: boolean;
+	canPursueGoal?: boolean;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -336,6 +343,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	aiGatewayDisabled,
 	planModeEnabled,
 	onPlanModeToggle,
+	showPursueGoal = false,
+	canPursueGoal = false,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -505,52 +514,45 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 
 	const inputElement = (
 		<AgentChatInput
-			onSend={(message) => {
-				void (async () => {
-					const hasActiveUploads = attachments.some((file) =>
-						isUploadInProgress(uploadStates.get(file)),
+			onSend={async (message, options) => {
+				const hasActiveUploads = attachments.some((file) =>
+					isUploadInProgress(uploadStates.get(file)),
+				);
+				if (hasActiveUploads) {
+					toast.warning("Wait for file uploads to finish before sending.");
+					return;
+				}
+				// Collect uploaded attachment metadata for the optimistic
+				// transcript builder while keeping the server payload
+				// shape unchanged downstream.
+				const pendingAttachments: PendingAttachment[] = [];
+				let skippedErrors = 0;
+				for (const file of attachments) {
+					const state = uploadStates.get(file);
+					if (state?.status === "error") {
+						skippedErrors++;
+						continue;
+					}
+					if (state?.status === "uploaded" && state.fileId) {
+						pendingAttachments.push({
+							fileId: state.fileId,
+							mediaType: file.type || "application/octet-stream",
+						});
+					}
+				}
+				if (skippedErrors > 0) {
+					toast.warning(
+						`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
 					);
-					if (hasActiveUploads) {
-						toast.warning("Wait for file uploads to finish before sending.");
-						return;
-					}
-					// Collect uploaded attachment metadata for the optimistic
-					// transcript builder while keeping the server payload
-					// shape unchanged downstream.
-					const pendingAttachments: PendingAttachment[] = [];
-					let skippedErrors = 0;
-					for (const file of attachments) {
-						const state = uploadStates.get(file);
-						if (state?.status === "error") {
-							skippedErrors++;
-							continue;
-						}
-						if (state?.status === "uploaded" && state.fileId) {
-							pendingAttachments.push({
-								fileId: state.fileId,
-								mediaType: file.type || "application/octet-stream",
-							});
-						}
-					}
-					if (skippedErrors > 0) {
-						toast.warning(
-							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-						);
-					}
-					const attachmentArg =
-						pendingAttachments.length > 0 ? pendingAttachments : undefined;
-					try {
-						await onSend(message, attachmentArg);
-					} catch {
-						// Attachments preserved for retry on failure.
-						return;
-					}
-					if (isEditing) {
-						editAttachments.resetAttachments();
-					} else {
-						composeAttachments.resetAttachments();
-					}
-				})();
+				}
+				const attachmentArg =
+					pendingAttachments.length > 0 ? pendingAttachments : undefined;
+				await onSend(message, attachmentArg, options);
+				if (isEditing) {
+					editAttachments.resetAttachments();
+				} else {
+					composeAttachments.resetAttachments();
+				}
 			}}
 			sendShortcut={sendShortcut}
 			attachments={attachments}
@@ -587,6 +589,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onReasoningEffortChange={onReasoningEffortChange}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
+			showPursueGoal={showPursueGoal}
+			canPursueGoal={canPursueGoal}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={chatOrganizationId}

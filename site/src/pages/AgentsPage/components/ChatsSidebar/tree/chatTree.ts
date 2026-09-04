@@ -74,6 +74,28 @@ export const buildChatTree = (chats: readonly Chat[]): ChatTree => {
 	};
 };
 
+// The active goal objective shown in place of the title for chats rendered
+// at the top level. Callers pass isChild because search results can render
+// child chats at the top level.
+export const activeGoalObjective = (
+	chat: Chat,
+	isChild: boolean,
+): string | undefined =>
+	!isChild && chat.goal?.status === "active"
+		? asNonEmptyString(chat.goal.objective)
+		: undefined;
+
+const chatMatchesSearch = (chat: Chat, search: string): boolean => {
+	if (chat.title.toLowerCase().includes(search)) {
+		return true;
+	}
+	return (
+		activeGoalObjective(chat, Boolean(getParentChatID(chat)))
+			?.toLowerCase()
+			.includes(search) ?? false
+	);
+};
+
 export const collectVisibleChatIDs = ({
 	chats,
 	search,
@@ -95,7 +117,7 @@ export const collectVisibleChatIDs = ({
 
 	const allChats = chats.flatMap((chat) => [chat, ...(chat.children ?? [])]);
 	const matchedChatIDs = allChats
-		.filter((chat) => chat.title.toLowerCase().includes(search))
+		.filter((chat) => chatMatchesSearch(chat, search))
 		.map((chat) => chat.id);
 	if (matchedChatIDs.length === 0) {
 		return new Set<string>();

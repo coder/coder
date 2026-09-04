@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
@@ -703,4 +704,617 @@ func decodeHookData[T any](t *testing.T, request agenthooks.Request) T {
 	var data T
 	require.NoError(t, json.Unmarshal(request.Data, &data))
 	return data
+}
+
+// The goal objective bypasses message content, so user_prompt_submit
+// must observe it and its replacement must be persisted (create path).
+func TestCreateChatGoalObjectiveHookPayloadAndOverride(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	var received agenthooks.Request
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		response := `{}`
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			received = request
+			response = `{"permission":{"decision":"allow","input_override":{"goal_objective":"  scrubbed objective  "}}}`
+		}
+		_, err := w.Write([]byte(response))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "goal create",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("kick off")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "original objective",
+		},
+	})
+	require.NoError(t, err)
+	promptData := decodeHookData[agenthooks.UserPromptSubmitData](t, received)
+	require.Equal(t, "original objective", promptData.GoalObjective)
+	require.Equal(t, "kick off", promptData.Prompt)
+	goals, err := db.GetCurrentChatGoalsByRootChatIDs(ctx, []uuid.UUID{chat.ID})
+	require.NoError(t, err)
+	require.Len(t, goals, 1)
+	require.Equal(t, "scrubbed objective", goals[0].Objective)
+}
+
+// Same contract on the send path: the hook payload carries the
+// objective and the override replaces it without touching the message.
+func TestSendMessageGoalObjectiveHookPayloadAndOverride(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	var received agenthooks.Request
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
+		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"goal_objective":"scrubbed objective"}}}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("pursue this")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "original objective",
+		},
+	})
+	require.NoError(t, err)
+	promptData := decodeHookData[agenthooks.UserPromptSubmitData](t, received)
+	require.Equal(t, "original objective", promptData.GoalObjective)
+	require.Equal(t, "pursue this", promptData.Prompt)
+	require.NotNil(t, result.Goal)
+	require.Equal(t, "scrubbed objective", result.Goal.Objective)
+	require.Equal(t, "pursue this", hookMessageText(t, result.Message))
+}
+
+// An objective override on a submission that sets no goal is a
+// consumer bug: the send is rejected and nothing is persisted.
+func TestSendMessageGoalObjectiveOverrideWithoutGoalRejected(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"goal_objective":"sneaky objective"}}}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("no goal here")},
+	})
+	require.ErrorIs(t, err, chatd.ErrChatGoalInvalidMutation)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.Empty(t, messages)
+}
+
+// A known-busy goal send is inadmissible; hook consumers must never
+// observe its prompt.
+func TestSendMessageGoalBusyRejectedBeforeHookDispatch(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	var promptDispatches atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			promptDispatches.Add(1)
+		}
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "busy goal",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("running")},
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRunning, chat.Status)
+	require.Equal(t, int32(1), promptDispatches.Load())
+
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("pursue this")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "goal on a busy chat",
+		},
+	})
+	require.ErrorIs(t, err, chatd.ErrChatGoalBusy)
+	require.Equal(t, int32(1), promptDispatches.Load(),
+		"user_prompt_submit must not be dispatched for an inadmissible goal send")
+}
+
+// A child-chat goal send can never commit because goals are root-only;
+// hook consumers must never observe its prompt.
+func TestSendMessageGoalChildChatRejectedBeforeHookDispatch(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	var promptDispatches atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			promptDispatches.Add(1)
+		}
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	root, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "root chat",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("root start")},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), promptDispatches.Load())
+
+	childContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("child question"),
+	})
+	require.NoError(t, err)
+	createdChild, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "child chat",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        childContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	// Waiting status passes the busy pre-check, so only the root-only
+	// guard can reject before dispatch.
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     createdChild.Chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    createdChild.Chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("pursue this")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "goal on a child chat",
+		},
+	})
+	require.ErrorIs(t, err, chatd.ErrChatGoalNotRoot)
+	require.Equal(t, int32(1), promptDispatches.Load(),
+		"user_prompt_submit must not be dispatched for a child-chat goal send")
+}
+
+func TestSendMessageGoalPlanModeRejectedBeforeHookDispatch(t *testing.T) {
+	t.Parallel()
+
+	planOn := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+	goalMutation := &codersdk.ChatGoalMutation{
+		Action:    codersdk.ChatGoalMutationActionSet,
+		Objective: "goal under plan mode",
+	}
+	newPromptCounter := func(t *testing.T) (*httptest.Server, *atomic.Int32) {
+		t.Helper()
+		var promptDispatches atomic.Int32
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var request agenthooks.Request
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			if request.Type == agenthooks.EventUserPromptSubmit {
+				promptDispatches.Add(1)
+			}
+			_, err := w.Write([]byte(`{}`))
+			require.NoError(t, err)
+		}))
+		t.Cleanup(consumer.Close)
+		return consumer, &promptDispatches
+	}
+
+	t.Run("InheritedPlanMode", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		consumer, promptDispatches := newPromptCounter(t)
+		server := newHookTestServer(t, db, ps, consumer)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			PlanMode:          planOn,
+		})
+
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:       chat.ID,
+			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("pursue this")},
+			GoalMutation: goalMutation,
+		})
+		require.ErrorIs(t, err, chatd.ErrChatGoalPlanMode)
+		require.Equal(t, int32(0), promptDispatches.Load(),
+			"user_prompt_submit must not be dispatched for an inadmissible goal send")
+	})
+
+	t.Run("RequestedPlanMode", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		consumer, promptDispatches := newPromptCounter(t)
+		server := newHookTestServer(t, db, ps, consumer)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:       chat.ID,
+			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("pursue this")},
+			PlanMode:     &planOn,
+			GoalMutation: goalMutation,
+		})
+		require.ErrorIs(t, err, chatd.ErrChatGoalPlanMode)
+		require.Equal(t, int32(0), promptDispatches.Load(),
+			"user_prompt_submit must not be dispatched for an inadmissible goal send")
+	})
+}
+
+// Plan-mode turns exclude goal completion behavior, so goal sets and
+// plan mode are mutually exclusive at the API layer, matching the
+// composer's mutually exclusive controls.
+func TestGoalSetPlanModeRejected(t *testing.T) {
+	t.Parallel()
+
+	planOn := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+	goalMutation := &codersdk.ChatGoalMutation{
+		Action:    codersdk.ChatGoalMutationActionSet,
+		Objective: "objective under plan mode",
+	}
+
+	t.Run("CreateRejected", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		server := newTestServer(t, db, ps, uuid.New())
+
+		_, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID:     org.ID,
+			OwnerID:            user.ID,
+			Title:              "plan mode goal",
+			ModelConfigID:      model.ID,
+			PlanMode:           planOn,
+			GoalMutation:       goalMutation,
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("start")},
+		})
+		require.ErrorIs(t, err, chatd.ErrChatGoalPlanMode)
+	})
+
+	t.Run("SendOnPlanModeChatRejected", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		server := newTestServer(t, db, ps, uuid.New())
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			PlanMode:          planOn,
+		})
+
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:       chat.ID,
+			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("pursue")},
+			GoalMutation: goalMutation,
+		})
+		require.ErrorIs(t, err, chatd.ErrChatGoalPlanMode)
+	})
+
+	t.Run("SendEnablingPlanModeRejected", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		server := newTestServer(t, db, ps, uuid.New())
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+
+		requested := planOn
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:       chat.ID,
+			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("pursue")},
+			PlanMode:     &requested,
+			GoalMutation: goalMutation,
+		})
+		require.ErrorIs(t, err, chatd.ErrChatGoalPlanMode)
+	})
+
+	t.Run("SendDisablingPlanModeAllowed", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		server := newTestServer(t, db, ps, uuid.New())
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			PlanMode:          planOn,
+		})
+
+		cleared := database.NullChatPlanMode{}
+		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:       chat.ID,
+			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("pursue")},
+			PlanMode:     &cleared,
+			GoalMutation: goalMutation,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result.Goal)
+	})
+}
+
+// chatstate admits direct sends on waiting and empty-queue error
+// states, so a goal-bound recovery send on an idle errored chat must
+// reach hook dispatch instead of being rejected as busy.
+func TestSendMessageGoalOnErroredChatDispatchesHook(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusError,
+	})
+	var received agenthooks.Request
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("recover with a goal")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "recovery objective",
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, result.Queued)
+	require.NotNil(t, result.Goal)
+	require.Equal(t, "recovery objective", result.Goal.Objective)
+	require.Equal(t, agenthooks.EventUserPromptSubmit, received.Type)
+	require.Equal(t, "recovery objective", decodeHookData[agenthooks.UserPromptSubmitData](t, received).GoalObjective)
+}
+
+// The source message anchors the current goal's objective; editing it
+// would start a turn from new text while the goal pursues the old
+// objective, so the edit is refused until the goal can no longer run.
+func TestEditMessageGoalSourceRejected(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "goal source edit",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("objective text")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "objective text",
+		},
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	goals, err := db.GetCurrentChatGoalsByRootChatIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{chat.ID})
+	require.NoError(t, err)
+	require.Len(t, goals, 1)
+	goal := goals[0]
+	require.True(t, goal.CreatedFromMessageID.Valid)
+	sourceID := goal.CreatedFromMessageID.Int64
+
+	edit := func(messageID int64) (chatd.EditMessageResult, error) {
+		return server.EditMessage(ctx, chatd.EditMessageOptions{
+			ChatID:          chat.ID,
+			CreatedBy:       user.ID,
+			EditedMessageID: messageID,
+			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("rewritten")},
+		})
+	}
+	_, err = edit(sourceID)
+	require.ErrorIs(t, err, chatd.ErrChatGoalSourceMessageEdit)
+
+	_, err = db.PauseChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.PauseChatGoalByIDParams{
+		RootChatID: chat.ID,
+		ID:         goal.ID,
+	})
+	require.NoError(t, err)
+	_, err = edit(sourceID)
+	require.ErrorIs(t, err, chatd.ErrChatGoalSourceMessageEdit,
+		"a paused goal can resume, so its source stays locked")
+
+	_, err = db.ResumeChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.ResumeChatGoalByIDParams{
+		RootChatID: chat.ID,
+		ID:         goal.ID,
+	})
+	require.NoError(t, err)
+	_, err = db.CompleteChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.CompleteChatGoalByIDParams{
+		RootChatID:       chat.ID,
+		ID:               goal.ID,
+		CompletedByAgent: true,
+	})
+	require.NoError(t, err)
+	replaced, err := edit(sourceID)
+	require.NoError(t, err, "a completed goal no longer locks its source message")
+
+	// A goal anchored to a later message locks every earlier message
+	// too: the edit's suffix deletion would truncate the source away.
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	sendResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("second objective")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "second objective",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sendResult.Goal)
+	require.Less(t, replaced.Message.ID, sendResult.Message.ID)
+	_, err = edit(replaced.Message.ID)
+	require.ErrorIs(t, err, chatd.ErrChatGoalSourceMessageEdit,
+		"editing a message older than the goal source would delete the source")
+}
+
+// Message IDs are allocated globally, so a child chat's rows can be
+// older than the root goal's source message. Editing child history
+// cannot delete the source row and must not trip the guard.
+func TestEditMessageChildChatIgnoresGoalSourceGuard(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "root without goal",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("root start")},
+	})
+	require.NoError(t, err)
+
+	childContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("child question"),
+	})
+	require.NoError(t, err)
+	createdChild, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ParentChatID:      uuid.NullUUID{UUID: chat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: chat.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "child before goal",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        childContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	childMessageID := createdChild.InitialMessages[len(createdChild.InitialMessages)-1].ID
+
+	// Set the root goal after the child message exists so the goal
+	// source ID exceeds the child message ID.
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	sendResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("objective text")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "objective text",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sendResult.Goal)
+	require.Greater(t, sendResult.Message.ID, childMessageID)
+
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     createdChild.Chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          createdChild.Chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: childMessageID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("rewritten child question")},
+	})
+	require.NoError(t, err, "editing child history cannot delete the root goal source")
 }

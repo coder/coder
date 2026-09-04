@@ -177,6 +177,7 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 		"process_list":         true,
 		"stop_workspace":       true,
 		"list_subagent_models": true,
+		"get_goal":             true,
 	}
 	var unvalidated []string
 	require.NotEmpty(t, prepared.BuiltinToolNames)

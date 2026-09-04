@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
+	ChatGoal,
 	ChatMessage,
 	ChatQueuedMessage,
 	Workspace,
@@ -27,6 +28,7 @@ import {
 	isWatchedWorkspaceViewUnchanged,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
+	runGoalAction,
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
 	submitEdit,
@@ -224,6 +226,167 @@ describe("restoreOptimisticRequestSnapshot", () => {
 		expect(restoredSnapshot.chatStatus).toBe(previousSnapshot.chatStatus);
 		expect(restoredSnapshot.streamState).toBe(previousSnapshot.streamState);
 		expect(restoredSnapshot.streamError).toEqual(previousSnapshot.streamError);
+	});
+});
+
+describe("runGoalAction", () => {
+	const makeGoal = (status: ChatGoal["status"]): ChatGoal => ({
+		id: "goal-1",
+		root_chat_id: "chat-1",
+		objective: "Fix the release blocker",
+		status,
+		created_by_user_id: "user-1",
+		completed_by_agent: false,
+		created_at: "2026-05-22T00:00:00Z",
+		updated_at: "2026-05-22T00:00:00Z",
+	});
+
+	it.each([
+		{ status: "active", action: "clear", completionSummary: undefined },
+		{ status: "paused", action: "clear", completionSummary: undefined },
+		{ status: "paused", action: "resume", completionSummary: undefined },
+		{ status: "complete", action: "clear", completionSummary: undefined },
+		{
+			status: "active",
+			action: "complete",
+			completionSummary: "Shipped and verified.",
+		},
+	] as const)("sends $action mutations for $status goals", async ({
+		status,
+		action,
+		completionSummary,
+	}) => {
+		const updateGoal = vi.fn(async () => undefined);
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: makeGoal(status),
+			action,
+			completionSummary,
+			updateGoal,
+		});
+
+		expect(updateGoal).toHaveBeenCalledWith({
+			chatId: "chat-1",
+			mutation: {
+				action,
+				goal_id: "goal-1",
+				completion_summary: completionSummary,
+			},
+		});
+	});
+
+	it.each([
+		{ liveChatStatus: "running", notified: true },
+		{ liveChatStatus: "waiting", notified: false },
+	] as const)("notifies on pause only for running goals (status $liveChatStatus)", async ({
+		liveChatStatus,
+		notified,
+	}) => {
+		const updateGoal = vi.fn(async () => undefined);
+		const onPausedRunningGoal = vi.fn();
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: makeGoal("active"),
+			action: "pause",
+			updateGoal,
+			liveChatStatus,
+			onPausedRunningGoal,
+		});
+
+		expect(onPausedRunningGoal).toHaveBeenCalledTimes(notified ? 1 : 0);
+	});
+
+	it("does not send lifecycle mutations without a current goal", async () => {
+		const updateGoal = vi.fn(async () => undefined);
+		const onMissingGoal = vi.fn();
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: undefined,
+			action: "clear",
+			updateGoal,
+			onMissingGoal,
+		});
+
+		expect(updateGoal).not.toHaveBeenCalled();
+		expect(onMissingGoal).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		{
+			name: "running chat",
+			liveChatStatus: "running",
+			hasQueuedInput: false,
+			planModeEnabled: false,
+		},
+		{
+			name: "interrupting chat",
+			liveChatStatus: "interrupting",
+			hasQueuedInput: false,
+			planModeEnabled: false,
+		},
+		{
+			name: "queued input",
+			liveChatStatus: "error",
+			hasQueuedInput: true,
+			planModeEnabled: false,
+		},
+		{
+			name: "plan mode",
+			liveChatStatus: "waiting",
+			hasQueuedInput: false,
+			planModeEnabled: true,
+		},
+	] as const)("does not resume with $name", async ({
+		liveChatStatus,
+		hasQueuedInput,
+		planModeEnabled,
+	}) => {
+		const updateGoal = vi.fn(async () => undefined);
+		const onActionUnavailable = vi.fn();
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: makeGoal("paused"),
+			action: "resume",
+			updateGoal,
+			liveChatStatus,
+			hasQueuedInput,
+			planModeEnabled,
+			onActionUnavailable,
+		});
+
+		expect(updateGoal).not.toHaveBeenCalled();
+		expect(onActionUnavailable).toHaveBeenCalledOnce();
+		expect(onActionUnavailable).toHaveBeenCalledWith(expect.any(String));
+	});
+
+	it("resumes on an idle chat", async () => {
+		const updateGoal = vi.fn(async () => undefined);
+		const onActionUnavailable = vi.fn();
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: makeGoal("paused"),
+			action: "resume",
+			updateGoal,
+			liveChatStatus: "waiting",
+			hasQueuedInput: false,
+			planModeEnabled: false,
+			onActionUnavailable,
+		});
+
+		expect(onActionUnavailable).not.toHaveBeenCalled();
+		expect(updateGoal).toHaveBeenCalledWith({
+			chatId: "chat-1",
+			mutation: {
+				action: "resume",
+				goal_id: "goal-1",
+				completion_summary: undefined,
+			},
+		});
 	});
 });
 
@@ -775,7 +938,7 @@ describe("useConversationEditingState", () => {
 		// the same text, so the editor is forced to reinitialize.
 		expect(result.current.remountKey).toBe(remountKeyAfterSend + 1);
 		expect(result.current.editorInitialValue).toBe("hello");
-		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7);
+		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7, undefined);
 		unmount();
 	});
 
@@ -793,7 +956,7 @@ describe("useConversationEditingState", () => {
 			await result.current.handleSendFromInput("hello", attachments);
 		});
 
-		expect(onSend).toHaveBeenCalledWith("hello", attachments, 7);
+		expect(onSend).toHaveBeenCalledWith("hello", attachments, 7, undefined);
 		unmount();
 	});
 
@@ -870,10 +1033,37 @@ describe("useConversationEditingState", () => {
 			await result.current.handleSendFromInput("hello");
 		});
 
-		expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+		expect(onSend).toHaveBeenCalledWith(
+			"hello",
+			undefined,
+			undefined,
+			undefined,
+		);
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
+		unmount();
+	});
+
+	it("forwards goal mutation options for a new message", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("ship it");
+		result.current.chatInputRef.current = mockInput.handle;
+		const options = {
+			goalMutation: { action: "set" as const, objective: "ship it" },
+		};
+
+		await act(async () => {
+			await result.current.handleSendFromInput("ship it", undefined, options);
+		});
+
+		expect(onSend).toHaveBeenCalledWith(
+			"ship it",
+			undefined,
+			undefined,
+			options,
+		);
+		expect(mockInput.clear).toHaveBeenCalled();
 		unmount();
 	});
 
@@ -907,13 +1097,18 @@ describe("useConversationEditingState", () => {
 			getValue: vi.fn().mockReturnValue(""),
 			addFileReference: vi.fn(),
 			getContentParts: vi.fn().mockReturnValue([]),
-		}; // The hook exposes chatInputRef – assign the mock to it.
+		};
 		result.current.chatInputRef.current = mockInputRef;
 
 		await act(async () => {
 			result.current.handleSendFromInput("hello");
 			await vi.waitFor(() => {
-				expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+				expect(onSend).toHaveBeenCalledWith(
+					"hello",
+					undefined,
+					undefined,
+					undefined,
+				);
 			});
 		});
 

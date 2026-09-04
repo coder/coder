@@ -53,6 +53,8 @@ If the distinction isn't completely clear to you at this point, don't worry. It 
 
 ## Execution states
 
+<!-- TODO(human): document chat goal lifecycle transitions. -->
+
 A chat's execution state lets the chat worker and the HTTP endpoints decide what they can do with the chat. In total, there are 13 execution states. The states are decided by what's in the database:
 
 - By whether a chat exists;
@@ -854,6 +856,8 @@ Retriable conditions include, but are not limited to:
 - LLM API request error, with the exception of hitting the generation attempt limit, which is considered to be a successful completion of the operation the goroutine was meant to perform.
 
 #### Generation goroutine
+
+<!-- TODO(human): document chat goal generation behavior. -->
 
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
 

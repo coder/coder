@@ -785,6 +785,42 @@ func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	require.Equal(t, "queued text", queued.Content[0].Text)
 }
 
+func TestChatGoal(t *testing.T) {
+	t.Parallel()
+
+	now := dbtime.Now()
+	completedByUserID := uuid.New()
+	goal := database.ChatGoal{
+		ID:                uuid.New(),
+		RootChatID:        uuid.New(),
+		Objective:         "ship goals",
+		Status:            database.ChatGoalStatusComplete,
+		CompletionSummary: sql.NullString{String: "done", Valid: true},
+		CreatedByUserID:   uuid.New(),
+		CompletedByUserID: uuid.NullUUID{UUID: completedByUserID, Valid: true},
+		CompletedByAgent:  true,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		CompletedAt:       sql.NullTime{Time: now, Valid: true},
+		ClearedAt:         sql.NullTime{Time: now, Valid: true},
+	}
+
+	converted := db2sdk.ChatGoal(goal)
+
+	require.Equal(t, goal.ID, converted.ID)
+	require.Equal(t, goal.RootChatID, converted.RootChatID)
+	require.Equal(t, goal.Objective, converted.Objective)
+	require.Equal(t, codersdk.ChatGoalStatusComplete, converted.Status)
+	require.Equal(t, "done", *converted.CompletionSummary)
+	require.Equal(t, goal.CreatedByUserID, converted.CreatedByUserID)
+	require.Equal(t, completedByUserID, *converted.CompletedByUserID)
+	require.True(t, converted.CompletedByAgent)
+	require.Equal(t, now, converted.CreatedAt)
+	require.Equal(t, now, converted.UpdatedAt)
+	require.Equal(t, now, *converted.CompletedAt)
+	require.Equal(t, now, *converted.ClearedAt)
+}
+
 func TestChat_AllFieldsPopulated(t *testing.T) {
 	t.Parallel()
 
@@ -867,8 +903,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
-	// These fields are set outside db2sdk.Chat and intentionally remain zero.
-	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
+	// These fields are populated outside db2sdk.Chat and intentionally remain zero.
+	skip := map[string]bool{"Goal": true, "HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {

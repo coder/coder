@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -74,6 +75,7 @@ type generationPrepared struct {
 
 	DynamicToolNames   map[string]bool
 	StopAfterTools     map[string]struct{}
+	GoalReminder       *generationGoalReminder
 	ExclusiveToolNames map[string]bool
 	BuiltinToolNames   map[string]bool
 	ToolNameToConfigID map[string]uuid.UUID
@@ -98,6 +100,10 @@ type generationCompaction struct {
 
 	Required bool
 	Options  chatloop.GenerateCompactionOptions
+}
+
+type generationGoalReminder struct {
+	GoalID uuid.UUID
 }
 
 type generationDebug struct {
@@ -127,6 +133,7 @@ const (
 	generationActionExecuteLocalTools   generationActionKind = "execute_local_tools"
 	generationActionEnterRequiresAction generationActionKind = "enter_requires_action"
 	generationActionFinishTurn          generationActionKind = "finish_turn"
+	generationActionInsertGoalReminder  generationActionKind = "insert_goal_reminder"
 	generationActionCompact             generationActionKind = "compact"
 	generationActionGenerateAssistant   generationActionKind = "generate_assistant"
 )
@@ -136,8 +143,11 @@ type generationFinishReason string
 const (
 	generationFinishReasonStopAfterTool generationFinishReason = "stop_after_tool"
 	generationFinishReasonComplete      generationFinishReason = "complete"
+	generationFinishReasonGoalReminder  generationFinishReason = "goal_reminder_limit"
 	generationFinishReasonMaxSteps      generationFinishReason = "max_steps"
 )
+
+const maxGoalCompletionRemindersPerTurn = 1
 
 var errCompactionStillOverLimit = chaterror.WithClassification(
 	xerrors.New("compaction left the chat above the compaction limit"),
@@ -196,6 +206,7 @@ type generationDecisionInput struct {
 	dynamicToolNames           map[string]bool
 	exclusiveToolNames         map[string]bool
 	stopAfterTools             map[string]struct{}
+	goalReminder               *generationGoalReminder
 	maxSteps                   int
 	compactionEnabled          bool
 	compactionNeeded           bool
@@ -250,6 +261,23 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 		return generationDecision{}, err
 	}
 	if complete {
+		if input.goalReminder != nil {
+			// The reminder exists to start another generation pass, so
+			// the turn step limit applies before scheduling it; finish
+			// with turn-limit semantics instead of parking a dangling
+			// reminder row for the next pass to reject.
+			if input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
+				return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
+			}
+			count, err := goalCompletionReminderCountForTurn(input.messages, input.goalReminder.GoalID)
+			if err != nil {
+				return generationDecision{}, err
+			}
+			if count < maxGoalCompletionRemindersPerTurn {
+				return generationDecision{kind: generationActionInsertGoalReminder}, nil
+			}
+			return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonGoalReminder}, nil
+		}
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, nil
 	}
 	if input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
@@ -437,7 +465,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	for {
-		chat, messages, err := loadGenerationState(ctx, machine, input)
+		chat, messages, err := s.loadGenerationState(ctx, machine, input)
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
@@ -480,6 +508,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 					dynamicToolNames:           prepared.DynamicToolNames,
 					exclusiveToolNames:         prepared.ExclusiveToolNames,
 					stopAfterTools:             prepared.StopAfterTools,
+					goalReminder:               prepared.GoalReminder,
 					maxSteps:                   prepared.MaxSteps,
 					compactionEnabled:          prepared.Compaction != nil,
 					compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
@@ -513,6 +542,19 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		case generationActionFinishTurn:
 			cleanup()
 			return s.finishGenerationTurn(ctx, machine, input, decision, generationAttemptNotRequired)
+		case generationActionInsertGoalReminder:
+			cleanup()
+			inserted, err := s.insertGoalCompletionReminder(ctx, machine, input, prepared)
+			if err != nil {
+				return err
+			}
+			if !inserted {
+				return s.finishGenerationTurn(ctx, machine, input, generationDecision{
+					kind:         generationActionFinishTurn,
+					finishReason: generationFinishReasonComplete,
+				}, generationAttemptNotRequired)
+			}
+			return nil
 		case generationActionGenerateAssistant:
 			actionErr = s.generateAssistant(ctx, machine, input, prepared)
 		case generationActionExecuteLocalTools:
@@ -566,7 +608,22 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 }
 
-func loadGenerationState(
+// goalHistoryEnabled reports whether hidden goal rows can exist for
+// the chat and should join decision history. Goal rows persist across
+// every status transition, so the existence check is a stable gate
+// that spares goalless chats the hidden-history read on each pass.
+func (s *taskStarter) goalHistoryEnabled(ctx context.Context, store database.Store, chat database.Chat) (bool, error) {
+	if s.server == nil || !s.server.experiments.Enabled(codersdk.ExperimentChatGoals) || !isRootChat(chat) {
+		return false, nil
+	}
+	exists, err := store.ChatGoalExistsByRootChatID(ctx, chat.ID)
+	if err != nil {
+		return false, xerrors.Errorf("check chat goal existence: %w", err)
+	}
+	return exists, nil
+}
+
+func (s *taskStarter) loadGenerationState(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
@@ -578,12 +635,13 @@ func loadGenerationState(
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		loadedMessages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  input.ChatID,
-			AfterID: 0,
-		})
+		includeGoalRows, err := s.goalHistoryEnabled(ctx, store, loadedChat)
 		if err != nil {
-			return xerrors.Errorf("load chat messages: %w", err)
+			return err
+		}
+		loadedMessages, err := loadDecisionMessages(ctx, store, input.ChatID, includeGoalRows)
+		if err != nil {
+			return err
 		}
 		chat = loadedChat
 		messages = loadedMessages
@@ -593,6 +651,129 @@ func loadGenerationState(
 		return database.Chat{}, nil, normalizeTaskInfrastructureError(err, "lock chat for generation")
 	}
 	return chat, messages, nil
+}
+
+// loadDecisionMessages loads the message history that generation
+// decisions operate on: all user-visible messages plus, when goal rows
+// can exist for the chat, model-only goal messages (completion
+// reminders and resume kicks). Goal rows are loaded independently of
+// the compaction prompt window so goal accounting stays stable when a
+// compaction summary hides earlier rows from the prompt. Skipping the
+// hidden-row scan for goalless chats keeps every generation step from
+// re-reading full history under the chat machine lock.
+//
+//nolint:revive // includeGoalRows states whether goal rows can exist for the chat, not caller control coupling.
+func loadDecisionMessages(ctx context.Context, store database.Store, chatID uuid.UUID, includeGoalRows bool) ([]database.ChatMessage, error) {
+	loaded, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: 0,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("load chat messages: %w", err)
+	}
+	if !includeGoalRows {
+		return loaded, nil
+	}
+	hidden, err := store.GetChatHiddenUserMessagesByChatID(ctx, chatID)
+	if err != nil {
+		return nil, xerrors.Errorf("load hidden chat messages: %w", err)
+	}
+	return appendHiddenGoalMessages(loaded, hidden)
+}
+
+var errGoalCompletionReminderSkipped = xerrors.New("goal completion reminder skipped")
+
+func (s *taskStarter) insertGoalCompletionReminder(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	prepared generationPrepared,
+) (bool, error) {
+	if prepared.GoalReminder == nil || prepared.GoalReminder.GoalID == uuid.Nil {
+		return false, nil
+	}
+	// Experiments are static per process, so no transactional recheck
+	// is needed.
+	if s.server == nil || !s.server.experiments.Enabled(codersdk.ExperimentChatGoals) {
+		return false, nil
+	}
+	message, err := goalCompletionReminderMessage(
+		prepared.GoalReminder.GoalID,
+		prepared.ModelConfigID,
+	)
+	if err != nil {
+		return false, xerrors.Errorf("build goal completion reminder: %w", err)
+	}
+
+	var committed database.Chat
+	insertedMessages := []runnerActionMessage{}
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		locked, err := store.GetChatByID(ctx, input.ChatID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
+		}
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+			return xerrors.Errorf("verifyTaskFence: %w", err)
+		}
+
+		queued, err := store.CountChatQueuedMessages(ctx, input.ChatID)
+		if err != nil {
+			return xerrors.Errorf("count queued messages: %w", err)
+		}
+		if queued > 0 {
+			return errGoalCompletionReminderSkipped
+		}
+		goal, err := currentChatGoal(ctx, store, chatRootID(locked))
+		if err != nil {
+			return err
+		}
+		if goal == nil || goal.ID != prepared.GoalReminder.GoalID || goal.Status != database.ChatGoalStatusActive {
+			return errGoalCompletionReminderSkipped
+		}
+		messages, err := loadDecisionMessages(ctx, store, input.ChatID, true)
+		if err != nil {
+			return err
+		}
+		count, err := goalCompletionReminderCountForTurn(messages, prepared.GoalReminder.GoalID)
+		if err != nil {
+			return err
+		}
+		if count >= maxGoalCompletionRemindersPerTurn {
+			return errGoalCompletionReminderSkipped
+		}
+
+		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{message}})
+		if err != nil {
+			return xerrors.Errorf("tx.CommitStep: %w", err)
+		}
+		insertedMessages = make([]runnerActionMessage, 0, len(commitResult.InsertedMessages))
+		for _, msg := range commitResult.InsertedMessages {
+			insertedMessages = append(insertedMessages, runnerActionMessage{ID: msg.ID, Role: codersdk.ChatMessageRole(msg.Role)})
+		}
+		committed, err = store.GetChatByID(ctx, input.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load committed chat: %w", err)
+		}
+		return nil
+	})
+	if errors.Is(err, errGoalCompletionReminderSkipped) {
+		return false, nil
+	}
+	if err != nil {
+		return false, normalizeTaskTransitionError(err, "insert goal completion reminder")
+	}
+	s.routeStateHint(ctx, stateUpdateFromChat(committed))
+	if err := s.afterGenerationOutcome(ctx, generationOutcome{
+		Chat:             committed,
+		Kind:             runnerActionKind(generationActionInsertGoalReminder),
+		InsertedMessages: insertedMessages,
+	}); err != nil {
+		return true, xerrors.Errorf("after generation outcome: %w", err)
+	}
+	return true, nil
 }
 
 func (*taskStarter) recordGenerationRetry(
@@ -1415,6 +1596,12 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 	decision generationDecision,
 	fence generationAttemptFence,
 ) error {
+	if decision.finishReason == generationFinishReasonGoalReminder {
+		s.opts.Logger.Warn(ctx, "chat goal completion reminder limit reached",
+			slog.F("chat_id", input.ChatID),
+			slog.F("worker_id", input.WorkerID),
+		)
+	}
 	var committed database.Chat
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
