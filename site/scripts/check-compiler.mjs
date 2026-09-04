@@ -1,23 +1,23 @@
 /**
  * React Compiler diagnostic checker.
  *
- * Runs babel-plugin-react-compiler over every .ts/.tsx file in the
- * target directories and reports functions that failed to compile or
- * were skipped. Exits with code 1 when any diagnostics are present
- * or a target directory is missing.
+ * Runs the React Compiler over every .ts/.tsx file in the target
+ * directories and reports functions that failed to compile or were
+ * skipped. Exits with code 1 when any diagnostics are present or a
+ * target directory is missing.
  *
  * Usage:  node scripts/check-compiler.mjs
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { transformSync } from "@babel/core";
+import { transform } from "oxc-transform-react";
 
 // Resolve the site/ directory (ESM equivalent of __dirname + "..").
 const siteDir = new URL("..", import.meta.url).pathname;
 
 // Directories opted in to React Compiler. Keep this list in sync with
-// the include filter in vite.config.mts.
+// compilerTargets in vite.config.mts.
 const targetDirs = [
 	"src/pages/AgentsPage",
 	"src/pages/AIBridgePage",
@@ -78,13 +78,54 @@ function collectFiles(dir) {
 // ---------------------------------------------------------------------------
 // Compilation & diagnostics
 //
-// We use transformSync deliberately. The React Compiler plugin is
-// CPU-bound (parse-only takes ~2s vs ~19s with the compiler over all
-// of site/src), so transformAsync + Promise.all gives no speedup
-// because Node still runs all transforms on a single thread. Benchmarked
-// sync, async-sequential, and async-parallel: all land within noise
-// of each other. The sync API keeps the code simple.
+// Compile errors and skips only reach `result.errors` when
+// `panicThreshold: "all_errors"` escalates them; without it, the
+// compiler emits valid code and the failures pass silently.
 // ---------------------------------------------------------------------------
+
+/**
+ * Compute the 1-based line number of a diagnostic label. Oxc error label
+ * offsets index UTF-8 bytes of the source, not UTF-16 code units, so the
+ * newline count must walk the byte encoding rather than `String.slice`.
+ */
+export function offsetToLine(code, offset) {
+	if (offset <= 0) return 1;
+	const bytes = Buffer.from(code, "utf-8");
+	let line = 1;
+	const end = Math.min(offset, bytes.length);
+	for (let i = 0; i < end; i++) {
+		if (bytes[i] === 0x0a) line++;
+	}
+	return line;
+}
+
+/**
+ * Extract the `file.tsx:N:M` location from an Oxc diagnostic codeframe.
+ * Returns 0 when the codeframe is missing or has no location header.
+ */
+export function lineFromCodeframe(codeframe) {
+	const match = codeframe?.match(/:(\d+):\d+\]/);
+	return match ? Number(match[1]) : 0;
+}
+
+/**
+ * Map an Oxc error to a report entry `{ line, short }`. The line number
+ * comes from the first label's byte offset, falling back to the codeframe
+ * location header when no label is available. Oxc messages are terse, so
+ * the first sentence of the help message is appended in parentheses to
+ * keep the one-line report actionable.
+ */
+function toDiagnostic(error, code) {
+	const firstLabel = error.labels?.[0];
+	const line = firstLabel
+		? offsetToLine(code, firstLabel.start)
+		: lineFromCodeframe(error.codeframe);
+	let short = shortenMessage(error.message);
+	if (error.helpMessage) {
+		short += ` (${shortenMessage(error.helpMessage)})`;
+	}
+	return { line, short };
+}
 
 /**
  * Shorten a compiler diagnostic message to its first sentence, stripping
@@ -126,45 +167,36 @@ export function deduplicateDiagnostics(diagnostics) {
  * errors are caught and returned as a diagnostic with line 0 rather
  * than thrown, so the caller always gets a result.
  */
-function compileFile(file) {
-	const isTSX = file.endsWith(".tsx");
+async function compileFile(file) {
 	const diagnostics = [];
 
 	try {
 		const code = readFileSync(join(siteDir, file), "utf-8");
-		const result = transformSync(code, {
-			plugins: [
-				["@babel/plugin-syntax-typescript", { isTSX }],
-				["babel-plugin-react-compiler", {
-					logger: {
-						logEvent(_filename, event) {
-							if (event.kind === "CompileError" || event.kind === "CompileSkip") {
-								const msg = event.detail || event.reason || "(unknown)";
-								diagnostics.push({
-									line: event.fnLoc?.start?.line ?? 0,
-									short: shortenMessage(msg),
-								});
-							}
-						},
-					},
-				}],
-			],
-			filename: file,
-			// Skip config-file resolution. No babel.config.js exists in the
-			// repo, so the search is wasted I/O on every file.
-			configFile: false,
-			babelrc: false,
+		const result = await transform(file, code, {
+			// The compiler skips files outside the target directories by
+			// filename, mirroring the include filter in vite.config.mts.
+			lang: file.endsWith(".tsx") ? "tsx" : "ts",
+			jsx: { runtime: "automatic" },
+			reactCompiler: {
+				panicThreshold: "all_errors",
+				sources: targetDirs.map((dir) => `${dir}/`),
+			},
 		});
+
+		for (const error of result.errors) {
+			diagnostics.push(toDiagnostic(error, code));
+		}
 
 		// The compiler inserts `const $ = _c(N)` at the top of every
 		// function it successfully compiles, where N is the number of
 		// memoization slots. Counting these tells us how many functions
 		// were compiled in this file.
-		const compiledCount = result?.code?.match(/const \$ = _c\(\d+\)/g)?.length ?? 0;
+		const compiledCount =
+			result.code.match(/const \$ = _c\(\d+\)/g)?.length ?? 0;
 
 		return {
 			compiled: compiledCount,
-			code: result?.code ?? "",
+			code: result.code ?? "",
 			diagnostics: deduplicateDiagnostics(diagnostics),
 		};
 	} catch (e) {
@@ -299,8 +331,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
 	const scopePruned = [];
 
-	for (const file of files) {
-		const { compiled, code, diagnostics } = compileFile(file);
+	// The native transform parallelizes across a worker pool, so run
+	// all files concurrently and collect the results in input order.
+	const results = await Promise.all(files.map((file) => compileFile(file)));
+
+	for (const [i, file] of files.entries()) {
+		const { compiled, code, diagnostics } = results[i];
 		totalCompiled += compiled;
 		if (diagnostics.length > 0) {
 			failures.push({ file, compiled, diagnostics });
