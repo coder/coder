@@ -992,6 +992,8 @@ The abandon chat goroutine is responsible for abandoning the chat. It is spawned
 
 TODO(PR author): Document the experiment-gated external runtime dispatch, ACP turn lifecycle, runtime state persistence, model selection, and shared completion behavior introduced by this change.
 
+TODO(PR author): Document gateway-only model routing for external runtimes, per-turn Coder token expiry and revocation, and the boundary that keeps upstream provider credentials outside the workspace.
+
 TODO(PR author): Document how ACP available_commands updates are captured per turn, persisted in runtime_state, exposed as Chat.runtime_commands, and omitted from watch event payloads.
 
 TODO(PR author): Document how lifecycle hooks interact with external runtimes: session_start runs before the ACP dispatch, hook user_message notices are user-visible system rows that the ACP prompt skips, and hook model_context rows are model-visible only and are not forwarded to the adapter.

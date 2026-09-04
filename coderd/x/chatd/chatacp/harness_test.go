@@ -83,16 +83,21 @@ func TestHarnessEnv(t *testing.T) {
 			runtime: codersdk.ChatRuntimeClaudeCode,
 			creds:   chatacp.TurnCredentials{APIKey: "key", BaseURL: "https://gateway.example.com", Model: "claude-test"},
 			wantEnv: map[string]string{
-				"ANTHROPIC_API_KEY":  "key",
-				"ANTHROPIC_MODEL":    "claude-test",
-				"ANTHROPIC_BASE_URL": "https://gateway.example.com",
+				"ANTHROPIC_AUTH_TOKEN": "key",
+				"ANTHROPIC_API_KEY":    "",
+				"ANTHROPIC_MODEL":      "claude-test",
+				"ANTHROPIC_BASE_URL":   "https://gateway.example.com",
 			},
 		},
 		{
-			name:    "ClaudeCodeKeyOnlyKeepsAdapterDefaults",
+			name:    "ClaudeCodeDefaultModelUsesGateway",
 			runtime: codersdk.ChatRuntimeClaudeCode,
-			creds:   chatacp.TurnCredentials{APIKey: "key"},
-			wantEnv: map[string]string{"ANTHROPIC_API_KEY": "key"},
+			creds:   chatacp.TurnCredentials{APIKey: "key", BaseURL: "https://gateway.example.com"},
+			wantEnv: map[string]string{
+				"ANTHROPIC_AUTH_TOKEN": "key",
+				"ANTHROPIC_API_KEY":    "",
+				"ANTHROPIC_BASE_URL":   "https://gateway.example.com",
+			},
 		},
 		{
 			name:    "CodexGatewayBare",
@@ -113,16 +118,13 @@ func TestHarnessEnv(t *testing.T) {
 			wantEnv: codexGateway("https://gateway.example.com/openai/v1"),
 		},
 		{
-			name:    "CodexModelOnly",
+			name:    "CodexDefaultModelUsesGateway",
 			runtime: codersdk.ChatRuntimeCodex,
-			creds:   chatacp.TurnCredentials{APIKey: "key", Model: "gpt-test"},
-			wantEnv: codexAuth(map[string]string{"CODEX_CONFIG": `{"model":"gpt-test"}`}),
-		},
-		{
-			name:    "CodexKeyOnlyKeepsAdapterDefaults",
-			runtime: codersdk.ChatRuntimeCodex,
-			creds:   chatacp.TurnCredentials{APIKey: "key"},
-			wantEnv: codexAuth(nil),
+			creds:   chatacp.TurnCredentials{APIKey: "key", BaseURL: "https://gateway.example.com/openai"},
+			wantEnv: codexAuth(map[string]string{
+				"MODEL_PROVIDER": "coder",
+				"CODEX_CONFIG":   `{"model_provider":"coder","model_providers":{"coder":{"name":"Coder","base_url":"https://gateway.example.com/openai/v1","env_key":"OPENAI_API_KEY","wire_api":"responses"}}}`,
+			}),
 		},
 	}
 	for _, tc := range tests {

@@ -9,8 +9,6 @@ interface ExternalChatRuntimeInfo {
 	readonly description: string;
 }
 
-// External runtimes inject their own provider credentials, so each one
-// accepts model configs from a single provider family.
 export const externalChatRuntimes: Record<
 	ExternalChatRuntime,
 	ExternalChatRuntimeInfo

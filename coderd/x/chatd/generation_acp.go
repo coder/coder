@@ -17,7 +17,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatacp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -96,6 +100,12 @@ func (s *taskStarter) startACPGeneration(
 		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
 
+	token, releaseToken, err := s.server.acpGatewayToken(ctx, chat.OwnerID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+	}
+	defer releaseToken()
+	cfg.APIKey = token
 	env := harness.Env(cfg.TurnCredentials)
 
 	transportFn := s.server.acpTransportFn
@@ -325,12 +335,7 @@ type acpTurnConfig struct {
 	modelConfigID uuid.UUID
 }
 
-// acpTurnConfig loads the organization's runtime config and a
-// deployment key for the harness provider for one turn. The key is
-// injected into the adapter's process environment and never written to
-// workspace disk. A non-zero selection (the triggering user message's
-// model config) overrides the admin model pin and sources credentials
-// from the selected config's provider.
+// acpTurnConfig resolves the model and gateway route without loading provider keys.
 func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, chat database.Chat, selection uuid.UUID) (acpTurnConfig, error) {
 	cfg, err := p.db.GetChatRuntimeConfig(ctx, database.GetChatRuntimeConfigParams{
 		OrganizationID: chat.OrganizationID,
@@ -358,34 +363,38 @@ func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, cha
 		)
 	}
 
+	var gateway *aibridge.TransportFactory
+	if p.aibridgeTransportFactory != nil {
+		gateway = p.aibridgeTransportFactory.Load()
+	}
+	if p.accessURL == nil || gateway == nil || *gateway == nil {
+		return acpTurnConfig{}, chaterror.WithClassification(
+			xerrors.New("AI Gateway is not configured"),
+			chaterror.ClassifiedError{
+				Kind:    codersdk.ChatErrorKindConfig,
+				Message: "External runtimes require Coder's AI Gateway to be enabled.",
+			},
+		)
+	}
+
 	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 	if err != nil {
 		return acpTurnConfig{}, xerrors.Errorf("get ai providers: %w", err)
 	}
-	harnessProviders := make([]database.AIProvider, 0, len(providers))
+	routesByProvider := make(map[uuid.UUID]chatacp.TurnCredentials)
 	for _, provider := range providers {
 		if provider.Type == database.AIProviderType(harness.ProviderType) {
-			harnessProviders = append(harnessProviders, provider)
+			routesByProvider[provider.ID] = chatacp.TurnCredentials{
+				BaseURL: p.accessURL.JoinPath(aibridge.AIGatewayRootPath, provider.Name).String(),
+			}
 		}
 	}
-	configuredProviders, err := p.aiProviderConfigs(ctx, harnessProviders)
-	if err != nil {
-		return acpTurnConfig{}, xerrors.Errorf("configure %s providers: %w", harness.ProviderType, err)
-	}
-	credsByProvider := make(map[uuid.UUID]chatacp.TurnCredentials, len(configuredProviders))
-	for _, configured := range configuredProviders {
-		if configured.APIKey == "" {
-			continue
-		}
-		credsByProvider[configured.ProviderID] = chatacp.TurnCredentials{APIKey: configured.APIKey, BaseURL: configured.BaseURL}
-	}
-	if len(credsByProvider) == 0 {
+	if len(routesByProvider) == 0 {
 		return acpTurnConfig{}, chaterror.WithClassification(
-			xerrors.Errorf("no %s provider key configured", harness.ProviderType),
+			xerrors.Errorf("no enabled %s provider", harness.ProviderType),
 			chaterror.ClassifiedError{
-				Kind: codersdk.ChatErrorKindMissingKey,
-				Message: fmt.Sprintf("%s requires a deployment %s API key. An administrator must configure the %s AI provider.",
-					harness.DisplayName, harness.ProviderLabel, harness.ProviderLabel),
+				Kind:    codersdk.ChatErrorKindConfig,
+				Message: fmt.Sprintf("%s requires an enabled %s AI Gateway provider.", harness.DisplayName, harness.ProviderLabel),
 			},
 		)
 	}
@@ -400,22 +409,20 @@ func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, cha
 		}
 		modelConfig, provider, err := chatstate.FetchACPModelConfig(modelCtx, p.db, chat.OrganizationID, harness, selection)
 		if err == nil {
-			if creds, ok := credsByProvider[provider.ID]; ok {
+			if creds, ok := routesByProvider[provider.ID]; ok {
 				creds.Model = modelConfig.Model
 				out.TurnCredentials = creds
 				out.modelConfigID = selection
 				return out, nil
 			}
-			err = xerrors.Errorf("provider %s has no usable key", provider.ID)
+			err = xerrors.Errorf("provider %s is unavailable", provider.ID)
 		}
-		// The selection was valid at send time; losing it mid-flight (config
-		// deleted or disabled, provider changed or left without a key) falls
-		// back to the runtime default chain and leaves the assistant messages
-		// unstamped. A model is never paired with another provider's key.
+		// A selection invalidated after submission falls back to the runtime
+		// default chain and leaves assistant messages unstamped.
 		p.logger.Warn(ctx, "acp turn: selected model config unavailable, using runtime default",
 			slog.F("chat_id", chat.ID), slog.F("model_config_id", selection), slog.Error(err))
 	}
-	creds, err := p.acpDefaultCredentials(ctx, harness, chat.OrganizationID, cfg.Model, credsByProvider)
+	creds, err := p.acpDefaultModelRoute(ctx, harness, chat.OrganizationID, cfg.Model, routesByProvider)
 	if err != nil {
 		return acpTurnConfig{}, err
 	}
@@ -423,20 +430,14 @@ func (p *Server) acpTurnConfig(ctx context.Context, harness chatacp.Harness, cha
 	return out, nil
 }
 
-// acpDefaultCredentials resolves the runtime default chain: the admin
-// model pin sources credentials from its own model config's provider,
-// and without a pin the single keyed harness provider supplies them
-// with the adapter's default model. The chain never guesses between
-// providers and never routes a pin whose model config has since been
-// disabled or deleted.
-func (p *Server) acpDefaultCredentials(
+func (p *Server) acpDefaultModelRoute(
 	ctx context.Context,
 	harness chatacp.Harness,
 	organizationID uuid.UUID,
 	pinnedModel string,
-	credsByProvider map[uuid.UUID]chatacp.TurnCredentials,
+	routesByProvider map[uuid.UUID]chatacp.TurnCredentials,
 ) (chatacp.TurnCredentials, error) {
-	candidates := credsByProvider
+	candidates := routesByProvider
 	if pinnedModel != "" {
 		configs, err := p.db.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
 		if err != nil {
@@ -448,7 +449,7 @@ func (p *Server) acpDefaultCredentials(
 			if row.Provider != string(harness.ProviderType) || row.ChatModelConfig.Model != pinnedModel {
 				continue
 			}
-			if creds, ok := credsByProvider[providerID]; ok {
+			if creds, ok := routesByProvider[providerID]; ok {
 				pinned[providerID] = creds
 			}
 		}
@@ -466,7 +467,7 @@ func (p *Server) acpDefaultCredentials(
 	}
 	if len(candidates) > 1 {
 		return chatacp.TurnCredentials{}, chaterror.WithClassification(
-			xerrors.Errorf("%d %s providers are keyed", len(candidates), harness.ProviderType),
+			xerrors.Errorf("%d %s providers are enabled", len(candidates), harness.ProviderType),
 			chaterror.ClassifiedError{
 				Kind: codersdk.ChatErrorKindConfig,
 				Message: fmt.Sprintf("Multiple %s providers are enabled, so the %s runtime cannot choose one. Select a model, or have an administrator keep a single %s provider enabled.",
@@ -480,6 +481,40 @@ func (p *Server) acpDefaultCredentials(
 	}
 	creds.Model = pinnedModel
 	return creds, nil
+}
+
+const acpGatewayTokenLifetime = 24 * time.Hour
+
+func (p *Server) acpGatewayToken(ctx context.Context, ownerID uuid.UUID) (string, func(), error) {
+	ctx = dbauthz.AsChatdKeyMinter(ctx, ownerID)
+	owner, err := p.db.GetUserForChatSyntheticAPIKeyByID(ctx, ownerID)
+	if err != nil {
+		return "", nil, xerrors.Errorf("get gateway token owner: %w", err)
+	}
+	params, token, err := apikey.Generate(apikey.CreateParams{
+		UserID:          ownerID,
+		LoginType:       owner.LoginType,
+		ExpiresAt:       p.clock.Now().Add(acpGatewayTokenLifetime),
+		LifetimeSeconds: int64(acpGatewayTokenLifetime.Seconds()),
+		TokenName:       "chatd_acp_session_token",
+		AllowList:       database.AllowList{{Type: rbac.ResourceUser.Type, ID: ownerID.String()}},
+		// Gateway authentication checks the token's owner, not API scopes.
+		// Restrict ordinary API access to reading the owner's profile.
+		Scopes: database.APIKeyScopes{database.ApiKeyScopeUserReadPersonal},
+	})
+	if err != nil {
+		return "", nil, xerrors.Errorf("generate gateway token: %w", err)
+	}
+	if _, err := p.db.InsertAPIKey(ctx, params); err != nil {
+		return "", nil, xerrors.Errorf("insert gateway token: %w", err)
+	}
+	return token, func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), acpPersistStateTimeout)
+		defer cancel()
+		if err := p.db.DeleteAPIKeyByID(cleanupCtx, params.ID); err != nil {
+			p.logger.Warn(cleanupCtx, "revoke external runtime gateway token", slog.F("key_id", params.ID), slog.F("user_id", ownerID), slog.Error(err))
+		}
+	}, nil
 }
 
 // ensureACPWorkspaceRunning makes sure the chat's bound

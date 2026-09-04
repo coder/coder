@@ -8,9 +8,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// TurnCredentials is what one turn resolved for the adapter: the
-// provider key and base URL it should call and the model to run. Empty
-// BaseURL and Model keep the adapter defaults.
+// TurnCredentials supplies a per-turn Coder token and AI Gateway URL.
+// Only an empty Model keeps the adapter default.
 type TurnCredentials struct {
 	APIKey  string
 	BaseURL string
@@ -27,7 +26,7 @@ type Harness struct {
 	// backing the runtime must put it on PATH.
 	Command string
 	// ProviderType is the AI provider whose model configs the runtime
-	// accepts and whose credentials it forwards to the adapter.
+	// accepts through the AI Gateway.
 	ProviderType codersdk.AIProviderType
 	// ProviderLabel names that provider in user-facing copy.
 	ProviderLabel string
@@ -87,19 +86,18 @@ func HarnessFor(runtime codersdk.ChatRuntime) (Harness, bool) {
 
 func claudeCodeEnv(creds TurnCredentials) map[string]string {
 	env := map[string]string{
-		"ANTHROPIC_API_KEY": creds.APIKey,
+		"ANTHROPIC_AUTH_TOKEN": creds.APIKey,
+		"ANTHROPIC_API_KEY":    "",
+		"ANTHROPIC_BASE_URL":   creds.BaseURL,
 	}
 	if creds.Model != "" {
 		env["ANTHROPIC_MODEL"] = creds.Model
-	}
-	if creds.BaseURL != "" {
-		env["ANTHROPIC_BASE_URL"] = creds.BaseURL
 	}
 	return env
 }
 
 // codexModelProviderID names the Codex model_providers entry that routes
-// requests to a configured OpenAI base URL.
+// requests through Coder's AI Gateway.
 const codexModelProviderID = "coder"
 
 // codexConfig is the subset of Codex's config.toml that chatd passes
@@ -117,40 +115,31 @@ type codexModelProviderConfig struct {
 	WireAPI string `json:"wire_api"`
 }
 
-// codexEnv configures codex-acp for non-interactive API-key auth:
-// NO_BROWSER hides the ChatGPT login method and DEFAULT_AUTH_REQUEST
-// makes the adapter log in with OPENAI_API_KEY itself when Codex asks
-// for authentication. That login writes the key to Codex's auth store
-// under CODEX_HOME on the workspace's persistent home, next to the
-// session storage resume depends on, so the key outlives the turn and
-// chatd cannot prevent that without giving up session resume. Model and
-// gateway routing travel in CODEX_CONFIG, which the adapter merges into
-// the Codex session config.
+// codexEnv routes through the gateway even when the adapter chooses the model.
+// codex-acp may persist the Coder token during API-key login; chatd revokes
+// it after the turn without disturbing the sessions needed for resume.
 func codexEnv(creds TurnCredentials) map[string]string {
-	env := map[string]string{
-		"OPENAI_API_KEY":       creds.APIKey,
-		"NO_BROWSER":           "1",
-		"DEFAULT_AUTH_REQUEST": `{"methodId":"api-key"}`,
-	}
-	config := codexConfig{Model: creds.Model}
-	if creds.BaseURL != "" {
-		env["MODEL_PROVIDER"] = codexModelProviderID
-		config.ModelProvider = codexModelProviderID
-		config.ModelProviders = map[string]codexModelProviderConfig{
+	config := codexConfig{
+		Model:         creds.Model,
+		ModelProvider: codexModelProviderID,
+		ModelProviders: map[string]codexModelProviderConfig{
 			codexModelProviderID: {
 				Name:    "Coder",
 				BaseURL: codexBaseURL(creds.BaseURL),
 				EnvKey:  "OPENAI_API_KEY",
 				WireAPI: "responses",
 			},
-		}
+		},
 	}
-	if creds.Model != "" || creds.BaseURL != "" {
-		// A struct of plain strings cannot fail to marshal.
-		encoded, _ := json.Marshal(config)
-		env["CODEX_CONFIG"] = string(encoded)
+	// A struct of plain strings cannot fail to marshal.
+	encoded, _ := json.Marshal(config)
+	return map[string]string{
+		"OPENAI_API_KEY":       creds.APIKey,
+		"NO_BROWSER":           "1",
+		"DEFAULT_AUTH_REQUEST": `{"methodId":"api-key"}`,
+		"MODEL_PROVIDER":       codexModelProviderID,
+		"CODEX_CONFIG":         string(encoded),
 	}
-	return env
 }
 
 // codexBaseURL normalizes a provider base URL to the /v1 root Codex

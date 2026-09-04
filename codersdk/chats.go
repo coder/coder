@@ -140,12 +140,8 @@ type ChatRuntimeConfig struct {
 // UpsertChatRuntimeConfigRequest creates or replaces the runtime
 // configuration for an organization.
 //
-// SECURITY: enabling a runtime injects the deployment's provider API
-// key into the runtime agent process inside each chat owner's
-// workspace, where the owner can read it, and Codex persists it in
-// its own auth store on the workspace's home volume across restarts
-// and key rotations. Configure a scoped, rate-limited key (e.g. an AI
-// gateway token), never a raw organization-wide provider key.
+// External runtimes use Coder's AI Gateway with a per-turn Coder token.
+// Upstream provider credentials never enter the workspace.
 type UpsertChatRuntimeConfigRequest struct {
 	OrganizationID uuid.UUID   `json:"organization_id" format:"uuid"`
 	Runtime        ChatRuntime `json:"runtime"`

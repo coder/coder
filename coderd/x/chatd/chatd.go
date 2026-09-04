@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -209,6 +210,7 @@ type Server struct {
 	agentCapacityLimiter AgentCapacityLimiter
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
+	accessURL                *url.URL
 	experiments              codersdk.Experiments
 
 	// Configuration
@@ -3143,6 +3145,7 @@ type Config struct {
 	UsageTracker                   *workspacestats.UsageTracker
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
+	AccessURL                      *url.URL
 	Experiments                    codersdk.Experiments
 	PrometheusRegistry             prometheus.Registerer
 
@@ -3260,6 +3263,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 			return debugSvc
 		},
 		aibridgeTransportFactory:   cfg.AIBridgeTransportFactory,
+		accessURL:                  cfg.AccessURL,
 		experiments:                cfg.Experiments,
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		maxChatsPerAcquire:         maxChatsPerAcquire,

@@ -313,8 +313,7 @@ func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueue
 // built-in chats apply here too; only the provider row, which chat
 // owners cannot read, is loaded with metadata access. Only enabled,
 // non-deleted configs on an enabled provider of the harness type are
-// selectable: the runtime injects that provider's credentials into the
-// adapter, so other provider types cannot be honored. Failures wrap
+// selectable: the adapter requires a compatible gateway API. Failures wrap
 // ErrInvalidModelConfigID unless the lookup itself errored.
 func FetchACPModelConfig(
 	ctx context.Context,
