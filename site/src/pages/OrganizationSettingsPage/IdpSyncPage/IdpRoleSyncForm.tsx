@@ -262,14 +262,10 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 								className="min-w-fit"
 								disabled={!idpRoleName || coderRoles.length === 0}
 								onClick={() => {
-									const newSyncSettings = {
-										...form.values,
-										mapping: {
-											...form.values.mapping,
-											[idpRoleName]: coderRoles.map((role) => role.value),
-										},
-									};
-									void form.setFieldValue("mapping", newSyncSettings.mapping);
+									void form.setFieldValue("mapping", {
+										...form.values.mapping,
+										[idpRoleName]: coderRoles.map((role) => role.value),
+									});
 									form.handleSubmit();
 									setIdpRoleName("");
 									setCoderRoles([]);

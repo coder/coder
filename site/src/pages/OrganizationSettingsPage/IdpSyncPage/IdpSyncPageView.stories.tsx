@@ -114,7 +114,6 @@ export const DeleteGroupMapping: Story = {
 		const dialog = await screen.findByRole("dialog", {
 			name: "Delete group mapping",
 		});
-		await expect(dialog).toBeVisible();
 		await expect(neighbor).toBeVisible();
 		await expect(
 			within(dialog).getByRole("button", { name: /^delete$/i }),

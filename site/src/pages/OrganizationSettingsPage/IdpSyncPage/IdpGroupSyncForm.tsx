@@ -327,14 +327,10 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 									className="min-w-fit"
 									disabled={!idpGroupName || coderGroups.length === 0}
 									onClick={() => {
-										const newSyncSettings = {
-											...form.values,
-											mapping: {
-												...form.values.mapping,
-												[idpGroupName]: coderGroups.map((group) => group.value),
-											},
-										};
-										void form.setFieldValue("mapping", newSyncSettings.mapping);
+										void form.setFieldValue("mapping", {
+											...form.values.mapping,
+											[idpGroupName]: coderGroups.map((group) => group.value),
+										});
 										form.handleSubmit();
 										setIdpGroupName("");
 										setCoderGroups([]);

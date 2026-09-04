@@ -89,17 +89,19 @@ const IdpOrgSyncPage: FC = () => {
 						onSubmit={async (data) => {
 							const mutation =
 								patchOrganizationSyncSettingsMutation.mutateAsync(data);
-							toast.promise(mutation, {
-								loading: "Updating organization IdP sync settings...",
-								success: "Organization IdP sync settings updated.",
-								error: (error) => ({
-									message: getErrorMessage(
-										error,
-										"Failed to update organization IdP sync settings.",
-									),
-									description: getErrorDetail(error),
-								}),
-							});
+							await toast
+								.promise(mutation, {
+									loading: "Updating organization IdP sync settings...",
+									success: "Organization IdP sync settings updated.",
+									error: (error) => ({
+										message: getErrorMessage(
+											error,
+											"Failed to update organization IdP sync settings.",
+										),
+										description: getErrorDetail(error),
+									}),
+								})
+								.unwrap();
 						}}
 						error={settingsQuery.error || fieldValuesQuery.error}
 					/>

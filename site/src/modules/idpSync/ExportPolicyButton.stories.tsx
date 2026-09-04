@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import type { Mock } from "vitest";
 import {
 	MockGroupSyncSettings,
 	MockOrganization,
@@ -24,17 +23,17 @@ type Story = StoryObj<typeof ExportPolicyButton>;
 
 export const Default: Story = {};
 
+const downloadGroupPolicy = fn<(file: Blob, filename: string) => void>();
+const downloadRolePolicy = fn<(file: Blob, filename: string) => void>();
+const downloadOrganizationPolicy = fn<(file: Blob, filename: string) => void>();
+
 const expectExportedPolicy = async (
 	canvasElement: HTMLElement,
-	download: Mock | undefined,
+	download: typeof downloadGroupPolicy,
 	filename: string,
 	settings: unknown,
 ) => {
 	const canvas = within(canvasElement);
-	await expect(download).toBeDefined();
-	if (!download) {
-		return;
-	}
 
 	await userEvent.click(canvas.getByRole("button", { name: "Export policy" }));
 	await waitFor(() =>
@@ -54,12 +53,12 @@ export const ClickExportGroupPolicy: Story = {
 		syncSettings: MockGroupSyncSettings,
 		filename: `${MockOrganization.name}_groups-policy.json`,
 		size: "sm",
-		download: fn(),
+		download: downloadGroupPolicy,
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		await expectExportedPolicy(
 			canvasElement,
-			args.download as Mock | undefined,
+			downloadGroupPolicy,
 			`${MockOrganization.name}_groups-policy.json`,
 			MockGroupSyncSettings,
 		);
@@ -71,12 +70,12 @@ export const ClickExportRolePolicy: Story = {
 		syncSettings: MockRoleSyncSettings,
 		filename: `${MockOrganization.name}_roles-policy.json`,
 		size: "sm",
-		download: fn(),
+		download: downloadRolePolicy,
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		await expectExportedPolicy(
 			canvasElement,
-			args.download as Mock | undefined,
+			downloadRolePolicy,
 			`${MockOrganization.name}_roles-policy.json`,
 			MockRoleSyncSettings,
 		);
@@ -87,12 +86,12 @@ export const ClickExportOrganizationPolicy: Story = {
 	args: {
 		syncSettings: MockOrganizationSyncSettings,
 		filename: "organizations_policy.json",
-		download: fn(),
+		download: downloadOrganizationPolicy,
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		await expectExportedPolicy(
 			canvasElement,
-			args.download as Mock | undefined,
+			downloadOrganizationPolicy,
 			"organizations_policy.json",
 			MockOrganizationSyncSettings,
 		);
