@@ -504,7 +504,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {registered},
 			"state":        {"abc123"},
-		}, registered)
+		}, appWithCallback(registered))
 
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
@@ -517,7 +517,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		t.Parallel()
 
 		p := httpapi.NewQueryParamParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, registered)
+		response, err := newAuthorizeResponse(p, url.Values{}, appWithCallback(registered))
 
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
@@ -531,7 +531,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		p := httpapi.NewQueryParamParser()
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {"https://elsewhere.example/cb"},
-		}, registered)
+		}, appWithCallback(registered))
 
 		// The client's mistake, so it joins the parser's other errors rather
 		// than becoming a server fault.
@@ -548,7 +548,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		p := httpapi.NewQueryParamParser()
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {"javascript:alert(1)"},
-		}, registered)
+		}, appWithCallback(registered))
 
 		require.NoError(t, err, "the app registered a usable callback; the client did not send one")
 		require.NotEmpty(t, p.Errors)
@@ -559,7 +559,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		t.Parallel()
 
 		p := httpapi.NewQueryParamParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, "javascript:alert(1)")
+		response, err := newAuthorizeResponse(p, url.Values{}, appWithCallback("javascript:alert(1)"))
 
 		require.Error(t, err)
 		require.Empty(t, p.Errors, "the registration is rejected before any parameter is read")
@@ -570,12 +570,46 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		t.Parallel()
 
 		p := httpapi.NewQueryParamParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, "http://a b")
+		response, err := newAuthorizeResponse(p, url.Values{}, appWithCallback("http://a b"))
 
 		require.Error(t, err, "a registration that does not parse is the same class as one this server rejects")
 		require.Empty(t, p.Errors)
 		require.False(t, response.canRedirect())
 	})
+
+	t.Run("SecondRegisteredURIIsADestination", func(t *testing.T) {
+		t.Parallel()
+
+		const second = "https://second.example.com/callback"
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{
+			"redirect_uri": {second},
+		}, database.OAuth2ProviderApp{CallbackURL: registered, RedirectUris: []string{registered, second}})
+
+		require.NoError(t, err)
+		require.Empty(t, p.Errors)
+		require.True(t, response.canRedirect())
+		require.Equal(t, second, response.callbackURL())
+	})
+
+	t.Run("UnregisteredURIRejectedAgainstTheSet", func(t *testing.T) {
+		t.Parallel()
+
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{
+			"redirect_uri": {"https://elsewhere.example/cb"},
+		}, database.OAuth2ProviderApp{CallbackURL: registered, RedirectUris: []string{registered, "https://second.example.com/callback"}})
+
+		require.NoError(t, err)
+		require.Len(t, p.Errors, 1)
+		require.Contains(t, p.Errors[0].Detail, "registered redirect URIs")
+		require.False(t, response.canRedirect())
+	})
+}
+
+// appWithCallback is an API-created app: one callback and no redirect_uris.
+func appWithCallback(callback string) database.OAuth2ProviderApp {
+	return database.OAuth2ProviderApp{CallbackURL: callback}
 }
 
 // TestAuthorizeResponseZeroValue pins the zero value as inert, since it is what

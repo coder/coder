@@ -288,7 +288,7 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 	// response_type and client_id are always required.
 	p.RequiredNotEmpty("response_type", "client_id")
 
-	response, err := newAuthorizeResponse(p, vals, app.CallbackURL)
+	response, err := newAuthorizeResponse(p, vals, app)
 	if err != nil {
 		return authorizeParams{}, &authorizeFailure{corruptCallback: err}
 	}
@@ -426,9 +426,9 @@ type authorizeResponse struct {
 	state    string
 }
 
-// newAuthorizeResponse parses the app's registered callback, checks it,
-// exact-matches any redirect_uri the client sent against it, and reads the
-// state to echo back.
+// newAuthorizeResponse selects the app's registered callback for this request,
+// checks it, exact-matches any redirect_uri the client sent against it, and
+// reads the state to echo back.
 //
 // The scheme is checked on the registered URL rather than on the match's result,
 // because p.RedirectURL returns the client's URI when the match fails, and
@@ -439,16 +439,17 @@ type authorizeResponse struct {
 // A returned error means the registration itself is unusable, which is server
 // state. A mismatch is the client's mistake and joins the other parameter
 // failures in p.Errors.
-func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, registered string) (authorizeResponse, error) {
-	registeredURL, err := url.Parse(registered)
+func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, app database.OAuth2ProviderApp) (authorizeResponse, error) {
+	registeredURL, err := registeredRedirectURL(app, vals.Get("redirect_uri"))
 	if err != nil {
 		return authorizeResponse{}, err
 	}
 	if err := codersdk.ValidateRedirectURIScheme(registeredURL); err != nil {
-		return authorizeResponse{}, err
+		return authorizeResponse{}, xerrors.Errorf("%s: %w", registeredURL, err)
 	}
 
-	callback := p.RedirectURL(vals, registeredURL, "redirect_uri")
+	callback := validateRedirectURI(p, vals, app, registeredURL)
+	requireRedirectURIWhenSeveralRegistered(p, vals, app)
 	response := authorizeResponse{state: p.String(vals, "", "state")}
 	// The field, not a count of errors across these two lines: reading state
 	// can fail too, and that failure belongs to the client's callback rather
@@ -550,9 +551,55 @@ func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog
 	http.Redirect(rw, r, response.errorURL(code, description).String(), http.StatusFound)
 }
 
+// registeredRedirectURL returns the URL a request's redirect_uri must match
+// exactly: the presented value when it is one of the app's registered
+// redirect_uris (RFC 7591 clients may register several), otherwise the primary
+// callback, which is both the default for an omitted redirect_uri and the value
+// an unregistered one fails against. Membership here is the authorization
+// decision; the caller's exact-match check can only fail on the fallback path.
+func registeredRedirectURL(app database.OAuth2ProviderApp, presented string) (*url.URL, error) {
+	if presented != "" && slices.Contains(app.RedirectUris, presented) {
+		return url.Parse(presented)
+	}
+	return url.Parse(app.CallbackURL)
+}
+
+// validateRedirectURI runs the exact-match check against the URL selected by
+// registeredRedirectURL and, when the client registered several URIs, words a
+// miss against the set rather than the primary alone.
+func validateRedirectURI(p *httpapi.QueryParamParser, vals url.Values, app database.OAuth2ProviderApp, base *url.URL) *url.URL {
+	v := p.RedirectURL(vals, base, "redirect_uri")
+	presented := vals.Get("redirect_uri")
+	if len(app.RedirectUris) <= 1 || presented == "" || slices.Contains(app.RedirectUris, presented) {
+		return v
+	}
+	for i := range p.Errors {
+		if p.Errors[i].Field == "redirect_uri" {
+			p.Errors[i].Detail = `Query param "redirect_uri" must exactly match one of the client's registered redirect URIs`
+		}
+	}
+	return v
+}
+
+// requireRedirectURIWhenSeveralRegistered applies RFC 6749 §3.1.2.3: a client
+// with several registered URIs must name one, since defaulting to the primary
+// could deliver the code to a callback the requester does not control. The
+// token endpoint is exempt; §4.1.3 only requires redirect_uri there when the
+// authorization request carried one, and authorizationCodeGrant binds the code
+// to that value.
+func requireRedirectURIWhenSeveralRegistered(p *httpapi.QueryParamParser, vals url.Values, app database.OAuth2ProviderApp) {
+	if len(app.RedirectUris) > 1 && vals.Get("redirect_uri") == "" {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  "redirect_uri",
+			Detail: `Query param "redirect_uri" is required because the client registered more than one redirect URI`,
+		})
+	}
+}
+
 // logCorruptCallback reports a registered callback URL this server should never
 // have stored: unparsable, or using a scheme registration rejects. The response
 // only says the callback is bad, so operators need the log to identify the app.
+// The error names the URL, which may be a registered one other than callback_url.
 func logCorruptCallback(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, err error) {
 	logger.Error(ctx, "oauth2 app has an unusable registered callback URL",
 		slog.Error(err),

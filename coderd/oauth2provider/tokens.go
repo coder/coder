@@ -180,7 +180,7 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAu
 	}
 
 	// Validate redirect URI - errors are added to p.Errors.
-	_ = p.RedirectURL(vals, callbackURL, "redirect_uri")
+	_ = validateRedirectURI(p, vals, app, callbackURL)
 
 	// Validate resource parameter syntax (RFC 8707): must be absolute URI without fragment.
 	if err := validateResourceParameter(req.Resource); err != nil {
@@ -205,7 +205,13 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 
-		callbackURL, err := url.Parse(app.CallbackURL)
+		// Parsed here so redirect_uri can select among the registered URIs.
+		// net/http caches the result, so the later ParseForm calls are no-ops.
+		if err := r.ParseForm(); err != nil {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Failed to parse form values")
+			return
+		}
+		callbackURL, err := registeredRedirectURL(app, r.Form.Get("redirect_uri"))
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate form values.",
