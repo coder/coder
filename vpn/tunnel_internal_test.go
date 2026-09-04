@@ -2,12 +2,10 @@ package vpn
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"net"
 	"net/netip"
 	"net/url"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -198,7 +196,7 @@ func TestTunnel_StartStop(t *testing.T) {
 	require.NotNil(t, opts)
 	require.Equal(t, "test", opts.Headers.Get("X-Test-Header"))
 	require.Equal(t,
-		fmt.Sprintf("coder-vpn-daemon/%s (%s/%s)", buildinfo.Version(), runtime.GOOS, runtime.GOARCH),
+		buildinfo.UserAgent("coder-vpn-daemon"),
 		opts.Headers.Get("User-Agent"))
 
 	// When: we stop the tunnel

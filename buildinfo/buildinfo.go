@@ -2,6 +2,7 @@ package buildinfo
 
 import (
 	"fmt"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -67,6 +68,11 @@ func Version() string {
 		}
 	})
 	return version
+}
+
+// UserAgent returns the User-Agent for outbound requests made by component.
+func UserAgent(component string) string {
+	return fmt.Sprintf("%s/%s (%s/%s)", component, Version(), runtime.GOOS, runtime.GOARCH)
 }
 
 // VersionsMatch compares the two versions. It assumes the versions match if

@@ -10,7 +10,6 @@ import (
 	"net/netip"
 	"net/url"
 	"reflect"
-	"runtime"
 	"sort"
 	"strconv"
 	"sync"
@@ -38,9 +37,8 @@ import (
 // and sends network status updates to the manager.
 const netStatusInterval = 5 * time.Second
 
-// userAgentFmt matches the shape used by the CLI (see cli/root.go) so that one pattern identifies
-// traffic from any Coder client. Takes the version, GOOS and GOARCH.
-const userAgentFmt = "coder-vpn-daemon/%s (%s/%s)"
+// userAgentComponent identifies vpn-daemon traffic to the deployment.
+const userAgentComponent = "coder-vpn-daemon"
 
 type Tunnel struct {
 	speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
@@ -266,7 +264,7 @@ func (t *Tunnel) start(req *StartRequest) error {
 
 	// Apply a custom user-agent if one is not supplied
 	if header.Get("User-Agent") == "" {
-		header.Set("User-Agent", fmt.Sprintf(userAgentFmt, buildinfo.Version(), runtime.GOOS, runtime.GOARCH))
+		header.Set("User-Agent", buildinfo.UserAgent(userAgentComponent))
 	}
 
 	var networkingStack NetworkStack

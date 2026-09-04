@@ -23,15 +23,14 @@ import (
 // LicenseRequestURL is the Coder licensor endpoint that issues trial licenses.
 const LicenseRequestURL = "https://v2-licensor.coder.com/trial"
 
-// VersionHeader reports the deployment's Coder version to the licensor.
-const VersionHeader = "X-Coder-Version"
-
 const (
 	// defaultLicenseRequestSource tells the licensor where a trial request
 	// originated when the caller does not specify a source.
 	defaultLicenseRequestSource = codersdk.LicensorTrialSourceProduct
 	// licenseRequestTimeout bounds a single request to the licensor.
 	licenseRequestTimeout = 30 * time.Second
+	// userAgentComponent identifies trial license requests to the licensor.
+	userAgentComponent = "coderd-trialer"
 )
 
 type LicensorError struct {
@@ -73,7 +72,7 @@ func (t *Trialer) Request(ctx context.Context, body codersdk.LicensorTrialReques
 		return "", xerrors.Errorf("create license request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(VersionHeader, buildinfo.Version())
+	req.Header.Set("User-Agent", buildinfo.UserAgent(userAgentComponent))
 	res, err := t.client.Do(req)
 	if err != nil {
 		return "", xerrors.Errorf("perform license request: %w", err)

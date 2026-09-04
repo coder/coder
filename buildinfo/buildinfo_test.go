@@ -2,6 +2,8 @@ package buildinfo_test
 
 import (
 	"fmt"
+	"regexp"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -101,6 +103,20 @@ func TestBuildInfo(t *testing.T) {
 			})
 		}
 	})
+}
+
+// userAgentGrammar is the shape every Coder client is expected to emit, so operators can
+// allowlist the token set with one pattern.
+var userAgentGrammar = regexp.MustCompile(
+	`^[a-z0-9-]+/v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.+-]+)? \((windows|darwin|linux)/(386|amd64|arm|arm64)\)$`)
+
+func TestUserAgent(t *testing.T) {
+	t.Parallel()
+
+	ua := buildinfo.UserAgent("coder-test")
+	require.Regexp(t, userAgentGrammar, ua)
+	require.Contains(t, ua, "coder-test/"+buildinfo.Version())
+	require.Contains(t, ua, fmt.Sprintf("(%s/%s)", runtime.GOOS, runtime.GOARCH))
 }
 
 func TestIsRCVersion(t *testing.T) {
