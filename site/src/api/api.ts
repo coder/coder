@@ -364,6 +364,9 @@ const userSkillPath = (user: string, name: string) =>
 	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/v2/users/${encodeURIComponent(user)}/ai-provider-keys`;
+const agentTimePath = "/api/v2/agent-time";
+const organizationAgentTimePath = (organization: string) =>
+	`/api/v2/organizations/${encodeURIComponent(organization)}/agent-time`;
 const mcpServerConfigsPath = (organization: string) =>
 	`/api/v2/organizations/${encodeURIComponent(organization)}/mcp-servers`;
 const mcpServerConfigPath = (organization: string, id: string) =>
@@ -2809,6 +2812,31 @@ class ApiMethods {
 		const searchParams = new URLSearchParams(params);
 		const response = await this.axios.get(
 			`/api/v2/insights/templates?${searchParams}`,
+		);
+
+		return response.data;
+	};
+
+	getAgentTime = async (
+		request: TypesGen.AgentTimeRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.AgentTimeReport> => {
+		const response = await this.axios.get<TypesGen.AgentTimeReport>(
+			getURLWithSearchParams(agentTimePath, request),
+			{ signal },
+		);
+
+		return response.data;
+	};
+
+	getOrganizationAgentTime = async (
+		organization: string,
+		request: TypesGen.AgentTimeRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.AgentTimeReport> => {
+		const response = await this.axios.get<TypesGen.AgentTimeReport>(
+			getURLWithSearchParams(organizationAgentTimePath(organization), request),
+			{ signal },
 		);
 
 		return response.data;

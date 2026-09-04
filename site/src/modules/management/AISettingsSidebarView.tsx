@@ -83,8 +83,13 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 				{(canAccessAnyChatModelConfig(permissions) ||
 					canAccessOrganizationModels) && <ModelsSidebarNavItem />}
 				{(permissions.editDeploymentConfig || canAccessOrganizationModels) && (
-					<SidebarNavItem href="/ai/settings/coder-agents">
+					<SidebarNavItem href="/ai/settings/coder-agents" end>
 						Coder Agents
+					</SidebarNavItem>
+				)}
+				{permissions.viewDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/coder-agents/agent-time">
+						Agent time
 					</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
