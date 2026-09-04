@@ -261,6 +261,71 @@ func TestModelForBedrockInvokeModel(t *testing.T) {
 	}
 }
 
+// TestSmallFastModelCapturedAtConstruction covers the classification captured
+// by the interceptor constructors. The configured identifiers are opaque
+// profile ARNs, so the classification must come from the client payload as it
+// arrives.
+func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
+	t.Parallel()
+
+	const (
+		profileARN          = "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/46u2vhiyo6z5"
+		smallFastProfileARN = "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/8x1qk20fzp3r"
+	)
+
+	runtime := NewBedrockRuntime(config.AWSBedrock{
+		Model:          profileARN,
+		SmallFastModel: smallFastProfileARN,
+	}, nil, "anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5")
+
+	const haikuPayload = `{"model":"claude-haiku-4-5","max_tokens":10000}`
+	const opusPayload = `{"model":"claude-opus-4-8","max_tokens":10000}`
+
+	constructors := []struct {
+		name            string
+		newInterception func(payload RequestPayload) *interceptionBase
+	}{
+		{name: "blocking", newInterception: func(payload RequestPayload) *interceptionBase {
+			return &NewBlockingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, http.Header{}, nil).interceptionBase
+		}},
+		{name: "streaming", newInterception: func(payload RequestPayload) *interceptionBase {
+			return &NewStreamingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, http.Header{}, nil).interceptionBase
+		}},
+	}
+
+	tests := []struct {
+		name             string
+		payload          string
+		expectModel      string
+		expectConfigured string
+	}{
+		{
+			name:             "small fast model",
+			payload:          haikuPayload,
+			expectModel:      "anthropic.claude-haiku-4-5",
+			expectConfigured: smallFastProfileARN,
+		},
+		{
+			name:             "primary model",
+			payload:          opusPayload,
+			expectModel:      "anthropic.claude-opus-4-8",
+			expectConfigured: profileARN,
+		},
+	}
+
+	for _, c := range constructors {
+		for _, tt := range tests {
+			t.Run(c.name+" "+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				i := c.newInterception(mustMessagesPayload(t, tt.payload))
+				require.Equal(t, tt.expectModel, i.Model())
+				require.Equal(t, tt.expectConfigured, i.upstreamModel())
+			})
+		}
+	}
+}
+
 // TestModelForPlainBedrockModelID covers Bedrock providers configured with
 // plain model IDs, which resolve to themselves.
 func TestModelForPlainBedrockModelID(t *testing.T) {
