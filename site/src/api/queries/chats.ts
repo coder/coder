@@ -484,6 +484,8 @@ type MergeWatchedChatOptions = {
 	readonly activeChatId?: string;
 };
 
+// Do not compare refreshed_at and stale_at: they change on every
+// poll. If they were compared, the cache would update every time.
 const diffStatusEqual = (
 	a: TypesGen.ChatDiffStatus | undefined,
 	b: TypesGen.ChatDiffStatus | undefined,

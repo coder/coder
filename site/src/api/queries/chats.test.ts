@@ -3141,7 +3141,11 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
-	it("adopts diff status when only base_branch, head_branch, or reviewer_count change", () => {
+	it.each([
+		{ field: "base_branch", to: "release" },
+		{ field: "head_branch", to: "feature-renamed" },
+		{ field: "reviewer_count", to: 2 },
+	])("adopts diff status when only $field changes", ({ field, to }) => {
 		const cachedDiffStatus = {
 			chat_id: "chat-1",
 			url: "https://example.com/pr/1",
@@ -3160,28 +3164,20 @@ describe("mergeWatchedChatSummary", () => {
 		};
 		const watchedDiffStatus = {
 			...cachedDiffStatus,
-			base_branch: "release",
-			head_branch: "feature-renamed",
-			reviewer_count: 2,
-			refreshed_at: "2025-01-01T00:05:00.000Z",
-			stale_at: "2025-01-01T01:05:00.000Z",
+			[field]: to,
 		};
 		const cachedChat = makeChat("chat-1", {
 			diff_status: cachedDiffStatus,
-			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
 			diff_status: watchedDiffStatus,
-			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 
-		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "diff_status_change",
-			}),
-		).toMatchObject({
-			diff_status: watchedDiffStatus,
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
 		});
+
+		expect(merged.diff_status).toBe(watchedDiffStatus);
 	});
 
 	it("returns the cached chat when only refreshed_at/stale_at differ", () => {
