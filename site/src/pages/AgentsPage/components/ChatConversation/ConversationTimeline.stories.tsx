@@ -1,5 +1,6 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import {
 	expect,
 	fireEvent,
@@ -11,6 +12,8 @@ import {
 	within,
 } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { rewriteLocalhostURL } from "#/utils/portForward";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ChatMessageScroller } from "../ChatMessageScroller";
@@ -586,6 +589,102 @@ export const UserPromptWithLinks: Story = {
 		expect(clickedHref).toBe(
 			"https://proxy.example.com/app?view=preview#details",
 		);
+	},
+};
+
+export const UserPromptLinksAfterWorkspaceLoads: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "http://localhost:3000/reload-proof?a=1&b=2#sec\n\n[Preview](http://localhost:3000/preview?a=1&b=2#sec) and https://coder.com/docs.\n\n`http://localhost:3000/literal`\n\n![Preview image](http://localhost:3000/preview.png)",
+					},
+				],
+			},
+		]),
+	},
+	render: function Render(args) {
+		const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
+		return (
+			<>
+				<Button onClick={() => setWorkspaceLoaded(!workspaceLoaded)}>
+					{workspaceLoaded
+						? "Clear workspace metadata"
+						: "Load workspace metadata"}
+				</Button>
+				<ConversationTimeline
+					{...args}
+					urlTransform={(url) =>
+						workspaceLoaded
+							? rewriteLocalhostURL(
+									url,
+									"*.proxy.example.com",
+									"main",
+									"workspace",
+									"owner",
+								)
+							: url
+					}
+				/>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const source = "http://localhost:3000/reload-proof?a=1&b=2#sec";
+		const link = canvas.getByRole("link", { name: source });
+		const preview = canvas.getByRole("link", { name: "Preview" });
+		expect(link).toHaveAttribute("href", source);
+		expect(
+			canvas.getByRole("button", {
+				name: "Load external image from localhost",
+			}),
+		).toBeVisible();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Load workspace metadata" }),
+		);
+		await waitFor(() =>
+			expect(link).toHaveAttribute(
+				"href",
+				`${location.protocol}//3000--main--workspace--owner.proxy.example.com/reload-proof?a=1&b=2#sec`,
+			),
+		);
+		expect(canvas.getByRole("link", { name: source })).toBe(link);
+		expect(preview).toHaveAttribute(
+			"href",
+			`${location.protocol}//3000--main--workspace--owner.proxy.example.com/preview?a=1&b=2#sec`,
+		);
+		expect(
+			canvas.getByRole("button", {
+				name: "Load external image from 3000--main--workspace--owner.proxy.example.com",
+			}),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("link", { name: "https://coder.com/docs" }),
+		).toHaveAttribute("href", "https://coder.com/docs");
+		expect(canvas.getByRole("code")).toHaveTextContent(
+			"http://localhost:3000/literal",
+		);
+		expect(canvas.getAllByRole("link")).toHaveLength(3);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Clear workspace metadata" }),
+		);
+		await waitFor(() => expect(link).toHaveAttribute("href", source));
+		expect(preview).toHaveAttribute(
+			"href",
+			"http://localhost:3000/preview?a=1&b=2#sec",
+		);
+		expect(
+			canvas.getByRole("button", {
+				name: "Load external image from localhost",
+			}),
+		).toBeVisible();
 	},
 };
 

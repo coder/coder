@@ -3,7 +3,13 @@ import {
 	File as FileViewer,
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
-import type { ComponentProps, ComponentPropsWithRef, ReactNode } from "react";
+import {
+	type ComponentProps,
+	type ComponentPropsWithRef,
+	createContext,
+	type ReactNode,
+	useContext,
+} from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -105,21 +111,32 @@ const markdownFileViewerStyle = {
 	"--diffs-line-height": "20px",
 };
 
+// Streamdown memoizes unchanged Markdown without comparing urlTransform.
+// Context keeps links and images current when workspace metadata arrives later.
+const UrlTransformContext = createContext<UrlTransform | undefined>(undefined);
+
 const createComponents = (
 	fileViewerThemeType: FileViewerThemeType,
 	viewerTheme: (typeof fileViewerTheme)[FileViewerThemeType],
 ): Components => {
 	return {
-		a: ({ href, children }: MarkdownComponentProps) => (
-			<a
-				href={href}
-				target="_blank"
-				rel="noopener noreferrer"
-				className="text-content-link no-underline hover:underline hover:decoration-content-link"
-			>
-				{children}
-			</a>
-		),
+		a: ({ href, children, node }) => {
+			const urlTransform = useContext(UrlTransformContext);
+			return (
+				<a
+					href={
+						href && node && urlTransform
+							? (urlTransform(href, "href", node) ?? undefined)
+							: href
+					}
+					target="_blank"
+					rel="noopener noreferrer"
+					className="text-content-link no-underline hover:underline hover:decoration-content-link"
+				>
+					{children}
+				</a>
+			);
+		},
 		// Headings scaled for a 13px base using a tight,
 		// Apple-like progression.
 		h1: ({ children }: MarkdownComponentProps) => (
@@ -192,9 +209,19 @@ const createComponents = (
 		// Gate externally hosted images behind viewer consent so
 		// rendering a chat never discloses the viewer's IP address
 		// to an attacker-controlled host (Cure53 CDM-02-006).
-		img: ({ src, alt }: MarkdownComponentProps) => (
-			<MarkdownImage src={src} alt={alt} />
-		),
+		img: ({ src, alt, node }) => {
+			const urlTransform = useContext(UrlTransformContext);
+			return (
+				<MarkdownImage
+					src={
+						src && node && urlTransform
+							? (urlTransform(src, "src", node) ?? undefined)
+							: src
+					}
+					alt={alt}
+				/>
+			);
+		},
 		// Horizontal rule: reset browser default inset/ridge border
 		// (preflight is disabled) to a clean 1px solid line.
 		hr: () => (
@@ -292,24 +319,25 @@ export const Response = ({
 			)}
 			{...props}
 		>
-			<Streamdown
-				controls={false}
-				components={
-					additionalComponents
-						? { ...components, ...additionalComponents }
-						: components
-				}
-				urlTransform={urlTransform}
-				rehypePlugins={
-					rehypePlugins?.length
-						? [...rehypePlugins, ...chatRehypePlugins]
-						: chatRehypePlugins
-				}
-				mode={streaming ? "streaming" : "static"}
-				parseIncompleteMarkdown={streaming}
-			>
-				{children}
-			</Streamdown>
+			<UrlTransformContext value={urlTransform}>
+				<Streamdown
+					controls={false}
+					components={
+						additionalComponents
+							? { ...components, ...additionalComponents }
+							: components
+					}
+					rehypePlugins={
+						rehypePlugins?.length
+							? [...rehypePlugins, ...chatRehypePlugins]
+							: chatRehypePlugins
+					}
+					mode={streaming ? "streaming" : "static"}
+					parseIncompleteMarkdown={streaming}
+				>
+					{children}
+				</Streamdown>
+			</UrlTransformContext>
 		</div>
 	);
 };
