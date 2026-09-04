@@ -29,10 +29,10 @@ func ExtractPrerequisites(readme string) string {
 	return strings.TrimSpace(after[:endIdx])
 }
 
-// prerequisiteMarkerLine matches either prerequisites marker on its own
+// prerequisitesMarkerLine matches either prerequisites marker on its own
 // line, including the trailing newline and an optional following blank
 // line, so removing it does not leave an extra gap in the rendered README.
-var prerequisiteMarkerLine = regexp.MustCompile(
+var prerequisitesMarkerLine = regexp.MustCompile(
 	`(?m)^[ \t]*(?:` +
 		regexp.QuoteMeta(prerequisitesStartMarker) + `|` +
 		regexp.QuoteMeta(prerequisitesEndMarker) +
@@ -40,6 +40,6 @@ var prerequisiteMarkerLine = regexp.MustCompile(
 
 // Remove the prerequisites comment markers from a README body,
 // preserving the content between the markers.
-func StripPrerequisiteMarkers(readme string) string {
-	return prerequisiteMarkerLine.ReplaceAllString(readme, "")
+func StripPrerequisitesMarkers(readme string) string {
+	return prerequisitesMarkerLine.ReplaceAllString(readme, "")
 }

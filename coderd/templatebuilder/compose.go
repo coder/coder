@@ -130,7 +130,7 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 // render as literal text when the README is viewed. Returns nil when the
 // base has no README.
 func composedReadme(baseTemplateID string) []byte {
-	readme := StripPrerequisiteMarkers(BaseReadme(baseTemplateID))
+	readme := StripPrerequisitesMarkers(BaseReadme(baseTemplateID))
 	if readme == "" {
 		return nil
 	}
