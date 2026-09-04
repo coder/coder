@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import type { FormHelpers } from "#/utils/formUtils";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 
@@ -111,5 +111,66 @@ export const WithoutIcon: Story = {
 		fields: [
 			{ type: "switch", id: "enabled", label: "Enabled", defaultChecked: true },
 		],
+	},
+};
+
+export const WithSensitiveVariables: Story = {
+	args: {
+		name: "Claude Code",
+		description: "Run the Claude Code agent in your workspace.",
+		iconUrl: "/icon/claude.svg",
+		detailsUrl: "https://registry.coder.com/modules/claude-code",
+		optionalFields: [
+			{
+				type: "select",
+				id: "model",
+				label: "Model",
+				options: [
+					{ value: "sonnet", label: "Sonnet" },
+					{ value: "opus", label: "Opus" },
+				],
+			},
+		],
+		sensitiveVariables: [
+			{
+				name: "claude_code_oauth_token",
+				type: "string",
+				description: "OAuth token used by Claude Code",
+				required: true,
+				sensitive: true,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const note = await canvas.findByTestId("module-sensitive-variables");
+		await expect(note).toBeVisible();
+		await expect(note).toHaveTextContent("claude_code_oauth_token");
+	},
+};
+
+export const NoConfigWithSensitiveVariables: Story = {
+	args: {
+		name: "OpenAI Codex",
+		description: "Install the OpenAI Codex CLI in your workspace.",
+		iconUrl: "/icon/openai.svg",
+		detailsUrl: "https://registry.coder.com/modules/codex",
+		sensitiveVariables: [
+			{
+				name: "openai_api_key",
+				type: "string",
+				description: "OpenAI API key",
+				required: true,
+				sensitive: true,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The sensitive-vars note renders even when the module has no
+		// configurable fields (the "No configuration required." branch).
+		await expect(canvas.getByText("No configuration required.")).toBeVisible();
+		const note = await canvas.findByTestId("module-sensitive-variables");
+		await expect(note).toHaveTextContent("openai_api_key");
 	},
 };
