@@ -422,6 +422,19 @@
 	"openai": [
 		{
 			"provider": "openai",
+			"modelIdentifier": "gpt-6-astra",
+			"displayName": "GPT-6 Astra",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"reasoningEffort": "medium",
+			"inputCost": 10,
+			"outputCost": 50,
+			"cacheReadCost": 1,
+			"cacheWriteCost": 12.5
+		},
+		{
+			"provider": "openai",
 			"modelIdentifier": "gpt-5.6-sol",
 			"displayName": "GPT-5.6 Sol",
 			"aliases": ["gpt-5.6"],
@@ -700,9 +713,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.088606,
-			"outputCost": 0.177212,
-			"cacheReadCost": 0.017721
+			"inputCost": 0.07938,
+			"outputCost": 0.15876,
+			"cacheReadCost": 0.015876
 		},
 		{
 			"provider": "openrouter",
@@ -711,9 +724,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 1.04226,
-			"outputCost": 2.08452,
-			"cacheReadCost": 0.086855
+			"inputCost": 1.030776,
+			"outputCost": 2.061552,
+			"cacheReadCost": 0.085898
 		},
 		{
 			"provider": "openrouter",
@@ -804,9 +817,9 @@
 			"aliases": [],
 			"contextLimit": 1000000,
 			"maxOutputTokens": 1000000,
-			"inputCost": 1.4,
-			"outputCost": 4.4,
-			"cacheReadCost": 0.14
+			"inputCost": 0.7,
+			"outputCost": 2.2,
+			"cacheReadCost": 0.13
 		},
 		{
 			"provider": "vercel",

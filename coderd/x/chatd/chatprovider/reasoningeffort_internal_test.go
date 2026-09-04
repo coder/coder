@@ -66,6 +66,28 @@ func TestApplyReasoningEffort(t *testing.T) {
 		require.Equal(t, fantasyopenai.ReasoningEffortHigh, *providerOptions.ReasoningEffort)
 	})
 
+	t.Run("ClampsUnsupportedGPT6AstraEfforts", func(t *testing.T) {
+		t.Parallel()
+
+		astra := NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-6-astra"}, nil)
+		for effort, want := range map[string]fantasyopenai.ReasoningEffort{
+			codersdk.ChatModelReasoningEffortNone:    fantasyopenai.ReasoningEffortLow,
+			codersdk.ChatModelReasoningEffortMinimal: fantasyopenai.ReasoningEffortLow,
+			codersdk.ChatModelReasoningEffortLow:     fantasyopenai.ReasoningEffortLow,
+			codersdk.ChatModelReasoningEffortMax:     fantasyopenai.ReasoningEffortMax,
+		} {
+			got := applyReasoningEffort(astra, nil, &effort)
+			providerOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+			require.True(t, ok, "%T", got[fantasyopenai.Name])
+			require.Equal(t, want, *providerOptions.ReasoningEffort, "effort %q", effort)
+		}
+
+		// Other OpenAI models keep the caller's value.
+		sol := NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5.6-sol"}, nil)
+		got := applyReasoningEffort(sol, nil, new(codersdk.ChatModelReasoningEffortNone))
+		require.Equal(t, fantasyopenai.ReasoningEffortNone, *got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions).ReasoningEffort)
+	})
+
 	tests := []struct {
 		name      string
 		provider  string
