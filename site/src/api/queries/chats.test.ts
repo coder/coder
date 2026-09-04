@@ -3141,6 +3141,87 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
+	it("adopts diff status when only base_branch, head_branch, or reviewer_count change", () => {
+		const cachedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/1",
+			pull_request_state: "open",
+			pull_request_title: "Title",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 2,
+			changed_files: 3,
+			base_branch: "main",
+			head_branch: "feature",
+			reviewer_count: 1,
+			refreshed_at: "2025-01-01T00:00:00.000Z",
+			stale_at: "2025-01-01T01:00:00.000Z",
+		};
+		const watchedDiffStatus = {
+			...cachedDiffStatus,
+			base_branch: "release",
+			head_branch: "feature-renamed",
+			reviewer_count: 2,
+			refreshed_at: "2025-01-01T00:05:00.000Z",
+			stale_at: "2025-01-01T01:05:00.000Z",
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_status: cachedDiffStatus,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_status: watchedDiffStatus,
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "diff_status_change",
+			}),
+		).toMatchObject({
+			diff_status: watchedDiffStatus,
+		});
+	});
+
+	it("returns the cached chat when only refreshed_at/stale_at differ", () => {
+		const cachedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/1",
+			pull_request_state: "open",
+			pull_request_title: "Title",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 2,
+			changed_files: 3,
+			base_branch: "main",
+			head_branch: "feature",
+			reviewer_count: 1,
+			refreshed_at: "2025-01-01T00:00:00.000Z",
+			stale_at: "2025-01-01T01:00:00.000Z",
+		};
+		const watchedDiffStatus = {
+			...cachedDiffStatus,
+			refreshed_at: "2025-01-01T00:05:00.000Z",
+			stale_at: "2025-01-01T01:05:00.000Z",
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_status: cachedDiffStatus,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_status: watchedDiffStatus,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "diff_status_change",
+			}),
+		).toBe(cachedChat);
+	});
+
 	it("marks other chats unread on fresh status updates", () => {
 		const cachedChat = makeChat("chat-1", {
 			has_unread: false,
