@@ -5409,8 +5409,6 @@ CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_ro
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
 
-CREATE TRIGGER trigger_agent_time_account_chat_messages_after_insert AFTER INSERT ON chat_messages REFERENCING NEW TABLE AS agent_time_new_messages FOR EACH STATEMENT EXECUTE FUNCTION agent_time_account_chat_messages_after_insert();
-
 CREATE TRIGGER trigger_agent_time_preserve_chat_before_delete BEFORE DELETE ON chats FOR EACH ROW EXECUTE FUNCTION agent_time_preserve_chat_before_delete();
 
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
@@ -5458,6 +5456,8 @@ CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills
 CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
 
 CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
+
+CREATE TRIGGER trigger_zz_agent_time_account_chat_messages_after_insert AFTER INSERT ON chat_messages REFERENCING NEW TABLE AS agent_time_new_messages FOR EACH STATEMENT EXECUTE FUNCTION agent_time_account_chat_messages_after_insert();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 

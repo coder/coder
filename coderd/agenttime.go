@@ -23,7 +23,7 @@ import (
 const agentTimeHistoricalNotice = "Agent time includes recorded message contributions only, attributed to their UTC creation date. Previously deleted messages and time that was never recorded cannot be recovered. Historical totals may be incomplete even after backfill finishes. Null recorded time does not mean no work occurred."
 
 // @Summary Get deployment agent time
-// @ID get-agent-time
+// @ID get-deployment-agent-time
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agent time
