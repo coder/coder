@@ -869,6 +869,8 @@ It inspects the chat's message history, and decides what's the next step to take
 
 <!-- TODO: document the generation goroutine's lifecycle stages (`generation_step`, `prepare`, `mcp_connect`, `provider_attempt`, `stream`, `time_to_first_token`, `thinking`, `tool_call`, `commit`, `compaction`, `queue_wait`) and the `coderd_chatd_stage_duration_seconds` histogram they feed. -->
 
+<!-- TODO: document the `retry_backoff` stage and the per-turn accounting emitted when a turn that finished normally ends: `coderd_chatd_turn_stage_seconds`, `coderd_chatd_stage_share_of_turn`, `coderd_chatd_turn_time_seconds`, and `coderd_chatd_turn_time_share`, including which stage each turn time category is built from. -->
+
 - `CommitStep`: applied when an LLM API call returns a response.
 - `FinishTurn`: applied when the chat processing logic determines that there's no more work to do for the current message history (no pending tool calls, user message is not the last message in the history, etc.).
 - `FinishError`: applied when the LLM API call fails and the retry limit is reached, determined by the `generation_attempt` value.

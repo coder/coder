@@ -454,6 +454,11 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if again {
 			continue
 		}
+		if err != nil {
+			// The turn stops here, so its stage totals cover only part
+			// of a turn.
+			input.Turn.Invalidate(input.TurnToken)
+		}
 		// The step's stage has ended by now, so a turn the step finished
 		// closes with that stage counted.
 		input.Turn.Settle(ctx, input.TurnToken)
@@ -552,7 +557,7 @@ func (s *taskStarter) runGenerationStep(
 		return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
 
-	stepSpan.SetAttributes(attribute.String(chatloop.AttrGenerationAction, string(decision.kind)))
+	stepSpan.SetGenerationAction(string(decision.kind))
 	var actionErr error
 	switch decision.kind {
 	case generationActionEnterRequiresAction:
@@ -1692,6 +1697,9 @@ func (s *taskStarter) finishGenerationError(
 	cause error,
 	fence generationAttemptFence,
 ) error {
+	// The turn ends on an error, so the stages it collected describe a
+	// partial turn.
+	input.Turn.Invalidate(input.TurnToken)
 	classified := chaterror.Classify(cause)
 	// Log the unsanitized cause before persisting so administrators can
 	// diagnose the failure even when the classified user-facing message
