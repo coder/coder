@@ -84,6 +84,7 @@
 			},
 			"complexity": {
 				"noImportantStyles": "off", // TODO: check and fix !important styles
+				"noUselessThisAlias": "off",
 				"useLiteralKeys": "off"
 			}
 		}

@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
-import { cn } from "#/utils/cn";
 
 const collapsibleSummaryVariants = cva(
 	`flex items-center gap-1 p-0 bg-transparent border-0 text-inherit cursor-pointer

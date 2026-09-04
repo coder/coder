@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FormikContextType } from "formik";
 import { CheckIcon } from "lucide-react";
 import {
@@ -11,7 +12,6 @@ import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
-import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
 import {
 	findKnownModelByCanonicalId,

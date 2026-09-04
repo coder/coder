@@ -5,9 +5,10 @@
  * This component was updated to match the styles from the Figma design:
  * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=656-2354&t=CiGt5le3yJEwMH4M-0}
  */
+
+import { cn } from "cn";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
-import { cn } from "#/utils/cn";
 import {
 	menuContentClass,
 	menuItemClass,
@@ -17,8 +18,6 @@ import {
 export const DropdownMenu = DropdownMenuPrimitive.Root;
 
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
-
-export const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CircleCheckIcon,
 	CircleXIcon,
@@ -28,10 +29,6 @@ import type {
 	UserActivityInsightsResponse,
 	UserLatencyInsightsResponse,
 } from "#/api/typesGenerated";
-import {
-	ActiveUserChart,
-	ActiveUsersTitle,
-} from "#/components/ActiveUserChart/ActiveUserChart";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	DateRangePicker as DailyPicker,
@@ -55,8 +52,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
-
-import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 import {
 	addTime,
@@ -66,6 +61,7 @@ import {
 	subtractTime,
 } from "#/utils/time";
 import { getTemplatePageTitle } from "../utils";
+import { ActiveUserChart } from "./ActiveUserChart";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
@@ -285,8 +281,22 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	return (
 		<Panel {...panelProps}>
 			<PanelHeader>
-				<PanelTitle>
-					<ActiveUsersTitle interval={interval} />
+				<PanelTitle className="flex items-center gap-2">
+					{interval === "day" ? "Daily" : "Weekly"} Active Users
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>
+								How do we calculate active users?
+							</HelpPopoverTitle>
+							<HelpPopoverText>
+								When a connection is initiated to a user&apos;s workspace they
+								are considered an active user. e.g. apps, web terminal, SSH.
+								This is for measuring user activity and has no connection to
+								license consumption.
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data}>

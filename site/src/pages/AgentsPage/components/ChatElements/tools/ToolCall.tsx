@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	LoaderIcon,
@@ -18,7 +19,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolIcon } from "./ToolIcon";
@@ -259,7 +259,7 @@ const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
 }) => {
 	const { active } = useToolCallContext();
 	if (children) {
-		return <>{children}</>;
+		return children;
 	}
 	if (!name) {
 		return null;
@@ -444,7 +444,7 @@ const Content: FC<ToolCallContentProps> = ({ children }) => {
 	if (!collapsible || !expanded) {
 		return null;
 	}
-	return <>{children}</>;
+	return children;
 };
 
 export const ToolCall = {

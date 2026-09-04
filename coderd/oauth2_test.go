@@ -150,6 +150,31 @@ func TestOAuth2ProviderAppSecrets(t *testing.T) {
 		_, err = client.OAuth2ProviderAppSecrets(ctx, apps.Default.ID)
 		require.Error(t, err)
 	})
+
+	t.Run("RejectsPublicClient", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		oauth2providertest.EnableDCR(t, client)
+		app := oauth2providertest.RegisterPublicClient(t, client, "app-secrets-public", "http://localhost:8080/callback")
+		appID, err := uuid.Parse(app.ClientID)
+		require.NoError(t, err)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PostOAuth2ProviderAppSecret(ctx, appID)
+		// Check the status and message, since a bare require.Error would also
+		// pass for a request that never reached the guard.
+		var sdkError *codersdk.Error
+		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
+		require.Contains(t, sdkError.Message, "public OAuth2 app")
+
+		// No partial secret was created.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		secrets, err := client.OAuth2ProviderAppSecrets(ctx, appID)
+		require.NoError(t, err)
+		require.Empty(t, secrets)
+	})
 }
 
 func TestOAuth2ProviderTokenExchange(t *testing.T) {

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ArrowRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
@@ -7,7 +8,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
-import { DeprecatedBadge } from "#/components/Badges/Badges";
+import { DeprecatedBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import {
 	HelpPopover,
@@ -40,7 +41,6 @@ import {
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
-import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { docs } from "#/utils/docs";
 import {

@@ -362,6 +362,39 @@ func ScopesCover(canonicalAllowed []ScopeName, canonicalRequested ScopeName) (bo
 	return scopesCoverExpanded(grants, namedScope{name: canonicalRequested, scope: want})
 }
 
+// FirstScopeNotCovered returns the first requested scope the allowed set does
+// not confer, or "" when it confers all of them. Same answer as calling
+// ScopesCover per scope, but it expands the allowed side once rather than once
+// per call, and an allowlist is client-supplied text of any length.
+//
+// When a comparison cannot be decided, the returned scope is the one that
+// failed, alongside the error.
+func FirstScopeNotCovered(canonicalAllowed, canonicalRequested []ScopeName) (ScopeName, error) {
+	grants := make([]namedScope, 0, len(canonicalAllowed))
+	for _, name := range canonicalAllowed {
+		expanded, err := ExpandScope(name)
+		if err != nil {
+			return name, xerrors.Errorf("expand allowed scope: %w", err)
+		}
+		grants = append(grants, namedScope{name: name, scope: expanded})
+	}
+
+	for _, name := range canonicalRequested {
+		want, err := ExpandScope(name)
+		if err != nil {
+			return name, xerrors.Errorf("expand requested scope: %w", err)
+		}
+		covered, err := scopesCoverExpanded(grants, namedScope{name: name, scope: want})
+		if err != nil {
+			return name, err
+		}
+		if !covered {
+			return name, nil
+		}
+	}
+	return "", nil
+}
+
 // namedScope pairs an expanded scope with the name the caller spelled, so a
 // guard error can name the scope as it was requested rather than as it expanded.
 type namedScope struct {

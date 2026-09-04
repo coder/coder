@@ -1684,6 +1684,7 @@ None
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "docs_url": "string",
   "logo_url": "string",
   "service_banner": {
@@ -1708,6 +1709,7 @@ None
 |------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
 | `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
+| `codernauts_enabled`   | boolean                                                 | false    |              |                                                                     |
 | `docs_url`             | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
@@ -7501,6 +7503,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
+    "disable_user_secret_file_path": true,
     "disable_workspace_agent_context_sync": true,
     "disable_workspace_sharing": true,
     "docs_url": {
@@ -8133,6 +8136,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
+  "disable_user_secret_file_path": true,
   "disable_workspace_agent_context_sync": true,
   "disable_workspace_sharing": true,
   "docs_url": {
@@ -8532,6 +8536,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                           |
 | `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                           |
 | `disable_path_apps`                            | boolean                                                                                              | false    |              |                                                                           |
+| `disable_user_secret_file_path`                | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                           |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
@@ -10965,6 +10970,38 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|------------------------------------------------------------|----------|--------------|-------------|
 | `github` | [codersdk.OAuth2GithubConfig](#codersdkoauth2githubconfig) | false    |              |             |
 
+## codersdk.OAuth2Error
+
+```json
+{
+  "error": "invalid_request",
+  "error_description": "string",
+  "error_uri": "string"
+}
+```
+
+### Properties
+
+| Name                | Type                                                 | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------|----------|--------------|-------------|
+| `error`             | [codersdk.OAuth2ErrorCode](#codersdkoauth2errorcode) | false    |              |             |
+| `error_description` | string                                               | false    |              |             |
+| `error_uri`         | string                                               | false    |              |             |
+
+## codersdk.OAuth2ErrorCode
+
+```json
+"invalid_request"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                                                                                                                                    |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `access_denied`, `invalid_client`, `invalid_grant`, `invalid_request`, `invalid_scope`, `invalid_target`, `server_error`, `temporarily_unavailable`, `unauthorized_client`, `unsupported_grant_type`, `unsupported_response_type`, `unsupported_token_type` |
+
 ## codersdk.OAuth2GithubConfig
 
 ```json
@@ -11155,6 +11192,44 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value(s)                                            |
 |-----------------------------------------------------|
 | `client_secret_basic`, `client_secret_post`, `none` |
+
+## codersdk.OAuth2TokenResponse
+
+```json
+{
+  "access_token": "string",
+  "expires_in": 0,
+  "expiry": "2019-08-24T14:15:22Z",
+  "refresh_token": "string",
+  "scope": "string",
+  "token_type": "Bearer"
+}
+```
+
+### Properties
+
+| Name            | Type                                                 | Required | Restrictions | Description                                                                                                                          |
+|-----------------|------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `access_token`  | string                                               | false    |              |                                                                                                                                      |
+| `expires_in`    | integer                                              | false    |              |                                                                                                                                      |
+| `expiry`        | string                                               | false    |              | Expiry is not part of RFC 6749 but is included for compatibility with golang.org/x/oauth2.Token and clients that expect a timestamp. |
+| `refresh_token` | string                                               | false    |              |                                                                                                                                      |
+| `scope`         | string                                               | false    |              |                                                                                                                                      |
+| `token_type`    | [codersdk.OAuth2TokenType](#codersdkoauth2tokentype) | false    |              |                                                                                                                                      |
+
+## codersdk.OAuth2TokenType
+
+```json
+"Bearer"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)         |
+|------------------|
+| `Bearer`, `DPoP` |
 
 ## codersdk.OAuthConversionResponse
 
@@ -13992,6 +14067,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "agents": [
+    {
+      "default": true,
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
   "description": "string",
   "icon": "string",
   "id": "string",
@@ -14017,6 +14099,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Name            | Type                                                                                      | Required | Restrictions | Description |
 |-----------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `agents`        | array of [codersdk.TemplateBuilderBaseAgent](#codersdktemplatebuilderbaseagent)           | false    |              |             |
 | `description`   | string                                                                                    | false    |              |             |
 | `icon`          | string                                                                                    | false    |              |             |
 | `id`            | string                                                                                    | false    |              |             |
@@ -14025,12 +14108,37 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `prerequisites` | string                                                                                    | false    |              |             |
 | `variables`     | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
 
+## codersdk.TemplateBuilderBaseAgent
+
+```json
+{
+  "default": true,
+  "display_name": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                     |
+|----------------|---------|----------|--------------|---------------------------------------------------------------------------------|
+| `default`      | boolean | false    |              | Default reports whether modules attach to this agent when they do not name one. |
+| `display_name` | string  | false    |              |                                                                                 |
+| `name`         | string  | false    |              |                                                                                 |
+
 ## codersdk.TemplateBuilderBasesResponse
 
 ```json
 {
   "bases": [
     {
+      "agents": [
+        {
+          "default": true,
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
       "description": "string",
       "icon": "string",
       "id": "string",
@@ -14064,6 +14172,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "agent_name": "string",
   "id": "string",
   "variables": {
     "property1": "string",
@@ -14074,11 +14183,12 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `id`               | string | false    |              |             |
-| `variables`        | object | false    |              |             |
-| » `[any property]` | string | false    |              |             |
+| Name               | Type   | Required | Restrictions | Description                                                                 |
+|--------------------|--------|----------|--------------|-----------------------------------------------------------------------------|
+| `agent_name`       | string | false    |              | Agent name targets a base coder_agent by name. Empty uses the base default. |
+| `id`               | string | false    |              |                                                                             |
+| `variables`        | object | false    |              |                                                                             |
+| » `[any property]` | string | false    |              |                                                                             |
 
 ## codersdk.TemplateBuilderComposeRequest
 
@@ -14091,6 +14201,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "modules": [
     {
+      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
@@ -14140,6 +14251,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "icon": "string",
   "modules": [
     {
+      "agent_name": "string",
       "id": "string",
       "variables": {
         "property1": "string",
@@ -15211,6 +15323,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -15226,6 +15339,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
 | `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
+| `codernauts_enabled`   | boolean                                                 | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 
@@ -16931,6 +17045,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`          | string  | false    |              |                                                                                                                                                                                                                                      |
 | `name`        | string  | false    |              |                                                                                                                                                                                                                                      |
 | `updated_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
+
+## codersdk.UserSecretsCapabilities
+
+```json
+{
+  "file_path_delivery_enabled": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description                                                                                                                       |
+|------------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `file_path_delivery_enabled` | boolean | false    |              | File path delivery enabled reports whether Coder writes stored file paths into workspaces. Stored paths are preserved either way. |
 
 ## codersdk.UserSkill
 
@@ -20971,29 +21099,6 @@ None
 | » `[any property]`      | integer | false    |              |                                                                                                     |
 | `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                     |
 | `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                           |
-
-## oauth2.Token
-
-```json
-{
-  "access_token": "string",
-  "expires_in": 0,
-  "expiry": "string",
-  "refresh_token": "string",
-  "token_type": "string"
-}
-```
-
-### Properties
-
-| Name           | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                 |
-|----------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `access_token` | string  | false    |              | Access token is the token that authorizes and authenticates the requests.                                                                                                                                                                                                   |
-| `expires_in`   | integer | false    |              | Expires in is the OAuth2 wire format "expires_in" field, which specifies how many seconds later the token expires, relative to an unknown time base approximately around "now". It is the application's responsibility to populate `Expiry` from `ExpiresIn` when required. |
-|`expiry`|string|false||Expiry is the optional expiration time of the access token.
-If zero, [TokenSource] implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used.|
-|`refresh_token`|string|false||Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires.|
-|`token_type`|string|false||Token type is the type of token. The Type method returns either this or "Bearer", the default.|
 
 ## regexp.Regexp
 

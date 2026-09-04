@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import type { FC, HTMLAttributes, ReactNode } from "react";
-import { cn } from "#/utils/cn";
 
 export const Stats: FC<HTMLAttributes<HTMLDivElement>> = ({
 	children,

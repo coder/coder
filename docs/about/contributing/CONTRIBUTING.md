@@ -87,6 +87,10 @@ Install the git hooks to run these automatically:
 git config core.hooksPath scripts/githooks
 ```
 
+Hook checks are opt-in. Enable them with `git config coder.pre-commit true`
+and `git config coder.pre-push true`; developers allowlisted in the hook
+scripts run them by default.
+
 The hooks classify staged/changed files and select the appropriate target.
 Commits that only touch docs, shell, terraform, or other lightweight files
 run `make pre-commit-light` instead of the full `make pre-commit`, and

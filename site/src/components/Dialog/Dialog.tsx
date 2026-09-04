@@ -3,10 +3,10 @@
  * @see {@link https://ui.shadcn.com/docs/components/dialog}
  */
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 
 export const Dialog = DialogPrimitive.Root;
 
@@ -38,9 +38,7 @@ const dialogVariants = cva(
 	-translate-1/2 outline-hidden
 	data-[state=open]:animate-in data-[state=closed]:animate-out
 	data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
-	data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95
-	data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]
-	data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]`,
+	data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95`,
 	{
 		variants: {
 			variant: {

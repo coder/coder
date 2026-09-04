@@ -52,6 +52,7 @@ interface UserDropdownContentProps {
 	 * (e.g. AI spend). The consumer supplies its own separator if needed. */
 	profileExtra?: ReactNode;
 	supportLinks: readonly TypesGen.LinkConfig[];
+	codernautsEnabled?: boolean;
 	onSignOut: () => void;
 	/** Premium trial entry, rendered above the build info. */
 	trialCta?: ReactNode;
@@ -62,6 +63,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	buildInfo,
 	profileExtra,
 	supportLinks,
+	codernautsEnabled = true,
 	onSignOut,
 	trialCta,
 }) => {
@@ -116,12 +118,14 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					))}
 				</>
 			)}
-			<DropdownMenuItem asChild>
-				<Link to="/coder-cup">
-					<CodernautsSVG />
-					<span>Codernauts</span>
-				</Link>
-			</DropdownMenuItem>
+			{codernautsEnabled && (
+				<DropdownMenuItem asChild>
+					<Link to="/coder-cup">
+						<CodernautsSVG />
+						<span>Codernauts</span>
+					</Link>
+				</DropdownMenuItem>
+			)}
 			{trialCta}
 			<DropdownMenuSeparator />
 			<Tooltip disableHoverableContent>
