@@ -183,7 +183,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get latest workspace app status: %w", err)
 		}
-		// If no rows were found, latest is a zero-value struct (ID == uuid.Nil).
+		// When the query returns no rows, latest holds a zero-value struct
+		// (ID == uuid.Nil).
 		latestAppStatus = latest
 
 		// Skip duplicate reports (for example, the watcher re-reports idle)
