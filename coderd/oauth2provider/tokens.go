@@ -107,7 +107,7 @@ func narrowGrantedScope(ctx context.Context, logger slog.Logger, app database.OA
 	}
 
 	narrowed := canonicalScopes(requested)
-	// Canonicalized for the same reason as in scopeStillCoveredByAllowlist.
+	// Canonicalized for the same reason as in checkScopeStillCovered.
 	outside, err := firstScopeBeyondCeiling(ctx, logger, "refresh", app.ID, canonicalScopes(strings.Fields(granted)), narrowed)
 	if err != nil {
 		return "", err
