@@ -60,6 +60,9 @@ type Store interface {
 	BackoffChatDiffStatus(
 		ctx context.Context, arg database.BackoffChatDiffStatusParams,
 	) error
+	ClearChatDiffStatusPR(
+		ctx context.Context, arg database.ClearChatDiffStatusPRParams,
+	) error
 	UpsertChatDiffStatus(
 		ctx context.Context, arg database.UpsertChatDiffStatusParams,
 	) (database.ChatDiffStatus, error)
@@ -211,6 +214,14 @@ func (w *Worker) tick(ctx context.Context) {
 	}
 
 	for _, res := range results {
+		if errors.Is(res.Error, ErrStalePullRequest) {
+			if err := w.clearStalePR(ctx, res.Request.Row.ChatID); err != nil {
+				w.logger.Warn(ctx, "clear stale chat diff status PR",
+					slog.F("chat_id", res.Request.Row.ChatID),
+					slog.Error(err))
+			}
+			continue
+		}
 		if res.Error != nil {
 			w.logger.Debug(ctx, "refresh chat diff status",
 				slog.F("chat_id", res.Request.Row.ChatID),
@@ -354,6 +365,24 @@ func (w *Worker) markStaleSingle(
 	}
 }
 
+// clearStalePR drops a chat's stored PR when its branch no longer
+// has one.
+func (w *Worker) clearStalePR(ctx context.Context, chatID uuid.UUID) error {
+	if err := w.store.ClearChatDiffStatusPR(ctx, database.ClearChatDiffStatusPRParams{
+		ChatID:  chatID,
+		StaleAt: w.clock.Now().UTC().Add(NoPRBackoff),
+	}); err != nil {
+		return xerrors.Errorf("clear stale chat diff status PR: %w", err)
+	}
+	if w.publishDiffStatusChangeFn != nil {
+		if err := w.publishDiffStatusChangeFn(ctx, chatID); err != nil {
+			w.logger.Debug(ctx, "publish diff status change",
+				slog.F("chat_id", chatID), slog.Error(err))
+		}
+	}
+	return nil
+}
+
 // RefreshChat synchronously refreshes a single chat's diff
 // status using the same Refresher pipeline as the background
 // worker. Returns nil, nil when no PR exists yet for the
@@ -377,6 +406,12 @@ func (w *Worker) RefreshChat(
 		return nil, nil
 	}
 	res := results[0]
+	if errors.Is(res.Error, ErrStalePullRequest) {
+		if err := w.clearStalePR(ctx, row.ChatID); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
 	if res.Error != nil {
 		return nil, xerrors.Errorf("refresh chat diff status: %w", res.Error)
 	}
