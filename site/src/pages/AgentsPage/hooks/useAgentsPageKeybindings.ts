@@ -6,29 +6,64 @@ import { isMac } from "#/utils/platform";
  *
  * - Ctrl+N / Cmd+N: Create a new agent.
  * - Ctrl+K / Cmd+K: Toggle agent search.
+ *
+ * With vim navigation enabled, Ctrl+K / Cmd+K is left to chat navigation
+ * and these bindings apply instead:
+ *
+ * - Ctrl+/ / Cmd+/: Toggle agent search.
+ * - Ctrl+Shift+O / Cmd+Shift+O: Create a new agent.
+ * - Ctrl+Shift+E / Cmd+Shift+E: Rename the active chat.
  */
 export function useAgentsPageKeybindings({
 	onNewAgent,
 	onToggleSearch,
+	onRenameActiveChat,
+	vimNavigationEnabled = false,
 }: {
 	onNewAgent: () => void;
 	onToggleSearch?: () => void;
+	onRenameActiveChat?: () => void;
+	vimNavigationEnabled?: boolean;
 }) {
 	useEffect(() => {
 		const handler = (event: KeyboardEvent) => {
 			const isModifierPressed = isMac() ? event.metaKey : event.ctrlKey;
-			if (!isModifierPressed || event.altKey || event.shiftKey) {
+			if (!isModifierPressed || event.altKey) {
 				return;
 			}
 
+			// "/" is a shifted key on many layouts, so it is matched before
+			// the Shift branch.
 			const key = event.key.toLowerCase();
+			if (key === "/") {
+				if (vimNavigationEnabled && onToggleSearch) {
+					event.preventDefault();
+					onToggleSearch();
+				}
+				return;
+			}
+
+			if (event.shiftKey) {
+				if (!vimNavigationEnabled) {
+					return;
+				}
+				if (key === "o") {
+					event.preventDefault();
+					onNewAgent();
+				} else if (key === "e" && onRenameActiveChat) {
+					event.preventDefault();
+					onRenameActiveChat();
+				}
+				return;
+			}
+
 			if (key === "n") {
 				event.preventDefault();
 				onNewAgent();
 				return;
 			}
 
-			if (key === "k" && onToggleSearch) {
+			if (key === "k" && !vimNavigationEnabled && onToggleSearch) {
 				event.preventDefault();
 				onToggleSearch();
 			}
@@ -36,5 +71,5 @@ export function useAgentsPageKeybindings({
 
 		document.addEventListener("keydown", handler);
 		return () => document.removeEventListener("keydown", handler);
-	}, [onNewAgent, onToggleSearch]);
+	}, [onNewAgent, onToggleSearch, onRenameActiveChat, vimNavigationEnabled]);
 }

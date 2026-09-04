@@ -113,4 +113,92 @@ describe("useAgentsPageKeybindings", () => {
 
 		input.remove();
 	});
+
+	it("ignores Ctrl+/, Ctrl+Shift+O, and Ctrl+Shift+E when vim navigation is off", () => {
+		isMacMock.mockReturnValue(false);
+		const onNewAgent = vi.fn();
+		const onToggleSearch = vi.fn();
+		const onRenameActiveChat = vi.fn();
+
+		renderHook(() =>
+			useAgentsPageKeybindings({
+				onNewAgent,
+				onToggleSearch,
+				onRenameActiveChat,
+			}),
+		);
+
+		const slashEvent = dispatchKeyDown("/", { ctrlKey: true });
+		const newEvent = dispatchKeyDown("O", { ctrlKey: true, shiftKey: true });
+		const renameEvent = dispatchKeyDown("E", { ctrlKey: true, shiftKey: true });
+
+		expect(slashEvent.defaultPrevented).toBe(false);
+		expect(newEvent.defaultPrevented).toBe(false);
+		expect(renameEvent.defaultPrevented).toBe(false);
+		expect(onNewAgent).not.toHaveBeenCalled();
+		expect(onToggleSearch).not.toHaveBeenCalled();
+		expect(onRenameActiveChat).not.toHaveBeenCalled();
+	});
+
+	it("moves search from Ctrl+K to Ctrl+/ when vim navigation is on", () => {
+		isMacMock.mockReturnValue(false);
+		const onToggleSearch = vi.fn();
+
+		renderHook(() =>
+			useAgentsPageKeybindings({
+				onNewAgent: vi.fn(),
+				onToggleSearch,
+				vimNavigationEnabled: true,
+			}),
+		);
+
+		const kEvent = dispatchKeyDown("k", { ctrlKey: true });
+		const slashEvent = dispatchKeyDown("/", { ctrlKey: true });
+		// Layouts where "/" is a shifted key report shiftKey alongside it.
+		const shiftedSlashEvent = dispatchKeyDown("/", {
+			ctrlKey: true,
+			shiftKey: true,
+		});
+
+		expect(kEvent.defaultPrevented).toBe(false);
+		expect(slashEvent.defaultPrevented).toBe(true);
+		expect(shiftedSlashEvent.defaultPrevented).toBe(true);
+		expect(onToggleSearch).toHaveBeenCalledTimes(2);
+	});
+
+	it("renames the active chat with Ctrl+Shift+E when vim navigation is on", () => {
+		isMacMock.mockReturnValue(false);
+		const onNewAgent = vi.fn();
+		const onRenameActiveChat = vi.fn();
+
+		renderHook(() =>
+			useAgentsPageKeybindings({
+				onNewAgent,
+				onRenameActiveChat,
+				vimNavigationEnabled: true,
+			}),
+		);
+
+		const renameEvent = dispatchKeyDown("E", { ctrlKey: true, shiftKey: true });
+		const shiftNEvent = dispatchKeyDown("N", { ctrlKey: true, shiftKey: true });
+
+		expect(renameEvent.defaultPrevented).toBe(true);
+		expect(onRenameActiveChat).toHaveBeenCalledTimes(1);
+		expect(shiftNEvent.defaultPrevented).toBe(false);
+		expect(onNewAgent).not.toHaveBeenCalled();
+	});
+
+	it("creates a new agent with Ctrl+Shift+O when vim navigation is on", () => {
+		isMacMock.mockReturnValue(false);
+		const onNewAgent = vi.fn();
+
+		renderHook(() =>
+			useAgentsPageKeybindings({ onNewAgent, vimNavigationEnabled: true }),
+		);
+
+		const event = dispatchKeyDown("O", { ctrlKey: true, shiftKey: true });
+
+		expect(event.defaultPrevented).toBe(true);
+		expect(onNewAgent).toHaveBeenCalledTimes(1);
+	});
 });
