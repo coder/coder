@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type dayjs from "dayjs";
 import type { FC, HTMLAttributes } from "react";
-import { cn } from "#/utils/cn";
 import { isAfter, subtractTime, timeFrom } from "#/utils/time";
 
 interface LastSeenProps

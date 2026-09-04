@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type ComponentProps,
 	createContext,
@@ -7,7 +8,6 @@ import {
 	useContext,
 } from "react";
 import { AlphaBadge, DeprecatedBadge } from "#/components/Badge/PresetBadges";
-import { cn } from "#/utils/cn";
 
 type FormContextValue = { direction?: "horizontal" | "vertical" };
 

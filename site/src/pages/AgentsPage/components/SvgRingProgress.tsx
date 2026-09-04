@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import type { FC } from "react";
-import { cn } from "#/utils/cn";
 
 /**
  * SVG ring (donut) progress indicator.

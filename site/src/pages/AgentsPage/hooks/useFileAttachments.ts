@@ -258,6 +258,7 @@ export function useFileAttachments(
 		void (async () => {
 			try {
 				const result = await API.experimental.uploadChatFile(file, uploadOrgId);
+				// oxlint-disable-next-line react-hooks/rules-of-hooks -- commitUploadOutcome is a useEffectEvent so this async upload flow always reads the latest persist/epoch state; intentionally invoked outside an effect.
 				commitUploadOutcome(file, uploadOrgId, uploadEpoch, {
 					status: "uploaded",
 					fileId: result.id,
@@ -269,6 +270,7 @@ export function useFileAttachments(
 					void fetch(getChatFileURL(result.id));
 				}
 			} catch (err: unknown) {
+				// oxlint-disable-next-line react-hooks/rules-of-hooks -- commitUploadOutcome is a useEffectEvent so this async upload flow always reads the latest persist/epoch state; intentionally invoked outside an effect.
 				commitUploadOutcome(file, uploadOrgId, uploadEpoch, {
 					status: "error",
 					error: formatAgentAttachmentUploadError(err),

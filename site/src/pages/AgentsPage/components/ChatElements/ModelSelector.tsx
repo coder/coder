@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon, InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -23,7 +24,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
-import { cn } from "#/utils/cn";
 import { formatReasoningEffort } from "../../utils/reasoningEffort";
 
 export interface ModelSelectorOption {

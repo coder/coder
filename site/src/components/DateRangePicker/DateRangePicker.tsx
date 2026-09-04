@@ -4,6 +4,7 @@
  * component with one that matches the native design language.
  */
 
+import { cn } from "cn";
 import dayjs from "dayjs";
 import { CalendarIcon, MoveRightIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -15,7 +16,6 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 export type DateRangeValue = {
 	startDate: Date;

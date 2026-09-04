@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
@@ -12,7 +13,6 @@ import {
 	type ConfirmDialogProps,
 } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { cn } from "#/utils/cn";
 import { getWorkspaceAgents } from "#/utils/workspace";
 
 type DownloadLogsDialogProps = Pick<
