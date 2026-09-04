@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"errors"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/prometheus/client_golang/prometheus"
@@ -23,6 +24,15 @@ const (
 	CompactionResultSuccess = "success"
 	CompactionResultError   = "error"
 	CompactionResultTimeout = "timeout"
+
+	// Label values for StageAnomaliesTotal.
+	// StageAnomalyNegativeElapsed is a stage whose measured duration
+	// was negative and was not observed.
+	StageAnomalyNegativeElapsed = "negative_elapsed"
+	// StageAnomalyInvertedWindow is a stage reconstructed from
+	// timestamps whose end preceded its start, or which lacked one of
+	// them, and was not observed.
+	StageAnomalyInvertedWindow = "inverted_window"
 )
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
@@ -34,6 +44,8 @@ type Metrics struct {
 	ToolResultTruncatedTotal  *prometheus.CounterVec
 	ToolErrorsTotal           *prometheus.CounterVec
 	TTFTSeconds               *prometheus.HistogramVec
+	StageDurationSeconds      *prometheus.HistogramVec
+	StageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
 	StreamRetriesTotal        *prometheus.CounterVec
@@ -95,6 +107,19 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider", "model"}),
+		StageDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_duration_seconds",
+			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The chat_kind label is empty for stages recorded without a known chat, and the model and effort labels are empty for stages that run before a model is resolved.",
+			Buckets:   stageDurationBuckets(),
+		}, []string{"stage", "scope", "chat_kind", "model", "effort"}),
+		StageAnomaliesTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_anomalies_total",
+			Help:      "Chat lifecycle stage observations that were dropped, by reason. A steady rate means the stage timings are missing samples: negative_elapsed and inverted_window are stages whose clocks disagreed.",
+		}, []string{"reason"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -147,10 +172,42 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 	}
 }
 
+// stageDurationBuckets returns the duration buckets for the stage
+// timing histogram: 0.5ms to 3h, log-spaced. The bottom of the range
+// resolves the sub-10ms stages (prepare, commit, a warm mcp_connect);
+// the top covers long-lived stages such as a chat turn.
+func stageDurationBuckets() []float64 {
+	return prometheus.ExponentialBucketsRange(0.0005, 3*60*60, 20)
+}
+
 // NopMetrics returns a Metrics instance that discards all data.
 // Useful for tests and when metrics collection is not desired.
 func NopMetrics() *Metrics {
 	return NewMetrics(prometheus.NewRegistry())
+}
+
+// RecordStageDuration observes one chat lifecycle stage duration.
+// chatKind is empty when the stage was recorded without a known chat,
+// and model and effort are empty when the stage ran before a model was
+// resolved. Negative durations are dropped. No-op when m is nil.
+func (m *Metrics) RecordStageDuration(stage, scope, chatKind, model, effort string, elapsed time.Duration) {
+	if m == nil {
+		return
+	}
+	if elapsed < 0 {
+		m.RecordStageAnomaly(StageAnomalyNegativeElapsed)
+		return
+	}
+	m.StageDurationSeconds.WithLabelValues(stage, scope, chatKind, model, effort).Observe(elapsed.Seconds())
+}
+
+// RecordStageAnomaly counts a stage observation that was dropped, by
+// reason. No-op when m is nil.
+func (m *Metrics) RecordStageAnomaly(reason string) {
+	if m == nil {
+		return
+	}
+	m.StageAnomaliesTotal.WithLabelValues(reason).Inc()
 }
 
 // RecordCompaction classifies and records a compaction attempt.
