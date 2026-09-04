@@ -348,12 +348,13 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction tool call: %w", err)
 	}
 	summaryResult, err := json.Marshal(map[string]any{
-		"summary":              input.compaction.SummaryReport,
-		"source":               source,
-		"threshold_percent":    input.compaction.ThresholdPercent,
-		"usage_percent":        input.compaction.UsagePercent,
-		"context_tokens":       input.compaction.ContextTokens,
-		"context_limit_tokens": input.compaction.ContextLimit,
+		"summary":                  input.compaction.SummaryReport,
+		"source":                   source,
+		"threshold_percent":        input.compaction.ThresholdPercent,
+		"usage_percent":            input.compaction.UsagePercent,
+		"context_tokens":           input.compaction.ContextTokens,
+		"context_limit_tokens":     input.compaction.ContextLimit,
+		"estimated_context_tokens": input.compaction.EstimatedContextTokens,
 	})
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction result: %w", err)

@@ -387,7 +387,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const userPromptHistory: readonly string[] =
 		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
-	const rawUsage = getLatestContextUsage(messages);
+	const rawUsage = getLatestContextUsage(
+		messages,
+		modelOptions.find((option) => option.id === selectedModel)?.contextLimit,
+	);
 	const latestContextUsage =
 		rawUsage || chatContext
 			? {

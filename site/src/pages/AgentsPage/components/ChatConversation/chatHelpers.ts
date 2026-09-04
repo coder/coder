@@ -2,7 +2,8 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import type { AgentContextUsage } from "../AgentChatInput";
 import type { ModelSelectorOption } from "../ChatElements";
-import { asString } from "../ChatElements/runtimeTypeUtils";
+import { asNumber, asString } from "../ChatElements/runtimeTypeUtils";
+import { parseArgs } from "../ChatElements/tools/utils";
 import { asNonEmptyString } from "./blockUtils";
 
 export const extractContextUsageFromMessage = (
@@ -45,16 +46,38 @@ export const extractContextUsageFromMessage = (
 
 export const getLatestContextUsage = (
 	messages: readonly TypesGen.ChatMessage[],
+	activeContextLimit?: number,
 ): AgentContextUsage | null => {
 	for (const message of messages.toReversed()) {
-		const isContextBoundary = message.content?.some(
+		const contextBoundary = message.content?.find(
 			(part) =>
 				(part.type === "tool-call" || part.type === "tool-result") &&
 				(part.tool_name === "chat_summarized" ||
 					part.tool_name === "chat_cleared"),
 		);
-		if (isContextBoundary) {
-			return null;
+		if (contextBoundary) {
+			if (
+				contextBoundary.type !== "tool-result" ||
+				contextBoundary.tool_name !== "chat_summarized" ||
+				contextBoundary.is_error
+			) {
+				return null;
+			}
+			const result = parseArgs(contextBoundary.result);
+			const usedTokens = asNumber(result?.estimated_context_tokens);
+			const contextLimitTokens = asNumber(
+				activeContextLimit ?? result?.context_limit_tokens,
+			);
+			if (
+				usedTokens === undefined ||
+				!Number.isSafeInteger(usedTokens) ||
+				usedTokens <= 0 ||
+				contextLimitTokens === undefined ||
+				contextLimitTokens <= 0
+			) {
+				return null;
+			}
+			return { usedTokens, contextLimitTokens, estimated: true };
 		}
 
 		const usage = extractContextUsageFromMessage(message);

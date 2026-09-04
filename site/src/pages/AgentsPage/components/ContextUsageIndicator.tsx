@@ -35,6 +35,7 @@ import { SvgRingProgress } from "./SvgRingProgress";
 
 export interface AgentContextUsage {
 	readonly usedTokens?: number;
+	readonly estimated?: boolean;
 	readonly contextLimitTokens?: number;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
@@ -384,7 +385,7 @@ export const ContextUsageIndicator: FC<{
 	].filter((note) => note !== "");
 	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
 	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`
+		? `${usage?.estimated ? "Estimated context usage" : "Context usage"} ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`
 		: statusNote !== ""
 			? `Context usage.${statusNote}`
 			: "Context usage";
@@ -392,10 +393,16 @@ export const ContextUsageIndicator: FC<{
 	const panelContent = (
 		<div className="text-xs text-content-primary">
 			{hasPercent
-				? `${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
+				? `${usage?.estimated ? "Estimated: " : ""}${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
 				: hasReportedUsage
 					? "Context usage unavailable"
 					: "Context usage will appear after sending a message."}
+			{hasPercent && usage?.estimated && (
+				<div className="mt-1 max-w-64 text-content-secondary">
+					Based on the compacted summary only, excluding other prompt content
+					and tools. Replaced by measured usage after the next response.
+				</div>
+			)}
 			{hasPercent &&
 				usage?.compressionThreshold !== undefined &&
 				usage.compressionThreshold > 0 && (

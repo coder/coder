@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -372,6 +373,48 @@ func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "auto summary", result.SummaryReport)
 	require.Equal(t, CompactionSourceAutomatic, result.Source)
+}
+
+func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
+	t.Parallel()
+	for _, prefix := range []string{"P", "Pr", "Pre"} {
+		t.Run(prefix, func(t *testing.T) {
+			t.Parallel()
+			var parts []codersdk.ChatMessagePart
+			result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
+				Model: &chattest.FakeModel{
+					GenerateFn: func(context.Context, fantasy.Call) (*fantasy.Response, error) {
+						return &fantasy.Response{
+							Content: []fantasy.Content{fantasy.TextContent{Text: "界x"}},
+							Usage:   fantasy.Usage{InputTokens: 900, OutputTokens: 400},
+						}, nil
+					},
+				},
+				Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				SystemSummaryPrefix: prefix,
+				Force:               true,
+				ContextLimit:        1000,
+				StepUsage:           fantasy.Usage{InputTokens: 800},
+				ToolCallID:          "summary",
+				ToolName:            "chat_summarized",
+				PublishMessagePart: func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+					parts = append(parts, part)
+				},
+				Clock: quartz.NewMock(t),
+			})
+			require.NoError(t, err)
+			require.Equal(t, prefix+"\n\n界x", result.SystemSummary)
+			require.Equal(t, int64(3), result.EstimatedContextTokens)
+			require.Equal(t, int64(800), result.ContextTokens)
+			require.Len(t, parts, 2)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[1].Type)
+			require.False(t, parts[1].IsError)
+			var metadata map[string]any
+			require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
+			require.Equal(t, float64(3), metadata["estimated_context_tokens"])
+			require.Equal(t, float64(1000), metadata["context_limit_tokens"])
+		})
+	}
 }
 
 // TestGenerateCompaction_RequiresClock verifies a nil clock is
