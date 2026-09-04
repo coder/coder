@@ -225,13 +225,16 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 }
 
 // The redemptions race rather than run in sequence: a sequential pair passes
-// whether or not the delete arbitrates single use.
+// whether or not the delete arbitrates single use. barrierStore makes that
+// overlap deterministic instead of probabilistic.
 func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	t.Parallel()
 
 	db, pubsub := dbtestutil.NewDB(t)
+	var reads sync.WaitGroup
+	reads.Add(2)
 	client := coderdtest.New(t, &coderdtest.Options{
-		Database: db,
+		Database: barrierStore{Store: db, reads: &reads},
 		Pubsub:   pubsub,
 	})
 	coderdtest.CreateFirstUser(t, client)
@@ -247,11 +250,7 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 		err    error
 	}
 
-	var barrier sync.WaitGroup
-	barrier.Add(2)
 	redeem := func() exchange {
-		barrier.Done()
-		barrier.Wait()
 		status, body, err := tryTokenRequest(ctx, t, client, form)
 		return exchange{status: status, body: body, err: err}
 	}
@@ -302,6 +301,28 @@ func TestOAuth2TokenExchangeReplay(t *testing.T) {
 	status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
 	requireTokenGrantError(t, status, body)
 	requireTokenAuthenticates(ctx, t, client, token.AccessToken)
+}
+
+// barrierStore holds each redemption at its code read until every redemption
+// has read, so both reach the delete with the same stale view. Starting the
+// requests together is not enough on its own: nothing stops one handler from
+// committing before the other reads, and the read then refuses the second
+// before the delete ever arbitrates.
+//
+// InTx hands its closure a fresh Store, so this intercepts only the read that
+// precedes the transaction, which is the one that fixes the interleaving.
+type barrierStore struct {
+	database.Store
+	reads *sync.WaitGroup
+}
+
+// GetOAuth2ProviderAppCodeByPrefix has one production caller, the code read in
+// authorizationCodeGrant, so every arrival here is a redemption.
+func (s barrierStore) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, prefix []byte) (database.OAuth2ProviderAppCode, error) {
+	code, err := s.Store.GetOAuth2ProviderAppCodeByPrefix(ctx, prefix)
+	s.reads.Done()
+	s.reads.Wait()
+	return code, err
 }
 
 // requireTokenAuthenticates asserts the accepted redemption's own credential
