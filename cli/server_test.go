@@ -426,7 +426,8 @@ func TestServer(t *testing.T) {
 			args := []string{
 				"server",
 				"--postgres-url", dbURL,
-				"--http-address", ":0",
+				// Match the client's loopback address to avoid overlapping wildcard listeners on macOS.
+				"--http-address", "127.0.0.1:0",
 				"--access-url", "https://example.com",
 			}
 			if tc.githubClientID != "" {
