@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { InfoIcon, NetworkIcon } from "lucide-react";
 import { type FC, type KeyboardEvent, useState } from "react";
 import { Link as RouterLink } from "react-router";
@@ -18,7 +19,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { buildReasonLabels } from "#/utils/workspace";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
@@ -62,7 +62,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 			data-testid={`audit-log-row-${auditLog.id}`}
 			clickable={shouldDisplayDiff}
 		>
-			<TableCell className="!p-0 border-0 border-t text-base">
+			<TableCell className="p-0! border-0 border-t text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
 					<div
 						className={cn(

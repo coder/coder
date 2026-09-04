@@ -283,6 +283,7 @@ func TestLogin(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
+			"--force-tty",
 			"--first-user-username", coderdtest.FirstUserParams.Username,
 			"--first-user-full-name", coderdtest.FirstUserParams.Name,
 			"--first-user-email", coderdtest.FirstUserParams.Email,
@@ -325,6 +326,7 @@ func TestLogin(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
+			"--force-tty",
 			"--first-user-username", coderdtest.FirstUserParams.Username,
 			"--first-user-email", coderdtest.FirstUserParams.Email,
 			"--first-user-password", coderdtest.FirstUserParams.Password,
@@ -358,6 +360,151 @@ func TestLogin(t *testing.T) {
 		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
 		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
 		assert.Empty(t, me.Name)
+	})
+
+	t.Run("InitialUserTrialFlagsNonInteractive", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-full-name", coderdtest.FirstUserParams.Name,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
+			"--first-user-trial",
+			"--first-user-trial-first-name", coderdtest.TrialUserParams.FirstName,
+			"--first-user-trial-last-name", coderdtest.TrialUserParams.LastName,
+			"--first-user-trial-phone-number", coderdtest.TrialUserParams.PhoneNumber,
+			"--first-user-trial-job-title", coderdtest.TrialUserParams.JobTitle,
+			"--first-user-trial-company-name", coderdtest.TrialUserParams.CompanyName,
+			"--first-user-trial-country", coderdtest.TrialUserParams.Country,
+			"--first-user-trial-developers", coderdtest.TrialUserParams.Developers,
+		)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		// No PTY is attached, so this exercises the non-interactive path.
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
+	})
+
+	t.Run("InitialUserTrialFlagsNonInteractiveEnv", func(t *testing.T) {
+		t.Parallel()
+		var gotTrial codersdk.LicensorTrialRequest
+		trialCalled := false
+		client := coderdtest.New(t, &coderdtest.Options{
+			TrialGenerator: func(_ context.Context, req codersdk.LicensorTrialRequest) error {
+				trialCalled = true
+				gotTrial = req
+				return nil
+			},
+		})
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-full-name", coderdtest.FirstUserParams.Name,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
+		)
+		// Enabling the trial purely through the environment must suppress
+		// the interactive "Start a trial?" prompt and still collect the
+		// trial info from the environment.
+		inv.Environ.Set("CODER_FIRST_USER_TRIAL", "true")
+		inv.Environ.Set("CODER_FIRST_USER_TRIAL_FIRST_NAME", coderdtest.TrialUserParams.FirstName)
+		inv.Environ.Set("CODER_FIRST_USER_TRIAL_LAST_NAME", coderdtest.TrialUserParams.LastName)
+		inv.Environ.Set("CODER_FIRST_USER_TRIAL_PHONE_NUMBER", coderdtest.TrialUserParams.PhoneNumber)
+		inv.Environ.Set("CODER_FIRST_USER_TRIAL_JOB_TITLE", coderdtest.TrialUserParams.JobTitle)
+		inv.Environ.Set("CODER_FIRST_USER_TRIAL_COMPANY_NAME", coderdtest.TrialUserParams.CompanyName)
+		inv.Environ.Set("CODER_FIRST_USER_TRIAL_COUNTRY", coderdtest.TrialUserParams.Country)
+		inv.Environ.Set("CODER_FIRST_USER_TRIAL_DEVELOPERS", coderdtest.TrialUserParams.Developers)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		// The trial must actually be provisioned, proving the env toggle was
+		// honored and the prompt was skipped.
+		require.True(t, trialCalled)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, gotTrial.Email)
+		assert.Equal(t, coderdtest.TrialUserParams.FirstName, gotTrial.FirstName)
+		assert.Equal(t, coderdtest.TrialUserParams.LastName, gotTrial.LastName)
+		assert.Equal(t, coderdtest.TrialUserParams.PhoneNumber, gotTrial.PhoneNumber)
+		assert.Equal(t, coderdtest.TrialUserParams.JobTitle, gotTrial.JobTitle)
+		assert.Equal(t, coderdtest.TrialUserParams.CompanyName, gotTrial.CompanyName)
+		assert.Equal(t, coderdtest.TrialUserParams.Country, gotTrial.Country)
+		assert.Equal(t, coderdtest.TrialUserParams.Developers, gotTrial.Developers)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+	})
+
+	t.Run("InitialUserTrialNonInteractiveMissingInfo", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-full-name", coderdtest.FirstUserParams.Name,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
+			"--first-user-trial",
+		)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		// No PTY is attached and the trial info flags are missing, so the
+		// command must fail fast instead of blocking on a prompt that can
+		// never receive input.
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "non-interactive")
+		// Every missing field must be reported in a single error.
+		require.ErrorContains(t, err, "--first-user-trial-first-name")
+		require.ErrorContains(t, err, "CODER_FIRST_USER_TRIAL_FIRST_NAME")
+		require.ErrorContains(t, err, "--first-user-trial-developers")
+		require.ErrorContains(t, err, "CODER_FIRST_USER_TRIAL_DEVELOPERS")
+	})
+
+	t.Run("InitialUserTrialNonInteractiveMissingSelectInfo", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		// Supply every text field but omit the two select-backed fields
+		// (country and developers). These go through bubbletea, which
+		// swallows io.EOF and would otherwise hang forever; they must
+		// instead produce the same actionable error as the text fields.
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-full-name", coderdtest.FirstUserParams.Name,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
+			"--first-user-trial",
+			"--first-user-trial-first-name", coderdtest.TrialUserParams.FirstName,
+			"--first-user-trial-last-name", coderdtest.TrialUserParams.LastName,
+			"--first-user-trial-phone-number", coderdtest.TrialUserParams.PhoneNumber,
+			"--first-user-trial-job-title", coderdtest.TrialUserParams.JobTitle,
+			"--first-user-trial-company-name", coderdtest.TrialUserParams.CompanyName,
+		)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "--first-user-trial-country")
+		require.ErrorContains(t, err, "CODER_FIRST_USER_TRIAL_COUNTRY")
+		require.ErrorContains(t, err, "--first-user-trial-developers")
+		require.ErrorContains(t, err, "CODER_FIRST_USER_TRIAL_DEVELOPERS")
+		// The satisfied text fields must not be named as missing.
+		require.NotContains(t, err.Error(), "--first-user-trial-first-name")
 	})
 
 	t.Run("InitialUserTTYConfirmPasswordFailAndReprompt", func(t *testing.T) {

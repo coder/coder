@@ -1,8 +1,8 @@
+import { cn } from "cn";
 import { BadgeCheckIcon, CheckIcon } from "lucide-react";
 import { useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Link } from "#/components/Link/Link";
-import { cn } from "#/utils/cn";
 
 type ModuleCardProps = {
 	name: string;
@@ -34,7 +34,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 				"flex flex-col pt-4 px-4 pb-6 rounded",
 				"bg-surface-secondary border border-solid",
 				"cursor-pointer",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
+				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
 				selected ? "border-border-pending" : "border-border",
 			)}
 			onClick={() => onSelect?.()}

@@ -12,6 +12,20 @@ export interface MonacoEditorProps {
 	onChange?: (value: string) => void;
 }
 
+// Monaco exposes the keybinding service only as a private field, so we describe
+// the shape we use instead of reaching for `any`.
+type StandaloneKeybindingService = {
+	addDynamicKeybinding(
+		commandId: string,
+		keybinding: number,
+		handler: () => void,
+	): void;
+};
+
+type EditorWithKeybindingService = monaco.editor.IStandaloneCodeEditor & {
+	readonly _standaloneKeybindingService: StandaloneKeybindingService;
+};
+
 export const MonacoEditor: FC<MonacoEditorProps> = ({
 	onChange,
 	value,
@@ -56,8 +70,9 @@ export const MonacoEditor: FC<MonacoEditorProps> = ({
 			onMount={(editor) => {
 				// This jank allows for Ctrl + Enter to work outside the editor.
 				// We use this keybind to trigger a build.
-				// biome-ignore lint/suspicious/noExplicitAny: Private type in Monaco!
-				(editor as any)._standaloneKeybindingService.addDynamicKeybinding(
+				(
+					editor as EditorWithKeybindingService
+				)._standaloneKeybindingService.addDynamicKeybinding(
 					"-editor.action.insertLineAfter",
 					monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
 					() => {},

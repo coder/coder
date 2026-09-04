@@ -1,6 +1,5 @@
 import {
 	type FC,
-	type ReactNode,
 	useCallback,
 	useEffect,
 	useReducer,
@@ -135,7 +134,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	// Reset scroll whenever the active step changes, including on browser
 	// back/forward (popstate) where button click handlers would not fire.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll must reset when step changes
 	useEffect(() => {
 		window.scrollTo(0, 0);
 	}, [currentStep.id]);
@@ -264,7 +262,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	// Runs after the scroll-reset effect above (declared earlier, so it fires
 	// first). Scrolls the requested module into view once module-settings
 	// has rendered.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: run on step change
 	useEffect(() => {
 		if (currentStep.id !== "module-settings") {
 			return;
@@ -303,17 +300,17 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
 					<div className="p-6 border border-solid rounded-lg overflow-x-auto">
-						{renderStepContent(
-							currentStep.id,
-							state,
-							dispatch,
-							moduleVarMap,
-							createError,
-							handleProvisionerStatusChange,
-							handleDeselectModule,
-							registerModuleRef,
-							handleCreate,
-						)}
+						<StepContent
+							stepId={currentStep.id}
+							state={state}
+							dispatch={dispatch}
+							moduleVarMap={moduleVarMap}
+							createError={createError}
+							onProvisionerStatusChange={handleProvisionerStatusChange}
+							onRemoveModule={handleDeselectModule}
+							registerModuleRef={registerModuleRef}
+							onCreate={handleCreate}
+						/>
 					</div>
 
 					{/* Navigation controls */}
@@ -370,17 +367,29 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 };
 
-function renderStepContent(
-	stepId: StepId,
-	state: TemplateBuilderWizardState,
-	dispatch: (action: WizardAction) => void,
-	moduleVarMap: Record<string, Record<string, string>>,
-	createError: Error | null,
-	onProvisionerStatusChange: (value: boolean | undefined) => void,
-	onRemoveModule: (moduleId: string) => void,
-	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void,
-	onCreate: (values: CustomizationsFormValues) => void,
-): ReactNode {
+interface StepContentProps {
+	stepId: StepId;
+	state: TemplateBuilderWizardState;
+	dispatch: (action: WizardAction) => void;
+	moduleVarMap: Record<string, Record<string, string>>;
+	createError: Error | null;
+	onProvisionerStatusChange: (value: boolean | undefined) => void;
+	onRemoveModule: (moduleId: string) => void;
+	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
+	onCreate: (values: CustomizationsFormValues) => void;
+}
+
+const StepContent: FC<StepContentProps> = ({
+	stepId,
+	state,
+	dispatch,
+	moduleVarMap,
+	createError,
+	onProvisionerStatusChange,
+	onRemoveModule,
+	registerModuleRef,
+	onCreate,
+}) => {
 	switch (stepId) {
 		case "base-infra":
 			return (
@@ -443,7 +452,7 @@ function renderStepContent(
 		default:
 			return null;
 	}
-}
+};
 
 function computeCanContinue(
 	stepId: StepId,

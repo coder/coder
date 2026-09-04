@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import {
 	Tooltip,
@@ -5,7 +6,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { baseModeFor, type ConcreteThemeName } from "#/theme";
-import { cn } from "#/utils/cn";
 import { THEME_COPY } from "./themeCopy";
 
 interface ThemeSwatchProps {
@@ -36,7 +36,7 @@ export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 				<label
 					className={cn(
 						"inline-flex rounded-full size-8 p-0 border-2 border-solid cursor-pointer",
-						"transition-[outline] outline outline-2 outline-offset-2",
+						"transition-[outline] outline-solid outline-2 outline-offset-2",
 						selected ? "outline-content-link" : "outline-transparent",
 						"border-border-default",
 						"has-[input:focus-visible]:outline-content-link has-[input:focus-visible]:outline-offset-2",

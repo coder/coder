@@ -6,8 +6,8 @@
 
 import { isPixel } from "@coder/pixel-storybook/storyapi";
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import type { ReactNode } from "react";
-import { cn } from "#/utils/cn";
 
 const leaves = Array.from({ length: 8 }).map((_, i) => i);
 

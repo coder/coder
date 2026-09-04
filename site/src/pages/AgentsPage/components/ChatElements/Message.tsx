@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import type { ComponentPropsWithRef } from "react";
-import { cn } from "#/utils/cn";
 
 type MessageProps = ComponentPropsWithRef<"div">;
 
@@ -20,7 +20,7 @@ export const MessageContent = ({
 		<div
 			ref={ref}
 			className={cn(
-				"whitespace-pre-wrap break-words text-[13px] leading-relaxed text-content-primary",
+				"whitespace-pre-wrap wrap-break-word text-[13px] leading-relaxed text-content-primary",
 				className,
 			)}
 			{...props}

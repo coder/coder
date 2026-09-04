@@ -1,8 +1,11 @@
+import { cn } from "cn";
 import { type FC, type HTMLAttributes, type ReactNode, useId } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
-import { cn } from "#/utils/cn";
-import type { FormHelpers } from "#/utils/formUtils";
+import {
+	type FormHelpers,
+	passwordManagerIgnoreProps,
+} from "#/utils/formUtils";
 
 type ControlProps = Pick<
 	HTMLAttributes<HTMLElement>,
@@ -13,6 +16,12 @@ type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
 	field: FormHelpers;
 	label: ReactNode;
 	description?: ReactNode;
+	/**
+	 * When true, discourages password managers (1Password, LastPass, Bitwarden,
+	 * etc.) from offering to autofill or save this field. Has no effect when a
+	 * custom `control` is provided.
+	 */
+	ignorePasswordManagers?: boolean;
 	/**
 	 * Renders in place of the default `Input` element
 	 */
@@ -25,6 +34,7 @@ export const FormField: FC<FormFieldProps> = ({
 	description,
 	className,
 	control,
+	ignorePasswordManagers,
 	...inputProps
 }) => {
 	const generatedId = useId();
@@ -39,6 +49,9 @@ export const FormField: FC<FormFieldProps> = ({
 		.filter(Boolean)
 		.join(" ");
 	const required = inputProps.required ?? false;
+	const passwordManagerProps = ignorePasswordManagers
+		? passwordManagerIgnoreProps
+		: {};
 	const controlProps: ControlProps = {
 		id,
 		"aria-invalid": field.error,
@@ -71,6 +84,7 @@ export const FormField: FC<FormFieldProps> = ({
 					value={field.value}
 					onChange={field.onChange}
 					onBlur={field.onBlur}
+					{...passwordManagerProps}
 					{...inputProps}
 					{...controlProps}
 					className={cn(field.error && "border-border-destructive", className)}

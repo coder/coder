@@ -134,15 +134,15 @@ type Options struct {
 	TLSCertificates      []tls.Certificate
 	ExternalAuthConfigs  []*externalauth.Config
 	TrialGenerator       func(ctx context.Context, body codersdk.LicensorTrialRequest) error
-	// MCPOAuth2DiscoveryAllowedIPRanges exempts IP ranges from the MCP
-	// OAuth2 discovery SSRF guard. Defaults to loopback so tests can
-	// serve mock MCP servers via httptest.
-	MCPOAuth2DiscoveryAllowedIPRanges []netip.Prefix
-	RefreshEntitlements               func(ctx context.Context) error
-	TemplateScheduleStore             schedule.TemplateScheduleStore
-	Coordinator                       tailnet.Coordinator
-	CoordinatorResumeTokenProvider    tailnet.ResumeTokenProvider
-	ConnectionLogger                  connectionlog.ConnectionLogger
+	// MCPAllowedPrivateCIDRs exempts IP ranges from the MCP
+	// SSRF guard for MCP server and OAuth2 traffic. Defaults to loopback so
+	// tests can serve mock MCP and authorization servers via httptest.
+	MCPAllowedPrivateCIDRs         []netip.Prefix
+	RefreshEntitlements            func(ctx context.Context) error
+	TemplateScheduleStore          schedule.TemplateScheduleStore
+	Coordinator                    tailnet.Coordinator
+	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
+	ConnectionLogger               connectionlog.ConnectionLogger
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
@@ -323,12 +323,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
 	}
 
-	if options.MCPOAuth2DiscoveryAllowedIPRanges == nil {
-		// Tests serve their mock MCP and authorization servers on
-		// loopback, which the MCP OAuth2 discovery SSRF guard blocks
-		// by default. Tests exercising the guard itself pass a
-		// narrower (possibly empty, non-nil) allowlist.
-		options.MCPOAuth2DiscoveryAllowedIPRanges = []netip.Prefix{
+	if options.MCPAllowedPrivateCIDRs == nil {
+		// Tests allow loopback for mock MCP and OAuth servers. Pass a non-nil
+		// allowlist, including an empty one, to exercise the guard.
+		options.MCPAllowedPrivateCIDRs = []netip.Prefix{
 			netip.MustParsePrefix("127.0.0.0/8"),
 			netip.MustParsePrefix("::1/128"),
 		}
@@ -628,22 +626,22 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
-			AgentInactiveDisconnectTimeout:    testutil.WaitShort,
-			ChatdInstructionLookupTimeout:     options.ChatdInstructionLookupTimeout,
-			MCPOAuth2DiscoveryAllowedIPRanges: options.MCPOAuth2DiscoveryAllowedIPRanges,
-			ChatProviderAPIKeys:               options.ChatProviderAPIKeys,
-			ChatWorkerDisabled:                options.ChatWorkerDisabled,
-			AccessURL:                         accessURL,
-			AppHostname:                       options.AppHostname,
-			AppHostnameRegex:                  appHostnameRegex,
-			Logger:                            *options.Logger,
-			CacheDir:                          cacheDir,
-			RuntimeConfig:                     runtimeManager,
-			Database:                          options.Database,
-			Pubsub:                            options.Pubsub,
-			ReplicaSyncPubsub:                 options.ReplicaSyncPubsub,
-			ExternalAuthConfigs:               options.ExternalAuthConfigs,
-			UsageInserter:                     usageInserter,
+			AgentInactiveDisconnectTimeout: testutil.WaitShort,
+			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
+			MCPAllowedPrivateCIDRs:         options.MCPAllowedPrivateCIDRs,
+			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
+			ChatWorkerDisabled:             options.ChatWorkerDisabled,
+			AccessURL:                      accessURL,
+			AppHostname:                    options.AppHostname,
+			AppHostnameRegex:               appHostnameRegex,
+			Logger:                         *options.Logger,
+			CacheDir:                       cacheDir,
+			RuntimeConfig:                  runtimeManager,
+			Database:                       options.Database,
+			Pubsub:                         options.Pubsub,
+			ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
+			ExternalAuthConfigs:            options.ExternalAuthConfigs,
+			UsageInserter:                  usageInserter,
 
 			Auditor:                            options.Auditor,
 			ConnectionLogger:                   options.ConnectionLogger,

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ContainerIcon, ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
@@ -35,7 +36,6 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
-import { cn } from "#/utils/cn";
 import { portForwardURL } from "#/utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
@@ -435,10 +435,7 @@ const DevcontainerDeleteErrorDialog: FC<DevcontainerDeleteErrorDialogProps> = ({
 					{errorDetail && (
 						<DialogDescription className="flex flex-row gap-9">
 							<strong className="text-content-primary">Detail</strong>{" "}
-							{/* TODO(DanielleMaywood): `[overflow-wrap:anywhere]` should be replaced with `wrap-anywhere` when we hit tailwind v4 */}
-							<span className="[overflow-wrap:anywhere] break-normal">
-								{errorDetail}
-							</span>
+							<span className="wrap-anywhere break-normal">{errorDetail}</span>
 						</DialogDescription>
 					)}
 				</DialogHeader>

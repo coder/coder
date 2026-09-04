@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
@@ -6,7 +7,6 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
-import { cn } from "#/utils/cn";
 import { DATE_FORMAT, formatDateTime, humanDuration } from "#/utils/time";
 import {
 	CopyableCodeBlock,
