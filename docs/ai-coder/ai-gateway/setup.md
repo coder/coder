@@ -1,4 +1,6 @@
-# Setup
+---
+title: Setup
+---
 
 By default, AI Gateway runs inside the Coder control plane (`coderd`) and requires no separate compute.
 In embedded mode, `coderd` runs the gateway in memory and brokers traffic to your configured AI providers on behalf of authenticated users.
@@ -42,7 +44,7 @@ without restarting `coderd`.
 
 1. Navigate to **Admin settings** > **AI**
 1. Select **Providers**
-1. Click **Add provider**
+1. Select **Add provider**
 1. Select the provider type
 1. Enter a unique lowercase name, the upstream endpoint, and the credentials
 1. Save the provider

@@ -12,6 +12,8 @@ type number interface {
 }
 
 // Ref returns a reference to v.
+//
+// Deprecated: Use `new` instead.
 func Ref[T any](v T) *T {
 	return &v
 }

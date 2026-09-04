@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -34,6 +35,19 @@ import (
 type generationPrepareInput struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
+	// RecordMCPConnectSummaries receives the preparation's per-server
+	// MCP connect outcomes as soon as the connect phase completes,
+	// with the debug context needed to create the run when no action
+	// ever reaches Ensure. Preparation invokes it directly (rather
+	// than returning the outcomes) so attempts that fail after
+	// connecting still record before their error discards the
+	// prepared state.
+	RecordMCPConnectSummaries func(
+		ctx context.Context,
+		chat database.Chat,
+		debug *generationDebug,
+		summaries []mcpclient.ConnectSummary,
+	)
 }
 
 // generationPrepared contains the side-effect inputs for a generation task.
@@ -218,7 +232,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	// execution); the stale marker is then cleared by the terminal
 	// transition of this turn.
 	if input.chat.CompactionRequestedAt.Valid {
-		boundary := latestCompactionBoundaryIndex(input.messages)
+		boundary := latestContextBoundaryIndex(input.messages)
 		if _, ok := firstUncompressedAssistantAfter(input.messages, boundary); ok {
 			return generationDecision{kind: generationActionCompact, forced: true}, nil
 		}
@@ -441,8 +455,9 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			}
 		}
 		prepareInput := generationPrepareInput{
-			Chat:     chat,
-			Messages: messages,
+			Chat:                      chat,
+			Messages:                  messages,
+			RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
 		}
 		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
 			return s.server.prepareGeneration(ctx, prepareInput)
@@ -800,7 +815,7 @@ func (s *taskStarter) admitStepToolCalls(
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	unambiguous, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
+	unambiguous, _, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
 	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
 	if err != nil {
 		countBatch()
@@ -824,6 +839,28 @@ func (s *taskStarter) admitStepToolCalls(
 	return preflight, nil
 }
 
+// bufferToolBillingRecorder translates a dispatch index in the filtered batch
+// back to the unresolved-call position the buffer episode keys timings by.
+type bufferToolBillingRecorder struct {
+	allowedIndexes []int
+	recordStart    func(callIndex int, startedAt time.Time)
+	recordComplete func(callIndex int, completedAt time.Time)
+}
+
+func (r *bufferToolBillingRecorder) RecordStart(dispatchIndex int, startedAt time.Time) {
+	if dispatchIndex < 0 || dispatchIndex >= len(r.allowedIndexes) {
+		return
+	}
+	r.recordStart(r.allowedIndexes[dispatchIndex], startedAt)
+}
+
+func (r *bufferToolBillingRecorder) RecordComplete(dispatchIndex int, completedAt time.Time) {
+	if dispatchIndex < 0 || dispatchIndex >= len(r.allowedIndexes) {
+		return
+	}
+	r.recordComplete(r.allowedIndexes[dispatchIndex], completedAt)
+}
+
 func (s *taskStarter) executeLocalTools(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -831,10 +868,12 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
+	exclusiveRejected := exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames)
 	allowed := decision.localToolCalls
+	var allowedIndexes []int
 	var denied []fantasy.ToolResultContent
-	if !exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames) {
-		allowed, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
+	if !exclusiveRejected {
+		allowed, allowedIndexes, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
 	}
 	// find_tools calls are counted here, at the single point every
 	// model-emitted call passes through, because rejections upstream of
@@ -858,9 +897,17 @@ func (s *taskStarter) executeLocalTools(
 		provider = prepared.Model.Provider()
 		modelName = prepared.Model.ModelID()
 	}
-	var outcome chatloop.ToolExecutionOutcome
+	var outcome chatloop.PersistedStep
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
+		var billingRecorder chatloop.ToolBillingRecorder
+		if !exclusiveRejected {
+			billingRecorder = &bufferToolBillingRecorder{
+				allowedIndexes: allowedIndexes,
+				recordStart:    attempt.recordToolStart,
+				recordComplete: attempt.recordToolCompletion,
+			}
+		}
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
@@ -874,6 +921,8 @@ func (s *taskStarter) executeLocalTools(
 			ModelName:          modelName,
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
+			UnbilledToolNames:  unbilledSubagentToolNames,
+			BillingRecorder:    billingRecorder,
 			PublishMessagePart: attempt.publish,
 			Logger:             s.opts.Logger,
 			Metrics:            s.server.metrics,
@@ -886,18 +935,19 @@ func (s *taskStarter) executeLocalTools(
 		// the tool run; its failure surfaces as a tool result error. The
 		// step still commits so a sibling tool that already ran keeps its
 		// result and is not re-executed, and the turn fails afterwards.
-		if hookErr := chathooks.DispatchFailureFromResults(outcome.Step.Content); hookErr != nil {
+		if hookErr := chathooks.DispatchFailureFromResults(outcome.Content); hookErr != nil {
 			spawnDispatchErr = chathooks.GenerationDispatchError(agenthooks.EventUserPromptSubmit, hookErr)
 		}
 	}
-	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Step.Content)
+	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Content)
 	for _, result := range denied {
-		outcome.Step.Content = append(outcome.Step.Content, result)
+		outcome.Content = append(outcome.Content, result)
 	}
-	chathooks.RestoreToolCallOrder(outcome.Step.Content, decision.localToolCalls)
+	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
+	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
-		step:               stepDataFromPersisted(outcome.Step),
+		step:               step,
 		toolNameToConfigID: prepared.ToolNameToConfigID,
 		logger:             s.opts.Logger,
 		contentVersion:     chatprompt.CurrentContentVersion,
@@ -1094,6 +1144,12 @@ type generationAttempt struct {
 	// can bill the window the step would have reported. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	startModelInvocation func()
+	// recordToolStart stamps an occurrence's actual start; serial calls may
+	// start after dispatch. It is always non-nil after beginGenerationAttempt.
+	recordToolStart func(callIndex int, startedAt time.Time)
+	// recordToolCompletion stamps an occurrence's completion. It is always
+	// non-nil after beginGenerationAttempt.
+	recordToolCompletion func(callIndex int, completedAt time.Time)
 	// closeEpisode closes the attempt's buffer episode. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	closeEpisode func()
@@ -1139,6 +1195,12 @@ func (s *taskStarter) beginGenerationAttempt(
 		},
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
+		},
+		recordToolStart: func(callIndex int, startedAt time.Time) {
+			_ = s.opts.MessagePartBuffer.RecordToolStart(key, callIndex, startedAt)
+		},
+		recordToolCompletion: func(callIndex int, completedAt time.Time) {
+			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, callIndex, completedAt)
 		},
 		closeEpisode: func() {
 			_ = s.opts.MessagePartBuffer.CloseEpisode(key)
@@ -1549,6 +1611,8 @@ func stepDataFromPersisted(step chatloop.PersistedStep) stepData {
 		Usage:                step.Usage,
 		ContextLimit:         step.ContextLimit,
 		Runtime:              step.Runtime,
+		BatchRuntime:         step.BatchRuntime,
+		BatchBilledCalls:     step.BatchBilledCalls,
 		ToolCallCreatedAt:    step.ToolCallCreatedAt,
 		ToolResultCreatedAt:  step.ToolResultCreatedAt,
 		ReasoningStartedAt:   step.ReasoningStartedAt,

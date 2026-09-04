@@ -22,7 +22,7 @@ func (r *RootCmd) start() *serpent.Command {
 	)
 
 	cmd := &serpent.Command{
-		Annotations: workspaceCommand,
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",
 		Middleware: serpent.Chain(

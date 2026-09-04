@@ -60,7 +60,7 @@ To list shared workspaces:
 
 1. Open a workspace that you own.
 
-1. Locate and click the 'Share' button.
+1. Locate and select the 'Share' button.
 
 ![Sharing a workspace](../images/user-guides/workspace-sharing-button-highlight.png)
 

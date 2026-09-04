@@ -1,8 +1,9 @@
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	CopyIcon,
 	EllipsisVerticalIcon,
-	Share2Icon,
+	ShieldIcon,
 	TrashIcon,
 } from "lucide-react";
 import type { FC } from "react";
@@ -27,7 +28,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { getProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
-import { cn } from "#/utils/cn";
 import { useOrganizationModelsPath } from "../organizationModels";
 
 export const ModelFormBackLink: FC = () => {
@@ -89,8 +89,8 @@ export const ModelFormHeader: FC<{
 							<DropdownMenuContent align="end">
 								{onShareModel && (
 									<DropdownMenuItem onClick={onShareModel}>
-										<Share2Icon className="size-icon-sm" />
-										Share model
+										<ShieldIcon className="size-icon-sm" />
+										Manage permissions
 									</DropdownMenuItem>
 								)}
 								{onDuplicate && (

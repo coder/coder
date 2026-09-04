@@ -1,4 +1,6 @@
-# Upgrading from ESR 2.29 to 2.34
+---
+title: Upgrading from ESR 2.29 to 2.34
+---
 
 ## Guide Overview
 

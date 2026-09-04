@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -156,8 +155,8 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
 	options, err := json.Marshal(codersdk.ChatModelCallConfig{
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-			Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
-			Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+			Default: new(codersdk.ChatModelReasoningEffortLow),
+			Max:     new(codersdk.ChatModelReasoningEffortHigh),
 		},
 	})
 	require.NoError(t, err)
@@ -656,9 +655,9 @@ func TestParseModelOverride(t *testing.T) {
 		{name: "Empty", raw: "", wantOK: true},
 		{name: "Whitespace", raw: " \t\n ", wantOK: true},
 		{name: "IDOnly", raw: modelConfigID.String(), wantID: modelConfigID, wantOK: true},
-		{name: "IDWithEffort", raw: modelConfigID.String() + ":high", wantID: modelConfigID, wantEffort: ptr.Ref("high"), wantOK: true},
+		{name: "IDWithEffort", raw: modelConfigID.String() + ":high", wantID: modelConfigID, wantEffort: new("high"), wantOK: true},
 		{name: "IDEmptyEffort", raw: modelConfigID.String() + ":", wantOK: false},
-		{name: "OuterWhitespace", raw: " \t" + modelConfigID.String() + ":high\n ", wantID: modelConfigID, wantEffort: ptr.Ref("high"), wantOK: true},
+		{name: "OuterWhitespace", raw: " \t" + modelConfigID.String() + ":high\n ", wantID: modelConfigID, wantEffort: new("high"), wantOK: true},
 	}
 
 	for _, tt := range tests {

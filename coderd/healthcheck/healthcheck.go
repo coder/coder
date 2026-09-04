@@ -11,7 +11,6 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/quartz"
 )
@@ -318,7 +317,7 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 
 func convertError(err error) *string {
 	if err != nil {
-		return ptr.Ref(err.Error())
+		return new(err.Error())
 	}
 
 	return nil

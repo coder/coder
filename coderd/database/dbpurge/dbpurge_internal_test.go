@@ -43,3 +43,17 @@ func TestDBPurgeAuthorization(t *testing.T) {
 	err := inst.purgeTick(ctx, db, now)
 	require.NoError(t, err)
 }
+
+// The behavior of the one-off module cache cleanup is covered by
+// TestDeleteIdentifiedModuleCacheFiles, which supplies its own window. This
+// guards the production constants themselves, which that test no longer reads.
+func TestIdentifiedModuleCacheWindow(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, identifiedModuleCacheStart.Before(identifiedModuleCacheEnd),
+		"window start must precede window end")
+	require.Equal(t, time.UTC, identifiedModuleCacheStart.Location(),
+		"window bounds must be UTC so they do not shift with the host timezone")
+	require.Equal(t, time.UTC, identifiedModuleCacheEnd.Location(),
+		"window bounds must be UTC so they do not shift with the host timezone")
+}

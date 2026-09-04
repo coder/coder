@@ -43,14 +43,7 @@ const AgentSettingsCompactionPage: FC = () => {
 		<AgentSettingsCompactionPageView
 			models={organizationModels.models}
 			providerTypeByID={providerTypeByID}
-			organizationNameByID={
-				new Map(
-					organizations.map((organization) => [
-						organization.id,
-						organization.display_name || organization.name,
-					]),
-				)
-			}
+			organizations={organizations}
 			modelsError={organizationModels.error ?? organizationModels.partialError}
 			isLoadingModels={organizationModels.isLoading}
 			thresholds={thresholdsQuery.data?.thresholds}

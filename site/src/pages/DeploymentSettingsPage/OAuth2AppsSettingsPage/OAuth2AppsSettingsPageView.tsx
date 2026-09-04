@@ -141,23 +141,10 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 
 	return (
 		<div>
-			{/*
-			 * The header sits outside the tabs, so a tab-specific action here would
-			 * promise to act on content it navigates away from. The docs link is
-			 * tab-agnostic, so it stays on both.
-			 */}
 			<SettingsHeader
 				actions={
-					<>
-						{canCreateApp && activeTab === "applications" && (
-							<AddApplicationButton />
-						)}
-						<SettingsHeaderDocsLink
-							href={docs(
-								"/admin/integrations/oauth2-provider#dynamic-client-registration",
-							)}
-						/>
-					</>
+					canCreateApp &&
+					activeTab === "applications" && <AddApplicationButton />
 				}
 			>
 				<SettingsHeaderTitle>OAuth2 applications</SettingsHeaderTitle>
@@ -168,7 +155,12 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 				 */}
 				<SettingsHeaderDescription>
 					Register applications to use Coder as an OAuth2 provider
-					{settings && ", and configure how this deployment behaves as one"}.
+					{settings && ", and configure how this deployment behaves as one"}.{" "}
+					<SettingsHeaderDocsLink
+						href={docs(
+							"/admin/integrations/oauth2-provider#dynamic-client-registration",
+						)}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -262,7 +254,7 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 				<div className="flex justify-end items-center pr-4">
 					<ChevronRightIcon
 						aria-hidden
-						className="size-icon-md text-content-primary flex-shrink-0"
+						className="size-icon-sm text-content-secondary shrink-0"
 					/>
 				</div>
 			</TableCell>

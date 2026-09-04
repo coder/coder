@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
-import { expect, within } from "storybook/test";
+import { expect, spyOn, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	GROUP_MEMBER_AVATAR_LIMIT,
 	getGroupMemberAvatarsQueryKey,
@@ -29,6 +30,8 @@ const meta: Meta<typeof GroupsPageView> = {
 	args: {
 		canCreateGroup: true,
 		groupsEnabled: true,
+		showOrganizations: true,
+		spendError: false,
 		filterProps: getDefaultFilterProps<FilterProps>({
 			values: {},
 			menus: {},
@@ -113,6 +116,14 @@ export const WithGroups: Story = {
 	parameters: {
 		queries: [seedAvatars(MockGroup.name, [MockUserOwner, MockUserMember], 2)],
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("heading", { name: "Groups" })).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: /view docs/i }),
+		).toBeVisible();
+		expect(canvas.getAllByRole("link", { name: "New group" })).toHaveLength(1);
+	},
 };
 
 // A group with more members than fit in the preview: the row shows the capped
@@ -146,6 +157,25 @@ export const WithMemberAvatars: Story = {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("+3")).toBeInTheDocument();
 		await expect(canvas.getByText("8 members")).toBeInTheDocument();
+	},
+};
+
+export const WithMemberAvatarsLoading: Story = {
+	args: {
+		groups: [
+			{
+				...mockGroupWithSpend,
+				id: "members-loading",
+				name: "members-loading",
+				display_name: "Members loading",
+				total_member_count: 3,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getGroupMembers").mockImplementation(
+			() => new Promise(() => {}),
+		);
 	},
 };
 
@@ -366,11 +396,28 @@ export const EmptyGroup: Story = {
 		groups: [],
 		canCreateGroup: false,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("heading", { name: "Groups" })).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: /view docs/i }),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: "New group" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 export const EmptyGroupWithPermission: Story = {
 	args: {
 		groups: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("heading", { name: "Groups" })).toBeVisible();
+		expect(
+			canvas.getAllByRole("link", { name: "New group" }).length,
+		).toBeGreaterThanOrEqual(2);
 	},
 };
 

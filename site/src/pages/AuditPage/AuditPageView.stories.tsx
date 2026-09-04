@@ -103,7 +103,7 @@ export const NotVisible: Story = {
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
 		await expect(
-			canvas.getByRole("link", { name: /Read the docs/ }),
+			canvas.getByRole("link", { name: /View docs/ }),
 		).toHaveAttribute("href", docs("/admin/security/audit-logs"));
 	},
 };

@@ -749,7 +749,8 @@ Coder MCP tools automatically injected.
   "usage": {
     "input_tokens": 6371,
     "input_tokens_details": {
-      "cached_tokens": 6144
+      "cached_tokens": 6144,
+      "cache_write_tokens": 7
     },
     "output_tokens": 75,
     "output_tokens_details": {
@@ -810,7 +811,7 @@ Coder MCP tools automatically injected.
     "summary": null
   },
   "safety_identifier": null,
-  "service_tier": "default",
+  "service_tier": "priority",
   "status": "completed",
   "store": true,
   "temperature": 1,
@@ -1509,7 +1510,8 @@ Coder MCP tools automatically injected.
   "usage": {
     "input_tokens": 6756,
     "input_tokens_details": {
-      "cached_tokens": 6144
+      "cached_tokens": 6144,
+      "cache_write_tokens": 11
     },
     "output_tokens": 231,
     "output_tokens_details": {

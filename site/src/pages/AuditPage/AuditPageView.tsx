@@ -51,18 +51,17 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
 	return (
 		<Margins className="pb-12">
-			<PageHeader
-				actions={
-					<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
-				}
-			>
+			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
 						<span>Audit</span>
 						<AuditHelpPopover />
 					</div>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>View events in your audit log.</PageHeaderSubtitle>
+				<PageHeaderSubtitle>
+					View events in your audit log.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
+				</PageHeaderSubtitle>
 			</PageHeader>
 
 			{isAuditLogVisible ? (

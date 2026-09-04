@@ -28,7 +28,7 @@ export const Default: Story = {
 
 export const LongContent: Story = {
 	args: {
-		content: Array(100)
+		content: new Array(100)
 			.fill(
 				"This is a line of pasted text that demonstrates how the dialog handles very long content.",
 			)

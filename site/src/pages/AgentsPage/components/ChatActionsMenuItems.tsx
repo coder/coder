@@ -1,7 +1,7 @@
 import {
 	ArchiveIcon,
 	ArchiveRestoreIcon,
-	GitForkIcon,
+	BotIcon,
 	PinIcon,
 	PinOffIcon,
 	SquarePenIcon,
@@ -109,7 +109,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 
 	const subagentToggle = showSubagentsToggle ? (
 		<Item onSelect={onToggleSubagents}>
-			<GitForkIcon className="size-3.5 rotate-180" />
+			<BotIcon className="size-3.5" />
 			{isSubagentsExpanded
 				? "Hide subagents"
 				: `Show subagents (${subagentCount})`}

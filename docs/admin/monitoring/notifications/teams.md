@@ -1,4 +1,6 @@
-# Microsoft Teams Notifications
+---
+title: Microsoft Teams Notifications
+---
 
 [Microsoft Teams](https://www.microsoft.com/en-us/microsoft-teams) is a widely
 used collaboration platform, and with Coder's integration, you can enable

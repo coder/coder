@@ -1175,18 +1175,21 @@ func sanitizeToolCallID(id string) string {
 }
 
 // MarshalParts encodes SDK chat message parts for persistence.
-// NUL characters in string fields are encoded as PUA sentinel
-// pairs (U+E000 U+E001) before marshaling so the resulting JSON
-// never contains \u0000 (rejected by PostgreSQL jsonb). The
-// encoding operates on Go string values, not JSON bytes, so it
-// survives jsonb text normalization.
+// NUL characters in free-form and opaque fields are encoded as PUA
+// sentinel pairs (U+E000 U+E001) so PostgreSQL jsonb can store them.
+// Structured fields such as identifiers, paths, and media types reject
+// NUL because their downstream representations cannot consume it.
 func MarshalParts(parts []codersdk.ChatMessagePart) (pqtype.NullRawMessage, error) {
 	if len(parts) == 0 {
 		return pqtype.NullRawMessage{}, nil
 	}
-	data, err := json.Marshal(encodeNulInParts(parts))
+	encoded, err := encodeNulInParts(parts)
 	if err != nil {
-		return pqtype.NullRawMessage{}, xerrors.Errorf("encode chat message parts: %w", err)
+		return pqtype.NullRawMessage{}, xerrors.Errorf("validate chat message parts: %w", err)
+	}
+	data, err := json.Marshal(encoded)
+	if err != nil {
+		return pqtype.NullRawMessage{}, xerrors.Errorf("marshal chat message parts: %w", err)
 	}
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
@@ -1797,16 +1800,12 @@ func decodeNulInValue(v any) any {
 }
 
 // encodeNulInJSON walks all string values (and keys) inside a
-// json.RawMessage and applies encodeNulInString. Returns the
-// original unchanged when the raw message does not contain NUL
-// escapes or U+E000 bytes, or when parsing fails.
+// json.RawMessage and applies encodeNulInString. It also normalizes
+// unpaired UTF-16 surrogate escapes, which PostgreSQL jsonb rejects.
+// Returns the original unchanged when no transformation is needed or
+// when parsing fails.
 func encodeNulInJSON(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return raw
-	}
-	// Quick exit: no \u0000 escape and no U+E000 UTF-8 bytes.
-	if !bytes.Contains(raw, []byte(`\u0000`)) &&
-		!bytes.Contains(raw, []byte{0xEE, 0x80, 0x80}) {
+	if len(raw) == 0 || !needsNulEncodingInJSON(raw) || !json.Valid(raw) {
 		return raw
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -1820,6 +1819,80 @@ func encodeNulInJSON(raw json.RawMessage) json.RawMessage {
 		return raw
 	}
 	return result
+}
+
+// needsNulEncodingInJSON reports whether valid JSON contains a string
+// value or object key that encodeNulInJSON must transform. It only
+// detects candidates; encoding/json owns parsing and normalization.
+func needsNulEncodingInJSON(raw json.RawMessage) bool {
+	// encoding/json emits U+E000 literally, while json.RawMessage may
+	// contain either the literal UTF-8 bytes or a Unicode escape.
+	if bytes.Contains(raw, []byte{0xEE, 0x80, 0x80}) {
+		return true
+	}
+
+	inString := false
+	for i := 0; i < len(raw); {
+		switch raw[i] {
+		case '"':
+			inString = !inString
+			i++
+		case '\\':
+			if !inString || i+1 >= len(raw) {
+				i++
+				continue
+			}
+			if raw[i+1] != 'u' {
+				i += 2
+				continue
+			}
+			value, ok := parseJSONHexEscape(raw[i+2:])
+			if !ok {
+				return true
+			}
+			switch {
+			case value == 0 || value == 0xE000:
+				return true
+			case 0xD800 <= value && value <= 0xDBFF:
+				if i+12 <= len(raw) && raw[i+6] == '\\' && raw[i+7] == 'u' {
+					low, lowOK := parseJSONHexEscape(raw[i+8:])
+					if lowOK && 0xDC00 <= low && low <= 0xDFFF {
+						i += 12
+						continue
+					}
+				}
+				return true
+			case 0xDC00 <= value && value <= 0xDFFF:
+				return true
+			default:
+				i += 6
+			}
+		default:
+			i++
+		}
+	}
+	return false
+}
+
+func parseJSONHexEscape(raw []byte) (uint16, bool) {
+	if len(raw) < 4 {
+		return 0, false
+	}
+	var value uint16
+	for _, c := range raw[:4] {
+		value <<= 4
+		switch {
+		case '0' <= c && c <= '9':
+			value |= uint16(c - '0')
+		case 'a' <= c && c <= 'f':
+			value |= uint16(c-'a') + 10
+		case 'A' <= c && c <= 'F':
+			value |= uint16(c-'A') + 10
+		default:
+			return 0, false
+		}
+	}
+	return value, true
 }
 
 // decodeNulInJSON walks all string values (and keys) inside a
@@ -1845,33 +1918,154 @@ func decodeNulInJSON(raw json.RawMessage) json.RawMessage {
 	return result
 }
 
-// encodeNulInParts returns a shallow copy of parts with all
-// string and json.RawMessage fields NUL-encoded. The caller's
-// slice is not modified.
-func encodeNulInParts(parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePart {
+// nulPolicy classifies how MarshalParts treats NUL in one persisted
+// ChatMessagePart field.
+type nulPolicy int
+
+const (
+	// nulEncode reversibly encodes NUL as PUA sentinel pairs. Used for
+	// free-form text and opaque provider data that must survive
+	// persistence byte-for-byte, e.g. Gemini binary thought signatures
+	// in ProviderMetadata.
+	nulEncode nulPolicy = iota
+	// nulReject fails MarshalParts with an actionable error. Used for
+	// structured values (enums, identifiers, paths, filenames, URLs,
+	// media types, OS labels, and parsed commands) whose downstream
+	// consumers cannot handle NUL, so persisting an encoded form would
+	// only hide invalid input.
+	nulReject
+)
+
+// partNulField binds one string-bearing ChatMessagePart field to its
+// NUL policy. Pointer accessors let encoding, decoding, and validation
+// share the table. Exactly one accessor is set per entry; grid is only
+// supported with nulReject and raw only with nulEncode. Unsupported
+// combinations and missing entries for new string-bearing fields are
+// caught by TestChatMessagePartNULCoverage.
+type partNulField struct {
+	name   string
+	policy nulPolicy
+	str    func(*codersdk.ChatMessagePart) *string
+	raw    func(*codersdk.ChatMessagePart) *json.RawMessage
+	grid   func(*codersdk.ChatMessagePart) [][]string
+}
+
+// partNulFields classifies every persisted string-bearing field of
+// codersdk.ChatMessagePart. Adding a string-bearing field to the struct
+// requires an entry here.
+var partNulFields = []partNulField{
+	{name: "Text", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Text }},
+	{name: "Args", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.Args }},
+	{name: "ArgsDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ArgsDelta }},
+	{name: "Result", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.Result }},
+	{name: "ResultDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ResultDelta }},
+	{name: "Title", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Title }},
+	{name: "Content", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Content }},
+	{name: "ProviderMetadata", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.ProviderMetadata }},
+	{name: "ContextFileContent", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileContent }},
+	{name: "SkillDescription", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDescription }},
+	{name: "Type", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.Type) }},
+	{name: "ToolCallID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolCallID }},
+	{name: "ToolName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolName }},
+	{name: "ParsedCommands", policy: nulReject, grid: func(p *codersdk.ChatMessagePart) [][]string { return p.ParsedCommands }},
+	{name: "SourceID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SourceID }},
+	{name: "URL", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.URL }},
+	{name: "MediaType", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.MediaType }},
+	{name: "Name", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.Name }},
+	{name: "FileName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.FileName }},
+	{name: "ContextFilePath", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFilePath }},
+	{name: "ContextFileOS", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileOS }},
+	{name: "ContextFileDirectory", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileDirectory }},
+	{name: "ContextFileSkillMetaFile", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileSkillMetaFile }},
+	{name: "SkillName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillName }},
+	{name: "SkillDir", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDir }},
+}
+
+// encode applies the reversible NUL encoding to a nulEncode field.
+func (f partNulField) encode(p *codersdk.ChatMessagePart) {
+	switch {
+	case f.str != nil:
+		*f.str(p) = encodeNulInString(*f.str(p))
+	case f.raw != nil:
+		*f.raw(p) = encodeNulInJSON(*f.raw(p))
+	}
+}
+
+// decode reverses encode.
+func (f partNulField) decode(p *codersdk.ChatMessagePart) {
+	switch {
+	case f.str != nil:
+		*f.str(p) = decodeNulInString(*f.str(p))
+	case f.raw != nil:
+		*f.raw(p) = decodeNulInJSON(*f.raw(p))
+	}
+}
+
+// validateNulFree returns an actionable error when a nulReject field
+// contains NUL.
+func (f partNulField) validateNulFree(partIndex int, p *codersdk.ChatMessagePart) error {
+	switch {
+	case f.str != nil:
+		if nul := strings.IndexByte(*f.str(p), 0); nul >= 0 {
+			return xerrors.Errorf(
+				"chat message part %d field %s contains NUL at byte %d",
+				partIndex,
+				f.name,
+				nul,
+			)
+		}
+	case f.grid != nil:
+		for i, values := range f.grid(p) {
+			for j, value := range values {
+				if nul := strings.IndexByte(value, 0); nul >= 0 {
+					return xerrors.Errorf(
+						"chat message part %d field %s[%d][%d] contains NUL at byte %d",
+						partIndex,
+						f.name,
+						i,
+						j,
+						nul,
+					)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// encodeNulInParts returns a copy of parts with every nulEncode field
+// encoded and every nulReject field validated per partNulFields. The
+// caller's values are not modified.
+//
+// Content version 1 cannot distinguish sentinel pairs written by this
+// codec from matching natural text stored before a field was covered, so
+// matching historical values in encoded fields decode as NUL.
+func encodeNulInParts(parts []codersdk.ChatMessagePart) ([]codersdk.ChatMessagePart, error) {
 	encoded := make([]codersdk.ChatMessagePart, len(parts))
 	copy(encoded, parts)
 	for i := range encoded {
 		p := &encoded[i]
-		p.Text = encodeNulInString(p.Text)
-		p.Content = encodeNulInString(p.Content)
-		p.Args = encodeNulInJSON(p.Args)
-		p.ArgsDelta = encodeNulInString(p.ArgsDelta)
-		p.Result = encodeNulInJSON(p.Result)
-		p.ResultDelta = encodeNulInString(p.ResultDelta)
+		for _, f := range partNulFields {
+			switch f.policy {
+			case nulEncode:
+				f.encode(p)
+			case nulReject:
+				if err := f.validateNulFree(i, p); err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
-	return encoded
+	return encoded, nil
 }
 
 // decodeNulInParts reverses encodeNulInParts in place.
 func decodeNulInParts(parts []codersdk.ChatMessagePart) {
 	for i := range parts {
-		p := &parts[i]
-		p.Text = decodeNulInString(p.Text)
-		p.Content = decodeNulInString(p.Content)
-		p.Args = decodeNulInJSON(p.Args)
-		p.ArgsDelta = decodeNulInString(p.ArgsDelta)
-		p.Result = decodeNulInJSON(p.Result)
-		p.ResultDelta = decodeNulInString(p.ResultDelta)
+		for _, f := range partNulFields {
+			if f.policy == nulEncode {
+				f.decode(&parts[i])
+			}
+		}
 	}
 }

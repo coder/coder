@@ -20,7 +20,7 @@ By configuring Artifactory as a Remote Terraform Repository, you can:
 
 1. In Artifactory, go to **Administration > Repositories > Remote**
 
-1. Click **New Remote Repository** and select **Terraform** as the package type
+1. Select **New Remote Repository** and select **Terraform** as the package type
 
 1. Configure the repository with these settings:
 
@@ -30,7 +30,7 @@ By configuring Artifactory as a Remote Terraform Repository, you can:
    | URL                    | `https://registry.coder.com` |
    | Terraform Registry URL | `https://registry.coder.com` |
 
-1. Click **Create Remote Repository**
+1. Select **Create Remote Repository**
 
 ## Step 2: Verify the Repository Configuration
 
@@ -145,6 +145,27 @@ services:
 ```
 
 </div>
+
+## Step 6: Point the template builder at your mirror
+
+The [template builder](../admin/templates/creating-templates.md) resolves module
+sources against `registry.coder.com` by default. To make it generate module
+source paths that point at your Artifactory mirror instead, set the
+`CODER_TEMPLATE_BUILDER_REGISTRY_URL` environment variable on your Coder server:
+
+```sh
+CODER_TEMPLATE_BUILDER_REGISTRY_URL=<your-artifactory-host>
+```
+
+The value is a bare host, optionally with a port (for example,
+`artifactory.example.com` or `mycompany.jfrog.io:8443`). A leading `http(s)://`
+scheme and trailing slash are stripped, and a path, query, fragment, or
+credentials is rejected at server start.
+
+Without this variable, the template builder still requires outbound access to
+`registry.coder.com`. For fully air-gapped deployments that cannot set a mirror,
+disable the builder instead with `CODER_DISABLE_TEMPLATE_BUILDER=true`. See
+[Air-gapped Deployments](./airgap.md#template-builder) for details.
 
 ## Caching Behavior
 

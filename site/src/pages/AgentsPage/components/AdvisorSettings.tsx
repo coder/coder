@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import { type FC, useId } from "react";
-import { Link } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import type {
 	AdvisorConfig,
@@ -9,7 +9,6 @@ import type {
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
-import { cn } from "#/utils/cn";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -117,13 +116,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	return (
 		<AgentSettingLayout
 			title="Advisor"
-			description={
-				<>
-					Cap advisor usage per turn. Configure its model in{" "}
-					<Link to="/ai/settings/models/defaults">Defaults & overrides</Link>.
-					Set limits to 0 for unlimited.
-				</>
-			}
+			description="Cap advisor usage per turn. Configure its model in Organization settings above. Set limits to 0 for unlimited."
 			showSave={canSave}
 			isSaving={isSavingAdvisorConfig}
 			isSavedVisible={isSavedVisible}
@@ -152,7 +145,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				onBlur={form.handleBlur}
 				error={Boolean(form.errors.max_uses_per_run)}
 				disabled={isFormDisabled}
-				className="w-[7.5rem]"
+				className="w-30"
 			/>
 			<CompactIntegerField
 				id={maxOutputTokensId}
@@ -231,7 +224,7 @@ const CompactIntegerField: FC<CompactIntegerFieldProps> = ({
 				onBlur={onBlur}
 				aria-invalid={error}
 				disabled={disabled}
-				className="min-w-0 w-full border-none bg-transparent p-0 text-sm font-medium leading-6 text-content-placeholder outline-none disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
+				className="min-w-0 w-full border-none bg-transparent p-0 text-sm font-medium leading-6 text-content-placeholder outline-hidden disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
 			/>
 			<span className="shrink-0 text-xs font-normal leading-[18px] text-content-secondary">
 				{label}

@@ -47,25 +47,21 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 		<div>
 			<SettingsHeader
 				actions={
-					<div className="flex flex-row gap-2 items-center">
-						<SettingsHeaderDocsLink
-							href={docs(
-								"/ai-coder/ai-gateway/standalone#create-a-gateway-key",
-							)}
-						/>
-						{!showPaywall && (
-							<Button variant="outline" onClick={onCreateKey}>
-								<PlusIcon />
-								Create key
-							</Button>
-						)}
-					</div>
+					!showPaywall && (
+						<Button variant="outline" onClick={onCreateKey}>
+							<PlusIcon />
+							Create key
+						</Button>
+					)
 				}
 			>
 				<SettingsHeaderTitle>AI Gateway Keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Keys authenticate standalone AI Gateway replicas to this deployment.
-					The key value is shown only once when created.
+					The key value is shown only once when created.{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/ai-coder/ai-gateway/standalone#create-a-gateway-key")}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

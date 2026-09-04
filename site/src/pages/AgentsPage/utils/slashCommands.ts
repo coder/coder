@@ -5,7 +5,7 @@
  * text as a message.
  */
 export type ChatSlashCommand = {
-	name: string;
+	name: "clear" | "compact";
 	description: string;
 };
 
@@ -15,12 +15,18 @@ export const COMPACT_SLASH_COMMAND: ChatSlashCommand = {
 		"Summarize the conversation so far to free up context window space",
 };
 
+export const CLEAR_SLASH_COMMAND: ChatSlashCommand = {
+	name: "clear",
+	description: "Clear the conversation context; the next message starts fresh",
+};
+
 /**
  * Commands available in the main chat composer. Editing an existing
  * message and the new-agent form do not offer commands.
  */
 export const CHAT_SLASH_COMMANDS: readonly ChatSlashCommand[] = [
 	COMPACT_SLASH_COMMAND,
+	CLEAR_SLASH_COMMAND,
 ];
 
 type ChatSlashCommandResolution = "pending" | "available" | "unavailable";

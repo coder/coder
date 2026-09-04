@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
 import { type FC, useEffect, useState } from "react";
 import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
@@ -25,7 +26,6 @@ import {
 	StackLabelHelperText,
 } from "#/components/StackLabel/StackLabel";
 import { Switch } from "#/components/Switch/Switch";
-import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
 	calculateAutostopRequirementDaysValue,

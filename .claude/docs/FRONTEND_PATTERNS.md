@@ -30,6 +30,9 @@ function actually exercises the interaction. Jest/RTL tests are for pure logic
 - When a component depends on the current time or date, accept it as a prop or
   via context instead of reading `new Date()` or `Date.now()` internally, so
   stories render deterministically without mocking globals.
+- `renderHook` suites for stateful UI hooks are interaction tests, not pure
+  logic. Cover that behavior through the story of the component that uses the
+  hook.
 
 **Incorrect (interaction test in Jest/RTL):**
 
@@ -89,6 +92,8 @@ const config: ChatModel = parseConfig(data);
   of existing ones.
 - Use existing wrapped primitives (Combobox, dialogs, tables) instead of
   hand-assembling the underlying pieces they already wrap.
+- Do not introduce a new React hook when an existing hook, a plain function,
+  or component state can express the logic.
 - Delete dead code and unreachable branches instead of carrying them along.
 - Keep the PR scoped to one change. Move unrelated cleanups, renames, and
   drive-by refactors to separate PRs.
@@ -209,6 +214,9 @@ Decide where logic goes before reaching for `useEffect`:
   is readable on its own. Share the entity fixture, not a pre-wired query
   object.
 - Query keys in mocks follow FE7: import the constant.
+- Never replace browser globals with `Object.defineProperty` in tests or
+  stories. Use `vi.stubGlobal` in unit tests and `spyOn` from
+  `storybook/test` in stories.
 
 ## FE10: Tests assert observable behavior
 
