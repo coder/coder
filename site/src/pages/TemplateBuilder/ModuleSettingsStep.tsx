@@ -28,6 +28,11 @@ interface ModuleSettingsStepProps {
 	) => void;
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
+	/**
+	 * When true, required fields left empty are outlined in red to show why
+	 * the step cannot continue.
+	 */
+	showErrors?: boolean;
 }
 
 function variableToField(
@@ -35,6 +40,7 @@ function variableToField(
 	variable: TemplateBuilderModuleVariable,
 	value: string,
 	onChange: (name: string, value: string) => void,
+	error: boolean,
 ): ConfigurationFieldDefinition {
 	const id = `mod-${moduleId}-${variable.name}`;
 	const label = <ConfigurationFieldLabel variable={variable} />;
@@ -67,7 +73,7 @@ function variableToField(
 			value,
 			onChange: (e) => onChange(variable.name, e.target.value),
 			onBlur: () => {},
-			error: false,
+			error,
 		},
 	};
 }
@@ -111,6 +117,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	onChangeModuleVariables,
 	onRemoveModule,
 	registerModuleRef,
+	showErrors = false,
 }) => {
 	const { data } = useQuery(templateBuilderModules(baseId));
 	const modules = data?.modules ?? [];
@@ -137,13 +144,20 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 					const sensitiveVars = mod.variables.filter((v) => v.sensitive);
 					const vars = moduleVariables[mod.id] ?? {};
 
-					const toField = (v: TemplateBuilderModuleVariable) =>
-						variableToField(
+					const toField = (v: TemplateBuilderModuleVariable) => {
+						const rawValue = vars[v.name];
+						const hasError =
+							showErrors &&
+							v.required &&
+							(rawValue === undefined || rawValue === "");
+						return variableToField(
 							mod.id,
 							v,
 							vars[v.name] ?? defaultPlaceholder(v.default) ?? "",
 							(name, val) => handleChange(mod.id, name, val),
+							hasError,
 						);
+					};
 
 					const requiredVars = configurableVars.filter((v) => v.required);
 					const optionalVars = configurableVars.filter((v) => !v.required);
