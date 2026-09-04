@@ -420,7 +420,7 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 
 ### Stage metrics
 
-How much of the chat lifecycle stage instrumentation to expose as Prometheus metrics. "basic" records per-occurrence durations for the wait, connect, and model-call stages on a 12-bucket ladder. "full" adds every stage on a 16-bucket ladder at a higher series count. "off" exposes none. Tracing spans are unaffected.
+How much of the chat lifecycle stage instrumentation to expose as Prometheus metrics. "basic" records per-occurrence durations for the wait, connect, and model-call stages on a 12-bucket ladder and per-turn time totals by category. "full" adds every stage on a 16-bucket ladder and the per-turn stage distributions at a higher series count. "off" exposes none. Tracing spans are unaffected.
 
 - Environment variable: `CODER_CHAT_STAGE_METRICS`
 - CLI flag: [`--chat-stage-metrics`](../../reference/cli/server.md#--chat-stage-metrics)

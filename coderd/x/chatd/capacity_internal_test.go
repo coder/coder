@@ -20,7 +20,7 @@ import (
 func newCapacityWaitWorker(t *testing.T) (*chatWorker, *quartz.Mock, *tracetest.SpanRecorder) {
 	t.Helper()
 	clock := quartz.NewMock(t)
-	tracer, recorder := newStageTestTracer(t)
+	tracer, recorder, _ := newStageMetricsTracer(t)
 	return &chatWorker{
 		server:            &Server{stages: tracer},
 		opts:              chatWorkerOptions{Clock: clock},

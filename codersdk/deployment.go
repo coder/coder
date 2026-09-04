@@ -4329,7 +4329,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Stage Metrics",
-			Description: "How much of the chat lifecycle stage instrumentation to expose as Prometheus metrics. \"basic\" records per-occurrence durations for the wait, connect, and model-call stages on a 12-bucket ladder. \"full\" adds every stage on a 16-bucket ladder at a higher series count. \"off\" exposes none. Tracing spans are unaffected.",
+			Description: "How much of the chat lifecycle stage instrumentation to expose as Prometheus metrics. \"basic\" records per-occurrence durations for the wait, connect, and model-call stages on a 12-bucket ladder and per-turn time totals by category. \"full\" adds every stage on a 16-bucket ladder and the per-turn stage distributions at a higher series count. \"off\" exposes none. Tracing spans are unaffected.",
 			Flag:        "chat-stage-metrics",
 			Env:         "CODER_CHAT_STAGE_METRICS",
 			Value:       serpent.EnumOf(&c.AI.Chat.StageMetrics, ChatStageMetricsLevelValues...),
@@ -4887,12 +4887,14 @@ type AIBridgeProxyConfig struct {
 type ChatStageMetricsLevel string
 
 const (
-	// ChatStageMetricsLevelOff exposes no stage metrics.
+	// ChatStageMetricsLevelOff exposes no stage or turn metrics.
 	ChatStageMetricsLevelOff ChatStageMetricsLevel = "off"
 	// ChatStageMetricsLevelBasic exposes per-occurrence durations for the
-	// wait, connect, and model-call stages.
+	// wait, connect, and model-call stages and the per-turn time totals
+	// by category.
 	ChatStageMetricsLevelBasic ChatStageMetricsLevel = "basic"
-	// ChatStageMetricsLevelFull exposes durations for every stage.
+	// ChatStageMetricsLevelFull exposes every stage and the per-turn stage
+	// distributions.
 	ChatStageMetricsLevelFull ChatStageMetricsLevel = "full"
 )
 
