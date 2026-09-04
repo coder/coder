@@ -104,6 +104,14 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) AccountAgentTimeMessages(ctx context.Context, messageIds []int64) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.AccountAgentTimeMessages(ctx, messageIds)
+	m.queryLatencies.WithLabelValues("AccountAgentTimeMessages").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AccountAgentTimeMessages").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireExternalAuthLinkRefreshLease(ctx, arg)

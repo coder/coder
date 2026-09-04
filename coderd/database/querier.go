@@ -12,6 +12,7 @@ import (
 )
 
 type sqlcQuerier interface {
+	AccountAgentTimeMessages(ctx context.Context, messageIds []int64) (int64, error)
 	// Set the lease to expire according to the provided timeout.  If there is
 	// already a lease, an exception is raised.
 	AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg AcquireExternalAuthLinkRefreshLeaseParams) (ExternalAuthLink, error)

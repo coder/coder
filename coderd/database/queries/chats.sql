@@ -2352,13 +2352,47 @@ WHERE id = @id::uuid;
 -- threshold. Active (non-archived) chats are never deleted.
 -- All chat-scoped child tables are removed via ON DELETE CASCADE.
 -- Parent/root references on child chats are SET NULL.
-WITH deletable AS (
-    SELECT id
-    FROM chats
-    WHERE archived = true
-      AND updated_at < @before_time::timestamptz
-    ORDER BY updated_at ASC
+WITH candidate_ids AS MATERIALIZED (
+    SELECT c.id
+    FROM chats c
+    WHERE c.archived = true
+      AND c.updated_at < @before_time::timestamptz
+    ORDER BY c.updated_at ASC, c.id ASC
     LIMIT @limit_count
+),
+candidates AS MATERIALIZED (
+    SELECT
+        c.id,
+        c.updated_at,
+        (
+            SELECT COUNT(*)::bigint
+            FROM (
+                SELECT 1
+                FROM chat_messages cm
+                LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
+                WHERE cm.chat_id = c.id
+                  AND cm.runtime_ms IS NOT NULL
+                  AND accounted.message_id IS NULL
+                LIMIT agent_time_delete_fallback_limit() + 1
+            ) unaccounted
+        ) AS unaccounted_count
+    FROM chats c
+    JOIN candidate_ids ON candidate_ids.id = c.id
+    WHERE c.archived = true
+      AND c.updated_at < @before_time::timestamptz
+    ORDER BY c.id ASC
+    FOR UPDATE OF c SKIP LOCKED
+),
+deletable AS MATERIALIZED (
+    SELECT id
+    FROM (
+        SELECT
+            id,
+            SUM(unaccounted_count) OVER (ORDER BY updated_at ASC, id ASC) AS cumulative_unaccounted_count
+        FROM candidates
+        WHERE unaccounted_count <= agent_time_delete_fallback_limit()
+    ) bounded
+    WHERE cumulative_unaccounted_count <= agent_time_delete_fallback_limit()
 )
 DELETE FROM chats
 USING deletable

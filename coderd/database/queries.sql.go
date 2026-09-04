@@ -111,6 +111,17 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const accountAgentTimeMessages = `-- name: AccountAgentTimeMessages :one
+SELECT account_agent_time_messages($1::bigint[])::bigint
+`
+
+func (q *sqlQuerier) AccountAgentTimeMessages(ctx context.Context, messageIds []int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, accountAgentTimeMessages, pq.Array(messageIds))
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
 DELETE FROM ai_gateway_keys WHERE id = $1
 RETURNING id, name, secret_prefix, created_at, last_heartbeat_at
@@ -7756,13 +7767,47 @@ func (q *sqlQuerier) DeleteChatQueuedMessageReturningCount(ctx context.Context, 
 }
 
 const deleteOldChats = `-- name: DeleteOldChats :execrows
-WITH deletable AS (
-    SELECT id
-    FROM chats
-    WHERE archived = true
-      AND updated_at < $1::timestamptz
-    ORDER BY updated_at ASC
+WITH candidate_ids AS MATERIALIZED (
+    SELECT c.id
+    FROM chats c
+    WHERE c.archived = true
+      AND c.updated_at < $1::timestamptz
+    ORDER BY c.updated_at ASC, c.id ASC
     LIMIT $2
+),
+candidates AS MATERIALIZED (
+    SELECT
+        c.id,
+        c.updated_at,
+        (
+            SELECT COUNT(*)::bigint
+            FROM (
+                SELECT 1
+                FROM chat_messages cm
+                LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
+                WHERE cm.chat_id = c.id
+                  AND cm.runtime_ms IS NOT NULL
+                  AND accounted.message_id IS NULL
+                LIMIT agent_time_delete_fallback_limit() + 1
+            ) unaccounted
+        ) AS unaccounted_count
+    FROM chats c
+    JOIN candidate_ids ON candidate_ids.id = c.id
+    WHERE c.archived = true
+      AND c.updated_at < $1::timestamptz
+    ORDER BY c.id ASC
+    FOR UPDATE OF c SKIP LOCKED
+),
+deletable AS MATERIALIZED (
+    SELECT id
+    FROM (
+        SELECT
+            id,
+            SUM(unaccounted_count) OVER (ORDER BY updated_at ASC, id ASC) AS cumulative_unaccounted_count
+        FROM candidates
+        WHERE unaccounted_count <= agent_time_delete_fallback_limit()
+    ) bounded
+    WHERE cumulative_unaccounted_count <= agent_time_delete_fallback_limit()
 )
 DELETE FROM chats
 USING deletable
