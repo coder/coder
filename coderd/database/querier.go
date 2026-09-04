@@ -175,6 +175,10 @@ type sqlcQuerier interface {
 	// Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
 	// this the arbiter of single use. A prior read cannot arbitrate: its result is
 	// stale the moment it returns.
+	//
+	// Concurrent deletes are arbitrated at READ COMMITTED, the default isolation
+	// level: the second transaction waits for the first, then removes nothing.
+	// SERIALIZABLE would abort and retry it instead.
 	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error

@@ -19894,6 +19894,10 @@ DELETE FROM oauth2_provider_app_codes WHERE id = $1 RETURNING id, created_at, ex
 // Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
 // this the arbiter of single use. A prior read cannot arbitrate: its result is
 // stale the moment it returns.
+//
+// Concurrent deletes are arbitrated at READ COMMITTED, the default isolation
+// level: the second transaction waits for the first, then removes nothing.
+// SERIALIZABLE would abort and retry it instead.
 func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
 	row := q.db.QueryRowContext(ctx, deleteOAuth2ProviderAppCodeByID, id)
 	var i OAuth2ProviderAppCode

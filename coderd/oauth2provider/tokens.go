@@ -497,8 +497,10 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
-		// The delete decides the race: only the redemption that removes the row
-		// mints a token, and the loser sees the code as already spent.
+		// Spend the code. RFC 6749 §10.5 requires single use: a code that
+		// survived its own redemption could be replayed by anyone who
+		// intercepted it. Spending it inside the transaction ties it to the
+		// token, so a later failure leaves the code redeemable.
 		_, err := tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errBadCode
