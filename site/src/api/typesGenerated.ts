@@ -1556,6 +1556,84 @@ export const AgentSubsystems: AgentSubsystem[] = [
 	"exectrace",
 ];
 
+// From codersdk/agenttime.go
+/**
+ * AgentTimeBreakdown identifies an organization or user even after deletion.
+ */
+export interface AgentTimeBreakdown {
+	readonly id: string;
+	readonly name: string;
+	readonly deleted: boolean;
+	readonly agent_time_ms: string;
+}
+
+// From codersdk/agenttime.go
+/**
+ * AgentTimeBucket describes a UTC calendar bucket clipped to the requested
+ * range. A null total means no recorded data and unknown accounting coverage.
+ */
+export interface AgentTimeBucket {
+	readonly start_date: string;
+	readonly end_date: string;
+	readonly agent_time_ms: string | null;
+	readonly partial: boolean;
+	readonly complete: boolean;
+}
+
+// From codersdk/agenttime.go
+export type AgentTimeInterval = "day" | "month" | "week";
+
+export const AgentTimeIntervals: AgentTimeInterval[] = ["day", "month", "week"];
+
+// From codersdk/agenttime.go
+/**
+ * AgentTimeReport contains recorded time, not workspace uptime or elapsed
+ * execution intervals. Decimal millisecond strings preserve integer precision
+ * for JavaScript clients, including sums larger than a signed 64-bit integer.
+ */
+export interface AgentTimeReport {
+	readonly start_date: string;
+	readonly end_date: string;
+	readonly interval: AgentTimeInterval;
+	readonly total_agent_time_ms: string;
+	readonly buckets: readonly AgentTimeBucket[];
+	readonly rows: readonly AgentTimeBreakdown[];
+	readonly count: number;
+	readonly status: AgentTimeStatus;
+	readonly historical_notice: string;
+}
+
+// From codersdk/agenttime.go
+/**
+ * AgentTimeRequest selects a half-open UTC date range. Omitting StartDate
+ * includes all available recorded history. Omitting EndDate includes today.
+ */
+export interface AgentTimeRequest {
+	readonly start_date?: string;
+	readonly end_date?: string;
+	readonly interval?: AgentTimeInterval;
+	readonly organization_id?: string;
+	readonly user_id?: string;
+	readonly group_by?: string;
+	readonly limit?: number;
+	readonly offset?: number;
+	readonly sort_by?: string;
+	readonly sort_order?: string;
+}
+
+// From codersdk/agenttime.go
+/**
+ * AgentTimeStatus describes capture and recoverable-history backfill. A
+ * completed backfill cannot reconstruct previously deleted or unrecorded time.
+ */
+export interface AgentTimeStatus {
+	readonly capture_started_at: string;
+	readonly backfill_complete: boolean;
+	readonly backfill_error: string;
+	readonly processed_messages: string;
+	readonly earliest_date: string | null;
+}
+
 // From codersdk/aiproviders.go
 export type AgentsUnsupportedProviderType = "copilot";
 
