@@ -31,8 +31,6 @@ export const SvgRingProgress: FC<{
 	const offset = circumference * (1 - clamped / 100);
 
 	return (
-		// The stroke touches the viewBox edge, so overflow stays visible to keep
-		// its anti-aliased outer edge from being clipped.
 		<svg
 			width={size}
 			height={size}
@@ -48,11 +46,6 @@ export const SvgRingProgress: FC<{
 				strokeWidth={strokeWidth}
 				className={trackClassName}
 			/>
-			{/*
-			  Start the arc at 12 o'clock by rotating the circle itself. In WebKit,
-			  a CSS transform on the <svg> promotes it to its own layer and snaps it
-			  to whole pixels, misaligning it from any overlay drawn on top.
-			*/}
 			<circle
 				cx={center}
 				cy={center}
