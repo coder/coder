@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -757,7 +758,7 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 			}
 
 			cliui.Infof(inv.Stdout, "Fetching scaletest users...")
-			users, err := getScaletestUsers(ctx, client)
+			users, err := loadtestutil.GetScaletestUsers(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -1759,7 +1760,7 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 
-			users, err := getScaletestUsers(ctx, client)
+			users, err := loadtestutil.GetScaletestUsers(ctx, client)
 			if err != nil {
 				return xerrors.Errorf("get scaletest users")
 			}
@@ -1942,15 +1943,19 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				return xerrors.Errorf("--workspace-count must be greater than zero")
 			}
 
-			var reuseUsersList []autostartReuseUser
+			var reuseUsersList []loadtestutil.ReuseUser
 			if reuseUsers {
 				_, _ = fmt.Fprintln(inv.Stderr, "Reusing existing scaletest users...")
 				// Bound token lifetime to just beyond the run so tokens orphaned by a
 				// hard kill expire quickly rather than at the deployment default.
 				tokenLifetime := workspaceJobTimeout + autostartBuildTimeout + autostartDelay + time.Hour
-				reuseUsersList, err = selectAutostartReuseUsers(ctx, client, usernameInfix, int(workspaceCount), tokenLifetime)
+				users, err := loadtestutil.SelectReuseUsers(ctx, client, usernameInfix, int(workspaceCount), nil)
 				if err != nil {
-					return err
+					return annotateInsufficientUsersError(err, createUsersCommandHint(int(workspaceCount), 0, usernameInfix))
+				}
+				reuseUsersList, err = loadtestutil.MintReuseTokens(ctx, client, users, tokenLifetime)
+				if err != nil {
+					return xerrors.Errorf("mint reuse tokens: %w", err)
 				}
 			}
 
@@ -2044,8 +2049,8 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 					ResultSink:            resultSink,
 				}
 				if reuseUsers {
-					config.SessionToken = reuseUsersList[reuseIdx].sessionToken
-					config.PreCreatedUser = reuseUsersList[reuseIdx].user
+					config.SessionToken = reuseUsersList[reuseIdx].SessionToken
+					config.PreCreatedUser = reuseUsersList[reuseIdx].User
 					reuseIdx++
 				}
 				if err := config.Validate(); err != nil {
@@ -2189,53 +2194,32 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 	return cmd
 }
 
-type autostartReuseUser struct {
-	user         codersdk.User
-	sessionToken string
+// createUsersCommandHint returns the create-users command that provisions a
+// reuse pool of the given size, for use as remediation text when a reuse
+// selection fails. templateAdminPercentage is included only when greater than
+// zero (generators that do not select template admins pass 0), and usernameInfix
+// only when set.
+func createUsersCommandHint(count int, templateAdminPercentage float64, usernameInfix string) string {
+	hint := fmt.Sprintf("coder exp scaletest create-users --count %d", count)
+	if templateAdminPercentage > 0 {
+		hint += fmt.Sprintf(" --template-admin-percentage %.2f", templateAdminPercentage)
+	}
+	if usernameInfix != "" {
+		hint += fmt.Sprintf(" --username-infix %q", usernameInfix)
+	}
+	return hint + " --no-cleanup"
 }
 
-// selectAutostartReuseUsers selects existing scaletest users belonging to the
-// pool identified by usernameInfix and mints a token for each, erroring if the
-// pool lacks enough users. usernameInfix is inserted between the mandatory
-// "scaletest-" root and the rest of the username (empty selects any scaletest-
-// user), so it isolates this run from other load generators that reuse scaletest
-// users concurrently.
-func selectAutostartReuseUsers(ctx context.Context, client *codersdk.Client, usernameInfix string, count int, tokenLifetime time.Duration) ([]autostartReuseUser, error) {
-	// The scaletest- root is always kept so selection matches the users that
-	// create-users provisions; usernameInfix, when set, narrows to that pool.
-	searchPrefix := loadtestutil.ScaleTestPrefix + "-"
-	if usernameInfix != "" {
-		searchPrefix += usernameInfix + "-"
+// annotateInsufficientUsersError enriches an insufficient reuse pool error
+// (loadtestutil.InsufficientUsersError) with an actionable create-users hint,
+// and returns any other error unchanged. It does not create users or otherwise
+// alter control flow; it only rewrites the error message.
+func annotateInsufficientUsersError(err error, hint string) error {
+	var insufficient *loadtestutil.InsufficientUsersError
+	if errors.As(err, &insufficient) {
+		return xerrors.Errorf("%w. Create them first, for example: %s", err, hint)
 	}
-	users, err := getScaletestUsersWithPrefix(ctx, client, searchPrefix)
-	if err != nil {
-		return nil, xerrors.Errorf("list scaletest users: %w", err)
-	}
-
-	if len(users) < count {
-		hint := fmt.Sprintf("coder exp scaletest create-users --count %d --no-cleanup", count)
-		if usernameInfix != "" {
-			hint = fmt.Sprintf("coder exp scaletest create-users --count %d --username-infix %q --no-cleanup", count, usernameInfix)
-		}
-		return nil, xerrors.Errorf(
-			"not enough scaletest users to reuse: found %d, need %d. "+
-				"Create them first, for example: %s",
-			len(users), count, hint)
-	}
-
-	// Token names are auto-generated by the server; we only need the returned key.
-	reuse := make([]autostartReuseUser, 0, count)
-	for _, u := range users[:count] {
-		res, err := client.CreateToken(ctx, u.ID.String(), codersdk.CreateTokenRequest{
-			Lifetime: tokenLifetime,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("mint token for user %q: %w", u.Username, err)
-		}
-		reuse = append(reuse, autostartReuseUser{user: u, sessionToken: res.Key})
-	}
-
-	return reuse, nil
+	return err
 }
 
 type runnableTraceWrapper struct {
@@ -2349,58 +2333,6 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner,
 		workspaces = append(workspaces, pageWorkspaces...)
 	}
 	return workspaces, skipped, nil
-}
-
-func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk.User, error) {
-	return getScaletestUsersWithPrefix(ctx, client, loadtestutil.ScaleTestPrefix+"-")
-}
-
-// getScaletestUsersWithPrefix returns scaletest users whose username starts with
-// the given full prefix. The prefix partitions users into disjoint pools (for
-// example per load generator) so that concurrent reuse runs select
-// non-overlapping users.
-func getScaletestUsersWithPrefix(ctx context.Context, client *codersdk.Client, prefix string) ([]codersdk.User, error) {
-	var (
-		pageNumber = 0
-		limit      = 100
-		users      []codersdk.User
-	)
-
-	for {
-		page, err := client.Users(ctx, codersdk.UsersRequest{
-			Search: prefix,
-			Pagination: codersdk.Pagination{
-				Offset: pageNumber * limit,
-				Limit:  limit,
-			},
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("fetch scaletest users page %d: %w", pageNumber, err)
-		}
-
-		pageNumber++
-		if len(page.Users) == 0 {
-			break
-		}
-
-		users = append(users, filterScaletestUsersByPrefix(page.Users, prefix)...)
-	}
-
-	return users, nil
-}
-
-// filterScaletestUsersByPrefix returns the users whose username starts with
-// prefix and that look like scaletest users. It is the in-memory selection
-// behind getScaletestUsersWithPrefix. The username prefix guard matters because
-// the users search matches the term in several fields, not just the username.
-func filterScaletestUsersByPrefix(users []codersdk.User, prefix string) []codersdk.User {
-	filtered := make([]codersdk.User, 0, len(users))
-	for _, u := range users {
-		if strings.HasPrefix(u.Username, prefix) && loadtestutil.IsScaleTestUser(u.Username, u.Email) {
-			filtered = append(filtered, u)
-		}
-	}
-	return filtered
 }
 
 func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, template string) (tpl codersdk.Template, err error) {

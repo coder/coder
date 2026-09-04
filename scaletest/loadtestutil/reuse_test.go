@@ -1,8 +1,9 @@
-package cli
+package loadtestutil_test
 
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -10,9 +11,9 @@ import (
 )
 
 // TestFilterScaletestUsersByPrefix covers the pure user-selection logic behind
-// the notifications scaletest user reuse: an infix pool must not pick up users
-// from the default pool (isolation), non-scaletest users are ignored, and the
-// username guard rejects users that only match the prefix in another field.
+// scaletest user reuse: an infix pool must not pick up users from the default
+// pool (isolation), non-scaletest users are ignored, and the username guard
+// rejects users that only match the prefix in another field.
 func TestFilterScaletestUsersByPrefix(t *testing.T) {
 	t.Parallel()
 
@@ -56,7 +57,7 @@ func TestFilterScaletestUsersByPrefix(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := filterScaletestUsersByPrefix(users, tc.prefix)
+			got := loadtestutil.FilterScaletestUsersByPrefix(users, tc.prefix)
 
 			gotNames := make([]string, 0, len(got))
 			for _, u := range got {
@@ -67,10 +68,25 @@ func TestFilterScaletestUsersByPrefix(t *testing.T) {
 	}
 }
 
+func TestReuseSearchPrefix(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "scaletest-", loadtestutil.ReuseSearchPrefix(""))
+	require.Equal(t, "scaletest-notif-", loadtestutil.ReuseSearchPrefix("notif"))
+}
+
+func TestUserHasRole(t *testing.T) {
+	t.Parallel()
+
+	admin := codersdk.User{Roles: []codersdk.SlimRole{{Name: codersdk.RoleTemplateAdmin}}}
+	require.True(t, loadtestutil.UserHasRole(admin, codersdk.RoleTemplateAdmin))
+	require.False(t, loadtestutil.UserHasRole(codersdk.User{}, codersdk.RoleTemplateAdmin))
+}
+
 func scaletestUser(username, email string) codersdk.User {
 	return codersdk.User{
 		ReducedUser: codersdk.ReducedUser{
-			MinimalUser: codersdk.MinimalUser{Username: username},
+			MinimalUser: codersdk.MinimalUser{ID: uuid.New(), Username: username},
 			Email:       email,
 		},
 	}
