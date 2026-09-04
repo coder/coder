@@ -30,10 +30,11 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 	const [tooltipOpen, setTooltipOpen] = useState(false);
 	const [isFocused, setIsFocused] = useState(false);
-	const clickableProps = useClickable<HTMLSpanElement>(() => {
-		copyToClipboard(value);
-		setTooltipOpen(true);
-	});
+	const { ref: clickableRef, ...clickableProps } =
+		useClickable<HTMLSpanElement>(() => {
+			copyToClipboard(value);
+			setTooltipOpen(true);
+		});
 
 	return (
 		<Tooltip
@@ -46,7 +47,7 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 		>
 			<TooltipTrigger asChild>
 				<span
-					ref={clickableProps.ref}
+					ref={clickableRef}
 					{...attrs}
 					className={cn("cursor-pointer", className)}
 					role={role ?? clickableProps.role}
