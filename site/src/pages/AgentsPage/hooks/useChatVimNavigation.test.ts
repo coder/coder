@@ -141,6 +141,17 @@ describe("useChatVimNavigation", () => {
 		expect(onSelectChat).not.toHaveBeenCalled();
 	});
 
+	it("matches the physical key on non-Latin layouts", () => {
+		isMacMock.mockReturnValue(false);
+		const onSelectChat = render();
+
+		// Russian layout: the key at the "J" position reports "о".
+		const event = dispatchKeyDown("о", { ctrlKey: true, code: "KeyJ" });
+
+		expect(event.defaultPrevented).toBe(true);
+		expect(onSelectChat).toHaveBeenCalledExactlyOnceWith("c");
+	});
+
 	it("stops at the list boundaries", () => {
 		isMacMock.mockReturnValue(false);
 		const onSelectChat = render({ activeChatId: "c" });
