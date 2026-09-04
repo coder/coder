@@ -1284,8 +1284,10 @@ title: Schemas
   ],
   "cache_read_input_tokens": 0,
   "cache_write_input_tokens": 0,
+  "client_count": 0,
   "end_date": "2019-08-24T14:15:22Z",
   "input_tokens": 0,
+  "model_count": 0,
   "output_tokens": 0,
   "request_count": 0,
   "session_count": 0,
@@ -1297,20 +1299,22 @@ title: Schemas
 
 ### Properties
 
-| Name                       | Type                                                                                      | Required | Restrictions | Description |
-|----------------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `by_client`                | array of [codersdk.AIGatewaySpendClientBreakdown](#codersdkaigatewayspendclientbreakdown) | false    |              |             |
-| `by_model`                 | array of [codersdk.AIGatewaySpendModelBreakdown](#codersdkaigatewayspendmodelbreakdown)   | false    |              |             |
-| `cache_read_input_tokens`  | integer                                                                                   | false    |              |             |
-| `cache_write_input_tokens` | integer                                                                                   | false    |              |             |
-| `end_date`                 | string                                                                                    | false    |              |             |
-| `input_tokens`             | integer                                                                                   | false    |              |             |
-| `output_tokens`            | integer                                                                                   | false    |              |             |
-| `request_count`            | integer                                                                                   | false    |              |             |
-| `session_count`            | integer                                                                                   | false    |              |             |
-| `start_date`               | string                                                                                    | false    |              |             |
-| `total_cost_micros`        | integer                                                                                   | false    |              |             |
-| `unpriced_request_count`   | integer                                                                                   | false    |              |             |
+| Name                       | Type                                                                                      | Required | Restrictions | Description                                                                                                                        |
+|----------------------------|-------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `by_client`                | array of [codersdk.AIGatewaySpendClientBreakdown](#codersdkaigatewayspendclientbreakdown) | false    |              |                                                                                                                                    |
+| `by_model`                 | array of [codersdk.AIGatewaySpendModelBreakdown](#codersdkaigatewayspendmodelbreakdown)   | false    |              |                                                                                                                                    |
+| `cache_read_input_tokens`  | integer                                                                                   | false    |              |                                                                                                                                    |
+| `cache_write_input_tokens` | integer                                                                                   | false    |              |                                                                                                                                    |
+| `client_count`             | integer                                                                                   | false    |              |                                                                                                                                    |
+| `end_date`                 | string                                                                                    | false    |              |                                                                                                                                    |
+| `input_tokens`             | integer                                                                                   | false    |              |                                                                                                                                    |
+| `model_count`              | integer                                                                                   | false    |              | Model count and ClientCount are the distinct models and clients in the window, so callers can tell when a breakdown was truncated. |
+| `output_tokens`            | integer                                                                                   | false    |              |                                                                                                                                    |
+| `request_count`            | integer                                                                                   | false    |              |                                                                                                                                    |
+| `session_count`            | integer                                                                                   | false    |              |                                                                                                                                    |
+| `start_date`               | string                                                                                    | false    |              |                                                                                                                                    |
+| `total_cost_micros`        | integer                                                                                   | false    |              |                                                                                                                                    |
+| `unpriced_request_count`   | integer                                                                                   | false    |              |                                                                                                                                    |
 
 ## codersdk.AIGatewaySpendUsersResponse
 

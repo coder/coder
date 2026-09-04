@@ -16282,11 +16282,18 @@
 				"cache_write_input_tokens": {
 					"type": "integer"
 				},
+				"client_count": {
+					"type": "integer"
+				},
 				"end_date": {
 					"type": "string",
 					"format": "date-time"
 				},
 				"input_tokens": {
+					"type": "integer"
+				},
+				"model_count": {
+					"description": "ModelCount and ClientCount are the distinct models and clients in the\nwindow, so callers can tell when a breakdown was truncated.",
 					"type": "integer"
 				},
 				"output_tokens": {

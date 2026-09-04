@@ -128,7 +128,7 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 			{summaryData && (
 				<RetentionNotice
 					requestedStart={queryDateRange.startDate}
-					appliedStart={summaryData.start_date}
+					applied={summaryData}
 				/>
 			)}
 			<SpendSummaryView

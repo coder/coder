@@ -869,6 +869,14 @@ func (api *API) aiGatewaySpendUserSummary(rw http.ResponseWriter, r *http.Reques
 		ByModel:  make([]codersdk.AIGatewaySpendModelBreakdown, len(byModel)),
 		ByClient: make([]codersdk.AIGatewaySpendClientBreakdown, len(byClient)),
 	}
+	// The window function that carries total_count only rides along on
+	// returned rows.
+	if len(byModel) > 0 {
+		resp.ModelCount = byModel[0].TotalCount
+	}
+	if len(byClient) > 0 {
+		resp.ClientCount = byClient[0].TotalCount
+	}
 	for i, row := range byModel {
 		resp.ByModel[i] = codersdk.AIGatewaySpendModelBreakdown{
 			Provider:     row.Provider,

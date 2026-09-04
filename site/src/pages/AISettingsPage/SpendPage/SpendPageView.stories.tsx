@@ -170,7 +170,6 @@ export const Users: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const table = canvas.getByRole("table", { name: "Spend by user" });
-		// Header row plus one native row per user; no row is exposed as a button.
 		expect(within(table).getAllByRole("row")).toHaveLength(3);
 		expect(within(table).queryByRole("button")).not.toBeInTheDocument();
 		await expect(within(table).getByText("$2.50")).toBeVisible();
@@ -219,6 +218,25 @@ export const UsersClampedToRetention: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "data retention period" }),
 		).toBeVisible();
+	},
+};
+
+export const UsersOutsideRetention: Story = {
+	args: {
+		usersQuery: mockUsersQuery({
+			data: {
+				...mockUsersResponse,
+				start_date: "2026-03-12T00:00:00Z",
+				count: 0,
+				users: [],
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			"No AI Gateway spend is retained for the selected period.",
+		);
 	},
 };
 
@@ -405,6 +423,27 @@ export const DrillInClampedToRetention: Story = {
 		await expect(canvas.getByRole("alert")).toHaveTextContent(
 			/Showing spend since .*Feb 26, 2026/,
 		);
+	},
+};
+
+export const DrillInTruncatedBreakdowns: Story = {
+	args: {
+		drillInUserId: MockAIGatewaySpendUser.id,
+		drillInUser: mockUserProfile,
+		summaryData: {
+			...MockAIGatewaySpendUserSummary,
+			model_count: 137,
+			client_count: 2,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("Showing the 2 most expensive of 137 models."),
+		).toBeVisible();
+		expect(
+			canvas.queryByText(/most expensive of .* clients/),
+		).not.toBeInTheDocument();
 	},
 };
 

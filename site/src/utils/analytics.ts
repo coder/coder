@@ -3,6 +3,9 @@
  * Examples: 0 becomes "0", 1234 becomes "1,234", 1_500_000 becomes "1.5M"
  */
 export function formatTokenCount(tokens: number): string {
+	if (!Number.isFinite(tokens)) {
+		return "0";
+	}
 	if (tokens >= 1_000_000) {
 		const millions = tokens / 1_000_000;
 		return `${millions % 1 === 0 ? millions.toFixed(0) : millions.toFixed(1)}M`;

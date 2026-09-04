@@ -2738,7 +2738,8 @@ SELECT
 	COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
 	COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
 	COALESCE(SUM(cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
-	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens,
+	COUNT(*) OVER()::bigint AS total_count
 FROM per_request
 GROUP BY client
 ORDER BY total_cost_micros DESC, client ASC
@@ -2762,6 +2763,7 @@ type ListAIBridgeSpendByUserClientRow struct {
 	OutputTokens          int64  `db:"output_tokens" json:"output_tokens"`
 	CacheReadInputTokens  int64  `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
 	CacheWriteInputTokens int64  `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
+	TotalCount            int64  `db:"total_count" json:"total_count"`
 }
 
 func (q *sqlQuerier) ListAIBridgeSpendByUserClient(ctx context.Context, arg ListAIBridgeSpendByUserClientParams) ([]ListAIBridgeSpendByUserClientRow, error) {
@@ -2788,6 +2790,7 @@ func (q *sqlQuerier) ListAIBridgeSpendByUserClient(ctx context.Context, arg List
 			&i.OutputTokens,
 			&i.CacheReadInputTokens,
 			&i.CacheWriteInputTokens,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}
@@ -2832,7 +2835,8 @@ SELECT
 	COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
 	COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
 	COALESCE(SUM(cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
-	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens,
+	COUNT(*) OVER()::bigint AS total_count
 FROM per_request
 GROUP BY provider, provider_name, model
 ORDER BY total_cost_micros DESC, provider ASC, model ASC
@@ -2857,6 +2861,7 @@ type ListAIBridgeSpendByUserModelRow struct {
 	OutputTokens          int64  `db:"output_tokens" json:"output_tokens"`
 	CacheReadInputTokens  int64  `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
 	CacheWriteInputTokens int64  `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
+	TotalCount            int64  `db:"total_count" json:"total_count"`
 }
 
 func (q *sqlQuerier) ListAIBridgeSpendByUserModel(ctx context.Context, arg ListAIBridgeSpendByUserModelParams) ([]ListAIBridgeSpendByUserModelRow, error) {
@@ -2884,6 +2889,7 @@ func (q *sqlQuerier) ListAIBridgeSpendByUserModel(ctx context.Context, arg ListA
 			&i.OutputTokens,
 			&i.CacheReadInputTokens,
 			&i.CacheWriteInputTokens,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}

@@ -473,8 +473,12 @@ type AIGatewaySpendUserSummary struct {
 	StartDate time.Time `json:"start_date" format:"date-time"`
 	EndDate   time.Time `json:"end_date" format:"date-time"`
 	AIGatewaySpendTotals
-	ByModel  []AIGatewaySpendModelBreakdown  `json:"by_model"`
-	ByClient []AIGatewaySpendClientBreakdown `json:"by_client"`
+	// ModelCount and ClientCount are the distinct models and clients in the
+	// window, so callers can tell when a breakdown was truncated.
+	ModelCount  int64                           `json:"model_count"`
+	ClientCount int64                           `json:"client_count"`
+	ByModel     []AIGatewaySpendModelBreakdown  `json:"by_model"`
+	ByClient    []AIGatewaySpendClientBreakdown `json:"by_client"`
 }
 
 // AIGatewaySpendWindow bounds an AI Gateway spend query. Zero values are

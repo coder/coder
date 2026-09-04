@@ -104,7 +104,7 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 				<>
 					<RetentionNotice
 						requestedStart={displayDateRange.startDate}
-						appliedStart={usersQuery.data.start_date}
+						applied={usersQuery.data}
 					/>
 					{usersQuery.error != null && (
 						<ErrorAlert error={usersQuery.error} actions={retryButton} />

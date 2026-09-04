@@ -19934,6 +19934,7 @@ func TestAIBridgeSpend(t *testing.T) {
 				OutputTokens:          60,
 				CacheReadInputTokens:  10,
 				CacheWriteInputTokens: 5,
+				TotalCount:            2,
 			},
 			{
 				Provider:             "openai",
@@ -19944,10 +19945,12 @@ func TestAIBridgeSpend(t *testing.T) {
 				UnpricedRequestCount: 1,
 				InputTokens:          35,
 				OutputTokens:         20,
+				TotalCount:           2,
 			},
 		}, rows)
 
-		// The cap keeps the most expensive entries.
+		// The cap keeps the most expensive entries and still reports how many
+		// there are.
 		capped, err := db.ListAIBridgeSpendByUserModel(ctx, database.ListAIBridgeSpendByUserModelParams{
 			UserID:     alice.ID,
 			StartDate:  start,
@@ -19987,6 +19990,7 @@ func TestAIBridgeSpend(t *testing.T) {
 				OutputTokens:          60,
 				CacheReadInputTokens:  10,
 				CacheWriteInputTokens: 5,
+				TotalCount:            3,
 			},
 			{
 				Client:               "cursor",
@@ -19996,11 +20000,13 @@ func TestAIBridgeSpend(t *testing.T) {
 				SessionCount:         1,
 				InputTokens:          35,
 				OutputTokens:         20,
+				TotalCount:           3,
 			},
 			{
 				Client:       "Unknown",
 				RequestCount: 1,
 				SessionCount: 1,
+				TotalCount:   3,
 			},
 		}, rows)
 	})

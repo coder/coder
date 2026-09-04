@@ -924,7 +924,8 @@ SELECT
 	COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
 	COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
 	COALESCE(SUM(cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
-	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens,
+	COUNT(*) OVER()::bigint AS total_count
 FROM per_request
 GROUP BY provider, provider_name, model
 ORDER BY total_cost_micros DESC, provider ASC, model ASC
@@ -958,7 +959,8 @@ SELECT
 	COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
 	COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
 	COALESCE(SUM(cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
-	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens,
+	COUNT(*) OVER()::bigint AS total_count
 FROM per_request
 GROUP BY client
 ORDER BY total_cost_micros DESC, client ASC

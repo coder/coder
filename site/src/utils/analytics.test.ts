@@ -21,4 +21,9 @@ describe("formatTokenCount", () => {
 	it("rounds million values to one decimal place when needed", () => {
 		expect(formatTokenCount(1_250_000)).toBe("1.3M");
 	});
+
+	it("falls back to zero for non-finite values", () => {
+		expect(formatTokenCount(Number.NaN)).toBe("0");
+		expect(formatTokenCount(Number.POSITIVE_INFINITY)).toBe("0");
+	});
 });

@@ -5397,6 +5397,8 @@ export const MockAIGatewaySpendUserSummary: TypesGen.AIGatewaySpendUserSummary =
 		output_tokens: 300_000,
 		cache_read_input_tokens: 10_000,
 		cache_write_input_tokens: 5_000,
+		model_count: 2,
+		client_count: 2,
 		by_model: [
 			{
 				provider: "anthropic",

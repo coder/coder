@@ -133,6 +133,11 @@ export const SpendSummaryView: FC<SpendSummaryViewProps> = ({
 				<>
 					<div>
 						<h3 className="m-0 mb-3 text-sm font-medium">By model</h3>
+						<TruncationNote
+							shown={summary.by_model.length}
+							total={summary.model_count}
+							noun="models"
+						/>
 						<Table aria-label="Spend by model">
 							<TableHeader>
 								<TableRow>
@@ -193,6 +198,11 @@ export const SpendSummaryView: FC<SpendSummaryViewProps> = ({
 
 					<div>
 						<h3 className="m-0 mb-3 text-sm font-medium">By client</h3>
+						<TruncationNote
+							shown={summary.by_client.length}
+							total={summary.client_count}
+							noun="clients"
+						/>
 						<Table aria-label="Spend by client">
 							<TableHeader>
 								<TableRow>
@@ -251,6 +261,22 @@ export const SpendSummaryView: FC<SpendSummaryViewProps> = ({
 				</>
 			)}
 		</div>
+	);
+};
+
+const TruncationNote: FC<{ shown: number; total: number; noun: string }> = ({
+	shown,
+	total,
+	noun,
+}) => {
+	if (total <= shown) {
+		return null;
+	}
+	return (
+		<p className="m-0 mb-3 text-xs text-content-secondary">
+			Showing the {shown.toLocaleString("en-US")} most expensive of{" "}
+			{total.toLocaleString("en-US")} {noun}.
+		</p>
 	);
 };
 

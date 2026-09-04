@@ -1545,6 +1545,8 @@ func TestAIGatewaySpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, total, summary.RequestCount)
+		require.EqualValues(t, total, summary.ModelCount)
+		require.EqualValues(t, total, summary.ClientCount)
 		require.Len(t, summary.ByModel, codersdk.AIGatewaySpendBreakdownLimit)
 		require.Equal(t, fmt.Sprintf("model-%03d", total-1), summary.ByModel[0].Model)
 		require.Equal(t, "model-001", summary.ByModel[len(summary.ByModel)-1].Model)
@@ -1710,6 +1712,8 @@ func TestAIGatewaySpend(t *testing.T) {
 		require.True(t, start.Equal(summary.StartDate))
 		require.True(t, end.Equal(summary.EndDate))
 		require.Equal(t, aliceTotals, summary.AIGatewaySpendTotals)
+		require.EqualValues(t, 2, summary.ModelCount)
+		require.EqualValues(t, 3, summary.ClientCount)
 		require.Equal(t, []codersdk.AIGatewaySpendModelBreakdown{
 			{
 				Provider: "anthropic", ProviderName: "anthropic-main", Model: "claude",
@@ -1757,6 +1761,8 @@ func TestAIGatewaySpend(t *testing.T) {
 		none, err := client.AIGatewaySpendUserSummary(ctx, codersdk.Me, window)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.AIGatewaySpendTotals{}, none.AIGatewaySpendTotals)
+		require.Zero(t, none.ModelCount)
+		require.Zero(t, none.ClientCount)
 		require.Empty(t, none.ByModel)
 		require.Empty(t, none.ByClient)
 	})

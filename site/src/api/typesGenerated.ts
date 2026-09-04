@@ -420,6 +420,12 @@ export interface AIGatewaySpendUser extends MinimalUser, AIGatewaySpendTotals {}
 export interface AIGatewaySpendUserSummary extends AIGatewaySpendTotals {
 	readonly start_date: string;
 	readonly end_date: string;
+	/**
+	 * ModelCount and ClientCount are the distinct models and clients in the
+	 * window, so callers can tell when a breakdown was truncated.
+	 */
+	readonly model_count: number;
+	readonly client_count: number;
 	readonly by_model: readonly AIGatewaySpendModelBreakdown[];
 	readonly by_client: readonly AIGatewaySpendClientBreakdown[];
 }
