@@ -156,15 +156,17 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	// requirements are not met, clicking it reveals this validation message in
 	// red instead of advancing.
 	const [showContinueError, setShowContinueError] = useState(false);
+	const [errorStepId, setErrorStepId] = useState(currentStep.id);
 
-	// Hide the validation message once the step's requirements are satisfied or
-	// the user moves to a different step.
-	if (showContinueError && canContinue) {
+	// Hide the validation message once the step's requirements are satisfied
+	// or the user moves to a different step. Both are render-time state
+	// adjustments rather than effects.
+	if (errorStepId !== currentStep.id) {
+		setErrorStepId(currentStep.id);
+		setShowContinueError(false);
+	} else if (showContinueError && canContinue) {
 		setShowContinueError(false);
 	}
-	useEffect(() => {
-		setShowContinueError(false);
-	}, [currentStep.id]);
 
 	// Pushes a history entry so browser back/forward walks the steps.
 	const navigateToStep = useCallback(
@@ -481,8 +483,6 @@ function continueErrorMessage(stepId: StepId): string {
 			return "Fill in all required parameters to continue.";
 		case "module-settings":
 			return "Fill in all required module settings to continue.";
-		case "customizations":
-			return "A provisioner must be online to continue.";
 		default:
 			return "Complete this step to continue.";
 	}
