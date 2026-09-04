@@ -37,8 +37,12 @@ import { ReactNode } from "react";
 import { MdMenu } from "react-icons/md";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, {
+	defaultSchema,
+	type Options as RehypeSanitizeOptions,
+} from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import sanitizeHtml from "sanitize-html";
+import coderGithubAlert from "../lib/coderGithubAlert";
 
 type FilePath = string;
 type UrlPath = string;
@@ -51,6 +55,17 @@ type Route = {
 type Manifest = { versions: string[]; routes: Route[] };
 type NavItem = { title: string; path: UrlPath; children?: NavItem[] };
 type Nav = NavItem[];
+
+const markdownSanitizeSchema: RehypeSanitizeOptions = {
+	...defaultSchema,
+	tagNames: [...(defaultSchema.tagNames ?? []), "small", "video"],
+	attributes: {
+		...defaultSchema.attributes,
+		"*": [...(defaultSchema.attributes?.["*"] ?? []), "className"],
+		source: [...(defaultSchema.attributes?.source ?? []), "src", "type"],
+		video: ["autoPlay", "loop", "playsInline"],
+	},
+};
 
 const readContentFile = (filePath: string) => {
 	const baseDir = process.cwd();
@@ -219,8 +234,7 @@ export const getStaticProps: GetStaticProps = (context) => {
 	const { attributes, body } = fm<{ title?: string }>(
 		readContentFile(route.path),
 	);
-	// Serialize MDX to support custom components
-	const content = sanitizeHtml(body);
+	const content = body;
 	const navigation = getNavigation(manifest);
 	const version = manifest.versions[0];
 
@@ -414,7 +428,47 @@ const DocsPage: NextPage<{
 					overflowY="auto"
 				>
 					<Box maxW="872">
-						<Box lineHeight="tall">
+						<Box
+							lineHeight="tall"
+							sx={{
+								"& .markdown-alert": {
+									my: 4,
+									p: 5,
+									borderWidth: 1,
+									borderStyle: "solid",
+									borderColor: "var(--markdown-alert-color)",
+									borderRadius: "md",
+								},
+								"& .markdown-alert-title": {
+									display: "flex",
+									alignItems: "center",
+									gap: 1,
+									pt: 0,
+									fontWeight: 600,
+									color: "var(--markdown-alert-color)",
+								},
+								"& .markdown-alert > :last-child": { pb: 0 },
+								"& .markdown-alert svg": {
+									fill: "currentColor",
+									flexShrink: 0,
+								},
+								"& .markdown-alert-note": {
+									"--markdown-alert-color": "#0969da",
+								},
+								"& .markdown-alert-tip": {
+									"--markdown-alert-color": "#1a7f37",
+								},
+								"& .markdown-alert-important": {
+									"--markdown-alert-color": "#8250df",
+								},
+								"& .markdown-alert-warning": {
+									"--markdown-alert-color": "#9a6700",
+								},
+								"& .markdown-alert-caution": {
+									"--markdown-alert-color": "#cf222e",
+								},
+							}}
+						>
 							{/* Some docs don't have the title */}
 							<Heading
 								as="h1"
@@ -428,7 +482,12 @@ const DocsPage: NextPage<{
 							</Heading>
 
 							<ReactMarkdown
-								rehypePlugins={[rehypeRaw]}
+								rehypePlugins={[
+									rehypeRaw,
+									// Sanitize author HTML before adding trusted alert markup.
+									[rehypeSanitize, markdownSanitizeSchema],
+									coderGithubAlert,
+								]}
 								remarkPlugins={[remarkGfm]}
 								urlTransform={transformLinkUriSource(route.path)}
 								components={{
@@ -477,8 +536,8 @@ const DocsPage: NextPage<{
 											height="auto"
 										/>
 									),
-									p: ({ children }) => (
-										<Text pt={2} pb={2}>
+									p: ({ children, className }) => (
+										<Text className={className} pt={2} pb={2}>
 											{children}
 										</Text>
 									),

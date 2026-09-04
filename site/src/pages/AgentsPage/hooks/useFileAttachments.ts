@@ -222,22 +222,20 @@ export function useFileAttachments(
 	// round trips where stateOrgId matches again. Otherwise a stale completion
 	// could persist and later restore an abandoned upload.
 	const adoptionEpochRef = useRef(0);
-	const commitUploadOutcome = useEffectEvent(
-		(
-			file: File,
-			uploadOrgId: string,
-			uploadEpoch: number,
-			state: UploadState,
-		) => {
-			if (persist && adoptionEpochRef.current !== uploadEpoch) {
-				return;
-			}
-			setUploadStates((prev) => new Map(prev).set(file, state));
-			if (persist && state.status === "uploaded" && state.fileId) {
-				addPersistedAttachment(file, state.fileId, uploadOrgId);
-			}
-		},
-	);
+	const commitUploadOutcome = (
+		file: File,
+		uploadOrgId: string,
+		uploadEpoch: number,
+		state: UploadState,
+	) => {
+		if (persist && adoptionEpochRef.current !== uploadEpoch) {
+			return;
+		}
+		setUploadStates((prev) => new Map(prev).set(file, state));
+		if (persist && state.status === "uploaded" && state.fileId) {
+			addPersistedAttachment(file, state.fileId, uploadOrgId);
+		}
+	};
 
 	const startUpload = (file: File) => {
 		if (!organizationId) {
@@ -258,7 +256,6 @@ export function useFileAttachments(
 		void (async () => {
 			try {
 				const result = await API.experimental.uploadChatFile(file, uploadOrgId);
-				// oxlint-disable-next-line react-hooks/rules-of-hooks -- commitUploadOutcome is a useEffectEvent so this async upload flow always reads the latest persist/epoch state; intentionally invoked outside an effect.
 				commitUploadOutcome(file, uploadOrgId, uploadEpoch, {
 					status: "uploaded",
 					fileId: result.id,
@@ -270,7 +267,6 @@ export function useFileAttachments(
 					void fetch(getChatFileURL(result.id));
 				}
 			} catch (err: unknown) {
-				// oxlint-disable-next-line react-hooks/rules-of-hooks -- commitUploadOutcome is a useEffectEvent so this async upload flow always reads the latest persist/epoch state; intentionally invoked outside an effect.
 				commitUploadOutcome(file, uploadOrgId, uploadEpoch, {
 					status: "error",
 					error: formatAgentAttachmentUploadError(err),

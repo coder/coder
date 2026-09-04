@@ -585,7 +585,7 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
 
-	t.Run("RejectionNamesTheRegisteredScopes", func(t *testing.T) {
+	t.Run("RejectionWithholdsTheRegisteredScopes", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -595,8 +595,8 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 
 		location, err := url.Parse(resp.Header.Get("Location"))
 		require.NoError(t, err)
-		require.Contains(t, location.Query().Get("error_description"), "openid profile email",
-			"the rejection must name the registered scopes the owner has to change")
+		require.NotContains(t, location.Query().Get("error_description"), "openid profile email",
+			"registration metadata is unvalidated and stays server-side; the reason alone tells the client what to change")
 	})
 }
 

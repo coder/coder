@@ -28,11 +28,15 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
-// Rejection reasons from negotiateScope.
+// Rejection reasons from scope negotiation.
 var (
 	// The name is not in the external scope catalog: unknown, or internal-only.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
-	// Every entry in the app's allowlist falls outside the catalog.
+	// Every entry in the app's allowlist falls outside the catalog. Returned
+	// bare, never naming the registered value: that value is unvalidated RFC
+	// 7591 metadata bounded only by the request body limit, and it need not obey
+	// the ASCII subset RFC 6749 §5.2 allows in error_description. The reason
+	// alone is actionable, since the client is the party that registered it.
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
 	// The scope expands to permissions the allowlist does not cover.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
@@ -58,6 +62,63 @@ func canonicalScopes(names []string) []string {
 // grants nothing, so it is not this state.
 func noScopeAllowlist(appScope sql.NullString) bool {
 	return !appScope.Valid || appScope.String == ""
+}
+
+// grantableScopes drops allowlist entries this deployment does not offer. An
+// empty result is returned rather than rejected so the caller decides: both
+// callers happen to answer errNoGrantableScope, but only one of them can say
+// whether an empty allowlist should also fail the request.
+//
+// No allocation here may be sized by appScope. It is unvalidated RFC 7591
+// metadata bounded only by the request body limit, and it is read on every
+// authorization and redemption, so a whitespace-heavy or repetitive value would
+// otherwise cost megabytes per request. Dropping duplicates as names are read,
+// rather than once the loop has collected them all, holds the slice to the size
+// of the catalog whatever the input.
+func grantableScopes(appScope string) []string {
+	var filtered []string
+	for a := range strings.FieldsSeq(appScope) {
+		if !rbac.IsExternalScope(rbac.ScopeName(a)) {
+			continue
+		}
+		// Canonical before the comparison so the two spellings of an alias
+		// collapse together, and because rbac.ExpandScope knows `coder:all` but
+		// not the `all` that IsExternalScope accepts.
+		name := string(rbac.CanonicalScopeName(rbac.ScopeName(a)))
+		if !slices.Contains(filtered, name) {
+			filtered = append(filtered, name)
+		}
+	}
+	return filtered
+}
+
+// firstScopeOutsideAllowlist returns the first scope in granted that the
+// allowlist does not confer, or "" when it confers all of them. It compares
+// what the scopes grant, not their names: `coder:workspaces.access` covers
+// `workspace:read`. Pass both slices through canonicalScopes first, since RBAC
+// expands `coder:all` but not the bare `all` alias. A comparison it cannot
+// decide refuses.
+func firstScopeOutsideAllowlist(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, allowlist, granted []string) (string, error) {
+	allowedNames := make([]rbac.ScopeName, 0, len(allowlist))
+	for _, a := range allowlist {
+		allowedNames = append(allowedNames, rbac.ScopeName(a))
+	}
+	requestedNames := make([]rbac.ScopeName, 0, len(granted))
+	for _, g := range granted {
+		requestedNames = append(requestedNames, rbac.ScopeName(g))
+	}
+	// One pass over the allowlist rather than one per granted scope.
+	outside, err := rbac.FirstScopeNotCovered(allowedNames, requestedNames)
+	if err != nil {
+		logger.Warn(ctx, "oauth2 scope coverage could not be determined",
+			slog.Error(err),
+			slog.F("phase", phase),
+			slog.F("app_id", appID.String()),
+			slog.F("allowlist", strings.Join(allowlist, " ")),
+			slog.F("scope", string(outside)))
+		return "", xerrors.Errorf("'%s': %w", outside, errCoverageUndecidable)
+	}
+	return string(outside), nil
 }
 
 // negotiateScope decides the scope the authorization code will carry. Every
@@ -95,52 +156,25 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		return strings.Join(granted, " "), nil
 	}
 
-	// The stored allowlist may name a scope since removed from the catalog, or
-	// never in it. Filtering only ever narrows what is granted.
-	//
-	// Canonicalized in the same pass so both sides expand: rbac.ExpandScope
-	// knows `coder:all` and not the `all` alias that IsExternalScope accepts.
-	allowed := strings.Fields(app.Scope.String)
-	filtered := make([]rbac.ScopeName, 0, len(allowed))
-	for _, a := range allowed {
-		if name := rbac.ScopeName(a); rbac.IsExternalScope(name) {
-			filtered = append(filtered, rbac.CanonicalScopeName(name))
-		}
-	}
-	filtered = slice.Unique(filtered)
-	if len(filtered) == 0 {
+	allowlist := grantableScopes(app.Scope.String)
+	if len(allowlist) == 0 {
 		// Rejected rather than read as absent, which would grant more than the
-		// allowlist ever permitted. The error echoes the stored value so a
-		// whitespace-only allowlist does not render as "".
-		return "", xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
+		// allowlist ever permitted.
+		logger.Warn(ctx, "oauth2 authorization refused: no registered scope is grantable",
+			slog.F("app_id", app.ID.String()))
+		return "", errNoGrantableScope
 	}
 
 	if len(granted) == 0 {
-		names := make([]string, 0, len(filtered))
-		for _, name := range filtered {
-			names = append(names, string(name))
-		}
-		return strings.Join(names, " "), nil // RFC 6749 §3.3 default
+		return strings.Join(allowlist, " "), nil // RFC 6749 §3.3 default
 	}
 
-	// The allowlist is a ceiling on authority, not a menu of spellings, so the
-	// check is coverage rather than membership: an app allowed
-	// `coder:workspaces.access` can approve a request for `workspace:read`.
-	for _, s := range granted {
-		covered, err := rbac.ScopesCover(filtered, rbac.ScopeName(s))
-		if err != nil {
-			// Refuse rather than grant on an incomplete comparison. The
-			// underlying error names RBAC internals, so it goes to the log.
-			logger.Warn(ctx, "oauth2 scope coverage could not be determined",
-				slog.Error(err),
-				slog.F("app_id", app.ID.String()),
-				slog.F("app_scope", app.Scope.String),
-				slog.F("requested_scope", s))
-			return "", xerrors.Errorf("%q: %w", s, errCoverageUndecidable)
-		}
-		if !covered {
-			return "", xerrors.Errorf("%q: %w", s, errScopeNotAllowed)
-		}
+	outside, err := firstScopeOutsideAllowlist(ctx, logger, "authorize", app.ID, allowlist, granted)
+	if err != nil {
+		return "", err
+	}
+	if outside != "" {
+		return "", xerrors.Errorf("%q: %w", outside, errScopeNotAllowed)
 	}
 	return strings.Join(granted, " "), nil
 }
