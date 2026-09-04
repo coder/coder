@@ -55,7 +55,7 @@ type API struct {
 	*ScriptsAPI
 	*ConnLogAPI
 	*SubAgentAPI
-	*tailnet.DRPCService
+	tailnetService *tailnet.DRPCService
 
 	cachedWorkspaceFields *CachedWorkspaceFields
 
@@ -63,6 +63,28 @@ type API struct {
 }
 
 var _ agentproto.DRPCAgentServer = &API{}
+
+// agentTailnetService exposes only Tailnet RPCs intended for workspace agents.
+// Other current and future RPCs remain unavailable until explicitly forwarded.
+type agentTailnetService struct {
+	tailnetproto.DRPCTailnetUnimplementedServer
+
+	service *tailnet.DRPCService
+}
+
+func (s *agentTailnetService) PostTelemetry(ctx context.Context, req *tailnetproto.TelemetryRequest) (*tailnetproto.TelemetryResponse, error) {
+	return s.service.PostTelemetry(ctx, req)
+}
+
+func (s *agentTailnetService) StreamDERPMaps(req *tailnetproto.StreamDERPMapsRequest, stream tailnetproto.DRPCTailnet_StreamDERPMapsStream) error {
+	return s.service.StreamDERPMaps(req, stream)
+}
+
+func (s *agentTailnetService) Coordinate(stream tailnetproto.DRPCTailnet_CoordinateStream) error {
+	return s.service.Coordinate(stream)
+}
+
+var _ tailnetproto.DRPCTailnetServer = (*agentTailnetService)(nil)
 
 type Options struct {
 	AgentID        uuid.UUID
@@ -202,7 +224,7 @@ func New(opts Options, workspace database.Workspace) *API {
 		Log:              opts.Log,
 	}
 
-	api.DRPCService = &tailnet.DRPCService{
+	api.tailnetService = &tailnet.DRPCService{
 		CoordPtr:                opts.TailnetCoordinator,
 		Logger:                  opts.Log,
 		DerpMapUpdateFrequency:  opts.DerpMapUpdateFrequency,
@@ -235,12 +257,14 @@ func (a *API) Server(ctx context.Context) (*drpcserver.Server, error) {
 		return nil, xerrors.Errorf("register agent API protocol in DRPC mux: %w", err)
 	}
 
-	err = tailnetproto.DRPCRegisterTailnet(mux, a)
+	err = tailnetproto.DRPCRegisterTailnet(mux, &agentTailnetService{
+		service: a.tailnetService,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("register tailnet API protocol in DRPC mux: %w", err)
 	}
 
-	return drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+	return drpcsdk.NewServer(a.opts.Log, &tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {
