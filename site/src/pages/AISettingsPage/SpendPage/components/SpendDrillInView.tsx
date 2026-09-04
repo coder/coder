@@ -33,20 +33,20 @@ interface SpendDrillInViewProps {
 	onSummaryRetry: () => void;
 }
 
+type AppliedWindow = Pick<
+	TypesGen.AIGatewaySpendUserSummary,
+	"start_date" | "end_date"
+>;
+
 // Links to the AI Sessions page for the same user and window. The user ID
 // rather than the username keeps the link pointing at this account even if
 // the username is later reused. The sessions page applies no retention clamp,
-// so the applied window from the summary is preferred over the requested one.
-const sessionsHref = (
-	userId: string,
-	queryDateRange: DateRangeValue,
-	applied?: { start_date: string; end_date: string },
-) => {
+// so the link waits for the applied window from the summary rather than using
+// the requested one.
+const sessionsHref = (userId: string, applied: AppliedWindow) => {
 	const filter = queryWithTimeRange(
 		{ initiator: userId },
-		applied
-			? { start: new Date(applied.start_date), end: new Date(applied.end_date) }
-			: { start: queryDateRange.startDate, end: queryDateRange.endDate },
+		{ start: new Date(applied.start_date), end: new Date(applied.end_date) },
 	);
 	return `/ai-gateway/sessions?${useFilterParamsKey}=${encodeURIComponent(filter)}`;
 };
@@ -54,13 +54,9 @@ const sessionsHref = (
 // A window that lies entirely outside retained data comes back collapsed to
 // start_date == end_date, which the sessions filter rejects, so there is
 // nothing to link to.
-const hasEmptyAppliedWindow = (applied?: {
-	start_date: string;
-	end_date: string;
-}) =>
-	applied !== undefined &&
+const hasEmptyAppliedWindow = (applied: AppliedWindow) =>
 	new Date(applied.start_date).getTime() >=
-		new Date(applied.end_date).getTime();
+	new Date(applied.end_date).getTime();
 
 export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 	selectedUser,
@@ -136,11 +132,9 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 				/>
 				<div className="flex min-w-0 flex-col items-end gap-1 text-xs text-content-secondary">
 					<div>{dateRangeLabel}</div>
-					{!hasEmptyAppliedWindow(summaryData) && (
+					{summaryData && !hasEmptyAppliedWindow(summaryData) && (
 						<Link asChild showExternalIcon={false} size="sm">
-							<RouterLink
-								to={sessionsHref(selectedUser.id, queryDateRange, summaryData)}
-							>
+							<RouterLink to={sessionsHref(selectedUser.id, summaryData)}>
 								View sessions
 							</RouterLink>
 						</Link>

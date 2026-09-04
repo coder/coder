@@ -347,6 +347,10 @@ export const DrillInSummaryLoading: Story = {
 		await expect(
 			canvas.getByRole("status", { name: "Loading spend details" }),
 		).toBeVisible();
+		// The link needs the applied window from the summary.
+		expect(
+			canvas.queryByRole("link", { name: "View sessions" }),
+		).not.toBeInTheDocument();
 	},
 };
 
