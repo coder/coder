@@ -778,6 +778,12 @@ State updates processed by the loop come from:
 
 The runner is responsible for subscribing to the `chat:update:{chat_id}` pubsub channel. During bootstrap, it must first subscribe to the channel and then fetch the initial state of the chat from the database to avoid missing any updates.
 
+<!-- TODO: document that the runner owns the turn-scoped `chat_turn` trace span, started by the first generation task and ended when the runner exits, and that the generation goroutine's stages hang off it. -->
+
+<!-- TODO: document that the runner now opens one `chat_turn` span per prompt rather than one per runner: the span is replaced when a finish transition promotes a queued message (anchored at the moment that message was queued) and when a new prompt starts a task after the previous turn finished. -->
+
+<!-- TODO: document that a turn closes in two steps: the finishing transition marks it complete from inside the generation step, and the span closes (settles) after that step's stage has ended so the step is counted; and that each task holds a turn token so a task that outlives its turn cannot complete or invalidate the turn that replaced it. -->
+
 ### Event shape
 
 Every event that the runner loop processes has the following shape:
@@ -858,6 +864,8 @@ Retriable conditions include, but are not limited to:
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
 
 It inspects the chat's message history, and decides what's the next step to take. The result of that step is the application of one of the following core state machine transitions:
+
+<!-- TODO: document the generation goroutine's lifecycle stages (`generation_step`, `prepare`, `mcp_connect`, `provider_attempt`, `stream`, `time_to_first_token`, `thinking`, `tool_call`, `commit`, `compaction`, `queue_wait`) and the `coderd_chatd_stage_duration_seconds` histogram they feed. -->
 
 - `CommitStep`: applied when an LLM API call returns a response.
 - `FinishTurn`: applied when the chat processing logic determines that there's no more work to do for the current message history (no pending tool calls, user message is not the last message in the history, etc.).
