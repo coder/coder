@@ -46,12 +46,10 @@ type GitView =
 	| { type: "remote"; refId: string }
 	| { type: "local"; repoRoot: string };
 
-// Stable identity for a ref's view item. Falls back to the PR URL when
-// the server did not report origin/branch (a legacy or URL-only row).
+// View item id for a tracked ref. The ref key is (origin, branch); a
+// legacy row without either keeps the distinct empty-key id.
 const refItemId = (status: ChatDiffStatus): string =>
-	`remote:${status.remote_origin ?? ""}:${status.git_branch ?? ""}:${
-		status.url ?? ""
-	}`;
+	`remote:${status.remote_origin ?? ""}:${status.git_branch ?? ""}`;
 
 const GIT_NOT_SETUP_TITLE = "Git is not set up for this chat";
 const GIT_NOT_SETUP_SENTENCE = "Git is not set up for this chat.";
@@ -319,7 +317,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 			}
 		}
 	}
-	// A prTab without statuses still shows the remote view.
 	if (remoteItems.length === 0 && prTab) {
 		remoteItems.push({
 			kind: "remote",

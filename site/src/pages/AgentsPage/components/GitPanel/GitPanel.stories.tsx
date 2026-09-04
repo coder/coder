@@ -160,9 +160,8 @@ export const PullRequestAndWorkingChanges: Story = {
 };
 
 /**
- * Two tracked PRs on different branches. The play function opens the
- * dropdown, asserts both PRs are listed, and switches to the second
- * one, verifying the per-ref view swap.
+ * Two tracked PRs on different branches, switching between them via
+ * the view switcher.
  */
 export const MultiplePullRequests: Story = {
 	args: {

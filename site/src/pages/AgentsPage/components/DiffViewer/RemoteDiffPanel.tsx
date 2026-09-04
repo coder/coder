@@ -63,7 +63,6 @@ interface RemoteDiffPanelProps {
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: TypesGen.ChatDiffStatus;
-	/** Selects which tracked ref's diff to fetch. */
 	remoteRef?: TypesGen.DiffStatusRef;
 }
 

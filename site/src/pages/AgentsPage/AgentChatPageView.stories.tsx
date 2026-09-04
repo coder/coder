@@ -561,24 +561,25 @@ export const SubmissionPending: Story = {
 
 /** Right sidebar panel is open with diff status data. */
 export const WithSidebarPanel: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			showSidebarPanel
-			chat={{
-			diff_status: {
-				chat_id: AGENT_ID,
-					url: "https://github.com/coder/coder/pull/123",
-					pr_number: 123,
-					pull_request_title: "fix: resolve race condition in workspace builds",
-				pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				} satisfies ChatDiffStatus,
-			}}
-		/>
-	),
+	render: () => {
+		const diffStatus = {
+			chat_id: AGENT_ID,
+			url: "https://github.com/coder/coder/pull/123",
+			pr_number: 123,
+			pull_request_title: "fix: resolve race condition in workspace builds",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 42,
+			deletions: 7,
+			changed_files: 5,
+		} satisfies ChatDiffStatus;
+		return (
+			<StoryAgentChatPageView
+				showSidebarPanel
+				chat={{ diff_status: diffStatus, diff_statuses: [diffStatus] }}
+			/>
+		);
+	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			chat_id: AGENT_ID,
@@ -645,24 +646,25 @@ export const NarrowWithSidebarPanel: Story = {
  * the server.
  */
 export const RefreshInvalidatesPRDiff: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			showSidebarPanel
-			chat={{
-				diff_status: {
-					chat_id: AGENT_ID,
-					url: "https://github.com/coder/coder/pull/123",
-					pr_number: 123,
-					pull_request_title: "fix: resolve race condition in workspace builds",
-				pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				} satisfies ChatDiffStatus,
-			}}
-		/>
-	),
+	render: () => {
+		const diffStatus = {
+			chat_id: AGENT_ID,
+			url: "https://github.com/coder/coder/pull/123",
+			pr_number: 123,
+			pull_request_title: "fix: resolve race condition in workspace builds",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 42,
+			deletions: 7,
+			changed_files: 5,
+		} satisfies ChatDiffStatus;
+		return (
+			<StoryAgentChatPageView
+				showSidebarPanel
+				chat={{ diff_status: diffStatus, diff_statuses: [diffStatus] }}
+			/>
+		);
+	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			chat_id: AGENT_ID,

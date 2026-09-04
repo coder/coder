@@ -19468,12 +19468,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "ref": {
-                    "description": "Ref identifies the row that changed.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.DiffStatusRef"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.DiffStatusRef"
                 },
                 "status": {
                     "description": "Status is the ref's new state, or nil when the ref no longer has\na pull request.",

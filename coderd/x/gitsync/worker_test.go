@@ -607,7 +607,6 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 
 	var mu sync.Mutex
 	var upsertRefCalls []database.UpsertChatDiffStatusReferenceParams
-	var freezeCalls []database.FreezeChatDiffStatusRefsParams
 	var publishedIDs []uuid.UUID
 
 	ctrl := gomock.NewController(t)
@@ -628,12 +627,7 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 	}).Times(2)
 	store.EXPECT().FreezeChatDiffStatusRefs(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, arg database.FreezeChatDiffStatusRefsParams) (int64, error) {
-			mu.Lock()
-			freezeCalls = append(freezeCalls, arg)
-			mu.Unlock()
-			return 0, nil
-		}).Times(2)
+		Return(int64(0), nil).Times(2)
 
 	pub := func(_ context.Context, chatID uuid.UUID) error {
 		mu.Lock()
