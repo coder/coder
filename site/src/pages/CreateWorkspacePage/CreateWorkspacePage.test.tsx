@@ -459,16 +459,21 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Dynamic Parameter Types", () => {
 		it("displays parameter validation errors", async () => {
-			mockDynamicParameterWebSocket((publisher) => {
-				publisher.publishOpen(new Event("open"));
-				publisher.publishMessage(
+			const [, mockPublisher] = mockDynamicParameterWebSocket();
+
+			renderCreateWorkspacePage();
+
+			await waitFor(() => {
+				expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
+			});
+			await act(async () => {
+				mockPublisher.publishOpen(new Event("open"));
+				mockPublisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify(MockDynamicParametersResponseWithError),
 					}),
 				);
 			});
-
-			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
 
 			await waitFor(() => {
