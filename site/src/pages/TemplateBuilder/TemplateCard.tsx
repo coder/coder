@@ -1,8 +1,8 @@
+import { cn } from "cn";
 import { BadgeCheckIcon } from "lucide-react";
 import { useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Link } from "#/components/Link/Link";
-import { cn } from "#/utils/cn";
 
 type TemplateCardProps = {
 	name: string;

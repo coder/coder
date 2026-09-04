@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { FilterIcon } from "lucide-react";
 import {
 	type ComponentProps,
@@ -16,7 +17,6 @@ import {
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { SearchField } from "#/components/SearchField/SearchField";
-import { cn } from "#/utils/cn";
 import {
 	AGENT_ARCHIVE_STATUS_ORDER,
 	AGENT_CHAT_STATUS_ORDER,

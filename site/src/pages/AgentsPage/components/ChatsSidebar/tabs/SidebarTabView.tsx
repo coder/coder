@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	ChevronLeftIcon,
@@ -17,7 +18,6 @@ import {
 	useState,
 } from "react";
 import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {

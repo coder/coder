@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
@@ -60,7 +61,6 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import { canAccessCoderAgentsSettings } from "#/modules/permissions";
-import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";

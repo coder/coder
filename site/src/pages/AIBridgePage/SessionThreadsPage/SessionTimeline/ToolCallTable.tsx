@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import { cn } from "#/utils/cn";
 import { formatDate } from "#/utils/time";
 import { TokenBadges } from "../../TokenBadges";
 

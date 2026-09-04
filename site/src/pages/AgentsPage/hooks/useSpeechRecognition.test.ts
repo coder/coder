@@ -46,6 +46,7 @@ function installMock() {
 	class Ctor extends MockSpeechRecognition {
 		constructor() {
 			super();
+			// oxlint-disable-next-line typescript/no-this-alias -- the constructor must record the created instance for the test to access.
 			lastInstance = this;
 		}
 	}
