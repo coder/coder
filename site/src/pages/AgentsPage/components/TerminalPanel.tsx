@@ -1,11 +1,4 @@
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useEffectEvent,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { appearanceSettings } from "#/api/queries/users";
@@ -90,13 +83,13 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
 	const shouldMountTerminal = Boolean(isHot) || isWarm;
 	const hasSignaledReadyRef = useRef(false);
-	const signalReady = useCallback(() => {
+	const signalReady = () => {
 		if (hasSignaledReadyRef.current) {
 			return;
 		}
 		hasSignaledReadyRef.current = true;
 		onReady?.();
-	}, [onReady]);
+	};
 	const handleStatusChange = (status: ConnectionStatus) => {
 		setConnectionStatus(status);
 		// A dropped connection produces no output, so signal readiness to surface
