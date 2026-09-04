@@ -666,13 +666,11 @@ resource "coder_script" "install-deps" {
     # writes this file when it's absent.
     [settings]
     trusted_config_paths = [
+      "${local.repo_dir}",
       "/etc/mise",
     ]
     TRUST
     fi
-
-    # Trust the resolved clone path.
-    mise trust --yes --cd "${local.repo_dir}"
 
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
