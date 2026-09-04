@@ -1068,6 +1068,7 @@ title: Schemas
       "scheme": "string",
       "user": {}
     },
+    "stage_metrics": "string",
     "stream_silence_timeout": 0
   }
 }
@@ -2558,6 +2559,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "scheme": "string",
     "user": {}
   },
+  "stage_metrics": "string",
   "stream_silence_timeout": 0
 }
 ```
@@ -2573,6 +2575,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `hook_secret`            | string                     | false    |              |             |
 | `hook_timeout`           | integer                    | false    |              |             |
 | `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
+| `stage_metrics`          | string                     | false    |              |             |
 | `stream_silence_timeout` | integer                    | false    |              |             |
 
 ## codersdk.ChatContext
@@ -7366,6 +7369,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "scheme": "string",
           "user": {}
         },
+        "stage_metrics": "string",
         "stream_silence_timeout": 0
       }
     },
@@ -7978,6 +7982,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       },
+      "stage_metrics": "string",
       "stream_silence_timeout": 0
     }
   },

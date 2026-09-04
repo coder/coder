@@ -418,6 +418,15 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 - YAML key: `chat.debugLoggingEnabled`
 - Default value: `false`
 
+### Stage metrics
+
+How much of the chat lifecycle stage instrumentation to expose as Prometheus metrics. "basic" records per-occurrence durations for the wait, connect, and model-call stages on a 12-bucket ladder. "full" adds every stage on a 16-bucket ladder at a higher series count. "off" exposes none. Tracing spans are unaffected.
+
+- Environment variable: `CODER_CHAT_STAGE_METRICS`
+- CLI flag: [`--chat-stage-metrics`](../../reference/cli/server.md#--chat-stage-metrics)
+- YAML key: `chat.stageMetrics`
+- Default value: `basic`
+
 ### Stream silence timeout
 
 Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.
