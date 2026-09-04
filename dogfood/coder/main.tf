@@ -671,7 +671,7 @@ resource "coder_script" "install-deps" {
     TRUST
     fi
 
-    # Trust the resolved clone path so custom base directories work.
+    # Trust the resolved clone path.
     mise trust --yes --cd "${local.repo_dir}"
 
     # Install playwright dependencies
