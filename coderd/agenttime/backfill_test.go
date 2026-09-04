@@ -484,10 +484,10 @@ func insertAgentTimeMessage(ctx context.Context, t testing.TB, db *sql.DB, chatI
 func insertManyUnaccountedAgentTimeMessages(ctx context.Context, t testing.TB, db *sql.DB, chatID uuid.UUID, createdAt time.Time, count int) {
 	t.Helper()
 
-	_, err := db.ExecContext(ctx, `ALTER TABLE chat_messages DISABLE TRIGGER trigger_agent_time_account_chat_messages_after_insert`)
+	_, err := db.ExecContext(ctx, `ALTER TABLE chat_messages DISABLE TRIGGER trigger_zz_agent_time_account_chat_messages_after_insert`)
 	require.NoError(t, err)
 	defer func() {
-		_, enableErr := db.ExecContext(ctx, `ALTER TABLE chat_messages ENABLE TRIGGER trigger_agent_time_account_chat_messages_after_insert`)
+		_, enableErr := db.ExecContext(ctx, `ALTER TABLE chat_messages ENABLE TRIGGER trigger_zz_agent_time_account_chat_messages_after_insert`)
 		require.NoError(t, enableErr)
 	}()
 
