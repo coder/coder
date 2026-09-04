@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -406,22 +405,22 @@ func TestAgentFirewallSessionLogs(t *testing.T) {
 	}{
 		{
 			name:     "SeqAfterIncludesBound",
-			params:   codersdk.AgentFirewallSessionLogsParams{SeqAfter: ptr.Ref(int64(0))},
+			params:   codersdk.AgentFirewallSessionLogsParams{SeqAfter: new(int64(0))},
 			wantSeqs: []int32{0, 1, 2},
 		},
 		{
 			name:     "SeqBeforeExcludesBound",
-			params:   codersdk.AgentFirewallSessionLogsParams{SeqBefore: ptr.Ref(int64(2))},
+			params:   codersdk.AgentFirewallSessionLogsParams{SeqBefore: new(int64(2))},
 			wantSeqs: []int32{0, 1},
 		},
 		{
 			name:     "BetweenBoundsInclusiveExclusive",
-			params:   codersdk.AgentFirewallSessionLogsParams{SeqAfter: ptr.Ref(int64(0)), SeqBefore: ptr.Ref(int64(2))},
+			params:   codersdk.AgentFirewallSessionLogsParams{SeqAfter: new(int64(0)), SeqBefore: new(int64(2))},
 			wantSeqs: []int32{0, 1},
 		},
 		{
 			name:     "LimitCapsResults",
-			params:   codersdk.AgentFirewallSessionLogsParams{Limit: ptr.Ref(int32(2))},
+			params:   codersdk.AgentFirewallSessionLogsParams{Limit: new(int32(2))},
 			wantSeqs: []int32{0, 1},
 		},
 	}
@@ -466,8 +465,8 @@ func TestAgentFirewallSessionLogs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		//nolint:gocritic // Testing owner role.
 		resp, err := client.AgentFirewallSessionLogs(ctx, session.ID, codersdk.AgentFirewallSessionLogsParams{
-			SeqAfter:  ptr.Ref(int64(5)),
-			SeqBefore: ptr.Ref(int64(12)),
+			SeqAfter:  new(int64(5)),
+			SeqBefore: new(int64(12)),
 		})
 		require.NoError(t, err)
 		require.Len(t, resp.Results, 4, "should return events at seq 5, 6, 7, 11")

@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -618,12 +617,12 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "DifferentOrgs",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: uuid.New(),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: uuid.New(),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			Equal: false,
@@ -632,12 +631,12 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "SameID",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			Equal: true,
@@ -646,12 +645,12 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "DifferentIDs",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(uuid.New()),
+				GroupID:        new(uuid.New()),
 				GroupName:      nil,
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(uuid.New()),
+				GroupID:        new(uuid.New()),
 				GroupName:      nil,
 			},
 			Equal: false,
@@ -661,12 +660,12 @@ func TestExpectedGroupEqual(t *testing.T) {
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
 				GroupID:        nil,
-				GroupName:      ptr.Ref("foo"),
+				GroupName:      new("foo"),
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
 				GroupID:        nil,
-				GroupName:      ptr.Ref("foo"),
+				GroupName:      new("foo"),
 			},
 			Equal: true,
 		},
@@ -675,12 +674,12 @@ func TestExpectedGroupEqual(t *testing.T) {
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
 				GroupID:        nil,
-				GroupName:      ptr.Ref("foo"),
+				GroupName:      new("foo"),
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
 				GroupID:        nil,
-				GroupName:      ptr.Ref("bar"),
+				GroupName:      new("bar"),
 			},
 			Equal: false,
 		},
@@ -693,13 +692,13 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "DifferentIDSameName",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
-				GroupName:      ptr.Ref("foo"),
+				GroupID:        new(ids.ID("g1")),
+				GroupName:      new("foo"),
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
-				GroupName:      ptr.Ref("bar"),
+				GroupID:        new(ids.ID("g1")),
+				GroupName:      new("bar"),
 			},
 			Equal: true,
 		},
@@ -707,13 +706,13 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "MixedNils",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
 				GroupID:        nil,
-				GroupName:      ptr.Ref("bar"),
+				GroupName:      new("bar"),
 			},
 			Equal: false,
 		},
@@ -721,7 +720,7 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "NoComparable",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			B: idpsync.ExpectedGroup{

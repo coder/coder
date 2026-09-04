@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronLeftIcon, CircleDollarSignIcon, TrashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
@@ -29,7 +30,6 @@ import {
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { WorkspaceStatusIndicator } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
-import { cn } from "#/utils/cn";
 import { displayDormantDeletion } from "#/utils/dormant";
 import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";

@@ -1465,8 +1465,8 @@ func TestGetAuthorizedChats(t *testing.T) {
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID})
 
 	// Create FK dependencies: a chat provider and model config.
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
@@ -1653,7 +1653,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		// Use a dedicated user for pagination to avoid interference
 		// with the other parallel subtests.
 		paginationUser := dbgen.User(t, db, database.User{})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID})
 		for i := range 7 {
 			dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    org.ID,
@@ -1727,12 +1727,10 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
@@ -1845,12 +1843,10 @@ func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: recipient.ID, GroupID: group.ID})
@@ -1949,12 +1945,10 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
@@ -11071,6 +11065,50 @@ func TestUsageEventsTrigger(t *testing.T) {
 	})
 }
 
+func TestGetUsageEventsStats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	insert := func(id string, createdAt time.Time) {
+		t.Helper()
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        id,
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 1}`),
+			CreatedAt: createdAt,
+		})
+		require.NoError(t, err)
+	}
+
+	pendingNew := now.Add(-time.Hour)
+	pendingOld := now.Add(-29 * 24 * time.Hour)
+	insert("pending-new", pendingNew)
+	insert("pending-old", pendingOld)
+	// Exactly 30 days is no longer eligible to publish.
+	insert("at-30d", now.Add(-30*24*time.Hour))
+	insert("expired-old", now.Add(-59*24*time.Hour))
+	// Exactly 60 days and older are outside the stats window.
+	insert("at-60d", now.Add(-60*24*time.Hour))
+	insert("too-old", now.Add(-61*24*time.Hour))
+	insert("published", now.Add(-2*24*time.Hour))
+	err := db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+		Now:             now,
+		IDs:             []string{"published"},
+		FailureMessages: []string{""},
+		SetPublishedAts: []bool{true},
+	})
+	require.NoError(t, err)
+
+	stats, err := db.GetUsageEventsStats(ctx, now)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, stats.PendingCount)
+	require.EqualValues(t, 2, stats.ExpiredCount)
+	require.WithinDuration(t, pendingOld, stats.OldestPendingCreatedAt, time.Second)
+}
+
 func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 	t.Parallel()
 
@@ -14348,54 +14386,54 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 	prevMonthLastDay := monthStart.AddDate(0, 0, -1) // 2024-05-31
 
 	tests := []struct {
-		name               string
-		groupLimit         int64
-		overrideLimit      int64
-		spend              int64
-		wantEffectiveGroup bool
-		wantLimit          sql.NullInt64
-		wantSource         sql.NullString
-		wantSpend          int64
+		name                string
+		groupLimit          int64
+		overrideLimit       int64
+		spend               int64
+		wantEffectiveGroup  bool
+		wantEffectiveLimit  sql.NullInt64
+		wantEffectiveSource sql.NullString
+		wantSpend           int64
 	}{
 		{
-			name:               "NoBudgetNoSpend",
-			wantEffectiveGroup: false,
-			wantLimit:          sql.NullInt64{},
-			wantSource:         sql.NullString{},
-			wantSpend:          0,
+			name:                "NoBudgetNoSpend",
+			wantEffectiveGroup:  false,
+			wantEffectiveLimit:  sql.NullInt64{},
+			wantEffectiveSource: sql.NullString{},
+			wantSpend:           0,
 		},
 		{
-			name:               "GroupBudget",
-			groupLimit:         1_000_000,
-			wantEffectiveGroup: true,
-			wantLimit:          sql.NullInt64{Int64: 1_000_000, Valid: true},
-			wantSource:         sql.NullString{String: "group", Valid: true},
-			wantSpend:          0,
+			name:                "GroupBudget",
+			groupLimit:          1_000_000,
+			wantEffectiveGroup:  true,
+			wantEffectiveLimit:  sql.NullInt64{Int64: 1_000_000, Valid: true},
+			wantEffectiveSource: sql.NullString{String: "group", Valid: true},
+			wantSpend:           0,
 		},
 		{
-			name:               "OverrideBudget",
-			overrideLimit:      500_000,
-			wantEffectiveGroup: true,
-			wantLimit:          sql.NullInt64{Int64: 500_000, Valid: true},
-			wantSource:         sql.NullString{String: "user_override", Valid: true},
-			wantSpend:          0,
+			name:                "OverrideBudget",
+			overrideLimit:       500_000,
+			wantEffectiveGroup:  true,
+			wantEffectiveLimit:  sql.NullInt64{Int64: 500_000, Valid: true},
+			wantEffectiveSource: sql.NullString{String: "user_override", Valid: true},
+			wantSpend:           0,
 		},
 		{
-			name:               "NoBudgetWithSpend",
-			spend:              250,
-			wantEffectiveGroup: false,
-			wantLimit:          sql.NullInt64{},
-			wantSource:         sql.NullString{},
-			wantSpend:          250,
+			name:                "NoBudgetWithSpend",
+			spend:               250,
+			wantEffectiveGroup:  false,
+			wantEffectiveLimit:  sql.NullInt64{},
+			wantEffectiveSource: sql.NullString{},
+			wantSpend:           250,
 		},
 		{
-			name:               "BudgetWithSpend",
-			groupLimit:         1_000_000,
-			spend:              250,
-			wantEffectiveGroup: true,
-			wantLimit:          sql.NullInt64{Int64: 1_000_000, Valid: true},
-			wantSource:         sql.NullString{String: "group", Valid: true},
-			wantSpend:          250,
+			name:                "BudgetWithSpend",
+			groupLimit:          1_000_000,
+			spend:               250,
+			wantEffectiveGroup:  true,
+			wantEffectiveLimit:  sql.NullInt64{Int64: 1_000_000, Valid: true},
+			wantEffectiveSource: sql.NullString{String: "group", Valid: true},
+			wantSpend:           250,
 		},
 	}
 
@@ -14451,8 +14489,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 			} else {
 				require.False(t, got[0].EffectiveGroupID.Valid, "expected no effective group")
 			}
-			require.Equal(t, tt.wantLimit, got[0].SpendLimitMicros)
-			require.Equal(t, tt.wantSource, got[0].LimitSource)
+			require.Equal(t, tt.wantEffectiveLimit, got[0].EffectiveSpendLimitMicros)
+			require.Equal(t, tt.wantEffectiveSource, got[0].EffectiveLimitSource)
 			require.Equal(t, tt.wantSpend, got[0].GroupSpendMicros)
 		})
 	}
@@ -14498,8 +14536,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		require.Equal(t, int64(250), byID[userB.ID].GroupSpendMicros)
 		for _, row := range got {
 			require.False(t, row.EffectiveGroupID.Valid)
-			require.False(t, row.SpendLimitMicros.Valid)
-			require.False(t, row.LimitSource.Valid)
 		}
 	})
 
@@ -14533,8 +14569,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: per-user spend is summed across all days in the period.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(600), got[0].GroupSpendMicros)
 	})
 
@@ -14583,8 +14617,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: the override target wins over the highest-limit group.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: overrideTarget.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, sql.NullInt64{Int64: 500_000, Valid: true}, got[0].EffectiveSpendLimitMicros)
+		require.Equal(t, sql.NullString{String: "user_override", Valid: true}, got[0].EffectiveLimitSource)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
@@ -14634,8 +14668,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: the tie falls to the lowest group ID.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: winner, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, sql.NullInt64{Int64: 1_000_000, Valid: true}, got[0].EffectiveSpendLimitMicros)
+		require.Equal(t, sql.NullString{String: "group", Valid: true}, got[0].EffectiveLimitSource)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
@@ -14670,11 +14704,12 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Then: effective_group_id resolves to the Everyone group.
+		// Then: effective_group_id resolves to the Everyone group and exposes
+		// its effective budget without treating it as the queried group's budget.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: org.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, sql.NullInt64{Int64: 1_000_000, Valid: true}, got[0].EffectiveSpendLimitMicros)
+		require.Equal(t, sql.NullString{String: "group", Valid: true}, got[0].EffectiveLimitSource)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
@@ -14709,11 +14744,12 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: with no budget, the effective group falls back to the Everyone
-		// group. The limit and source are null, and queried-group spend is returned.
+		// group. The effective and queried-group budgets are null, and
+		// queried-group spend is returned.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: org.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.False(t, got[0].EffectiveSpendLimitMicros.Valid)
+		require.False(t, got[0].EffectiveLimitSource.Valid)
 		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
@@ -14756,8 +14792,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// returns.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid, "cross-org effective group must be masked")
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.False(t, got[0].EffectiveSpendLimitMicros.Valid)
+		require.False(t, got[0].EffectiveLimitSource.Valid)
 		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
@@ -14793,13 +14829,12 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Then: queried-group spend is returned, effective_group_id is the
-		// other group, and the limit and source are null because the queried
-		// group is not the effective source.
+		// Then: queried-group spend is returned, effective_group_id and its
+		// budget identify the other group, and the queried-group budget is null.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: other.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, sql.NullInt64{Int64: 1_000_000, Valid: true}, got[0].EffectiveSpendLimitMicros)
+		require.Equal(t, sql.NullString{String: "group", Valid: true}, got[0].EffectiveLimitSource)
 		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
@@ -14831,8 +14866,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: spend attributed to the other group is not counted.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
@@ -14862,8 +14895,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		require.Len(t, got, 1)
 		require.Equal(t, member.ID, got[0].UserID)
 		require.False(t, got[0].EffectiveGroupID.Valid)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
@@ -14935,8 +14966,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// The queried-group spend is still returned.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid, "cross-org effective group must be masked")
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.False(t, got[0].EffectiveSpendLimitMicros.Valid)
+		require.False(t, got[0].EffectiveLimitSource.Valid)
 		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
@@ -14971,8 +15002,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: only current-period spend is aggregated.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(25), got[0].GroupSpendMicros)
 	})
 
@@ -15009,8 +15038,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: the prior UTC day's spend is excluded from the aggregate.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(25), got[0].GroupSpendMicros,
 			"sum must exclude prevMonthLastDay row after normalization")
 	})
@@ -19330,6 +19357,80 @@ func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
 		require.True(t, database.IsCheckViolation(err, database.CheckOauth2ProviderAppTokensScopeNotEmpty),
 			"empty scope must be rejected, got %v", err)
 	})
+}
+
+func TestGetUnpricedAIModelsSince(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+	initiator := dbgen.User(t, db, database.User{})
+	anthropic := dbgen.AIProvider(t, db, database.AIProvider{
+		Name: "anthropic",
+		Type: database.AIProviderTypeAnthropic,
+	})
+	openai := dbgen.AIProvider(t, db, database.AIProvider{
+		Name: "openai",
+		Type: database.AIProviderTypeOpenai,
+	})
+
+	seedUsage := func(provider database.AIProvider, model string, startedAt time.Time, inputTokens, outputTokens int64, cost sql.NullInt64) {
+		interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  initiator.ID,
+			Provider:     string(provider.Type),
+			ProviderName: provider.Name,
+			Model:        model,
+			StartedAt:    startedAt,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: interception.ID,
+			InputTokens:    inputTokens,
+			OutputTokens:   outputTokens,
+			CostMicros:     cost,
+			CreatedAt:      startedAt,
+		})
+	}
+
+	// Included and aggregated into one result with 500 total tokens.
+	seedUsage(anthropic, "model-a", now, 200, 100, sql.NullInt64{})
+	seedUsage(anthropic, "model-a", now, 100, 100, sql.NullInt64{})
+	// Included after model-a because it has only 200 total tokens.
+	seedUsage(anthropic, "model-b", now, 100, 100, sql.NullInt64{})
+	// Excluded because its recorded cost is not NULL.
+	seedUsage(anthropic, "costed-model", now, 100, 100, sql.NullInt64{Int64: 1, Valid: true})
+	// Excluded because its interception started before the requested window.
+	seedUsage(anthropic, "old-model", now.Add(-2*time.Hour), 100, 100, sql.NullInt64{})
+	// Excluded because OpenAI is not in the supplied priceable provider list.
+	seedUsage(openai, "excluded-provider-model", now, 100, 100, sql.NullInt64{})
+
+	// Excluded because an interception without token usage does not represent
+	// model usage.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:  initiator.ID,
+		Provider:     string(anthropic.Type),
+		ProviderName: anthropic.Name,
+		Model:        "model-without-usage",
+		StartedAt:    now,
+	}, nil)
+
+	// Excluded because a current price exists for this provider and model.
+	const pricedSeed = `[{"provider":"anthropic","model":"priced-model","input_price":1,"output_price":2,"cache_read_price":null,"cache_write_price":null}]`
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   []byte(pricedSeed),
+		Source: database.AIModelPriceSourceCustom,
+	}))
+	seedUsage(anthropic, "priced-model", now, 100, 100, sql.NullInt64{})
+
+	got, err := db.GetUnpricedAIModelsSince(ctx, database.GetUnpricedAIModelsSinceParams{
+		Since:              now.Add(-time.Hour),
+		PriceableProviders: []string{string(database.AIProviderTypeAnthropic)},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []database.GetUnpricedAIModelsSinceRow{
+		{ProviderType: "anthropic", Model: "model-a", TokenCount: 500},
+		{ProviderType: "anthropic", Model: "model-b", TokenCount: 200},
+	}, got)
 }
 
 func TestGetAIModelPriceByProviderModel(t *testing.T) {

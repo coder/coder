@@ -1,4 +1,6 @@
-# Image Management
+---
+title: Image Management
+---
 
 While Coder provides example
 [container images](https://github.com/coder/images) for

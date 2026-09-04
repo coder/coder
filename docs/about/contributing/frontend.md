@@ -1,4 +1,6 @@
-# Frontend
+---
+title: Frontend
+---
 
 Welcome to the guide for contributing to the Coder frontend. Whether you’re part
 of the community or a Coder team member, this documentation will help you get

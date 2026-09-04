@@ -2,6 +2,7 @@ import type { FC } from "react";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
+import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 
 /**
@@ -11,6 +12,10 @@ export const AISettingsSidebar: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const accessibleOrgsQuery = useAccessibleModelOrganizations(organizations);
+	const organizationMCPSharing = useCanShareOrganizationMCPServers(
+		organizations,
+		{ enabled: !permissions.editDeploymentConfig },
+	);
 
 	return (
 		<AISettingsSidebarView
@@ -18,6 +23,7 @@ export const AISettingsSidebar: FC = () => {
 			canAccessOrganizationModels={
 				(accessibleOrgsQuery.organizations.length ?? 0) > 0
 			}
+			canShareOrganizationMCPServers={organizationMCPSharing.canShare}
 		/>
 	);
 };

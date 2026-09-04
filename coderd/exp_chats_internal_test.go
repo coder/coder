@@ -578,17 +578,17 @@ func TestIsZeroChatModelCallConfigCoversEveryField(t *testing.T) {
 	t.Parallel()
 
 	sampled := codersdk.ChatModelCallConfig{
-		MaxOutputTokens:  ptr.Ref(int64(4096)),
-		Temperature:      ptr.Ref(0.7),
-		TopP:             ptr.Ref(0.9),
-		TopK:             ptr.Ref(int64(40)),
-		PresencePenalty:  ptr.Ref(0.1),
-		FrequencyPenalty: ptr.Ref(0.2),
+		MaxOutputTokens:  new(int64(4096)),
+		Temperature:      new(0.7),
+		TopP:             new(0.9),
+		TopK:             new(int64(40)),
+		PresencePenalty:  new(0.1),
+		FrequencyPenalty: new(0.2),
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-			Default: ptr.Ref("medium"),
+			Default: new("medium"),
 		},
 		OpenAIConfig: &codersdk.ChatModelOpenAIConfig{
-			UseResponsesAPI: ptr.Ref(true),
+			UseResponsesAPI: new(true),
 		},
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{},

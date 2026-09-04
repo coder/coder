@@ -47,7 +47,7 @@ export const CloseWithEscape: Story = {
 // button on close instead of falling back to the document body. The parent
 // owns this via `onCloseAutoFocus`.
 export const RestoresFocusToOpener: Story = {
-	render: () => {
+	render: function RestoresFocusToOpenerRender() {
 		const [open, setOpen] = useState(false);
 		const openerRef = useRef<HTMLButtonElement>(null);
 		return (

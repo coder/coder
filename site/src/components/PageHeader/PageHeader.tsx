@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type React from "react";
 import type { FC, ReactNode } from "react";
-import { cn } from "#/utils/cn";
 
 interface PageHeaderProps {
 	actions?: ReactNode;

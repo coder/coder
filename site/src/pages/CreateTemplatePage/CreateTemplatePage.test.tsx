@@ -20,8 +20,8 @@ const renderPage = async (searchParams: URLSearchParams) => {
 		path: "/templates/new",
 		// We need this because after creation, the user will be redirected to here
 		extraRoutes: [
-			{ path: "templates/:organization/:template/files", element: <></> },
-			{ path: "templates/:template/files", element: <></> },
+			{ path: "templates/:organization/:template/files", element: null },
+			{ path: "templates/:template/files", element: null },
 		],
 	});
 	// It is lazy loaded, so we have to wait for it to be rendered to not get an

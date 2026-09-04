@@ -8,13 +8,13 @@ import { authMethodsQueryKey, usersKey } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
 import { MockGroups } from "#/pages/UsersPage/storybookData/groups";
 import { MockRoles } from "#/pages/UsersPage/storybookData/roles";
-import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import { MockAuthMethodsAll, MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
+import { MockUsers } from "#/testHelpers/users";
 import UsersPage from "./UsersPage";
 
 const parameters = {

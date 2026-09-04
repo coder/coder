@@ -1,4 +1,6 @@
-# Git Providers
+---
+title: Git Providers
+---
 
 Coder Agents leverages your existing
 [external authentication](../../../admin/external-auth/index.md) configuration

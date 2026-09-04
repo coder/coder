@@ -123,7 +123,7 @@ func (s *Server) mitmHostsCondition() goproxy.ReqConditionFunc {
 // defense-in-depth even though the refresh function should mark
 // duplicates as proxy-excluded.
 func buildProviderRouter(reload ProviderReload, allowedPorts []string) (*providerRouter, error) {
-	nameByHost := make(map[string]string, len(reload.Providers))
+	providerByHost := make(map[string]routedProvider, len(reload.Providers))
 	domains := make([]string, 0, len(reload.Providers))
 	for _, p := range reload.Providers {
 		if p.Status != aibridged.ProviderStatusEnabled {
@@ -133,15 +133,18 @@ func buildProviderRouter(reload ProviderReload, allowedPorts []string) (*provide
 		if host == "" {
 			continue
 		}
-		if _, exists := nameByHost[host]; exists {
+		if _, exists := providerByHost[host]; exists {
 			continue
 		}
-		nameByHost[host] = p.Name
+		providerByHost[host] = routedProvider{name: p.Name, providerType: p.Type}
 		domains = append(domains, host)
 	}
 	mitmHosts, err := convertDomainsToHosts(domains, allowedPorts)
 	if err != nil {
 		return nil, err
 	}
-	return &providerRouter{mitmHosts: mitmHosts, nameByHost: nameByHost}, nil
+	return &providerRouter{
+		mitmHosts:      mitmHosts,
+		providerByHost: providerByHost,
+	}, nil
 }

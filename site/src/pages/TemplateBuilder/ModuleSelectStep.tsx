@@ -18,6 +18,7 @@ import {
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import { ModuleCard } from "./ModuleCard";
+import { sortByPriority } from "./sortByPriority";
 import {
 	moduleHasConfigurableVars,
 	type SelectedModuleMeta,
@@ -90,19 +91,6 @@ const MODULE_PRIORITY: readonly string[] = [
 	"filebrowser",
 	"kasmvnc",
 ];
-
-function sortByPriority<T extends { id: string }>(
-	items: readonly T[],
-	priority: readonly string[],
-): T[] {
-	const indexMap = new Map(priority.map((id, i) => [id, i]));
-	const fallback = priority.length;
-	return [...items].sort((a, b) => {
-		const ai = indexMap.get(a.id) ?? fallback;
-		const bi = indexMap.get(b.id) ?? fallback;
-		return ai - bi;
-	});
-}
 
 export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 	baseId,

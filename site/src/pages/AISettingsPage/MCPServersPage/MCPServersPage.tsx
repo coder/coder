@@ -30,7 +30,8 @@ const MCPServersPage: FC = () => {
 				return Boolean(
 					organizationPermissions?.viewMCPServerConfigs ||
 						organizationPermissions?.updateMCPServerConfig ||
-						organizationPermissions?.deleteMCPServerConfig,
+						organizationPermissions?.deleteMCPServerConfig ||
+						organizationPermissions?.shareMCPServerConfig,
 				);
 			});
 	const creatableOrganizations = permissions.editDeploymentConfig
@@ -59,13 +60,15 @@ const MCPServersPage: FC = () => {
 		Boolean(
 			organizationPermissions?.viewMCPServerConfigs ||
 				organizationPermissions?.updateMCPServerConfig ||
-				organizationPermissions?.deleteMCPServerConfig,
+				organizationPermissions?.deleteMCPServerConfig ||
+				organizationPermissions?.shareMCPServerConfig,
 		);
 	const canOpenServer =
 		permissions.editDeploymentConfig ||
 		Boolean(
 			organizationPermissions?.updateMCPServerConfig ||
-				organizationPermissions?.deleteMCPServerConfig,
+				organizationPermissions?.deleteMCPServerConfig ||
+				organizationPermissions?.shareMCPServerConfig,
 		);
 	const serversQuery = useQuery({
 		...mcpServerConfigs(organization?.id ?? ""),
@@ -81,7 +84,9 @@ const MCPServersPage: FC = () => {
 				permissions.editDeploymentConfig ||
 				permissions.viewAnyMCPServerConfigs ||
 				permissions.updateAnyMCPServerConfig ||
-				permissions.deleteAnyMCPServerConfig
+				permissions.deleteAnyMCPServerConfig ||
+				organizationPermissionsQuery.data === undefined ||
+				authorizedOrganizations.length > 0
 			}
 		>
 			<title>{pageTitle("MCP servers", "AI Settings")}</title>
@@ -99,6 +104,8 @@ const MCPServersPage: FC = () => {
 					)}
 					{organization && (
 						<MCPServersPageView
+							// Reset view-local state (search) when the organization changes.
+							key={organization.id}
 							isLoading={serversQuery.isLoading}
 							error={serversQuery.error}
 							servers={servers}

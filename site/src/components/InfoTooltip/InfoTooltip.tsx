@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC, ReactNode } from "react";
 import {
 	HelpPopover,
@@ -8,7 +9,6 @@ import {
 	HelpPopoverTitle,
 } from "#/components/HelpPopover/HelpPopover";
 import type { ThemeRole } from "#/theme/roles";
-import { cn } from "#/utils/cn";
 
 interface InfoTooltipProps {
 	type?: ThemeRole;

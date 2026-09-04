@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type FC,
 	type ReactNode,
@@ -53,7 +54,6 @@ import { Label } from "#/components/Label/Label";
 import { Separator } from "#/components/Separator/Separator";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { aiBudgetRangeError, maxAIBudgetDollars } from "#/modules/groups";
-import { cn } from "#/utils/cn";
 import {
 	dollarsToMicros,
 	formatBudgetUSD,
@@ -439,7 +439,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 							</ComboboxTrigger>
 							<ComboboxContent
 								align="start"
-								className="w-[var(--radix-popover-trigger-width)]"
+								className="w-(--radix-popover-trigger-width)"
 							>
 								<ComboboxInput placeholder="Search..." />
 								<ComboboxList>

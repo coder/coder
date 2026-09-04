@@ -190,6 +190,11 @@ message TelemetryEvent {
 	google.protobuf.Duration derp_latency = 16;
 	google.protobuf.Duration p2p_latency = 17;
 	google.protobuf.FloatValue throughput_mbits = 18;
+
+	// client_session_id correlates this event with the client's logs,
+	// requests, and other telemetry for a single session. It is a
+	// 32-character lowercase hexadecimal string, or empty when unset.
+	string client_session_id = 20;
 }
 
 message TelemetryRequest {

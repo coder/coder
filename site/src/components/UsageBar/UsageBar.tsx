@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { clampPercentage, type UsageSeverity } from "#/utils/budget";
-import { cn } from "#/utils/cn";
 
 const severityProgressClasses = {
 	normal: "bg-content-secondary",

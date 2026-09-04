@@ -22,7 +22,7 @@ Use `View purchase options` to create a zero-cost subscription to Coder Communit
 
 ![AWS Marketplace Subscription](../../images/platforms/aws/marketplace-sub.png)
 
-Select `EKS` for the Launch setup, choose the desired/lastest version to deploy, and then review the **Launch** instructions for more detail explanation of what will be deployed.  When you are ready to proceed, click the `CloudFormation Template` link under **Deployment templates**.
+Select `EKS` for the Launch setup, choose the desired/lastest version to deploy, and then review the **Launch** instructions for more detail explanation of what will be deployed.  When you are ready to proceed, select the `CloudFormation Template` link under **Deployment templates**.
 
 ![AWS Marketplace Launch](../../images/platforms/aws/marketplace-launch.png)
 

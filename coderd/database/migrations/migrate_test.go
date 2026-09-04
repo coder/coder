@@ -29,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -1189,6 +1188,74 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 		gotRoleNames,
 		"trigger should only create org-member and org-service-account system roles",
 	)
+}
+
+func TestMigration000587RemoveAgentsAccessRole(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 587
+
+	// The immediately preceding migration numbers may not exist in this
+	// tree (the target is numbered past migrations that landed on main
+	// separately), so step to the highest version below the target rather
+	// than assuming migrationVersion-1 exists.
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+	prevVersion := uint(0)
+	for _, entry := range entries {
+		var version uint
+		if _, err := fmt.Sscanf(entry.Name(), "%d_", &version); err != nil {
+			continue
+		}
+		if version > prevVersion && version < migrationVersion {
+			prevVersion = version
+		}
+	}
+	require.NotZero(t, prevVersion)
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == prevVersion {
+			break
+		}
+	}
+
+	db := database.New(sqlDB)
+	user := dbgen.User(t, db, database.User{
+		RBACRoles: []string{"auditor", "agents-access"},
+	})
+	org := dbgen.Organization(t, db, database.Organization{
+		DefaultOrgMemberRoles: []string{"organization-workspace-access", "agents-access"},
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+		Roles:          []string{"organization-auditor", "agents-access"},
+	})
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var siteRoles, orgRoles, defaultRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", user.ID).Scan(&siteRoles)
+	require.NoError(t, err)
+	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", org.ID, user.ID).Scan(&orgRoles)
+	require.NoError(t, err)
+	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", org.ID).Scan(&defaultRoles)
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"auditor"}, []string(siteRoles))
+	require.Equal(t, []string{"organization-auditor"}, []string(orgRoles))
+	require.Equal(t, []string{"organization-workspace-access"}, []string(defaultRoles))
 }
 
 func TestMigration000504AIProvidersBackfill(t *testing.T) {
@@ -2936,18 +3003,18 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 		`, id, now, name, clientType, authMethod)
 		require.NoError(t, err)
 	}
-	seed(ids["legacy"], "test-565-legacy", "confidential", ptr.Ref("none"))
+	seed(ids["legacy"], "test-565-legacy", "confidential", new("none"))
 	seed(ids["nullMethod"], "test-565-null", "confidential", nil)
-	seed(ids["publicMismatched"], "test-565-public-mismatch", "public", ptr.Ref("client_secret_basic"))
-	seed(ids["confidentialBasic"], "test-565-basic", "confidential", ptr.Ref("client_secret_basic"))
-	seed(ids["confidentialPost"], "test-565-post", "confidential", ptr.Ref("client_secret_post"))
-	seed(ids["publicNone"], "test-565-public", "public", ptr.Ref("none"))
+	seed(ids["publicMismatched"], "test-565-public-mismatch", "public", new("client_secret_basic"))
+	seed(ids["confidentialBasic"], "test-565-basic", "confidential", new("client_secret_basic"))
+	seed(ids["confidentialPost"], "test-565-post", "confidential", new("client_secret_post"))
+	seed(ids["publicNone"], "test-565-public", "public", new("none"))
 	// Neither of these is producible by today's write path: ApplyDefaults maps
 	// "" to client_secret_basic and Valid() rejects unknown methods. They stand
 	// in for history the squashed log cannot rule out, and both would satisfy
 	// the eventual cross-column constraint while remaining unusable.
-	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", ptr.Ref(""))
-	seed(ids["confidentialJunk"], "test-565-junk", "confidential", ptr.Ref("client_secret_jwt"))
+	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", new(""))
+	seed(ids["confidentialJunk"], "test-565-junk", "confidential", new("client_secret_jwt"))
 	seed(ids["publicNull"], "test-565-public-null", "public", nil)
 
 	return sqlDB, ctx, ids

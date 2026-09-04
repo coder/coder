@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -34,6 +35,19 @@ import (
 type generationPrepareInput struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
+	// RecordMCPConnectSummaries receives the preparation's per-server
+	// MCP connect outcomes as soon as the connect phase completes,
+	// with the debug context needed to create the run when no action
+	// ever reaches Ensure. Preparation invokes it directly (rather
+	// than returning the outcomes) so attempts that fail after
+	// connecting still record before their error discards the
+	// prepared state.
+	RecordMCPConnectSummaries func(
+		ctx context.Context,
+		chat database.Chat,
+		debug *generationDebug,
+		summaries []mcpclient.ConnectSummary,
+	)
 }
 
 // generationPrepared contains the side-effect inputs for a generation task.
@@ -218,7 +232,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	// execution); the stale marker is then cleared by the terminal
 	// transition of this turn.
 	if input.chat.CompactionRequestedAt.Valid {
-		boundary := latestCompactionBoundaryIndex(input.messages)
+		boundary := latestContextBoundaryIndex(input.messages)
 		if _, ok := firstUncompressedAssistantAfter(input.messages, boundary); ok {
 			return generationDecision{kind: generationActionCompact, forced: true}, nil
 		}
@@ -441,8 +455,9 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			}
 		}
 		prepareInput := generationPrepareInput{
-			Chat:     chat,
-			Messages: messages,
+			Chat:                      chat,
+			Messages:                  messages,
+			RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
 		}
 		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
 			return s.server.prepareGeneration(ctx, prepareInput)

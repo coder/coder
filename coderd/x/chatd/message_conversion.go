@@ -384,6 +384,80 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
 }
 
+type buildClearMessagesInput struct {
+	modelConfigID  uuid.UUID
+	toolCallID     string
+	contentVersion int16
+}
+
+// buildClearMessages produces the manual context-clear boundary
+// triplet, mirroring the compaction triplet shape: a hidden
+// model-only user-role row (the boundary anchor the prompt query keys
+// on), a user-visible synthetic chat_cleared tool call, and its tool
+// result. The hidden row carries a short sentinel rather than empty
+// content so the next prompt never sends an empty user message.
+func buildClearMessages(input buildClearMessagesInput) ([]chatstate.Message, error) {
+	contentVersion := input.contentVersion
+	if contentVersion == 0 {
+		contentVersion = chatprompt.CurrentContentVersion
+	}
+
+	sentinelContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("Previous conversation context was cleared by the user."),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear sentinel: %w", err)
+	}
+	payload := json.RawMessage(`{"source":"manual"}`)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall(input.toolCallID, "chat_cleared", payload),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear tool call: %w", err)
+	}
+	toolContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult(input.toolCallID, "chat_cleared", payload, false, false),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear tool result: %w", err)
+	}
+
+	messages := []chatstate.Message{
+		{
+			Role:           database.ChatMessageRoleUser,
+			Content:        sentinelContent,
+			Visibility:     database.ChatMessageVisibilityModel,
+			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
+			ContentVersion: contentVersion,
+		},
+		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
+		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),
+	}
+	for i := range messages {
+		messages[i].Compressed = true
+	}
+	return messages, nil
+}
+
+// hasClearableMessageAfter reports whether any active, uncompressed
+// model-visible conversation message follows the boundary index.
+// System prompts and user-only rows do not make a chat clearable.
+func hasClearableMessageAfter(messages []database.ChatMessage, index int) bool {
+	for i := index + 1; i < len(messages); i++ {
+		msg := messages[i]
+		if msg.Deleted || msg.Compressed {
+			continue
+		}
+		if msg.Role == database.ChatMessageRoleSystem {
+			continue
+		}
+		if msg.Visibility == database.ChatMessageVisibilityModel || msg.Visibility == database.ChatMessageVisibilityBoth {
+			return true
+		}
+	}
+	return false
+}
+
 // Hook model-context messages use the user role but must not reset
 // per-turn guards.
 func lastUserPromptIndex(messages []database.ChatMessage) int {
@@ -429,7 +503,7 @@ func compactionStatusFromHistory(
 	thresholdPercent int32,
 	contextLimit int64,
 ) compactionStatus {
-	boundaryIndex := latestCompactionBoundaryIndex(messages)
+	boundaryIndex := latestContextBoundaryIndex(messages)
 	if requirement == compactionRequirementNeeded {
 		if boundaryIndex == -1 {
 			return compactionStatusNeeded
@@ -454,16 +528,19 @@ func compactionStatusFromHistory(
 	return compactionStatusNotNeeded
 }
 
-func latestCompactionBoundaryIndex(messages []database.ChatMessage) int {
+// latestContextBoundaryIndex finds the latest compressed
+// chat_summarized or chat_cleared boundary. Compaction and clear
+// eligibility both stop here so neither reaches across the other.
+func latestContextBoundaryIndex(messages []database.ChatMessage) int {
 	for i := len(messages) - 1; i >= 0; i-- {
-		if isCompactionBoundaryMessage(messages[i]) {
+		if isContextBoundaryMessage(messages[i]) {
 			return i
 		}
 	}
 	return -1
 }
 
-func isCompactionBoundaryMessage(msg database.ChatMessage) bool {
+func isContextBoundaryMessage(msg database.ChatMessage) bool {
 	if msg.Deleted || !msg.Compressed {
 		return false
 	}
@@ -472,7 +549,7 @@ func isCompactionBoundaryMessage(msg database.ChatMessage) bool {
 		return false
 	}
 	for _, part := range parts {
-		if part.ToolName == "chat_summarized" &&
+		if (part.ToolName == "chat_summarized" || part.ToolName == "chat_cleared") &&
 			(part.Type == codersdk.ChatMessagePartTypeToolCall || part.Type == codersdk.ChatMessagePartTypeToolResult) {
 			return true
 		}

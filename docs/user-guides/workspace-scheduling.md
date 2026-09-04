@@ -13,7 +13,7 @@ To learn more workspace states and schedule, read the
 
 ## Where to find the schedule settings
 
-Click on any workspace the **Workspaces** tab of the dashboard, then go to
+Select any workspace the **Workspaces** tab of the dashboard, then go to
 **Workspace settings** in the top right.
 
 ![Workspace settings location](../images/user-guides/workspace-settings-location.png)

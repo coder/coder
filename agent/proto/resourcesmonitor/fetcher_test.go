@@ -8,7 +8,6 @@ import (
 
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 type mockStatter struct {
@@ -51,11 +50,11 @@ func TestFetchMemory(t *testing.T) {
 				isContainerized: true,
 				containerMemory: clistat.Result{
 					Used:  10.0,
-					Total: ptr.Ref(20.0),
+					Total: new(20.0),
 				},
 				hostMemory: clistat.Result{
 					Used:  20.0,
-					Total: ptr.Ref(30.0),
+					Total: new(30.0),
 				},
 			})
 			require.NoError(t, err)
@@ -77,7 +76,7 @@ func TestFetchMemory(t *testing.T) {
 				},
 				hostMemory: clistat.Result{
 					Used:  20.0,
-					Total: ptr.Ref(30.0),
+					Total: new(30.0),
 				},
 			})
 			require.NoError(t, err)
@@ -96,7 +95,7 @@ func TestFetchMemory(t *testing.T) {
 			isContainerized: false,
 			hostMemory: clistat.Result{
 				Used:  20.0,
-				Total: ptr.Ref(30.0),
+				Total: new(30.0),
 			},
 		})
 		require.NoError(t, err)

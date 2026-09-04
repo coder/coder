@@ -187,7 +187,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/terminal.svg", "monochrome"],
 	["/icon/vercel.svg", "whiteWithColor"],
 	["/icon/widgets.svg", "monochrome"],
-	["/icon/xum.svg", "monochrome"],
 	["/icon/windsurf.svg", "monochrome"],
+	["/icon/xum.svg", "monochrome"],
 	["/icon/zed.svg", "monochrome"],
 ]);

@@ -3,7 +3,6 @@ import { expect, within } from "storybook/test";
 import {
 	Paywall,
 	PaywallContent,
-	PaywallCTA,
 	PaywallDescription,
 	PaywallFeature,
 	PaywallFeatures,
@@ -12,8 +11,6 @@ import {
 	PaywallSupergraphic,
 	PaywallTitle,
 } from "./Paywall";
-
-const CTA_HREF = "https://coder.com/pricing#compare-plans";
 
 const meta: Meta<typeof Paywall> = {
 	title: "components/Paywall",
@@ -43,7 +40,6 @@ const paywallChildren = (
 					Unlimited Git & external auth integrations
 				</PaywallFeature>
 			</PaywallFeatures>
-			<PaywallCTA href={CTA_HREF}>Start trial for free</PaywallCTA>
 		</PaywallStack>
 	</>
 );
@@ -67,11 +63,6 @@ const expectPaywallContent = async (canvasElement: HTMLElement) => {
 
 	await expect(canvas.getAllByRole("listitem")).toHaveLength(4);
 	await expect(canvas.getByText("24x7 global support with SLA")).toBeVisible();
-
-	const cta = canvas.getByRole("link", { name: "Start trial for free" });
-	await expect(cta).toBeVisible();
-	await expect(cta).toHaveAttribute("href", CTA_HREF);
-	await expect(cta).toHaveAttribute("target", "_blank");
 };
 
 export const Default: Story = {

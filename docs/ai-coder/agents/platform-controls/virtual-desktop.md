@@ -1,4 +1,6 @@
-# Virtual desktop
+---
+title: Virtual desktop
+---
 
 > [!NOTE]
 > This feature is experimental. Pin a release before broad rollout and review

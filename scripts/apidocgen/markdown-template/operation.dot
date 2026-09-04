@@ -45,7 +45,7 @@
 
 {{= renderDescription(data)}}
 
-{{? data.operation.requestBody}}
+{{? data.operation.requestBody && !(data.operation['x-apidocgen'] && data.operation['x-apidocgen'].rawBodyFile)}}
 > Body parameter
 
 {{? data.bodyParameter.exampleValues.description }}

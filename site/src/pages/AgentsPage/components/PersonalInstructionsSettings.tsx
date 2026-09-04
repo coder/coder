@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useState } from "react";
@@ -10,7 +11,6 @@ import {
 	TemporarySavedState,
 	useTemporarySavedState,
 } from "#/components/TemporarySavedState/TemporarySavedState";
-import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
 interface MutationCallbacks {
@@ -73,8 +73,8 @@ export const PersonalInstructionsSettings: FC<
 			</p>
 			<TextareaAutosize
 				className={cn(
-					"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link",
-					isUserPromptOverflowing && "overflow-y-auto [scrollbar-width:thin]",
+					"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link",
+					isUserPromptOverflowing && "overflow-y-auto scrollbar-thin",
 				)}
 				name="custom_prompt"
 				placeholder="Additional behavior, style, and tone preferences"

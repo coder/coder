@@ -6,7 +6,9 @@ import {
 	CloudUploadIcon,
 	GaugeIcon,
 	GitCompareArrowsIcon,
+	RocketIcon,
 	RotateCwIcon,
+	SquareTerminalIcon,
 	WrenchIcon,
 } from "lucide-react";
 import prettyBytes from "pretty-bytes";
@@ -24,11 +26,8 @@ import type {
 	WorkspaceStatus,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
-import { JetBrainsIcon } from "#/components/Icons/JetBrainsIcon";
-import { RocketIcon } from "#/components/Icons/RocketIcon";
-import { TerminalIcon } from "#/components/Icons/TerminalIcon";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { Link } from "#/components/Link/Link";
 import {
 	Tooltip,
@@ -85,7 +84,6 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 		};
 	}, [fetchStats, stats]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies(timeUntilRefresh): periodic refresh
 	const lastAggregated = useMemo(() => {
 		if (!stats) {
 			return;
@@ -102,7 +100,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 
 	return (
 		<div
-			className="sticky bottom-0 z-[1] flex h-9 w-full items-center gap-8
+			className="sticky bottom-0 z-1 flex h-9 w-full items-center gap-8
 		 		overflow-x-auto overflow-y-hidden whitespace-nowrap border-0 border-t border-solid border-border
 				bg-surface-primary pr-4 font-mono text-xs leading-none"
 		>
@@ -247,7 +245,11 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<div className="flex items-center gap-1">
-									<VSCodeIcon className="size-icon-xs [&_*]:fill-current" />
+									<ExternalImage
+										src="/icon/code.svg"
+										alt=""
+										className="size-icon-xs"
+									/>
 									{typeof stats?.session_count.vscode === "undefined"
 										? "-"
 										: stats?.session_count.vscode}
@@ -263,7 +265,11 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<div className="flex items-center gap-1">
-									<JetBrainsIcon className="size-icon-xs [&_*]:fill-current" />
+									<ExternalImage
+										src="/icon/jetbrains.svg"
+										alt=""
+										className="size-icon-xs"
+									/>
 									{typeof stats?.session_count.jetbrains === "undefined"
 										? "-"
 										: stats?.session_count.jetbrains}
@@ -277,7 +283,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<div className="flex items-center gap-1">
-									<TerminalIcon className="size-icon-xs" />
+									<SquareTerminalIcon className="size-icon-xs" />
 									{typeof stats?.session_count.ssh === "undefined"
 										? "-"
 										: stats?.session_count.ssh}

@@ -7,8 +7,6 @@ import (
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/tidwall/gjson"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 // ChatCompletionNewParamsWrapper exists because the "stream" param is not included in openai.ChatCompletionNewParams.
@@ -67,7 +65,7 @@ func (c *ChatCompletionNewParamsWrapper) lastUserPrompt() (*string, error) {
 	}
 
 	if msg.OfUser.Content.OfString.String() != "" {
-		return utils.PtrTo(msg.OfUser.Content.OfString.String()), nil
+		return new(msg.OfUser.Content.OfString.String()), nil
 	}
 
 	// Walk backwards on "user"-initiated message content. Clients often inject

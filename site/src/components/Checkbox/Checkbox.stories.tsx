@@ -77,7 +77,7 @@ export const WithLabel: Story = {
 };
 
 export const Indeterminate: Story = {
-	render: () => {
+	render: function IndeterminateRender() {
 		const [checked, setChecked] = React.useState<boolean | "indeterminate">(
 			"indeterminate",
 		);

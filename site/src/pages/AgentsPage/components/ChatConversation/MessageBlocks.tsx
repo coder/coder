@@ -1,10 +1,10 @@
+import { cn } from "cn";
 import { type FC, memo, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
-import { cn } from "#/utils/cn";
 import { Response, Tool } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
 import { ReadFilesTool } from "../ChatElements/tools/ReadFilesTool";

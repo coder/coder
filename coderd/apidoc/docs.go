@@ -154,970 +154,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/chats": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chats",
-                "operationId": "list-chats",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e` + "`" + ` as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
-                        "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by label as key:value. Repeat for multiple (AND logic).",
-                        "name": "label",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Chat"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            },
-            "post": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Create chat",
-                "operationId": "create-chat",
-                "parameters": [
-                    {
-                        "description": "Create chat request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateChatRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    },
-                    "413": {
-                        "description": "Request body exceeds 256 KiB",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/config/retention-days": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get chat retention days",
-                "operationId": "get-chat-retention-days",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatRetentionDaysResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "put": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update chat retention days",
-                "operationId": "update-chat-retention-days",
-                "parameters": [
-                    {
-                        "description": "Request body",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatRetentionDaysRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/chats/files": {
-            "post": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "consumes": [
-                    "image/png",
-                    "image/jpeg",
-                    "image/gif",
-                    "image/webp",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/json",
-                    "application/pdf"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Upload chat file",
-                "operationId": "upload-chat-file",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UploadChatFileResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request body exceeds 10 MiB",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/files/{file}": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "image/png",
-                    "image/jpeg",
-                    "image/gif",
-                    "image/webp",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/json",
-                    "application/pdf"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get chat file",
-                "operationId": "get-chat-file",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "File ID",
-                        "name": "file",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/files/{file}/download": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "image/png",
-                    "image/jpeg",
-                    "image/gif",
-                    "image/webp",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/json",
-                    "application/pdf"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Download chat file with signed token",
-                "operationId": "download-chat-file",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "File ID",
-                        "name": "file",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Signed download token",
-                        "name": "token",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    }
-                },
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/chats/files/{file}/download-url": {
-            "post": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Create chat file download URL",
-                "operationId": "create-chat-file-download-url",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "File ID",
-                        "name": "file",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatFileDownloadURLResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/chats/watch": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Watch chat events for a user via WebSockets",
-                "operationId": "watch-chat-events-for-a-user-via-websockets",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatWatchEvent"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get chat by ID",
-                "operationId": "get-chat-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            },
-            "patch": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update chat",
-                "operationId": "update-chat",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update chat request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/acl": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get chat ACLs",
-                "operationId": "get-chat-acls",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatACL"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "patch": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update chat ACL",
-                "operationId": "update-chat-acl",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update chat ACL request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatACL"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/chats/{chat}/compact": {
-            "post": {
-                "description": "Experimental: this endpoint is subject to change.\nRequests a manual context compaction on an idle or errored\nchat, clearing any stored error. The compaction runs\nasynchronously through the chat worker and bypasses the\nautomatic usage threshold.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Compact chat",
-                "operationId": "compact-chat",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/chats/{chat}/context": {
-            "put": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Refresh chat context",
-                "operationId": "refresh-chat-context",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/cost": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.\n\nCost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting cost for a subagent chat\nreturns that same total.\n\nCost is derived from AI Gateway data, which is subject to its\nown retention period, 60 days by default, configured\nindependently of chat retention. Spend for requests older than\nthat period is no longer reported, so a chat whose requests\nhave all been purged reports zero cost.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get chat cost",
-                "operationId": "get-chat-cost",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatCost"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/diff": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get chat diff contents",
-                "operationId": "get-chat-diff-contents",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatDiffContents"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/interrupt": {
-            "post": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Interrupt chat",
-                "operationId": "interrupt-chat",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/messages": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chat messages",
-                "operationId": "list-chat-messages",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Return messages with id \u003c before_id",
-                        "name": "before_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Return messages with id \u003e after_id",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size, 1 to 200. Defaults to 50.",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatMessagesResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            },
-            "post": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Send chat message",
-                "operationId": "send-chat-message",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Create chat message request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateChatMessageRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateChatMessageResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/messages/{message}": {
-            "patch": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Edit chat message",
-                "operationId": "edit-chat-message",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Message ID",
-                        "name": "message",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Edit chat message request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.EditChatMessageRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.EditChatMessageResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/prompts": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.\n\nReturns the user-authored prompts in a chat, newest first,\nwith each prompt's text parts concatenated in the order they\nwere authored. Used by the composer to power the up/down\narrow prompt-history cycle without paging through every\nmessage in the chat.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chat user prompts",
-                "operationId": "list-chat-user-prompts",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size, 0 to 2000. 0 (the default) means the server-side default of 500.",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatPromptsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/reconcile-invalid": {
-            "post": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Reconcile invalid chat state",
-                "operationId": "reconcile-invalid-chat-state",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/stream": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Stream chat events via WebSockets",
-                "operationId": "stream-chat-events-via-websockets",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatStreamEvent"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -1142,117 +178,6 @@ const docTemplate = `{
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/stream/git": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Watch chat workspace git state via WebSockets",
-                "operationId": "watch-chat-workspace-git-state-via-websockets",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/experimental/chats/{chat}/stream/parts": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Stream chat parts via WebSockets",
-                "operationId": "stream-chat-parts-via-websockets",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatStreamEvent"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/chats/{chat}/title/propose": {
-            "post": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Propose chat title",
-                "operationId": "propose-chat-title",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ProposeChatTitleResponse"
-                        }
                     }
                 },
                 "security": [
@@ -1309,927 +234,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/mcp/servers/{mcpServer}/oauth2/disconnect": {
-            "delete": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Disconnect MCP server OAuth2 token",
-                "operationId": "disconnect-mcp-server-oauth2-token",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpServer",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.MCPServerOAuth2DisconnectResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/chats/model-overrides": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List organization chat model overrides",
-                "operationId": "list-organization-chat-model-overrides",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelOverridesResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/chats/model-overrides/{context}": {
-            "put": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update organization chat model override",
-                "operationId": "update-organization-chat-model-override",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "enum": [
-                            "general",
-                            "explore",
-                            "title_generation",
-                            "compaction",
-                            "advisor"
-                        ],
-                        "type": "string",
-                        "description": "Override context",
-                        "name": "context",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Model override",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatModelOverrideRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/chats/models": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List AI models and provider descriptors in an organization",
-                "operationId": "list-ai-models-by-organization",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.OrganizationChatModelsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Create an AI model in an organization",
-                "operationId": "create-ai-model",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Model",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateChatModelRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModel"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/chats/models/{model}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get an AI model",
-                "operationId": "get-ai-model",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Model ID",
-                        "name": "model",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModel"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "delete": {
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Delete an AI model",
-                "operationId": "delete-ai-model",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Model ID",
-                        "name": "model",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update an AI model",
-                "operationId": "update-ai-model",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Model ID",
-                        "name": "model",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Model updates",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatModelRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModel"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/chats/models/{model}/acl": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get an AI model ACL",
-                "operationId": "get-ai-model-acl",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Model ID",
-                        "name": "model",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelACL"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update an AI model ACL",
-                "operationId": "update-ai-model-acl",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Model ID",
-                        "name": "model",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Sparse model ACL update",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatModelACLRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/mcp-servers": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "List MCP server configs",
-                "operationId": "list-mcp-server-configs",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.MCPServerConfig"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Create MCP server config",
-                "operationId": "create-mcp-server-config",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Create MCP server config request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateMCPServerConfigRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.MCPServerConfig"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Get MCP server config",
-                "operationId": "get-mcp-server-config",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.MCPServerConfig"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "delete": {
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Delete MCP server config",
-                "operationId": "delete-mcp-server-config",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Update MCP server config",
-                "operationId": "update-mcp-server-config",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update MCP server config request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateMCPServerConfigRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.MCPServerConfig"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Get MCP server config ACL",
-                "operationId": "get-mcp-server-config-acl",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.MCPServerConfigACL"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Update MCP server config ACL",
-                "operationId": "update-mcp-server-config-acl",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update MCP server config ACL request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateMCPServerConfigACLRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/oauth2/connect": {
-            "get": {
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Initiate MCP server OAuth2 connect",
-                "operationId": "initiate-mcp-server-oauth2-connect",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "307": {
-                        "description": "Temporary Redirect"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/members/{user}/chats/model-overrides": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get organization member chat model overrides",
-                "operationId": "get-organization-member-chat-model-overrides",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "User name, ID, or me",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UserChatPersonalModelOverridesResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/organizations/{organization}/members/{user}/chats/model-overrides/{context}": {
-            "put": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update organization member chat model override",
-                "operationId": "update-organization-member-chat-model-override",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "User name, ID, or me",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "enum": [
-                            "root",
-                            "general",
-                            "explore"
-                        ],
-                        "type": "string",
-                        "description": "Override context",
-                        "name": "context",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Personal model override",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateUserChatPersonalModelOverrideRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -3359,6 +1363,1923 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/chats": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chats",
+                "operationId": "list-chats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e` + "`" + ` as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "multi",
+                        "description": "Filter by label as key:value. Repeat for multiple (AND logic).",
+                        "name": "label",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Chat"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat",
+                "operationId": "create-chat",
+                "parameters": [
+                    {
+                        "description": "Create chat request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 256 KiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/by-workspace": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chats by workspace",
+                "operationId": "list-chats-by-workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comma-separated workspace IDs",
+                        "name": "workspace_ids",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/coderd.chatsByWorkspaceResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/auto-archive-days": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat auto archive days",
+                "operationId": "get-chat-auto-archive-days",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutoArchiveDaysResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat auto archive days",
+                "operationId": "update-chat-auto-archive-days",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatAutoArchiveDaysRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/debug-logging": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat debug logging setting",
+                "operationId": "get-chat-debug-logging-setting",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatDebugLoggingAdminSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat debug logging setting",
+                "operationId": "update-chat-debug-logging-setting",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatDebugLoggingAllowUsersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/debug-retention-days": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat debug retention days",
+                "operationId": "get-chat-debug-retention-days",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatDebugRetentionDaysResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat debug retention days",
+                "operationId": "update-chat-debug-retention-days",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatDebugRetentionDaysRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/personal-model-overrides": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat personal model override settings",
+                "operationId": "get-chat-personal-model-override-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatPersonalModelOverridesAdminSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat personal model override settings",
+                "operationId": "update-chat-personal-model-override-settings",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/plan-mode-instructions": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat plan mode instructions",
+                "operationId": "get-chat-plan-mode-instructions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatPlanModeInstructionsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat plan mode instructions",
+                "operationId": "update-chat-plan-mode-instructions",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatPlanModeInstructionsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/retention-days": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat retention days",
+                "operationId": "get-chat-retention-days",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatRetentionDaysResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat retention days",
+                "operationId": "update-chat-retention-days",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatRetentionDaysRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/chats/config/system-prompt": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat system prompt",
+                "operationId": "get-chat-system-prompt",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatSystemPromptResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat system prompt",
+                "operationId": "update-chat-system-prompt",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatSystemPromptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/user-compaction-thresholds": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get user chat compaction thresholds",
+                "operationId": "get-user-chat-compaction-thresholds",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCompactionThresholds"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/chats/config/user-compaction-thresholds/{modelConfig}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update user chat compaction threshold",
+                "operationId": "update-user-chat-compaction-threshold",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model config ID",
+                        "name": "modelConfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserChatCompactionThresholdRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCompactionThreshold"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete user chat compaction threshold",
+                "operationId": "delete-user-chat-compaction-threshold",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model config ID",
+                        "name": "modelConfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/chats/config/user-debug-logging": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get user chat debug logging setting",
+                "operationId": "get-user-chat-debug-logging-setting",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatDebugLoggingSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update user chat debug logging setting",
+                "operationId": "update-user-chat-debug-logging-setting",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserChatDebugLoggingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/user-prompt": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get user chat custom prompt",
+                "operationId": "get-user-chat-custom-prompt",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCustomPrompt"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update user chat custom prompt",
+                "operationId": "update-user-chat-custom-prompt",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCustomPrompt"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCustomPrompt"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/config/workspace-ttl": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat workspace time to live",
+                "operationId": "get-chat-workspace-time-to-live",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatWorkspaceTTLResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat workspace time to live",
+                "operationId": "update-chat-workspace-time-to-live",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatWorkspaceTTLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/files": {
+            "post": {
+                "consumes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "text/plain",
+                    "text/markdown",
+                    "text/csv",
+                    "application/json",
+                    "application/pdf"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Upload chat file",
+                "operationId": "upload-chat-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "attachment; filename=\"image.png\"",
+                        "description": "Attachment disposition carrying the file name",
+                        "name": "Content-Disposition",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Raw file binary data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UploadChatFileResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 10 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "rawBodyFile": "image.png"
+                }
+            }
+        },
+        "/api/v2/chats/files/{file}": {
+            "get": {
+                "produces": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "text/plain",
+                    "text/markdown",
+                    "text/csv",
+                    "application/json",
+                    "application/pdf"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat file",
+                "operationId": "get-chat-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/files/{file}/download": {
+            "get": {
+                "produces": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "text/plain",
+                    "text/markdown",
+                    "text/csv",
+                    "application/json",
+                    "application/pdf"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Download chat file with signed token",
+                "operationId": "download-chat-file-with-signed-token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Signed download token",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/chats/files/{file}/download-url": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat file download URL",
+                "operationId": "create-chat-file-download-url",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatFileDownloadURLResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/chats/watch": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Watch chat events for a user via WebSockets",
+                "operationId": "watch-chat-events-for-a-user-via-websockets",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatWatchEvent"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat by ID",
+                "operationId": "get-chat-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat",
+                "operationId": "update-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/acl": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat ACLs",
+                "operationId": "get-chat-acls",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatACL"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat ACL",
+                "operationId": "update-chat-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat ACL request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatACL"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/chats/{chat}/clear": {
+            "post": {
+                "description": "Resets the model context of an idle or errored chat,\nclearing any stored error. The reset commits\nsynchronously with no model call: the transcript is\npreserved and the next prompt starts from a fresh\ncontext.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Clear chat context",
+                "operationId": "clear-chat-context",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/chats/{chat}/compact": {
+            "post": {
+                "description": "Requests a manual context compaction on an idle or errored\nchat, clearing any stored error. The compaction runs\nasynchronously through the chat worker and bypasses the\nautomatic usage threshold.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Compact chat",
+                "operationId": "compact-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/chats/{chat}/context": {
+            "put": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Refresh chat context",
+                "operationId": "refresh-chat-context",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/cost": {
+            "get": {
+                "description": "Cost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting cost for a subagent chat\nreturns that same total.\n\nCost is derived from AI Gateway data, which is subject to its\nown retention period, 60 days by default, configured\nindependently of chat retention. Spend for requests older than\nthat period is no longer reported, so a chat whose requests\nhave all been purged reports zero cost.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat cost",
+                "operationId": "get-chat-cost",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatCost"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/diff": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat diff contents",
+                "operationId": "get-chat-diff-contents",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatDiffContents"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/interrupt": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Interrupt chat",
+                "operationId": "interrupt-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/messages": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat messages",
+                "operationId": "list-chat-messages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return messages with id \u003c before_id",
+                        "name": "before_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return messages with id \u003e after_id",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, 1 to 200. Defaults to 50.",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatMessagesResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Send chat message",
+                "operationId": "send-chat-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create chat message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatMessageResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/messages/{message}": {
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Edit chat message",
+                "operationId": "edit-chat-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Message ID",
+                        "name": "message",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Edit chat message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.EditChatMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.EditChatMessageResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/prompts": {
+            "get": {
+                "description": "Returns the user-authored prompts in a chat, newest first,\nwith each prompt's text parts concatenated in the order they\nwere authored. Used by the composer to power the up/down\narrow prompt-history cycle without paging through every\nmessage in the chat.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat user prompts",
+                "operationId": "list-chat-user-prompts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, 0 to 2000. 0 (the default) means the server-side default of 500.",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatPromptsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/queue/{queuedMessage}": {
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat queued message",
+                "operationId": "delete-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/queue/{queuedMessage}/promote": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Promote chat queued message",
+                "operationId": "promote-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/reconcile-invalid": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Reconcile invalid chat state",
+                "operationId": "reconcile-invalid-chat-state",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/stream": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Stream chat events via WebSockets",
+                "operationId": "stream-chat-events-via-websockets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Skip snapshot messages with id at or before this cursor",
+                        "name": "after_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatStreamEvent"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/stream/git": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Watch chat workspace git state via WebSockets",
+                "operationId": "watch-chat-workspace-git-state-via-websockets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/stream/parts": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Stream chat parts via WebSockets",
+                "operationId": "stream-chat-parts-via-websockets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatStreamEvent"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/chats/{chat}/title/propose": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Propose chat title",
+                "operationId": "propose-chat-title",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ProposeChatTitleResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/chats/{chat}/tool-results": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Submit chat tool results",
+                "operationId": "submit-chat-tool-results",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.SubmitToolResultsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/connectionlog": {
             "get": {
                 "produces": [
@@ -3954,6 +3875,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.DeploymentStats"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/deployment/user-secrets/capabilities": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get user secrets capabilities",
+                "operationId": "get-user-secrets-capabilities",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserSecretsCapabilities"
                         }
                     }
                 },
@@ -5155,6 +5101,44 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/mcp/servers/{mcpServer}/oauth2/disconnect": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Disconnect MCP server OAuth2 token",
+                "operationId": "disconnect-mcp-server-oauth2-token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpServer",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2DisconnectResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/notifications/custom": {
             "post": {
                 "consumes": [
@@ -5823,6 +5807,12 @@ const docTemplate = `{
                                 "$ref": "#/definitions/codersdk.OAuth2ProviderAppSecretFull"
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Public clients cannot have secrets",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -6152,6 +6142,485 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/organizations/{organization}/chats/model-overrides": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List organization chat model overrides",
+                "operationId": "list-organization-chat-model-overrides",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelOverridesResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/chats/model-overrides/{context}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update organization chat model override",
+                "operationId": "update-organization-chat-model-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "general",
+                            "explore",
+                            "title_generation",
+                            "compaction",
+                            "advisor"
+                        ],
+                        "type": "string",
+                        "description": "Override context",
+                        "name": "context",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Model override",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatModelOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/chats/models": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List AI models and provider descriptors in an organization",
+                "operationId": "list-ai-models-and-provider-descriptors-in-an-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationChatModelsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create an AI model in an organization",
+                "operationId": "create-an-ai-model-in-an-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Model",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModel"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/chats/models/{model}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get an AI model",
+                "operationId": "get-an-ai-model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModel"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete an AI model",
+                "operationId": "delete-an-ai-model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update an AI model",
+                "operationId": "update-an-ai-model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Model updates",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModel"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/chats/models/{model}/acl": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get an AI model ACL",
+                "operationId": "get-an-ai-model-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelACL"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update an AI model ACL",
+                "operationId": "update-an-ai-model-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Sparse model ACL update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatModelACLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/chats/models/{model}/acl/available": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get available AI model ACL users and groups",
+                "operationId": "get-available-ai-model-acl-users-and-groups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User search query; free-text search also applies to groups",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User after ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit for users and groups, if 0 returns all candidates",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "User page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ACLAvailable"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/organizations/{organization}/groups": {
             "get": {
                 "produces": [
@@ -6434,6 +6903,433 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            }
+        },
+        "/api/v2/organizations/{organization}/mcp-servers": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "List MCP server configs",
+                "operationId": "list-mcp-server-configs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.MCPServerConfig"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Create MCP server config",
+                "operationId": "create-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create MCP server config request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateMCPServerConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Get MCP server config",
+                "operationId": "get-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Delete MCP server config",
+                "operationId": "delete-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Update MCP server config",
+                "operationId": "update-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update MCP server config request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateMCPServerConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Get MCP server config ACL",
+                "operationId": "get-mcp-server-config-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfigACL"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Update MCP server config ACL",
+                "operationId": "update-mcp-server-config-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update MCP server config ACL request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateMCPServerConfigACLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl/available": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Get available MCP server config ACL users and groups",
+                "operationId": "get-available-mcp-server-config-acl-users-and-groups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User search query; free-text search also applies to groups",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User after ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit for users and groups, if 0 returns all candidates",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "User page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ACLAvailable"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/oauth2/connect": {
+            "get": {
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Initiate MCP server OAuth2 connect",
+                "operationId": "initiate-mcp-server-oauth2-connect",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "307": {
+                        "description": "Temporary Redirect"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/organizations/{organization}/members": {
@@ -6764,6 +7660,112 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            }
+        },
+        "/api/v2/organizations/{organization}/members/{user}/chats/model-overrides": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get organization member chat model overrides",
+                "operationId": "get-organization-member-chat-model-overrides",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User name, ID, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatPersonalModelOverridesResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/members/{user}/chats/model-overrides/{context}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update organization member chat model override",
+                "operationId": "update-organization-member-chat-model-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User name, ID, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "root",
+                            "general",
+                            "explore"
+                        ],
+                        "type": "string",
+                        "description": "Override context",
+                        "name": "context",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Personal model override",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserChatPersonalModelOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/organizations/{organization}/members/{user}/roles": {
@@ -7160,7 +8162,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "object",
+                        "type": "string",
                         "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
                         "in": "query"
@@ -7271,7 +8273,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "object",
+                        "type": "string",
                         "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
                         "in": "query"
@@ -10857,6 +11859,131 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/users/{user}/ai-provider-keys": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List user AI provider key configurations",
+                "operationId": "list-user-ai-provider-key-configurations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserAIProviderKeyConfig"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/ai-provider-keys/{aiProvider}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update user AI provider key",
+                "operationId": "update-user-ai-provider-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateUserAIProviderKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserAIProviderKeyConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete user AI provider key",
+                "operationId": "delete-user-ai-provider-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/users/{user}/ai/budget/override": {
             "get": {
                 "produces": [
@@ -12146,6 +13273,18 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -12337,6 +13476,18 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -15405,15 +16556,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "A random unguessable string",
+                        "description": "A random unguessable string, echoed back on the callback",
                         "name": "state",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "enum": [
-                            "code",
-                            "token"
+                            "code"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -15429,14 +16578,45 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Token scopes (currently ignored)",
+                        "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)",
+                        "name": "code_challenge",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "S256"
+                        ],
+                        "type": "string",
+                        "description": "PKCE challenge method. S256 only; omitting it means S256",
+                        "name": "code_challenge_method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC 8707 resource indicator: an absolute URI without a fragment",
+                        "name": "resource",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "Returns HTML authorization page"
+                    },
+                    "302": {
+                        "description": "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
+                    },
+                    "400": {
+                        "description": "HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback"
+                    },
+                    "500": {
+                        "description": "HTML error page. The app's registered callback URL is not usable"
                     }
                 },
                 "security": [
@@ -15446,6 +16626,9 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -15461,15 +16644,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "A random unguessable string",
+                        "description": "A random unguessable string, echoed back on the callback",
                         "name": "state",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "enum": [
-                            "code",
-                            "token"
+                            "code"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -15485,14 +16666,48 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Token scopes (currently ignored)",
+                        "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)",
+                        "name": "code_challenge",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "S256"
+                        ],
+                        "type": "string",
+                        "description": "PKCE challenge method. S256 only; omitting it means S256",
+                        "name": "code_challenge_method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC 8707 resource indicator: an absolute URI without a fragment",
+                        "name": "resource",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "302": {
-                        "description": "Returns redirect with authorization code"
+                        "description": "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
+                    },
+                    "400": {
+                        "description": "The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
+                    "500": {
+                        "description": "The app's registered callback URL is not usable",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 },
                 "security": [
@@ -15686,7 +16901,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Client secret, required if grant_type=authorization_code",
+                        "description": "Client secret, required if grant_type=authorization_code and the client is confidential. Public clients (token_endpoint_auth_method=none) send no secret.",
                         "name": "client_secret",
                         "in": "formData"
                     },
@@ -15694,6 +16909,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Authorization code, required if grant_type=authorization_code",
                         "name": "code",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636.",
+                        "name": "code_verifier",
                         "in": "formData"
                     },
                     {
@@ -15721,7 +16942,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/oauth2.Token"
+                            "$ref": "#/definitions/codersdk.OAuth2TokenResponse"
                         }
                     }
                 }
@@ -16137,6 +17358,12 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ReinitializeReasonPrebuildClaimed"
             ]
+        },
+        "coderd.chatsByWorkspaceResponse": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            }
         },
         "coderd.cspViolation": {
             "type": "object",
@@ -16926,6 +18153,33 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.AIProviderSummary": {
+            "type": "object",
+            "properties": {
+                "deleted": {
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.AIProviderType"
                 }
             }
         },
@@ -17750,6 +19004,9 @@ const docTemplate = `{
                 "application_name": {
                     "type": "string"
                 },
+                "codernauts_enabled": {
+                    "type": "boolean"
+                },
                 "docs_url": {
                     "type": "string"
                 },
@@ -18353,6 +19610,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatAutoArchiveDaysResponse": {
+            "type": "object",
+            "properties": {
+                "auto_archive_days": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ChatBusyBehavior": {
             "type": "string",
             "enum": [
@@ -18527,6 +19792,25 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "unpriced_request_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatDebugLoggingAdminSettings": {
+            "type": "object",
+            "properties": {
+                "allow_users": {
+                    "type": "boolean"
+                },
+                "forced_by_deployment": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatDebugRetentionDaysResponse": {
+            "type": "object",
+            "properties": {
+                "debug_retention_days": {
                     "type": "integer"
                 }
             }
@@ -18897,12 +20181,8 @@ const docTemplate = `{
                 },
                 "context_file_agent_id": {
                     "description": "ContextFileAgentID is the workspace agent that provided\nthis context file. Used to detect when the agent changes\n(e.g. workspace rebuilt) so instruction files can be\nre-persisted with fresh content.",
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "context_file_content": {
                     "description": "ContextFileContent holds the file content sent to the LLM.\nInternal only: stripped before API responses to keep\npayloads small. The backend reads it when building the\nprompt via partsToMessageParts.",
@@ -18943,12 +20223,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "file_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "file_name": {
                     "type": "string"
@@ -18964,12 +20240,8 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "mcp_server_config_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "media_type": {
                     "type": "string"
@@ -19194,16 +20466,16 @@ const docTemplate = `{
         "codersdk.ChatModelACL": {
             "type": "object",
             "properties": {
-                "group_roles": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/codersdk.ChatRole"
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatGroup"
                     }
                 },
-                "user_roles": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/codersdk.ChatRole"
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatUser"
                     }
                 }
             }
@@ -19755,6 +21027,14 @@ const docTemplate = `{
                 "ChatPersonalModelOverrideModeModel"
             ]
         },
+        "codersdk.ChatPersonalModelOverridesAdminSettings": {
+            "type": "object",
+            "properties": {
+                "allow_users": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.ChatPlanMode": {
             "type": "string",
             "enum": [
@@ -19763,6 +21043,14 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatPlanModePlan"
             ]
+        },
+        "codersdk.ChatPlanModeInstructionsResponse": {
+            "type": "object",
+            "properties": {
+                "plan_mode_instructions": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ChatPrompt": {
             "type": "object",
@@ -20000,6 +21288,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatSystemPromptResponse": {
+            "type": "object",
+            "properties": {
+                "default_system_prompt": {
+                    "type": "string"
+                },
+                "include_default_system_prompt": {
+                    "type": "boolean"
+                },
+                "system_prompt": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatUnsupportedProvider": {
             "type": "object",
             "properties": {
@@ -20086,6 +21388,15 @@ const docTemplate = `{
                 "ChatWatchEventKindActionRequired",
                 "ChatWatchEventKindContextDirty"
             ]
+        },
+        "codersdk.ChatWorkspaceTTLResponse": {
+            "type": "object",
+            "properties": {
+                "workspace_ttl_ms": {
+                    "description": "WorkspaceTTLMillis is the workspace TTL in milliseconds.\nZero means disabled; the template's own autostop setting applies.",
+                    "type": "integer"
+                }
+            }
         },
         "codersdk.ClusterConfig": {
             "type": "object",
@@ -21091,6 +22402,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateUserAIProviderKeyRequest": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateUserRequestWithOrgs": {
             "type": "object",
             "required": [
@@ -21724,6 +23043,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
+                "disable_user_secret_file_path": {
+                    "type": "boolean"
+                },
                 "disable_workspace_agent_context_sync": {
                     "type": "boolean"
                 },
@@ -21778,6 +23100,12 @@ const docTemplate = `{
                 },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
+                },
+                "mcp_allowed_private_cidrs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "metrics_cache_refresh_interval": {
                     "type": "integer"
@@ -22642,13 +23970,21 @@ const docTemplate = `{
         "codersdk.GroupMemberAISpend": {
             "type": "object",
             "properties": {
+                "effective_budget": {
+                    "description": "EffectiveBudget is the spend limit that currently applies to the user.\nNull when no budget applies or the effective group belongs to a different\norganization than the queried group.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBudgetLimit"
+                        }
+                    ]
+                },
                 "effective_group_id": {
                     "description": "EffectiveGroupID is the user's effective budget group within the queried\ngroup's organization, falling back to the Everyone group when no budget\napplies. Null when the effective group belongs to a different organization\nthan the queried group.",
                     "type": "string",
                     "format": "uuid"
                 },
                 "group_budget": {
-                    "description": "GroupBudget is the budget when the queried group is this user's\neffective budget source. Null when the user's budget resolves to another\ngroup or no budget applies to the user.",
+                    "description": "GroupBudget is the budget when the queried group is this user's\neffective budget source. When populated, it matches EffectiveBudget. Null\nwhen the user's budget resolves to another group or no budget applies.\nDeprecated: Use EffectiveBudget instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBudgetLimit"
@@ -23940,6 +25276,51 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2Error": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/codersdk.OAuth2ErrorCode"
+                },
+                "error_description": {
+                    "type": "string"
+                },
+                "error_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ErrorCode": {
+            "type": "string",
+            "enum": [
+                "invalid_request",
+                "invalid_client",
+                "invalid_grant",
+                "unauthorized_client",
+                "unsupported_grant_type",
+                "invalid_scope",
+                "access_denied",
+                "unsupported_response_type",
+                "server_error",
+                "temporarily_unavailable",
+                "unsupported_token_type",
+                "invalid_target"
+            ],
+            "x-enum-varnames": [
+                "OAuth2ErrorCodeInvalidRequest",
+                "OAuth2ErrorCodeInvalidClient",
+                "OAuth2ErrorCodeInvalidGrant",
+                "OAuth2ErrorCodeUnauthorizedClient",
+                "OAuth2ErrorCodeUnsupportedGrantType",
+                "OAuth2ErrorCodeInvalidScope",
+                "OAuth2ErrorCodeAccessDenied",
+                "OAuth2ErrorCodeUnsupportedResponseType",
+                "OAuth2ErrorCodeServerError",
+                "OAuth2ErrorCodeTemporarilyUnavailable",
+                "OAuth2ErrorCodeUnsupportedTokenType",
+                "OAuth2ErrorCodeInvalidTarget"
+            ]
+        },
         "codersdk.OAuth2GithubConfig": {
             "type": "object",
             "properties": {
@@ -24115,6 +25496,42 @@ const docTemplate = `{
                 "OAuth2TokenEndpointAuthMethodClientSecretBasic",
                 "OAuth2TokenEndpointAuthMethodClientSecretPost",
                 "OAuth2TokenEndpointAuthMethodNone"
+            ]
+        },
+        "codersdk.OAuth2TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "expiry": {
+                    "description": "Expiry is not part of RFC 6749 but is included for compatibility with\ngolang.org/x/oauth2.Token and clients that expect a timestamp.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "$ref": "#/definitions/codersdk.OAuth2TokenType"
+                }
+            }
+        },
+        "codersdk.OAuth2TokenType": {
+            "type": "string",
+            "enum": [
+                "Bearer",
+                "DPoP"
+            ],
+            "x-enum-varnames": [
+                "OAuth2TokenTypeBearer",
+                "OAuth2TokenTypeDPoP"
             ]
         },
         "codersdk.OAuthConversionResponse": {
@@ -26441,6 +27858,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.SubmitToolResultsRequest": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ToolResult"
+                    }
+                }
+            }
+        },
         "codersdk.SupportConfig": {
             "type": "object",
             "properties": {
@@ -26784,6 +28212,12 @@ const docTemplate = `{
         "codersdk.TemplateBuilderBase": {
             "type": "object",
             "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderBaseAgent"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
@@ -26810,6 +28244,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateBuilderBaseAgent": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "description": "Default reports whether modules attach to this agent when they do not\nname one.",
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TemplateBuilderBasesResponse": {
             "type": "object",
             "properties": {
@@ -26824,6 +28273,10 @@ const docTemplate = `{
         "codersdk.TemplateBuilderComposeModule": {
             "type": "object",
             "properties": {
+                "agent_name": {
+                    "description": "AgentName targets a base coder_agent by name. Empty uses the base default.",
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -27685,6 +29138,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ToolResult": {
+            "type": "object",
+            "properties": {
+                "is_error": {
+                    "type": "boolean"
+                },
+                "output": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "tool_call_id": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TraceConfig": {
             "type": "object",
             "properties": {
@@ -27765,6 +29235,9 @@ const docTemplate = `{
                 "application_name": {
                     "type": "string"
                 },
+                "codernauts_enabled": {
+                    "type": "boolean"
+                },
                 "logo_url": {
                     "type": "string"
                 },
@@ -27792,6 +29265,30 @@ const docTemplate = `{
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.ChatRole"
                     }
+                }
+            }
+        },
+        "codersdk.UpdateChatAutoArchiveDaysRequest": {
+            "type": "object",
+            "properties": {
+                "auto_archive_days": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.UpdateChatDebugLoggingAllowUsersRequest": {
+            "type": "object",
+            "properties": {
+                "allow_users": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.UpdateChatDebugRetentionDaysRequest": {
+            "type": "object",
+            "properties": {
+                "debug_retention_days": {
+                    "type": "integer"
                 }
             }
         },
@@ -27853,6 +29350,22 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "allow_users": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.UpdateChatPlanModeInstructionsRequest": {
+            "type": "object",
+            "properties": {
+                "plan_mode_instructions": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateChatRequest": {
             "type": "object",
             "properties": {
@@ -27890,6 +29403,26 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "retention_days": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.UpdateChatSystemPromptRequest": {
+            "type": "object",
+            "properties": {
+                "include_default_system_prompt": {
+                    "type": "boolean"
+                },
+                "system_prompt": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatWorkspaceTTLRequest": {
+            "type": "object",
+            "properties": {
+                "workspace_ttl_ms": {
+                    "description": "WorkspaceTTLMillis is the workspace TTL in milliseconds.\nZero means disabled; the template's own autostop setting applies.",
                     "type": "integer"
                 }
             }
@@ -28238,6 +29771,24 @@ const docTemplate = `{
                 },
                 "theme_preference": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateUserChatCompactionThresholdRequest": {
+            "type": "object",
+            "properties": {
+                "threshold_percent": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 0
+                }
+            }
+        },
+        "codersdk.UpdateUserChatDebugLoggingRequest": {
+            "type": "object",
+            "properties": {
+                "debug_logging_enabled": {
+                    "type": "boolean"
                 }
             }
         },
@@ -28688,6 +30239,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UserAIProviderKeyConfig": {
+            "type": "object",
+            "properties": {
+                "byok_enabled": {
+                    "type": "boolean"
+                },
+                "has_provider_api_key": {
+                    "type": "boolean"
+                },
+                "has_user_api_key": {
+                    "type": "boolean"
+                },
+                "provider": {
+                    "$ref": "#/definitions/codersdk.AIProviderSummary"
+                }
+            }
+        },
         "codersdk.UserAISpendStatus": {
             "type": "object",
             "properties": {
@@ -28805,6 +30373,51 @@ const docTemplate = `{
                 "theme_preference": {
                     "description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme. In \"sync\" mode modern\nclients normally mirror the active OS slot, but older clients can\nupdate only this field, so it may diverge from ThemeLight or\nThemeDark until a modern client saves the full appearance state\nagain.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserChatCompactionThreshold": {
+            "type": "object",
+            "properties": {
+                "model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "threshold_percent": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.UserChatCompactionThresholds": {
+            "type": "object",
+            "properties": {
+                "thresholds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UserChatCompactionThreshold"
+                    }
+                }
+            }
+        },
+        "codersdk.UserChatCustomPrompt": {
+            "type": "object",
+            "properties": {
+                "custom_prompt": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UserChatDebugLoggingSettings": {
+            "type": "object",
+            "properties": {
+                "debug_logging_enabled": {
+                    "type": "boolean"
+                },
+                "forced_by_deployment": {
+                    "type": "boolean"
+                },
+                "user_toggle_allowed": {
+                    "type": "boolean"
                 }
             }
         },
@@ -28997,6 +30610,15 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.UserSecretsCapabilities": {
+            "type": "object",
+            "properties": {
+                "file_path_delivery_enabled": {
+                    "description": "FilePathDeliveryEnabled reports whether Coder writes stored file paths\ninto workspaces. Stored paths are preserved either way.",
+                    "type": "boolean"
                 }
             }
         },
@@ -29248,11 +30870,7 @@ const docTemplate = `{
                 },
                 "task_id": {
                     "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string"
                 },
                 "template_active_version_id": {
                     "type": "string",
@@ -29409,12 +31027,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "parent_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "ready_at": {
                     "type": "string",
@@ -29569,12 +31183,8 @@ const docTemplate = `{
                     ]
                 },
                 "subagent_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "workspace_folder": {
                     "type": "string"
@@ -31427,10 +33037,6 @@ const docTemplate = `{
                     "description": "[ip]:port of global IPv6",
                     "type": "string"
                 },
-                "hairPinning": {
-                    "description": "HairPinning is whether the router supports communicating\nbetween two local devices through the NATted public IP address\n(on IPv4).",
-                    "type": "string"
-                },
                 "icmpv4": {
                     "description": "an ICMPv4 round trip completed",
                     "type": "boolean"
@@ -31501,31 +33107,6 @@ const docTemplate = `{
                 },
                 "upnP": {
                     "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
-                    "type": "string"
-                }
-            }
-        },
-        "oauth2.Token": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "description": "AccessToken is the token that authorizes and authenticates\nthe requests.",
-                    "type": "string"
-                },
-                "expires_in": {
-                    "description": "ExpiresIn is the OAuth2 wire format \"expires_in\" field,\nwhich specifies how many seconds later the token expires,\nrelative to an unknown time base approximately around \"now\".\nIt is the application's responsibility to populate\n` + "`" + `Expiry` + "`" + ` from ` + "`" + `ExpiresIn` + "`" + ` when required.",
-                    "type": "integer"
-                },
-                "expiry": {
-                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, [TokenSource] implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
-                    "type": "string"
-                },
-                "refresh_token": {
-                    "description": "RefreshToken is a token that's used by the application\n(as opposed to the user) to refresh the access token\nif it expires.",
-                    "type": "string"
-                },
-                "token_type": {
-                    "description": "TokenType is the type of token.\nThe Type method returns either this or \"Bearer\", the default.",
                     "type": "string"
                 }
             }
@@ -31856,18 +33437,6 @@ const docTemplate = `{
         },
         "url.Userinfo": {
             "type": "object"
-        },
-        "uuid.NullUUID": {
-            "type": "object",
-            "properties": {
-                "uuid": {
-                    "type": "string"
-                },
-                "valid": {
-                    "description": "Valid is true if UUID is not NULL",
-                    "type": "boolean"
-                }
-            }
         },
         "workspaceapps.AccessMethod": {
             "type": "string",

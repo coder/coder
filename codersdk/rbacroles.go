@@ -7,7 +7,10 @@ const (
 	RoleTemplateAdmin string = "template-admin"
 	RoleUserAdmin     string = "user-admin"
 	RoleAuditor       string = "auditor"
-	RoleAgentsAccess  string = "agents-access"
+	// Deprecated: the agents-access role was removed. Coder Agents chat
+	// access is part of the organization-member permission floor, and
+	// servers without this built-in role reject assigning it.
+	RoleAgentsAccess string = "agents-access"
 
 	RoleOrganizationAdmin                string = "organization-admin"
 	RoleOrganizationMember               string = "organization-member"

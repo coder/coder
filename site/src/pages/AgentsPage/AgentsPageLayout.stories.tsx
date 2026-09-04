@@ -1206,6 +1206,26 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
+export const OpensSettingsForOrgModelAdmins: Story = {
+	parameters: {
+		permissions: {
+			...MockNoPermissions,
+			editAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await openSettingsView(canvasElement);
+
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
+	},
+};
+
 export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -1253,7 +1273,9 @@ export const SettingsViewCoderAgentsLink: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(/Configure deployment-wide Coder Agents capabilities/),
+				screen.getByText(
+					/organization model choices and deployment-wide Coder Agents capabilities/,
+				),
 			).toBeInTheDocument();
 		});
 	},
