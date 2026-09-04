@@ -502,6 +502,9 @@ export const SystemMessageWithoutHookNotice: Story = {
 	},
 };
 
+const userPromptMarkdown =
+	"# Review plan\n\nPlease read **carefully** and *reply*. See https://coder.com/docs. Preview [the app](http://localhost:3000/app?view=preview#details).\n\n- First task\n- Second task\n\n> Keep the API stable.\n\n| Area | Status |\n| --- | --- |\n| UI | Ready |\n\n`http://localhost:3000/inline`\n\n```text\nhttp://localhost:3000/fenced\n```\n\nReview ";
+
 export const UserPromptWithLinks: Story = {
 	args: {
 		...defaultArgs,
@@ -515,7 +518,7 @@ export const UserPromptWithLinks: Story = {
 				content: [
 					{
 						type: "text",
-						text: "Please see https://coder.com/docs. Preview http://localhost:3000/app",
+						text: userPromptMarkdown,
 					},
 				],
 			},
@@ -523,6 +526,30 @@ export const UserPromptWithLinks: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: "Review plan", level: 1 }),
+		).toBeVisible();
+		expect(canvas.getByText("carefully")).toHaveStyle({ fontWeight: "600" });
+		expect(canvas.getByText("reply")).toHaveStyle({ fontStyle: "italic" });
+		expect(canvas.getAllByRole("listitem")).toHaveLength(2);
+		expect(canvas.getByRole("blockquote")).toHaveTextContent(
+			"Keep the API stable.",
+		);
+		expect(canvas.getByRole("cell", { name: "Ready" })).toBeVisible();
+		expect(canvas.getByRole("code")).toHaveTextContent(
+			"http://localhost:3000/inline",
+		);
+		expect(canvas.getAllByRole("link")).toHaveLength(2);
+		await waitFor(() =>
+			expect(
+				canvas.getByText(
+					(_text, element) =>
+						element?.shadowRoot?.textContent?.includes(
+							"http://localhost:3000/fenced",
+						) ?? false,
+				),
+			).toBeVisible(),
+		);
 		const docsLink = canvas.getByRole("link", {
 			name: "https://coder.com/docs",
 		});
@@ -533,13 +560,13 @@ export const UserPromptWithLinks: Story = {
 			expect.stringContaining("noopener"),
 		);
 		const localhostLink = canvas.getByRole("link", {
-			name: "http://localhost:3000/app",
+			name: "the app",
 		});
 		expect(localhostLink).toHaveAttribute(
 			"href",
-			"https://proxy.example.com/app",
+			"https://proxy.example.com/app?view=preview#details",
 		);
-		expect(localhostLink).toHaveTextContent("http://localhost:3000/app");
+		expect(localhostLink).toHaveTextContent("the app");
 
 		let clickedHref: string | null = null;
 		const captureClick = (event: MouseEvent) => {
@@ -550,11 +577,102 @@ export const UserPromptWithLinks: Story = {
 		};
 		canvasElement.addEventListener("click", captureClick, true);
 		try {
-			await userEvent.click(localhostLink);
+			localhostLink.focus();
+			expect(localhostLink).toHaveFocus();
+			await userEvent.keyboard("{Enter}");
 		} finally {
 			canvasElement.removeEventListener("click", captureClick, true);
 		}
-		expect(clickedHref).toBe("https://proxy.example.com/app");
+		expect(clickedHref).toBe(
+			"https://proxy.example.com/app?view=preview#details",
+		);
+	},
+};
+
+export const UserPromptMarkdownSafety: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-[360px] max-w-full">
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "## Untrusted input\n\n[unsafe](javascript:alert%281%29)\n\n<img src=x onerror=alert(1)>\n\n![diagram](https://images.example.com/diagram.png)\n\nReview **",
+					},
+					{
+						type: "file-reference",
+						file_name: "src/<img src=x onerror=alert(1)>.tsx",
+						start_line: 1,
+						end_line: 3,
+						content: "<script>alert(1)</script>",
+					},
+					{
+						type: "text",
+						text: "** and keep `https://example.com/literal` unchanged.\n\n`",
+					},
+					{
+						type: "file-reference",
+						file_name: "literal.ts",
+						start_line: 1,
+						end_line: 2,
+						content: "not parsed",
+					},
+					{ type: "text", text: "`\n\n[unusable](" },
+					{
+						type: "file-reference",
+						file_name: "destination.ts",
+						start_line: 1,
+						end_line: 2,
+						content: "not a URL",
+					},
+					{ type: "text", text: ")" },
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: "Untrusted input" }),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: "unsafe" }),
+		).not.toBeInTheDocument();
+		expect(canvas.getByText("<img src=x onerror=alert(1)>")).toBeVisible();
+		expect(
+			canvas.getByTitle("src/<img src=x onerror=alert(1)>.tsx:L1-L3"),
+		).toHaveTextContent("<img src=x onerror=alert(1)>.tsx");
+		expect(
+			canvas.queryByText("<script>alert(1)</script>"),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.getAllByRole("code").map((element) => element.textContent),
+		).toEqual(["https://example.com/literal", "literal.ts:L1-L2"]);
+		expect(
+			canvas.queryByRole("link", { name: "unusable" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "diagram" }),
+		).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Load external image from images.example.com",
+			}),
+		);
+		expect(canvas.getByRole("img", { name: "diagram" })).toHaveAttribute(
+			"src",
+			"https://images.example.com/diagram.png",
+		);
 	},
 };
 
@@ -1510,7 +1628,7 @@ export const UserMessageWithInlineFileRef: Story = {
 				id: 1,
 				role: "user",
 				content: [
-					{ type: "text", text: "Can you refactor " },
+					{ type: "text", text: "- **Can you refactor " },
 					{
 						type: "file-reference",
 						file_name: "site/src/components/Button.tsx",
@@ -1518,7 +1636,10 @@ export const UserMessageWithInlineFileRef: Story = {
 						end_line: 42,
 						content: "export const Button = ...",
 					},
-					{ type: "text", text: " https://coder.com/docs" },
+					{
+						type: "text",
+						text: " using [the docs](https://coder.com/docs)?**\n- Keep the public API.",
+					},
 				],
 			},
 			{
@@ -1536,11 +1657,17 @@ export const UserMessageWithInlineFileRef: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Button\.tsx/)).toBeInTheDocument();
-		expect(canvas.getByText(/Can you refactor/)).toBeInTheDocument();
 		expect(
-			canvas.getByRole("link", { name: "https://coder.com/docs" }),
-		).toHaveAttribute("href", "https://coder.com/docs");
+			within(canvas.getByText(/Can you refactor/)).getByTitle(
+				"site/src/components/Button.tsx:L42",
+			),
+		).toBeVisible();
+		expect(canvas.getAllByRole("listitem")).toHaveLength(2);
+		expect(canvas.getByText(/Can you refactor/)).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "the docs" })).toHaveAttribute(
+			"href",
+			"https://coder.com/docs",
+		);
 	},
 };
 
@@ -1554,7 +1681,7 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 				id: 1,
 				role: "user",
 				content: [
-					{ type: "text", text: "Compare " },
+					{ type: "text", text: "| File | Task |\n| --- | --- |\n| **" },
 					{
 						type: "file-reference",
 						file_name: "api/handler.go",
@@ -1562,7 +1689,7 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 						end_line: 50,
 						content: "...",
 					},
-					{ type: "text", text: " with " },
+					{ type: "text", text: "** | Compare |\n| *" },
 					{
 						type: "file-reference",
 						file_name: "api/handler_test.go",
@@ -1570,14 +1697,23 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 						end_line: 30,
 						content: "...",
 					},
+					{ type: "text", text: "* | Verify |" },
 				],
 			},
 		]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/handler\.go/)).toBeInTheDocument();
-		expect(canvas.getByText(/handler_test\.go/)).toBeInTheDocument();
+		expect(
+			within(canvas.getByRole("cell", { name: /handler\.go/ })).getByTitle(
+				"api/handler.go:L1-L50",
+			),
+		).toBeVisible();
+		expect(
+			within(canvas.getByRole("cell", { name: /handler_test\.go/ })).getByTitle(
+				"api/handler_test.go:L10-L30",
+			),
+		).toBeVisible();
 	},
 };
 
@@ -1763,22 +1899,27 @@ export const UserMessageCopyButton: Story = {
 				...baseMessage,
 				id: 1,
 				role: "user",
-				content: [{ type: "text", text: "Can you fix this bug?" }],
+				content: [
+					{
+						type: "text",
+						text: userPromptMarkdown,
+					},
+					{
+						type: "file-reference",
+						file_name: "main.go",
+						start_line: 1,
+						end_line: 3,
+						content: "package main",
+					},
+				],
 			},
 		]),
 		onEditUserMessage: fn(),
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Force the hover-reveal toolbar visible for the screenshot.
-		for (const el of canvasElement.querySelectorAll("[class]")) {
-			if (
-				el instanceof HTMLElement &&
-				el.className.includes("group-hover/msg:opacity-100")
-			) {
-				el.style.opacity = "1";
-			}
-		}
+		await userEvent.hover(canvas.getByRole("heading", { name: "Review plan" }));
+		expect(canvas.getByTitle("main.go:L1-L3")).toBeVisible();
 		const copyButton = canvas.getByRole("button", {
 			name: "Copy message",
 		});
@@ -1788,17 +1929,13 @@ export const UserMessageCopyButton: Story = {
 		});
 		expect(editButton).toBeInTheDocument();
 
-		// Behavioral: clicking edit fires onEditUserMessage with the
-		// correct message ID and text.
 		await userEvent.click(editButton);
 		expect(args.onEditUserMessage).toHaveBeenCalledWith(
 			1,
-			"Can you fix this bug?",
+			userPromptMarkdown,
 			undefined,
 		);
 
-		// Behavioral: clicking copy writes the raw markdown to the
-		// clipboard.
 		const originalClipboard = navigator.clipboard;
 		const writeText = fn().mockResolvedValue(undefined);
 		Object.defineProperty(navigator, "clipboard", {
@@ -1808,7 +1945,7 @@ export const UserMessageCopyButton: Story = {
 		});
 		try {
 			await userEvent.click(copyButton);
-			expect(writeText).toHaveBeenCalledWith("Can you fix this bug?");
+			expect(writeText).toHaveBeenCalledWith(userPromptMarkdown);
 		} finally {
 			Object.defineProperty(navigator, "clipboard", {
 				value: originalClipboard,

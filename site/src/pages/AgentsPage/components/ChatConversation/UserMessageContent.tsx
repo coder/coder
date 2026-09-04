@@ -2,72 +2,12 @@ import type { FC } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "#/utils/cn";
 import { Message, MessageContent } from "../ChatElements";
-import { LinkifiedText } from "../ChatElements/LinkifiedText";
-import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
-import {
-	hasInlineContentAfter,
-	hasInlineContentBefore,
-	type InlinePart,
-} from "../ChatMessageInput/fileReferenceDisplay";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import type {
-	MessageDisplayState,
-	UserInlineRenderBlock,
-} from "./messageHelpers";
-
-const getInlineParts = (
-	blocks: readonly UserInlineRenderBlock[],
-): InlinePart[] => {
-	return blocks.map((block) => {
-		if (block.type === "file-reference") {
-			return { type: "file-reference" };
-		}
-		return { type: "text", text: block.text };
-	});
-};
-
-const renderUserInlineBlock = (
-	inlineParts: readonly InlinePart[],
-	block: UserInlineRenderBlock,
-	index: number,
-	urlTransform?: UrlTransform,
-) => {
-	if (block.type === "response") {
-		return (
-			<LinkifiedText
-				key={index}
-				text={block.text}
-				urlTransform={urlTransform}
-			/>
-		);
-	}
-
-	return (
-		<FileReferenceChip
-			key={index}
-			fileName={block.file_name}
-			startLine={block.start_line}
-			endLine={block.end_line}
-			className={cn(
-				hasInlineContentBefore(inlineParts, index) && "ml-1",
-				hasInlineContentAfter(inlineParts, index) && "mr-1",
-			)}
-		/>
-	);
-};
-
-const renderUserInlineContent = (
-	blocks: readonly UserInlineRenderBlock[],
-	urlTransform?: UrlTransform,
-) => {
-	const inlineParts = getInlineParts(blocks);
-	return blocks.map((block, index) =>
-		renderUserInlineBlock(inlineParts, block, index, urlTransform),
-	);
-};
+import type { MessageDisplayState } from "./messageHelpers";
+import { UserMessageMarkdown } from "./UserMessageMarkdown";
 
 export const UserMessageContent: FC<{
 	displayState: MessageDisplayState;
@@ -94,24 +34,12 @@ export const UserMessageContent: FC<{
 				)}
 			>
 				<div className="flex flex-col gap-1.5">
-					{(displayState.hasUserMessageBody || displayState.hasFileBlocks) && (
-						<div className="flex items-start gap-2">
-							{displayState.hasUserMessageBody && (
-								<span className="min-w-0 flex-1">
-									{displayState.userInlineContent.length > 0
-										? renderUserInlineContent(
-												displayState.userInlineContent,
-												urlTransform,
-											)
-										: markdown && (
-												<LinkifiedText
-													text={markdown}
-													urlTransform={urlTransform}
-												/>
-											)}
-								</span>
-							)}
-						</div>
+					{displayState.hasUserMessageBody && (
+						<UserMessageMarkdown
+							blocks={displayState.userInlineContent}
+							markdown={markdown}
+							urlTransform={urlTransform}
+						/>
 					)}
 					{displayState.hasFileBlocks && (
 						<div

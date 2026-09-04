@@ -3,7 +3,7 @@ import {
 	File as FileViewer,
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
-import type { ComponentPropsWithRef, ReactNode } from "react";
+import type { ComponentProps, ComponentPropsWithRef, ReactNode } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -17,6 +17,8 @@ import { MarkdownImage } from "./MarkdownImage";
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
 	urlTransform?: UrlTransform;
+	components?: Components;
+	rehypePlugins?: ComponentProps<typeof Streamdown>["rehypePlugins"];
 	/** Enable streaming-mode Streamdown with incomplete-markdown
 	 * preprocessing (remend) and useTransition-based render
 	 * scheduling. Pass true only for live-streaming output. */
@@ -272,6 +274,8 @@ export const Response = ({
 	ref,
 	urlTransform,
 	streaming,
+	components: additionalComponents,
+	rehypePlugins,
 	...props
 }: ResponseProps) => {
 	const theme = useTheme();
@@ -290,9 +294,17 @@ export const Response = ({
 		>
 			<Streamdown
 				controls={false}
-				components={components}
+				components={
+					additionalComponents
+						? { ...components, ...additionalComponents }
+						: components
+				}
 				urlTransform={urlTransform}
-				rehypePlugins={chatRehypePlugins}
+				rehypePlugins={
+					rehypePlugins?.length
+						? [...rehypePlugins, ...chatRehypePlugins]
+						: chatRehypePlugins
+				}
 				mode={streaming ? "streaming" : "static"}
 				parseIncompleteMarkdown={streaming}
 			>

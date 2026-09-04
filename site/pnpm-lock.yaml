@@ -339,6 +339,9 @@ importers:
       '@types/file-saver':
         specifier: 2.0.7
         version: 2.0.7
+      '@types/hast':
+        specifier: 3.0.5
+        version: 3.0.5
       '@types/humanize-duration':
         specifier: 3.27.4
         version: 3.27.4
