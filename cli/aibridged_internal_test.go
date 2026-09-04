@@ -69,7 +69,7 @@ func buildFromDB(ctx context.Context, t *testing.T, db database.Store, cfg coder
 	if err != nil {
 		return nil, nil, err
 	}
-	providers, outcomes := BuildProvidersFromProto(ctx, resp.GetProviders(), cfg, logger, nil)
+	providers, outcomes := BuildProvidersFromProto(ctx, resp.GetProviders(), cfg, logger, nil, aibridge.NewInferenceProfileCache())
 	return providers, outcomes, nil
 }
 

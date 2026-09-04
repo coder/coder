@@ -320,7 +320,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				p, err := provider.NewAnthropic(context.Background(), config.Anthropic{
 					BaseURL: baseURL,
 					KeyPool: pool,
-				}, nil)
+				}, nil, provider.NewInferenceProfileCache())
 				require.NoError(t, err)
 				return p
 			},

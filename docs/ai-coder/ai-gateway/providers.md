@@ -244,7 +244,9 @@ usage pricing.
 Resolution requires a `GetInferenceProfile` call, so the AWS identity used by
 the gateway must have `bedrock:GetInferenceProfile` permission for the
 profile. Providers configured with plain model identifiers do not need this
-permission. If resolution fails, the provider is skipped.
+permission. The gateway resolves a profile on the first request that uses it
+and caches the result, so a failed resolution fails that request and the next
+request tries again.
 
 ### GitHub Copilot
 

@@ -24,7 +24,7 @@ import (
 // would create an import cycle.
 func newTestAnthropic(t testing.TB, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
 	t.Helper()
-	p, err := NewAnthropic(context.Background(), cfg, bedrockCfg)
+	p, err := NewAnthropic(context.Background(), cfg, bedrockCfg, NewInferenceProfileCache())
 	require.NoError(t, err)
 	return p
 }
@@ -124,10 +124,10 @@ func TestNewAnthropic_BedrockRegionResolution(t *testing.T) {
 			Protocol:        config.BedrockProtocolMantle,
 			AccessKey:       "test-key",
 			AccessKeySecret: "test-secret",
-		})
+		}, NewInferenceProfileCache())
 		require.NoError(t, err)
-		require.NotNil(t, p.bedrock)
-		require.Equal(t, "us-west-2", p.bedrock.Cfg.Region)
+		require.NotNil(t, p.bedrockCfg)
+		require.Equal(t, "us-west-2", p.bedrockCfg.Region)
 	})
 
 	t.Run("mantle_no_region_anywhere", func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestNewAnthropic_BedrockRegionResolution(t *testing.T) {
 			Protocol:        config.BedrockProtocolMantle,
 			AccessKey:       "test-key",
 			AccessKeySecret: "test-secret",
-		})
+		}, NewInferenceProfileCache())
 		require.ErrorContains(t, err, "region required")
 	})
 }

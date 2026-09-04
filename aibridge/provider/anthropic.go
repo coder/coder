@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -29,8 +30,14 @@ var _ Provider = &Anthropic{}
 // Anthropic allows for interactions with the Anthropic API.
 type Anthropic struct {
 	cfg config.Anthropic
-	// bedrock is nil for non-Bedrock providers.
-	bedrock *messages.BedrockRuntime
+	// bedrockCfg is nil for non-Bedrock providers.
+	bedrockCfg *config.AWSBedrock
+	// awsCfg carries the region and the credentials provider that sign Bedrock
+	// requests. It is meaningful only alongside bedrockCfg.
+	awsCfg aws.Config
+	// profiles resolves configured model identifiers on first use. It is shared
+	// across providers so a reload does not discard resolutions.
+	profiles *InferenceProfileCache
 }
 
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
@@ -51,7 +58,12 @@ var anthropicIsFailure = func(statusCode int) bool {
 	return circuitbreaker.DefaultIsFailure(statusCode)
 }
 
-func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (*Anthropic, error) {
+// NewAnthropic constructs a provider. It makes no network call: Bedrock
+// credentials resolve lazily on first retrieval, and application inference
+// profile ARNs resolve on the first request that needs them. Construction
+// therefore cannot fail because AWS is slow or briefly unreachable, which would
+// otherwise drop the provider from the reloaded snapshot.
+func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock, profiles *InferenceProfileCache) (*Anthropic, error) {
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderAnthropic
 	}
@@ -63,42 +75,35 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 		cfg.CircuitBreaker.OpenErrorResponse = anthropicOpenErrorResponse
 	}
 
+	p := &Anthropic{cfg: cfg, profiles: profiles}
+	if bedrockCfg == nil {
+		return p, nil
+	}
+	if profiles == nil {
+		return nil, xerrors.New("developer error: bedrock provider requires an inference profile cache")
+	}
+
 	// Resolve the AWS credentials provider once and bundle it with the config.
 	// This performs no network call (the base identity and any AssumeRole
 	// resolve lazily on first retrieval); it only wires up the provider chain,
 	// so it is cheap to run at construction.
-	var bedrock *messages.BedrockRuntime
-	if bedrockCfg != nil {
-		awsCfg, err := buildBedrockCredentials(ctx, *bedrockCfg)
-		if err != nil {
-			return nil, xerrors.Errorf("build bedrock credentials: %w", err)
-		}
-		runtimeCfg := *bedrockCfg
-		// awsCfg.Region is bedrockCfg.Region if provided;
-		// otherwise, it is resolved from the environment via awsconfig.LoadDefaultConfig
-		if runtimeCfg.Region == "" {
-			runtimeCfg.Region = awsCfg.Region
-		}
-		if err := runtimeCfg.Validate(); err != nil {
-			return nil, xerrors.Errorf("bedrock config: %w", err)
-		}
-
-		// Resolution only calls AWS for application inference profile ARNs, so
-		// deployments configured with plain model IDs need no extra permission.
-		resolveCtx, cancel := context.WithTimeout(ctx, inferenceProfileResolutionTimeout)
-		defer cancel()
-		model, smallFastModel, err := resolveBedrockModels(resolveCtx, runtimeCfg, awsCfg)
-		if err != nil {
-			return nil, xerrors.Errorf("resolve bedrock models: %w", err)
-		}
-
-		bedrock = messages.NewBedrockRuntime(runtimeCfg, awsCfg.Credentials, model, smallFastModel)
+	awsCfg, err := buildBedrockCredentials(ctx, *bedrockCfg)
+	if err != nil {
+		return nil, xerrors.Errorf("build bedrock credentials: %w", err)
+	}
+	runtimeCfg := *bedrockCfg
+	// awsCfg.Region is bedrockCfg.Region if provided;
+	// otherwise, it is resolved from the environment via awsconfig.LoadDefaultConfig
+	if runtimeCfg.Region == "" {
+		runtimeCfg.Region = awsCfg.Region
+	}
+	if err := runtimeCfg.Validate(); err != nil {
+		return nil, xerrors.Errorf("bedrock config: %w", err)
 	}
 
-	return &Anthropic{
-		cfg:     cfg,
-		bedrock: bedrock,
-	}, nil
+	p.bedrockCfg = &runtimeCfg
+	p.awsCfg = awsCfg
+	return p, nil
 }
 
 func (*Anthropic) Type() string {
@@ -161,14 +166,39 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
 
+	var bedrock *messages.BedrockRuntime
+	if p.bedrockCfg != nil {
+		bedrock, err = p.bedrockRuntime(r.Context())
+		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+	}
+
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, bedrock, r.Header, tracer)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, bedrock, r.Header, tracer)
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
+}
+
+// bedrockRuntime pairs the configured Bedrock settings with the resolved model
+// identities. Resolution only calls AWS for application inference profile ARNs,
+// and only until the cache holds them, so deployments configured with plain
+// model IDs never call AWS here and need no extra permission.
+func (p *Anthropic) bedrockRuntime(ctx context.Context) (*messages.BedrockRuntime, error) {
+	model, err := p.profiles.Resolve(ctx, p.awsCfg, p.bedrockCfg.Model)
+	if err != nil {
+		return nil, xerrors.Errorf("resolve model: %w", err)
+	}
+	smallFastModel, err := p.profiles.Resolve(ctx, p.awsCfg, p.bedrockCfg.SmallFastModel)
+	if err != nil {
+		return nil, xerrors.Errorf("resolve small fast model: %w", err)
+	}
+	return messages.NewBedrockRuntime(*p.bedrockCfg, p.awsCfg.Credentials, model, smallFastModel), nil
 }
 
 // resolveCredential determines the upstream credential for a request. At this
@@ -193,8 +223,8 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 	if p.cfg.KeyPool != nil {
 		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 	}
-	if p.bedrock != nil {
-		return intercept.Bedrock{AccessKey: p.bedrock.Cfg.AccessKey}, nil
+	if p.bedrockCfg != nil {
+		return intercept.Bedrock{AccessKey: p.bedrockCfg.AccessKey}, nil
 	}
 	return nil, ErrNoCredential
 }
