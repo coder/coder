@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import {
 	FILTER_TOKEN_RE,
-	iterateFilterTokens,
 	needsQuotes,
+	parseFilterTokens,
 } from "#/components/Filter/filterQuery";
 import type { FilterOption } from "./types";
 
@@ -53,7 +53,7 @@ export const queryToChips = (
 	chipKeys: readonly string[],
 ): string[] => {
 	const pairs: { key: string; value: string }[] = [];
-	for (const { key, value } of iterateFilterTokens(query)) {
+	for (const { key, value } of parseFilterTokens(query)) {
 		const normalizedKey = key.toLowerCase();
 		if (chipKeys.includes(normalizedKey)) {
 			pairs.push({ key: normalizedKey, value });

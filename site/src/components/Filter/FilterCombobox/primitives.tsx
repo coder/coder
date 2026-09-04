@@ -1,4 +1,5 @@
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import {
 	type ComponentPropsWithRef,
@@ -17,7 +18,6 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 // Primitive layer for `FilterCombobox`, built on cmdk (listbox, keyboard
 // navigation) and Radix Popover (positioning, dismissal). These are prefixed
