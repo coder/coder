@@ -46,6 +46,10 @@ func isApplicationInferenceProfileARN(model string) bool {
 // awsCfg carries the identity that invokes Bedrock, including any role assumed
 // via config.AWSBedrock.RoleARN, so the required bedrock:GetInferenceProfile
 // permission belongs to that identity.
+//
+// A profile that wraps a cross-region system-defined profile lists one model
+// per region. Those entries differ only in the ARN region, which the model ID
+// does not carry, so any entry resolves to the same model.
 func resolveInferenceProfile(ctx context.Context, awsCfg aws.Config, profileARN string) (string, error) {
 	client := bedrock.NewFromConfig(awsCfg)
 
