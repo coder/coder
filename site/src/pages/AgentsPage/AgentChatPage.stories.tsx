@@ -3959,7 +3959,12 @@ export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
 		await userEvent.type(editor, "Durable prompt");
-		await userEvent.keyboard("{Enter}");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		await waitFor(() => {
+			expect(editor).toHaveTextContent("Durable prompt");
+			expect(sendButton).toBeEnabled();
+		});
+		await userEvent.click(sendButton);
 		await waitFor(() => {
 			expect(sendSpy).toHaveBeenCalledTimes(1);
 		});
