@@ -3699,6 +3699,7 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 export const SendResponseAfterChatSwitch: Story = {
 	render: () => <AgentChatSwitchHarness />,
 	parameters: {
+		pixel: { exclude: true },
 		queries: [
 			...buildQueries(
 				{
