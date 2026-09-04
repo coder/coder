@@ -414,7 +414,7 @@ does not, so a bad URL is never echoed back to a browser.
 The authorization endpoint validates the `scope` parameter. When it cannot
 grant what was asked for, it redirects to your registered callback with
 `error=invalid_scope` rather than issuing a code. The `error_description`
-opens with the name that caused the rejection:
+opens with the requested name that caused the rejection:
 
 - `unknown or unsupported scope`: this deployment does not offer that scope
   name. Read the current list from `scopes_supported` in
@@ -425,7 +425,9 @@ opens with the name that caused the rejection:
 - `none of the scopes registered for this app are supported by this
   deployment`: the application's own registered `scope` names nothing this
   deployment offers, so no request against it can succeed, including one
-  that omits `scope`. Re-register the application with supported scopes.
+  that omits `scope`. Re-register the application with supported scopes. This
+  description stands alone. Nothing validates a registered `scope`, so the
+  response never echoes it; the server log records the application ID.
 
 Omitting `scope` requests the application's registered scopes, or full access
 if it was registered without any.
@@ -455,7 +457,8 @@ Two more descriptions can open the `error_description` here:
 - `none of the scopes registered for this app are supported by this
   deployment`: the registration names nothing this deployment offers, so no
   code against it can be redeemed. Re-register the application with supported
-  scopes.
+  scopes. As on the authorize endpoint, the registered value stays out of the
+  response.
 
 A coverage comparison this deployment cannot decide answers HTTP 500 with
 `error=server_error` and `The requested scope could not be evaluated`; the

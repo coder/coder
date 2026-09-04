@@ -100,10 +100,11 @@ func TestCheckScopeStillCovered(t *testing.T) {
 	)
 
 	tests := []struct {
-		name     string
-		granted  string
-		appScope sql.NullString
-		wantErr  error
+		name        string
+		granted     string
+		appScope    sql.NullString
+		wantErr     error
+		wantBareErr bool
 	}{
 		{
 			name:     "NoAllowlistConstrainsNothing",
@@ -149,16 +150,18 @@ func TestCheckScopeStillCovered(t *testing.T) {
 			wantErr:  errStaleScope,
 		},
 		{
-			name:     "AllowlistFilteredToEmptyRejected",
-			granted:  "workspace:ssh",
-			appScope: sql.NullString{String: "openid profile", Valid: true},
-			wantErr:  errNoGrantableScope,
+			name:        "AllowlistFilteredToEmptyRejected",
+			granted:     "workspace:ssh",
+			appScope:    sql.NullString{String: "openid profile", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
 		},
 		{
-			name:     "WhitespaceOnlyAllowlistRejected",
-			granted:  "workspace:ssh",
-			appScope: sql.NullString{String: "   ", Valid: true},
-			wantErr:  errNoGrantableScope,
+			name:        "WhitespaceOnlyAllowlistRejected",
+			granted:     "workspace:ssh",
+			appScope:    sql.NullString{String: "   ", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
 		},
 		{
 			name:     "LegacyAliasAllowlistCoversCanonicalGrant",
@@ -194,6 +197,10 @@ func TestCheckScopeStillCovered(t *testing.T) {
 			require.ErrorIs(t, err, test.wantErr)
 			assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
 				"the rejection reason must appear once, not doubled by the wrap")
+			if test.wantBareErr {
+				assert.Equal(t, test.wantErr.Error(), err.Error(),
+					"the rejection must not name the app's unvalidated registered scope")
+			}
 		})
 	}
 }

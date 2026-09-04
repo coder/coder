@@ -32,7 +32,11 @@ import (
 var (
 	// The name is not in the external scope catalog: unknown, or internal-only.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
-	// Every entry in the app's allowlist falls outside the catalog.
+	// Every entry in the app's allowlist falls outside the catalog. Returned
+	// bare, never naming the registered value: that value is unvalidated RFC
+	// 7591 metadata bounded only by the request body limit, and it need not obey
+	// the ASCII subset RFC 6749 §5.2 allows in error_description. The reason
+	// alone is actionable, since the client is the party that registered it.
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
 	// The scope expands to permissions the allowlist does not cover.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
@@ -64,16 +68,28 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 // empty result is returned rather than rejected so the caller decides: both
 // callers happen to answer errNoGrantableScope, but only one of them can say
 // whether an empty allowlist should also fail the request.
+//
+// No allocation here may be sized by appScope. It is unvalidated RFC 7591
+// metadata bounded only by the request body limit, and it is read on every
+// authorization and redemption, so a whitespace-heavy or repetitive value would
+// otherwise cost megabytes per request. Dropping duplicates as names are read,
+// rather than once the loop has collected them all, holds the slice to the size
+// of the catalog whatever the input.
 func grantableScopes(appScope string) []string {
-	filtered := make([]string, 0, strings.Count(appScope, " ")+1)
+	var filtered []string
 	for a := range strings.FieldsSeq(appScope) {
-		if rbac.IsExternalScope(rbac.ScopeName(a)) {
-			filtered = append(filtered, a)
+		if !rbac.IsExternalScope(rbac.ScopeName(a)) {
+			continue
+		}
+		// Canonical before the comparison so the two spellings of an alias
+		// collapse together, and because rbac.ExpandScope knows `coder:all` but
+		// not the `all` that IsExternalScope accepts.
+		name := string(rbac.CanonicalScopeName(rbac.ScopeName(a)))
+		if !slices.Contains(filtered, name) {
+			filtered = append(filtered, name)
 		}
 	}
-	// rbac.ExpandScope knows `coder:all` but not the `all` alias that
-	// IsExternalScope accepts, so both sides must be canonical to expand.
-	return canonicalScopes(filtered)
+	return filtered
 }
 
 // firstScopeOutsideAllowlist returns the first scope in granted that the
@@ -143,9 +159,10 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	allowlist := grantableScopes(app.Scope.String)
 	if len(allowlist) == 0 {
 		// Rejected rather than read as absent, which would grant more than the
-		// allowlist ever permitted. The error echoes the stored value so a
-		// whitespace-only allowlist does not render as "".
-		return "", xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
+		// allowlist ever permitted.
+		logger.Warn(ctx, "oauth2 authorization refused: no registered scope is grantable",
+			slog.F("app_id", app.ID.String()))
+		return "", errNoGrantableScope
 	}
 
 	if len(granted) == 0 {

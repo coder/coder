@@ -42,7 +42,7 @@ func TestNegotiateScope(t *testing.T) {
 		appScope    sql.NullString
 		want        string
 		wantErr     error
-		wantErrText string
+		wantBareErr bool
 	}{
 		{
 			name:      "UnknownRequestedScopeRejected",
@@ -154,10 +154,11 @@ func TestNegotiateScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
-			name:      "AllowlistFilteringToEmptyRejected",
-			requested: nil,
-			appScope:  sql.NullString{String: "openid profile email", Valid: true},
-			wantErr:   errNoGrantableScope,
+			name:        "AllowlistFilteringToEmptyRejected",
+			requested:   nil,
+			appScope:    sql.NullString{String: "openid profile email", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantBareErr: true,
 		},
 		{
 			name:      "RegisteredNonCatalogScopeRejected",
@@ -170,7 +171,7 @@ func TestNegotiateScope(t *testing.T) {
 			requested:   nil,
 			appScope:    sql.NullString{String: "   ", Valid: true},
 			wantErr:     errNoGrantableScope,
-			wantErrText: `"   "`,
+			wantBareErr: true,
 		},
 		{
 			name:      "LegacyAllAliasCanonicalized",
@@ -227,9 +228,9 @@ func TestNegotiateScope(t *testing.T) {
 				assert.Empty(t, got, "a rejected request must not return a persistable scope")
 				assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
 					"the rejection reason must appear once, not doubled by the wrap")
-				if test.wantErrText != "" {
-					assert.Contains(t, err.Error(), test.wantErrText,
-						"the rejection must name the value the app owner has to change")
+				if test.wantBareErr {
+					assert.Equal(t, test.wantErr.Error(), err.Error(),
+						"the rejection must not name the app's unvalidated registered scope")
 				}
 				return
 			}
@@ -263,6 +264,21 @@ var (
 	ReasonScopeNotAllowed     = errScopeNotAllowed.Error()
 	ReasonCoverageUndecidable = errCoverageUndecidable.Error()
 )
+
+// TestGrantableScopesNotSizedByInput pins the shape of the result, not just its
+// contents. app.Scope is unvalidated registration metadata read on every
+// authorization and redemption, so collecting duplicates and dropping them
+// afterwards would size the slice by the input rather than by the catalog.
+func TestGrantableScopesNotSizedByInput(t *testing.T) {
+	t.Parallel()
+
+	repeated := grantableScopes(strings.Repeat("coder:all ", 4096))
+	assert.Equal(t, []string{"coder:all"}, repeated)
+	assert.Less(t, cap(repeated), 8, "a repeated name must collapse as it is read")
+
+	assert.Empty(t, grantableScopes(strings.Repeat(" ", 4096)),
+		"a value naming no scope grants nothing")
+}
 
 func TestNoScopeAllowlist(t *testing.T) {
 	t.Parallel()
