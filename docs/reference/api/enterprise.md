@@ -404,7 +404,7 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/spend/users/{user}/summar
 
 `GET /api/v2/ai-gateway/spend/users/{user}/summary`
 
-Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Requires permission to read any AI Gateway interception.
+Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Each breakdown lists at most 100 entries, most expensive first; the totals always cover every request. Requires permission to read any AI Gateway interception.
 start_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.
 
 ### Parameters

@@ -354,6 +354,14 @@ export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
 // From codersdk/aibridge.go
 /**
+ * AIGatewaySpendBreakdownLimit caps ByModel and ByClient in an
+ * AIGatewaySpendUserSummary. Model and client are request-supplied text, so
+ * the number of distinct values is otherwise unbounded.
+ */
+export const AIGatewaySpendBreakdownLimit = 100;
+
+// From codersdk/aibridge.go
+/**
  * AIGatewaySpendClientBreakdown is one user's spend through a single client.
  */
 export interface AIGatewaySpendClientBreakdown extends AIGatewaySpendTotals {
@@ -405,7 +413,9 @@ export interface AIGatewaySpendUser extends MinimalUser, AIGatewaySpendTotals {}
 // From codersdk/aibridge.go
 /**
  * AIGatewaySpendUserSummary is one user's AI Gateway spend over the requested
- * window, broken down by model and by client.
+ * window, broken down by model and by client. The breakdowns hold the most
+ * expensive AIGatewaySpendBreakdownLimit entries; the totals cover every
+ * request.
  */
 export interface AIGatewaySpendUserSummary extends AIGatewaySpendTotals {
 	readonly start_date: string;

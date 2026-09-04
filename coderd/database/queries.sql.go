@@ -2723,9 +2723,9 @@ WITH per_request AS (
 		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
 	FROM aibridge_interceptions i
 	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id
-	WHERE i.initiator_id = $1::uuid
-		AND i.started_at >= $2::timestamptz
-		AND i.started_at < $3::timestamptz
+	WHERE i.initiator_id = $2::uuid
+		AND i.started_at >= $3::timestamptz
+		AND i.started_at < $4::timestamptz
 		AND i.ended_at IS NOT NULL
 	GROUP BY i.id
 )
@@ -2742,12 +2742,14 @@ SELECT
 FROM per_request
 GROUP BY client
 ORDER BY total_cost_micros DESC, client ASC
+LIMIT $1::int
 `
 
 type ListAIBridgeSpendByUserClientParams struct {
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	StartDate time.Time `db:"start_date" json:"start_date"`
-	EndDate   time.Time `db:"end_date" json:"end_date"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	StartDate  time.Time `db:"start_date" json:"start_date"`
+	EndDate    time.Time `db:"end_date" json:"end_date"`
 }
 
 type ListAIBridgeSpendByUserClientRow struct {
@@ -2763,7 +2765,12 @@ type ListAIBridgeSpendByUserClientRow struct {
 }
 
 func (q *sqlQuerier) ListAIBridgeSpendByUserClient(ctx context.Context, arg ListAIBridgeSpendByUserClientParams) ([]ListAIBridgeSpendByUserClientRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAIBridgeSpendByUserClient, arg.UserID, arg.StartDate, arg.EndDate)
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSpendByUserClient,
+		arg.LimitCount,
+		arg.UserID,
+		arg.StartDate,
+		arg.EndDate,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2809,9 +2816,9 @@ WITH per_request AS (
 		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
 	FROM aibridge_interceptions i
 	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id
-	WHERE i.initiator_id = $1::uuid
-		AND i.started_at >= $2::timestamptz
-		AND i.started_at < $3::timestamptz
+	WHERE i.initiator_id = $2::uuid
+		AND i.started_at >= $3::timestamptz
+		AND i.started_at < $4::timestamptz
 		AND i.ended_at IS NOT NULL
 	GROUP BY i.id
 )
@@ -2829,12 +2836,14 @@ SELECT
 FROM per_request
 GROUP BY provider, provider_name, model
 ORDER BY total_cost_micros DESC, provider ASC, model ASC
+LIMIT $1::int
 `
 
 type ListAIBridgeSpendByUserModelParams struct {
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	StartDate time.Time `db:"start_date" json:"start_date"`
-	EndDate   time.Time `db:"end_date" json:"end_date"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	StartDate  time.Time `db:"start_date" json:"start_date"`
+	EndDate    time.Time `db:"end_date" json:"end_date"`
 }
 
 type ListAIBridgeSpendByUserModelRow struct {
@@ -2851,7 +2860,12 @@ type ListAIBridgeSpendByUserModelRow struct {
 }
 
 func (q *sqlQuerier) ListAIBridgeSpendByUserModel(ctx context.Context, arg ListAIBridgeSpendByUserModelParams) ([]ListAIBridgeSpendByUserModelRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAIBridgeSpendByUserModel, arg.UserID, arg.StartDate, arg.EndDate)
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSpendByUserModel,
+		arg.LimitCount,
+		arg.UserID,
+		arg.StartDate,
+		arg.EndDate,
+	)
 	if err != nil {
 		return nil, err
 	}

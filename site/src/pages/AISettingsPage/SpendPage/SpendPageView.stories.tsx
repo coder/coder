@@ -262,6 +262,25 @@ export const UsersError: Story = {
 	},
 };
 
+export const UsersRefetchError: Story = {
+	args: {
+		usersQuery: mockUsersQuery({
+			data: mockUsersResponse,
+			error: new Error("Failed to refresh spend data"),
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const table = canvas.getByRole("table", { name: "Spend by user" });
+		await expect(within(table).getByText("$2.50")).toBeVisible();
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			"Failed to refresh spend data",
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+		expect(args.usersQuery.refetch).toHaveBeenCalled();
+	},
+};
+
 export const SearchTyping: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);

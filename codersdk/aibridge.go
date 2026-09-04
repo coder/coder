@@ -460,8 +460,15 @@ type AIGatewaySpendClientBreakdown struct {
 	AIGatewaySpendTotals
 }
 
+// AIGatewaySpendBreakdownLimit caps ByModel and ByClient in an
+// AIGatewaySpendUserSummary. Model and client are request-supplied text, so
+// the number of distinct values is otherwise unbounded.
+const AIGatewaySpendBreakdownLimit = 100
+
 // AIGatewaySpendUserSummary is one user's AI Gateway spend over the requested
-// window, broken down by model and by client.
+// window, broken down by model and by client. The breakdowns hold the most
+// expensive AIGatewaySpendBreakdownLimit entries; the totals cover every
+// request.
 type AIGatewaySpendUserSummary struct {
 	StartDate time.Time `json:"start_date" format:"date-time"`
 	EndDate   time.Time `json:"end_date" format:"date-time"`

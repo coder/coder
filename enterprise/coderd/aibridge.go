@@ -779,7 +779,7 @@ func (api *API) aiGatewaySpendUsers(rw http.ResponseWriter, r *http.Request) {
 // model and by client.
 //
 // @Summary Get AI Gateway spend summary for a user
-// @Description Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Requires permission to read any AI Gateway interception.
+// @Description Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Each breakdown lists at most 100 entries, most expensive first; the totals always cover every request. Requires permission to read any AI Gateway interception.
 // @Description start_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.
 // @ID get-ai-gateway-spend-summary-for-a-user
 // @Security CoderSessionToken
@@ -820,17 +820,19 @@ func (api *API) aiGatewaySpendUserSummary(rw http.ResponseWriter, r *http.Reques
 			return xerrors.Errorf("get spend summary: %w", err)
 		}
 		byModel, err = db.ListAIBridgeSpendByUserModel(ctx, database.ListAIBridgeSpendByUserModelParams{
-			UserID:    user.ID,
-			StartDate: start,
-			EndDate:   end,
+			UserID:     user.ID,
+			StartDate:  start,
+			EndDate:    end,
+			LimitCount: codersdk.AIGatewaySpendBreakdownLimit,
 		})
 		if err != nil {
 			return xerrors.Errorf("list spend by model: %w", err)
 		}
 		byClient, err = db.ListAIBridgeSpendByUserClient(ctx, database.ListAIBridgeSpendByUserClientParams{
-			UserID:    user.ID,
-			StartDate: start,
-			EndDate:   end,
+			UserID:     user.ID,
+			StartDate:  start,
+			EndDate:    end,
+			LimitCount: codersdk.AIGatewaySpendBreakdownLimit,
 		})
 		if err != nil {
 			return xerrors.Errorf("list spend by client: %w", err)

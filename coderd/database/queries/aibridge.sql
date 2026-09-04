@@ -927,7 +927,8 @@ SELECT
 	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
 FROM per_request
 GROUP BY provider, provider_name, model
-ORDER BY total_cost_micros DESC, provider ASC, model ASC;
+ORDER BY total_cost_micros DESC, provider ASC, model ASC
+LIMIT @limit_count::int;
 
 -- name: ListAIBridgeSpendByUserClient :many
 WITH per_request AS (
@@ -960,4 +961,5 @@ SELECT
 	COALESCE(SUM(cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
 FROM per_request
 GROUP BY client
-ORDER BY total_cost_micros DESC, client ASC;
+ORDER BY total_cost_micros DESC, client ASC
+LIMIT @limit_count::int;

@@ -938,7 +938,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/spend/users/{user}/summary": {
             "get": {
-                "description": "Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Requires permission to read any AI Gateway interception.\nstart_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.",
+                "description": "Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Each breakdown lists at most 100 entries, most expensive first; the totals always cover every request. Requires permission to read any AI Gateway interception.\nstart_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.",
                 "produces": [
                     "application/json"
                 ],

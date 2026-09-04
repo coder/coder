@@ -1514,6 +1514,44 @@ func TestAIGatewaySpend(t *testing.T) {
 		require.Empty(t, stale.Users)
 	})
 
+	t.Run("BreakdownsCapped", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+		start := dbtime.Now().Add(-time.Hour).Truncate(time.Second)
+
+		// One more distinct model and client than the cap, cheapest first so
+		// the cap has to drop the first one inserted.
+		total := codersdk.AIGatewaySpendBreakdownLimit + 1
+		for i := 0; i < total; i++ {
+			startedAt := start.Add(time.Duration(i) * time.Second)
+			endedAt := startedAt.Add(time.Second)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: firstUser.UserID,
+				Provider:    "openai",
+				Model:       fmt.Sprintf("model-%03d", i),
+				StartedAt:   startedAt,
+				Client:      sql.NullString{String: fmt.Sprintf("client-%03d", i), Valid: true},
+			}, &endedAt)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID,
+				CostMicros:     sql.NullInt64{Int64: int64(i + 1), Valid: true},
+			})
+		}
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		summary, err := client.AIGatewaySpendUserSummary(ctx, codersdk.Me, codersdk.AIGatewaySpendWindow{
+			StartDate: start, EndDate: start.Add(time.Hour),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, total, summary.RequestCount)
+		require.Len(t, summary.ByModel, codersdk.AIGatewaySpendBreakdownLimit)
+		require.Equal(t, fmt.Sprintf("model-%03d", total-1), summary.ByModel[0].Model)
+		require.Equal(t, "model-001", summary.ByModel[len(summary.ByModel)-1].Model)
+		require.Len(t, summary.ByClient, codersdk.AIGatewaySpendBreakdownLimit)
+		require.Equal(t, fmt.Sprintf("client-%03d", total-1), summary.ByClient[0].Client)
+	})
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))

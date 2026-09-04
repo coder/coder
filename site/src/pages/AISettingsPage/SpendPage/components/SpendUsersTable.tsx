@@ -54,6 +54,16 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 		next.set(userSearchParam, user.id);
 		return { search: next.toString() };
 	};
+	const retryButton = (
+		<Button
+			variant="outline"
+			size="sm"
+			type="button"
+			onClick={() => void usersQuery.refetch()}
+		>
+			Retry
+		</Button>
+	);
 
 	return (
 		<section className="space-y-6">
@@ -84,72 +94,73 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({
 					<Spinner size="lg" loading className="text-content-secondary" />
 				</div>
 			)}
-			{usersQuery.error != null && (
+			{usersQuery.error != null && !usersQuery.data && (
 				<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
 					<ErrorAlert error={usersQuery.error} />
-					<Button
-						variant="outline"
-						size="sm"
-						type="button"
-						onClick={() => void usersQuery.refetch()}
-					>
-						Retry
-					</Button>
+					{retryButton}
 				</div>
 			)}
 			{usersQuery.data && (
-				<RetentionNotice
-					requestedStart={displayDateRange.startDate}
-					appliedStart={usersQuery.data.start_date}
-				/>
-			)}
-			{usersQuery.data && (
-				<div className="relative pt-3">
-					{usersQuery.isFetching && !usersQuery.isLoading && (
-						<div
-							role="status"
-							aria-label="Refreshing spend"
-							className="absolute inset-0 z-10 flex items-center justify-center bg-surface-primary/50"
-						>
-							<Spinner size="lg" loading className="text-content-secondary" />
-						</div>
+				<>
+					<RetentionNotice
+						requestedStart={displayDateRange.startDate}
+						appliedStart={usersQuery.data.start_date}
+					/>
+					{usersQuery.error != null && (
+						<ErrorAlert error={usersQuery.error} actions={retryButton} />
 					)}
-					{usersQuery.data.users.length === 0 ? (
-						<p className="py-12 text-center text-content-secondary">
-							{searchFilter
-								? "No users match this search."
-								: "No AI Gateway spend for this period."}
-						</p>
-					) : (
-						<PaginationContainer query={usersQuery} paginationUnitLabel="users">
-							<div className="overflow-hidden rounded-lg border border-border-default">
-								<Table aria-label="Spend by user">
-									<TableHeader>
-										<TableRow>
-											<TableHead>User</TableHead>
-											<TableHead className="text-right">Cost</TableHead>
-											<TableHead className="text-right">Requests</TableHead>
-											<TableHead className="text-right">Sessions</TableHead>
-											<TableHead className="text-right">Input</TableHead>
-											<TableHead className="text-right">Output</TableHead>
-											<TableHead className="text-right">Cache read</TableHead>
-											<TableHead className="text-right">Cache write</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{usersQuery.data.users.map((user) => (
-											<UserRow
-												key={user.id}
-												user={user}
-												detailsTo={userDetailsTo(user)}
-											/>
-										))}
-									</TableBody>
-								</Table>
+					<div className="relative pt-3">
+						{usersQuery.isFetching && !usersQuery.isLoading && (
+							<div
+								role="status"
+								aria-label="Refreshing spend"
+								className="absolute inset-0 z-10 flex items-center justify-center bg-surface-primary/50"
+							>
+								<Spinner size="lg" loading className="text-content-secondary" />
 							</div>
-						</PaginationContainer>
-					)}
-				</div>
+						)}
+						{usersQuery.data.users.length === 0 ? (
+							<p className="py-12 text-center text-content-secondary">
+								{searchFilter
+									? "No users match this search."
+									: "No AI Gateway spend for this period."}
+							</p>
+						) : (
+							<PaginationContainer
+								query={usersQuery}
+								paginationUnitLabel="users"
+							>
+								<div className="overflow-hidden rounded-lg border border-border-default">
+									<Table aria-label="Spend by user">
+										<TableHeader>
+											<TableRow>
+												<TableHead>User</TableHead>
+												<TableHead className="text-right">Cost</TableHead>
+												<TableHead className="text-right">Requests</TableHead>
+												<TableHead className="text-right">Sessions</TableHead>
+												<TableHead className="text-right">Input</TableHead>
+												<TableHead className="text-right">Output</TableHead>
+												<TableHead className="text-right">Cache read</TableHead>
+												<TableHead className="text-right">
+													Cache write
+												</TableHead>
+											</TableRow>
+										</TableHeader>
+										<TableBody>
+											{usersQuery.data.users.map((user) => (
+												<UserRow
+													key={user.id}
+													user={user}
+													detailsTo={userDetailsTo(user)}
+												/>
+											))}
+										</TableBody>
+									</Table>
+								</div>
+							</PaginationContainer>
+						)}
+					</div>
+				</>
 			)}
 		</section>
 	);

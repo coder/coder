@@ -19916,9 +19916,10 @@ func TestAIBridgeSpend(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rows, err := db.ListAIBridgeSpendByUserModel(ctx, database.ListAIBridgeSpendByUserModelParams{
-			UserID:    alice.ID,
-			StartDate: start,
-			EndDate:   end,
+			UserID:     alice.ID,
+			StartDate:  start,
+			EndDate:    end,
+			LimitCount: 10,
 		})
 		require.NoError(t, err)
 		require.Equal(t, []database.ListAIBridgeSpendByUserModelRow{
@@ -19946,10 +19947,21 @@ func TestAIBridgeSpend(t *testing.T) {
 			},
 		}, rows)
 
+		// The cap keeps the most expensive entries.
+		capped, err := db.ListAIBridgeSpendByUserModel(ctx, database.ListAIBridgeSpendByUserModelParams{
+			UserID:     alice.ID,
+			StartDate:  start,
+			EndDate:    end,
+			LimitCount: 1,
+		})
+		require.NoError(t, err)
+		require.Equal(t, rows[:1], capped)
+
 		empty, err := db.ListAIBridgeSpendByUserModel(ctx, database.ListAIBridgeSpendByUserModelParams{
-			UserID:    carol.ID,
-			StartDate: start,
-			EndDate:   end,
+			UserID:     carol.ID,
+			StartDate:  start,
+			EndDate:    end,
+			LimitCount: 10,
 		})
 		require.NoError(t, err)
 		require.Empty(t, empty)
@@ -19959,9 +19971,10 @@ func TestAIBridgeSpend(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rows, err := db.ListAIBridgeSpendByUserClient(ctx, database.ListAIBridgeSpendByUserClientParams{
-			UserID:    alice.ID,
-			StartDate: start,
-			EndDate:   end,
+			UserID:     alice.ID,
+			StartDate:  start,
+			EndDate:    end,
+			LimitCount: 10,
 		})
 		require.NoError(t, err)
 		require.Equal(t, []database.ListAIBridgeSpendByUserClientRow{
