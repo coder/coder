@@ -5,8 +5,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 )
 
 type capacityMetrics struct {
@@ -43,6 +45,60 @@ func (w *chatWorker) capacityMetricsLoop(ctx context.Context) {
 			return
 		}
 		w.refreshCapacityMetrics(ctx)
+	}
+}
+
+// noteCapacityRefused remembers when a chat was first refused a
+// capacity slot. Later refusals keep the first time.
+func (w *chatWorker) noteCapacityRefused(chatID uuid.UUID) {
+	if _, ok := w.capacityWaitSince[chatID]; ok {
+		return
+	}
+	w.capacityWaitSince[chatID] = w.opts.Clock.Now()
+}
+
+// recordCapacityWait emits the capacity_wait stage for a chat that is
+// being acquired after at least one capacity refusal, measured from
+// the first refusal this worker saw. Chats admitted on their first
+// attempt record nothing. No turn span exists at this point, so the
+// turn scope, the chat kind, and the organization are stated
+// explicitly.
+func (w *chatWorker) recordCapacityWait(ctx context.Context, chat database.Chat) {
+	since, waited := w.capacityWaitSince[chat.ID]
+	if !waited {
+		return
+	}
+	delete(w.capacityWaitSince, chat.ID)
+	ctx = chatloop.ContextWithChatKind(ctx, chatKindAttr(chat))
+	ctx = chatloop.ContextWithOrganization(ctx, w.server.organizationName(ctx, chat.OrganizationID))
+	w.server.stages.RecordAs(ctx, chatloop.StageCapacityWait, chatloop.ScopeTurn, chatloop.StageModel{},
+		since, w.opts.Clock.Now(), nil,
+		attribute.String(chatloop.AttrChatID, chat.ID.String()),
+	)
+}
+
+// forgetCapacityWait drops a chat's wait start. A wait that resumes
+// later is measured from the next refusal.
+func (w *chatWorker) forgetCapacityWait(chatID uuid.UUID) {
+	delete(w.capacityWaitSince, chatID)
+}
+
+// pruneCapacityWaits drops wait starts for chats absent from
+// candidates. candidates must be the complete candidate set: a chat
+// missing from a truncated batch is still waiting, and dropping it
+// would restart its clock.
+func (w *chatWorker) pruneCapacityWaits(candidates []database.GetChatWorkerAcquisitionCandidatesRow) {
+	if len(w.capacityWaitSince) == 0 {
+		return
+	}
+	stillCandidate := make(map[uuid.UUID]struct{}, len(candidates))
+	for _, row := range candidates {
+		stillCandidate[row.ID] = struct{}{}
+	}
+	for chatID := range w.capacityWaitSince {
+		if _, ok := stillCandidate[chatID]; !ok {
+			delete(w.capacityWaitSince, chatID)
+		}
 	}
 }
 
