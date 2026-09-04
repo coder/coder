@@ -182,7 +182,10 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trigger_agent_time_account_chat_messages_after_insert
+-- PostgreSQL orders same-event triggers by name. Capture must run after the
+-- history update, whose parent/root FK checks must precede shared aggregate
+-- locks to avoid a parent/subchat lock cycle.
+CREATE TRIGGER trigger_zz_agent_time_account_chat_messages_after_insert
 AFTER INSERT ON chat_messages
 REFERENCING NEW TABLE AS agent_time_new_messages
 FOR EACH STATEMENT

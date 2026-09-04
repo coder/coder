@@ -484,10 +484,10 @@ func insertAgentTimeMessage(ctx context.Context, t testing.TB, db *sql.DB, chatI
 func insertManyUnaccountedAgentTimeMessages(ctx context.Context, t testing.TB, db *sql.DB, chatID uuid.UUID, createdAt time.Time, count int) {
 	t.Helper()
 
-	_, err := db.ExecContext(ctx, `ALTER TABLE chat_messages DISABLE TRIGGER trigger_agent_time_account_chat_messages_after_insert`)
+	_, err := db.ExecContext(ctx, `ALTER TABLE chat_messages DISABLE TRIGGER trigger_zz_agent_time_account_chat_messages_after_insert`)
 	require.NoError(t, err)
 	defer func() {
-		_, enableErr := db.ExecContext(ctx, `ALTER TABLE chat_messages ENABLE TRIGGER trigger_agent_time_account_chat_messages_after_insert`)
+		_, enableErr := db.ExecContext(ctx, `ALTER TABLE chat_messages ENABLE TRIGGER trigger_zz_agent_time_account_chat_messages_after_insert`)
 		require.NoError(t, enableErr)
 	}()
 
@@ -624,4 +624,62 @@ func requireAgentTimeSummaryInvariant(ctx context.Context, t testing.TB, db *sql
  )`).Scan(&mismatch)
 	require.NoError(t, err)
 	require.False(t, mismatch, "organization summaries must equal canonical user/day sums")
+}
+
+func TestAgentTimeCaptureFollowsHistoryLocks(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	fixture := setupAgentTimeFixture(t, db)
+	childChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID: fixture.org.ID, OwnerID: fixture.user.ID,
+		LastModelConfigID: fixture.chat.LastModelConfigID,
+		ParentChatID:      uuid.NullUUID{UUID: fixture.chat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: fixture.chat.ID, Valid: true},
+	})
+	parent, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer parent.Rollback()
+	child, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer child.Rollback()
+	// Match chatstate's lock and snapshot bump before message insertion.
+	for _, row := range []struct {
+		tx *sql.Tx
+		id uuid.UUID
+	}{{parent, fixture.chat.ID}, {child, childChat.ID}} {
+		_, err = row.tx.ExecContext(ctx, "SELECT id FROM chats WHERE id=$1 FOR UPDATE", row.id)
+		require.NoError(t, err)
+		_, err = row.tx.ExecContext(ctx, "UPDATE chats SET snapshot_version=snapshot_version+1 WHERE id=$1", row.id)
+		require.NoError(t, err)
+	}
+	var childPID int
+	require.NoError(t, child.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&childPID))
+	insert := `INSERT INTO chat_messages (chat_id,role,content,content_version,visibility,runtime_ms,created_at)
+ VALUES ($1,'assistant','[]',1,'both',$2,'2025-01-01')`
+	childDone := make(chan error, 1)
+	go func() {
+		_, err := child.ExecContext(ctx, insert, childChat.ID, 100)
+		if err == nil {
+			err = child.Commit()
+		}
+		childDone <- err
+	}()
+	// The history update rechecks the parent/root FK. It must wait before
+	// acquiring aggregates shared with the parent, not after acquiring them.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var blocked bool
+		err := sqlDB.QueryRowContext(ctx, "SELECT cardinality(pg_blocking_pids($1)) > 0", childPID).Scan(&blocked)
+		return err == nil && blocked
+	}, testutil.IntervalFast)
+	_, err = parent.ExecContext(ctx, insert, fixture.chat.ID, 200)
+	require.NoError(t, err)
+	require.NoError(t, parent.Commit())
+	select {
+	case err := <-childDone:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 1, 1), 300)
 }
