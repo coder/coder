@@ -233,6 +233,16 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAu
 	return req, nil, nil
 }
 
+// writeTokenError renders an RFC 6749 §5.2 error body. Descriptions here can
+// quote a value the client sent, so they are confined to the NQSCHAR set and
+// capped at the write rather than at each call site: the guarantee then belongs
+// to the endpoint instead of to whoever writes the next message. The redirect
+// path bounds its descriptions the same way, in redirectAuthorizeError.
+func writeTokenError(ctx context.Context, rw http.ResponseWriter, status int, code codersdk.OAuth2ErrorCode, description string) {
+	// Sanitized before the cap so the bound is on what the client receives.
+	httpapi.WriteOAuth2Error(ctx, rw, status, code, capErrorDescription(sanitizeErrorDescription(description)))
+}
+
 // Tokens
 // Uses Sessions.DefaultDuration for access token (API key) TTL and
 // Sessions.RefreshDefaultDuration for refresh token TTL.
@@ -253,7 +263,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		req, validationErrs, err := extractTokenRequest(r, callbackURL, app)
 		if err != nil {
 			if errors.Is(err, errConflictingClientAuth) {
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
+				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
 				return
 			}
 
@@ -261,7 +271,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 				return validationError.Field == "grant_type"
 			}) {
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, "The grant type is missing or unsupported")
+				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, "The grant type is missing or unsupported")
 				return
 			}
 
@@ -270,7 +280,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 				if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 					return validationError.Field == field
 				}) {
-					httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, fmt.Sprintf("Missing required parameter: %s", field))
+					writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, fmt.Sprintf("Missing required parameter: %s", field))
 					return
 				}
 			}
@@ -282,12 +292,14 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 				return validationError.Field == "code_verifier"
 			}) {
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 §4.1)")
+				// "section" rather than the section sign, which RFC 6749 §5.2
+				// excludes from error_description and the sanitizer drops.
+				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 section 4.1)")
 				return
 			}
 
 			// Generic invalid request for other validation errors
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The request is missing required parameters or is otherwise malformed")
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The request is missing required parameters or is otherwise malformed")
 			return
 		}
 
@@ -301,28 +313,28 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			token, err = authorizationCodeGrant(ctx, db, logger, app, lifetimes, req)
 		default:
 			// This should handle truly invalid grant types
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, fmt.Sprintf("The grant type %q is not supported", req.GrantType))
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, fmt.Sprintf("The grant type %q is not supported", req.GrantType))
 			return
 		}
 
 		if errors.Is(err, errBadSecret) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
+			writeTokenError(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
 			return
 		}
 		if errors.Is(err, errBadCode) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The authorization code is invalid or expired")
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The authorization code is invalid or expired")
 			return
 		}
 		if errors.Is(err, errInvalidPKCE) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The PKCE code verifier is invalid")
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The PKCE code verifier is invalid")
 			return
 		}
 		if errors.Is(err, errInvalidResource) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidTarget, "The resource parameter is invalid")
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidTarget, "The resource parameter is invalid")
 			return
 		}
 		if errors.Is(err, errBadToken) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
 		// invalid_grant, not invalid_scope: RFC 6749 §5.2 reserves invalid_scope
@@ -331,17 +343,17 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		// authorizing again.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
 			errors.Is(err, errNoGrantableScope) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
 			return
 		}
 		// invalid_scope for these two: the refresh named them itself, so the
 		// client can fix it by asking differently.
 		if errors.Is(err, errUnknownScope) || errors.Is(err, errScopeNotGranted) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}
 		if errors.Is(err, errCoverageUndecidable) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated")
+			writeTokenError(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated")
 			return
 		}
 		if err != nil {

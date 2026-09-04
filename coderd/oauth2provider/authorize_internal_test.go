@@ -265,6 +265,9 @@ var (
 	ReasonCoverageUndecidable = errCoverageUndecidable.Error()
 )
 
+// MaxErrorDescription is the description bound for the same black-box tests.
+const MaxErrorDescription = maxErrorDescription
+
 // TestGrantableScopesNotSizedByInput pins the shape of the result, not just its
 // contents. app.Scope is unvalidated registration metadata read on every
 // authorization and redemption, so collecting duplicates and dropping them
@@ -380,6 +383,27 @@ func TestHashOAuth2State(t *testing.T) {
 		require.True(t, hash1.Valid)
 		assert.Equal(t, hash1.String, hash2.String,
 			"same state should produce identical hash")
+	})
+}
+
+func TestCapErrorDescription(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShortDescriptionUnchanged", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, "unknown or unsupported scope", capErrorDescription("unknown or unsupported scope"))
+	})
+
+	t.Run("BoundIsInclusive", func(t *testing.T) {
+		t.Parallel()
+		atBound := strings.Repeat("x", maxErrorDescription)
+		assert.Equal(t, atBound, capErrorDescription(atBound))
+	})
+
+	t.Run("LongerDescriptionTruncated", func(t *testing.T) {
+		t.Parallel()
+		got := capErrorDescription(strings.Repeat("x", maxErrorDescription+1))
+		assert.Equal(t, strings.Repeat("x", maxErrorDescription)+" (truncated)", got)
 	})
 }
 

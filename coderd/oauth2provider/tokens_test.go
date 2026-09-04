@@ -288,6 +288,84 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 // The redemptions race rather than run in sequence: a sequential pair passes
 // whether or not the delete arbitrates single use. barrierStore makes that
 // overlap deterministic instead of probabilistic.
+// RFC 6749 §5.2 restricts error_description to %x20-21 / %x23-5B / %x5D-7E.
+// The rule is on the decoded value, so JSON escaping does not satisfy it: a
+// client library hands its caller the decoded string. An unknown scope name is
+// the one value this endpoint quotes back that the client wrote, and its length
+// is the client's to choose, so both bounds are enforced at the write.
+func TestOAuth2TokenErrorDescription(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	coderdtest.CreateFirstUser(t, client)
+
+	refreshWithScope := func(ctx context.Context, t *testing.T, scope string) string {
+		t.Helper()
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", scope)
+		status, body := postTokenRequest(ctx, t, client, form)
+		return requireTokenScopeError(t, status, body)
+	}
+
+	t.Run("UnknownScopeEchoIsSanitized", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// No whitespace, or strings.Fields would split this into several names
+		// and only the first would be quoted back.
+		description := refreshWithScope(ctx, t, "\x07\x1b[31m\"\\caf\u00e9")
+
+		requireNQSCHAR(t, description)
+		require.Contains(t, description, oauth2provider.ReasonUnknownScope,
+			"sanitizing must not cost the client the reason")
+	})
+
+	t.Run("UnknownScopeEchoIsCapped", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		description := refreshWithScope(ctx, t, strings.Repeat("x", oauth2provider.MaxErrorDescription*8))
+
+		requireNQSCHAR(t, description)
+		require.LessOrEqual(t, len(description), oauth2provider.MaxErrorDescription+len(" (truncated)"))
+		require.Contains(t, description, "(truncated)")
+	})
+
+	// The sanitizer runs on every description this endpoint writes, so a fixed
+	// message that strays outside NQSCHAR loses the offending characters to it.
+	// A section sign is the easy way to do that by accident.
+	t.Run("FixedMessageIsUnchangedBySanitizing", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		code, _ := authorizeCode(ctx, t, client, app.ID.String(), "")
+
+		// Rejected for its length before the code is ever looked up.
+		form := tokenExchangeForm(app, code, "too-short")
+		status, body := postTokenRequest(ctx, t, client, form)
+		require.Equal(t, http.StatusBadRequest, status, body)
+
+		var oauthErr struct {
+			Error            string `json:"error"`
+			ErrorDescription string `json:"error_description"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
+		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidRequest), oauthErr.Error)
+		requireNQSCHAR(t, oauthErr.ErrorDescription)
+		require.Contains(t, oauthErr.ErrorDescription, "RFC 7636 section 4.1")
+	})
+}
+
 func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	t.Parallel()
 
@@ -662,6 +740,18 @@ func requireTokenScopeError(t *testing.T, status int, body string) string {
 	require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
 	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), oauthErr.Error)
 	return oauthErr.ErrorDescription
+}
+
+// requireNQSCHAR asserts the NQSCHAR set RFC 6749 Appendix A permits in
+// error_description. Asserted on the decoded value, since that is what a client
+// library hands to its caller.
+func requireNQSCHAR(t *testing.T, description string) {
+	t.Helper()
+
+	for _, r := range description {
+		require.True(t, r == 0x20 || r == 0x21 || (r >= 0x23 && r <= 0x5B) || (r >= 0x5D && r <= 0x7E),
+			"%q is outside the NQSCHAR set RFC 6749 Appendix A permits", r)
+	}
 }
 
 func tokenRow(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.OAuth2ProviderAppToken {

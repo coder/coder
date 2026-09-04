@@ -210,6 +210,15 @@ func consentScopes(granted string) (names []string, unrestricted bool) {
 // short enough for a Location header to survive the proxies in front of it.
 const maxErrorDescription = 2048
 
+// capErrorDescription bounds a description to maxErrorDescription. Descriptions
+// quote values the client sent, so their length is the client's to choose.
+func capErrorDescription(description string) string {
+	if len(description) > maxErrorDescription {
+		return description[:maxErrorDescription] + " (truncated)"
+	}
+	return description
+}
+
 // responseTypeCode is the only response type this server supports. response_type
 // is read as text rather than through the SDK enum so every unsupported value
 // takes one path, instead of splitting on whether a Go constant happens to
@@ -536,11 +545,8 @@ func (a authorizeResponse) codeURL(code string) *url.URL {
 }
 
 func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog.Logger, response authorizeResponse, code codersdk.OAuth2ErrorCode, description string) {
-	// Descriptions echo values the client sent, so their length is the client's
-	// to choose. Cap here, ahead of both the log field and the Location header.
-	if len(description) > maxErrorDescription {
-		description = description[:maxErrorDescription] + " (truncated)"
-	}
+	// Capped ahead of both the log field and the Location header.
+	description = capErrorDescription(description)
 
 	app := httpmw.OAuth2ProviderApp(r)
 	logger.Info(r.Context(), "oauth2 authorization rejected",
