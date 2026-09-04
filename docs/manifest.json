@@ -1553,6 +1553,10 @@
 							"path": "./reference/api/aiproviders.md"
 						},
 						{
+							"title": "Agent time",
+							"path": "./reference/api/agenttime.md"
+						},
+						{
 							"title": "Agents",
 							"description": "REST endpoints for the workspace agent daemon (`coder_agent`).",
 							"path": "./reference/api/agents.md"

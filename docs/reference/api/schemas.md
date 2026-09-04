@@ -1658,6 +1658,135 @@ None
 |-------------------------------------|
 | `envbox`, `envbuilder`, `exectrace` |
 
+## codersdk.AgentTimeBreakdown
+
+```json
+{
+  "agent_time_ms": "string",
+  "deleted": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description |
+|-----------------|---------|----------|--------------|-------------|
+| `agent_time_ms` | string  | false    |              |             |
+| `deleted`       | boolean | false    |              |             |
+| `id`            | string  | false    |              |             |
+| `name`          | string  | false    |              |             |
+
+## codersdk.AgentTimeBucket
+
+```json
+{
+  "agent_time_ms": "string",
+  "complete": true,
+  "end_date": "2019-08-24",
+  "partial": true,
+  "start_date": "2019-08-24"
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description |
+|-----------------|---------|----------|--------------|-------------|
+| `agent_time_ms` | string  | false    |              |             |
+| `complete`      | boolean | false    |              |             |
+| `end_date`      | string  | false    |              |             |
+| `partial`       | boolean | false    |              |             |
+| `start_date`    | string  | false    |              |             |
+
+## codersdk.AgentTimeInterval
+
+```json
+"day"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)               |
+|------------------------|
+| `day`, `month`, `week` |
+
+## codersdk.AgentTimeReport
+
+```json
+{
+  "buckets": [
+    {
+      "agent_time_ms": "string",
+      "complete": true,
+      "end_date": "2019-08-24",
+      "partial": true,
+      "start_date": "2019-08-24"
+    }
+  ],
+  "count": 0,
+  "end_date": "2019-08-24",
+  "historical_notice": "string",
+  "interval": "day",
+  "rows": [
+    {
+      "agent_time_ms": "string",
+      "deleted": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string"
+    }
+  ],
+  "start_date": "2019-08-24",
+  "status": {
+    "backfill_complete": true,
+    "backfill_error": "string",
+    "capture_started_at": "2019-08-24T14:15:22Z",
+    "earliest_date": "2019-08-24",
+    "processed_messages": "string"
+  },
+  "total_agent_time_ms": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                | Required | Restrictions | Description |
+|-----------------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `buckets`             | array of [codersdk.AgentTimeBucket](#codersdkagenttimebucket)       | false    |              |             |
+| `count`               | integer                                                             | false    |              |             |
+| `end_date`            | string                                                              | false    |              |             |
+| `historical_notice`   | string                                                              | false    |              |             |
+| `interval`            | [codersdk.AgentTimeInterval](#codersdkagenttimeinterval)            | false    |              |             |
+| `rows`                | array of [codersdk.AgentTimeBreakdown](#codersdkagenttimebreakdown) | false    |              |             |
+| `start_date`          | string                                                              | false    |              |             |
+| `status`              | [codersdk.AgentTimeStatus](#codersdkagenttimestatus)                | false    |              |             |
+| `total_agent_time_ms` | string                                                              | false    |              |             |
+
+## codersdk.AgentTimeStatus
+
+```json
+{
+  "backfill_complete": true,
+  "backfill_error": "string",
+  "capture_started_at": "2019-08-24T14:15:22Z",
+  "earliest_date": "2019-08-24",
+  "processed_messages": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `backfill_complete`  | boolean | false    |              |             |
+| `backfill_error`     | string  | false    |              |             |
+| `capture_started_at` | string  | false    |              |             |
+| `earliest_date`      | string  | false    |              |             |
+| `processed_messages` | string  | false    |              |             |
+
 ## codersdk.AppHostResponse
 
 ```json

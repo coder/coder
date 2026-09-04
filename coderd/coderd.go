@@ -1521,6 +1521,8 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.organizations)
+			// Historical reports retain UUID attribution after organizations are deleted.
+			r.Get("/{organization}/agent-time", api.organizationAgentTime)
 			r.Route("/{organization}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),
@@ -1934,6 +1936,7 @@ func New(options *Options) *API {
 				r.Get("/", api.workspaceApplicationAuth)
 			})
 		})
+		r.With(apiKeyMiddleware).Get("/agent-time", api.agentTime)
 		r.Route("/insights", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Group(func(r chi.Router) {
