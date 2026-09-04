@@ -97,6 +97,9 @@ type poolRPCReloader struct {
 	logger          slog.Logger
 	aibridgeMetrics *aibridge.Metrics
 	providerMetrics *aibridged.Metrics
+	// profiles is created once per reloader so Bedrock application inference
+	// profile resolutions survive the provider rebuild each reload performs.
+	profiles *aibridge.InferenceProfileCache
 }
 
 // NewPoolRPCReloader builds an [aibridged.ProviderReloader] that fetches the
@@ -119,6 +122,7 @@ func NewPoolRPCReloader(
 		logger:          logger,
 		aibridgeMetrics: aibridgeMetrics,
 		providerMetrics: providerMetrics,
+		profiles:        aibridge.NewInferenceProfileCache(),
 	}
 }
 
@@ -136,7 +140,7 @@ func (r *poolRPCReloader) Reload(ctx context.Context) error {
 		// beyond the operator's actual misconfiguration.
 		return xerrors.Errorf("fetch ai providers: %w", err)
 	}
-	providers, outcomes := BuildProvidersFromProto(ctx, resp.GetProviders(), r.cfg, r.logger, r.aibridgeMetrics)
+	providers, outcomes := BuildProvidersFromProto(ctx, resp.GetProviders(), r.cfg, r.logger, r.aibridgeMetrics, r.profiles)
 	r.pool.ReplaceProviders(providers)
 	r.providerMetrics.RecordReloadSuccess(outcomes)
 	return nil
@@ -152,7 +156,7 @@ func (r *poolRPCReloader) Reload(ctx context.Context) error {
 // excluded from the returned snapshot; this keeps a single misconfigured
 // provider from taking the whole daemon down. The returned outcomes mirror the
 // per-provider status for metrics reporting.
-func BuildProvidersFromProto(ctx context.Context, protoProviders []*proto.AIProvider, cfg codersdk.AIBridgeConfig, logger slog.Logger, metrics *aibridge.Metrics) ([]aibridge.Provider, []aibridged.ProviderOutcome) {
+func BuildProvidersFromProto(ctx context.Context, protoProviders []*proto.AIProvider, cfg codersdk.AIBridgeConfig, logger slog.Logger, metrics *aibridge.Metrics, profiles *aibridge.InferenceProfileCache) ([]aibridge.Provider, []aibridged.ProviderOutcome) {
 	providers := make([]aibridge.Provider, 0, len(protoProviders))
 	outcomes := make([]aibridged.ProviderOutcome, 0, len(protoProviders))
 	enabledCount := 0
@@ -165,7 +169,7 @@ func BuildProvidersFromProto(ctx context.Context, protoProviders []*proto.AIProv
 		if spec.Enabled {
 			enabledCount++
 		}
-		prov, err := buildProvider(ctx, spec, cfg, metrics)
+		prov, err := buildProvider(ctx, spec, cfg, metrics, profiles)
 		if err != nil {
 			outcome.Status = aibridged.ProviderStatusError
 			outcome.Err = err
@@ -239,7 +243,7 @@ type aiProviderSpec struct {
 
 // buildProvider constructs the appropriate [aibridge.Provider] for a
 // single provider spec, independent of where the spec was sourced from.
-func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBridgeConfig, metrics *aibridge.Metrics) (aibridge.Provider, error) {
+func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBridgeConfig, metrics *aibridge.Metrics, profiles *aibridge.InferenceProfileCache) (aibridge.Provider, error) {
 	if !spec.Enabled {
 		return aibridge.NewDisabledProviderStub(spec.Name, string(spec.Type)), nil
 	}
@@ -311,7 +315,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
-		}, bedrock)
+		}, bedrock, profiles)
 
 	case database.AIProviderTypeCopilot:
 		// Copilot is always BYOK; the per-user token is supplied on each

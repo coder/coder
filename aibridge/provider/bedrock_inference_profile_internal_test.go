@@ -2,13 +2,20 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestIsApplicationInferenceProfileARN(t *testing.T) {
@@ -124,12 +131,15 @@ func TestModelIDFromARN(t *testing.T) {
 	}
 }
 
-// TestNewAnthropic_InferenceProfileResolution drives the Bedrock
+// TestInferenceProfileResolutionOnFirstRequest drives the Bedrock
 // GetInferenceProfile path against a mock endpoint.
 // https://docs.aws.amazon.com/bedrock/latest/APIReference/API_GetInferenceProfile.html
 // NOTE: no t.Parallel() because the subtests use t.Setenv.
-func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
-	const profileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5"
+func TestInferenceProfileResolutionOnFirstRequest(t *testing.T) {
+	const (
+		profileARN          = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5"
+		smallFastProfileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/8x1qk20fzp3r"
+	)
 
 	bedrockCfg := func(model, smallFastModel string) *config.AWSBedrock {
 		return &config.AWSBedrock{
@@ -146,71 +156,127 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 	mockBedrock := func(t *testing.T, handler http.HandlerFunc) (url string, paths *[]string) {
 		t.Helper()
 
-		var got []string
+		var (
+			mu  sync.Mutex
+			got []string
+		)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
 			got = append(got, r.URL.Path)
+			mu.Unlock()
 			handler(w, r)
 		}))
 		t.Cleanup(srv.Close)
 		return srv.URL, &got
 	}
 
-	t.Run("resolved profile drives the model id", func(t *testing.T) {
-		url, paths := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
+	// interceptFor runs a request through the provider the way the bridge does.
+	interceptFor := func(t *testing.T, p *Anthropic, model string) (intercept.Interceptor, error) {
+		t.Helper()
+
+		body := fmt.Sprintf(`{"model":%q,"max_tokens":10000}`, model)
+		req := httptest.NewRequest(http.MethodPost, p.RoutePrefix()+routeMessages, strings.NewReader(body))
+		return p.CreateInterceptor(httptest.NewRecorder(), req, testTracer)
+	}
+
+	respondWithModel := func(modelARN string) http.HandlerFunc {
+		return func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"models":[{"modelArn":"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8"}]}`))
+			_, _ = fmt.Fprintf(w, `{"models":[{"modelArn":%q}]}`, modelARN)
+		}
+	}
+
+	t.Run("construction makes no aws call", func(t *testing.T) {
+		url, paths := mockBedrock(t, func(http.ResponseWriter, *http.Request) {
+			t.Error("Bedrock called during construction")
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
+		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"), NewInferenceProfileCache())
 		require.NoError(t, err)
-		require.Equal(t, "anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
-		// The profile stays the configured identifier so AWS attributes spend to it.
-		require.Equal(t, profileARN, p.bedrock.ConfiguredModel())
-		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
+		require.Empty(t, *paths)
+	})
+
+	t.Run("resolved profile drives the model id", func(t *testing.T) {
+		url, paths := mockBedrock(t, respondWithModel("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8"))
+		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
+
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"), NewInferenceProfileCache())
+		require.NoError(t, err)
+
+		interceptor, err := interceptFor(t, p, "claude-opus-4-8")
+		require.NoError(t, err)
+		require.Equal(t, "anthropic.claude-opus-4-8", interceptor.Model())
 		require.Len(t, *paths, 1, "only the profile ARN is resolved")
 		require.Contains(t, (*paths)[0], profileARN)
 	})
 
-	t.Run("failed resolution fails construction", func(t *testing.T) {
+	t.Run("resolution is cached across requests", func(t *testing.T) {
+		url, paths := mockBedrock(t, respondWithModel("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8"))
+		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
+
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"), NewInferenceProfileCache())
+		require.NoError(t, err)
+
+		for range 3 {
+			interceptor, err := interceptFor(t, p, "claude-opus-4-8")
+			require.NoError(t, err)
+			require.Equal(t, "anthropic.claude-opus-4-8", interceptor.Model())
+		}
+		require.Len(t, *paths, 1, "the profile is resolved once")
+	})
+
+	t.Run("failed resolution fails the request and is retried", func(t *testing.T) {
+		var attempts atomic.Int64
 		url, _ := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("X-Amzn-Errortype", "AccessDeniedException")
-			w.WriteHeader(http.StatusForbidden)
-			_, _ = w.Write([]byte(`{"message":"not authorized to perform bedrock:GetInferenceProfile"}`))
+			if attempts.Add(1) == 1 {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("X-Amzn-Errortype", "AccessDeniedException")
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"message":"not authorized to perform bedrock:GetInferenceProfile"}`))
+				return
+			}
+			respondWithModel("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8")(w, nil)
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
-		require.ErrorContains(t, err, "resolve bedrock models")
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"), NewInferenceProfileCache())
+		require.NoError(t, err)
+
+		_, err = interceptFor(t, p, "claude-opus-4-8")
+		require.ErrorContains(t, err, "resolve model")
 		require.ErrorContains(t, err, "GetInferenceProfile")
+
+		// The provider stays usable: the failure was not cached.
+		interceptor, err := interceptFor(t, p, "claude-opus-4-8")
+		require.NoError(t, err)
+		require.Equal(t, "anthropic.claude-opus-4-8", interceptor.Model())
 	})
 
-	t.Run("profile without a model fails construction", func(t *testing.T) {
+	t.Run("profile without a model fails the request", func(t *testing.T) {
 		url, _ := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"models":[]}`))
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"), NewInferenceProfileCache())
+		require.NoError(t, err)
+
+		_, err = interceptFor(t, p, "claude-opus-4-8")
 		require.ErrorContains(t, err, "references no model")
 	})
 
 	t.Run("small fast profile resolves independently", func(t *testing.T) {
-		const smallFastProfileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/8x1qk20fzp3r"
-
-		url, paths := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"models":[{"modelArn":"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5"}]}`))
-		})
+		url, paths := mockBedrock(t, respondWithModel("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5"))
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8", smallFastProfileARN))
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8", smallFastProfileARN), NewInferenceProfileCache())
 		require.NoError(t, err)
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
-		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
-		require.Equal(t, smallFastProfileARN, p.bedrock.ConfiguredSmallFastModel())
+
+		interceptor, err := interceptFor(t, p, "claude-haiku-4-5")
+		require.NoError(t, err)
+		require.Equal(t, "anthropic.claude-haiku-4-5", interceptor.Model())
 		require.Len(t, *paths, 1, "only the small fast profile ARN is resolved")
 		require.Contains(t, (*paths)[0], smallFastProfileARN)
 	})
@@ -221,10 +287,58 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"))
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"), NewInferenceProfileCache())
 		require.NoError(t, err)
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ConfiguredModel())
+
+		interceptor, err := interceptFor(t, p, "claude-opus-4-8")
+		require.NoError(t, err)
+		require.Equal(t, "eu.anthropic.claude-opus-4-8", interceptor.Model())
 		require.Empty(t, *paths)
 	})
+}
+
+// TestInferenceProfileCacheSharesConcurrentResolutions verifies that a burst of
+// requests for an unresolved profile issues a single AWS lookup.
+func TestInferenceProfileCacheSharesConcurrentResolutions(t *testing.T) {
+	const profileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5"
+
+	var calls atomic.Int64
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"models":[{"modelArn":"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("AWS_ENDPOINT_URL_BEDROCK", srv.URL)
+
+	awsCfg, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+		Region:          "us-east-1",
+		AccessKey:       "test-key",
+		AccessKeySecret: "test-secret",
+	})
+	require.NoError(t, err)
+
+	cache := NewInferenceProfileCache()
+	const callers = 8
+	results := make(chan error, callers)
+	for range callers {
+		go func() {
+			model, err := cache.Resolve(context.Background(), awsCfg, profileARN)
+			if err == nil && model != "anthropic.claude-opus-4-8" {
+				err = xerrors.Errorf("unexpected model %q", model)
+			}
+			results <- err
+		}()
+	}
+
+	// Hold the handler until every caller has joined the in-flight resolution.
+	require.Eventually(t, func() bool { return calls.Load() == 1 }, testutil.WaitShort, testutil.IntervalFast)
+	close(release)
+
+	for range callers {
+		require.NoError(t, <-results)
+	}
+	require.Equal(t, int64(1), calls.Load())
 }

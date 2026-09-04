@@ -742,7 +742,7 @@ func TestBuildProviderFromProtoSetsAPIDumpDir(t *testing.T) {
 			provider, err := buildProvider(t.Context(), protoToProviderSpec(tt.provider), codersdk.AIBridgeConfig{
 				AllowBYOK:  serpent.Bool(true),
 				APIDumpDir: serpent.String(dumpDir),
-			}, nil)
+			}, nil, aibridge.NewInferenceProfileCache())
 			require.NoError(t, err)
 			assert.Equal(t, dumpDir, provider.APIDumpDir())
 			assert.Equal(t, tt.expectedType, provider.Type())
@@ -760,7 +760,7 @@ func TestBuildProviderFromProtoBedrockWithoutSettings(t *testing.T) {
 		BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
 	}), codersdk.AIBridgeConfig{
 		AllowBYOK: serpent.Bool(true),
-	}, nil)
+	}, nil, aibridge.NewInferenceProfileCache())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bedrock provider has no bedrock credentials configured")
 }

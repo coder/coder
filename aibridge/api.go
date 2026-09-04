@@ -40,14 +40,24 @@ type (
 	AWSBedrockConfig = config.AWSBedrock
 	OpenAIConfig     = config.OpenAI
 	CopilotConfig    = config.Copilot
+
+	// InferenceProfileCache caches Bedrock application inference profile
+	// resolutions across provider reloads. Create one per process.
+	InferenceProfileCache = provider.InferenceProfileCache
 )
+
+// NewInferenceProfileCache returns a cache shared by every Bedrock provider in
+// the process.
+func NewInferenceProfileCache() *InferenceProfileCache {
+	return provider.NewInferenceProfileCache()
+}
 
 func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) context.Context {
 	return aibcontext.AsActor(ctx, actorID, metadata)
 }
 
-func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (provider.Provider, error) {
-	return provider.NewAnthropic(ctx, cfg, bedrockCfg)
+func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock, profiles *InferenceProfileCache) (provider.Provider, error) {
+	return provider.NewAnthropic(ctx, cfg, bedrockCfg, profiles)
 }
 
 func NewOpenAIProvider(cfg config.OpenAI) provider.Provider {
