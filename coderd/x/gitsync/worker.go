@@ -33,6 +33,13 @@ const (
 	// their account before retrying is useful.
 	NoTokenBackoff = 10 * time.Minute
 
+	// NotImplementedBackoff is the backoff duration applied to rows
+	// whose remote origin matches a git provider type that is not
+	// yet implemented (e.g. bitbucket, azure devops). Retrying
+	// frequently is futile until support is added, and rows are
+	// revived immediately by MarkStale on any new commit activity.
+	NotImplementedBackoff = 24 * time.Hour
+
 	// NoPRBackoff is the backoff applied when a branch has no
 	// associated pull request yet. Kept short so that PRs created
 	// shortly after a push (e.g. via `gh pr create`) are
@@ -216,11 +223,13 @@ func (w *Worker) tick(ctx context.Context) {
 				slog.F("chat_id", res.Request.Row.ChatID),
 				slog.Error(res.Error))
 			// Apply a longer backoff for rows whose owner has
-			// no linked token — retrying every 2 minutes is
-			// pointless until the user links their account.
+			// no linked token or whose git provider is unimplemented
+			// — retrying every 2 minutes is pointless.
 			backoff := DiffStatusTTL
 			if errors.Is(res.Error, ErrNoTokenAvailable) {
 				backoff = NoTokenBackoff
+			} else if errors.Is(res.Error, ErrProviderUnimplemented) {
+				backoff = NotImplementedBackoff
 			}
 			// Back off so the row isn't retried immediately.
 			if err := w.store.BackoffChatDiffStatus(ctx,
