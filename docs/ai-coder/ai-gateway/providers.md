@@ -230,6 +230,22 @@ To enforce it, add the external ID to the target role's trust policy as an
 > not enforced, and the role can still be assumed without it. To rotate the
 > external ID, recreate the provider.
 
+#### Application inference profiles
+
+For InvokeModel, the **model** and **small fast model** identifiers can be
+[application inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/cost-mgmt-application-inference-profiles.html)
+ARNs, which attribute Bedrock spend to a team or workload through AWS cost
+allocation tags.
+
+AI Gateway passes the profile upstream so AWS records the attribution, while
+internally resolving and using the underlying model identity, including for
+usage pricing.
+
+Resolution requires a `GetInferenceProfile` call, so the AWS identity used by
+the gateway must have `bedrock:GetInferenceProfile` permission for the
+profile. Providers configured with plain model identifiers do not need this
+permission. If resolution fails, the provider is skipped.
+
 ### GitHub Copilot
 
 GitHub Copilot offers three plans: Individual, Business, and Enterprise,
