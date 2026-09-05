@@ -6958,6 +6958,14 @@ func (q *querier) ListAIBridgeModels(ctx context.Context, arg database.ListAIBri
 	return q.db.ListAuthorizedAIBridgeModels(ctx, arg, prep)
 }
 
+func (q *querier) ListAIBridgeProviders(ctx context.Context, arg database.ListAIBridgeProvidersParams) ([]string, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.ListAuthorizedAIBridgeProviders(ctx, arg, prep)
+}
+
 func (q *querier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg database.ListAIBridgeSessionNetworkCallsParams) ([]database.BoundaryLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
 		return nil, err
@@ -9595,6 +9603,14 @@ func (q *querier) ListAuthorizedAIBridgeClients(ctx context.Context, arg databas
 	// querier. This cannot be deleted for now because it's included in
 	// the database.Store interface, so dbauthz needs to implement it.
 	return q.ListAIBridgeClients(ctx, arg)
+}
+
+func (q *querier) ListAuthorizedAIBridgeProviders(ctx context.Context, arg database.ListAIBridgeProvidersParams, _ rbac.PreparedAuthorized) ([]string, error) {
+	// TODO: Delete this function, all ListAIBridgeProviders should be
+	// authorized. For now just call ListAIBridgeProviders on the authz
+	// querier. This cannot be deleted for now because it's included in
+	// the database.Store interface, so dbauthz needs to implement it.
+	return q.ListAIBridgeProviders(ctx, arg)
 }
 
 func (q *querier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg database.ListAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionsRow, error) {

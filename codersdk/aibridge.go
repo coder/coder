@@ -409,6 +409,20 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	return clients, ReadBodyAsJSON(res, &clients)
 }
 
+// AIBridgeListProviders returns the distinct AI provider names visible to the caller.
+func (c *Client) AIBridgeListProviders(ctx context.Context) ([]string, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/providers", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var providers []string
+	return providers, ReadBodyAsJSON(res, &providers)
+}
+
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
 // per-provider AI spend for the organization over the requested period. Both
 // bounds are optional and interpreted as UTC, and zero values fall back to the

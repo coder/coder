@@ -1913,3 +1913,42 @@ func TestSearchGroups(t *testing.T) {
 		})
 	}
 }
+
+func TestAIBridgeSessions(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	page := codersdk.Pagination{Limit: 25}
+
+	filter, errs := searchquery.AIBridgeSessions(context.Background(), db, `provider_name:acme-openai`, page, uuid.Nil, "")
+	require.Empty(t, errs)
+	require.Equal(t, "acme-openai", filter.ProviderName)
+}
+
+func TestAIBridgeProviders(t *testing.T) {
+	t.Parallel()
+
+	page := codersdk.Pagination{Limit: 25}
+
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		filter, errs := searchquery.AIBridgeProviders("", page)
+		require.Empty(t, errs)
+		require.Equal(t, "", filter.ProviderName)
+		require.EqualValues(t, 25, filter.Limit)
+	})
+
+	t.Run("BareTerm", func(t *testing.T) {
+		t.Parallel()
+		filter, errs := searchquery.AIBridgeProviders("openai", page)
+		require.Empty(t, errs)
+		require.Equal(t, "openai", filter.ProviderName)
+	})
+
+	t.Run("KeyedTerm", func(t *testing.T) {
+		t.Parallel()
+		filter, errs := searchquery.AIBridgeProviders("provider_name:acme-openai", page)
+		require.Empty(t, errs)
+		require.Equal(t, "acme-openai", filter.ProviderName)
+	})
+}

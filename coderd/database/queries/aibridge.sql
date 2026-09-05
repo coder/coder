@@ -770,6 +770,33 @@ LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
 
+-- name: ListAIBridgeProviders :many
+SELECT
+	provider_name
+FROM
+	aibridge_interceptions
+WHERE
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
+	AND aibridge_interceptions.provider_name != ''
+	-- Filter provider_name (prefix match, same as models and clients).
+	AND CASE
+		WHEN @provider_name::text != '' THEN aibridge_interceptions.provider_name LIKE @provider_name::text || '%'
+		ELSE true
+	END
+	-- We use an `@authorize_filter` as we are attempting to list providers
+	-- that are relevant to the user and what they are allowed to see.
+	-- Authorize Filter clause will be injected below in
+	-- ListAIBridgeProvidersAuthorized.
+	-- @authorize_filter
+GROUP BY
+	provider_name
+ORDER BY
+	provider_name ASC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
+OFFSET @offset_
+;
+
 -- name: GetAIBridgeChatCost :one
 -- AI Gateway cost for one chat tree: the root chat plus every subagent
 -- beneath it. The spawning chat's ID is recorded as the interception session
