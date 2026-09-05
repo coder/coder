@@ -111,6 +111,245 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const getAgentTimeBreakdown = `-- name: GetAgentTimeBreakdown :many
+WITH daily AS (
+    SELECT organization_id, '00000000-0000-0000-0000-000000000000'::uuid AS user_id, day, agent_time_ms
+    FROM agent_time_organization_daily
+    WHERE $5::boolean
+    UNION ALL
+    SELECT organization_id, user_id, day, agent_time_ms::numeric
+    FROM agent_time_daily
+    WHERE NOT $5::boolean
+), totals AS (
+    SELECT CASE WHEN $6::text = 'user' THEN user_id ELSE organization_id END AS id,
+        SUM(agent_time_ms) AS agent_time_ms
+    FROM daily
+    WHERE day >= $7::date AND day < $8::date
+    AND ($9::uuid = '00000000-0000-0000-0000-000000000000' OR organization_id = $9)
+    AND ($10::uuid = '00000000-0000-0000-0000-000000000000' OR user_id = $10)
+    GROUP BY 1
+), named AS (
+    SELECT totals.id, totals.agent_time_ms,
+        CASE WHEN $6::text = 'user' THEN
+            CASE WHEN u.id IS NULL OR u.deleted THEN 'Deleted user' ELSE u.username END
+        ELSE
+            CASE WHEN o.id IS NULL OR o.deleted THEN 'Deleted organization'
+                ELSE COALESCE(NULLIF(o.display_name, ''), o.name) END
+        END::text AS name,
+        CASE WHEN $6::text = 'user' THEN u.id IS NULL OR u.deleted
+            ELSE o.id IS NULL OR o.deleted END::boolean AS deleted
+    FROM totals
+    LEFT JOIN users u ON $6::text = 'user' AND u.id = totals.id
+    LEFT JOIN organizations o ON $6::text = 'organization' AND o.id = totals.id
+)
+SELECT id::uuid AS id, name, deleted, agent_time_ms::text AS agent_time_ms FROM named
+ORDER BY
+    CASE WHEN $1::text = 'agent_time' AND $2::text = 'desc' THEN agent_time_ms END DESC,
+    CASE WHEN $1::text = 'agent_time' AND $2::text = 'asc' THEN agent_time_ms END ASC,
+    CASE WHEN $1::text = 'name' AND $2::text = 'desc' THEN name END DESC,
+    CASE WHEN $1::text = 'name' AND $2::text = 'asc' THEN name END ASC,
+    id ASC
+LIMIT $4::int OFFSET $3::int
+`
+
+type GetAgentTimeBreakdownParams struct {
+	SortBy                 string    `db:"sort_by" json:"sort_by"`
+	SortOrder              string    `db:"sort_order" json:"sort_order"`
+	PageOffset             int32     `db:"page_offset" json:"page_offset"`
+	PageLimit              int32     `db:"page_limit" json:"page_limit"`
+	UseOrganizationSummary bool      `db:"use_organization_summary" json:"use_organization_summary"`
+	GroupBy                string    `db:"group_by" json:"group_by"`
+	StartDate              time.Time `db:"start_date" json:"start_date"`
+	EndDate                time.Time `db:"end_date" json:"end_date"`
+	OrganizationID         uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+type GetAgentTimeBreakdownRow struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	Deleted     bool      `db:"deleted" json:"deleted"`
+	AgentTimeMs string    `db:"agent_time_ms" json:"agent_time_ms"`
+}
+
+func (q *sqlQuerier) GetAgentTimeBreakdown(ctx context.Context, arg GetAgentTimeBreakdownParams) ([]GetAgentTimeBreakdownRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAgentTimeBreakdown,
+		arg.SortBy,
+		arg.SortOrder,
+		arg.PageOffset,
+		arg.PageLimit,
+		arg.UseOrganizationSummary,
+		arg.GroupBy,
+		arg.StartDate,
+		arg.EndDate,
+		arg.OrganizationID,
+		arg.UserID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAgentTimeBreakdownRow
+	for rows.Next() {
+		var i GetAgentTimeBreakdownRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Deleted,
+			&i.AgentTimeMs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAgentTimeBuckets = `-- name: GetAgentTimeBuckets :many
+WITH daily AS (
+    SELECT organization_id, '00000000-0000-0000-0000-000000000000'::uuid AS user_id, day, agent_time_ms
+    FROM agent_time_organization_daily
+    WHERE $6::boolean
+    UNION ALL
+    SELECT organization_id, user_id, day, agent_time_ms::numeric
+    FROM agent_time_daily
+    WHERE NOT $6::boolean
+)
+SELECT date_trunc($1::text, day::timestamp)::date::text AS bucket_date,
+    SUM(agent_time_ms)::text AS agent_time_ms
+FROM daily
+WHERE day >= $2::date AND day < $3::date
+    AND ($4::uuid = '00000000-0000-0000-0000-000000000000' OR organization_id = $4)
+    AND ($5::uuid = '00000000-0000-0000-0000-000000000000' OR user_id = $5)
+GROUP BY 1
+ORDER BY 1
+`
+
+type GetAgentTimeBucketsParams struct {
+	Interval               string    `db:"interval" json:"interval"`
+	StartDate              time.Time `db:"start_date" json:"start_date"`
+	EndDate                time.Time `db:"end_date" json:"end_date"`
+	OrganizationID         uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	UseOrganizationSummary bool      `db:"use_organization_summary" json:"use_organization_summary"`
+}
+
+type GetAgentTimeBucketsRow struct {
+	BucketDate  string `db:"bucket_date" json:"bucket_date"`
+	AgentTimeMs string `db:"agent_time_ms" json:"agent_time_ms"`
+}
+
+func (q *sqlQuerier) GetAgentTimeBuckets(ctx context.Context, arg GetAgentTimeBucketsParams) ([]GetAgentTimeBucketsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAgentTimeBuckets,
+		arg.Interval,
+		arg.StartDate,
+		arg.EndDate,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.UseOrganizationSummary,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAgentTimeBucketsRow
+	for rows.Next() {
+		var i GetAgentTimeBucketsRow
+		if err := rows.Scan(&i.BucketDate, &i.AgentTimeMs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAgentTimeEarliestDate = `-- name: GetAgentTimeEarliestDate :one
+WITH daily AS (
+    SELECT organization_id, '00000000-0000-0000-0000-000000000000'::uuid AS user_id, day, agent_time_ms
+    FROM agent_time_organization_daily
+    WHERE $3::boolean
+    UNION ALL
+    SELECT organization_id, user_id, day, agent_time_ms::numeric
+    FROM agent_time_daily
+    WHERE NOT $3::boolean
+)
+SELECT COALESCE(MIN(day)::text, '')::text AS earliest_date
+FROM daily
+WHERE ($1::uuid = '00000000-0000-0000-0000-000000000000' OR organization_id = $1)
+    AND ($2::uuid = '00000000-0000-0000-0000-000000000000' OR user_id = $2)
+`
+
+type GetAgentTimeEarliestDateParams struct {
+	OrganizationID         uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	UseOrganizationSummary bool      `db:"use_organization_summary" json:"use_organization_summary"`
+}
+
+func (q *sqlQuerier) GetAgentTimeEarliestDate(ctx context.Context, arg GetAgentTimeEarliestDateParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getAgentTimeEarliestDate, arg.OrganizationID, arg.UserID, arg.UseOrganizationSummary)
+	var earliest_date string
+	err := row.Scan(&earliest_date)
+	return earliest_date, err
+}
+
+const getAgentTimeSummary = `-- name: GetAgentTimeSummary :one
+WITH daily AS (
+    SELECT organization_id, '00000000-0000-0000-0000-000000000000'::uuid AS user_id, day, agent_time_ms
+    FROM agent_time_organization_daily
+    WHERE $6::boolean
+    UNION ALL
+    SELECT organization_id, user_id, day, agent_time_ms::numeric
+    FROM agent_time_daily
+    WHERE NOT $6::boolean
+)
+SELECT COALESCE(SUM(agent_time_ms), 0)::text AS agent_time_ms,
+    COUNT(DISTINCT CASE WHEN $1::text = 'user' THEN user_id ELSE organization_id END)::bigint AS count
+FROM daily
+WHERE day >= $2::date AND day < $3::date
+    AND ($4::uuid = '00000000-0000-0000-0000-000000000000' OR organization_id = $4)
+    AND ($5::uuid = '00000000-0000-0000-0000-000000000000' OR user_id = $5)
+`
+
+type GetAgentTimeSummaryParams struct {
+	GroupBy                string    `db:"group_by" json:"group_by"`
+	StartDate              time.Time `db:"start_date" json:"start_date"`
+	EndDate                time.Time `db:"end_date" json:"end_date"`
+	OrganizationID         uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	UseOrganizationSummary bool      `db:"use_organization_summary" json:"use_organization_summary"`
+}
+
+type GetAgentTimeSummaryRow struct {
+	AgentTimeMs string `db:"agent_time_ms" json:"agent_time_ms"`
+	Count       int64  `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetAgentTimeSummary(ctx context.Context, arg GetAgentTimeSummaryParams) (GetAgentTimeSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getAgentTimeSummary,
+		arg.GroupBy,
+		arg.StartDate,
+		arg.EndDate,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.UseOrganizationSummary,
+	)
+	var i GetAgentTimeSummaryRow
+	err := row.Scan(&i.AgentTimeMs, &i.Count)
+	return i, err
+}
+
 const accountAgentTimeMessages = `-- name: AccountAgentTimeMessages :one
 SELECT account_agent_time_messages($1::bigint[])::bigint
 `

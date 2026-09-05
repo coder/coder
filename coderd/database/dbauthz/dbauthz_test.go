@@ -5816,6 +5816,30 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetAgentTimeStatus(gomock.Any(), organizationID).Return(row, nil).AnyTimes()
 		check.Args(organizationID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(row)
 	}))
+	s.Run("GetAgentTimeEarliestDate", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAgentTimeEarliestDateParams{}
+		result := ""
+		dbm.EXPECT().GetAgentTimeEarliestDate(gomock.Any(), arg).Return(result, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(result)
+	}))
+	s.Run("GetAgentTimeSummary", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAgentTimeSummaryParams{}
+		result := database.GetAgentTimeSummaryRow{}
+		dbm.EXPECT().GetAgentTimeSummary(gomock.Any(), arg).Return(result, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(result)
+	}))
+	s.Run("GetAgentTimeBuckets", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAgentTimeBucketsParams{}
+		result := []database.GetAgentTimeBucketsRow{}
+		dbm.EXPECT().GetAgentTimeBuckets(gomock.Any(), arg).Return(result, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(result)
+	}))
+	s.Run("GetAgentTimeBreakdown", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAgentTimeBreakdownParams{}
+		result := []database.GetAgentTimeBreakdownRow{}
+		dbm.EXPECT().GetAgentTimeBreakdown(gomock.Any(), arg).Return(result, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(result)
+	}))
 	s.Run("GetWebpushVAPIDKeys", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetWebpushVAPIDKeys(gomock.Any()).Return(database.GetWebpushVAPIDKeysRow{VapidPublicKey: "test", VapidPrivateKey: "test"}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(database.GetWebpushVAPIDKeysRow{VapidPublicKey: "test", VapidPrivateKey: "test"})
