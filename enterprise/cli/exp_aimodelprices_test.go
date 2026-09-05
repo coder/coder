@@ -472,6 +472,19 @@ func TestAIModelPricesList(t *testing.T) {
 		require.Equal(t, def[0], all[1])
 	})
 
+	t.Run("RejectsAnUnsupportedProvider", func(t *testing.T) {
+		t.Parallel()
+
+		client := setupAIModelPricesCLI(t)
+		inv, conf := newCLI(t, "exp", "ai-model-prices", "list", "--provider", "agents-baseten")
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
+
+		// When: an unsupported provider type is passed. Then: the API rejects it.
+		err := inv.Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `Provider "agents-baseten" is not supported.`)
+	})
+
 	t.Run("RejectsAnUnknownSource", func(t *testing.T) {
 		t.Parallel()
 
