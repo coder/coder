@@ -167,39 +167,60 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)
 
-	// Get the latest status for the workspace app to detect no-op updates
-	// nolint:gocritic // This is a system restricted operation.
-	latestAppStatus, err := a.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get latest workspace app status.",
-			Detail:  err.Error(),
-		})
-	}
-	// If no rows found, latestAppStatus will be a zero-value struct (ID == uuid.Nil)
+	// Serialize writes per app. The duplicate check must not use a stale
+	// read while a concurrent report commits.
+	var (
+		latestAppStatus database.WorkspaceAppStatus
+		inserted        bool
+	)
+	err = a.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, database.GenLockID("workspace_app_status_writes:"+app.ID.String())); err != nil {
+			return xerrors.Errorf("acquire lock: %w", err)
+		}
 
-	// nolint:gocritic // This is a system restricted operation.
-	_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
-		ID:          uuid.New(),
-		CreatedAt:   dbtime.Now(),
-		WorkspaceID: ws.ID,
-		AgentID:     a.AgentID,
-		AppID:       app.ID,
-		State:       dbState,
-		Message:     cleaned,
-		Uri: sql.NullString{
-			String: req.Uri,
-			Valid:  req.Uri != "",
-		},
-	})
+		// nolint:gocritic // This is a system restricted operation.
+		latest, err := tx.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get latest workspace app status: %w", err)
+		}
+		// When the query returns no rows, latest holds a zero-value struct
+		// (ID == uuid.Nil).
+		latestAppStatus = latest
+
+		// Skip duplicate reports (for example, the watcher re-reports idle)
+		// so workspace_app_statuses does not grow without limit.
+		if isDuplicateAppStatus(latestAppStatus, a.AgentID, dbState, cleaned, req.Uri) {
+			return nil
+		}
+
+		// nolint:gocritic // This is a system restricted operation.
+		_, err = tx.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+			ID:          uuid.New(),
+			CreatedAt:   dbtime.Now(),
+			WorkspaceID: ws.ID,
+			AgentID:     a.AgentID,
+			AppID:       app.ID,
+			State:       dbState,
+			Message:     cleaned,
+			Uri: sql.NullString{
+				String: req.Uri,
+				Valid:  req.Uri != "",
+			},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace app status: %w", err)
+		}
+		inserted = true
+		return nil
+	}, &database.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to insert workspace app status.",
+			Message: "Failed to update workspace app status.",
 			Detail:  err.Error(),
 		})
 	}
 
-	if a.PublishWorkspaceUpdateFn != nil {
+	if inserted && a.PublishWorkspaceUpdateFn != nil {
 		err = a.PublishWorkspaceUpdateFn(ctx, a.AgentID, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
 		if err != nil {
 			return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
@@ -220,6 +241,18 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 	// just return a blank response because it doesn't contain any settable fields at present.
 	return new(agentproto.UpdateAppStatusResponse), nil
+}
+
+// isDuplicateAppStatus reports whether the incoming status matches the latest
+// status from the same agent. The handler must store a status from a different
+// agent, because consumers discard statuses older than the latest start build.
+func isDuplicateAppStatus(latest database.WorkspaceAppStatus, agentID uuid.UUID, state database.WorkspaceAppStatusState, message, uri string) bool {
+	return latest.ID != uuid.Nil &&
+		latest.AgentID == agentID &&
+		latest.State == state &&
+		latest.Message == message &&
+		latest.Uri.String == uri &&
+		latest.Uri.Valid == (uri != "")
 }
 
 func shouldBump(dbState database.WorkspaceAppStatusState, latestAppStatus database.WorkspaceAppStatus) bool {
