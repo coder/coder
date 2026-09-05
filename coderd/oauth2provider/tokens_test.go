@@ -355,6 +355,24 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			"an operator cannot act on this without knowing which stored name is the problem")
 	})
 
+	// The same stale row reached through a refresh rather than a code. A grant
+	// outlives the code that issued it, so this is the likelier way a name
+	// removed from the enum surfaces.
+	t.Run("StoredScopeOutsideEnumRejectedOnRefresh", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, scopeOutOfCatalog)
+
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, refreshToken))
+
+		description := requireTokenGrantError(t, status, body)
+		require.Contains(t, description, oauth2provider.ReasonUnmintableScope)
+		require.Contains(t, description, scopeOutOfCatalog,
+			"an operator cannot act on this without knowing which stored name is the problem")
+	})
+
 	t.Run("AllowlistNarrowedAfterAuthorizationRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -612,6 +630,96 @@ func TestOAuth2TokenExchangeReplay(t *testing.T) {
 	status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
 	requireTokenGrantError(t, status, body)
 	requireTokenAuthenticates(ctx, t, client, token.AccessToken)
+}
+
+// A revoked token must refresh as invalid_grant rather than as a server fault.
+// Both cases here pass before the GetAPIKeyByID mapping, because deleting
+// either row cascades the token row away and the prefix lookup answers first.
+// They stay because the property a client depends on is the response, not which
+// statement notices, and the cascades that make them pass are schema the
+// refresh does not control.
+func TestOAuth2RefreshRevokedToken(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	t.Run("KeyDeleted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		keyID := tokenRow(ctx, t, db, token.RefreshToken).APIKeyID
+		require.NoError(t, client.DeleteAPIKey(ctx, owner.UserID.String(), keyID))
+
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
+		requireTokenGrantError(t, status, body)
+	})
+
+	t.Run("AppSecretDeleted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		require.NoError(t, client.DeleteOAuth2ProviderAppSecret(ctx, app.ID, app.SecretID))
+
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
+		requireTokenGrantError(t, status, body)
+	})
+
+	// The third revocation path FR12 names. It never reaches the grant: the
+	// client_id no longer resolves, so authentication refuses first.
+	t.Run("AppDeleted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		require.NoError(t, client.DeleteOAuth2ProviderApp(ctx, app.ID))
+
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
+		require.Equal(t, http.StatusUnauthorized, status, body)
+		require.Contains(t, body, string(codersdk.OAuth2ErrorCodeInvalidClient), body)
+	})
+}
+
+// The case the mapping actually moves: a token row whose api_key_id names no
+// key. The FK cascade makes that unreachable through any API, so the
+// constraints come off to seed it, and this test takes a database of its own
+// because disabling them applies to every table in it. Without the mapping the
+// refresh answers HTTP 500.
+func TestOAuth2RefreshKeyMissing(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+	refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+	dbtestutil.DisableForeignKeysAndTriggers(t, db)
+	require.NoError(t, db.DeleteAPIKeyByID(dbauthz.AsSystemRestricted(ctx),
+		tokenRow(ctx, t, db, refreshToken).APIKeyID))
+
+	status, body := postTokenRequest(ctx, t, client, refreshForm(app, refreshToken))
+	requireTokenGrantError(t, status, body)
 }
 
 // barrierStore holds each redemption at its code read until every redemption

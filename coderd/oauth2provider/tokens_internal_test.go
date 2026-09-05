@@ -76,12 +76,19 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 
 	// Unreachable through the NOT NULL column, but pinned: apikey.Generate reads
 	// an empty list as unrestricted, so anything but an error widens the grant.
+	// CHECK (scope <> '') admits every value here but the first.
 	t.Run("EmptyRejected", func(t *testing.T) {
 		t.Parallel()
 
-		for _, scope := range []string{"", "   "} {
+		var first string
+		for _, scope := range []string{"", "   ", "\t", "\n", " \t\r\n "} {
 			_, err := scopeStringToAPIKeyScopes(scope)
 			require.ErrorIs(t, err, errUnmintableScope, "scope %q", scope)
+			if first == "" {
+				first = err.Error()
+			}
+			assert.Equal(t, first, err.Error(),
+				"a scope naming nothing has nothing to echo, so the message cannot vary with it")
 		}
 	})
 }

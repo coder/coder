@@ -146,7 +146,9 @@ func narrowAccessScope(ctx context.Context, logger slog.Logger, phase string, ap
 func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 	names := strings.Fields(scope)
 	if len(names) == 0 {
-		return nil, xerrors.Errorf("'%s': %w", scope, errUnmintableScope)
+		// Fixed message rather than an echo: CHECK (scope <> '') admits a
+		// whitespace-only value, which names nothing worth reporting back.
+		return nil, xerrors.Errorf("the grant names no scope: %w", errUnmintableScope)
 	}
 
 	scopes := make(database.APIKeyScopes, 0, len(names))
@@ -691,6 +693,11 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 	// Grab the user roles so we can perform the refresh as the user.
 	//nolint:gocritic // OAuth2 system context, need to read the previous API key
 	prevKey, err := db.GetAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), dbToken.APIKeyID)
+	// Revocation deletes the key, so a missing row means the token is dead.
+	// Without this branch it would read as a server fault.
+	if errors.Is(err, sql.ErrNoRows) {
+		return codersdk.OAuth2TokenResponse{}, errBadToken
+	}
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
