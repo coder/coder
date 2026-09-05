@@ -732,22 +732,21 @@ func (server *Server) prepareGeneration(
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
-		Model:                  model.LanguageModel(),
-		Messages:               compactionPromptMessages,
-		HasPendingUserMessages: len(pendingUserRows) > 0,
-		ThresholdPercent:       effectiveThreshold,
-		ContextLimit:           compactionContextLimit,
-		ContextLimitFallback:   compactionContextLimit,
-		ToolCallID:             compactionToolCallID,
-		ToolName:               "chat_summarized",
-		DebugSvc:               debugSvc,
-		ChatID:                 chat.ID,
-		HistoryTipMessageID:    historyTipMessageID,
-		ResolvedProvider:       resolved.resolvedProvider,
-		ResolvedModel:          resolved.resolvedModel,
-		ModelConfigID:          modelConfig.ID,
-		StepUsage:              compactionStepUsage,
-		SummaryCall:            compactionSummaryCall(resolved),
+		Model:                model.LanguageModel(),
+		Messages:             compactionPromptMessages,
+		ThresholdPercent:     effectiveThreshold,
+		ContextLimit:         compactionContextLimit,
+		ContextLimitFallback: compactionContextLimit,
+		ToolCallID:           compactionToolCallID,
+		ToolName:             "chat_summarized",
+		DebugSvc:             debugSvc,
+		ChatID:               chat.ID,
+		HistoryTipMessageID:  historyTipMessageID,
+		ResolvedProvider:     resolved.resolvedProvider,
+		ResolvedModel:        resolved.resolvedModel,
+		ModelConfigID:        modelConfig.ID,
+		StepUsage:            compactionStepUsage,
+		SummaryCall:          compactionSummaryCall(resolved),
 	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
