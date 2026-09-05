@@ -145,7 +145,14 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			"the rejection must name the only way to a broader grant")
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
 			mintedKeyScopes(ctx, t, db, token.RefreshToken),
-			"a rejected refresh issues nothing and leaves the original token redeemable")
+			"a rejected refresh issues nothing")
+
+		// Redeemability is a property of the endpoint, so it is asserted
+		// through the endpoint: reading the row would still pass if the
+		// rejection had rotated the hash or moved ExpiresAt.
+		status, body = postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
+		require.Equal(t, "workspace:ssh", requireTokenResponse(t, status, body).Scope,
+			"a rejected refresh leaves the original token redeemable")
 	})
 
 	t.Run("RefreshUnknownScopeRejected", func(t *testing.T) {
@@ -162,11 +169,17 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 		description := requireTokenScopeError(t, status, body)
 		require.Contains(t, description, oauth2provider.ReasonUnknownScope)
+		// The whole reason the catalog check runs before the coverage check is
+		// to hand a client that typo'd a scope the name to fix. All of these
+		// bytes survive sanitizeErrorDescription unchanged.
+		require.Contains(t, description, "not_a_real_scope",
+			"the client cannot fix its request without the name that failed")
 	})
 
-	// RFC 6749 §5.1: a token whose scope differs from what the client asked for
-	// must be told what it got, which covers both a request that named nothing
-	// and one that narrowed.
+	// RFC 6749 §5.1 requires the scope parameter when the issued scope differs
+	// from the request, so both halves here send something the response cannot
+	// echo back: the exchange names no scope, and the refresh names an alias
+	// whose granted spelling is the canonical one.
 	t.Run("ResponseStatesTheScopeGranted", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -176,10 +189,25 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		token := exchangeCode(ctx, t, client, app, code, verifier)
 		require.Equal(t, scopeInCatalog, token.Scope)
 
-		form := refreshForm(app, token.RefreshToken)
-		form.Set("scope", "workspace:ssh")
+		unrestricted := seedAppWithSecret(t, db, sql.NullString{})
+		code, verifier = authorizeCode(ctx, t, client, unrestricted.ID.String(), "")
+		granted := exchangeCode(ctx, t, client, unrestricted, code, verifier)
+		require.Equal(t, string(database.ApiKeyScopeCoderAll), granted.Scope)
+
+		// "all" is a scope the client may request and the server never grants
+		// under that spelling, so the response parameter is load-bearing.
+		form := refreshForm(unrestricted, granted.RefreshToken)
+		form.Set("scope", "all")
 		status, body := postTokenRequest(ctx, t, client, form)
-		require.Equal(t, "workspace:ssh", requireTokenResponse(t, status, body).Scope)
+		refreshed := requireTokenResponse(t, status, body)
+
+		require.Equal(t, string(database.ApiKeyScopeCoderAll), refreshed.Scope,
+			"the response states the granted spelling, not the requested one")
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken),
+			"api_key_scope has no member spelled all, so an uncanonicalized mint fails here")
+		require.Equal(t, string(database.ApiKeyScopeCoderAll),
+			tokenRow(ctx, t, db, refreshed.RefreshToken).Scope)
 	})
 
 	// apikey.Generate defaults an empty scope list to coder:all, so this passes
@@ -420,16 +448,9 @@ func TestOAuth2TokenErrorDescription(t *testing.T) {
 		// Rejected for its length before the code is ever looked up.
 		form := tokenExchangeForm(app, code, "too-short")
 		status, body := postTokenRequest(ctx, t, client, form)
-		require.Equal(t, http.StatusBadRequest, status, body)
-
-		var oauthErr struct {
-			Error            string `json:"error"`
-			ErrorDescription string `json:"error_description"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
-		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidRequest), oauthErr.Error)
-		requireNQSCHAR(t, oauthErr.ErrorDescription)
-		require.Contains(t, oauthErr.ErrorDescription, "RFC 7636 section 4.1")
+		description := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		requireNQSCHAR(t, description)
+		require.Contains(t, description, "RFC 7636 section 4.1")
 	})
 }
 
@@ -779,34 +800,27 @@ func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2
 	return token
 }
 
-// requireTokenGrantError asserts an RFC 6749 §5.2 invalid_grant response and
-// returns its description.
-func requireTokenGrantError(t *testing.T, status int, body string) string {
+// requireTokenError asserts an RFC 6749 §5.2 error response carrying want, and
+// returns its description. Decoded into codersdk.OAuth2Error, which is the type
+// the server marshals, so the error code is compared as its own type.
+func requireTokenError(t *testing.T, status int, body string, want codersdk.OAuth2ErrorCode) string {
 	t.Helper()
 
 	require.Equal(t, http.StatusBadRequest, status, body)
-	var oauthErr struct {
-		Error            string `json:"error"`
-		ErrorDescription string `json:"error_description"`
-	}
+	var oauthErr codersdk.OAuth2Error
 	require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
-	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidGrant), oauthErr.Error)
+	require.Equal(t, want, oauthErr.Error)
 	return oauthErr.ErrorDescription
 }
 
-// requireTokenScopeError asserts an RFC 6749 §5.2 invalid_scope response and
-// returns its description.
+func requireTokenGrantError(t *testing.T, status int, body string) string {
+	t.Helper()
+	return requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidGrant)
+}
+
 func requireTokenScopeError(t *testing.T, status int, body string) string {
 	t.Helper()
-
-	require.Equal(t, http.StatusBadRequest, status, body)
-	var oauthErr struct {
-		Error            string `json:"error"`
-		ErrorDescription string `json:"error_description"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
-	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), oauthErr.Error)
-	return oauthErr.ErrorDescription
+	return requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidScope)
 }
 
 // requireNQSCHAR asserts the NQSCHAR set RFC 6749 Appendix A permits in
