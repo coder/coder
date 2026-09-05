@@ -750,6 +750,95 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
+CREATE FUNCTION account_agent_time_messages(p_message_ids bigint[], p_delete_chat_id uuid DEFAULT NULL::uuid, p_delete_organization_id uuid DEFAULT NULL::uuid, p_delete_user_id uuid DEFAULT NULL::uuid) RETURNS bigint
+    LANGUAGE sql
+    AS $$
+WITH input_messages AS MATERIALIZED (
+    SELECT DISTINCT message_id
+    FROM unnest(COALESCE(p_message_ids, ARRAY[]::bigint[])) AS input(message_id)
+    WHERE message_id IS NOT NULL
+    ORDER BY message_id
+),
+locked_chats AS MATERIALIZED (
+    SELECT c.id
+    FROM chats c
+    JOIN (
+        SELECT DISTINCT cm.chat_id
+        FROM chat_messages cm
+        JOIN input_messages input ON input.message_id = cm.id
+        WHERE p_delete_chat_id IS NULL
+    ) target_chats ON target_chats.chat_id = c.id
+    ORDER BY c.id
+    -- Inserts already hold FK KEY SHARE locks. NO KEY UPDATE serializes
+    -- accounting without conflicting with another insert's FK lock.
+    FOR NO KEY UPDATE OF c
+),
+candidate_messages AS MATERIALIZED (
+    SELECT
+        cm.id AS message_id,
+        COALESCE(p_delete_organization_id, c.organization_id) AS organization_id,
+        COALESCE(p_delete_user_id, c.owner_id) AS user_id,
+        (cm.created_at AT TIME ZONE 'UTC')::date AS day,
+        cm.runtime_ms
+    FROM input_messages input
+    JOIN chat_messages cm ON cm.id = input.message_id
+    LEFT JOIN chats c ON c.id = cm.chat_id AND p_delete_chat_id IS NULL
+    WHERE cm.runtime_ms IS NOT NULL
+      AND (
+          (p_delete_chat_id IS NULL AND c.id IN (SELECT id FROM locked_chats))
+          OR (p_delete_chat_id IS NOT NULL AND cm.chat_id = p_delete_chat_id)
+      )
+      AND COALESCE(p_delete_organization_id, c.organization_id) IS NOT NULL
+      AND COALESCE(p_delete_user_id, c.owner_id) IS NOT NULL
+),
+claimed_messages AS MATERIALIZED (
+    INSERT INTO chat_message_agent_time_accounted (message_id, organization_id)
+    SELECT message_id, organization_id
+    FROM candidate_messages
+    ORDER BY message_id
+    ON CONFLICT (message_id) DO NOTHING
+    RETURNING message_id
+),
+increments AS MATERIALIZED (
+    SELECT
+        candidate_messages.organization_id,
+        candidate_messages.user_id,
+        candidate_messages.day,
+        SUM(candidate_messages.runtime_ms)::bigint AS agent_time_ms
+    FROM candidate_messages
+    JOIN claimed_messages ON claimed_messages.message_id = candidate_messages.message_id
+    GROUP BY candidate_messages.organization_id, candidate_messages.user_id, candidate_messages.day
+),
+updated_daily AS (
+    INSERT INTO agent_time_daily (organization_id, user_id, day, agent_time_ms)
+    SELECT organization_id, user_id, day, agent_time_ms
+    FROM increments
+    ORDER BY organization_id, user_id, day
+    ON CONFLICT (organization_id, user_id, day) DO UPDATE SET
+        agent_time_ms = agent_time_daily.agent_time_ms + EXCLUDED.agent_time_ms
+    RETURNING 1
+),
+updated_daily_count AS MATERIALIZED (
+    SELECT COUNT(*) AS rows_updated FROM updated_daily
+),
+updated_organization_daily AS (
+    INSERT INTO agent_time_organization_daily (organization_id, day, agent_time_ms)
+    SELECT organization_id, day, SUM(agent_time_ms)
+    FROM increments
+    CROSS JOIN updated_daily_count
+    GROUP BY organization_id, day
+    ORDER BY organization_id, day
+    ON CONFLICT (organization_id, day) DO UPDATE SET
+        agent_time_ms = agent_time_organization_daily.agent_time_ms + EXCLUDED.agent_time_ms
+    RETURNING 1
+),
+updated_organization_count AS (
+    SELECT COUNT(*) AS rows_updated FROM updated_organization_daily
+)
+SELECT COUNT(*)::bigint
+FROM claimed_messages, updated_organization_count;
+$$;
+
 CREATE TABLE external_auth_links (
     provider_id text NOT NULL,
     user_id uuid NOT NULL,
@@ -803,6 +892,64 @@ END;
 $$;
 
 COMMENT ON FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) IS 'Acquire a lease on the external auth link and return the row. If there is already an active lease, an exception is raised.';
+
+CREATE FUNCTION agent_time_account_chat_messages_after_insert() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    PERFORM account_agent_time_messages(ARRAY(
+        SELECT id
+        FROM agent_time_new_messages
+        WHERE runtime_ms IS NOT NULL
+        ORDER BY id
+    ));
+    RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION agent_time_delete_fallback_limit() RETURNS integer
+    LANGUAGE sql IMMUTABLE
+    AS $$
+    SELECT 10000;
+$$;
+
+CREATE FUNCTION agent_time_preserve_chat_before_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    message_ids bigint[];
+    unaccounted_count bigint;
+    fallback_count bigint;
+    fallback_limit integer;
+BEGIN
+    fallback_limit := agent_time_delete_fallback_limit();
+    fallback_count := COALESCE(NULLIF(current_setting('coder.agent_time_delete_fallback_count', true), '')::bigint, 0);
+
+    SELECT
+        COALESCE(array_agg(pending.message_id ORDER BY pending.message_id), ARRAY[]::bigint[]),
+        COUNT(*)::bigint
+    INTO message_ids, unaccounted_count
+    FROM (
+        SELECT cm.id AS message_id
+        FROM chat_messages cm
+        LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
+        WHERE cm.chat_id = OLD.id
+          AND cm.runtime_ms IS NOT NULL
+          AND accounted.message_id IS NULL
+        ORDER BY cm.id
+        LIMIT fallback_limit + 1
+    ) pending;
+
+    IF fallback_count + unaccounted_count > fallback_limit THEN
+        RAISE EXCEPTION 'chat deletion would preserve % unaccounted agent time messages, exceeding fallback limit %',
+            fallback_count + unaccounted_count, fallback_limit;
+    END IF;
+
+    PERFORM set_config('coder.agent_time_delete_fallback_count', (fallback_count + unaccounted_count)::text, true);
+    PERFORM account_agent_time_messages(message_ids, OLD.id, OLD.organization_id, OLD.owner_id);
+    RETURN OLD;
+END;
+$$;
 
 CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     LANGUAGE plpgsql
@@ -1567,6 +1714,37 @@ $$;
 
 COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config.';
 
+CREATE TABLE agent_time_backfill_status (
+    organization_id uuid NOT NULL,
+    cursor_message_id bigint DEFAULT 0 NOT NULL,
+    processed_messages bigint DEFAULT 0 NOT NULL,
+    completed_at timestamp with time zone,
+    last_error text DEFAULT ''::text NOT NULL,
+    last_error_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT agent_time_backfill_status_cursor_message_id_nonnegative CHECK ((cursor_message_id >= 0)),
+    CONSTRAINT agent_time_backfill_status_processed_messages_nonnegative CHECK ((processed_messages >= 0))
+);
+
+CREATE TABLE agent_time_capture (
+    id smallint DEFAULT 1 NOT NULL,
+    capture_started_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT agent_time_capture_singleton_check CHECK ((id = 1))
+);
+
+CREATE TABLE agent_time_daily (
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    day date NOT NULL,
+    agent_time_ms bigint DEFAULT 0 NOT NULL
+);
+
+CREATE TABLE agent_time_organization_daily (
+    organization_id uuid NOT NULL,
+    day date NOT NULL,
+    agent_time_ms numeric DEFAULT 0 NOT NULL
+);
+
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -2034,6 +2212,11 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 );
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
+
+CREATE TABLE chat_message_agent_time_accounted (
+    message_id bigint NOT NULL,
+    organization_id uuid NOT NULL
+);
 
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
@@ -4367,6 +4550,18 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY agent_time_backfill_status
+    ADD CONSTRAINT agent_time_backfill_status_pkey PRIMARY KEY (organization_id);
+
+ALTER TABLE ONLY agent_time_capture
+    ADD CONSTRAINT agent_time_capture_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY agent_time_daily
+    ADD CONSTRAINT agent_time_daily_pkey PRIMARY KEY (organization_id, user_id, day);
+
+ALTER TABLE ONLY agent_time_organization_daily
+    ADD CONSTRAINT agent_time_organization_daily_pkey PRIMARY KEY (organization_id, day);
+
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
@@ -4432,6 +4627,9 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
+
+ALTER TABLE ONLY chat_message_agent_time_accounted
+    ADD CONSTRAINT chat_message_agent_time_accounted_pkey PRIMARY KEY (message_id);
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
@@ -4799,6 +4997,14 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
+CREATE INDEX agent_time_daily_day_organization_user_id_idx ON agent_time_daily USING btree (day, organization_id, user_id);
+
+CREATE INDEX agent_time_daily_organization_day_user_id_idx ON agent_time_daily USING btree (organization_id, day, user_id);
+
+CREATE INDEX agent_time_daily_user_day_idx ON agent_time_daily USING btree (user_id, day, organization_id);
+
+CREATE INDEX agent_time_organization_daily_day_idx ON agent_time_organization_daily USING btree (day, organization_id);
+
 CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING btree (hashed_secret);
 
 CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (lower(name));
@@ -4812,6 +5018,8 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE INDEX chat_message_agent_time_accounted_organization_id_idx ON chat_message_agent_time_accounted USING btree (organization_id);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -4912,6 +5120,8 @@ CREATE INDEX idx_chat_files_created_at ON chat_files USING btree (created_at);
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
+
+CREATE INDEX idx_chat_messages_agent_time_lookup ON chat_messages USING btree (chat_id, id) WHERE (runtime_ms IS NOT NULL);
 
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
@@ -5199,6 +5409,8 @@ CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_ro
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
 
+CREATE TRIGGER trigger_agent_time_preserve_chat_before_delete BEFORE DELETE ON chats FOR EACH ROW EXECUTE FUNCTION agent_time_preserve_chat_before_delete();
+
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DELETE ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
@@ -5244,6 +5456,8 @@ CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills
 CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
 
 CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
+
+CREATE TRIGGER trigger_zz_agent_time_account_chat_messages_after_insert AFTER INSERT ON chat_messages REFERENCING NEW TABLE AS agent_time_new_messages FOR EACH STATEMENT EXECUTE FUNCTION agent_time_account_chat_messages_after_insert();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
@@ -5308,6 +5522,9 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_message_agent_time_accounted
+    ADD CONSTRAINT chat_message_agent_time_accounted_message_id_fkey FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

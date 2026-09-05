@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	decimal "github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -5041,6 +5042,34 @@ type APIKey struct {
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
 }
 
+type AgentTimeBackfillStatus struct {
+	OrganizationID    uuid.UUID    `db:"organization_id" json:"organization_id"`
+	CursorMessageID   int64        `db:"cursor_message_id" json:"cursor_message_id"`
+	ProcessedMessages int64        `db:"processed_messages" json:"processed_messages"`
+	CompletedAt       sql.NullTime `db:"completed_at" json:"completed_at"`
+	LastError         string       `db:"last_error" json:"last_error"`
+	LastErrorAt       sql.NullTime `db:"last_error_at" json:"last_error_at"`
+	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
+}
+
+type AgentTimeCapture struct {
+	ID               int16     `db:"id" json:"id"`
+	CaptureStartedAt time.Time `db:"capture_started_at" json:"capture_started_at"`
+}
+
+type AgentTimeDaily struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	Day            time.Time `db:"day" json:"day"`
+	AgentTimeMs    int64     `db:"agent_time_ms" json:"agent_time_ms"`
+}
+
+type AgentTimeOrganizationDaily struct {
+	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Day            time.Time       `db:"day" json:"day"`
+	AgentTimeMs    decimal.Decimal `db:"agent_time_ms" json:"agent_time_ms"`
+}
+
 type AuditLog struct {
 	ID               uuid.UUID       `db:"id" json:"id"`
 	Time             time.Time       `db:"time" json:"time"`
@@ -5304,6 +5333,11 @@ type ChatMessage struct {
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
 	// Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.
 	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
+}
+
+type ChatMessageAgentTimeAccounted struct {
+	MessageID      int64     `db:"message_id" json:"message_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 type ChatModelConfig struct {
