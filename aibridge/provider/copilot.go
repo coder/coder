@@ -90,15 +90,9 @@ func (*Copilot) BridgedRoutes() []string {
 }
 
 func (*Copilot) PassthroughRoutes() []string {
-	return []string{
-		"/_ping",
-		"/auto",
-		"/models",
-		"/models/",
-		"/agents/",
-		"/mcp/",
-		"/.well-known/",
-	}
+	// Copilot always uses the end user's credential, so passthrough routes do
+	// not need to restrict the capabilities of a shared centralized credential.
+	return []string{"/"}
 }
 
 func (*Copilot) AuthHeader() string {

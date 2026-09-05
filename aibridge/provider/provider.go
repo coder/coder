@@ -75,8 +75,9 @@ type Provider interface {
 	// BridgedRoutes returns a slice of [http.ServeMux]-compatible routes which will have special handling.
 	// See https://pkg.go.dev/net/http#hdr-Patterns-ServeMux.
 	BridgedRoutes() []string
-	// PassthroughRoutes returns a slice of whitelisted [http.ServeMux]-compatible* routes which are
-	// not currently intercepted and must be handled by the upstream directly.
+	// PassthroughRoutes returns a slice of [http.ServeMux]-compatible* routes which are
+	// not currently intercepted and must be handled by the upstream directly. Providers
+	// using centralized credentials should restrict these routes to known-safe operations.
 	//
 	// * only path routes can be specified, not ones containing HTTP methods. (i.e. GET /route).
 	// By default, these passthrough routes will accept any HTTP method.
