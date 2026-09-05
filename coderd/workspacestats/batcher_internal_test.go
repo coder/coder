@@ -2,10 +2,13 @@ package workspacestats
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -18,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestBatchStats(t *testing.T) {
@@ -156,6 +160,49 @@ func TestBatchStats(t *testing.T) {
 
 	// Ensure that buf never grew beyond what we expect
 	require.Equal(t, defaultBufferSize, cap(b.buf.ID), "buffer grew beyond expected capacity")
+}
+
+// TestBatchStatsSessionCountWarnThrottle asserts that a report over the
+// session count cap warns at most once per warn interval, and logs at debug
+// level in between, so one misbehaving agent cannot flood the logs.
+func TestBatchStatsSessionCountFold(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
+	log := slog.Make(sink).Leveled(slog.LevelDebug)
+	store, ps := dbtestutil.NewDB(t)
+	deps := setupDeps(t, store, ps)
+
+	b, closer, err := NewBatcher(ctx,
+		BatcherWithStore(store),
+		BatcherWithLogger(log),
+		func(b *DBBatcher) {
+			// Take control of flushes so they do not interleave with the
+			// assertions below.
+			b.tickCh = make(chan time.Time)
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(closer)
+
+	const extra = 6
+	st := randStats(t, func(s *agentproto.Stats) {
+		s.SessionCounts = make(map[string]int64, maxSessionCountEntries+extra)
+		for i := range maxSessionCountEntries + extra {
+			s.SessionCounts[fmt.Sprintf("app_%d", i)] = 1
+		}
+	})
+	b.Add(dbtime.Now(), deps.Agent.ID, deps.Template.ID, deps.User.ID, deps.Workspace.ID, st, false)
+
+	// The fold is reported through the counter and a debug log, never a
+	// warning, since a misbehaving agent would repeat it on every report.
+	overcap := func(e slog.SinkEntry) bool {
+		return strings.Contains(e.Message, "too many distinct session types")
+	}
+	require.Len(t, sink.Entries(overcap), 1)
+	require.Equal(t, slog.LevelDebug, sink.Entries(overcap)[0].Level)
+	require.Equal(t, float64(extra), prom_testutil.ToFloat64(b.metrics.SessionCountsFoldedTotal))
 }
 
 // randStats returns a random agentproto.Stats
