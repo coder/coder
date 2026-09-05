@@ -271,10 +271,6 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	}
 
 	scriptDataDir := filepath.Join(r.DataDir(), script.LogSourceID.String())
-	err := r.Filesystem.MkdirAll(scriptDataDir, 0o700)
-	if err != nil {
-		return xerrors.Errorf("%s script: create script temp dir: %w", scriptDataDir, err)
-	}
 
 	logger := r.Logger.With(
 		slog.F("log_source_id", script.LogSourceID),
@@ -282,45 +278,6 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		slog.F("script_data_dir", scriptDataDir),
 	)
 	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
-
-	logDir := filepath.Dir(logPath)
-	if err = r.Filesystem.MkdirAll(logDir, 0o700); err != nil {
-		return xerrors.Errorf("create script log file directory %q: %w", logDir, err)
-	}
-
-	fileWriter, err := r.Filesystem.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return xerrors.Errorf("open %s script log file: %w", logPath, err)
-	}
-	defer func() {
-		err := fileWriter.Close()
-		if err != nil {
-			logger.Warn(ctx, fmt.Sprintf("close %s script log file", logPath), slog.Error(err))
-		}
-	}()
-
-	var cmd *exec.Cmd
-	cmdCtx := ctx
-	if script.Timeout > 0 {
-		var ctxCancel context.CancelFunc
-		cmdCtx, ctxCancel = context.WithTimeout(ctx, script.Timeout)
-		defer ctxCancel()
-	}
-	cmdPty, err := r.SSHServer.CreateCommand(cmdCtx, script.Script, nil, nil)
-	if err != nil {
-		return xerrors.Errorf("%s script: create command: %w", logPath, err)
-	}
-	cmd = cmdPty.AsExec()
-	cmd.SysProcAttr = cmdSysProcAttr()
-	cmd.WaitDelay = 10 * time.Second
-	cmd.Cancel = cmdCancel(ctx, logger, cmd)
-
-	// Expose env vars that can be used in the script for storing data
-	// and binaries. In the future, we may want to expose more env vars
-	// for the script to use, like CODER_SCRIPT_DATA_DIR for persistent
-	// storage.
-	cmd.Env = append(cmd.Env, "CODER_SCRIPT_DATA_DIR="+scriptDataDir)
-	cmd.Env = append(cmd.Env, "CODER_SCRIPT_BIN_DIR="+r.ScriptBinDir())
 
 	scriptLogger := r.GetScriptLogger(script.LogSourceID)
 	// If ctx is canceled here (or in a writer below), we may be
@@ -333,13 +290,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		}
 	}()
 
-	infoW := agentsdk.LogsWriter(ctx, scriptLogger.Send, script.LogSourceID, codersdk.LogLevelInfo)
-	defer infoW.Close()
-	errW := agentsdk.LogsWriter(ctx, scriptLogger.Send, script.LogSourceID, codersdk.LogLevelError)
-	defer errW.Close()
-	cmd.Stdout = io.MultiWriter(fileWriter, infoW)
-	cmd.Stderr = io.MultiWriter(fileWriter, errW)
-
+	// Report the completion timing even if script log setup fails below, so
+	// the failure is visible in the workspace dashboard.
+	var err error
 	start := dbtime.Now()
 	defer func() {
 		end := dbtime.Now()
@@ -411,6 +364,62 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		}
 	}()
 
+	if err = r.Filesystem.MkdirAll(scriptDataDir, 0o700); err != nil {
+		err = xerrors.Errorf("%s script: create script temp dir: %w", scriptDataDir, err)
+		sendSetupError(ctx, logger, scriptLogger, err)
+		return err
+	}
+
+	logDir := filepath.Dir(logPath)
+	if err = r.Filesystem.MkdirAll(logDir, 0o700); err != nil {
+		err = xerrors.Errorf("create script log file directory %q: %w", logDir, err)
+		sendSetupError(ctx, logger, scriptLogger, err)
+		return err
+	}
+
+	fileWriter, err := r.Filesystem.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		err = xerrors.Errorf("open %s script log file: %w", logPath, err)
+		sendSetupError(ctx, logger, scriptLogger, err)
+		return err
+	}
+	defer func() {
+		err := fileWriter.Close()
+		if err != nil {
+			logger.Warn(ctx, fmt.Sprintf("close %s script log file", logPath), slog.Error(err))
+		}
+	}()
+
+	var cmd *exec.Cmd
+	cmdCtx := ctx
+	if script.Timeout > 0 {
+		var ctxCancel context.CancelFunc
+		cmdCtx, ctxCancel = context.WithTimeout(ctx, script.Timeout)
+		defer ctxCancel()
+	}
+	cmdPty, err := r.SSHServer.CreateCommand(cmdCtx, script.Script, nil, nil)
+	if err != nil {
+		return xerrors.Errorf("%s script: create command: %w", logPath, err)
+	}
+	cmd = cmdPty.AsExec()
+	cmd.SysProcAttr = cmdSysProcAttr()
+	cmd.WaitDelay = 10 * time.Second
+	cmd.Cancel = cmdCancel(ctx, logger, cmd)
+
+	// Expose env vars that can be used in the script for storing data
+	// and binaries. In the future, we may want to expose more env vars
+	// for the script to use, like CODER_SCRIPT_DATA_DIR for persistent
+	// storage.
+	cmd.Env = append(cmd.Env, "CODER_SCRIPT_DATA_DIR="+scriptDataDir)
+	cmd.Env = append(cmd.Env, "CODER_SCRIPT_BIN_DIR="+r.ScriptBinDir())
+
+	infoW := agentsdk.LogsWriter(ctx, scriptLogger.Send, script.LogSourceID, codersdk.LogLevelInfo)
+	defer infoW.Close()
+	errW := agentsdk.LogsWriter(ctx, scriptLogger.Send, script.LogSourceID, codersdk.LogLevelError)
+	defer errW.Close()
+	cmd.Stdout = io.MultiWriter(fileWriter, infoW)
+	cmd.Stderr = io.MultiWriter(fileWriter, errW)
+
 	err = cmd.Start()
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -455,6 +464,18 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		err = ErrTimeout
 	}
 	return err
+}
+
+// sendSetupError writes a script setup failure to the script's log stream so
+// the failure is visible in the workspace dashboard.
+func sendSetupError(ctx context.Context, logger slog.Logger, scriptLogger ScriptLogger, err error) {
+	if err := scriptLogger.Send(ctx, agentsdk.Log{
+		CreatedAt: dbtime.Now(),
+		Level:     codersdk.LogLevelError,
+		Output:    fmt.Sprintf("failed to set up script logging: %v", err),
+	}); err != nil {
+		logger.Warn(ctx, "send script setup error log", slog.Error(err))
+	}
 }
 
 func (r *Runner) Close() error {
