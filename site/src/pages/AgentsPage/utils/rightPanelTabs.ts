@@ -11,6 +11,25 @@ import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { canShowPortForwarding } from "#/modules/resources/usePortsData";
 import { findWorkspaceAgent } from "#/utils/workspace";
 
+/**
+ * Built-in panels that the user shows or hides from the add-tab dropdown.
+ * Each one can appear at most once, so the tab ID is the panel ID.
+ */
+export const singletonRightPanelTabIds = [
+	"browser",
+	"desktop",
+	"debug",
+] as const;
+
+export type SingletonRightPanelTabId =
+	(typeof singletonRightPanelTabIds)[number];
+
+export function isSingletonRightPanelTabId(
+	value: unknown,
+): value is SingletonRightPanelTabId {
+	return singletonRightPanelTabIds.some((id) => id === value);
+}
+
 export type PortSelection = {
 	label: string;
 	port: number;
