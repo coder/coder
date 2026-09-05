@@ -146,7 +146,9 @@ func narrowAccessScope(ctx context.Context, logger slog.Logger, phase string, ap
 func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 	names := strings.Fields(scope)
 	if len(names) == 0 {
-		return nil, xerrors.Errorf("'%s': %w", scope, errUnmintableScope)
+		// Fixed message rather than an echo: CHECK (scope <> '') admits a
+		// whitespace-only value, which names nothing worth reporting back.
+		return nil, xerrors.Errorf("the grant names no scope: %w", errUnmintableScope)
 	}
 
 	scopes := make(database.APIKeyScopes, 0, len(names))

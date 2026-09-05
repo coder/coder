@@ -355,6 +355,24 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			"an operator cannot act on this without knowing which stored name is the problem")
 	})
 
+	// The same stale row reached through a refresh rather than a code. A grant
+	// outlives the code that issued it, so this is the likelier way a name
+	// removed from the enum surfaces.
+	t.Run("StoredScopeOutsideEnumRejectedOnRefresh", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, scopeOutOfCatalog)
+
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, refreshToken))
+
+		description := requireTokenGrantError(t, status, body)
+		require.Contains(t, description, oauth2provider.ReasonUnmintableScope)
+		require.Contains(t, description, scopeOutOfCatalog,
+			"an operator cannot act on this without knowing which stored name is the problem")
+	})
+
 	t.Run("AllowlistNarrowedAfterAuthorizationRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
