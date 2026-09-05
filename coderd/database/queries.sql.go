@@ -19975,6 +19975,32 @@ func (q *sqlQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Con
 	return err
 }
 
+const deleteOAuth2ProviderDeviceCodeByID = `-- name: DeleteOAuth2ProviderDeviceCodeByID :one
+DELETE FROM oauth2_provider_device_codes
+WHERE id = $1 AND status = 'authorized'
+RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_code, app_id, user_id, status, scope, resource_uri
+`
+
+// Only an authorized code can be redeemed. A lost race returns sql.ErrNoRows.
+func (q *sqlQuerier) DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, deleteOAuth2ProviderDeviceCodeByID, id)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserCode,
+		&i.AppID,
+		&i.UserID,
+		&i.Status,
+		&i.Scope,
+		&i.ResourceUri,
+	)
+	return i, err
+}
+
 const getOAuth2ProviderAppByClientID = `-- name: GetOAuth2ProviderAppByClientID :one
 
 SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE id = $1
@@ -20348,6 +20374,76 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID u
 	return items, nil
 }
 
+const getOAuth2ProviderDeviceCodeByID = `-- name: GetOAuth2ProviderDeviceCodeByID :one
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_code, app_id, user_id, status, scope, resource_uri FROM oauth2_provider_device_codes WHERE id = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderDeviceCodeByID, id)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserCode,
+		&i.AppID,
+		&i.UserID,
+		&i.Status,
+		&i.Scope,
+		&i.ResourceUri,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderDeviceCodeByPrefix = `-- name: GetOAuth2ProviderDeviceCodeByPrefix :one
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_code, app_id, user_id, status, scope, resource_uri FROM oauth2_provider_device_codes WHERE secret_prefix = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderDeviceCodeByPrefix, secretPrefix)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserCode,
+		&i.AppID,
+		&i.UserID,
+		&i.Status,
+		&i.Scope,
+		&i.ResourceUri,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderDeviceCodeByUserCode = `-- name: GetOAuth2ProviderDeviceCodeByUserCode :one
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_code, app_id, user_id, status, scope, resource_uri FROM oauth2_provider_device_codes WHERE upper(user_code) = upper($1::text)
+`
+
+// upper() on both sides so the predicate matches the functional unique index.
+func (q *sqlQuerier) GetOAuth2ProviderDeviceCodeByUserCode(ctx context.Context, userCode string) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderDeviceCodeByUserCode, userCode)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserCode,
+		&i.AppID,
+		&i.UserID,
+		&i.Status,
+		&i.Scope,
+		&i.ResourceUri,
+	)
+	return i, err
+}
+
 const insertOAuth2ProviderApp = `-- name: InsertOAuth2ProviderApp :one
 INSERT INTO oauth2_provider_apps (
     id,
@@ -20701,6 +20797,72 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 	return i, err
 }
 
+const insertOAuth2ProviderDeviceCode = `-- name: InsertOAuth2ProviderDeviceCode :one
+INSERT INTO oauth2_provider_device_codes (
+    id,
+    created_at,
+    expires_at,
+    secret_prefix,
+    hashed_secret,
+    user_code,
+    app_id,
+    scope,
+    resource_uri
+) VALUES(
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9
+) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_code, app_id, user_id, status, scope, resource_uri
+`
+
+type InsertOAuth2ProviderDeviceCodeParams struct {
+	ID           uuid.UUID      `db:"id" json:"id"`
+	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
+	ExpiresAt    time.Time      `db:"expires_at" json:"expires_at"`
+	SecretPrefix []byte         `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte         `db:"hashed_secret" json:"hashed_secret"`
+	UserCode     string         `db:"user_code" json:"user_code"`
+	AppID        uuid.UUID      `db:"app_id" json:"app_id"`
+	Scope        string         `db:"scope" json:"scope"`
+	ResourceUri  sql.NullString `db:"resource_uri" json:"resource_uri"`
+}
+
+// status is omitted on purpose so a device code can only be created pending.
+func (q *sqlQuerier) InsertOAuth2ProviderDeviceCode(ctx context.Context, arg InsertOAuth2ProviderDeviceCodeParams) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, insertOAuth2ProviderDeviceCode,
+		arg.ID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.SecretPrefix,
+		arg.HashedSecret,
+		arg.UserCode,
+		arg.AppID,
+		arg.Scope,
+		arg.ResourceUri,
+	)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserCode,
+		&i.AppID,
+		&i.UserID,
+		&i.Status,
+		&i.Scope,
+		&i.ResourceUri,
+	)
+	return i, err
+}
+
 const updateOAuth2ProviderAppByClientID = `-- name: UpdateOAuth2ProviderAppByClientID :one
 UPDATE oauth2_provider_apps SET
     updated_at = $2,
@@ -20910,6 +21072,39 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		&i.SoftwareVersion,
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
+	)
+	return i, err
+}
+
+const updateOAuth2ProviderDeviceCodeStatus = `-- name: UpdateOAuth2ProviderDeviceCodeStatus :one
+UPDATE oauth2_provider_device_codes
+SET status = $1, user_id = $2
+WHERE id = $3 AND status = 'pending'
+RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_code, app_id, user_id, status, scope, resource_uri
+`
+
+type UpdateOAuth2ProviderDeviceCodeStatusParams struct {
+	Status string        `db:"status" json:"status"`
+	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
+	ID     uuid.UUID     `db:"id" json:"id"`
+}
+
+// Only a pending code can be decided. A lost race returns sql.ErrNoRows.
+func (q *sqlQuerier) UpdateOAuth2ProviderDeviceCodeStatus(ctx context.Context, arg UpdateOAuth2ProviderDeviceCodeStatusParams) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, updateOAuth2ProviderDeviceCodeStatus, arg.Status, arg.UserID, arg.ID)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserCode,
+		&i.AppID,
+		&i.UserID,
+		&i.Status,
+		&i.Scope,
+		&i.ResourceUri,
 	)
 	return i, err
 }

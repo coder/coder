@@ -180,6 +180,8 @@ type sqlcQuerier interface {
 	// since app_secret_id is NULL for public (secretless) clients and would
 	// silently exclude their tokens from this delete.
 	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
+	// Only an authorized code can be redeemed. A lost race returns sql.ErrNoRows.
+	DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderDeviceCode, error)
 	// Cumulative count.
 	DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteOldAuditLogConnectionEvents(ctx context.Context, arg DeleteOldAuditLogConnectionEventsParams) error
@@ -707,6 +709,10 @@ type sqlcQuerier interface {
 	// app_secret_id, since app_secret_id is NULL for public (secretless) clients
 	// and would silently exclude their tokens from this listing.
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
+	GetOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderDeviceCode, error)
+	GetOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderDeviceCode, error)
+	// upper() on both sides so the predicate matches the functional unique index.
+	GetOAuth2ProviderDeviceCodeByUserCode(ctx context.Context, userCode string) (OAuth2ProviderDeviceCode, error)
 	// Locks candidate rows against foreign-key inserts for the transaction.
 	GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
@@ -1192,6 +1198,8 @@ type sqlcQuerier interface {
 	InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error)
 	InsertOAuth2ProviderAppSecret(ctx context.Context, arg InsertOAuth2ProviderAppSecretParams) (OAuth2ProviderAppSecret, error)
 	InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error)
+	// status is omitted on purpose so a device code can only be created pending.
+	InsertOAuth2ProviderDeviceCode(ctx context.Context, arg InsertOAuth2ProviderDeviceCodeParams) (OAuth2ProviderDeviceCode, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error)
@@ -1560,6 +1568,8 @@ type sqlcQuerier interface {
 	UpdateNotificationTemplateMethodByID(ctx context.Context, arg UpdateNotificationTemplateMethodByIDParams) (NotificationTemplate, error)
 	UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg UpdateOAuth2ProviderAppByClientIDParams) (OAuth2ProviderApp, error)
 	UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error)
+	// Only a pending code can be decided. A lost race returns sql.ErrNoRows.
+	UpdateOAuth2ProviderDeviceCodeStatus(ctx context.Context, arg UpdateOAuth2ProviderDeviceCodeStatusParams) (OAuth2ProviderDeviceCode, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
 	UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error
 	UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg UpdateOrganizationWorkspaceSharingSettingsParams) (Organization, error)

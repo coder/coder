@@ -1831,6 +1831,38 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 	return code
 }
 
+func OAuth2ProviderDeviceCode(t testing.TB, db database.Store, seed database.OAuth2ProviderDeviceCode) database.OAuth2ProviderDeviceCode {
+	// secret_prefix and upper(user_code) are both unique, so fixed defaults
+	// would break any test that seeds two codes.
+	secretPrefix, err := cryptorand.String(10)
+	require.NoError(t, err, "generate device code prefix")
+	userCode, err := cryptorand.String(8)
+	require.NoError(t, err, "generate device user code")
+	code, err := db.InsertOAuth2ProviderDeviceCode(genCtx, database.InsertOAuth2ProviderDeviceCodeParams{
+		ID:           takeFirst(seed.ID, uuid.New()),
+		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:    takeFirst(seed.ExpiresAt, dbtime.Now().Add(15*time.Minute)),
+		SecretPrefix: takeFirstSlice(seed.SecretPrefix, []byte(secretPrefix)),
+		HashedSecret: takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
+		UserCode:     takeFirst(seed.UserCode, userCode),
+		AppID:        takeFirst(seed.AppID, uuid.New()),
+		Scope:        takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
+		ResourceUri:  seed.ResourceUri,
+	})
+	require.NoError(t, err, "insert oauth2 device code")
+	// The insert always creates a pending code, so a decided seed needs a
+	// second step rather than being silently ignored.
+	if seed.Status != "" && seed.Status != "pending" {
+		code, err = db.UpdateOAuth2ProviderDeviceCodeStatus(genCtx, database.UpdateOAuth2ProviderDeviceCodeStatusParams{
+			ID:     code.ID,
+			Status: seed.Status,
+			UserID: seed.UserID,
+		})
+		require.NoError(t, err, "update oauth2 device code status")
+	}
+	return code
+}
+
 func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth2ProviderAppToken) database.OAuth2ProviderAppToken {
 	require.NotEqual(t, uuid.Nil, seed.AppID, "An app id is required to use 'dbgen.OAuth2ProviderAppToken', use 'dbgen.OAuth2ProviderApp'.")
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{

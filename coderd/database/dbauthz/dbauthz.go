@@ -2435,6 +2435,10 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
+func (q *querier) DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderDeviceCode, error) {
+	return fetchAndQuery(q.log, q.auth, policy.ActionDelete, q.db.GetOAuth2ProviderDeviceCodeByID, q.db.DeleteOAuth2ProviderDeviceCodeByID)(ctx, id)
+}
+
 func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
 		return -1, err
@@ -4398,6 +4402,18 @@ func (q *querier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid
 		return []database.GetOAuth2ProviderAppsByUserIDRow{}, err
 	}
 	return q.db.GetOAuth2ProviderAppsByUserID(ctx, userID)
+}
+
+func (q *querier) GetOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderDeviceCode, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderDeviceCodeByID)(ctx, id)
+}
+
+func (q *querier) GetOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderDeviceCode, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderDeviceCodeByPrefix)(ctx, secretPrefix)
+}
+
+func (q *querier) GetOAuth2ProviderDeviceCodeByUserCode(ctx context.Context, userCode string) (database.OAuth2ProviderDeviceCode, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderDeviceCodeByUserCode)(ctx, userCode)
 }
 
 func (q *querier) GetOldUnlinkedChatFileIDs(ctx context.Context, arg database.GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error) {
@@ -6431,6 +6447,14 @@ func (q *querier) InsertOAuth2ProviderAppToken(ctx context.Context, arg database
 	return q.db.InsertOAuth2ProviderAppToken(ctx, arg)
 }
 
+func (q *querier) InsertOAuth2ProviderDeviceCode(ctx context.Context, arg database.InsertOAuth2ProviderDeviceCodeParams) (database.OAuth2ProviderDeviceCode, error) {
+	// No owner at creation time; the user is bound when the code is decided.
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2AppCodeToken); err != nil {
+		return database.OAuth2ProviderDeviceCode{}, err
+	}
+	return q.db.InsertOAuth2ProviderDeviceCode(ctx, arg)
+}
+
 func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	return insert(q.log, q.auth, rbac.ResourceOrganization, q.db.InsertOrganization)(ctx, arg)
 }
@@ -7990,6 +8014,17 @@ func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.
 		return database.OAuth2ProviderApp{}, err
 	}
 	return q.db.UpdateOAuth2ProviderAppByID(ctx, arg)
+}
+
+func (q *querier) UpdateOAuth2ProviderDeviceCodeStatus(ctx context.Context, arg database.UpdateOAuth2ProviderDeviceCodeStatusParams) (database.OAuth2ProviderDeviceCode, error) {
+	fetch := func(ctx context.Context, arg database.UpdateOAuth2ProviderDeviceCodeStatusParams) (database.OAuth2ProviderDeviceCode, error) {
+		return q.db.GetOAuth2ProviderDeviceCodeByID(ctx, arg.ID)
+	}
+	// oauth2_app_code_token has no update action. Deciding a pending code is
+	// what creates the user's grant, so this uses ActionCreate, like
+	// UpdateTemplateACLByID. Authorization is against the stored row, not
+	// arg.UserID, so a caller cannot claim a code by naming itself the owner.
+	return fetchAndQuery(q.log, q.auth, policy.ActionCreate, fetch, q.db.UpdateOAuth2ProviderDeviceCodeStatus)(ctx, arg)
 }
 
 func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {

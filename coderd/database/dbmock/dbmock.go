@@ -1177,6 +1177,21 @@ func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderAppTokensByAppAndUserID", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderAppTokensByAppAndUserID), ctx, arg)
 }
 
+// DeleteOAuth2ProviderDeviceCodeByID mocks base method.
+func (m *MockStore) DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderDeviceCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOAuth2ProviderDeviceCodeByID", ctx, id)
+	ret0, _ := ret[0].(database.OAuth2ProviderDeviceCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOAuth2ProviderDeviceCodeByID indicates an expected call of DeleteOAuth2ProviderDeviceCodeByID.
+func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderDeviceCodeByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderDeviceCodeByID", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderDeviceCodeByID), ctx, id)
+}
+
 // DeleteOldAIBridgeRecords mocks base method.
 func (m *MockStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
 	m.ctrl.T.Helper()
@@ -4858,6 +4873,51 @@ func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppsByUserID(ctx, userID any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppsByUserID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppsByUserID), ctx, userID)
 }
 
+// GetOAuth2ProviderDeviceCodeByID mocks base method.
+func (m *MockStore) GetOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderDeviceCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderDeviceCodeByID", ctx, id)
+	ret0, _ := ret[0].(database.OAuth2ProviderDeviceCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderDeviceCodeByID indicates an expected call of GetOAuth2ProviderDeviceCodeByID.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderDeviceCodeByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderDeviceCodeByID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderDeviceCodeByID), ctx, id)
+}
+
+// GetOAuth2ProviderDeviceCodeByPrefix mocks base method.
+func (m *MockStore) GetOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderDeviceCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderDeviceCodeByPrefix", ctx, secretPrefix)
+	ret0, _ := ret[0].(database.OAuth2ProviderDeviceCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderDeviceCodeByPrefix indicates an expected call of GetOAuth2ProviderDeviceCodeByPrefix.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderDeviceCodeByPrefix(ctx, secretPrefix any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderDeviceCodeByPrefix", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderDeviceCodeByPrefix), ctx, secretPrefix)
+}
+
+// GetOAuth2ProviderDeviceCodeByUserCode mocks base method.
+func (m *MockStore) GetOAuth2ProviderDeviceCodeByUserCode(ctx context.Context, userCode string) (database.OAuth2ProviderDeviceCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderDeviceCodeByUserCode", ctx, userCode)
+	ret0, _ := ret[0].(database.OAuth2ProviderDeviceCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderDeviceCodeByUserCode indicates an expected call of GetOAuth2ProviderDeviceCodeByUserCode.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderDeviceCodeByUserCode(ctx, userCode any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderDeviceCodeByUserCode", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderDeviceCodeByUserCode), ctx, userCode)
+}
+
 // GetOldUnlinkedChatFileIDs mocks base method.
 func (m *MockStore) GetOldUnlinkedChatFileIDs(ctx context.Context, arg database.GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -8317,6 +8377,21 @@ func (mr *MockStoreMockRecorder) InsertOAuth2ProviderAppToken(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOAuth2ProviderAppToken", reflect.TypeOf((*MockStore)(nil).InsertOAuth2ProviderAppToken), ctx, arg)
 }
 
+// InsertOAuth2ProviderDeviceCode mocks base method.
+func (m *MockStore) InsertOAuth2ProviderDeviceCode(ctx context.Context, arg database.InsertOAuth2ProviderDeviceCodeParams) (database.OAuth2ProviderDeviceCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOAuth2ProviderDeviceCode", ctx, arg)
+	ret0, _ := ret[0].(database.OAuth2ProviderDeviceCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertOAuth2ProviderDeviceCode indicates an expected call of InsertOAuth2ProviderDeviceCode.
+func (mr *MockStoreMockRecorder) InsertOAuth2ProviderDeviceCode(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOAuth2ProviderDeviceCode", reflect.TypeOf((*MockStore)(nil).InsertOAuth2ProviderDeviceCode), ctx, arg)
+}
+
 // InsertOrganization mocks base method.
 func (m *MockStore) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	m.ctrl.T.Helper()
@@ -10620,6 +10695,21 @@ func (m *MockStore) UpdateOAuth2ProviderAppByID(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) UpdateOAuth2ProviderAppByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOAuth2ProviderAppByID", reflect.TypeOf((*MockStore)(nil).UpdateOAuth2ProviderAppByID), ctx, arg)
+}
+
+// UpdateOAuth2ProviderDeviceCodeStatus mocks base method.
+func (m *MockStore) UpdateOAuth2ProviderDeviceCodeStatus(ctx context.Context, arg database.UpdateOAuth2ProviderDeviceCodeStatusParams) (database.OAuth2ProviderDeviceCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOAuth2ProviderDeviceCodeStatus", ctx, arg)
+	ret0, _ := ret[0].(database.OAuth2ProviderDeviceCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOAuth2ProviderDeviceCodeStatus indicates an expected call of UpdateOAuth2ProviderDeviceCodeStatus.
+func (mr *MockStoreMockRecorder) UpdateOAuth2ProviderDeviceCodeStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOAuth2ProviderDeviceCodeStatus", reflect.TypeOf((*MockStore)(nil).UpdateOAuth2ProviderDeviceCodeStatus), ctx, arg)
 }
 
 // UpdateOrganization mocks base method.

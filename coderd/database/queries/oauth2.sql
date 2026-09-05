@@ -251,3 +251,50 @@ WHERE id = $1 RETURNING *;
 -- name: DeleteOAuth2ProviderAppByClientID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1;
 
+
+-- name: InsertOAuth2ProviderDeviceCode :one
+-- status is omitted on purpose so a device code can only be created pending.
+INSERT INTO oauth2_provider_device_codes (
+    id,
+    created_at,
+    expires_at,
+    secret_prefix,
+    hashed_secret,
+    user_code,
+    app_id,
+    scope,
+    resource_uri
+) VALUES(
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9
+) RETURNING *;
+
+-- name: GetOAuth2ProviderDeviceCodeByID :one
+SELECT * FROM oauth2_provider_device_codes WHERE id = $1;
+
+-- name: GetOAuth2ProviderDeviceCodeByPrefix :one
+SELECT * FROM oauth2_provider_device_codes WHERE secret_prefix = $1;
+
+-- name: GetOAuth2ProviderDeviceCodeByUserCode :one
+-- upper() on both sides so the predicate matches the functional unique index.
+SELECT * FROM oauth2_provider_device_codes WHERE upper(user_code) = upper(@user_code::text);
+
+-- name: UpdateOAuth2ProviderDeviceCodeStatus :one
+-- Only a pending code can be decided. A lost race returns sql.ErrNoRows.
+UPDATE oauth2_provider_device_codes
+SET status = @status, user_id = @user_id
+WHERE id = @id AND status = 'pending'
+RETURNING *;
+
+-- name: DeleteOAuth2ProviderDeviceCodeByID :one
+-- Only an authorized code can be redeemed. A lost race returns sql.ErrNoRows.
+DELETE FROM oauth2_provider_device_codes
+WHERE id = @id AND status = 'authorized'
+RETURNING *;
