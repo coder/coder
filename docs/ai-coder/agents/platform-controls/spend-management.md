@@ -51,9 +51,11 @@ Both appear only when the deployment has the AI Gateway entitlement.
 
 ## Spend details
 
-Coder has no dedicated deployment-wide spend dashboard.
-Spend is shown where it is actionable:
+Deployment-wide spend lives under **Admin settings** > **AI** > **Spend**.
+Spend is also shown where it is actionable:
 
+- **Admin settings** > **AI** > **Spend**: AI Gateway spend for every user over a date range, with a per-model and per-client breakdown for each user.
+  Visible to users who can view AI sessions, and requires the AI Gateway entitlement.
 - **Agents page and user menu**: the signed-in user's spend against their budget, as described previously.
 - **Group settings**: each member's spend against the group's budget, for admins who can manage the group.
 - **Chat summary panel**: the cost of one chat tree, on a chat's Summary tab.
@@ -76,3 +78,4 @@ The AI Gateway [sessions views](../../ai-gateway/audit.md#navigating-the-ui) sho
 
 AI Gateway data is subject to its own [retention period](../../ai-gateway/monitoring.md#data-retention), 60 days by default, which is configured independently of chat retention.
 Spend for requests older than that period is no longer reported, so a chat for which gateway records have been pruned reports no cost.
+The **Spend** page narrows a date range that starts before the retention boundary and shows the start date it applied.

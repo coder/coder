@@ -327,6 +327,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/spend", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/users", api.aiGatewaySpendUsers)
+			r.Route("/users/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Get("/summary", api.aiGatewaySpendUserSummary)
+			})
+		})
+	})
+
 	// /ai-gateway/serve provides the DRPC-over-WebSocket that standalone AI Gateway
 	// replicas connect to. It authenticates with a gateway key instead of a user session.
 	api.AGPL.APIHandler.Group(func(r chi.Router) {

@@ -329,6 +329,148 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/serve \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List AI Gateway spend by user
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/spend/users \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/spend/users`
+
+Returns AI Gateway spend for every user with finished requests in the window, most expensive first. Requires permission to read any AI Gateway interception.
+start_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.
+
+### Parameters
+
+| Name         | In    | Type              | Required | Description                                                                                                   |
+|--------------|-------|-------------------|----------|---------------------------------------------------------------------------------------------------------------|
+| `start_date` | query | string(date-time) | false    | Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary. |
+| `end_date`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339). Defaults to now.                                                             |
+| `search`     | query | string            | false    | Case-insensitive match on username or name                                                                    |
+| `limit`      | query | integer           | false    | Page limit (default 10, maximum 100)                                                                          |
+| `offset`     | query | integer           | false    | Page offset                                                                                                   |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "end_date": "2019-08-24T14:15:22Z",
+  "start_date": "2019-08-24T14:15:22Z",
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_tokens": 0,
+      "name": "string",
+      "output_tokens": 0,
+      "request_count": 0,
+      "session_count": 0,
+      "total_cost_micros": 0,
+      "unpriced_request_count": 0,
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                 |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewaySpendUsersResponse](schemas.md#codersdkaigatewayspendusersresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get AI Gateway spend summary for a user
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/spend/users/{user}/summary \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/spend/users/{user}/summary`
+
+Returns the user's AI Gateway spend over the window with per-model and per-client breakdowns. Each breakdown lists at most 100 entries, most expensive first; the totals always cover every request. Requires permission to read any AI Gateway interception.
+start_date is raised to the AI Gateway data retention boundary when it falls earlier, since older records are purged. The response echoes the applied window.
+
+### Parameters
+
+| Name         | In    | Type              | Required | Description                                                                                                   |
+|--------------|-------|-------------------|----------|---------------------------------------------------------------------------------------------------------------|
+| `user`       | path  | string            | true     | User ID, username, or me                                                                                      |
+| `start_date` | query | string(date-time) | false    | Inclusive lower bound (RFC3339). Defaults to 30 days before end_date and is raised to the retention boundary. |
+| `end_date`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339). Defaults to now.                                                             |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "by_client": [
+    {
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "client": "string",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "request_count": 0,
+      "session_count": 0,
+      "total_cost_micros": 0,
+      "unpriced_request_count": 0
+    }
+  ],
+  "by_model": [
+    {
+      "cache_read_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "input_tokens": 0,
+      "model": "string",
+      "output_tokens": 0,
+      "provider": "string",
+      "provider_name": "string",
+      "request_count": 0,
+      "total_cost_micros": 0,
+      "unpriced_request_count": 0
+    }
+  ],
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
+  "client_count": 0,
+  "end_date": "2019-08-24T14:15:22Z",
+  "input_tokens": 0,
+  "model_count": 0,
+  "output_tokens": 0,
+  "request_count": 0,
+  "session_count": 0,
+  "start_date": "2019-08-24T14:15:22Z",
+  "total_cost_micros": 0,
+  "unpriced_request_count": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewaySpendUserSummary](schemas.md#codersdkaigatewayspendusersummary) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get appearance
 
 ### Code samples

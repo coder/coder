@@ -352,6 +352,126 @@ export interface AIGatewayKey {
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
+// From codersdk/aibridge.go
+/**
+ * AIGatewaySpendBreakdownLimit caps ByModel and ByClient in an
+ * AIGatewaySpendUserSummary. Model and client are request-supplied text, so
+ * the number of distinct values is otherwise unbounded.
+ */
+export const AIGatewaySpendBreakdownLimit = 100;
+
+// From codersdk/aibridge.go
+/**
+ * AIGatewaySpendClientBreakdown is one user's spend through a single client.
+ */
+export interface AIGatewaySpendClientBreakdown extends AIGatewaySpendTotals {
+	readonly client: string;
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIGatewaySpendModelBreakdown is one user's spend on a single model.
+ */
+export interface AIGatewaySpendModelBreakdown extends AIGatewaySpendUsage {
+	readonly provider: string;
+	readonly provider_name: string;
+	readonly model: string;
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIGatewaySpendTotals is AIGatewaySpendUsage plus the number of distinct
+ * sessions, which is only meaningful for groupings that span whole sessions.
+ */
+export interface AIGatewaySpendTotals extends AIGatewaySpendUsage {
+	readonly session_count: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIGatewaySpendUsage aggregates finished AI Gateway requests over a window.
+ * A request with usage that has no recorded cost contributes its tokens but
+ * no cost and is counted in UnpricedRequestCount, so TotalCostMicros is a
+ * lower bound whenever that count is non-zero.
+ */
+export interface AIGatewaySpendUsage {
+	readonly total_cost_micros: number;
+	readonly request_count: number;
+	readonly unpriced_request_count: number;
+	readonly input_tokens: number;
+	readonly output_tokens: number;
+	readonly cache_read_input_tokens: number;
+	readonly cache_write_input_tokens: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIGatewaySpendUser is one user's AI Gateway spend over the requested window.
+ */
+export interface AIGatewaySpendUser extends MinimalUser, AIGatewaySpendTotals {}
+
+// From codersdk/aibridge.go
+/**
+ * AIGatewaySpendUserSummary is one user's AI Gateway spend over the requested
+ * window, broken down by model and by client. The breakdowns hold the most
+ * expensive AIGatewaySpendBreakdownLimit entries; the totals cover every
+ * request.
+ */
+export interface AIGatewaySpendUserSummary extends AIGatewaySpendTotals {
+	readonly start_date: string;
+	readonly end_date: string;
+	/**
+	 * ModelCount and ClientCount are the distinct models and clients in the
+	 * window, so callers can tell when a breakdown was truncated.
+	 */
+	readonly model_count: number;
+	readonly client_count: number;
+	readonly by_model: readonly AIGatewaySpendModelBreakdown[];
+	readonly by_client: readonly AIGatewaySpendClientBreakdown[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIGatewaySpendUsersFilter filters the per-user AI Gateway spend list. The
+ * list is offset paginated only; it has no cursor.
+ */
+export interface AIGatewaySpendUsersFilter extends AIGatewaySpendWindow {
+	/**
+	 * Search matches the username or display name, case-insensitively.
+	 */
+	readonly search?: string;
+	/**
+	 * Limit is the page size. Zero applies the server default.
+	 */
+	readonly limit?: number;
+	/**
+	 * Offset is the number of users to skip; the first page is offset 0.
+	 */
+	readonly offset?: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIGatewaySpendUsersResponse lists per-user AI Gateway spend, most expensive
+ * first. Count is the total number of users with requests in the window.
+ */
+export interface AIGatewaySpendUsersResponse {
+	readonly start_date: string;
+	readonly end_date: string;
+	readonly count: number;
+	readonly users: readonly AIGatewaySpendUser[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIGatewaySpendWindow bounds an AI Gateway spend query. Zero values are
+ * omitted from the request so the server applies its default window.
+ */
+export interface AIGatewaySpendWindow {
+	readonly start_date?: string;
+	readonly end_date?: string;
+}
+
 // From codersdk/aimodelprices.go
 /**
  * AIModelPrice is a per-model token price used by AI Gateway to compute the
@@ -7477,6 +7597,7 @@ export type PremiumFunnelSource =
 	| "aibridge_sessions"
 	| "ai_gateway_keys"
 	| "ai_governance"
+	| "ai_spend"
 	| "appearance"
 	| "audit_log"
 	| "browser_only"
@@ -7499,6 +7620,7 @@ export const PremiumFunnelSources: PremiumFunnelSource[] = [
 	"aibridge_sessions",
 	"ai_gateway_keys",
 	"ai_governance",
+	"ai_spend",
 	"appearance",
 	"audit_log",
 	"browser_only",

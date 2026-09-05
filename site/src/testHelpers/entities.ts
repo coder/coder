@@ -5369,6 +5369,88 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
 
+export const MockAIGatewaySpendUser: TypesGen.AIGatewaySpendUser = {
+	id: "59da0bfe-9c99-47fa-a563-f9fdb18449d0",
+	username: "bob",
+	name: "The Builder, Bob",
+	avatar_url:
+		"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeDqc5b7Ny5bJOKxDeFvy17kBQ2_ZmBE8vKw&s",
+	total_cost_micros: 2_500_000,
+	request_count: 42,
+	unpriced_request_count: 0,
+	session_count: 5,
+	input_tokens: 200_000,
+	output_tokens: 300_000,
+	cache_read_input_tokens: 10_000,
+	cache_write_input_tokens: 5_000,
+};
+
+export const MockAIGatewaySpendUserSummary: TypesGen.AIGatewaySpendUserSummary =
+	{
+		start_date: "2026-02-10T00:00:00Z",
+		end_date: "2026-03-12T00:00:00Z",
+		total_cost_micros: 2_500_000,
+		request_count: 42,
+		unpriced_request_count: 0,
+		session_count: 5,
+		input_tokens: 200_000,
+		output_tokens: 300_000,
+		cache_read_input_tokens: 10_000,
+		cache_write_input_tokens: 5_000,
+		model_count: 2,
+		client_count: 2,
+		by_model: [
+			{
+				provider: "anthropic",
+				provider_name: "anthropic-main",
+				model: "claude-opus-4-6",
+				total_cost_micros: 2_000_000,
+				request_count: 30,
+				unpriced_request_count: 0,
+				input_tokens: 150_000,
+				output_tokens: 250_000,
+				cache_read_input_tokens: 8_000,
+				cache_write_input_tokens: 4_000,
+			},
+			{
+				provider: "openai",
+				provider_name: "openai-main",
+				model: "gpt-5.4",
+				total_cost_micros: 500_000,
+				request_count: 12,
+				unpriced_request_count: 0,
+				input_tokens: 50_000,
+				output_tokens: 50_000,
+				cache_read_input_tokens: 2_000,
+				cache_write_input_tokens: 1_000,
+			},
+		],
+		by_client: [
+			{
+				client: "Claude Code",
+				total_cost_micros: 1_800_000,
+				request_count: 25,
+				unpriced_request_count: 0,
+				session_count: 3,
+				input_tokens: 120_000,
+				output_tokens: 200_000,
+				cache_read_input_tokens: 7_000,
+				cache_write_input_tokens: 3_500,
+			},
+			{
+				client: "Cursor",
+				total_cost_micros: 700_000,
+				request_count: 17,
+				unpriced_request_count: 0,
+				session_count: 2,
+				input_tokens: 80_000,
+				output_tokens: 100_000,
+				cache_read_input_tokens: 3_000,
+				cache_write_input_tokens: 1_500,
+			},
+		],
+	};
+
 export const MockAIBridgeSessionNetworkCalls: readonly TypesGen.AgentFirewallLog[] =
 	[
 		{

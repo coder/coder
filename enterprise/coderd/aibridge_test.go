@@ -1366,6 +1366,408 @@ func TestAIBridgeListClients(t *testing.T) {
 	}, clients)
 }
 
+func TestAIGatewaySpend(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err = client.AIGatewaySpendUserSummary(ctx, codersdk.Me, codersdk.AIGatewaySpendWindow{})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	t.Run("MemberForbidden", func(t *testing.T) {
+		t.Parallel()
+		ownerClient, firstUser := coderdenttest.New(t, aibridgeOpts(t))
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := memberClient.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		_, err = memberClient.AIGatewaySpendUserSummary(ctx, codersdk.Me, codersdk.AIGatewaySpendWindow{})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	t.Run("InvalidWindow", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+		now := dbtime.Now()
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{
+			AIGatewaySpendWindow: codersdk.AIGatewaySpendWindow{StartDate: now, EndDate: now},
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "end_date", sdkErr.Validations[0].Field)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err = client.AIGatewaySpendUserSummary(ctx, codersdk.Me, codersdk.AIGatewaySpendWindow{
+			StartDate: now, EndDate: now.Add(-time.Hour),
+		})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/spend/users?start_date=yesterday", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		res, err = client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/spend/users?after_id="+uuid.NewString(), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("WindowClampedToRetention", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		retention := 14 * 24 * time.Hour
+		opts := aibridgeOpts(t)
+		opts.DeploymentValues.AI.BridgeConfig.Retention = serpent.Duration(retention)
+		opts.Clock = clock
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		retentionStart := now.Add(-retention)
+
+		// The request just before the boundary is still in the database, as
+		// it would be between purge runs, but the reported window excludes it.
+		for _, seed := range []struct {
+			at   time.Time
+			cost int64
+		}{
+			{at: retentionStart.Add(-time.Hour), cost: 9999},
+			{at: retentionStart.Add(time.Hour), cost: 1000},
+		} {
+			endedAt := seed.at.Add(time.Minute)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: firstUser.UserID,
+				StartedAt:   seed.at,
+			}, &endedAt)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID,
+				CostMicros:     sql.NullInt64{Int64: seed.cost, Valid: true},
+			})
+		}
+
+		// An explicit window reaching past the boundary is narrowed and the
+		// applied bounds are echoed.
+		window := codersdk.AIGatewaySpendWindow{StartDate: now.Add(-30 * 24 * time.Hour), EndDate: now}
+		//nolint:gocritic // Owner role is irrelevant here.
+		res, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{AIGatewaySpendWindow: window})
+		require.NoError(t, err)
+		require.True(t, retentionStart.Equal(res.StartDate), "start %s", res.StartDate)
+		require.True(t, now.Equal(res.EndDate))
+		require.Len(t, res.Users, 1)
+		require.EqualValues(t, 1000, res.Users[0].TotalCostMicros)
+		require.EqualValues(t, 1, res.Users[0].RequestCount)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		summary, err := client.AIGatewaySpendUserSummary(ctx, codersdk.Me, window)
+		require.NoError(t, err)
+		require.True(t, retentionStart.Equal(summary.StartDate))
+		require.EqualValues(t, 1000, summary.TotalCostMicros)
+
+		// The default window also starts at the boundary.
+		//nolint:gocritic // Owner role is irrelevant here.
+		defaulted, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{})
+		require.NoError(t, err)
+		require.True(t, retentionStart.Equal(defaulted.StartDate))
+		require.True(t, now.Equal(defaulted.EndDate))
+
+		// A window that ends before the boundary collapses to an empty one.
+		//nolint:gocritic // Owner role is irrelevant here.
+		stale, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{
+			AIGatewaySpendWindow: codersdk.AIGatewaySpendWindow{
+				StartDate: retentionStart.Add(-48 * time.Hour),
+				EndDate:   retentionStart.Add(-24 * time.Hour),
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, stale.EndDate.Equal(stale.StartDate))
+		require.Empty(t, stale.Users)
+	})
+
+	t.Run("BreakdownsCapped", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+		start := dbtime.Now().Add(-time.Hour).Truncate(time.Second)
+
+		// One more distinct model and client than the cap, cheapest first so
+		// the cap has to drop the first one inserted.
+		total := codersdk.AIGatewaySpendBreakdownLimit + 1
+		for i := 0; i < total; i++ {
+			startedAt := start.Add(time.Duration(i) * time.Second)
+			endedAt := startedAt.Add(time.Second)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: firstUser.UserID,
+				Provider:    "openai",
+				Model:       fmt.Sprintf("model-%03d", i),
+				StartedAt:   startedAt,
+				Client:      sql.NullString{String: fmt.Sprintf("client-%03d", i), Valid: true},
+			}, &endedAt)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID,
+				CostMicros:     sql.NullInt64{Int64: int64(i + 1), Valid: true},
+			})
+		}
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		summary, err := client.AIGatewaySpendUserSummary(ctx, codersdk.Me, codersdk.AIGatewaySpendWindow{
+			StartDate: start, EndDate: start.Add(time.Hour),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, total, summary.RequestCount)
+		require.EqualValues(t, total, summary.ModelCount)
+		require.EqualValues(t, total, summary.ClientCount)
+		require.Len(t, summary.ByModel, codersdk.AIGatewaySpendBreakdownLimit)
+		require.Equal(t, fmt.Sprintf("model-%03d", total-1), summary.ByModel[0].Model)
+		require.Equal(t, "model-001", summary.ByModel[len(summary.ByModel)-1].Model)
+		require.Len(t, summary.ByClient, codersdk.AIGatewaySpendBreakdownLimit)
+		require.Equal(t, fmt.Sprintf("client-%03d", total-1), summary.ByClient[0].Client)
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, alice := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		_, bob := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		start := dbtime.Now().Add(-24 * time.Hour).Truncate(time.Second)
+		end := start.Add(12 * time.Hour)
+
+		finished := func(startedAt time.Time) *time.Time {
+			endedAt := startedAt.Add(time.Minute)
+			return &endedAt
+		}
+		usage := func(interceptionID uuid.UUID, cost sql.NullInt64, in, out int64) {
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: interceptionID,
+				InputTokens:    in,
+				OutputTokens:   out,
+				CostMicros:     cost,
+			})
+		}
+		priced := func(cost int64) sql.NullInt64 { return sql.NullInt64{Int64: cost, Valid: true} }
+
+		// Alice: a priced request, a partially unpriced request in the same
+		// session, and a finished request without usage in another session.
+		a1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     alice.ID,
+			Provider:        "anthropic",
+			ProviderName:    "anthropic-main",
+			Model:           "claude",
+			StartedAt:       start,
+			Client:          sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
+			ClientSessionID: sql.NullString{String: "sess-a1", Valid: true},
+		}, finished(start))
+		usage(a1.ID, priced(1000), 100, 50)
+		a2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     alice.ID,
+			Provider:        "openai",
+			ProviderName:    "openai-main",
+			Model:           "gpt-4",
+			StartedAt:       start.Add(time.Hour),
+			Client:          sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
+			ClientSessionID: sql.NullString{String: "sess-a1", Valid: true},
+		}, finished(start.Add(time.Hour)))
+		usage(a2.ID, sql.NullInt64{}, 30, 15)
+		usage(a2.ID, priced(200), 5, 5)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     alice.ID,
+			Provider:        "anthropic",
+			ProviderName:    "anthropic-main",
+			Model:           "claude",
+			StartedAt:       start.Add(2 * time.Hour),
+			ClientSessionID: sql.NullString{String: "sess-a2", Valid: true},
+		}, finished(start.Add(2*time.Hour)))
+		// In flight: excluded from every total.
+		inFlight := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: alice.ID,
+			StartedAt:   start.Add(3 * time.Hour),
+		}, nil)
+		usage(inFlight.ID, priced(99_999), 1, 1)
+
+		// Bob: one priced request.
+		b1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     bob.ID,
+			Provider:        "openai",
+			ProviderName:    "openai-main",
+			Model:           "gpt-4",
+			StartedAt:       start,
+			Client:          sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
+			ClientSessionID: sql.NullString{String: "sess-b1", Valid: true},
+		}, finished(start))
+		usage(b1.ID, priced(3000), 300, 100)
+
+		window := codersdk.AIGatewaySpendWindow{StartDate: start, EndDate: end}
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		res, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{AIGatewaySpendWindow: window})
+		require.NoError(t, err)
+		require.True(t, start.Equal(res.StartDate))
+		require.True(t, end.Equal(res.EndDate))
+		require.EqualValues(t, 2, res.Count)
+		require.Len(t, res.Users, 2)
+
+		require.Equal(t, bob.ID, res.Users[0].ID)
+		require.Equal(t, bob.Username, res.Users[0].Username)
+		require.Equal(t, codersdk.AIGatewaySpendTotals{
+			AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+				TotalCostMicros: 3000,
+				RequestCount:    1,
+				InputTokens:     300,
+				OutputTokens:    100,
+			},
+			SessionCount: 1,
+		}, res.Users[0].AIGatewaySpendTotals)
+
+		aliceTotals := codersdk.AIGatewaySpendTotals{
+			AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+				TotalCostMicros:      1200,
+				RequestCount:         3,
+				UnpricedRequestCount: 1,
+				InputTokens:          135,
+				OutputTokens:         70,
+			},
+			SessionCount: 2,
+		}
+		require.Equal(t, alice.ID, res.Users[1].ID)
+		require.Equal(t, aliceTotals, res.Users[1].AIGatewaySpendTotals)
+
+		// Search narrows to the matching user; pagination reports the full count.
+		//nolint:gocritic // Owner role is irrelevant here.
+		searched, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{
+			AIGatewaySpendWindow: window,
+			Search:               alice.Username,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, searched.Count)
+		require.Len(t, searched.Users, 1)
+		require.Equal(t, alice.ID, searched.Users[0].ID)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		page2, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{
+			AIGatewaySpendWindow: window,
+			Limit:                1,
+			Offset:               1,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 2, page2.Count)
+		require.Len(t, page2.Users, 1)
+		require.Equal(t, alice.ID, page2.Users[0].ID)
+
+		// An overshot page is empty but still reports the total count.
+		//nolint:gocritic // Owner role is irrelevant here.
+		overshot, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{
+			AIGatewaySpendWindow: window,
+			Limit:                1,
+			Offset:               5,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 2, overshot.Count)
+		require.Empty(t, overshot.Users)
+
+		// An empty window reports no users and a zero count.
+		//nolint:gocritic // Owner role is irrelevant here.
+		empty, err := client.AIGatewaySpendUsers(ctx, codersdk.AIGatewaySpendUsersFilter{
+			AIGatewaySpendWindow: codersdk.AIGatewaySpendWindow{StartDate: end, EndDate: end.Add(time.Hour)},
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, empty.Count)
+		require.Empty(t, empty.Users)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		summary, err := client.AIGatewaySpendUserSummary(ctx, alice.Username, window)
+		require.NoError(t, err)
+		require.True(t, start.Equal(summary.StartDate))
+		require.True(t, end.Equal(summary.EndDate))
+		require.Equal(t, aliceTotals, summary.AIGatewaySpendTotals)
+		require.EqualValues(t, 2, summary.ModelCount)
+		require.EqualValues(t, 3, summary.ClientCount)
+		require.Equal(t, []codersdk.AIGatewaySpendModelBreakdown{
+			{
+				Provider: "anthropic", ProviderName: "anthropic-main", Model: "claude",
+				AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+					TotalCostMicros: 1000, RequestCount: 2, InputTokens: 100, OutputTokens: 50,
+				},
+			},
+			{
+				Provider: "openai", ProviderName: "openai-main", Model: "gpt-4",
+				AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+					TotalCostMicros: 200, RequestCount: 1, UnpricedRequestCount: 1, InputTokens: 35, OutputTokens: 20,
+				},
+			},
+		}, summary.ByModel)
+		require.Equal(t, []codersdk.AIGatewaySpendClientBreakdown{
+			{
+				Client: string(aiblib.ClientClaudeCode),
+				AIGatewaySpendTotals: codersdk.AIGatewaySpendTotals{
+					AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+						TotalCostMicros: 1000, RequestCount: 1, InputTokens: 100, OutputTokens: 50,
+					},
+					SessionCount: 1,
+				},
+			},
+			{
+				Client: string(aiblib.ClientCursor),
+				AIGatewaySpendTotals: codersdk.AIGatewaySpendTotals{
+					AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{
+						TotalCostMicros: 200, RequestCount: 1, UnpricedRequestCount: 1, InputTokens: 35, OutputTokens: 20,
+					},
+					SessionCount: 1,
+				},
+			},
+			{
+				Client: "Unknown",
+				AIGatewaySpendTotals: codersdk.AIGatewaySpendTotals{
+					AIGatewaySpendUsage: codersdk.AIGatewaySpendUsage{RequestCount: 1},
+					SessionCount:        1,
+				},
+			},
+		}, summary.ByClient)
+
+		// A user without requests gets zero totals and empty breakdowns.
+		//nolint:gocritic // Owner role is irrelevant here.
+		none, err := client.AIGatewaySpendUserSummary(ctx, codersdk.Me, window)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIGatewaySpendTotals{}, none.AIGatewaySpendTotals)
+		require.Zero(t, none.ModelCount)
+		require.Zero(t, none.ClientCount)
+		require.Empty(t, none.ByModel)
+		require.Empty(t, none.ByClient)
+	})
+}
+
 func TestAIBridgeRouting(t *testing.T) {
 	t.Parallel()
 

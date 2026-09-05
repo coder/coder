@@ -13,6 +13,7 @@ import {
 interface AISettingsSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
+	canViewAISpend?: boolean;
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
 }
@@ -59,6 +60,7 @@ const ModelsSidebarNavItem: FC = () => {
 
 const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 	permissions,
+	canViewAISpend = false,
 	canAccessOrganizationModels = false,
 	canShareOrganizationMCPServers = false,
 }) => {
@@ -69,6 +71,9 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					<SidebarNavItem href="/ai/settings/governance">
 						AI Governance
 					</SidebarNavItem>
+				)}
+				{canViewAISpend && (
+					<SidebarNavItem href="/ai/settings/spend">Spend</SidebarNavItem>
 				)}
 				{permissions.viewAIGatewayKeys && (
 					<SidebarNavItem href="/ai/settings/gateway-keys">
