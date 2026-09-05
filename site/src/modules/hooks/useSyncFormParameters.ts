@@ -25,7 +25,9 @@ export function useSyncFormParameters({
 	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
 	const formValuesRef = useRef(formValues);
 
-	formValuesRef.current = formValues;
+	useEffect(() => {
+		formValuesRef.current = formValues;
+	});
 
 	useEffect(() => {
 		if (!parameters) return;
