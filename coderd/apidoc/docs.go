@@ -21317,6 +21317,7 @@ const docTemplate = `{
         "codersdk.ChatUser": {
             "type": "object",
             "required": [
+                "email",
                 "id",
                 "username"
             ],
@@ -21324,6 +21325,10 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string",
                     "format": "uri"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email"
                 },
                 "id": {
                     "type": "string",
@@ -24620,6 +24625,7 @@ const docTemplate = `{
         "codersdk.MCPServerConfigUser": {
             "type": "object",
             "required": [
+                "email",
                 "id",
                 "username"
             ],
@@ -24627,6 +24633,10 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string",
                     "format": "uri"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email"
                 },
                 "id": {
                     "type": "string",
@@ -24703,6 +24713,7 @@ const docTemplate = `{
         "codersdk.MinimalUser": {
             "type": "object",
             "required": [
+                "email",
                 "id",
                 "username"
             ],
@@ -24710,6 +24721,10 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string",
                     "format": "uri"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email"
                 },
                 "id": {
                     "type": "string",
@@ -32329,6 +32344,7 @@ const docTemplate = `{
         "codersdk.WorkspaceUser": {
             "type": "object",
             "required": [
+                "email",
                 "id",
                 "username"
             ],
@@ -32336,6 +32352,10 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string",
                     "format": "uri"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email"
                 },
                 "id": {
                     "type": "string",

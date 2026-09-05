@@ -113,6 +113,7 @@ Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
       "id": "string",
       "initiator": {
         "avatar_url": "http://example.com",
+        "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "name": "string",
         "username": "string"
@@ -189,6 +190,7 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
   "id": "string",
   "initiator": {
     "avatar_url": "http://example.com",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "username": "string"

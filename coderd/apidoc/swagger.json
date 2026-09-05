@@ -19296,11 +19296,15 @@
 		},
 		"codersdk.ChatUser": {
 			"type": "object",
-			"required": ["id", "username"],
+			"required": ["email", "id", "username"],
 			"properties": {
 				"avatar_url": {
 					"type": "string",
 					"format": "uri"
+				},
+				"email": {
+					"type": "string",
+					"format": "email"
 				},
 				"id": {
 					"type": "string",
@@ -22461,11 +22465,15 @@
 		},
 		"codersdk.MCPServerConfigUser": {
 			"type": "object",
-			"required": ["id", "username"],
+			"required": ["email", "id", "username"],
 			"properties": {
 				"avatar_url": {
 					"type": "string",
 					"format": "uri"
+				},
+				"email": {
+					"type": "string",
+					"format": "email"
 				},
 				"id": {
 					"type": "string",
@@ -22537,11 +22545,15 @@
 		},
 		"codersdk.MinimalUser": {
 			"type": "object",
-			"required": ["id", "username"],
+			"required": ["email", "id", "username"],
 			"properties": {
 				"avatar_url": {
 					"type": "string",
 					"format": "uri"
+				},
+				"email": {
+					"type": "string",
+					"format": "email"
 				},
 				"id": {
 					"type": "string",
@@ -29828,11 +29840,15 @@
 		},
 		"codersdk.WorkspaceUser": {
 			"type": "object",
-			"required": ["id", "username"],
+			"required": ["email", "id", "username"],
 			"properties": {
 				"avatar_url": {
 					"type": "string",
 					"format": "uri"
+				},
+				"email": {
+					"type": "string",
+					"format": "email"
 				},
 				"id": {
 					"type": "string",

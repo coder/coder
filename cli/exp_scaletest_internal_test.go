@@ -70,8 +70,7 @@ func TestFilterScaletestUsersByPrefix(t *testing.T) {
 func scaletestUser(username, email string) codersdk.User {
 	return codersdk.User{
 		ReducedUser: codersdk.ReducedUser{
-			MinimalUser: codersdk.MinimalUser{Username: username},
-			Email:       email,
+			MinimalUser: codersdk.MinimalUser{Username: username, Email: email},
 		},
 	}
 }

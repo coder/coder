@@ -1898,7 +1898,7 @@ func TestPostChats_ClientType(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Omit ClientType entirely — should default to "api".
+		// Omit ClientType entirely. It should default to "api".
 		chat := newChat(t, "")
 		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
 
