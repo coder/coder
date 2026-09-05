@@ -4,6 +4,7 @@ import { expect, spyOn, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
@@ -154,5 +155,65 @@ export const GatewayUnavailable: Story = {
 		});
 		expect(canvas.queryByText("Cost:")).not.toBeInTheDocument();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
+	},
+};
+
+export const WithPreviewLinks: Story = {
+	args: {
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		wildcardHostname: "*.proxy.example.com",
+	},
+	beforeEach: () => {
+		mockRequests({ summary: "Built the storybook and started a dev server." });
+		spyOn(API, "getAgentListeningPorts").mockResolvedValue({
+			ports: [
+				{ process_name: "node", network: "tcp", port: 8080 },
+				{ process_name: "node", network: "tcp", port: 6006 },
+			],
+		});
+		spyOn(API, "getWorkspaceAgentSharedPorts").mockResolvedValue({
+			shares: [],
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Preview:")).toBeInTheDocument();
+		});
+		const storybookLink = canvas.getByRole("link", {
+			name: /Storybook \(6006\)/,
+		});
+		expect(storybookLink).toHaveAttribute(
+			"href",
+			"http://6006--a-workspace-agent--test-workspace--testuser.proxy.example.com/",
+		);
+		expect(
+			canvas.getByRole("link", { name: /Preview \(8080\)/ }),
+		).toBeInTheDocument();
+	},
+};
+
+export const NoPreviewWithoutWildcardHost: Story = {
+	args: {
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		wildcardHostname: "",
+	},
+	beforeEach: () => {
+		mockRequests({ summary: "No wildcard access URL configured." });
+		spyOn(API, "getAgentListeningPorts");
+		spyOn(API, "getWorkspaceAgentSharedPorts");
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText("No wildcard access URL configured."),
+			).toBeInTheDocument();
+		});
+		expect(canvas.queryByText("Preview:")).not.toBeInTheDocument();
+		expect(API.getAgentListeningPorts).not.toHaveBeenCalled();
+		expect(API.getWorkspaceAgentSharedPorts).not.toHaveBeenCalled();
 	},
 };
