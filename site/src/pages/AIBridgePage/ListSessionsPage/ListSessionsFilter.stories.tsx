@@ -104,6 +104,34 @@ export const ExplicitTimeRange: Story = {
 	},
 };
 
+export const WithReadableTimeRangeQuery: Story = {
+	args: {
+		...getDefaultFilterProps<FilterAndMenus>({
+			query:
+				'initiator:me started_after:"2026-08-25T20:00:00Z" started_before:"2026-08-26T06:59:59Z"',
+			values: {
+				initiator: "me",
+				started_after: "2026-08-25T20:00:00Z",
+				started_before: "2026-08-26T06:59:59Z",
+			},
+			menus: {
+				user: MockMenu,
+				provider: MockMenu,
+				client: MockMenu,
+				model: MockMenu,
+			},
+			used: true,
+		}),
+		...timeRangeProps,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByLabelText("Filter")).toHaveValue(
+			"initiator:me 2026/08/25/20:00 to 2026/08/26/06:59",
+		);
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		...defaultFilterProps,

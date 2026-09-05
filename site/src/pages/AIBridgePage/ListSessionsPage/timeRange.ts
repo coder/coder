@@ -8,6 +8,65 @@ import {
 
 dayjs.extend(utc);
 
+const readableTimeRangePattern =
+	/(\d{4}\/\d{2}\/\d{2}\/\d{2}:\d{2})\s+to\s+(\d{4}\/\d{2}\/\d{2}\/\d{2}:\d{2})/g;
+const timeRangeQueryPattern =
+	/started_after:"([^"]+)"\s+started_before:"([^"]+)"/g;
+
+const formatReadableTime = (value: string): string | null => {
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) {
+		return null;
+	}
+	return dayjs(date).utc().format("YYYY/MM/DD/HH:mm");
+};
+
+const parseReadableTime = (value: string, seconds: number): string | null => {
+	const match = /^(\d{4})\/(\d{2})\/(\d{2})\/(\d{2}):(\d{2})$/.exec(value);
+	if (match === null) {
+		return null;
+	}
+	const [, year, month, day, hour, minute] = match.map(Number);
+	const date = new Date(Date.UTC(year, month - 1, day, hour, minute, seconds));
+	if (
+		date.getUTCFullYear() !== year ||
+		date.getUTCMonth() !== month - 1 ||
+		date.getUTCDate() !== day ||
+		date.getUTCHours() !== hour ||
+		date.getUTCMinutes() !== minute
+	) {
+		return null;
+	}
+	return dayjs(date).utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
+};
+
+/** Formats verbose time bounds into a compact display-only search string. */
+export const formatTimeRangeQuery = (query: string): string => {
+	return query.replace(timeRangeQueryPattern, (match, startValue, endValue) => {
+		const start = formatReadableTime(startValue);
+		const end = formatReadableTime(endValue);
+		if (start === null || end === null) {
+			return match;
+		}
+		return `${start} to ${end}`;
+	});
+};
+
+/** Parses compact display-only time bounds back into backend filter syntax. */
+export const parseTimeRangeQuery = (query: string): string => {
+	return query.replace(
+		readableTimeRangePattern,
+		(match, startValue, endValue) => {
+			const start = parseReadableTime(startValue, 0);
+			const end = parseReadableTime(endValue, 59);
+			if (start === null || end === null) {
+				return match;
+			}
+			return `started_after:"${start}" started_before:"${end}"`;
+		},
+	);
+};
+
 /** The resolved time window a sessions query spans. */
 export type TimeRange = Pick<DateTimeRangeValue, "start" | "end">;
 

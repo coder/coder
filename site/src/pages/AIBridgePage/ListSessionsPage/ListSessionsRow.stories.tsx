@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsRow } from "./ListSessionsRow";
@@ -46,6 +46,16 @@ export const MultipleProviders: Story = {
 			providers: ["anthropic", "openai", "copilot"],
 		},
 	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(within(canvasElement).getByText("3 providers"));
+		await waitFor(() => {
+			const tooltip = screen.getByRole("tooltip");
+			expect(tooltip).toHaveTextContent("Providers");
+			expect(tooltip).toHaveTextContent("Anthropic");
+			expect(tooltip).toHaveTextContent("OpenAI");
+			expect(tooltip).toHaveTextContent("GitHub Copilot");
+		});
+	},
 };
 
 export const EmptyProviders: Story = {
@@ -79,6 +89,32 @@ export const LongPrompt: Story = {
 			last_prompt:
 				"Can you refactor the entire authentication module to use JWT tokens instead of session cookies, and also update all the tests, documentation, and CI pipelines while you're at it?",
 		},
+	},
+};
+
+export const NarrowPromptIcon: Story = {
+	args: {
+		session: {
+			...MockSession,
+			last_prompt:
+				"Can you refactor the entire authentication module to use JWT tokens instead of session cookies?",
+		},
+	},
+	parameters: {
+		viewport: {
+			defaultViewport: "mobile2",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByLabelText("View last prompt")).toBeVisible();
+		expect(canvas.getByText(/^Can you refactor/)).not.toBeVisible();
+		await userEvent.hover(canvas.getByLabelText("View last prompt"));
+		await waitFor(() =>
+			expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"Can you refactor the entire authentication module",
+			),
+		);
 	},
 };
 
