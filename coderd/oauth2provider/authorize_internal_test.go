@@ -265,6 +265,9 @@ var (
 	ReasonCoverageUndecidable = errCoverageUndecidable.Error()
 )
 
+// MaxErrorDescription is the description bound, for the same tests.
+const MaxErrorDescription = maxErrorDescription
+
 // TestGrantableScopesNotSizedByInput pins the shape of the result, not just its
 // contents. app.Scope is unvalidated registration metadata read on every
 // authorization and redemption, so collecting duplicates and dropping them
@@ -383,6 +386,27 @@ func TestHashOAuth2State(t *testing.T) {
 	})
 }
 
+func TestCapErrorDescription(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShortDescriptionUnchanged", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, "unknown or unsupported scope", capErrorDescription("unknown or unsupported scope"))
+	})
+
+	t.Run("BoundIsInclusive", func(t *testing.T) {
+		t.Parallel()
+		atBound := strings.Repeat("x", maxErrorDescription)
+		assert.Equal(t, atBound, capErrorDescription(atBound))
+	})
+
+	t.Run("LongerDescriptionTruncated", func(t *testing.T) {
+		t.Parallel()
+		got := capErrorDescription(strings.Repeat("x", maxErrorDescription+1))
+		assert.Equal(t, strings.Repeat("x", maxErrorDescription)+" (truncated)", got)
+	})
+}
+
 func TestSanitizeErrorDescription(t *testing.T) {
 	t.Parallel()
 
@@ -397,13 +421,13 @@ func TestSanitizeErrorDescription(t *testing.T) {
 			want:        "Only response_type=code is supported",
 		},
 		{
-			// What negotiateScope's %q produces for a well-behaved scope name.
+			// §5.2 excludes the double quote.
 			name:        "QuotedScopeBecomesApostrophes",
 			description: `"openid": unknown or unsupported scope`,
 			want:        "'openid': unknown or unsupported scope",
 		},
 		{
-			// %q escapes a quote inside the value; the backslash goes with it.
+			// §5.2 excludes the backslash too.
 			name:        "EscapedQuoteLosesItsBackslash",
 			description: `"\"><img>": unknown or unsupported scope`,
 			want:        "''><img>': unknown or unsupported scope",

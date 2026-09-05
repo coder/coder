@@ -40,9 +40,9 @@ var (
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
 	// The scope expands to permissions the allowlist does not cover.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
-	// A comparison that failed outright. The underlying error names RBAC
+	// The coverage check itself failed. The underlying error names RBAC
 	// internals, so it is logged rather than rendered.
-	errCoverageUndecidable = xerrors.New("scope coverage against this app's allowed scopes could not be determined")
+	errCoverageUndecidable = xerrors.New("scope coverage could not be determined")
 )
 
 // canonicalScopes rewrites each name to its api_key_scope enum spelling and
@@ -54,6 +54,21 @@ func canonicalScopes(names []string) []string {
 		canonical = append(canonical, string(rbac.CanonicalScopeName(rbac.ScopeName(name))))
 	}
 	return slice.Unique(canonical)
+}
+
+// firstUnknownScope returns the first name clients may not request, and whether
+// there was one. The catalog is a curation, not a validity check: RBAC also
+// expands internal-only names such as debug_info:read.
+//
+// Safe to call before or after canonicalScopes, since IsExternalScope accepts
+// the alias spellings too.
+func firstUnknownScope(names []string) (string, bool) {
+	for _, name := range names {
+		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
+			return name, true
+		}
+	}
+	return "", false
 }
 
 // noScopeAllowlist reports whether an app has no scope allowlist. NULL and ""
@@ -92,30 +107,39 @@ func grantableScopes(appScope string) []string {
 	return filtered
 }
 
-// firstScopeOutsideAllowlist returns the first scope in granted that the
-// allowlist does not confer, or "" when it confers all of them. It compares
-// what the scopes grant, not their names: `coder:workspaces.access` covers
+// Phases of scope checking, named in the phase log field. Constants because a
+// typo in a literal compiles and produces a line no filter matches.
+const (
+	phaseAuthorize = "authorize"
+	phaseRedeem    = "redeem"
+	phaseRefresh   = "refresh"
+)
+
+// firstScopeBeyondCeiling returns the first requested scope the ceiling does not
+// confer, or "" when it confers all of them. It compares what the scopes grant,
+// not their names: a ceiling of `coder:workspaces.access` covers
 // `workspace:read`. Pass both slices through canonicalScopes first, since RBAC
 // expands `coder:all` but not the bare `all` alias. A comparison it cannot
 // decide refuses.
-func firstScopeOutsideAllowlist(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, allowlist, granted []string) (string, error) {
-	allowedNames := make([]rbac.ScopeName, 0, len(allowlist))
-	for _, a := range allowlist {
-		allowedNames = append(allowedNames, rbac.ScopeName(a))
-	}
-	requestedNames := make([]rbac.ScopeName, 0, len(granted))
-	for _, g := range granted {
-		requestedNames = append(requestedNames, rbac.ScopeName(g))
-	}
-	// One pass over the allowlist rather than one per granted scope.
-	outside, err := rbac.FirstScopeNotCovered(allowedNames, requestedNames)
+//
+// phase names which comparison a log line came from, and is one of
+// phaseAuthorize, phaseRedeem or phaseRefresh. The ceiling differs by phase: the
+// app's allowlist for the first two, the token's own grant for the third.
+func firstScopeBeyondCeiling(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, ceiling, requested []string) (string, error) {
+	ceilingNames := slice.StringEnums[rbac.ScopeName](ceiling)
+	requestedNames := slice.StringEnums[rbac.ScopeName](requested)
+	// One pass over the ceiling rather than one per requested scope.
+	outside, err := rbac.FirstScopeNotCovered(ceilingNames, requestedNames)
 	if err != nil {
 		logger.Warn(ctx, "oauth2 scope coverage could not be determined",
 			slog.Error(err),
 			slog.F("phase", phase),
 			slog.F("app_id", appID.String()),
-			slog.F("allowlist", strings.Join(allowlist, " ")),
+			slog.F("ceiling", strings.Join(ceiling, " ")),
 			slog.F("scope", string(outside)))
+		// outside is a name from the ceiling, so it can be a stored value.
+		// Both handlers answer with a fixed string; rendering err.Error()
+		// here would echo it to the client.
 		return "", xerrors.Errorf("'%s': %w", outside, errCoverageUndecidable)
 	}
 	return string(outside), nil
@@ -139,13 +163,8 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	// of the two aliases, so checking after the rewrite accepts the same names.
 	granted := canonicalScopes(requested)
 
-	// The catalog is a curation, not a validity check: RBAC also expands
-	// internal-only names such as debug_info:read, but clients may not request
-	// them.
-	for _, s := range granted {
-		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
-			return "", xerrors.Errorf("%q: %w", s, errUnknownScope)
-		}
+	if unknown, ok := firstUnknownScope(granted); ok {
+		return "", xerrors.Errorf("'%s': %w", unknown, errUnknownScope)
 	}
 
 	if noScopeAllowlist(app.Scope) {
@@ -169,7 +188,7 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		return strings.Join(allowlist, " "), nil // RFC 6749 §3.3 default
 	}
 
-	outside, err := firstScopeOutsideAllowlist(ctx, logger, "authorize", app.ID, allowlist, granted)
+	outside, err := firstScopeBeyondCeiling(ctx, logger, phaseAuthorize, app.ID, allowlist, granted)
 	if err != nil {
 		return "", err
 	}
@@ -206,6 +225,15 @@ func consentScopes(granted string) (names []string, unrestricted bool) {
 // maxErrorDescription bounds error_description: long enough for a human reason,
 // short enough for a Location header to survive the proxies in front of it.
 const maxErrorDescription = 2048
+
+// capErrorDescription bounds a description, whose length is otherwise the
+// client's to choose.
+func capErrorDescription(description string) string {
+	if len(description) > maxErrorDescription {
+		return description[:maxErrorDescription] + " (truncated)"
+	}
+	return description
+}
 
 // responseTypeCode is the only response type this server supports. response_type
 // is read as text rather than through the SDK enum so every unsupported value
@@ -533,11 +561,8 @@ func (a authorizeResponse) codeURL(code string) *url.URL {
 }
 
 func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog.Logger, response authorizeResponse, code codersdk.OAuth2ErrorCode, description string) {
-	// Descriptions echo values the client sent, so their length is the client's
-	// to choose. Cap here, ahead of both the log field and the Location header.
-	if len(description) > maxErrorDescription {
-		description = description[:maxErrorDescription] + " (truncated)"
-	}
+	// Capped ahead of both the log field and the Location header.
+	description = capErrorDescription(description)
 
 	app := httpmw.OAuth2ProviderApp(r)
 	logger.Info(r.Context(), "oauth2 authorization rejected",

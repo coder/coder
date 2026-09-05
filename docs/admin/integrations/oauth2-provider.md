@@ -281,7 +281,7 @@ https://coder.example.com/oauth2/authorize?
 
 An application registered through [Dynamic Client Registration](#dynamic-client-registration) can declare a `scope` field, which acts as an allowlist. The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing. Applications created through the web UI or the management API declare no allowlist, so any requested scope is honored and a request that names no scope is granted `coder:all`.
 
-The consent page states the scope being granted before the user approves it, and refreshing a token keeps the scope originally granted.
+The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
 ## Discovery Endpoints
 
@@ -416,8 +416,9 @@ grant what was asked for, it redirects to your registered callback with
 `error=invalid_scope` rather than issuing a code. The `error_description`
 opens with the requested name that caused the rejection:
 
-- `unknown or unsupported scope`: this deployment does not offer that scope
-  name. Read the current list from `scopes_supported` in
+- `unknown or unsupported scope`: this deployment does not offer that name to
+  OAuth2 clients. It may not exist, or it may exist and be internal-only, which
+  no version offers. Read the current list from `scopes_supported` in
   `GET /.well-known/oauth-authorization-server`.
 - `scope requests permissions beyond this app's allowed scopes`: the name is
   supported, but the application was registered with a narrower `scope`.
@@ -434,6 +435,10 @@ if it was registered without any.
 
 The negotiated scope is recorded on the authorization, shown on the consent
 page, and applied to the access token issued when the code is exchanged.
+
+The token endpoint validates a refresh request's `scope` too, and answers
+`invalid_scope` in the response body rather than by redirect. See
+["invalid_scope" for a refresh that names a scope](#invalid_scope-for-a-refresh-that-names-a-scope).
 
 ### "invalid_grant" for a scope the deployment cannot mint
 
@@ -482,6 +487,45 @@ recorded as an unrestricted grant. For an application registered with a
 narrower `scope`, those codes are refused with `scope is no longer allowed by
 this app's registered scopes` until they expire, which takes at most ten
 minutes. Authorizing again issues a code within the current registration.
+
+### "invalid_scope" for a refresh that names a scope
+
+`POST /oauth2/tokens` answers HTTP 400 with `error=invalid_scope` when a refresh
+request names a `scope` the server will not grant. This is the token endpoint,
+not the authorization endpoint above: there is no redirect, and the error is in
+the response body.
+
+A refresh may name a `scope` of its own to give up authority. The narrowing
+applies to the access token that refresh mints, and to nothing else. The
+refresh token continues to represent the scope the user consented to, so the
+ceiling does not move and a later refresh may ask for a different part of the
+same grant, or omit `scope` to take the grant whole again.
+
+The request may name any scope the original grant confers **that also appears in
+`scopes_supported`**, including a single permission out of a composite scope, so
+a token granted `coder:workspaces.access` can refresh down to `workspace:read`
+for one call and to `workspace:ssh` for the next. Two descriptions can open the
+`error_description`, each opening with the requested name that caused it:
+
+- `scope requests permissions beyond the scope originally granted; a refresh
+  cannot widen a grant, so authorize again to obtain a broader one`: the name is
+  offered, but the resource owner never granted it.
+- `unknown or unsupported scope`: this deployment does not offer that name to
+  OAuth2 clients, either because it does not exist or because it is internal.
+
+A refused refresh mints nothing and leaves the refresh token usable, so a client
+that asked for too much can retry with less rather than re-authorizing.
+
+Only the resource owner lowers the ceiling, by revoking the token or authorizing
+again with less. This is also what OAuth 2.1 section 4.3.3 requires: a rotated
+refresh token carries the scope of the one presented.
+
+Narrowing a composite scope to the low-level names you can request may drop
+permissions that have no requestable name of their own. `coder:workspaces.create`
+confers `organization_member:read`, which a workspace build needs and which
+`scopes_supported` does not list, so a token narrowed to the fullest set a client
+can name will fail to create a workspace. Refresh without a `scope` to return to
+the composite.
 
 ### "unsupported_response_type" returned to your callback
 
@@ -576,17 +620,22 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 As an experimental feature, the current implementation has limitations:
 
 - A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
-- A client cannot narrow the token's scope on refresh; the `scope` parameter is ignored and the refreshed token always keeps the scope originally granted
 - No client credentials grant support
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
+
+A `scope` on a refresh request was parsed and discarded in earlier versions, so a
+client sending one wider than its grant refreshed successfully. It is now
+enforced, and such a request answers HTTP 400 with `error=invalid_scope`. The
+refresh token is not consumed, so a client that drops the parameter or asks for
+less recovers without re-authorizing.
 
 ## Standards Compliance
 
 This implementation follows established OAuth2 standards including
 [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core),
 [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and the
-[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12).
+[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16).
 Coder enforces OAuth 2.1 requirements including mandatory PKCE for all
 authorization code grants, exact redirect URI string matching, rejection
 of the implicit grant, and CSRF protections on consent pages.
