@@ -62,7 +62,7 @@ const aclWithUsersAndGroups: WorkspaceACL = {
 };
 
 const meta: Meta<typeof WorkspaceSharingPageView> = {
-	title: "pages/WorkspaceSharingPageView",
+	title: "pages/WorkspaceSharingPage",
 	component: WorkspaceSharingPageView,
 	parameters: {
 		queries: [

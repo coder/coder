@@ -39,7 +39,7 @@ const AISettingsIndexRedirectWithProviders = () => (
 );
 
 const meta: Meta<typeof NavbarView> = {
-	title: "modules/dashboard/NavbarView",
+	title: "modules/dashboard/Navbar",
 	parameters: {
 		pixel: { matrix: pixelWithTablet },
 		layout: "fullscreen",

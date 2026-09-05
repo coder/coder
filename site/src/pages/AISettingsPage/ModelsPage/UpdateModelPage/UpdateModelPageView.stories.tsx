@@ -28,7 +28,7 @@ const LocationProbe = () => {
 };
 
 const meta: Meta<typeof UpdateModelPageView> = {
-	title: "pages/AISettingsPage/ModelsPage/UpdateModelPageView",
+	title: "pages/AISettingsPage/ModelsPage/UpdateModelPage",
 	component: UpdateModelPageView,
 	decorators: [
 		(Story) => (

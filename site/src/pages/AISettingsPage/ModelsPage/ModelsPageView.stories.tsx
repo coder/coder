@@ -22,7 +22,7 @@ import {
 } from "./testFixtures";
 
 const meta: Meta<typeof ModelsPageView> = {
-	title: "pages/AISettingsPage/ModelsPage/ModelsPageView",
+	title: "pages/AISettingsPage/ModelsPage/ModelsPage",
 	component: ModelsPageView,
 	decorators: [
 		(Story) => (

@@ -32,7 +32,7 @@ const routingFor = (path: string) =>
 	});
 
 const meta = {
-	title: "pages/DeploymentSettingsPage/EditOAuth2AppPageView",
+	title: "pages/DeploymentSettingsPage/EditOAuth2AppPage",
 	component: EditOAuth2AppPageView,
 	parameters: {
 		user: MockUserOwner,

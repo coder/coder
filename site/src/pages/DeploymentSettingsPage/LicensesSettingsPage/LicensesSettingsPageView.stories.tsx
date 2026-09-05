@@ -8,7 +8,7 @@ import {
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const meta: Meta<typeof LicensesSettingsPageView> = {
-	title: "pages/DeploymentSettingsPage/LicensesSettingsPageView",
+	title: "pages/DeploymentSettingsPage/LicensesSettingsPage/States",
 	component: LicensesSettingsPageView,
 	args: {
 		showConfetti: false,

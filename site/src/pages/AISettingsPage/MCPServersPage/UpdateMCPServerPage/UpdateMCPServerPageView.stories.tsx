@@ -14,7 +14,7 @@ const onUpdateServer = fn(
 );
 
 const meta: Meta<typeof UpdateMCPServerPageView> = {
-	title: "pages/AISettingsPage/MCPServersPage/UpdateMCPServerPageView",
+	title: "pages/AISettingsPage/MCPServersPage/UpdateMCPServerPage",
 	component: UpdateMCPServerPageView,
 	args: {
 		server: MockCoderMCPServer,

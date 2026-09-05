@@ -25,7 +25,7 @@ const seed = (provider: AIProvider) => ({
 });
 
 const meta: Meta<typeof UpdateProviderPageView> = {
-	title: "pages/AISettingsPage/UpdateProviderPageView",
+	title: "pages/AISettingsPage/UpdateProviderPage",
 	component: UpdateProviderPageView,
 	decorators: [withToaster],
 };

@@ -4,7 +4,7 @@ import { MockTemplateVersion, mockApiError } from "#/testHelpers/entities";
 import { TemplateParametersPageView } from "./TemplateParametersPageView";
 
 const meta: Meta<typeof TemplateParametersPageView> = {
-	title: "pages/TemplateSettingsPage/TemplateParametersPageView",
+	title: "pages/TemplateSettingsPage/TemplateParametersPage",
 	component: TemplateParametersPageView,
 	args: {
 		activeVersion: MockTemplateVersion,

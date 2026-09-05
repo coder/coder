@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AIGovernanceSettingsPageView } from "./AIGovernanceSettingsPageView";
 
 const meta: Meta<typeof AIGovernanceSettingsPageView> = {
-	title: "pages/DeploymentSettingsPage/AIGovernanceSettingsPageView",
+	title: "pages/DeploymentSettingsPage/AIGovernanceSettingsPage",
 	component: AIGovernanceSettingsPageView,
 	args: {
 		options: [

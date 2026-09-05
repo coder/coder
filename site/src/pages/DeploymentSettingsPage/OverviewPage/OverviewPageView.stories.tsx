@@ -5,7 +5,7 @@ import { docs } from "#/utils/docs";
 import { OverviewPageView } from "./OverviewPageView";
 
 const meta: Meta<typeof OverviewPageView> = {
-	title: "pages/DeploymentSettingsPage/OverviewPageView",
+	title: "pages/DeploymentSettingsPage/OverviewPage",
 	component: OverviewPageView,
 	args: {
 		deploymentOptions: [

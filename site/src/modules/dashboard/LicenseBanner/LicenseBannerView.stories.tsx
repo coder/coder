@@ -23,7 +23,7 @@ import { formatLicenseMessage, LicenseBanner } from "./LicenseBanner";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
-	title: "components/LicenseBannerView",
+	title: "components/LicenseBanner",
 	component: LicenseBannerView,
 };
 

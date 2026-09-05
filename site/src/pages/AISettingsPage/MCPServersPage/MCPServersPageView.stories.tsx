@@ -14,7 +14,7 @@ import {
 } from "./testFixtures";
 
 const meta: Meta<typeof MCPServersPageView> = {
-	title: "pages/AISettingsPage/MCPServersPage/MCPServersPageView",
+	title: "pages/AISettingsPage/MCPServersPage/MCPServersPage/States",
 	component: MCPServersPageView,
 	args: {
 		isLoading: false,

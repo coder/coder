@@ -3,7 +3,7 @@ import { mockApiError } from "#/testHelpers/entities";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 
 const meta: Meta<typeof SSHKeysPageView> = {
-	title: "pages/UserSettingsPage/SSHKeysPageView",
+	title: "pages/UserSettingsPage/SSHKeysPage",
 	component: SSHKeysPageView,
 	args: {
 		isLoading: false,

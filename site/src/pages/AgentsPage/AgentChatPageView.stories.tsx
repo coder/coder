@@ -196,7 +196,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 // Meta
 // ---------------------------------------------------------------------------
 const meta: Meta<typeof AgentChatPageView> = {
-	title: "pages/AgentsPage/AgentChatPageView",
+	title: "pages/AgentsPage/AgentChatPage/States",
 	component: AgentChatPageView,
 	// Summary is the default tab and reads the chat, so mock it for the sidebar.
 	// Cost needs no mock: these stories leave the aibridge feature off, so the

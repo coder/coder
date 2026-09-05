@@ -12,7 +12,7 @@ import { docs } from "#/utils/docs";
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
 
 const meta: Meta<typeof WorkspaceProxyView> = {
-	title: "pages/UserSettingsPage/WorkspaceProxyView",
+	title: "pages/UserSettingsPage/WorkspaceProxy",
 	component: WorkspaceProxyView,
 	args: {
 		showPaywall: false,

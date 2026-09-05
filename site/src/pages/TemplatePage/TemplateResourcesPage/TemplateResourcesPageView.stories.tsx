@@ -7,7 +7,7 @@ import {
 import { TemplateResourcesPageView } from "./TemplateResourcesPageView";
 
 const meta: Meta<typeof TemplateResourcesPageView> = {
-	title: "pages/TemplatePage/TemplateResourcesPageView",
+	title: "pages/TemplatePage/TemplateResourcesPage",
 	component: TemplateResourcesPageView,
 };
 

@@ -3,7 +3,7 @@ import { mockApiError } from "#/testHelpers/entities";
 import { TemplateInsightsPageView } from "./TemplateInsightsPage";
 
 const meta: Meta<typeof TemplateInsightsPageView> = {
-	title: "pages/TemplatePage/TemplateInsightsPageView",
+	title: "pages/TemplatePage/TemplateInsightsPage",
 	component: TemplateInsightsPageView,
 };
 

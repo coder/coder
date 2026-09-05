@@ -35,7 +35,7 @@ const gitTab: SidebarTab = {
 };
 
 const meta: Meta<typeof SidebarTabView> = {
-	title: "pages/AgentsPage/SidebarTabView",
+	title: "pages/AgentsPage/SidebarTab",
 	component: SidebarTabView,
 	args: {
 		tabs: [gitTab],

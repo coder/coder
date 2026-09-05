@@ -6,7 +6,7 @@ import { withToaster } from "#/testHelpers/storybook";
 import { TemplatePrebuildsPageView } from "./TemplatePrebuildsPage";
 
 const meta: Meta<typeof TemplatePrebuildsPageView> = {
-	title: "pages/TemplatePage/TemplatePrebuildsPageView",
+	title: "pages/TemplatePage/TemplatePrebuildsPage",
 	component: TemplatePrebuildsPageView,
 	args: {
 		templateId: MockTemplate.id,

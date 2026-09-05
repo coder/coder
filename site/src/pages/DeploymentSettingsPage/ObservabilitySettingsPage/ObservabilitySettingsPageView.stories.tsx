@@ -16,7 +16,7 @@ const retentionGroup: SerpentGroup = {
 };
 
 const meta: Meta<typeof ObservabilitySettingsPageView> = {
-	title: "pages/DeploymentSettingsPage/ObservabilitySettingsPageView",
+	title: "pages/DeploymentSettingsPage/ObservabilitySettingsPage",
 	component: ObservabilitySettingsPageView,
 	args: {
 		options: [

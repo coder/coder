@@ -6,7 +6,7 @@ import {
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
 const meta: Meta<typeof ExternalAuthPageView> = {
-	title: "pages/UserSettingsPage/ExternalAuthPageView",
+	title: "pages/UserSettingsPage/ExternalAuthPage",
 	component: ExternalAuthPageView,
 	args: {
 		isLoading: false,

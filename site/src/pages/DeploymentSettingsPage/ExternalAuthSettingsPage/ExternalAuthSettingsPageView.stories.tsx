@@ -4,7 +4,7 @@ import { docs } from "#/utils/docs";
 import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
 const meta: Meta<typeof ExternalAuthSettingsPageView> = {
-	title: "pages/DeploymentSettingsPage/ExternalAuthSettingsPageView",
+	title: "pages/DeploymentSettingsPage/ExternalAuthSettingsPage",
 	component: ExternalAuthSettingsPageView,
 	args: {
 		config: {

@@ -44,7 +44,7 @@ const defaultArgs: CoderAgentsPageViewProps = {
 };
 
 const meta: Meta<typeof CoderAgentsPageView> = {
-	title: "pages/AISettingsPage/CoderAgentsPage/CoderAgentsPageView",
+	title: "pages/AISettingsPage/CoderAgentsPage/CoderAgentsPage",
 	component: CoderAgentsPageView,
 	args: defaultArgs,
 	parameters: {
