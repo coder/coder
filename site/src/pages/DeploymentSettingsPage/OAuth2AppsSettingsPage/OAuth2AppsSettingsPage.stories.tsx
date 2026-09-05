@@ -26,7 +26,13 @@ const meta: Meta<typeof OAuth2AppsSettingsPage> = {
 	parameters: {
 		user: MockUserOwner,
 		queries: [
-			{ key: oauth2ProviderAppsKey, data: MockOAuth2ProviderApps },
+			{
+				key: oauth2ProviderAppsKey,
+				data: {
+					apps: MockOAuth2ProviderApps,
+					count: MockOAuth2ProviderApps.length,
+				},
+			},
 			{ key: oauth2ProviderSettingsKey, data: MockOAuth2ProviderSettings },
 		],
 	},

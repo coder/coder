@@ -1973,12 +1973,10 @@ class ApiMethods {
 
 	getOAuth2ProviderApps = async (
 		filter?: TypesGen.OAuth2ProviderAppFilter,
-	): Promise<TypesGen.OAuth2ProviderApp[]> => {
-		const params = filter?.user_id
-			? new URLSearchParams({ user_id: filter.user_id }).toString()
-			: "";
-
-		const resp = await this.axios.get(`/api/v2/oauth2-provider/apps?${params}`);
+	): Promise<TypesGen.OAuth2ProviderAppsResponse> => {
+		const resp = await this.axios.get<TypesGen.OAuth2ProviderAppsResponse>(
+			getURLWithSearchParams("/api/v2/oauth2-provider/apps", filter),
+		);
 		return resp.data;
 	};
 

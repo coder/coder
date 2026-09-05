@@ -1,5 +1,56 @@
 -- name: GetOAuth2ProviderApps :many
-SELECT * FROM oauth2_provider_apps ORDER BY (name, id) ASC;
+-- The count covers every app matching the filters, ignoring the cursor, offset,
+-- and limit. Callers size pagination controls from it, so folding @after_id in
+-- would shrink the reported total on every page. matching_apps holds the single
+-- definition of the filter predicates so the count and the page can never drift
+-- apart as filters are added.
+WITH matching_apps AS (
+	SELECT
+		id
+	FROM
+		oauth2_provider_apps
+	WHERE
+		CASE
+			WHEN @search :: text != '' THEN (
+				name ILIKE concat('%', @search, '%')
+				OR callback_url ILIKE concat('%', @search, '%')
+			)
+			ELSE true
+		END
+		AND CASE
+			WHEN @url :: text != '' THEN
+				callback_url ILIKE concat('%', @url, '%')
+			ELSE true
+		END
+)
+SELECT
+	sqlc.embed(oauth2_provider_apps),
+	(SELECT COUNT(*) FROM matching_apps) :: bigint AS count
+FROM
+	oauth2_provider_apps
+WHERE
+	-- A semi-join rather than a join keeps `id` and `name` unambiguous below.
+	id IN (SELECT id FROM matching_apps)
+	AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			(LOWER(name), id) > (
+				SELECT
+					LOWER(name), id
+				FROM
+					oauth2_provider_apps
+				WHERE
+					id = @after_id
+			)
+		)
+		ELSE true
+	END
+ORDER BY
+	LOWER(name) ASC, id ASC
+OFFSET @offset_opt
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF(@limit_opt :: int, 0);
 
 -- name: GetOAuth2ProviderAppByID :one
 SELECT * FROM oauth2_provider_apps WHERE id = $1;

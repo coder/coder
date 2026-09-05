@@ -20223,45 +20223,116 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 }
 
 const getOAuth2ProviderApps = `-- name: GetOAuth2ProviderApps :many
-SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps ORDER BY (name, id) ASC
+WITH matching_apps AS (
+	SELECT
+		id
+	FROM
+		oauth2_provider_apps
+	WHERE
+		CASE
+			WHEN $4 :: text != '' THEN (
+				name ILIKE concat('%', $4, '%')
+				OR callback_url ILIKE concat('%', $4, '%')
+			)
+			ELSE true
+		END
+		AND CASE
+			WHEN $5 :: text != '' THEN
+				callback_url ILIKE concat('%', $5, '%')
+			ELSE true
+		END
+)
+SELECT
+	oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri,
+	(SELECT COUNT(*) FROM matching_apps) :: bigint AS count
+FROM
+	oauth2_provider_apps
+WHERE
+	-- A semi-join rather than a join keeps ` + "`" + `id` + "`" + ` and ` + "`" + `name` + "`" + ` unambiguous below.
+	id IN (SELECT id FROM matching_apps)
+	AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			(LOWER(name), id) > (
+				SELECT
+					LOWER(name), id
+				FROM
+					oauth2_provider_apps
+				WHERE
+					id = $1
+			)
+		)
+		ELSE true
+	END
+ORDER BY
+	LOWER(name) ASC, id ASC
+OFFSET $2
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($3 :: int, 0)
 `
 
-func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error) {
-	rows, err := q.db.QueryContext(ctx, getOAuth2ProviderApps)
+type GetOAuth2ProviderAppsParams struct {
+	AfterID   uuid.UUID `db:"after_id" json:"after_id"`
+	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
+	Search    string    `db:"search" json:"search"`
+	Url       string    `db:"url" json:"url"`
+}
+
+type GetOAuth2ProviderAppsRow struct {
+	OAuth2ProviderApp OAuth2ProviderApp `db:"oauth2_provider_app" json:"oauth2_provider_app"`
+	Count             int64             `db:"count" json:"count"`
+}
+
+// The count covers every app matching the filters, ignoring the cursor, offset,
+// and limit. Callers size pagination controls from it, so folding @after_id in
+// would shrink the reported total on every page. matching_apps holds the single
+// definition of the filter predicates so the count and the page can never drift
+// apart as filters are added.
+func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context, arg GetOAuth2ProviderAppsParams) ([]GetOAuth2ProviderAppsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOAuth2ProviderApps,
+		arg.AfterID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+		arg.Search,
+		arg.Url,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []OAuth2ProviderApp
+	var items []GetOAuth2ProviderAppsRow
 	for rows.Next() {
-		var i OAuth2ProviderApp
+		var i GetOAuth2ProviderAppsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Name,
-			&i.Icon,
-			&i.CallbackURL,
-			pq.Array(&i.RedirectUris),
-			&i.ClientType,
-			&i.DynamicallyRegistered,
-			&i.ClientIDIssuedAt,
-			&i.ClientSecretExpiresAt,
-			pq.Array(&i.GrantTypes),
-			pq.Array(&i.ResponseTypes),
-			&i.TokenEndpointAuthMethod,
-			&i.Scope,
-			pq.Array(&i.Contacts),
-			&i.ClientUri,
-			&i.LogoUri,
-			&i.TosUri,
-			&i.PolicyUri,
-			&i.JwksUri,
-			&i.Jwks,
-			&i.SoftwareID,
-			&i.SoftwareVersion,
-			&i.RegistrationAccessToken,
-			&i.RegistrationClientUri,
+			&i.OAuth2ProviderApp.ID,
+			&i.OAuth2ProviderApp.CreatedAt,
+			&i.OAuth2ProviderApp.UpdatedAt,
+			&i.OAuth2ProviderApp.Name,
+			&i.OAuth2ProviderApp.Icon,
+			&i.OAuth2ProviderApp.CallbackURL,
+			pq.Array(&i.OAuth2ProviderApp.RedirectUris),
+			&i.OAuth2ProviderApp.ClientType,
+			&i.OAuth2ProviderApp.DynamicallyRegistered,
+			&i.OAuth2ProviderApp.ClientIDIssuedAt,
+			&i.OAuth2ProviderApp.ClientSecretExpiresAt,
+			pq.Array(&i.OAuth2ProviderApp.GrantTypes),
+			pq.Array(&i.OAuth2ProviderApp.ResponseTypes),
+			&i.OAuth2ProviderApp.TokenEndpointAuthMethod,
+			&i.OAuth2ProviderApp.Scope,
+			pq.Array(&i.OAuth2ProviderApp.Contacts),
+			&i.OAuth2ProviderApp.ClientUri,
+			&i.OAuth2ProviderApp.LogoUri,
+			&i.OAuth2ProviderApp.TosUri,
+			&i.OAuth2ProviderApp.PolicyUri,
+			&i.OAuth2ProviderApp.JwksUri,
+			&i.OAuth2ProviderApp.Jwks,
+			&i.OAuth2ProviderApp.SoftwareID,
+			&i.OAuth2ProviderApp.SoftwareVersion,
+			&i.OAuth2ProviderApp.RegistrationAccessToken,
+			&i.OAuth2ProviderApp.RegistrationClientUri,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}

@@ -6779,8 +6779,9 @@ export interface OAuth2ProviderApp {
 }
 
 // From codersdk/oauth2.go
-export interface OAuth2ProviderAppFilter {
+export interface OAuth2ProviderAppFilter extends Pagination {
 	readonly user_id?: string;
+	readonly q?: string;
 }
 
 // From codersdk/oauth2.go
@@ -6794,6 +6795,12 @@ export interface OAuth2ProviderAppSecret {
 export interface OAuth2ProviderAppSecretFull {
 	readonly id: string;
 	readonly client_secret_full: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ProviderAppsResponse {
+	readonly apps: readonly OAuth2ProviderApp[];
+	readonly count: number;
 }
 
 // From codersdk/oauth2.go

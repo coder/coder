@@ -65,7 +65,7 @@ type SettingsTab = {
 };
 
 type OAuth2AppsSettingsProps = {
-	apps?: TypesGen.OAuth2ProviderApp[];
+	apps?: readonly TypesGen.OAuth2ProviderApp[];
 	isLoadingApps: boolean;
 	appsError: unknown;
 	canCreateApp: boolean;

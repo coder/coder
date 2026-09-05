@@ -1823,6 +1823,165 @@ func TestSearchChats(t *testing.T) {
 	}
 }
 
+func TestSearchOAuth2ProviderApps(t *testing.T) {
+	t.Parallel()
+
+	afterID := uuid.New()
+
+	testCases := []struct {
+		Name                  string
+		Query                 string
+		Page                  codersdk.Pagination
+		Expected              database.GetOAuth2ProviderAppsParams
+		ExpectedErrorContains string
+	}{
+		{
+			Name:     "Empty",
+			Query:    "",
+			Expected: database.GetOAuth2ProviderAppsParams{},
+		},
+		{
+			Name:  "EmptyWithPagination",
+			Query: "",
+			Page:  codersdk.Pagination{AfterID: afterID, Limit: 10, Offset: 20},
+			Expected: database.GetOAuth2ProviderAppsParams{
+				AfterID:   afterID,
+				LimitOpt:  10,
+				OffsetOpt: 20,
+			},
+		},
+		{
+			Name:  "SearchWithPagination",
+			Query: "fooapp",
+			Page:  codersdk.Pagination{Limit: 5, Offset: 5},
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search:    "fooapp",
+				LimitOpt:  5,
+				OffsetOpt: 5,
+			},
+		},
+		{
+			Name:  "BareTerm",
+			Query: "FooApp",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "fooapp",
+			},
+		},
+		{
+			Name:  "BareTermsJoined",
+			Query: "my app",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "my app",
+			},
+		},
+		{
+			Name:  "ExplicitSearch",
+			Query: "search:github",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "github",
+			},
+		},
+		{
+			Name:  "BareHTTPSURL",
+			Query: "https://example.com/callback",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Url: "https://example.com/callback",
+			},
+		},
+		{
+			Name:  "URLNotFirstTerm",
+			Query: "foo https://foo.bar",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "foo",
+				Url:    "https://foo.bar",
+			},
+		},
+		{
+			Name:  "BareHTTPURLWithPort",
+			Query: "http://127.0.0.1:3001",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Url: "http://127.0.0.1:3001",
+			},
+		},
+		{
+			Name:  "QuotedBareHTTPSURL",
+			Query: `"https://example.com/oauth/callback"`,
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Url: "https://example.com/oauth/callback",
+			},
+		},
+		{
+			Name:  "ExplicitURL",
+			Query: `url:"https://example.com/callback"`,
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Url: "https://example.com/callback",
+			},
+		},
+		{
+			Name:  "ExplicitURLUnquoted",
+			Query: "url:https://example.com:3001/callback",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Url: "https://example.com:3001/callback",
+			},
+		},
+		{
+			Name:  "SearchAndURL",
+			Query: `foo url:"https://example.com/callback"`,
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "foo",
+				Url:    "https://example.com/callback",
+			},
+		},
+		{
+			Name:  "ExplicitSearchQuotedURL",
+			Query: `search:"https://example.com/callback"`,
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "https://example.com/callback",
+			},
+		},
+		{
+			Name:  "ExplicitSearchUnquotedURL",
+			Query: "search:https://example.com/callback",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "https://example.com/callback",
+			},
+		},
+		{
+			Name:                  "MultipleURLs",
+			Query:                 "https://foo.bar https://baz.qux",
+			ExpectedErrorContains: `Query param "url" provided more than once`,
+		},
+		{
+			Name:                  "UnknownKey",
+			Query:                 "name:foo",
+			ExpectedErrorContains: `"name" is not a valid query param`,
+		},
+		{
+			Name:                  "ExtraColon",
+			Query:                 "search:a:b",
+			ExpectedErrorContains: "can only contain 1 ':'",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			values, errs := searchquery.OAuth2ProviderApps(c.Query, c.Page)
+			if c.ExpectedErrorContains != "" {
+				require.NotEmpty(t, errs, "expect some errors")
+				var s strings.Builder
+				for _, err := range errs {
+					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+				}
+				require.Contains(t, s.String(), c.ExpectedErrorContains)
+			} else {
+				require.Empty(t, errs, "expected no error")
+				require.Equal(t, c.Expected, values, "expected values")
+			}
+		})
+	}
+}
+
 func TestSearchGroups(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {

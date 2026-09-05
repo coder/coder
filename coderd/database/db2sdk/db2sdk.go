@@ -511,6 +511,14 @@ func OAuth2ProviderApps(accessURL *url.URL, dbApps []database.OAuth2ProviderApp)
 	})
 }
 
+// OAuth2ProviderAppsFromRows converts paginated listing rows, which carry a
+// total count alongside the embedded app, into the SDK representation.
+func OAuth2ProviderAppsFromRows(accessURL *url.URL, rows []database.GetOAuth2ProviderAppsRow) []codersdk.OAuth2ProviderApp {
+	return slice.List(rows, func(row database.GetOAuth2ProviderAppsRow) codersdk.OAuth2ProviderApp {
+		return OAuth2ProviderApp(accessURL, row.OAuth2ProviderApp)
+	})
+}
+
 func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
 	dapps := make([]codersdk.DisplayApp, 0, len(apps))
 	for _, app := range apps {

@@ -492,6 +492,84 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 	return filter, parser.Errors
 }
 
+// OAuth2ProviderApps converts a search query into GetOAuth2ProviderAppsParams.
+//
+// Supported query parameters:
+//
+//   - search: string (matches application name or callback URL)
+//   - url: string (matches the callback URL only)
+//
+// Bare terms default to search, except terms that look like an HTTP(S) URL,
+// which default to url. Because a URL contains ':' in its scheme, port, and
+// path, an unquoted URL would otherwise be parsed as key:value filter syntax;
+// such terms are quoted before parsing so they survive as a single value no
+// matter where they appear in the query (e.g. "foo https://foo.bar" filters on
+// the name "foo" and the callback URL "https://foo.bar"). Quoting a URL
+// explicitly, as in url:"https://foo.bar", also works.
+func OAuth2ProviderApps(query string, page codersdk.Pagination) (database.GetOAuth2ProviderAppsParams, []codersdk.ValidationError) {
+	// nolint:exhaustruct // Empty values just means "don't filter by that field".
+	filter := database.GetOAuth2ProviderAppsParams{
+		AfterID: page.AfterID,
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		OffsetOpt: int32(page.Offset),
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		LimitOpt: int32(page.Limit),
+	}
+	if strings.TrimSpace(query) == "" {
+		return filter, nil
+	}
+
+	// Always lowercase for all searches. Matching is case-insensitive in SQL, so
+	// this only normalizes the parsed values.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(quoteURLTerms(query), func(term string, values url.Values) error {
+		// Quoted terms reach here with their quotes intact.
+		term = strings.Trim(term, `"`)
+		if isHTTPURL(term) {
+			values.Add("url", term)
+			return nil
+		}
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.Search = parser.String(values, "", "search")
+	filter.Url = parser.String(values, "", "url")
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
+// quoteURLTerms quotes unquoted HTTP(S) URLs so that the ':' in their scheme,
+// port, or path is not parsed as key:value filter syntax. Both bare URL terms
+// and URL values of a key:value pair are quoted.
+func quoteURLTerms(query string) string {
+	tokens := splitQueryParameterByDelimiter(query, ' ', true)
+	for i, token := range tokens {
+		if strings.Contains(token, `"`) {
+			// The caller already quoted this term.
+			continue
+		}
+		key, value, hasKey := strings.Cut(token, ":")
+		switch {
+		case isHTTPURL(token):
+			tokens[i] = `"` + token + `"`
+		case hasKey && isHTTPURL(value):
+			tokens[i] = key + `:"` + value + `"`
+		}
+	}
+	return strings.Join(tokens, " ")
+}
+
+// isHTTPURL reports whether a term looks like an HTTP(S) URL.
+func isHTTPURL(term string) bool {
+	lower := strings.ToLower(term)
+	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
+}
+
 // Tasks parses a search query for tasks.
 //
 // Supported query parameters:
