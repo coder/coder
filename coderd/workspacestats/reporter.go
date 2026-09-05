@@ -191,7 +191,7 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		}
 
 		// bump workspace activity
-		ActivityBumpWorkspace(ctx, r.opts.Logger.Named("activity_bump"), r.opts.Database, workspace.ID, nextAutostart, ActivityBumpReasonWorkspaceStats)
+		ActivityBumpWorkspace(ctx, r.opts.Logger.Named("activity_bump"), r.opts.Database, workspace.ID, nextAutostart, ActivityBumpReasonFromStats(stats))
 	}
 
 	// bump workspace last_used_at

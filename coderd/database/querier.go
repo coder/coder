@@ -47,10 +47,11 @@ type sqlcQuerier interface {
 	//
 	// Max deadline is respected, and the deadline will never be bumped past it.
 	// The deadline will never decrease.
-	// We only bump if the template has an activity bump duration set.
-	// We only bump if the raw interval is positive and non-zero.
-	// We only bump if workspace shutdown is manual.
-	// We only bump when 5% of the deadline has elapsed.
+	// Record the source and time of the activity that caused the bump, but
+	// only when the bump above actually happened. This piggybacks on the
+	// guard conditions above instead of writing on every call (which would
+	// happen far more often, since callers invoke this on every stats
+	// report/heartbeat, not only when the deadline is actually extended).
 	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)

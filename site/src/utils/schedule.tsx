@@ -11,6 +11,7 @@ import type { Template, Workspace } from "#/api/typesGenerated";
 import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import type { WorkspaceActivityStatus } from "#/modules/workspaces/activity";
+import { relativeTime as relativeTimeAgo } from "#/utils/time";
 import { isWorkspaceOn } from "./workspace";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
@@ -66,6 +67,26 @@ export const autostartDisplay = (schedule: string | undefined): string => {
 		);
 	}
 	return "Manual";
+};
+
+const ACTIVITY_SOURCE_LABELS: Record<string, string> = {
+	ssh: "SSH",
+	vscode: "VS Code",
+	jetbrains: "JetBrains",
+	reconnecting_pty: "the web terminal",
+	chat_heartbeat: "AI chat",
+};
+
+/**
+ * activitySourceLabel converts a workspace's last_activity_source value
+ * into a human-readable label. App-triggered activity is recorded as
+ * "app:<slug>"; unrecognized sources fall back to the raw value.
+ */
+export const activitySourceLabel = (source: string): string => {
+	if (source.startsWith("app:")) {
+		return `the ${source.slice("app:".length)} app`;
+	}
+	return ACTIVITY_SOURCE_LABELS[source] ?? source;
 };
 
 const isShuttingDown = (workspace: Workspace, deadline?: Dayjs): boolean => {
@@ -147,6 +168,17 @@ export const autostopDisplay = (
 				</span>
 			);
 		}
+
+		let activityLine: ReactNode = null;
+		if (workspace.last_activity_source && workspace.last_activity_at) {
+			activityLine = (
+				<div className="mt-2">
+					Activity from {activitySourceLabel(workspace.last_activity_source)}{" "}
+					extended this deadline {relativeTimeAgo(workspace.last_activity_at)}.
+				</div>
+			);
+		}
+
 		return {
 			message: `Stop ${deadline.fromNow()}`,
 			tooltip: (
@@ -155,6 +187,7 @@ export const autostopDisplay = (
 					This workspace will be stopped on{" "}
 					{deadline.format("MMMM D [at] h:mm A")}
 					{reason}
+					{activityLine}
 				</span>
 			),
 			danger: isShutdownSoon(workspace),

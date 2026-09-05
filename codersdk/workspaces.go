@@ -53,6 +53,16 @@ type Workspace struct {
 	AutostartSchedule                    *string             `json:"autostart_schedule,omitempty"`
 	TTLMillis                            *int64              `json:"ttl_ms,omitempty"`
 	LastUsedAt                           time.Time           `json:"last_used_at" format:"date-time"`
+	// LastActivitySource identifies what kind of activity (ssh, vscode,
+	// jetbrains, reconnecting_pty, an app:<slug>, or chat_heartbeat) most
+	// recently bumped the workspace's autostop deadline. Nil if the
+	// workspace has never had its deadline bumped by activity.
+	LastActivitySource *string `json:"last_activity_source,omitempty"`
+	// LastActivityAt is the time of the last activity that bumped the
+	// workspace's autostop deadline. Distinct from LastUsedAt, which is
+	// updated by a broader set of app/port-forward traffic unrelated to
+	// deadline bumps.
+	LastActivityAt *time.Time `json:"last_activity_at,omitempty" format:"date-time"`
 	// DeletingAt indicates the time at which the workspace will be permanently deleted.
 	// A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
 	// and a value has been specified for time_til_dormant_autodelete on its template.
