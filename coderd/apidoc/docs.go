@@ -12255,8 +12255,8 @@ const docTemplate = `{
                 "tags": [
                     "Authorization"
                 ],
-                "summary": "Convert user from password to oauth authentication",
-                "operationId": "convert-user-from-password-to-oauth-authentication",
+                "summary": "Convert user to oauth authentication",
+                "operationId": "convert-user-to-oauth-authentication",
                 "parameters": [
                     {
                         "description": "Convert request",
@@ -21560,11 +21560,11 @@ const docTemplate = `{
         "codersdk.ConvertLoginRequest": {
             "type": "object",
             "required": [
-                "password",
                 "to_type"
             ],
             "properties": {
                 "password": {
+                    "description": "Password is required for password-authenticated accounts.",
                     "type": "string"
                 },
                 "to_type": {
