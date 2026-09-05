@@ -97,8 +97,13 @@ func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app databas
 // `coder:workspaces.access` confers `workspace:read`, and `coder:all` confers
 // every scope.
 func narrowAccessScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string, requested []string) (string, error) {
+	// Canonicalized once, for the reason checkScopeStillCovered gives: the row
+	// may have been written by an older server. Returning it raw on one exit
+	// and canonical on the other would make the shape of the result depend on
+	// whether the client sent a scope.
+	ceiling := canonicalScopes(strings.Fields(granted))
 	if len(requested) == 0 {
-		return granted, nil
+		return strings.Join(ceiling, " "), nil
 	}
 
 	// Checked first so a typo reads as an unknown scope rather than as a
@@ -110,8 +115,7 @@ func narrowAccessScope(ctx context.Context, logger slog.Logger, app database.OAu
 	}
 
 	narrowed := canonicalScopes(requested)
-	// Canonicalized for the same reason as in checkScopeStillCovered.
-	outside, err := firstScopeBeyondCeiling(ctx, logger, "refresh", app.ID, canonicalScopes(strings.Fields(granted)), narrowed)
+	outside, err := firstScopeBeyondCeiling(ctx, logger, "refresh", app.ID, ceiling, narrowed)
 	if err != nil {
 		return "", err
 	}

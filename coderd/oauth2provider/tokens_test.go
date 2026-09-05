@@ -231,6 +231,31 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 	// Grants predating the scope columns carry what migration 000569 backfilled:
 	// coder:all. Seeded the way the migration leaves it rather than exchanged.
+	// A row an older server could have written stores an alias the api_key_scope
+	// enum does not hold, so it has to be canonicalized before it is minted
+	// from. Both exits of narrowAccessScope do that, or a plain refresh would
+	// fail while the same token narrowed would succeed.
+	t.Run("LegacyAliasRefreshesTheSameEitherWay", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+
+		omitted := seedRefreshToken(ctx, t, db, app, owner.UserID, "all")
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, omitted))
+		refreshed := requireTokenResponse(t, status, body)
+		require.Equal(t, string(database.ApiKeyScopeCoderAll), refreshed.Scope)
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
+
+		narrowing := seedRefreshToken(ctx, t, db, app, owner.UserID, "all")
+		form := refreshForm(app, narrowing)
+		form.Set("scope", "workspace:read")
+		status, body = postTokenRequest(ctx, t, client, form)
+		require.Equal(t, "workspace:read", requireTokenResponse(t, status, body).Scope,
+			"the alias must resolve the same way whether or not a scope is named")
+	})
+
 	t.Run("BackfilledScopeRefreshesUnrestricted", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
