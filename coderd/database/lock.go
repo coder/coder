@@ -20,6 +20,7 @@ const (
 	LockIDChatModelConfigWrites
 	LockIDChatCapacityAdmission
 	LockIDNotifyUnpricedAIModels
+	LockIDAgentTimeBackfill
 )
 
 // Per-setting advisory lock IDs for the chat instruction settings. These

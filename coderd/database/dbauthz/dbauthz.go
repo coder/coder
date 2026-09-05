@@ -1786,6 +1786,13 @@ func (q *querier) AccountAgentTimeMessages(ctx context.Context, messageIDs []int
 	return q.db.AccountAgentTimeMessages(ctx, messageIDs)
 }
 
+func (q *querier) AcquireAgentTimeBackfillOrganization(ctx context.Context) (database.AgentTimeBackfillStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.AgentTimeBackfillStatus{}, err
+	}
+	return q.db.AcquireAgentTimeBackfillOrganization(ctx)
+}
+
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -1865,6 +1872,13 @@ func (q *querier) AutoArchiveInactiveChats(ctx context.Context, arg database.Aut
 		return nil, err
 	}
 	return q.db.AutoArchiveInactiveChats(ctx, arg)
+}
+
+func (q *querier) BackfillAgentTimeBatch(ctx context.Context, arg database.BackfillAgentTimeBatchParams) (database.BackfillAgentTimeBatchRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.BackfillAgentTimeBatchRow{}, err
+	}
+	return q.db.BackfillAgentTimeBatch(ctx, arg)
 }
 
 func (q *querier) BackfillChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
@@ -2009,6 +2023,13 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 		return err
 	}
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
+}
+
+func (q *querier) CompleteAgentTimeBackfillOrganization(ctx context.Context, organizationID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.CompleteAgentTimeBackfillOrganization(ctx, organizationID)
 }
 
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
@@ -2786,6 +2807,13 @@ func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.E
 	return q.db.EnqueueNotificationMessage(ctx, arg)
 }
 
+func (q *querier) EnsureAgentTimeBackfillStatuses(ctx context.Context) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.EnsureAgentTimeBackfillStatuses(ctx)
+}
+
 func (q *querier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceApiKey); err != nil {
 		return err
@@ -3085,6 +3113,13 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 		return []database.WorkspaceBuild{}, err
 	}
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
+}
+
+func (q *querier) GetAgentTimeStatus(ctx context.Context, organizationID uuid.UUID) (database.GetAgentTimeStatusRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.GetAgentTimeStatusRow{}, err
+	}
+	return q.db.GetAgentTimeStatus(ctx, organizationID)
 }
 
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
@@ -6073,6 +6108,13 @@ func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Cont
 	return q.db.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)
 }
 
+func (q *querier) HasUnaccountedAgentTimeMessages(ctx context.Context, organizationID uuid.UUID) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return false, err
+	}
+	return q.db.HasUnaccountedAgentTimeMessages(ctx, organizationID)
+}
+
 func (q *querier) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) ([]uuid.UUID, error) {
 	// System-level operation: an agent context push fans hydration out
 	// across every not-yet-pinned chat for the agent, so it authorizes at
@@ -7147,6 +7189,13 @@ func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UU
 	return q.db.LockProvisionerKeyByIDForShare(ctx, id)
 }
 
+func (q *querier) MarkAgentTimeBackfillFailed(ctx context.Context, arg database.MarkAgentTimeBackfillFailedParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.MarkAgentTimeBackfillFailed(ctx, arg)
+}
+
 func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	resource := rbac.ResourceInboxNotification.WithOwner(arg.UserID.String())
 
@@ -7293,6 +7342,13 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	}
 	_ = chat
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
+}
+
+func (q *querier) ResetAgentTimeBackfillCursor(ctx context.Context, organizationID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.ResetAgentTimeBackfillCursor(ctx, organizationID)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
@@ -7502,6 +7558,13 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
+}
+
+func (q *querier) UpdateAgentTimeBackfillProgress(ctx context.Context, arg database.UpdateAgentTimeBackfillProgressParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateAgentTimeBackfillProgress(ctx, arg)
 }
 
 func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChatACLByIDParams) error {
