@@ -443,40 +443,49 @@ title: Schemas
       "bedrock_region": "string",
       "bedrock_small_fast_model": "string",
       "name": "string",
-      "type": "string"
+      "type": "string",
+      "wif_federation_rule_id": "string",
+      "wif_identity_token_file": "string",
+      "wif_organization_id": "string",
+      "wif_service_account_id": "string",
+      "wif_workspace_id": "string"
     }
   ],
   "rate_limit": 0,
   "retention": 0,
   "send_actor_headers": true,
-  "structured_logging": true
+  "structured_logging": true,
+  "wif_allowed_identity_token_files": [
+    "string"
+  ]
 }
 ```
 
 ### Properties
 
-| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                     |
-|-------------------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                                 |
-| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                      |
-| `api_dump_dir`                      | string                                                               | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.          |
-| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                      |
-| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                                 |
-| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                                |
-| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                              |
-| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                                 |
-| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                    |
-| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                      |
-| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>` env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
-| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                                 |
-| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                                 |
-| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                                 |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                        |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                                                    |
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                                         |
+| `api_dump_dir`                      | string                                                               | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.                             |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                                         |
+| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                                                    |
+| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                                                   |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                                                 |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                                                    |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                                                    |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                                                    |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                                                    |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                                                    |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                       |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                                                    |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                                         |
+| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>` env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.                    |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                                                    |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                                                    |
+| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                                                    |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                                                    |
+| `wif_allowed_identity_token_files`  | array of string                                                      | false    |              | Wif allowed identity token files lists identity token files that WIF providers managed through the HTTP API may read. See AIBridgeConfig.WIFIdentityTokenFileAllowed for the full trust semantics. |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -1091,13 +1100,21 @@ title: Schemas
         "bedrock_region": "string",
         "bedrock_small_fast_model": "string",
         "name": "string",
-        "type": "string"
+        "type": "string",
+        "wif_federation_rule_id": "string",
+        "wif_identity_token_file": "string",
+        "wif_organization_id": "string",
+        "wif_service_account_id": "string",
+        "wif_workspace_id": "string"
       }
     ],
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
-    "structured_logging": true
+    "structured_logging": true,
+    "wif_allowed_identity_token_files": [
+      "string"
+    ]
   },
   "chat": {
     "acquire_batch_size": 0,
@@ -1276,7 +1293,12 @@ title: Schemas
   "bedrock_region": "string",
   "bedrock_small_fast_model": "string",
   "name": "string",
-  "type": "string"
+  "type": "string",
+  "wif_federation_rule_id": "string",
+  "wif_identity_token_file": "string",
+  "wif_organization_id": "string",
+  "wif_service_account_id": "string",
+  "wif_workspace_id": "string"
 }
 ```
 
@@ -1290,6 +1312,11 @@ title: Schemas
 | `bedrock_small_fast_model` | string | false    |              |                                                                                                                                                       |
 | `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided.                                                            |
 | `type`                     | string | false    |              | Type is the provider type. Valid values are: "openai", "anthropic", "azure", "bedrock", "google", "openai-compat", "openrouter", "vercel", "copilot". |
+| `wif_federation_rule_id`   | string | false    |              | Wif federation rule ID fields (only applicable when Type == "anthropic").                                                                             |
+| `wif_identity_token_file`  | string | false    |              |                                                                                                                                                       |
+| `wif_organization_id`      | string | false    |              |                                                                                                                                                       |
+| `wif_service_account_id`   | string | false    |              |                                                                                                                                                       |
+| `wif_workspace_id`         | string | false    |              |                                                                                                                                                       |
 
 ## codersdk.AIProviderKey
 
@@ -7419,13 +7446,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
             "name": "string",
-            "type": "string"
+            "type": "string",
+            "wif_federation_rule_id": "string",
+            "wif_identity_token_file": "string",
+            "wif_organization_id": "string",
+            "wif_service_account_id": "string",
+            "wif_workspace_id": "string"
           }
         ],
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
-        "structured_logging": true
+        "structured_logging": true,
+        "wif_allowed_identity_token_files": [
+          "string"
+        ]
       },
       "chat": {
         "acquire_batch_size": 0,
@@ -8052,13 +8087,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "bedrock_region": "string",
           "bedrock_small_fast_model": "string",
           "name": "string",
-          "type": "string"
+          "type": "string",
+          "wif_federation_rule_id": "string",
+          "wif_identity_token_file": "string",
+          "wif_organization_id": "string",
+          "wif_service_account_id": "string",
+          "wif_workspace_id": "string"
         }
       ],
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
-      "structured_logging": true
+      "structured_logging": true,
+      "wif_allowed_identity_token_files": [
+        "string"
+      ]
     },
     "chat": {
       "acquire_batch_size": 0,
@@ -15288,14 +15331,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name           | Type                                                                      | Required | Restrictions | Description |
-|----------------|---------------------------------------------------------------------------|----------|--------------|-------------|
-| `api_keys`     | array of [codersdk.AIProviderKeyMutation](#codersdkaiproviderkeymutation) | false    |              |             |
-| `base_url`     | string                                                                    | false    |              |             |
-| `display_name` | string                                                                    | false    |              |             |
-| `enabled`      | boolean                                                                   | false    |              |             |
-| `icon`         | string                                                                    | false    |              |             |
-| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings)                | false    |              |             |
+| Name           | Type                                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                    |
+|----------------|---------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_keys`     | array of [codersdk.AIProviderKeyMutation](#codersdkaiproviderkeymutation) | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `base_url`     | string                                                                    | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `display_name` | string                                                                    | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `enabled`      | boolean                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `icon`         | string                                                                    | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings)                | false    |              | Settings patches the type-specific settings. Omitted or null keeps the stored value, a literal {} clears it (mirroring api_keys: [] for keys), and a discriminated object replaces or merges it. Note that a zero *AIProviderSettings marshals to null, so Go clients must send the {} clear form as raw JSON. |
 
 ## codersdk.UpdateActiveTemplateVersion
 

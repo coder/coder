@@ -17533,6 +17533,13 @@ const docTemplate = `{
                 },
                 "structured_logging": {
                     "type": "boolean"
+                },
+                "wif_allowed_identity_token_files": {
+                    "description": "WIFAllowedIdentityTokenFiles lists identity token files that WIF\nproviders managed through the HTTP API may read. See\nAIBridgeConfig.WIFIdentityTokenFileAllowed for the full trust\nsemantics.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -18110,6 +18117,22 @@ const docTemplate = `{
                 },
                 "type": {
                     "description": "Type is the provider type. Valid values are: \"openai\",\n\"anthropic\", \"azure\", \"bedrock\", \"google\", \"openai-compat\",\n\"openrouter\", \"vercel\", \"copilot\".",
+                    "type": "string"
+                },
+                "wif_federation_rule_id": {
+                    "description": "WIF fields (only applicable when Type == \"anthropic\").",
+                    "type": "string"
+                },
+                "wif_identity_token_file": {
+                    "type": "string"
+                },
+                "wif_organization_id": {
+                    "type": "string"
+                },
+                "wif_service_account_id": {
+                    "type": "string"
+                },
+                "wif_workspace_id": {
                     "type": "string"
                 }
             }
@@ -29207,7 +29230,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "settings": {
-                    "$ref": "#/definitions/codersdk.AIProviderSettings"
+                    "description": "Settings patches the type-specific settings. Omitted or null keeps\nthe stored value, a literal {} clears it (mirroring api_keys: []\nfor keys), and a discriminated object replaces or merges it. Note\nthat a zero *AIProviderSettings marshals to null, so Go clients\nmust send the {} clear form as raw JSON.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIProviderSettings"
+                        }
+                    ]
                 }
             }
         },

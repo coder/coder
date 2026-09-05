@@ -126,7 +126,7 @@ func getAnthropicAPIKeyFromEnv() string {
 }
 
 func getAnthropicModelFromEnv() anthropic.Model {
-	return anthropic.Model(os.Getenv("ANTHROPIC_MODEL"))
+	return os.Getenv("ANTHROPIC_MODEL")
 }
 
 // generateSuffix generates a random hex string between `0000` and `ffff`.

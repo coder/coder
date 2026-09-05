@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -21,10 +22,42 @@ type Anthropic struct {
 	BaseURL string
 	// KeyPool holds the centralized keys, with automatic key failover. BYOK
 	// credentials are resolved per request from the incoming headers.
-	KeyPool          *keypool.Pool
+	KeyPool *keypool.Pool
+	// WIF configures Workload Identity Federation. Mutually exclusive
+	// with KeyPool; at most one of WIF and KeyPool may be set.
+	WIF              *AnthropicWIF
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
+}
+
+// AnthropicWIF carries configuration for Anthropic Workload Identity
+// Federation. When set on the Anthropic provider, the gateway exchanges
+// an OIDC identity token for a short-lived Anthropic access token
+// instead of using static API keys.
+type AnthropicWIF struct {
+	// FederationRuleID is the tagged ID (fdrl_...) of the Anthropic
+	// federation rule governing this exchange. Required.
+	FederationRuleID string
+	// OrganizationID is the UUID of the Anthropic organization.
+	// Required.
+	OrganizationID string
+	// IdentityToken returns the OIDC identity token (JWT) presented
+	// for exchange. It is invoked on every token exchange, so
+	// implementations can serve rotating credentials (e.g. re-read a
+	// projected service account token file) or mint tokens on demand.
+	// Must be safe for concurrent use. Required.
+	IdentityToken func(ctx context.Context) (string, error)
+	// ServiceAccountID is the svac_... tagged ID of the target service
+	// account. Required for SERVICE_ACCOUNT-target federation rules;
+	// omitted from the exchange request only for USER-target rules,
+	// where the principal derives from the JWT claims.
+	ServiceAccountID string
+	// WorkspaceID is the wrkspc_... tagged ID or the literal "default".
+	// Required when the federation rule is enabled for more than one
+	// workspace; when omitted the server selects the rule's sole
+	// enabled workspace.
+	WorkspaceID string
 }
 
 // BedrockProtocol selects which AWS Bedrock wire protocol a provider targets.

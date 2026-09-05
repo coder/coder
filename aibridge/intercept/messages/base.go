@@ -13,6 +13,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/bedrock"
+	anthropiccfg "github.com/anthropics/anthropic-sdk-go/config"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/shared"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
@@ -74,6 +75,17 @@ type BedrockRuntime struct {
 	Creds aws.CredentialsProvider
 }
 
+// WIFRuntime carries pre-built SDK options for Anthropic Workload
+// Identity Federation. The options install aibridge's own auth
+// middleware, whose token source performs path-aware exchanges,
+// caching, and refresh.
+type WIFRuntime struct {
+	// Opts are the SDK request options that enable WIF authentication.
+	Opts []option.RequestOption
+	// FederationRuleID is kept for credential hint logging.
+	FederationRuleID string
+}
+
 type interceptionBase struct {
 	id         uuid.UUID
 	reqPayload RequestPayload
@@ -82,6 +94,8 @@ type interceptionBase struct {
 	cred intercept.Credential
 	// bedrock is nil for non-Bedrock providers.
 	bedrock *BedrockRuntime
+	// wif is nil for non-WIF providers.
+	wif *WIFRuntime
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
@@ -286,14 +300,28 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 			return anthropic.MessageService{}, xerrors.Errorf("unexpected byok auth header: %q", byok.Header)
 		}
 	}
+
+	// WIF: inject pre-built SDK options that handle token exchange,
+	// caching, and refresh internally.
+	if i.wif != nil {
+		opts = append(opts, i.wif.Opts...)
+	}
 	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
+		_, wifCred := i.cred.(intercept.AnthropicWIF)
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
 			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
+			// Rebuilding from the client headers drops the OAuth beta flag
+			// the SDK's WIF auth middleware appended to anthropic-beta.
+			// Re-append it: the API rejects bearer-token requests without
+			// the flag.
+			if wifCred {
+				intercept.AppendAnthropicBeta(req.Header, anthropiccfg.OAuthAPIBetaHeader)
+			}
 			return next(req)
 		}))
 	}

@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +19,17 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
+
+// wifTestPath builds a platform-absolute path for identity token file
+// fixtures: the WIF trust check requires absolute paths, and
+// filepath.IsAbs rejects Unix-style paths on Windows.
+func wifTestPath(parts ...string) string {
+	root := "/"
+	if runtime.GOOS == "windows" {
+		root = `C:\`
+	}
+	return filepath.Join(append([]string{root}, parts...)...)
+}
 
 func TestReadAIProvidersFromEnv(t *testing.T) {
 	t.Parallel()
@@ -407,6 +420,118 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			},
 			errContains: "too many keys (6), maximum is 5",
 		},
+		{
+			name: "WIFProvider",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_NAME=anthropic-wif",
+				"CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=https://api.anthropic.com/",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-uuid-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=" + wifTestPath("var", "run", "secrets", "token"),
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_SERVICE_ACCOUNT_ID=svac_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_WORKSPACE_ID=wrkspc_test",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:                 aibridge.ProviderAnthropic,
+					Name:                 "anthropic-wif",
+					BaseURL:              "https://api.anthropic.com/",
+					WIFFederationRuleID:  "fdrl_test123",
+					WIFOrganizationID:    "org-uuid-123",
+					WIFIdentityTokenFile: wifTestPath("var", "run", "secrets", "token"),
+					WIFServiceAccountID:  "svac_test",
+					WIFWorkspaceID:       "wrkspc_test",
+				},
+			},
+		},
+		{
+			name: "WIFNonAnthropicType",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/tmp/token",
+			},
+			errContains: "WIF_* fields are only supported with TYPE",
+		},
+		{
+			name: "WIFAndBedrockConflict",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/tmp/token",
+				"CODER_AI_GATEWAY_PROVIDER_0_BEDROCK_REGION=us-east-1",
+			},
+			errContains: "WIF_* and BEDROCK_* fields are mutually exclusive",
+		},
+		{
+			name: "WIFAndKeysConflict",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_KEY=sk-ant-xxx",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/tmp/token",
+			},
+			errContains: "KEY/KEYS and WIF_* fields are mutually exclusive",
+		},
+		{
+			name: "WIFPartialConfig",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				// Missing WIF_ORGANIZATION_ID and WIF_IDENTITY_TOKEN_FILE.
+			},
+			errContains: "WIF requires WIF_FEDERATION_RULE_ID, WIF_ORGANIZATION_ID, and WIF_IDENTITY_TOKEN_FILE to all be set",
+		},
+		{
+			// An optional WIF field alone must mark the provider as WIF
+			// and fail the completeness check, not be silently dropped.
+			name: "WIFOptionalFieldOnly",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_KEY=sk-ant-xxx",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_SERVICE_ACCOUNT_ID=svac_test",
+			},
+			errContains: "KEY/KEYS and WIF_* fields are mutually exclusive",
+		},
+		{
+			name: "WIFOptionalFieldOnlyNoKeys",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_WORKSPACE_ID=wrkspc_test",
+			},
+			errContains: "WIF requires WIF_FEDERATION_RULE_ID, WIF_ORGANIZATION_ID, and WIF_IDENTITY_TOKEN_FILE to all be set",
+		},
+		{
+			// aibridged refuses cleartext WIF base URLs at build time,
+			// so the env parser must fail fast instead of seeding a
+			// provider that never serves traffic.
+			name: "WIFCleartextBaseURL",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=http://proxy.example/api",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/tmp/token",
+			},
+			errContains: "WIF requires an https BASE_URL",
+		},
+		{
+			// The daemon's token file trust check only accepts absolute
+			// paths, so a relative path can never serve traffic. The env
+			// parser must fail fast instead of seeding a dead provider.
+			name: "WIFRelativeIdentityTokenFile",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=secrets/token",
+			},
+			errContains: "WIF_IDENTITY_TOKEN_FILE must be an absolute path",
+		},
 	}
 
 	for _, tt := range tests {
@@ -763,6 +888,84 @@ func TestBuildProviderFromProtoBedrockWithoutSettings(t *testing.T) {
 	}, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bedrock provider has no bedrock credentials configured")
+}
+
+func TestBuildProviderWIFIdentityTokenFileTrust(t *testing.T) {
+	t.Parallel()
+
+	// The daemon reads the identity token file and posts its contents to
+	// the provider's base URL, so only deployment-configuration-blessed
+	// paths may be read regardless of how the row entered the database.
+	wifProvider := func(baseURL string) *proto.AIProvider {
+		return &proto.AIProvider{
+			Enabled: true,
+			Type:    string(database.AIProviderTypeAnthropic),
+			Name:    "anthropic-wif",
+			BaseUrl: baseURL,
+			Wif: &proto.AIProviderKindWIF{
+				FederationRuleId:  "fdrl_test",
+				OrganizationId:    "00000000-0000-0000-0000-000000000001",
+				IdentityTokenFile: wifTestPath("var", "run", "secrets", "anthropic", "token"),
+			},
+		}
+	}
+	envCfg := codersdk.AIBridgeConfig{
+		Providers: []codersdk.AIProviderConfig{{
+			Type:                 string(database.AIProviderTypeAnthropic),
+			Name:                 "anthropic-wif",
+			BaseURL:              "https://gateway.internal/anthropic",
+			WIFFederationRuleID:  "fdrl_test",
+			WIFOrganizationID:    "00000000-0000-0000-0000-000000000001",
+			WIFIdentityTokenFile: wifTestPath("var", "run", "secrets", "anthropic", "token"),
+		}},
+	}
+
+	tests := []struct {
+		name        string
+		provider    *proto.AIProvider
+		cfg         codersdk.AIBridgeConfig
+		errContains string
+	}{
+		{
+			name:        "UntrustedFileRejected",
+			provider:    wifProvider("https://api.anthropic.com"),
+			cfg:         codersdk.AIBridgeConfig{},
+			errContains: "is not allowed by deployment configuration",
+		},
+		{
+			name:     "AllowlistedFileAccepted",
+			provider: wifProvider("https://api.anthropic.com"),
+			cfg: codersdk.AIBridgeConfig{
+				WIFAllowedIdentityTokenFiles: serpent.StringArray{wifTestPath("var", "run", "secrets", "anthropic", "token")},
+			},
+		},
+		{
+			name:     "EnvPairAccepted",
+			provider: wifProvider("https://gateway.internal/anthropic"),
+			cfg:      envCfg,
+		},
+		{
+			name:        "EnvFileWithRepointedBaseURLRejected",
+			provider:    wifProvider("https://attacker.example"),
+			cfg:         envCfg,
+			errContains: "is not allowed by deployment configuration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider, err := buildProvider(t.Context(), protoToProviderSpec(tt.provider), tt.cfg, nil)
+			if tt.errContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, aibridge.ProviderAnthropic, provider.Type())
+		})
+	}
 }
 
 func assertFieldValue(t *testing.T, fields slog.Map, name string, expected interface{}) {

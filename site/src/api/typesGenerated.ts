@@ -69,6 +69,13 @@ export interface AIBridgeConfig {
 	readonly send_actor_headers: boolean;
 	readonly allow_byok: boolean;
 	/**
+	 * WIFAllowedIdentityTokenFiles lists identity token files that WIF
+	 * providers managed through the HTTP API may read. See
+	 * AIBridgeConfig.WIFIdentityTokenFileAllowed for the full trust
+	 * semantics.
+	 */
+	readonly wif_allowed_identity_token_files: string;
+	/**
 	 * Budget settings for AI Governance cost controls.
 	 */
 	readonly budget_policy?: string;
@@ -517,6 +524,14 @@ export interface AIProviderConfig {
 	readonly bedrock_region?: string;
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
+	/**
+	 * WIF fields (only applicable when Type == "anthropic").
+	 */
+	readonly wif_federation_rule_id?: string;
+	readonly wif_organization_id?: string;
+	readonly wif_identity_token_file?: string;
+	readonly wif_service_account_id?: string;
+	readonly wif_workspace_id?: string;
 }
 
 // From codersdk/aiproviders.go
@@ -571,6 +586,13 @@ export interface AIProviderSettings {}
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
 
+// From codersdk/aiproviders_wif.go
+/**
+ * AIProviderSettingsTypeWIF is the _type discriminator value for
+ * AIProviderWIFSettings.
+ */
+export const AIProviderSettingsTypeWIF = "wif";
+
 // From codersdk/aiproviders.go
 /**
  * AIProviderStatus carries non-fatal routing warnings. Direct
@@ -617,6 +639,54 @@ export const AIProviderTypes: AIProviderType[] = [
 	"openrouter",
 	"vercel",
 ];
+
+// From codersdk/aiproviders_wif.go
+/**
+ * AIProviderWIFSettings configures providers that authenticate via
+ * Anthropic Workload Identity Federation. The gateway exchanges an
+ * OIDC identity token for a short-lived Anthropic access token
+ * instead of using static API keys.
+ */
+export interface AIProviderWIFSettings {
+	/**
+	 * FederationRuleID is the tagged ID (fdrl_...) of the Anthropic
+	 * federation rule governing this exchange. Required.
+	 */
+	readonly federation_rule_id: string;
+	/**
+	 * OrganizationID is the UUID of the Anthropic organization.
+	 * Required.
+	 */
+	readonly organization_id: string;
+	/**
+	 * IdentityTokenFile is the path to a file containing the OIDC
+	 * identity token (JWT). The file is re-read on every exchange.
+	 * Required.
+	 */
+	readonly identity_token_file: string;
+	/**
+	 * ServiceAccountID is the svac_... tagged ID of the target service
+	 * account. Anthropic's WIF reference requires it for token exchange
+	 * under SERVICE_ACCOUNT-target federation rules; it is omitted from
+	 * the exchange request only for USER-target rules, where the
+	 * principal derives from the JWT claims.
+	 */
+	readonly service_account_id?: string;
+	/**
+	 * WorkspaceID is the wrkspc_... tagged ID or the literal "default".
+	 * Required when the federation rule is enabled for more than one
+	 * workspace; when omitted the server selects the rule's sole
+	 * enabled workspace.
+	 */
+	readonly workspace_id?: string;
+}
+
+// From codersdk/aiproviders_wif.go
+/**
+ * AIProviderWIFSettingsVersion is the current schema version of
+ * AIProviderWIFSettings.
+ */
+export const AIProviderWIFSettingsVersion = 1;
 
 // From codersdk/aibridge.go
 /**
@@ -9762,6 +9832,13 @@ export interface UpdateAIProviderRequest {
 	readonly enabled?: boolean;
 	readonly base_url?: string;
 	readonly api_keys?: AIProviderKeyMutation[];
+	/**
+	 * Settings patches the type-specific settings. Omitted or null keeps
+	 * the stored value, a literal {} clears it (mirroring api_keys: []
+	 * for keys), and a discriminated object replaces or merges it. Note
+	 * that a zero *AIProviderSettings marshals to null, so Go clients
+	 * must send the {} clear form as raw JSON.
+	 */
 	readonly settings?: AIProviderSettings;
 }
 

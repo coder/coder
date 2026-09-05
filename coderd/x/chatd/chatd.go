@@ -3978,6 +3978,12 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
+		// A WIF provider intentionally has no api_keys: aibridged
+		// exchanges the identity token and authenticates requests
+		// itself, so the provider is usable without a central key.
+		// Type-gated as defense in depth: WIF settings are only
+		// meaningful (and only writable) for anthropic providers.
+		AmbientCredentials: settings.WIF != nil && provider.Type == database.AIProviderTypeAnthropic,
 	}, nil
 }
 

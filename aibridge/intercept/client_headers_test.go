@@ -257,3 +257,70 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		require.Equal(t, clientCopy, clientHeaders)
 	})
 }
+
+func TestAppendAnthropicBeta(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		existing []string
+		flag     string
+		want     string
+	}{
+		{
+			name: "empty header sets flag",
+			flag: "oauth-2025-04-20",
+			want: "oauth-2025-04-20",
+		},
+		{
+			name:     "appends to comma separated line",
+			existing: []string{"claude-code-20250219,effort-2025-11-24"},
+			flag:     "oauth-2025-04-20",
+			want:     "claude-code-20250219,effort-2025-11-24,oauth-2025-04-20",
+		},
+		{
+			// RFC 9110 section 5.3: field values split across lines are
+			// equivalent to a comma-joined list. Every line must survive.
+			name:     "collapses multiple header lines",
+			existing: []string{"claude-code-20250219", "context-1m-2025-08-07"},
+			flag:     "oauth-2025-04-20",
+			want:     "claude-code-20250219,context-1m-2025-08-07,oauth-2025-04-20",
+		},
+		{
+			name:     "no-op when flag present on later line",
+			existing: []string{"claude-code-20250219", "oauth-2025-04-20"},
+			flag:     "oauth-2025-04-20",
+			want:     "claude-code-20250219,oauth-2025-04-20",
+		},
+		{
+			// Substring of an existing flag must not suppress the append.
+			name:     "matches whole flags only",
+			existing: []string{"oauth-2025-04-20-extended"},
+			flag:     "oauth-2025-04-20",
+			want:     "oauth-2025-04-20-extended,oauth-2025-04-20",
+		},
+		{
+			name:     "trims whitespace and drops empty elements",
+			existing: []string{" claude-code-20250219 , ,effort-2025-11-24"},
+			flag:     "oauth-2025-04-20",
+			want:     "claude-code-20250219,effort-2025-11-24,oauth-2025-04-20",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := http.Header{}
+			for _, v := range tc.existing {
+				h.Add(intercept.AnthropicBetaHeaderName, v)
+			}
+
+			intercept.AppendAnthropicBeta(h, tc.flag)
+
+			values := h.Values(intercept.AnthropicBetaHeaderName)
+			require.Len(t, values, 1, "flags must collapse into a single header line")
+			assert.Equal(t, tc.want, values[0])
+		})
+	}
+}

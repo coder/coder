@@ -2752,6 +2752,38 @@ func TestListChatModels(t *testing.T) {
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 
+	t.Run("WIFAnthropicAmbientCredentials", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		tokenFile := wifTestPath("var", "run", "secrets", "chat", "token")
+		client := newChatClient(t, func(o *coderdtest.Options) {
+			o.DeploymentValues.AI.BridgeConfig.WIFAllowedIdentityTokenFiles = serpent.StringArray{tokenFile}
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		// A WIF Anthropic provider has no api_keys by design: aibridged
+		// exchanges the identity token and authenticates requests itself.
+		// The models listing must report the provider available instead of
+		// credentials_missing.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "test-anthropic-wif-" + uuid.NewString(),
+			BaseURL: "https://api.anthropic.com",
+			Enabled: true,
+			Settings: codersdk.AIProviderSettings{WIF: &codersdk.AIProviderWIFSettings{
+				FederationRuleID:  "fdrl_models",
+				OrganizationID:    "00000000-0000-0000-0000-000000000003",
+				IdentityTokenFile: tokenFile,
+			}},
+		})
+		require.NoError(t, err)
+
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		require.True(t, providerByID(t, response, provider.ID).Available)
+	})
+
 	t.Run("CopilotOnlyUnsupported", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

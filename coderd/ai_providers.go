@@ -183,6 +183,18 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The daemon reads the WIF identity token file and posts its
+	// contents to the provider's base URL during token exchange, so
+	// only paths blessed by deployment configuration may be referenced;
+	// see codersdk.AIBridgeConfig.WIFIdentityTokenFileAllowed.
+	if req.Settings.WIF != nil &&
+		!api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(req.Settings.WIF.IdentityTokenFile, req.BaseURL) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: wifUntrustedIdentityTokenFileMessage,
+		})
+		return
+	}
+
 	// Generate the server-owned external ID when the provider assumes a role.
 	ensureBedrockExternalID(&req.Settings)
 
@@ -342,6 +354,42 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
+		// WIF settings authenticate against api.anthropic.com, so they
+		// are only meaningful for anthropic-typed providers. A
+		// bedrock-typed provider cannot carry them either: the settings
+		// blob is a discriminated union, and replacing the Bedrock block
+		// would strand the provider without its AWS credentials.
+		if existing.WIF != nil && old.Type != database.AIProviderTypeAnthropic {
+			return errAIProviderWIFTypeMismatch
+		}
+		// A WIF provider's effective state must satisfy the same
+		// invariants the create path enforces: the base URL must not be
+		// cleartext, and the post-merge (token file, base URL) pair must
+		// be blessed by deployment configuration (see
+		// codersdk.AIBridgeConfig.WIFIdentityTokenFileAllowed). aibridged
+		// refuses to build a provider violating either, so saving it
+		// would strand a provider that never serves traffic. The
+		// re-checks cover patches that introduce WIF settings against a
+		// stored base URL, change the token file, or repoint the base
+		// URL of a WIF provider; request validation covers patches that
+		// carry both fields. Re-enabling a disabled provider transitions
+		// it back into serving traffic, so that re-runs the checks too:
+		// saving an enabled row the daemon refuses to build would
+		// present a provider as available that never serves. Patches
+		// that trigger none of these skip the re-checks so that a
+		// deployment configuration change, such as withdrawing a file
+		// from the allowlist, does not also block unrelated patches,
+		// such as disabling the provider; the daemon independently
+		// refuses to build such a row.
+		reenabling := req.Enabled != nil && *req.Enabled && !old.Enabled
+		if existing.WIF != nil && (req.Settings != nil || req.BaseURL != nil || reenabling) {
+			if verrs := codersdk.ValidateAIProviderWIFBaseURL(ptr.NilToDefault(req.BaseURL, old.BaseUrl)); len(verrs) > 0 {
+				return errWIFCleartextBaseURL
+			}
+			if !api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(existing.WIF.IdentityTokenFile, ptr.NilToDefault(req.BaseURL, old.BaseUrl)) {
+				return errWIFUntrustedIdentityTokenFile
+			}
+		}
 		// Generate the server-owned external ID when the provider assumes a role
 		// and lacks one.
 		ensureBedrockExternalID(&existing)
@@ -354,6 +402,27 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		// row is Bedrock or the patch would make it so).
 		if req.APIKeys != nil && existing.Bedrock != nil && len(*req.APIKeys) > 0 {
 			return errBedrockRejectsAPIKeys
+		}
+
+		// WIF providers exchange identity tokens instead of presenting
+		// bearer keys, so registering api_keys against them would be
+		// silently unused. Mirrors the create-side validation.
+		if req.APIKeys != nil && existing.WIF != nil && len(*req.APIKeys) > 0 {
+			return errWIFRejectsAPIKeys
+		}
+
+		// A WIF patch must not leave previously registered bearer keys
+		// behind either: the daemon prefers the key pool over WIF, so
+		// stale keys would silently override the newly configured
+		// federation credentials. Require the patch to clear them.
+		if req.APIKeys == nil && existing.WIF != nil {
+			existingKeys, err := tx.GetAIProviderKeysByProviderID(ctx, old.ID)
+			if err != nil {
+				return xerrors.Errorf("load ai provider keys: %w", err)
+			}
+			if len(existingKeys) > 0 {
+				return errWIFLeavesExistingKeys
+			}
 		}
 
 		if req.APIKeys != nil && old.Type == database.AIProviderTypeCopilot && len(*req.APIKeys) > 0 {
@@ -414,6 +483,36 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errAIProviderBedrockTypeMismatch) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Bedrock settings are only valid for type=anthropic or type=bedrock.",
+		})
+		return
+	}
+	if errors.Is(err, errAIProviderWIFTypeMismatch) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "WIF settings are only valid for type=anthropic.",
+		})
+		return
+	}
+	if errors.Is(err, errWIFRejectsAPIKeys) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "WIF providers do not accept api_keys; they authenticate via identity token exchange.",
+		})
+		return
+	}
+	if errors.Is(err, errWIFLeavesExistingKeys) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The provider has existing api_keys, which take precedence over WIF; clear them in the same request by sending \"api_keys\": [].",
+		})
+		return
+	}
+	if errors.Is(err, errWIFCleartextBaseURL) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "WIF providers require an https base_url; http is allowed for loopback hosts only.",
+		})
+		return
+	}
+	if errors.Is(err, errWIFUntrustedIdentityTokenFile) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: wifUntrustedIdentityTokenFileMessage + ` To detach the provider from WIF instead, send "settings": {}.`,
 		})
 		return
 	}
@@ -529,6 +628,46 @@ var errCopilotRejectsAPIKeys = xerrors.New("copilot providers do not accept api_
 // Bedrock block but the provider is not anthropic- or bedrock-typed;
 // the outer handler translates it into a 400.
 var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic or type=bedrock")
+
+// errAIProviderWIFTypeMismatch is the sentinel returned from inside
+// the update transaction when the post-merge settings carry a WIF
+// block but the provider is not anthropic-typed; the outer handler
+// translates it into a 400.
+var errAIProviderWIFTypeMismatch = xerrors.New("wif settings are only valid for type=anthropic")
+
+// errWIFRejectsAPIKeys is the sentinel returned from inside the update
+// transaction when a caller attempts to attach api_keys to a provider
+// whose post-merge settings carry a WIF block; the outer handler
+// translates it into a 400.
+var errWIFRejectsAPIKeys = xerrors.New("wif providers do not accept api_keys")
+
+// errWIFLeavesExistingKeys is the sentinel returned from inside the
+// update transaction when a patch configures WIF settings while the
+// provider still has bearer key rows the patch does not clear; the
+// outer handler translates it into a 400. The daemon prefers the key
+// pool over WIF, so leftover keys would silently win.
+var errWIFLeavesExistingKeys = xerrors.New("wif providers must clear existing api_keys")
+
+// errWIFCleartextBaseURL is the sentinel returned from inside the
+// update transaction when the post-merge state pairs WIF settings with
+// a non-loopback http base URL; the outer handler translates it into a
+// 400. The daemon refuses to build such a provider, so storing it
+// would strand a provider that never serves traffic.
+var errWIFCleartextBaseURL = xerrors.New("wif providers require an https base_url")
+
+// errWIFUntrustedIdentityTokenFile is the sentinel returned from inside
+// the update transaction when the post-merge state pairs WIF settings
+// with an identity token file the deployment configuration does not
+// bless; the outer handler translates it into a 400. The daemon refuses
+// to read such a file, so storing the row would both strand the
+// provider and normalize a config shape that could exfiltrate
+// server-readable files.
+var errWIFUntrustedIdentityTokenFile = xerrors.New("wif identity_token_file is not allowed by deployment configuration")
+
+// wifUntrustedIdentityTokenFileMessage is the client-facing message for
+// errWIFUntrustedIdentityTokenFile, shared by the create and update
+// handlers.
+const wifUntrustedIdentityTokenFileMessage = "WIF identity_token_file is not allowed by deployment configuration; the deployment operator must list it in CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES."
 
 // errAIProviderExternalIDReadOnly is the sentinel returned from inside
 // the update transaction when a patch tries to change the server-owned
@@ -843,12 +982,20 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings
-// value. Write-only fields (Bedrock AccessKey and AccessKeySecret) use
-// pointers so the patch can distinguish "omitted, keep existing" (nil)
-// from "explicitly clear" (pointer to empty string) - e.g. when an
+// value. A patch that carries a WIF block replaces the stored settings
+// wholesale: WIF has no write-only fields to preserve. Write-only
+// Bedrock fields (AccessKey and AccessKeySecret) use pointers so the
+// patch can distinguish "omitted, keep existing" (nil) from
+// "explicitly clear" (pointer to empty string) - e.g. when an
 // admin migrates from static AWS credentials to IAM role-based auth
 // in a single PATCH.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {
+	if patch.WIF != nil {
+		// WIF settings carry no write-only or server-owned fields, so
+		// the patch replaces the stored value wholesale.
+		merged := *patch.WIF
+		return codersdk.AIProviderSettings{WIF: &merged}
+	}
 	if patch.Bedrock == nil {
 		// Patch carries no type-specific data; treat as a clear.
 		return codersdk.AIProviderSettings{}

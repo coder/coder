@@ -3246,6 +3246,11 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		// them prevents silently-ignored credentials.
 		isBedrockType := providerType == database.AIProviderTypeBedrock
 		isAnthropicType := providerType == database.AIProviderTypeAnthropic
+		// Any WIF_* field marks the provider as WIF so that a partial
+		// configuration (e.g. only WIF_SERVICE_ACCOUNT_ID) fails the
+		// completeness check below instead of being silently dropped.
+		isWIF := p.WIFFederationRuleID != "" || p.WIFOrganizationID != "" || p.WIFIdentityTokenFile != "" ||
+			p.WIFServiceAccountID != "" || p.WIFWorkspaceID != ""
 		if !isAnthropicType && !isBedrockType && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q or %q",
 				i, p.Type, database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock)
@@ -3273,6 +3278,44 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		if isAnthropicType && len(p.Keys) > 0 && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and BEDROCK_* fields are mutually exclusive",
 				i, p.Type)
+		}
+
+		if isWIF && !isAnthropicType {
+			return nil, xerrors.Errorf("provider %d (%s): WIF_* fields are only supported with TYPE %q",
+				i, p.Type, database.AIProviderTypeAnthropic)
+		}
+
+		if isWIF && isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): WIF_* and BEDROCK_* fields are mutually exclusive",
+				i, p.Type)
+		}
+
+		if isWIF && len(p.Keys) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and WIF_* fields are mutually exclusive",
+				i, p.Type)
+		}
+
+		if isWIF && (p.WIFFederationRuleID == "" || p.WIFOrganizationID == "" || p.WIFIdentityTokenFile == "") {
+			return nil, xerrors.Errorf("provider %d (%s): WIF requires WIF_FEDERATION_RULE_ID, WIF_ORGANIZATION_ID, and WIF_IDENTITY_TOKEN_FILE to all be set",
+				i, p.Type)
+		}
+
+		// aibridged refuses to build a WIF provider whose base URL would
+		// send the identity assertion over cleartext HTTP, so reject the
+		// configuration at startup instead of seeding a dead provider.
+		if isWIF && len(codersdk.ValidateAIProviderWIFBaseURL(p.BaseURL)) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): WIF requires an https BASE_URL; http is allowed for loopback hosts only",
+				i, p.Type)
+		}
+
+		// The daemon's token file trust check
+		// (WIFIdentityTokenFileAllowed) only accepts absolute paths, so a
+		// relative path can never pass it. Reject the configuration at
+		// startup instead of seeding a provider whose token exchange is
+		// guaranteed to be refused.
+		if isWIF && !filepath.IsAbs(p.WIFIdentityTokenFile) {
+			return nil, xerrors.Errorf("provider %d (%s): WIF_IDENTITY_TOKEN_FILE must be an absolute path, got %q",
+				i, p.Type, p.WIFIdentityTokenFile)
 		}
 
 		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
@@ -3401,6 +3444,16 @@ func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix strin
 			provider.BedrockModel = v.Value
 		case "BEDROCK_SMALL_FAST_MODEL":
 			provider.BedrockSmallFastModel = v.Value
+		case "WIF_FEDERATION_RULE_ID":
+			provider.WIFFederationRuleID = v.Value
+		case "WIF_ORGANIZATION_ID":
+			provider.WIFOrganizationID = v.Value
+		case "WIF_IDENTITY_TOKEN_FILE":
+			provider.WIFIdentityTokenFile = v.Value
+		case "WIF_SERVICE_ACCOUNT_ID":
+			provider.WIFServiceAccountID = v.Value
+		case "WIF_WORKSPACE_ID":
+			provider.WIFWorkspaceID = v.Value
 		default:
 			logger.Warn(context.Background(), "ignoring unknown AI provider field (check for typos)",
 				slog.F("env", fullName),
