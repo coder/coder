@@ -179,6 +179,8 @@ affected user:
 - Budgets of `$0 USD` and unpriced usage cross no thresholds.
 - Notifications are informational. Enforcement does not depend on them.
 
+Owners also receive **Missing AI Model Prices** weekly when recently used models have no price.
+
 For delivery methods, see
 [Notifications](../../admin/monitoring/notifications/index.md).
 
@@ -235,6 +237,8 @@ Use the `(provider_type, model)` tuple to find the price to set. Any non-zero
 value means spend is under-counted. Because the price book ships with the
 release, a newly launched model is unpriced until you upgrade Coder or set a
 price for it yourself.
+
+Coder also notifies Owners weekly about recently used models that have no price.
 
 ### Configure model prices
 
