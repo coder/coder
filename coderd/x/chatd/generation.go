@@ -440,129 +440,149 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
-		if s.server.hooks.Enabled() {
-			result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
-			if err != nil {
-				if errors.Is(err, errTaskExpectedExit) {
-					return err
-				}
-				return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
-			}
-			if dispatched {
-				input.HistoryVersion = result.Chat.HistoryVersion
-				continue
-			}
+		var again bool
+		input, again, err = s.runGenerationStep(ctx, machine, input, chat, messages)
+		if again {
+			continue
 		}
-		prepareInput := generationPrepareInput{
-			Chat:                      chat,
-			Messages:                  messages,
-			RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
-		}
-		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
-			return s.server.prepareGeneration(ctx, prepareInput)
-		})
-		if err != nil {
-			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
-				return xerrors.Errorf("prepare generation: %w", err)
-			}
-			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
-		}
-		cleanup := prepared.Cleanup
-		var decision generationDecision
-		if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
-			decision = generationDecision{kind: generationActionGenerateAssistant}
-		} else {
-			decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
-				return decideGenerationAction(generationDecisionInput{
-					chat:                       prepared.Chat,
-					messages:                   prepared.Messages,
-					dynamicToolNames:           prepared.DynamicToolNames,
-					exclusiveToolNames:         prepared.ExclusiveToolNames,
-					stopAfterTools:             prepared.StopAfterTools,
-					maxSteps:                   prepared.MaxSteps,
-					compactionEnabled:          prepared.Compaction != nil,
-					compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
-					compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
-					compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
-				})
-			})
-		}
-		if err != nil {
-			cleanup()
-			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
-				return xerrors.Errorf("decide generation: %w", err)
-			}
-			if errors.Is(err, errCompactionStillOverLimit) && prepared.Compaction != nil {
-				metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
-				s.server.metrics.RecordCompaction(
-					metricProvider,
-					metricModel,
-					false,
-					errCompactionStillOverLimit,
-				)
-			}
-			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
-		}
-
-		var actionErr error
-		switch decision.kind {
-		case generationActionEnterRequiresAction:
-			cleanup()
-			return s.enterRequiresAction(ctx, machine, input)
-		case generationActionFinishTurn:
-			cleanup()
-			return s.finishGenerationTurn(ctx, machine, input, decision, generationAttemptNotRequired)
-		case generationActionGenerateAssistant:
-			actionErr = s.generateAssistant(ctx, machine, input, prepared)
-		case generationActionExecuteLocalTools:
-			actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
-		case generationActionCompact:
-			actionErr = s.generateCompaction(ctx, machine, input, prepared, compactionSourceForDecision(decision))
-		default:
-			return s.finishGenerationError(ctx, machine, input, xerrors.Errorf("unknown generation action %q", decision.kind), generationAttemptNotRequired)
-		}
-		cleanup()
-		if actionErr == nil {
-			return nil
-		}
-		// Task cancellation is handled by the runner, not here.
-		if ctx.Err() != nil && errors.Is(actionErr, context.Canceled) {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr), ctx.Err())
-		}
-		if errors.Is(actionErr, chatloop.ErrInterrupted) {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr))
-		}
-		if errors.Is(actionErr, errTaskExpectedExit) {
-			return xerrors.Errorf("generation action: %w", actionErr)
-		}
-		classified := chaterror.Classify(actionErr)
-		if classified.Retryable {
-			action := decision.kind
-			decision, err := s.recordGenerationRetry(ctx, machine, input, classified)
-			if err != nil {
-				return xerrors.Errorf("record generation retry: %w", err)
-			}
-			if decision.retry {
-				s.opts.Logger.Warn(ctx, "chat generation retrying",
-					slog.F("chat_id", input.ChatID),
-					slog.F("worker_id", input.WorkerID),
-					slog.F("action", action),
-					slog.F("generation_attempt", decision.generationAttempt),
-					slog.F("delay", decision.delay),
-					slog.F("error_kind", classified.Kind),
-					slog.F("provider", classified.Provider),
-					slog.F("status_code", classified.StatusCode),
-					slogError(actionErr),
-				)
-				if err := s.waitGenerationRetry(ctx, decision.delay); err != nil {
-					return xerrors.Errorf("wait generation retry: %w", err)
-				}
-				continue
-			}
-			return s.finishGenerationError(ctx, machine, input, actionErr, requireGenerationAttempt(decision.generationAttempt))
-		}
-		return s.finishGenerationError(ctx, machine, input, actionErr, generationAttemptNotRequired)
+		return err
 	}
+}
+
+// runGenerationStep runs one step of a turn: preparation, the action
+// decision, and the action itself. It returns the input to use for
+// the next step and whether the caller must reload state and run one.
+// The returned input differs from the passed one when a step advances
+// the history version.
+func (s *taskStarter) runGenerationStep(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	chat database.Chat,
+	messages []database.ChatMessage,
+) (next chatWorkerTaskStartInput, again bool, err error) {
+	if s.server.hooks.Enabled() {
+		result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
+		if err != nil {
+			if errors.Is(err, errTaskExpectedExit) {
+				return input, false, err
+			}
+			return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+		}
+		if dispatched {
+			input.HistoryVersion = result.Chat.HistoryVersion
+			return input, true, nil
+		}
+	}
+	prepareInput := generationPrepareInput{
+		Chat:                      chat,
+		Messages:                  messages,
+		RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
+	}
+	prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
+		return s.server.prepareGeneration(ctx, prepareInput)
+	})
+	if err != nil {
+		if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
+			return input, false, xerrors.Errorf("prepare generation: %w", err)
+		}
+		return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+	}
+	cleanup := prepared.Cleanup
+	var decision generationDecision
+	if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
+		decision = generationDecision{kind: generationActionGenerateAssistant}
+	} else {
+		decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
+			return decideGenerationAction(generationDecisionInput{
+				chat:                       prepared.Chat,
+				messages:                   prepared.Messages,
+				dynamicToolNames:           prepared.DynamicToolNames,
+				exclusiveToolNames:         prepared.ExclusiveToolNames,
+				stopAfterTools:             prepared.StopAfterTools,
+				maxSteps:                   prepared.MaxSteps,
+				compactionEnabled:          prepared.Compaction != nil,
+				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
+				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
+				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+			})
+		})
+	}
+	if err != nil {
+		cleanup()
+		if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
+			return input, false, xerrors.Errorf("decide generation: %w", err)
+		}
+		if errors.Is(err, errCompactionStillOverLimit) && prepared.Compaction != nil {
+			metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
+			s.server.metrics.RecordCompaction(
+				metricProvider,
+				metricModel,
+				false,
+				errCompactionStillOverLimit,
+			)
+		}
+		return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+	}
+
+	var actionErr error
+	switch decision.kind {
+	case generationActionEnterRequiresAction:
+		cleanup()
+		return input, false, s.enterRequiresAction(ctx, machine, input)
+	case generationActionFinishTurn:
+		cleanup()
+		return input, false, s.finishGenerationTurn(ctx, machine, input, decision, generationAttemptNotRequired)
+	case generationActionGenerateAssistant:
+		actionErr = s.generateAssistant(ctx, machine, input, prepared)
+	case generationActionExecuteLocalTools:
+		actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
+	case generationActionCompact:
+		actionErr = s.generateCompaction(ctx, machine, input, prepared, compactionSourceForDecision(decision))
+	default:
+		return input, false, s.finishGenerationError(ctx, machine, input, xerrors.Errorf("unknown generation action %q", decision.kind), generationAttemptNotRequired)
+	}
+	cleanup()
+	if actionErr == nil {
+		return input, false, nil
+	}
+	// Task cancellation is handled by the runner, not here.
+	if ctx.Err() != nil && errors.Is(actionErr, context.Canceled) {
+		return input, false, errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr), ctx.Err())
+	}
+	if errors.Is(actionErr, chatloop.ErrInterrupted) {
+		return input, false, errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr))
+	}
+	if errors.Is(actionErr, errTaskExpectedExit) {
+		return input, false, xerrors.Errorf("generation action: %w", actionErr)
+	}
+	classified := chaterror.Classify(actionErr)
+	if classified.Retryable {
+		action := decision.kind
+		decision, err := s.recordGenerationRetry(ctx, machine, input, classified)
+		if err != nil {
+			return input, false, xerrors.Errorf("record generation retry: %w", err)
+		}
+		if decision.retry {
+			s.opts.Logger.Warn(ctx, "chat generation retrying",
+				slog.F("chat_id", input.ChatID),
+				slog.F("worker_id", input.WorkerID),
+				slog.F("action", action),
+				slog.F("generation_attempt", decision.generationAttempt),
+				slog.F("delay", decision.delay),
+				slog.F("error_kind", classified.Kind),
+				slog.F("provider", classified.Provider),
+				slog.F("status_code", classified.StatusCode),
+				slogError(actionErr),
+			)
+			if err := s.waitGenerationRetry(ctx, decision.delay); err != nil {
+				return input, false, xerrors.Errorf("wait generation retry: %w", err)
+			}
+			return input, true, nil
+		}
+		return input, false, s.finishGenerationError(ctx, machine, input, actionErr, requireGenerationAttempt(decision.generationAttempt))
+	}
+	return input, false, s.finishGenerationError(ctx, machine, input, actionErr, generationAttemptNotRequired)
 }
 
 func loadGenerationState(
