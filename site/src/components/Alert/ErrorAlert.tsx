@@ -11,6 +11,15 @@ type ErrorAlertProps = Readonly<
 	}
 >;
 
+// Some responses use a raw HTTP status word as the message and put the
+// actionable explanation in the detail. Those status words are meaningless to
+// users, so they are replaced with a human title and the detail carries the
+// explanation.
+const genericStatusTitles: Record<number, { pattern: RegExp; title: string }> =
+	{
+		403: { pattern: /^forbidden\.?$/i, title: "Permission required" },
+	};
+
 export const ErrorAlert: FC<ErrorAlertProps> = ({
 	error,
 	showDebugDetail = true,
@@ -19,26 +28,33 @@ export const ErrorAlert: FC<ErrorAlertProps> = ({
 	const message = getErrorMessage(error, "Something went wrong.");
 	const detail = getErrorDetail(error);
 	const status = getErrorStatus(error);
+	const isForbidden = status === 403;
+
+	const genericStatus = status ? genericStatusTitles[status] : undefined;
+	const title = genericStatus?.pattern.test(message.trim())
+		? genericStatus.title
+		: message;
 
 	// For some reason, the message and detail can be the same on the BE, but does
-	// not make sense in the FE to showing them duplicated. However, we should always
-	// display the detail if its a 403 Forbidden response.
-	const shouldDisplayDetail = status === 403 || message !== detail;
+	// not make sense in the FE to showing them duplicated.
+	const shouldDisplayDetail = detail !== undefined && detail !== title;
 	const shouldDisplayResponseData = isAxiosError(error) && error.response?.data;
 	const shouldDisplayStackTrace = error instanceof Error;
 
 	return (
 		<Alert severity="error" prominent {...alertProps}>
-			<AlertTitle>{message}</AlertTitle>
+			<AlertTitle className="font-semibold">{title}</AlertTitle>
 			<AlertDescription>
-				{shouldDisplayDetail && detail}
-				{status === 403 && (
-					// When the error is a Forbidden response we include a link for the user to
-					// go back to a known viewable page.
-					<Link href="/workspaces" className="w-fit">
-						Go to workspaces
-					</Link>
-				)}
+				<span className="flex flex-col items-start gap-1">
+					{shouldDisplayDetail && <span>{detail}</span>}
+					{isForbidden && (
+						// When the error is a Forbidden response we include a link for the user to
+						// go back to a known viewable page.
+						<Link href="/workspaces" className="w-fit">
+							Go to workspaces
+						</Link>
+					)}
+				</span>
 			</AlertDescription>
 			{(shouldDisplayResponseData || shouldDisplayStackTrace) &&
 				showDebugDetail && (
