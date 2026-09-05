@@ -115,6 +115,36 @@ func upsertUserAIProviderKey(ctx context.Context, t *testing.T, store database.S
 	return key
 }
 
+// upsertMCPServerUserToken inserts a mcp_server_user_tokens row through the
+// given store. There is no dbgen helper for this table, so this wraps the
+// raw UpsertMCPServerUserToken call for reuse across tests.
+func upsertMCPServerUserToken(ctx context.Context, t *testing.T, store database.Store, configID, userID uuid.UUID, accessToken, refreshToken string) database.MCPServerUserToken {
+	t.Helper()
+	tok, err := store.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+		MCPServerConfigID: configID,
+		UserID:            userID,
+		AccessToken:       accessToken,
+		RefreshToken:      refreshToken,
+		TokenType:         "Bearer",
+	})
+	require.NoError(t, err)
+	return tok
+}
+
+// cryptoKeySecretRaw reads secret and secret_key_id for one crypto_keys row
+// directly from SQL. Store getters filter WHERE secret IS NOT NULL, so they
+// cannot observe a row whose secret was wiped by Delete.
+func cryptoKeySecretRaw(ctx context.Context, t *testing.T, sqlDB *sql.DB, feature database.CryptoKeyFeature, sequence int32) (secret, keyID sql.NullString) {
+	t.Helper()
+	err := sqlDB.QueryRowContext(ctx, `
+		SELECT secret, secret_key_id
+		FROM crypto_keys
+		WHERE feature = $1 AND sequence = $2
+	`, feature, sequence).Scan(&secret, &keyID)
+	require.NoError(t, err)
+	return secret, keyID
+}
+
 // decryptRawString decodes and decrypts a raw (base64) ciphertext value read
 // directly from the database, for comparison against the original plaintext.
 func decryptRawString(t *testing.T, c dbcrypt.Cipher, raw string) string {
@@ -1635,6 +1665,554 @@ func TestDeleteUserAIProviderKeys(t *testing.T) {
 	requireAllKeysRevoked(f.ctx, t, f.rawDB)
 }
 
+// TestRotateCryptoKeys covers the crypto_keys table (workspace-apps / OIDC
+// convert / tailnet resume secrets). Leftover rows here keep
+// secret_key_id pointing at dbcrypt_keys.active_key_digest, so revoke
+// fails with crypto_keys_secret_key_id_fkey unless Rotate walks them:
+//
+//	coder server dbcrypt rotate \
+//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+//	  --new-key <base64 key B> \
+//	  --old-keys <base64 key A>
+func TestRotateCryptoKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		f := newRotateFixture(t)
+
+		const wantSecret = "workspace-app-secret"
+		seeded := dbgen.CryptoKey(t, f.cryptDBA, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+			Sequence: 1,
+			Secret:   sql.NullString{String: wantSecret, Valid: true},
+		})
+		require.Equal(t, f.cipherA.HexDigest(), seeded.SecretKeyID.String, "sanity check: seed must be encrypted under cipher A")
+
+		f.rotate(t)
+
+		got, err := f.rawDB.GetCryptoKeyByFeatureAndSequence(f.ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  seeded.Feature,
+			Sequence: seeded.Sequence,
+		})
+		require.NoError(t, err)
+		require.Equal(t, f.cipherB.HexDigest(), got.SecretKeyID.String)
+		require.Equal(t, wantSecret, decryptRawString(t, f.cipherB, got.Secret.String))
+	})
+
+	// DecryptErr simulates an operator omitting an old key from --old-keys.
+	// A crypto_keys row is encrypted under cipher C, registered in
+	// dbcrypt_keys but never passed to the rotation below, so Rotate fails
+	// immediately (see TestRotateUserLinks/DecryptErr for why) and leaves
+	// the row untouched.
+	//
+	//	# cipher C's key is missing from --old-keys here on purpose:
+	//	coder server dbcrypt rotate \
+	//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+	//	  --new-key <base64 key B> \
+	//	  --old-keys <base64 key A>
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+		f := newRotateFixture(t)
+
+		cipherC := newCipher(t)
+		cryptDBC := f.registerCipher(t, cipherC)
+		seeded := dbgen.CryptoKey(t, cryptDBC, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+			Sequence: 1,
+			Secret:   sql.NullString{String: "workspace-app-secret", Valid: true},
+		})
+		require.Equal(t, cipherC.HexDigest(), seeded.SecretKeyID.String, "sanity check: seed must be encrypted under cipher C")
+
+		err := f.rotateErr(t)
+		require.Error(t, err, "expected an error: cipher C is active in dbcrypt_keys but was never passed to Rotate")
+		var derr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, err, &derr, "expected a decrypt error")
+
+		got, getErr := f.rawDB.GetCryptoKeyByFeatureAndSequence(f.ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  seeded.Feature,
+			Sequence: seeded.Sequence,
+		})
+		require.NoError(t, getErr)
+		require.Equal(t, cipherC.HexDigest(), got.SecretKeyID.String, "row must remain encrypted under cipher C after a failed rotation")
+	})
+}
+
+// TestDecryptCryptoKeys covers the crypto_keys table when an operator
+// turns off database encryption. Leftover secret_key_id values must be
+// cleared or revoke fails with crypto_keys_secret_key_id_fkey:
+//
+//	coder server dbcrypt decrypt \
+//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+//	  --keys <base64 key A>
+func TestDecryptCryptoKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		f := newDecryptFixture(t)
+
+		const wantSecret = "workspace-app-secret"
+		seeded := dbgen.CryptoKey(t, f.cryptDBA, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+			Sequence: 1,
+			Secret:   sql.NullString{String: wantSecret, Valid: true},
+		})
+		require.Equal(t, f.cipherA.HexDigest(), seeded.SecretKeyID.String, "sanity check: seed must be encrypted under cipher A")
+
+		f.decrypt(t)
+
+		got, err := f.rawDB.GetCryptoKeyByFeatureAndSequence(f.ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  seeded.Feature,
+			Sequence: seeded.Sequence,
+		})
+		require.NoError(t, err)
+		require.False(t, got.SecretKeyID.Valid, "key ID should be cleared after decrypt")
+		require.True(t, got.Secret.Valid)
+		require.Equal(t, wantSecret, got.Secret.String, "value should be stored as plaintext after decrypt")
+	})
+
+	// DecryptErr simulates an operator omitting a key from --keys. See
+	// TestDecryptUserLinks/DecryptErr for the underlying mechanism.
+	//
+	//	# cipher C's key is missing from --keys here on purpose:
+	//	coder server dbcrypt decrypt \
+	//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+	//	  --keys <base64 key A>
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+		f := newDecryptFixture(t)
+
+		cipherC := newCipher(t)
+		cryptDBC := f.registerCipher(t, cipherC)
+		seeded := dbgen.CryptoKey(t, cryptDBC, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+			Sequence: 1,
+			Secret:   sql.NullString{String: "workspace-app-secret", Valid: true},
+		})
+		require.Equal(t, cipherC.HexDigest(), seeded.SecretKeyID.String, "sanity check: seed must be encrypted under cipher C")
+
+		err := f.decryptErr(t)
+		require.Error(t, err, "expected an error: cipher C is active in dbcrypt_keys but was never passed to Decrypt")
+		var derr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, err, &derr, "expected a decrypt error")
+
+		got, getErr := f.rawDB.GetCryptoKeyByFeatureAndSequence(f.ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  seeded.Feature,
+			Sequence: seeded.Sequence,
+		})
+		require.NoError(t, getErr)
+		require.Equal(t, cipherC.HexDigest(), got.SecretKeyID.String, "row must remain encrypted under cipher C after a failed decrypt")
+	})
+}
+
+// TestDeleteCryptoKeys covers the crypto_keys table. Delete wipes the
+// encrypted secret in place (the row stays so feature/sequence history
+// remains) and must clear secret_key_id or revoke fails with
+// crypto_keys_secret_key_id_fkey:
+//
+//	coder server dbcrypt delete \
+//	  --postgres-url "$CODER_PG_CONNECTION_URL"
+func TestDeleteCryptoKeys(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+
+	encKey := dbgen.CryptoKey(t, f.cryptDBA, database.CryptoKey{
+		Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+		Sequence: 1,
+		Secret:   sql.NullString{String: "workspace-app-secret", Valid: true},
+	})
+	plainKey := dbgen.CryptoKey(t, f.rawDB, database.CryptoKey{
+		Feature:  database.CryptoKeyFeatureTailnetResume,
+		Sequence: 1,
+		Secret:   sql.NullString{String: "plain-tailnet-secret", Valid: true},
+	})
+
+	f.delete(t)
+
+	encSecret, encKeyID := cryptoKeySecretRaw(f.ctx, t, f.sqlDB, encKey.Feature, encKey.Sequence)
+	require.False(t, encSecret.Valid, "encrypted secret should be wiped")
+	require.False(t, encKeyID.Valid, "secret_key_id should be cleared")
+
+	plainSecret, plainKeyID := cryptoKeySecretRaw(f.ctx, t, f.sqlDB, plainKey.Feature, plainKey.Sequence)
+	require.True(t, plainSecret.Valid)
+	require.Equal(t, "plain-tailnet-secret", plainSecret.String, "never-encrypted secret should survive untouched")
+	require.False(t, plainKeyID.Valid)
+
+	requireAllKeysRevoked(f.ctx, t, f.rawDB)
+}
+
+// TestRotateMCPServerConfigs covers the mcp_server_configs table (OAuth
+// client secret, API key, and custom headers). Each of those columns has
+// a FK to dbcrypt_keys.active_key_digest, so leftover rows block revoke:
+//
+//	coder server dbcrypt rotate \
+//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+//	  --new-key <base64 key B> \
+//	  --old-keys <base64 key A>
+func TestRotateMCPServerConfigs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		f := newRotateFixture(t)
+
+		const (
+			wantOAuth   = "mcp-oauth-secret"
+			wantAPIKey  = "mcp-api-key"
+			wantHeaders = `{"X-Custom":"header-value"}`
+		)
+		seeded := dbgen.MCPServerConfig(t, f.cryptDBA, database.MCPServerConfig{
+			AuthType:           "oauth2",
+			OAuth2ClientID:     "client-id",
+			OAuth2ClientSecret: wantOAuth,
+			APIKeyValue:        wantAPIKey,
+			CustomHeaders:      wantHeaders,
+		})
+		require.Equal(t, f.cipherA.HexDigest(), seeded.OAuth2ClientSecretKeyID.String, "sanity check: oauth secret must be encrypted under cipher A")
+		require.Equal(t, f.cipherA.HexDigest(), seeded.APIKeyValueKeyID.String, "sanity check: api key must be encrypted under cipher A")
+		require.Equal(t, f.cipherA.HexDigest(), seeded.CustomHeadersKeyID.String, "sanity check: custom headers must be encrypted under cipher A")
+
+		f.rotate(t)
+
+		got, err := f.rawDB.GetMCPServerConfigByID(f.ctx, seeded.ID)
+		require.NoError(t, err)
+		require.Equal(t, f.cipherB.HexDigest(), got.OAuth2ClientSecretKeyID.String)
+		require.Equal(t, f.cipherB.HexDigest(), got.APIKeyValueKeyID.String)
+		require.Equal(t, f.cipherB.HexDigest(), got.CustomHeadersKeyID.String)
+		require.Equal(t, wantOAuth, decryptRawString(t, f.cipherB, got.OAuth2ClientSecret))
+		require.Equal(t, wantAPIKey, decryptRawString(t, f.cipherB, got.APIKeyValue))
+		require.Equal(t, wantHeaders, decryptRawString(t, f.cipherB, got.CustomHeaders))
+	})
+
+	// DecryptErr simulates an operator omitting an old key from --old-keys.
+	// An mcp_server_configs row is encrypted under cipher C, registered in
+	// dbcrypt_keys but never passed to the rotation below, so Rotate fails
+	// immediately (see TestRotateUserLinks/DecryptErr for why) and leaves
+	// the row untouched.
+	//
+	//	# cipher C's key is missing from --old-keys here on purpose:
+	//	coder server dbcrypt rotate \
+	//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+	//	  --new-key <base64 key B> \
+	//	  --old-keys <base64 key A>
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+		f := newRotateFixture(t)
+
+		cipherC := newCipher(t)
+		cryptDBC := f.registerCipher(t, cipherC)
+		seeded := dbgen.MCPServerConfig(t, cryptDBC, database.MCPServerConfig{
+			AuthType:           "oauth2",
+			OAuth2ClientSecret: "mcp-oauth-secret",
+		})
+		require.Equal(t, cipherC.HexDigest(), seeded.OAuth2ClientSecretKeyID.String, "sanity check: seed must be encrypted under cipher C")
+
+		err := f.rotateErr(t)
+		require.Error(t, err, "expected an error: cipher C is active in dbcrypt_keys but was never passed to Rotate")
+		var derr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, err, &derr, "expected a decrypt error")
+
+		got, getErr := f.rawDB.GetMCPServerConfigByID(f.ctx, seeded.ID)
+		require.NoError(t, getErr)
+		require.Equal(t, cipherC.HexDigest(), got.OAuth2ClientSecretKeyID.String, "row must remain encrypted under cipher C after a failed rotation")
+	})
+}
+
+// TestDecryptMCPServerConfigs covers the mcp_server_configs table when
+// an operator turns off database encryption:
+//
+//	coder server dbcrypt decrypt \
+//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+//	  --keys <base64 key A>
+func TestDecryptMCPServerConfigs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		f := newDecryptFixture(t)
+
+		const (
+			wantOAuth   = "mcp-oauth-secret"
+			wantAPIKey  = "mcp-api-key"
+			wantHeaders = `{"X-Custom":"header-value"}`
+		)
+		seeded := dbgen.MCPServerConfig(t, f.cryptDBA, database.MCPServerConfig{
+			AuthType:           "oauth2",
+			OAuth2ClientID:     "client-id",
+			OAuth2ClientSecret: wantOAuth,
+			APIKeyValue:        wantAPIKey,
+			CustomHeaders:      wantHeaders,
+		})
+		require.Equal(t, f.cipherA.HexDigest(), seeded.OAuth2ClientSecretKeyID.String, "sanity check: seed must be encrypted under cipher A")
+
+		f.decrypt(t)
+
+		got, err := f.rawDB.GetMCPServerConfigByID(f.ctx, seeded.ID)
+		require.NoError(t, err)
+		require.False(t, got.OAuth2ClientSecretKeyID.Valid)
+		require.False(t, got.APIKeyValueKeyID.Valid)
+		require.False(t, got.CustomHeadersKeyID.Valid)
+		require.Equal(t, wantOAuth, got.OAuth2ClientSecret)
+		require.Equal(t, wantAPIKey, got.APIKeyValue)
+		require.Equal(t, wantHeaders, got.CustomHeaders)
+	})
+
+	// DecryptErr simulates an operator omitting a key from --keys. See
+	// TestDecryptUserLinks/DecryptErr for the underlying mechanism.
+	//
+	//	# cipher C's key is missing from --keys here on purpose:
+	//	coder server dbcrypt decrypt \
+	//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+	//	  --keys <base64 key A>
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+		f := newDecryptFixture(t)
+
+		cipherC := newCipher(t)
+		cryptDBC := f.registerCipher(t, cipherC)
+		seeded := dbgen.MCPServerConfig(t, cryptDBC, database.MCPServerConfig{
+			AuthType:           "oauth2",
+			OAuth2ClientSecret: "mcp-oauth-secret",
+		})
+		require.Equal(t, cipherC.HexDigest(), seeded.OAuth2ClientSecretKeyID.String, "sanity check: seed must be encrypted under cipher C")
+
+		err := f.decryptErr(t)
+		require.Error(t, err, "expected an error: cipher C is active in dbcrypt_keys but was never passed to Decrypt")
+		var derr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, err, &derr, "expected a decrypt error")
+
+		got, getErr := f.rawDB.GetMCPServerConfigByID(f.ctx, seeded.ID)
+		require.NoError(t, getErr)
+		require.Equal(t, cipherC.HexDigest(), got.OAuth2ClientSecretKeyID.String, "row must remain encrypted under cipher C after a failed decrypt")
+	})
+}
+
+// TestDeleteMCPServerConfigs covers the mcp_server_configs table. Encrypted
+// secret columns are cleared in place (the config row stays) so revoke can
+// succeed:
+//
+//	coder server dbcrypt delete \
+//	  --postgres-url "$CODER_PG_CONNECTION_URL"
+func TestDeleteMCPServerConfigs(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+
+	encCfg := dbgen.MCPServerConfig(t, f.cryptDBA, database.MCPServerConfig{
+		AuthType:           "oauth2",
+		OAuth2ClientSecret: "mcp-oauth-secret",
+		APIKeyValue:        "mcp-api-key",
+		CustomHeaders:      `{"X-Custom":"header-value"}`,
+	})
+	plainCfg := dbgen.MCPServerConfig(t, f.rawDB, database.MCPServerConfig{
+		AuthType:           "oauth2",
+		OAuth2ClientSecret: "plain-oauth-secret",
+		APIKeyValue:        "plain-api-key",
+		CustomHeaders:      `{"X-Plain":"plain-value"}`,
+	})
+
+	f.delete(t)
+
+	gotEnc, err := f.rawDB.GetMCPServerConfigByID(f.ctx, encCfg.ID)
+	require.NoError(t, err, "row should still exist, only cleared")
+	require.Empty(t, gotEnc.OAuth2ClientSecret)
+	require.False(t, gotEnc.OAuth2ClientSecretKeyID.Valid)
+	require.Empty(t, gotEnc.APIKeyValue)
+	require.False(t, gotEnc.APIKeyValueKeyID.Valid)
+	require.False(t, gotEnc.CustomHeadersKeyID.Valid)
+
+	gotPlain, err := f.rawDB.GetMCPServerConfigByID(f.ctx, plainCfg.ID)
+	require.NoError(t, err)
+	require.Equal(t, "plain-oauth-secret", gotPlain.OAuth2ClientSecret, "never-encrypted oauth secret should survive untouched")
+	require.Equal(t, "plain-api-key", gotPlain.APIKeyValue)
+	require.Equal(t, `{"X-Plain":"plain-value"}`, gotPlain.CustomHeaders)
+
+	requireAllKeysRevoked(f.ctx, t, f.rawDB)
+}
+
+// TestRotateMCPServerUserTokens covers the mcp_server_user_tokens table
+// (per-user MCP OAuth access and refresh tokens). Both key-id columns
+// reference dbcrypt_keys.active_key_digest:
+//
+//	coder server dbcrypt rotate \
+//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+//	  --new-key <base64 key B> \
+//	  --old-keys <base64 key A>
+func TestRotateMCPServerUserTokens(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		f := newRotateFixture(t)
+
+		// Tokens survive user soft-deletion (ON DELETE CASCADE is only
+		// for hard delete), so both a live and a deleted user's row
+		// are exercised.
+		live := dbgen.User(t, f.rawDB, database.User{})
+		deletedUser := dbgen.User(t, f.rawDB, database.User{Deleted: true})
+		cfg := dbgen.MCPServerConfig(t, f.rawDB, database.MCPServerConfig{
+			AuthType: "oauth2",
+		})
+
+		liveTok := upsertMCPServerUserToken(f.ctx, t, f.cryptDBA, cfg.ID, live.ID, "access-"+live.ID.String(), "refresh-"+live.ID.String())
+		deletedTok := upsertMCPServerUserToken(f.ctx, t, f.cryptDBA, cfg.ID, deletedUser.ID, "access-"+deletedUser.ID.String(), "refresh-"+deletedUser.ID.String())
+		require.Equal(t, f.cipherA.HexDigest(), liveTok.AccessTokenKeyID.String, "sanity check: seed must be encrypted under cipher A")
+		require.Equal(t, f.cipherA.HexDigest(), deletedTok.AccessTokenKeyID.String, "sanity check: deleted-user seed must be encrypted under cipher A")
+
+		f.rotate(t)
+
+		for _, u := range []database.User{live, deletedUser} {
+			tok, err := f.rawDB.GetMCPServerUserToken(f.ctx, database.GetMCPServerUserTokenParams{
+				MCPServerConfigID: cfg.ID,
+				UserID:            u.ID,
+			})
+			require.NoError(t, err, "user %s", u.ID)
+			require.Equal(t, f.cipherB.HexDigest(), tok.AccessTokenKeyID.String)
+			require.Equal(t, f.cipherB.HexDigest(), tok.RefreshTokenKeyID.String)
+			require.Equal(t, "access-"+u.ID.String(), decryptRawString(t, f.cipherB, tok.AccessToken))
+			require.Equal(t, "refresh-"+u.ID.String(), decryptRawString(t, f.cipherB, tok.RefreshToken))
+		}
+	})
+
+	// DecryptErr simulates an operator omitting an old key from --old-keys.
+	// A mcp_server_user_tokens row is encrypted under cipher C, registered
+	// in dbcrypt_keys but never passed to the rotation below, so Rotate
+	// fails immediately (see TestRotateUserLinks/DecryptErr for why) and
+	// leaves the row untouched.
+	//
+	//	# cipher C's key is missing from --old-keys here on purpose:
+	//	coder server dbcrypt rotate \
+	//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+	//	  --new-key <base64 key B> \
+	//	  --old-keys <base64 key A>
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+		f := newRotateFixture(t)
+
+		cipherC := newCipher(t)
+		cryptDBC := f.registerCipher(t, cipherC)
+		user := dbgen.User(t, f.rawDB, database.User{})
+		cfg := dbgen.MCPServerConfig(t, f.rawDB, database.MCPServerConfig{
+			AuthType: "oauth2",
+		})
+		seeded := upsertMCPServerUserToken(f.ctx, t, cryptDBC, cfg.ID, user.ID, "access-token", "refresh-token")
+		require.Equal(t, cipherC.HexDigest(), seeded.AccessTokenKeyID.String, "sanity check: seed must be encrypted under cipher C")
+
+		err := f.rotateErr(t)
+		require.Error(t, err, "expected an error: cipher C is active in dbcrypt_keys but was never passed to Rotate")
+		var derr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, err, &derr, "expected a decrypt error")
+
+		got, getErr := f.rawDB.GetMCPServerUserToken(f.ctx, database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            user.ID,
+		})
+		require.NoError(t, getErr)
+		require.Equal(t, cipherC.HexDigest(), got.AccessTokenKeyID.String, "row must remain encrypted under cipher C after a failed rotation")
+	})
+}
+
+// TestDecryptMCPServerUserTokens covers the mcp_server_user_tokens table
+// when an operator turns off database encryption:
+//
+//	coder server dbcrypt decrypt \
+//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+//	  --keys <base64 key A>
+func TestDecryptMCPServerUserTokens(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		f := newDecryptFixture(t)
+
+		live := dbgen.User(t, f.rawDB, database.User{})
+		deletedUser := dbgen.User(t, f.rawDB, database.User{Deleted: true})
+		cfg := dbgen.MCPServerConfig(t, f.rawDB, database.MCPServerConfig{
+			AuthType: "oauth2",
+		})
+
+		upsertMCPServerUserToken(f.ctx, t, f.cryptDBA, cfg.ID, live.ID, "access-"+live.ID.String(), "refresh-"+live.ID.String())
+		upsertMCPServerUserToken(f.ctx, t, f.cryptDBA, cfg.ID, deletedUser.ID, "access-"+deletedUser.ID.String(), "refresh-"+deletedUser.ID.String())
+
+		f.decrypt(t)
+
+		for _, u := range []database.User{live, deletedUser} {
+			tok, err := f.rawDB.GetMCPServerUserToken(f.ctx, database.GetMCPServerUserTokenParams{
+				MCPServerConfigID: cfg.ID,
+				UserID:            u.ID,
+			})
+			require.NoError(t, err, "user %s", u.ID)
+			require.False(t, tok.AccessTokenKeyID.Valid)
+			require.False(t, tok.RefreshTokenKeyID.Valid)
+			require.Equal(t, "access-"+u.ID.String(), tok.AccessToken)
+			require.Equal(t, "refresh-"+u.ID.String(), tok.RefreshToken)
+		}
+	})
+
+	// DecryptErr simulates an operator omitting a key from --keys. See
+	// TestDecryptUserLinks/DecryptErr for the underlying mechanism.
+	//
+	//	# cipher C's key is missing from --keys here on purpose:
+	//	coder server dbcrypt decrypt \
+	//	  --postgres-url "$CODER_PG_CONNECTION_URL" \
+	//	  --keys <base64 key A>
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+		f := newDecryptFixture(t)
+
+		cipherC := newCipher(t)
+		cryptDBC := f.registerCipher(t, cipherC)
+		user := dbgen.User(t, f.rawDB, database.User{})
+		cfg := dbgen.MCPServerConfig(t, f.rawDB, database.MCPServerConfig{
+			AuthType: "oauth2",
+		})
+		seeded := upsertMCPServerUserToken(f.ctx, t, cryptDBC, cfg.ID, user.ID, "access-token", "refresh-token")
+		require.Equal(t, cipherC.HexDigest(), seeded.AccessTokenKeyID.String, "sanity check: seed must be encrypted under cipher C")
+
+		err := f.decryptErr(t)
+		require.Error(t, err, "expected an error: cipher C is active in dbcrypt_keys but was never passed to Decrypt")
+		var derr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, err, &derr, "expected a decrypt error")
+
+		got, getErr := f.rawDB.GetMCPServerUserToken(f.ctx, database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            user.ID,
+		})
+		require.NoError(t, getErr)
+		require.Equal(t, cipherC.HexDigest(), got.AccessTokenKeyID.String, "row must remain encrypted under cipher C after a failed decrypt")
+	})
+}
+
+// TestDeleteMCPServerUserTokens covers the mcp_server_user_tokens table.
+// Encrypted rows are deleted so revoke can succeed:
+//
+//	coder server dbcrypt delete \
+//	  --postgres-url "$CODER_PG_CONNECTION_URL"
+func TestDeleteMCPServerUserTokens(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+
+	encUser := dbgen.User(t, f.rawDB, database.User{})
+	plainUser := dbgen.User(t, f.rawDB, database.User{})
+	cfg := dbgen.MCPServerConfig(t, f.rawDB, database.MCPServerConfig{
+		AuthType: "oauth2",
+	})
+	encTok := upsertMCPServerUserToken(f.ctx, t, f.cryptDBA, cfg.ID, encUser.ID, "access-token", "refresh-token")
+	plainTok := upsertMCPServerUserToken(f.ctx, t, f.rawDB, cfg.ID, plainUser.ID, "plain-access-token", "plain-refresh-token")
+
+	f.delete(t)
+
+	_, err := f.rawDB.GetMCPServerUserTokenByID(f.ctx, encTok.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "encrypted mcp_server_user_tokens row should have been deleted")
+
+	gotPlain, err := f.rawDB.GetMCPServerUserTokenByID(f.ctx, plainTok.ID)
+	require.NoError(t, err, "never-encrypted mcp_server_user_tokens row should survive")
+	require.Equal(t, "plain-access-token", gotPlain.AccessToken)
+	require.Equal(t, "plain-refresh-token", gotPlain.RefreshToken)
+
+	requireAllKeysRevoked(f.ctx, t, f.rawDB)
+}
+
 // TestFullLifecycleAllHandledTables seeds one row in every table
 // Rotate/Decrypt/Delete actually loop over, then drives the operator
 // lifecycle end-to-end in a single database: seed data encrypted under
@@ -1642,13 +2220,6 @@ func TestDeleteUserAIProviderKeys(t *testing.T) {
 // delete a freshly re-encrypted row. One database with every handled table
 // populated together, closer to how an operator actually runs these
 // commands back to back, instead of one table at a time.
-//
-// This intentionally excludes crypto_keys, mcp_server_configs, and
-// mcp_server_user_tokens. Rotate/Decrypt don't clear those tables at all
-// (see issue #25381), so seeding them here would fail this test for a
-// reason unrelated to what it's meant to cover: whether the 7 tables
-// cliutil.go already handles stay consistent with each other across a full
-// rotate-decrypt-delete sequence.
 func TestFullLifecycleAllHandledTables(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1699,6 +2270,18 @@ func TestFullLifecycleAllHandledTables(t *testing.T) {
 		APIKey:     "provider-api-key",
 	})
 	seededUserProviderKey := upsertUserAIProviderKey(ctx, t, cryptDBA, liveUser.ID, provider.ID, "user-api-key")
+	seededCryptoKey := dbgen.CryptoKey(t, cryptDBA, database.CryptoKey{
+		Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+		Sequence: 1,
+		Secret:   sql.NullString{String: "workspace-app-secret", Valid: true},
+	})
+	seededMCPCfg := dbgen.MCPServerConfig(t, cryptDBA, database.MCPServerConfig{
+		AuthType:           "oauth2",
+		OAuth2ClientSecret: "mcp-oauth-secret",
+		APIKeyValue:        "mcp-api-key",
+		CustomHeaders:      `{"X-Custom":"header-value"}`,
+	})
+	seededMCPTok := upsertMCPServerUserToken(ctx, t, cryptDBA, seededMCPCfg.ID, liveUser.ID, "mcp-access-token", "mcp-refresh-token")
 
 	require.Equal(t, cipherA.HexDigest(), provider.SettingsKeyID.String, "sanity check: ai_providers seeded under cipher A")
 	require.Equal(t, cipherA.HexDigest(), seededLink.OAuthAccessTokenKeyID.String, "sanity check: user_links seeded under cipher A")
@@ -1707,6 +2290,9 @@ func TestFullLifecycleAllHandledTables(t *testing.T) {
 	require.Equal(t, cipherA.HexDigest(), seededSSHKey.PrivateKeyKeyID.String, "sanity check: gitsshkeys seeded under cipher A")
 	require.Equal(t, cipherA.HexDigest(), seededProviderKey.ApiKeyKeyID.String, "sanity check: ai_provider_keys seeded under cipher A")
 	require.Equal(t, cipherA.HexDigest(), seededUserProviderKey.ApiKeyKeyID.String, "sanity check: user_ai_provider_keys seeded under cipher A")
+	require.Equal(t, cipherA.HexDigest(), seededCryptoKey.SecretKeyID.String, "sanity check: crypto_keys seeded under cipher A")
+	require.Equal(t, cipherA.HexDigest(), seededMCPCfg.OAuth2ClientSecretKeyID.String, "sanity check: mcp_server_configs seeded under cipher A")
+	require.Equal(t, cipherA.HexDigest(), seededMCPTok.AccessTokenKeyID.String, "sanity check: mcp_server_user_tokens seeded under cipher A")
 
 	// --- Rotate: cipher A -> cipher B ---
 	err = dbcrypt.Rotate(ctx, log, sqlDB, []dbcrypt.Cipher{cipherB, cipherA})
@@ -1754,6 +2340,27 @@ func TestFullLifecycleAllHandledTables(t *testing.T) {
 	}
 	require.True(t, foundUserProviderKey, "seeded user_ai_provider_keys row must still exist after rotate")
 
+	gotCryptoKey, err := rawDB.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+		Feature:  seededCryptoKey.Feature,
+		Sequence: seededCryptoKey.Sequence,
+	})
+	require.NoError(t, err)
+	require.Equal(t, cipherB.HexDigest(), gotCryptoKey.SecretKeyID.String)
+	require.Equal(t, "workspace-app-secret", decryptRawString(t, cipherB, gotCryptoKey.Secret.String))
+
+	gotMCPCfg, err := rawDB.GetMCPServerConfigByID(ctx, seededMCPCfg.ID)
+	require.NoError(t, err)
+	require.Equal(t, cipherB.HexDigest(), gotMCPCfg.OAuth2ClientSecretKeyID.String)
+	require.Equal(t, "mcp-oauth-secret", decryptRawString(t, cipherB, gotMCPCfg.OAuth2ClientSecret))
+
+	gotMCPTok, err := rawDB.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: seededMCPCfg.ID,
+		UserID:            liveUser.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, cipherB.HexDigest(), gotMCPTok.AccessTokenKeyID.String)
+	require.Equal(t, "mcp-access-token", decryptRawString(t, cipherB, gotMCPTok.AccessToken))
+
 	// --- Decrypt: cipher B -> plaintext ---
 	err = dbcrypt.Decrypt(ctx, log, sqlDB, []dbcrypt.Cipher{cipherB})
 	require.NoError(t, err, "decrypt should succeed and revoke cipher B even with every handled table populated at once")
@@ -1769,6 +2376,27 @@ func TestFullLifecycleAllHandledTables(t *testing.T) {
 	require.Len(t, secrets, 1)
 	require.False(t, secrets[0].ValueKeyID.Valid)
 	require.Equal(t, "super-secret-value", secrets[0].Value)
+
+	gotCryptoKey, err = rawDB.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+		Feature:  seededCryptoKey.Feature,
+		Sequence: seededCryptoKey.Sequence,
+	})
+	require.NoError(t, err)
+	require.False(t, gotCryptoKey.SecretKeyID.Valid)
+	require.Equal(t, "workspace-app-secret", gotCryptoKey.Secret.String)
+
+	gotMCPCfg, err = rawDB.GetMCPServerConfigByID(ctx, seededMCPCfg.ID)
+	require.NoError(t, err)
+	require.False(t, gotMCPCfg.OAuth2ClientSecretKeyID.Valid)
+	require.Equal(t, "mcp-oauth-secret", gotMCPCfg.OAuth2ClientSecret)
+
+	gotMCPTok, err = rawDB.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: seededMCPCfg.ID,
+		UserID:            liveUser.ID,
+	})
+	require.NoError(t, err)
+	require.False(t, gotMCPTok.AccessTokenKeyID.Valid)
+	require.Equal(t, "mcp-access-token", gotMCPTok.AccessToken)
 
 	// --- Delete: seed one more row under a fresh cipher, then wipe it ---
 	cipherC := newCipher(t)
