@@ -166,6 +166,28 @@ export const MockAgentTimePartialHistoryReport: AgentTimeReport = {
 	],
 };
 
+export const MockAgentTimeMonthlyReport: AgentTimeReport = {
+	...MockAgentTimeReport,
+	start_date: "",
+	interval: "month",
+	buckets: [
+		{
+			start_date: "2026-08-01",
+			end_date: "2026-09-01",
+			agent_time_ms: "108000000",
+			partial: false,
+			complete: true,
+		},
+		{
+			start_date: "2026-09-01",
+			end_date: "2026-10-01",
+			agent_time_ms: "72000000",
+			partial: true,
+			complete: false,
+		},
+	],
+};
+
 export function mockAgentTimeReportWithCount(count: number): AgentTimeReport {
 	return {
 		...MockAgentTimeReport,

@@ -386,6 +386,12 @@ const AISettingsLifecyclePage = lazy(
 const CoderAgentsPage = lazy(
 	() => import("./pages/AISettingsPage/CoderAgentsPage/CoderAgentsPage"),
 );
+const AISettingsAgentTimePage = lazy(
+	() =>
+		import(
+			"./pages/AISettingsPage/CoderAgentsPage/AgentTimePage/AgentTimePage"
+		),
+);
 const AgentSettingsUserAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
 );
@@ -757,6 +763,10 @@ export const router = createBrowserRouter(
 							element={<AISettingsInstructionsPage />}
 						/>
 						<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
+						<Route
+							path="coder-agents/agent-time"
+							element={<AISettingsAgentTimePage />}
+						/>
 						<Route path="coder-agents" element={<CoderAgentsPage />} />
 						<Route path="templates" element={<AISettingsTemplatesPage />} />
 						<Route path="mcp-servers" element={<AISettingsMCPServersPage />} />
