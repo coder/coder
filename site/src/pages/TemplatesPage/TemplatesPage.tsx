@@ -1,9 +1,11 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
 import { templateExamples, templates } from "#/api/queries/templates";
+import type { AuthorizationRequest } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
@@ -12,7 +14,7 @@ import { TemplatesPageView } from "./TemplatesPageView";
 
 const TemplatesPage: FC = () => {
 	const { permissions, user: me } = useAuthenticated();
-	const { showOrganizations } = useDashboard();
+	const { organizations, showOrganizations } = useDashboard();
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const filterState = useTemplatesFilter({
@@ -21,6 +23,20 @@ const TemplatesPage: FC = () => {
 	});
 
 	const templatesQuery = useQuery(templates({ q: filterState.filter.query }));
+	const templateUpdateChecks: AuthorizationRequest["checks"] = {};
+	for (const organization of organizations) {
+		templateUpdateChecks[organization.id] = {
+			object: {
+				resource_type: "template",
+				organization_id: organization.id,
+			},
+			action: "update",
+		};
+	}
+	const templateUpdatePermissionsQuery = useQuery({
+		...checkAuthorization({ checks: templateUpdateChecks }),
+		enabled: organizations.length > 0,
+	});
 	const examplesQuery = useQuery({
 		...templateExamples(),
 		enabled: permissions.createTemplates,
@@ -45,6 +61,7 @@ const TemplatesPage: FC = () => {
 	const error =
 		templatesQuery.error ||
 		examplesQuery.error ||
+		templateUpdatePermissionsQuery.error ||
 		workspacePermissionsQuery.error;
 
 	return (
@@ -58,6 +75,7 @@ const TemplatesPage: FC = () => {
 				templateBuilderEnabled={templateBuilderEnabled}
 				examples={examplesQuery.data}
 				templates={templatesQuery.data}
+				templateUpdatePermissions={templateUpdatePermissionsQuery.data ?? {}}
 				workspacePermissions={workspacePermissionsQuery.data}
 			/>
 		</>
