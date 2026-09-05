@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { paginatedSessions } from "#/api/queries/aiBridge";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
-import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
+import { filterParamsKey, useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
@@ -46,7 +46,7 @@ const AISessionListPage: FC = () => {
 		// the unfiltered sessions query never scans the entire table.
 		queryPayload: () =>
 			withDefaultTimeRange(
-				searchParams.get(useFilterParamsKey) ?? "",
+				searchParams.get(filterParamsKey) ?? "",
 				defaultRange,
 			),
 		enabled: canViewSessions,

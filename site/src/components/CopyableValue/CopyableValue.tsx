@@ -46,11 +46,11 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 		>
 			<TooltipTrigger asChild>
 				<span
-					ref={clickableProps.ref}
+					{...clickableProps}
 					{...attrs}
 					className={cn("cursor-pointer", className)}
-					role={role ?? clickableProps.role}
-					tabIndex={tabIndex ?? clickableProps.tabIndex}
+					{...(role === undefined ? {} : { role })}
+					{...(tabIndex === undefined ? {} : { tabIndex })}
 					onClick={(event) => {
 						clickableProps.onClick(event);
 						onClick?.(event);

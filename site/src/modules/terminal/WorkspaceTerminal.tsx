@@ -99,6 +99,11 @@ export const WorkspaceTerminal = ({
 	errorMessage,
 	testId,
 }: WorkspaceTerminalProps) => {
+	// xterm.js instances are imperative: the terminal is created once, then
+	// mutated (write, focus, options) from effects and event handlers for its
+	// whole lifetime. Memoizing this component buys nothing and the compiler
+	// cannot model the mutation, so opt out.
+	"use no memo";
 	const scopeId = useId();
 	const terminalWrapperRef = useRef<HTMLDivElement>(null);
 	const fitAddonRef = useRef<FitAddon | undefined>(undefined);

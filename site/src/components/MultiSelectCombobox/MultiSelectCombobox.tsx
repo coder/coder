@@ -440,9 +440,15 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		return undefined;
 	};
 
-	if (inputRef.current && inputProps?.id) {
-		inputRef.current.id = inputProps?.id;
-	}
+	// The DOM id must be set imperatively: cmdk renders the input, so the id
+	// cannot be passed through inputProps without conflicting with its own
+	// handling. Keep the write in an effect to avoid touching the DOM during
+	// render.
+	useEffect(() => {
+		if (inputRef.current && inputProps?.id) {
+			inputRef.current.id = inputProps.id;
+		}
+	}, [inputProps?.id]);
 
 	const fixedOptions = selected.filter((s) => s.fixed);
 	const showIcons = arrayOptions?.some((it) => it.icon);

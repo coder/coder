@@ -1,6 +1,6 @@
 import { API } from "#/api/api";
 import type { ConnectionLogResponse } from "#/api/typesGenerated";
-import { useFilterParamsKey } from "#/components/Filter/Filter";
+import { filterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 
 export function paginatedConnectionLogs(
@@ -8,7 +8,7 @@ export function paginatedConnectionLogs(
 ): UsePaginatedQueryOptions<ConnectionLogResponse, string> {
 	return {
 		searchParams,
-		queryPayload: () => searchParams.get(useFilterParamsKey) ?? "",
+		queryPayload: () => searchParams.get(filterParamsKey) ?? "",
 		queryKey: ({ payload, pageNumber }) => {
 			return ["connectionLogs", payload, pageNumber] as const;
 		},

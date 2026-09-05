@@ -55,7 +55,11 @@ const CreateWorkspacePage: FC = () => {
 	// The current expected response ID.  Starts at -1 because the backend sends
 	// an initial message when the web socket is connected with -1.
 	const wsResponseId = useRef<number>(-1);
+	// The socket is kept in a ref for identity checks in event handlers and
+	// mirrored into state so render logic can read its connection status
+	// without accessing the ref during render.
 	const ws = useRef<WebSocket | null>(null);
+	const [wsState, setWsState] = useState<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 	// The expected ID of the init message, so we can wait until the initial
 	// parameters have gone through before rendering the form.
@@ -251,9 +255,14 @@ const CreateWorkspacePage: FC = () => {
 		);
 
 		ws.current = socket;
+		setWsState(socket);
 
 		return () => {
 			socket.close();
+			if (ws.current === socket) {
+				ws.current = null;
+				setWsState(null);
+			}
 		};
 	}, [realizedVersionId, defaultOwner.id]);
 
@@ -267,7 +276,7 @@ const CreateWorkspacePage: FC = () => {
 	} = useExternalAuth(realizedVersionId, owner.id);
 
 	const isLoadingFormData =
-		ws.current?.readyState === WebSocket.CONNECTING ||
+		wsState?.readyState === WebSocket.CONNECTING ||
 		templateQuery.isLoading ||
 		// isPending stays true until the permission data exists, covering the
 		// renders where the query is still disabled or has not started fetching,
@@ -382,18 +391,19 @@ const CreateWorkspacePage: FC = () => {
 		}
 	}, [autoCreateReady]);
 
+	const parameters = latestResponse?.parameters;
 	const sortedParams = useMemo(() => {
-		if (!latestResponse?.parameters) {
+		if (!parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
-	}, [latestResponse?.parameters]);
+		return [...parameters].sort((a, b) => a.order - b.order);
+	}, [parameters]);
 
 	const isInitializing =
 		!latestResponse ||
 		Number.isNaN(initId) ||
 		latestResponse.id < initId ||
-		(ws.current && ws.current.readyState === WebSocket.CONNECTING);
+		(wsState && wsState.readyState === WebSocket.CONNECTING);
 
 	const shouldShowLoader =
 		!templateQuery.data ||

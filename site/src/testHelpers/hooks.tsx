@@ -93,6 +93,10 @@ export async function renderHookWithAuth<Result, Props>(
 	// Some of the let variables are defined with definite assignment (! operator)
 	let currentLocation!: Location;
 	const LocationLeaker: FC<PropsWithChildren> = ({ children }) => {
+		// Deliberately leaks the router location into the outer test scope.
+		// Mutating an outer-scope variable is the whole point, so the compiler
+		// opt-out is explicit.
+		"use no memo";
 		currentLocation = useLocation();
 		return children;
 	};
@@ -101,6 +105,8 @@ export async function renderHookWithAuth<Result, Props>(
 	let currentRenderHookChildren: ReactNode;
 
 	const InitialRoute: FC = () => {
+		// Same deliberate outer-scope leak as LocationLeaker above.
+		"use no memo";
 		const [, forceRerender] = useReducer((b: boolean) => !b, false);
 		forceUpdateRenderHookChildren = () => act(forceRerender);
 		return <LocationLeaker>{currentRenderHookChildren}</LocationLeaker>;
@@ -173,10 +179,14 @@ export async function renderHookWithAuth<Result, Props>(
 				return;
 			}
 
-			const resultSnapshot = result.current;
 			rerender(newProps);
 			forceUpdateRenderHookChildren();
-			return waitFor(() => expect(result.current).not.toBe(resultSnapshot));
+			// Do not assert that result.current changed identity: hooks
+			// compiled by the React Compiler intentionally return the same
+			// cached object when their dependencies are unchanged. The
+			// forced re-render above is what processes the new props; callers
+			// waitFor their own assertions afterwards.
+			await act(async () => {});
 		},
 		getLocationSnapshot: () => {
 			return {

@@ -16,7 +16,11 @@ const TemplateEmbedPage: React.FC = () => {
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
 	const wsResponseId = useRef<number>(-1);
+	// The socket is kept in a ref for identity checks in event handlers and
+	// mirrored into state so render logic can read its connection status
+	// without accessing the ref during render.
 	const ws = useRef<WebSocket | null>(null);
+	const [wsState, setWsState] = useState<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 
 	const sendMessage = (formValues: Record<string, string>) => {
@@ -68,23 +72,29 @@ const TemplateEmbedPage: React.FC = () => {
 		);
 
 		ws.current = socket;
+		setWsState(socket);
 
 		return () => {
 			socket.close();
+			if (ws.current === socket) {
+				ws.current = null;
+				setWsState(null);
+			}
 		};
 	}, [template.active_version_id, me]);
 
+	const parameters = latestResponse?.parameters;
 	const sortedParams = useMemo(() => {
-		if (!latestResponse?.parameters) {
+		if (!parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters]
+		return [...parameters]
 			.filter((it) => !it.ephemeral)
 			.sort((a, b) => a.order - b.order);
-	}, [latestResponse?.parameters]);
+	}, [parameters]);
 
 	const isLoading =
-		ws.current?.readyState === WebSocket.CONNECTING || !latestResponse;
+		wsState?.readyState === WebSocket.CONNECTING || !latestResponse;
 
 	return (
 		<>
