@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatCompactionMessage,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
 import type { ModelSelectorOption } from "../ChatElements";
 import {
 	extractContextUsageFromMessage,
@@ -98,6 +101,97 @@ describe("getLatestContextUsage", () => {
 		role: "tool",
 		content: [{ type: "tool-result", tool_name: "chat_summarized" }],
 	};
+
+	it("uses the compacted estimate after reloading persisted messages", () => {
+		const messages: TypesGen.ChatMessage[] = JSON.parse(
+			JSON.stringify([
+				{ ...MockChatMessage, id: 1, usage: { input_tokens: 90000 } },
+				MockChatCompactionMessage,
+			]),
+		);
+		expect(getLatestContextUsage(messages)).toEqual({
+			usedTokens: 12000,
+			contextLimitTokens: 100000,
+			estimated: true,
+		});
+		expect(getLatestContextUsage(messages, 200000)).toEqual({
+			usedTokens: 12000,
+			contextLimitTokens: 200000,
+			estimated: true,
+		});
+	});
+
+	it("replaces the estimate with newer measured usage", () => {
+		const result = getLatestContextUsage(
+			[
+				MockChatCompactionMessage,
+				{
+					...MockChatMessage,
+					id: 4,
+					usage: { input_tokens: 15000, context_limit: 200000 },
+				},
+			],
+			100000,
+		);
+		expect(result?.usedTokens).toBe(15000);
+		expect(result?.contextLimitTokens).toBe(200000);
+		expect(result?.estimated).toBeUndefined();
+	});
+
+	it.each([
+		undefined,
+		null,
+		[],
+		{},
+		{ estimated_context_tokens: 0, context_limit_tokens: 100000 },
+		{ estimated_context_tokens: -1, context_limit_tokens: 100000 },
+		{ estimated_context_tokens: 1.5, context_limit_tokens: 100000 },
+		{ estimated_context_tokens: "12000", context_limit_tokens: 100000 },
+		{ estimated_context_tokens: 12000, context_limit_tokens: 0 },
+		{ estimated_context_tokens: 12000 },
+	])(
+		"does not reuse pre-compaction usage for invalid metadata %j",
+		(result) => {
+			const message: TypesGen.ChatMessage = JSON.parse(
+				JSON.stringify({
+					...MockChatCompactionMessage,
+					content: [
+						{ type: "tool-result", tool_name: "chat_summarized", result },
+					],
+				}),
+			);
+			expect(
+				getLatestContextUsage([
+					{ ...MockChatMessage, usage: { input_tokens: 90000 } },
+					message,
+				]),
+			).toBeNull();
+		},
+	);
+
+	it.each<TypesGen.ChatMessagePart>([
+		{ type: "tool-call", tool_name: "chat_summarized" },
+		{
+			type: "tool-result",
+			tool_name: "chat_summarized",
+			is_error: true,
+			result: MockChatCompactionMessage.content?.find(
+				(part) => part.type === "tool-result",
+			)?.result,
+		},
+		{ type: "tool-call", tool_name: "chat_cleared" },
+	])("stops at a boundary without successful summary metadata: %j", (part) => {
+		expect(
+			getLatestContextUsage([
+				MockChatCompactionMessage,
+				{ ...MockChatMessage, content: [part] },
+			]),
+		).toBeNull();
+	});
+
+	it("has no usage for an empty chat", () => {
+		expect(getLatestContextUsage([], 200000)).toBeNull();
+	});
 
 	it("returns usage from the newest usage-bearing message", () => {
 		const messages = [

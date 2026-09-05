@@ -123,6 +123,22 @@ export const MockChatMessage: ChatMessage = {
 	content: [{ type: "text", text: "Hello" }],
 };
 
+export const MockChatCompactionMessage: ChatMessage = {
+	...MockChatMessage,
+	id: 3,
+	role: "tool",
+	content: [
+		{
+			type: "tool-result",
+			tool_call_id: "summary-1",
+			tool_name: "chat_summarized",
+			result: JSON.parse(
+				'{"summary":"Compacted conversation","source":"manual","context_tokens":90000,"context_limit_tokens":100000,"estimated_context_tokens":12000}',
+			),
+		},
+	],
+};
+
 export const MockChatQueuedMessage: ChatQueuedMessage = {
 	id: 1,
 	chat_id: "chat-1",
