@@ -8,7 +8,7 @@ Once enabled, `coderd` runs the AI Gateway Proxy in-process and intercepts traff
 **Required:**
 
 1. AI Gateway must be enabled and configured (requires a Premium license, which includes [AI Governance](../../ai-governance.md)). See [AI Gateway Setup](../setup.md) for further information.
-1. AI Gateway Proxy must be [enabled](#proxy-configuration) using the server flag.
+1. AI Gateway Proxy must be [enabled](#proxy-configuration) using the `coder server` flag.
 1. A [CA certificate](#ca-certificate) must be configured for MITM interception.
 1. [Clients](#client-configuration) must be configured to use the proxy and trust the CA certificate.
 
@@ -56,7 +56,7 @@ All other traffic is tunneled through without decryption.
 Intercepted requests are forwarded to the AI Gateway, configured via [`CODER_AI_GATEWAY_PROXY_TARGET`](../../../reference/cli/server.md#--ai-gateway-proxy-target).
 By default, this is the embedded AI Gateway at `<coderd-access-url>/api/v2/ai-gateway`, and no configuration is needed.
 
-AI Gateway Proxy remains part of the `coder server` process when you [deploy AI Gateway as a standalone service](../standalone.md).
+AI Gateway Proxy remains part of the `coderd` process when you [deploy AI Gateway as a standalone service](../standalone.md).
 To forward intercepted requests to the standalone gateway, set the following:
 
 ```sh
@@ -67,7 +67,7 @@ CODER_AI_GATEWAY_PROXY_TARGET=https://ai-gateway.example.com/
 
 The target is used as-is: the proxy appends only the provider and request path to it, and the URL must not include query parameters.
 
-For additional configuration options, see the [Coder server configuration](../../../reference/cli/server.md#options).
+For additional configuration options, see the [`coder server` configuration](../../../reference/cli/server.md#options).
 
 ## Security Considerations
 
@@ -259,7 +259,7 @@ If your organization requires all outbound traffic to pass through a corporate p
 Tunneled requests (non-allowlisted domains) are forwarded to the upstream proxy configured via [`CODER_AI_GATEWAY_PROXY_UPSTREAM`](../../../reference/cli/server.md#--ai-gateway-proxy-upstream).
 
 MITM'd requests (AI provider domains) are forwarded to AI Gateway, which then communicates with AI providers.
-To ensure AI Gateway also routes requests through the upstream proxy, make sure to configure the proxy settings for the Coder server process.
+To ensure AI Gateway also routes requests through the upstream proxy, make sure to configure the proxy settings for the `coderd` process.
 
 ![AI Gateway Proxy with an upstream corporate proxy](../../../images/aibridge/ai-gateway-proxy-upstream.png)
 
@@ -401,7 +401,7 @@ When the AI Gateway [proxy target](#proxy-target) URL (the Coder access URL by d
 own certificate or a load balancer's, if TLS is terminated there) to forward intercepted requests to AI Gateway.
 This primarily affects deployments using a self-signed or internal CA, since publicly trusted CAs are typically already
 in the system trust store.
-If the certificate is signed by a CA not in the system trust store, the connection fails and the Coder server logs:
+If the certificate is signed by a CA not in the system trust store, the connection fails and `coderd` logs:
 
 ```sh
 WARN: Cannot read TLS response from mitm'd server tls: failed to verify certificate: x509: certificate signed by unknown authority
@@ -427,7 +427,7 @@ MITM CA certificate. Visit [Trust the CA certificate](#trust-the-ca-certificate)
 
 The proxy intercepts HTTPS traffic only for hostnames matching the base URL of an enabled AI [Provider](../providers.md) configured in AI
 Gateway. Check that the provider is enabled and its base URL matches the hostname the tool is connecting to. Verify that
-`HTTPS_PROXY` points at the proxy. When interception is working, coderd logs:
+`HTTPS_PROXY` points at the proxy. When interception is working, `coderd` logs:
 
 ```sh
 routing MITM request to AI Gateway
@@ -460,7 +460,7 @@ See [Client Configuration](#client-configuration) for how to configure the proxy
 
 ### Connections to internal services are blocked
 
-Tunneled requests to private or reserved IP ranges are blocked by default. When a request is blocked, coderd logs:
+Tunneled requests to private or reserved IP ranges are blocked by default. When a request is blocked, `coderd` logs:
 
 ```sh
 WARN  blocking connection to private/reserved IP  hostname=... port=... resolved_ip=...

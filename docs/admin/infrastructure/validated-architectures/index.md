@@ -52,11 +52,11 @@ management, template definitions, insights, and deployment configuration.
 
 ### Coder control plane
 
-Coder's control plane, also known as _coderd_, is the main service recommended
-for deployment with multiple replicas to ensure high availability. It provides
-an API for managing workspaces and templates, and serves the dashboard UI. In
-addition, each _coderd_ replica hosts 3 Terraform [provisioners](#provisioner)
-by default.
+Coder's control plane, run by the `coderd` process, is the main component
+recommended for deployment with multiple replicas to ensure high availability.
+It provides an API for managing workspaces and templates, and serves the
+dashboard UI. In addition, each `coderd` replica hosts 3 Terraform
+[provisioners](#provisioner) by default.
 
 ### User
 
@@ -305,9 +305,9 @@ database to the prior version.
 ### Performance efficiency
 
 We highly recommend deploying the PostgreSQL instance in the same region (and if
-possible, same availability zone) as the Coder server to optimize for low
-latency connections. We recommend keeping latency under 10ms between the Coder
-server and database.
+possible, same availability zone) as the control plane to optimize for low
+latency connections. We recommend keeping latency under 10ms between the control
+plane and database.
 
 When determining scaling requirements, take into account the following
 considerations:

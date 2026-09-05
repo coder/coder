@@ -7,7 +7,7 @@ For production deployments, we recommend using an external
 
 ## Basic configuration
 
-Before starting the Coder server, prepare the database server by creating a role
+Before starting the control plane, prepare the database server by creating a role
 and a database. Remember that the role must have access to the created database.
 
 With `psql`:
@@ -81,7 +81,7 @@ ALTER ROLE coder SET search_path = myschema;
 
 ## Troubleshooting
 
-### Coder server fails startup with "current_schema: converting NULL to string is unsupported"
+### `coder server` fails startup with "current_schema: converting NULL to string is unsupported"
 
 Please make sure that the schema selected in the connection string
 `...&search_path=myschema` exists and the role has granted permissions to access

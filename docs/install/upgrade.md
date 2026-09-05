@@ -1,6 +1,6 @@
 # Upgrade
 
-This article describes how to upgrade your Coder server.
+This article describes how to upgrade your Coder deployment.
 
 > [!CAUTION]
 > Prior to upgrading a production Coder deployment, take a database snapshot since
@@ -11,7 +11,7 @@ For upgrade recommendations and troubleshooting, see
 
 ## Reinstall Coder to upgrade
 
-To upgrade your Coder server, reinstall Coder using your original method
+To upgrade your Coder deployment, reinstall Coder using your original method
 of [install](../install/index.md).
 
 ### Coder install script

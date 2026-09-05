@@ -16,16 +16,16 @@ end-user experience and measure the effects of modifications you make to your
 deployment.
 
 - Log output
-  - Capture log output from from Coder Server instances and external provisioner daemons
+  - Capture log output from from control plane instances and external provisioner daemons
   and store them in a searchable log store like Loki, CloudWatch logs, or other tools.
   - Retain logs for a minimum of thirty days, ideally ninety days.
   This allows you investigate when anomalous behaviors began.
 
 - Metrics
   - Capture infrastructure metrics like CPU, memory, open files, and network I/O for all
-  Coder Server, external provisioner daemon, workspace proxy, and PostgreSQL instances.
-  - Capture Coder Server and External Provisioner daemons metrics
-  [via Prometheus](#how-to-capture-coder-server-metrics-with-prometheus).
+  control plane, external provisioner daemon, workspace proxy, and PostgreSQL instances.
+  - Capture control plane and external provisioner daemon metrics
+  [via Prometheus](#how-to-capture-control-plane-metrics-with-prometheus).
 
 Retain metric time series for at least six months. This allows you to see
 performance trends relative to user growth.
@@ -45,8 +45,8 @@ they affect the end-user experience.
      Monitor trends and pay special attention to the daily and weekly peak utilization.
      Use long-term trends to plan infrastructure upgrades.
 
-- Tail latency of Coder Server API requests
-  - High tail latency can indicate Coder Server or the PostgreSQL database is underprovisioned
+- Tail latency of Coder API requests
+  - High tail latency can indicate the control plane or the PostgreSQL database is underprovisioned
   for the load.
   - Use the `coderd_api_request_latencies_seconds` metric.
 
@@ -54,9 +54,9 @@ they affect the end-user experience.
   - High tail latency can indicate the PostgreSQL database is low in resources.
   - Use the `coderd_db_query_latencies_seconds` metric.
 
-### How to capture Coder server metrics with Prometheus
+### How to capture control plane metrics with Prometheus
 
-Edit your Helm `values.yaml` to capture metrics from Coder Server and external provisioner daemons with
+Edit your Helm `values.yaml` to capture metrics from the control plane and external provisioner daemons with
 [Prometheus](../../admin/integrations/prometheus.md):
 
 1. Enable Prometheus metrics:
@@ -85,31 +85,31 @@ Edit your Helm `values.yaml` to capture metrics from Coder Server and external p
      CODER_PROMETHEUS_COLLECT_AGENT_STATS=false
      ```
 
-## Coder Server
+## Control plane
 
 ### Locality
 
 If increased availability of the Coder API is a concern, deploy at least three
-instances of Coder Server. Spread the instances across nodes with anti-affinity rules in
+control plane instances. Spread the instances across nodes with anti-affinity rules in
 Kubernetes or in different availability zones of the same geographic region.
 
 Do not deploy in different geographic regions.
 
-Coder Servers need to be able to communicate with one another directly with low
+Control plane instances need to be able to communicate with one another directly with low
 latency, under 10ms. Note that this is for the availability of the Coder API.
 Workspaces are not fault tolerant unless they are explicitly built that way at
 the template level.
 
-Deploy Coder Server instances as geographically close to PostgreSQL as possible.
-Low-latency communication (under 10ms) with Postgres is essential for Coder
-Server's performance.
+Deploy control plane instances as geographically close to PostgreSQL as possible.
+Low-latency communication (under 10ms) with Postgres is essential for control
+plane performance.
 
 ### Scaling
 
-Coder Server can be scaled both vertically for bigger instances and horizontally
+The control plane can be scaled both vertically for bigger instances and horizontally
 for more instances.
 
-Aim to keep the number of Coder Server instances relatively small, preferably
+Aim to keep the number of control plane instances relatively small, preferably
 under ten instances, and opt for vertical scale over horizontal scale after
 meeting availability requirements.
 
@@ -119,10 +119,10 @@ give specific sizing recommendations for various user scales. These are a useful
 starting point, but very few deployments will remain stable at a predetermined
 user level over the long term. We recommend monitoring and adjusting resources as needed.
 
-We don't recommend that you autoscale the Coder Servers. Instead, scale the
+We don't recommend that you autoscale the control plane instances. Instead, scale the
 deployment for peak weekly usage.
 
-Although Coder Server persists no internal state, it operates as a proxy for end
+Although the control plane persists no internal state, it operates as a proxy for end
 users to their workspaces in two capacities:
 
 1. As an HTTP proxy when they access workspace applications in their browser via
@@ -131,7 +131,7 @@ users to their workspaces in two capacities:
 1. As a DERP proxy when establishing tunneled connections with CLI tools like
    `coder ssh`, `coder port-forward`, and others, and with desktop IDEs.
 
-Stopping a Coder Server instance will (momentarily) disconnect any users
+Stopping a control plane instance will (momentarily) disconnect any users
 currently connecting through that instance. Adding a new instance is not
 disruptive, but you should remove instances and perform upgrades during a
 maintenance window to minimize disruption.
@@ -141,9 +141,9 @@ maintenance window to minimize disruption.
 ### Locality
 
 We recommend that you run one or more
-[provisioner daemon deployments external to Coder Server](../../admin/provisioners/index.md)
-and disable provisioner daemons within your Coder Server.
-This allows you to scale them independently of the Coder Server:
+[provisioner daemon deployments external to the control plane](../../admin/provisioners/index.md)
+and disable provisioner daemons within your control plane.
+This allows you to scale them independently of the control plane:
 
 ```yaml
 CODER_PROVISIONER_DAEMONS=0
@@ -163,7 +163,7 @@ workspaces they will provision or are hosted in.
   deployments and use template tags to select the correct set of provisioner
   daemons.
 
-- Provisioner daemons need to be able to connect to Coder Server, but this does not need
+- Provisioner daemons need to be able to connect to the control plane, but this does not need
   to be a low-latency connection.
 
 Provisioner daemons make no direct connections to the PostgreSQL database, so
@@ -203,11 +203,11 @@ the number and size of your provisioner daemon instances.
 
 PostgreSQL is the primary persistence layer for all of Coder's deployment data.
 We also use `LISTEN` and `NOTIFY` to coordinate between different instances of
-Coder Server.
+the control plane.
 
 ### Locality
 
-Coder Server instances must have low-latency connections (under 10ms) to
+Control plane instances must have low-latency connections (under 10ms) to
 PostgreSQL. If you use multiple PostgreSQL replicas in a clustered config, these
 must also be low-latency with respect to one another.
 
@@ -220,12 +220,12 @@ give specific sizing recommendations for various user scales.
 
 ### Connection pool tuning
 
-Coder Server maintains a pool of connections to PostgreSQL. You can tune the
+The control plane maintains a pool of connections to PostgreSQL. You can tune the
 pool size with the following settings:
 
 > [!NOTE]
 > When adjusting these settings, please ensure that your PostgreSQL Server has `max_connections`
-> set appropriately to accommodate all Coder Server replicas multiplied by the
+> set appropriately to accommodate all control plane replicas multiplied by the
 > maximum number of open connections. We recommend configuring an additional 20%
 > of connections to account for churn and other clients.
 >
@@ -243,8 +243,8 @@ overhead (churn) when load fluctuates. Monitor these metrics to understand your
 connection pool behavior:
 
 - **Capacity**: `go_sql_max_open_connections - go_sql_in_use_connections` shows
-  how many connections are available for new requests. If this is 0, Coder
-  Server performance will start to degrade. This just provides a point-in-time view
+  how many connections are available for new requests. If this is 0, control
+  plane performance will start to degrade. This just provides a point-in-time view
   of the connections, however.
 
   For a more systematic view, consider running
@@ -334,8 +334,8 @@ be susceptible to a user or process consuming shared resources.
     using autostop policies to stop more workspaces during off-peak hours.
 
 - If you do overprovision workspaces onto nodes, keep them in a separate node
-  pool and schedule Coder control plane (Coder Server, PostgreSQL, workspace
-  proxies) components on a different node pool to avoid resource spikes
+  pool and schedule the control plane, PostgreSQL, and workspace proxy
+  components on a different node pool to avoid resource spikes
   affecting them.
 
 Coder customers have had success with both:
@@ -356,7 +356,7 @@ Coder customers have had success with both:
 ## Networking
 
 Set up your network so that most users can get direct, peer-to-peer connections
-to their workspaces. This drastically reduces the load on Coder Server and
+to their workspaces. This drastically reduces the load on the control plane and
 workspace proxy instances.
 
 ## Next steps

@@ -30,8 +30,8 @@ continuously improve the reliability and performance of the platform.
 - If deploying on Kubernetes:
   - Set CPU request and limit to `4000m`
   - Set Memory request and limit to `12Gi`
-- Coderd does not typically benefit from high performance disks like SSDs (unless you are co-locating provisioners).
-- Coderd instances should be deployed in the same region as the database.
+- `coderd` does not typically benefit from high performance disks like SSDs (unless you are co-locating provisioners).
+- `coderd` instances should be deployed in the same region as the database.
 
 ### Workspace Proxies
 
@@ -64,7 +64,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision
   - Set Memory request and limit to `1Gi`
 - If deploying on virtual machines, stack up to 30 provisioners per machine with a commensurate amount of memory and CPU.
 - Provisioners benefit from high performance disks like SSDs.
-- [Do not run provisioners on Coderd nodes](../../provisioners/index.md#disable-built-in-provisioners) at this scale.
+- [Do not run provisioners on `coderd` nodes](../../provisioners/index.md#disable-built-in-provisioners) at this scale.
 - If deploying workspaces to multiple clouds or multiple Kubernetes clusters, divide the provisioner replicas among the
   clouds or clusters according to expected usage.
 

@@ -1,7 +1,7 @@
 # Configure Control Plane Access
 
-Coder server's primary configuration is done via environment variables. For a
-full list of the options, run `coder server --help` or see our
+The control plane's primary configuration is done via environment variables. For
+a full list of the options, run `coder server --help` or see our
 [CLI documentation](../../reference/cli/server.md).
 
 > [!TIP]
@@ -57,7 +57,7 @@ It requires a DNS record and TLS certificate for `*.example.com`.
 > browsers consider these "public" domains and will refuse Coder's cookies,
 > which are vital to the proper operation of this feature.
 
-If you are providing TLS certificates directly to the Coder server, either
+If you are providing TLS certificates directly to the control plane, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
 1. Configure multiple certificates and keys via
@@ -72,7 +72,7 @@ After you enable the wildcard access URL, you should [disable path-based apps](.
 
 ## TLS & Reverse Proxy
 
-The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and
+The control plane can directly use TLS certificates with `CODER_TLS_ENABLE` and
 accompanying configuration flags. However, Coder can also run behind a
 reverse-proxy to terminate TLS certificates from LetsEncrypt.
 
@@ -149,8 +149,8 @@ steps:
 ## Configuring Coder behind a proxy
 
 To configure Coder behind a corporate proxy, set the environment variables
-`HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the server. Lowercase values
-(e.g. `http_proxy`) are also respected in this case.
+`HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the control plane. Lowercase
+values (e.g. `http_proxy`) are also respected in this case.
 
 ## Continue your setup with external authentication
 

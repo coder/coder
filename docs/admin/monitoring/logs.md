@@ -8,8 +8,9 @@ captured via Splunk, Datadog, Grafana Loki, or other ingestion tools.
 
 ## `coderd` Logs
 
-By default, the Coder server exports human-readable logs to standard output. You
-can access these logs via `kubectl logs deployment/coder -n <coder-namespace>`
+By default, `coderd`, the process that runs the control plane, exports
+human-readable logs to standard output. You can access these logs via
+`kubectl logs deployment/coder -n <coder-namespace>`
 on Kubernetes or `journalctl -u coder` if you deployed Coder on a host
 machine/VM.
 

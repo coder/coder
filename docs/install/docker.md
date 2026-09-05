@@ -131,7 +131,7 @@ export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
 ```
 
 To persist the setting, add the `export` line to your shell's startup file, such as `~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`.
-Then restart the Coder server.
+Then restart the control plane.
 
 ### Docker-based workspace is stuck in "Connecting..."
 

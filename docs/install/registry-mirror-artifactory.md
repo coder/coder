@@ -95,10 +95,10 @@ module "code-server" {
 }
 ```
 
-## Step 5: Configure Coder Server or Provisioners
+## Step 5: Configure the control plane or provisioners
 
 For Coder to use the Artifactory mirror, configure the Terraform CLI on your
-Coder server or external provisioners.
+control plane or external provisioners.
 
 <div class="tabs">
 
@@ -151,7 +151,7 @@ services:
 The [template builder](../admin/templates/creating-templates.md) resolves module
 sources against `registry.coder.com` by default. To make it generate module
 source paths that point at your Artifactory mirror instead, set the
-`CODER_TEMPLATE_BUILDER_REGISTRY_URL` environment variable on your Coder server:
+`CODER_TEMPLATE_BUILDER_REGISTRY_URL` environment variable on your control plane:
 
 ```sh
 CODER_TEMPLATE_BUILDER_REGISTRY_URL=<your-artifactory-host>

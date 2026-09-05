@@ -1,6 +1,6 @@
 # External provisioners
 
-By default, the Coder server runs
+By default, the control plane runs
 [built-in provisioner daemons](../../reference/cli/server.md#--provisioner-daemons),
 which execute `terraform` during workspace and template builds. However, there
 are often benefits to running external provisioner daemons:
@@ -9,16 +9,16 @@ are often benefits to running external provisioner daemons:
   preventing malicious templates from gaining sh access to the Coder host.
 
 - **Isolate APIs:** Deploy provisioners in isolated environments (on-prem, AWS,
-  Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the Coder
-  server. See
+  Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control
+  plane. See
   [Provider Authentication](../../admin/templates/extending-templates/provider-authentication.md)
   for more details.
 
 - **Isolate secrets**: Keep Coder unaware of cloud secrets, manage/rotate
   secrets on provisioner servers.
 
-- **Reduce server load**: External provisioners reduce load and build queue
-  times from the Coder server. See
+- **Reduce control plane load**: External provisioners reduce load and build
+  queue times from the control plane. See
   [Scaling Coder](../../admin/infrastructure/index.md#scale-tests) for more
   details.
 
@@ -113,7 +113,7 @@ Global pre-shared keys (PSK) make it difficult to rotate keys or isolate provisi
 A deployment-wide PSK can be used to authenticate any provisioner. To use a
 global PSK, set a
 [provisioner daemon pre-shared key (PSK)](../../reference/cli/server.md#--provisioner-daemon-psk)
-on the Coder server.
+on the control plane.
 
 Next, start the provisioner:
 
@@ -288,7 +288,7 @@ coder templates push on-prem \
 ## Example: Running an external provisioner with Helm
 
 Coder provides a Helm chart for running external provisioner daemons, which you
-will use in concert with the Helm chart for deploying the Coder server.
+will use in concert with the Helm chart for deploying the control plane.
 
 1. Create a provisioner key:
 
@@ -346,7 +346,7 @@ will use in concert with the Helm chart for deploying the Coder server.
    ```
 
    You can verify that your provisioner daemons have successfully connected to
-   Coderd by looking for a debug log message that says
+   `coderd` by looking for a debug log message that says
    `provisioner: successfully connected to coderd` from each Pod.
 
 ## Example: Running an external provisioner on a VM
@@ -371,7 +371,7 @@ docker run --rm -it \
 
 ## Disable built-in provisioners
 
-As mentioned above, the Coder server will run built-in provisioners by default.
+As mentioned above, the control plane will run built-in provisioners by default.
 This can be disabled with a server-wide
 [flag or environment variable](../../reference/cli/server.md#--provisioner-daemons).
 

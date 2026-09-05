@@ -74,7 +74,7 @@ becomes available.
 
 ### Increase provisioner daemons
 
-Provisioners are queue-based to reduce unpredictable load to the Coder server.
+Provisioners are queue-based to reduce unpredictable load to the control plane.
 If you require a higher bandwidth of provisioner jobs, you can do so by
 increasing the
 [`CODER_PROVISIONER_DAEMONS`](../../reference/cli/server.md#--provisioner-daemons)

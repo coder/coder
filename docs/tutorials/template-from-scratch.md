@@ -133,7 +133,7 @@ runs inside the compute aspect of your workspace, typically a VM or container.
 In our case, it will run in Docker.
 
 You do not need to have any open ports on the compute aspect, but the agent
-needs `curl` access to the Coder server.
+needs `curl` access to the control plane.
 
 Add this snippet after the last closing `}` in `main.tf` to create the agent:
 
@@ -174,7 +174,7 @@ resource "coder_agent" "main" {
 }
 ```
 
-Because Docker is running locally in the Coder server, there is no need to
+Because Docker is running on the same machine as the control plane, there is no need to
 authenticate `coder_agent`. But if your `coder_agent` is running on a remote
 host, your template will need
 [authentication credentials](../admin/external-auth/index.md).

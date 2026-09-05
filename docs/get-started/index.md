@@ -9,7 +9,7 @@ This workspace includes a basic set of tools to edit most code bases.
 
 In this quickstart, you'll:
 
-- ✅ Install Coder server.
+- ✅ Install the Coder control plane.
 - ✅ Create a **template** (blueprint for dev environments).
 - ✅ Launch a **workspace** (your actual dev environment).
 - ✅ Connect from your favorite IDE.
@@ -38,9 +38,9 @@ explained through a cooking analogy:
 <summary>Why a separate machine?</summary>
 
 Coder's value comes from remote development.
-Hosting the Coder server on a separate machine, such as a cloud VM, a spare desktop, or on-premises hardware, gives you and your team infrastructure that's more powerful, always-on, and reachable from anywhere, instead of tying your dev environment to your own laptop.
+Hosting the control plane on a separate machine, such as a cloud VM, a spare desktop, or on-premises hardware, gives you and your team infrastructure that's more powerful, always-on, and reachable from anywhere, instead of tying your dev environment to your own laptop.
 
-When you're ready to move past this tutorial, install the Coder server on a separate machine and connect to it remotely.
+When you're ready to move past this tutorial, install the control plane on a separate machine and connect to it remotely.
 Refer to the [Install guide](../install/index.md) for supported platforms and installation methods.
 
 </details>
@@ -205,7 +205,7 @@ automatically, go to <http://localhost:3000>.
 - If you get a browser warning similar to `Secure Site Not Available`, you can
   ignore the warning and continue to the setup page.
 
-If your Coder server is on a network or cloud device, or you are having trouble
+If your control plane is on a network or cloud device, or you are having trouble
 viewing the page, locate the web UI URL in Coder logs in your terminal. It looks
 like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. It's one of the first
 lines of output, so you might have to scroll up to find it.
@@ -330,7 +330,7 @@ workspace, you can clone it manually if you want:
 
 You now have:
 
-- A Coder server running locally.
+- A control plane running locally.
 - A template defining your environment.
 - A workspace running that environment.
 - IDE access to code remotely.
@@ -362,7 +362,7 @@ A runtime must be running before you create a workspace from a Docker-based temp
 
 If the runtime is running but Coder still cannot connect, the daemon may expose its socket at a path other than `/var/run/docker.sock`.
 This is common with Colima on macOS and with rootless Docker on Linux.
-In that case, point Coder at the socket with the `DOCKER_HOST` environment variable, then restart the Coder server.
+In that case, point Coder at the socket with the `DOCKER_HOST` environment variable, then restart the control plane.
 
 <div class="tabs">
 
@@ -415,7 +415,7 @@ In that case, point Coder at the socket with the `DOCKER_HOST` environment varia
    docker ps
    ```
 
-1. If `docker ps` works but Coder still cannot connect, point `DOCKER_HOST` at the Colima socket, then restart the Coder server:
+1. If `docker ps` works but Coder still cannot connect, point `DOCKER_HOST` at the Colima socket, then restart the control plane:
 
    ```sh
    export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
@@ -432,7 +432,7 @@ In that case, point Coder at the socket with the `DOCKER_HOST` environment varia
 
 </div>
 
-### Can't start Coder server: Address already in use
+### Can't start `coder server`: Address already in use
 
 ```txt
 Encountered an error running "coder server", see "coder server --help" for more information
@@ -440,7 +440,7 @@ error: configure http(s): listen tcp 127.0.0.1:3000: bind: address already in us
 ```
 
 Another process is already listening on port 3000. Identify and stop it,
-then start the server again.
+then start the control plane again.
 
 <div class="tabs">
 

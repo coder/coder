@@ -16,13 +16,13 @@ encryption.
 As with any security guide, the steps and suggestions outlined in this document
 are not meant to be exhaustive and do not offer any guarantee.
 
-## Coder Server
+## Control plane
 
-Coder Server is the main control core of a Coder deployment.
+The control plane is the core of a Coder deployment.
 
-If the Coder Server is compromised in a security incident, it can affect every
+If the control plane is compromised in a security incident, it can affect every
 other part of your deployment. Even a successful read-only attack against the
-Coder Server could result in a complete compromise of the Coder deployment if
+control plane could result in a complete compromise of the Coder deployment if
 credentials are stolen.
 
 ### User authentication
@@ -48,18 +48,18 @@ Place Coder behind a TLS-capable reverse-proxy/load balancer and enable
 [Strict Transport Security](../../reference/cli/server.md#--strict-transport-security)
 so that connections from end users are always encrypted.
 
-Enable [TLS](../../reference/cli/server.md#--tls-address) on Coder Server and
-encrypt traffic from the reverse-proxy/load balancer to Coder Server, so that
+Enable [TLS](../../reference/cli/server.md#--tls-address) on the control plane and
+encrypt traffic from the reverse-proxy/load balancer to the control plane, so that
 even if an attacker gains access to your network, they will not be able to snoop
-on Coder Server traffic.
+on control plane traffic.
 
 ### Encryption at rest
 
-Coder Server persists no state locally. No action is required.
+The control plane persists no state locally. No action is required.
 
-### Server logs and audit logs
+### Control plane logs and audit logs
 
-Capture the logging output of all Coder Server instances and persist them.
+Capture the logging output of all control plane instances and persist them.
 
 Retain all logs for a minimum of thirty days, ideally ninety days. Filter audit
 logs (which have `msg: audit_log`) and retain them for a minimum of two years
@@ -81,7 +81,7 @@ A malicious workspace could reuse Coder cookies to call the API or interact with
 1. Disable path-based apps:
 
    ```sh
-   coderd server --disable-path-apps
+   coder server --disable-path-apps
    # or
    export CODER_DISABLE_PATH_APPS=true
    ```
@@ -91,9 +91,9 @@ malicious workspaces accessing other workspaces owned by the same user or perfor
 
 If you do keep path-based apps enabled:
 
-- Path-based apps cannot be shared with other users unless you start the Coder server with `--dangerous-allow-path-app-sharing`.
-- Users with the site `owner` role cannot use their admin privileges to access path-based apps for workspaces unless the
-  server is started with `--dangerous-allow-path-app-site-owner-access`.
+- Path-based apps cannot be shared with other users unless you start `coder server` with `--dangerous-allow-path-app-sharing`.
+- Users with the site `owner` role cannot use their admin privileges to access path-based apps for workspaces unless
+  `coder server` is started with `--dangerous-allow-path-app-site-owner-access`.
 
 ## PostgreSQL
 
@@ -123,8 +123,8 @@ of the Coder deployment.
 ### Encryption in transit
 
 Enable TLS on PostgreSQL and set `sslmode=verify-full` in your
-[postgres URL](../../reference/cli/server.md#--postgres-url) on Coder Server.
-This configures Coder Server to only establish TLS connections to PostgreSQL and
+[postgres URL](../../reference/cli/server.md#--postgres-url) on the control plane.
+This configures the control plane to only establish TLS connections to PostgreSQL and
 check that the PostgreSQL server’s certificate is valid and matches the expected
 hostname.
 
@@ -171,7 +171,7 @@ systems.
 ### External provisioner daemons
 
 When Coder workspaces are deployed into multiple clusters/clouds, or workspaces
-are in a different cluster/cloud than the Coder Server, use external provisioner
+are in a different cluster/cloud than the control plane, use external provisioner
 daemons.
 
 Running provisioner daemons within the same cluster/cloud as the workspaces they
@@ -182,7 +182,7 @@ provision:
   credentials issued outside the cloud/cluster.
 - Means that you don’t have to open any ingress ports on the clusters/clouds
   that host workspaces.
-  - The external provisioner daemons dial out to Coder Server.
+  - The external provisioner daemons dial out to the control plane.
   - Provisioner daemons run in the cluster, so you don’t need to expose
     cluster/cloud APIs externally.
 - Each cloud/cluster is isolated, so a compromise of a provisioner daemon is
@@ -192,7 +192,7 @@ provision:
 
 1. Use a [scoped key](../../admin/provisioners/index.md#scoped-key-recommended) to
    authenticate the provisioner daemons with Coder. These keys can only be used
-   to authenticate provisioner daemons (not other APIs on the Coder Server).
+   to authenticate provisioner daemons (not other APIs on the control plane).
 
 1. Store the keys securely and use environment variables to pass them to the
    provisioner daemon.
@@ -224,8 +224,8 @@ credentials, if available:
 
 ### Encryption in transit
 
-Enable TLS on Coder Server and ensure you use an `https://` URL to access the
-Coder Server.
+Enable TLS on the control plane and ensure you use an `https://` URL to access the
+control plane.
 
 See the **Encryption in transit** subheading of the
 [Templates](#workspace-templates) section for more about encrypting
@@ -273,8 +273,8 @@ workspaces and can access any port on any running workspace.
 
 ### Encryption in transit
 
-Enable TLS on Coder Server and ensure you use an `https://` URL to access the
-Coder Server.
+Enable TLS on the control plane and ensure you use an `https://` URL to access the
+control plane.
 
 Communication to the proxied workspace applications is always encrypted with
 Wireguard. No action is required.
@@ -291,7 +291,7 @@ code via the
 
 Furthermore, Coder templates are designed to provision compute resources in one
 or more clusters/clouds, and template authors are generally in full control over
-code and scripts executed by the Coder agent in those compute resources.
+code and scripts executed by the workspace agent in those compute resources.
 
 This means that template admins have remote code execution privileges for any
 provisioner daemons in their organization and within any cluster/cloud those
@@ -457,7 +457,7 @@ inbound connections are handled exclusively by the encrypted tunnels.
 [DERP](https://tailscale.com/kb/1232/derp-servers) is a relay protocol developed
 by Tailscale.
 
-Coder Server and Workspace Proxies include a DERP service by default. Tailcale
+The control plane and Workspace Proxies include a DERP service by default. Tailcale
 also runs a set of public DERP servers, globally distributed.
 
 All DERP messages are end-to-end encrypted, so the DERP service only learns the
@@ -500,7 +500,7 @@ using the default set of STUN servers operated by Google.
 #### Workspace apps
 
 Coder workspace apps are a way to allow users to access web applications running
-in the workspace via the Coder Server or Workspace Proxy.
+in the workspace via the control plane or Workspace Proxy.
 
 1. [Disable workspace apps on sub-paths](../../reference/cli/server.md#--disable-path-apps)
    of the main Coder domain name.
@@ -511,14 +511,14 @@ in the workspace via the Coder Server or Workspace Proxy.
    Because of the default
    [same-origin policy](https://en.wikipedia.org/wiki/Same-origin_policy) in
    browsers, serving web apps on the main Coder domain would allow those apps to
-   send API requests to the Coder Server, authenticated as the logged-in user
+   send API requests to the control plane, authenticated as the logged-in user
    without their explicit consent.
 
 #### Port sharing
 
 Coder supports the option to allow users to designate specific network ports on
 their workspace as shared, which allows others to access those ports via the
-Coder Server.
+control plane.
 
 Consider restricting the maximum sharing level for workspaces, located in the
 template settings for the corresponding template.

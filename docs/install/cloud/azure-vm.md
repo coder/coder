@@ -1,6 +1,6 @@
 # Microsoft Azure
 
-This guide shows you how to set up the Coder server on Azure which will
+This guide shows you how to set up the Coder control plane on Azure which will
 provision Azure-hosted Linux workspaces.
 
 ## Requirements
