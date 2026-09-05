@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
@@ -621,4 +622,196 @@ func TestOAuth2RegisterPublicClient(t *testing.T) {
 
 	resp := oauth2providertest.RegisterPublicClient(t, client, "test-public-client", "https://example.com/callback")
 	require.NotEmpty(t, resp.ClientID)
+}
+
+// RFC 7591 clients may register several redirect_uris and use any of them.
+// Cursor registers a desktop deep link and a web callback, then uses the second.
+func TestOAuth2MultipleRegisteredRedirectURIs(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+
+	const (
+		desktopRedirectURI = "cursor://anysphere.cursor-mcp/oauth/callback"
+		webRedirectURI     = "https://www.cursor.com/agents/mcp/oauth/callback"
+		unregisteredURI    = "https://www.cursor.com/agents/mcp/oauth/callback/other"
+	)
+
+	register := func(t *testing.T) codersdk.OAuth2ClientRegistrationResponse {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		registration, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs:            []string{desktopRedirectURI, webRedirectURI},
+			ClientName:              "cursor-" + testutil.MustRandString(t, 10),
+			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodNone,
+		})
+		require.NoError(t, err)
+		return registration
+	}
+
+	// The package helpers only POST and always send redirect_uri.
+	sendAuthorize := func(t *testing.T, method, clientID, redirectURI string) *http.Response {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, codeChallenge := oauth2providertest.GeneratePKCE(t)
+		authURL, err := url.Parse(client.URL.String() + "/oauth2/authorize")
+		require.NoError(t, err)
+		query := url.Values{}
+		query.Set("client_id", clientID)
+		query.Set("response_type", "code")
+		query.Set("state", oauth2providertest.GenerateState(t))
+		query.Set("code_challenge", codeChallenge)
+		query.Set("code_challenge_method", "S256")
+		if redirectURI != "" {
+			query.Set("redirect_uri", redirectURI)
+		}
+		authURL.RawQuery = query.Encode()
+		req, err := http.NewRequestWithContext(ctx, method, authURL.String(), nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+		resp, err := (&http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}}).Do(req)
+		require.NoError(t, err)
+		return resp
+	}
+
+	authorize := func(t *testing.T, clientID, redirectURI string) (code, verifier string) {
+		t.Helper()
+		verifier, challenge := oauth2providertest.GeneratePKCE(t)
+		code = oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), oauth2providertest.AuthorizeParams{
+			ClientID:            clientID,
+			ResponseType:        "code",
+			RedirectURI:         redirectURI,
+			State:               oauth2providertest.GenerateState(t),
+			CodeChallenge:       challenge,
+			CodeChallengeMethod: "S256",
+		})
+		return code, verifier
+	}
+
+	t.Run("SecondRegisteredURIAccepted", func(t *testing.T) {
+		t.Parallel()
+		registration := register(t)
+
+		getResp := sendAuthorize(t, http.MethodGet, registration.ClientID, webRedirectURI)
+		defer getResp.Body.Close()
+		require.Equal(t, http.StatusOK, getResp.StatusCode, "consent page must render for a non-primary registered URI")
+
+		code, verifier := authorize(t, registration.ClientID, webRedirectURI)
+		token := oauth2providertest.ExchangeCodeForToken(t, client.URL.String(), oauth2providertest.TokenExchangeParams{
+			GrantType:    "authorization_code",
+			Code:         code,
+			ClientID:     registration.ClientID,
+			CodeVerifier: verifier,
+			RedirectURI:  webRedirectURI,
+		})
+		require.NotEmpty(t, token.AccessToken)
+	})
+
+	t.Run("CodeDeliveredToPresentedURI", func(t *testing.T) {
+		t.Parallel()
+		registration := register(t)
+
+		resp := sendAuthorize(t, http.MethodPost, registration.ClientID, webRedirectURI)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+		require.True(t, strings.HasPrefix(resp.Header.Get("Location"), webRedirectURI+"?"),
+			"the browser must land on the URI it presented, not the primary: %s", resp.Header.Get("Location"))
+	})
+
+	t.Run("UnregisteredURIRejected", func(t *testing.T) {
+		t.Parallel()
+		registration := register(t)
+
+		getResp := sendAuthorize(t, http.MethodGet, registration.ClientID, unregisteredURI)
+		defer getResp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, getResp.StatusCode)
+
+		resp := sendAuthorize(t, http.MethodPost, registration.ClientID, unregisteredURI)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		var oauthErr oauth2providertest.OAuth2Error
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&oauthErr))
+		require.Equal(t, "invalid_request", oauthErr.Error)
+		require.Contains(t, oauthErr.ErrorDescription, "registered redirect URIs",
+			"the rejection must not point the client at the primary URI only")
+	})
+
+	// RFC 6749 §3.1.2.3.
+	t.Run("OmittedURIRejectedWhenSeveralRegistered", func(t *testing.T) {
+		t.Parallel()
+		registration := register(t)
+
+		getResp := sendAuthorize(t, http.MethodGet, registration.ClientID, "")
+		defer getResp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, getResp.StatusCode)
+
+		resp := sendAuthorize(t, http.MethodPost, registration.ClientID, "")
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		var oauthErr oauth2providertest.OAuth2Error
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&oauthErr))
+		require.Equal(t, "invalid_request", oauthErr.Error)
+		require.Contains(t, oauthErr.ErrorDescription, "more than one redirect URI")
+	})
+
+	// RFC 6749 §4.1.3.
+	t.Run("ExchangeWithOtherRegisteredURIRejected", func(t *testing.T) {
+		t.Parallel()
+		registration := register(t)
+
+		code, verifier := authorize(t, registration.ClientID, webRedirectURI)
+		oauth2providertest.PerformTokenExchangeExpectingError(t, client.URL.String(), oauth2providertest.TokenExchangeParams{
+			GrantType:    "authorization_code",
+			Code:         code,
+			ClientID:     registration.ClientID,
+			CodeVerifier: verifier,
+			RedirectURI:  desktopRedirectURI,
+		}, "invalid_grant")
+	})
+
+	t.Run("ExchangeWithUnregisteredURIRejected", func(t *testing.T) {
+		t.Parallel()
+		registration := register(t)
+
+		code, verifier := authorize(t, registration.ClientID, webRedirectURI)
+		oauth2providertest.PerformTokenExchangeExpectingError(t, client.URL.String(), oauth2providertest.TokenExchangeParams{
+			GrantType:    "authorization_code",
+			Code:         code,
+			ClientID:     registration.ClientID,
+			CodeVerifier: verifier,
+			RedirectURI:  unregisteredURI,
+		}, "invalid_request")
+	})
+
+	t.Run("AdminCallbackEditRevokesOtherURIs", func(t *testing.T) {
+		t.Parallel()
+		registration := register(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		appID, err := uuid.Parse(registration.ClientID)
+		require.NoError(t, err)
+		_, err = client.PutOAuth2ProviderApp(ctx, appID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "cursor-" + testutil.MustRandString(t, 10),
+			CallbackURL: webRedirectURI,
+		})
+		require.NoError(t, err)
+
+		getResp := sendAuthorize(t, http.MethodGet, registration.ClientID, desktopRedirectURI)
+		defer getResp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, getResp.StatusCode, "the replaced URI must no longer be accepted")
+
+		code, verifier := authorize(t, registration.ClientID, webRedirectURI)
+		token := oauth2providertest.ExchangeCodeForToken(t, client.URL.String(), oauth2providertest.TokenExchangeParams{
+			GrantType:    "authorization_code",
+			Code:         code,
+			ClientID:     registration.ClientID,
+			CodeVerifier: verifier,
+			RedirectURI:  webRedirectURI,
+		})
+		require.NotEmpty(t, token.AccessToken, "the new callback must keep working")
+	})
 }

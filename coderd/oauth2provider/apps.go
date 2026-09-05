@@ -143,13 +143,19 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
+		// Authorization matches against redirect_uris when it is populated
+		// (DCR clients), so a callback edit must replace it or it revokes nothing.
+		redirectURIs := app.RedirectUris
+		if len(redirectURIs) > 0 && req.CallbackURL != app.CallbackURL {
+			redirectURIs = []string{req.CallbackURL}
+		}
 		app, err := db.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
 			ID:                      app.ID,
 			UpdatedAt:               dbtime.Now(),
 			Name:                    req.Name,
 			Icon:                    req.Icon,
 			CallbackURL:             req.CallbackURL,
-			RedirectUris:            app.RedirectUris,            // Keep existing value
+			RedirectUris:            redirectURIs,
 			ClientType:              app.ClientType,              // Keep existing value
 			DynamicallyRegistered:   app.DynamicallyRegistered,   // Keep existing value
 			ClientSecretExpiresAt:   app.ClientSecretExpiresAt,   // Keep existing value
