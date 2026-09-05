@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "experiments": [
+    {
+      "id": "agent-lifecycle-hooks",
+      "displayName": "Agent Lifecycle Hooks",
+      "description": "Enables chat lifecycle hook webhooks for agent chats.",
+      "safe": false
+    },
+    {
+      "id": "ai-gateway-seat-exclusion",
+      "displayName": "AI Gateway Seat Exclusion",
+      "description": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
+      "safe": false
+    },
+    {
+      "id": "auto-fill-parameters",
+      "displayName": "Auto-fill Template Parameters",
+      "description": "Pre-fills a new workspace's parameter form with the values from the user's most recent build of that template.",
+      "safe": false
+    },
+    {
+      "id": "chat-advisor",
+      "displayName": "Chat Advisor",
+      "description": "Enables the advisor tool for root agent chats.",
+      "safe": false
+    },
+    {
+      "id": "chat-virtual-desktop",
+      "displayName": "Chat Virtual Desktop",
+      "description": "Enables virtual desktop and computer use provider for agents.",
+      "safe": false
+    },
+    {
+      "id": "mcp-server-http",
+      "displayName": "MCP HTTP Server Functionality",
+      "description": "Enables the MCP HTTP server functionality.",
+      "safe": false
+    },
+    {
+      "id": "mcp-tool-search",
+      "displayName": "MCP Tool Search",
+      "description": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
+      "safe": false
+    },
+    {
+      "id": "nats_pubsub",
+      "displayName": "NATS Pubsub",
+      "description": "Enables embedded NATS pubsub.",
+      "safe": false
+    },
+    {
+      "id": "notifications",
+      "displayName": "SMTP and Webhook Notifications",
+      "description": "Sends notifications via SMTP and webhooks following certain events.",
+      "safe": false
+    },
+    {
+      "id": "oauth2",
+      "displayName": "OAuth2 Provider Functionality",
+      "description": "Enables OAuth2 provider functionality.",
+      "safe": false
+    },
+    {
+      "id": "workspace-build-updates",
+      "displayName": "Workspace Build Updates Channel",
+      "description": "Enables publishing workspace build updates to the all builds pubsub channel.",
+      "safe": false
+    },
+    {
+      "id": "workspace-capable-licensing",
+      "displayName": "Workspace-Capable Licensing",
+      "description": "Counts only users holding the workspace-create permission toward the license seat limit.",
+      "safe": false
+    },
+    {
+      "id": "workspace-usage",
+      "displayName": "Workspace Usage Tracking",
+      "description": "Enables the new workspace usage tracking.",
+      "safe": false
+    }
+  ]
+}
