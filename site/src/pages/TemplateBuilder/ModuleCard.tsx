@@ -61,8 +61,8 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 				</div>
 			</div>
 
-			<div>
-				<h3 id={nameId} className="text-sm font-bold text-content-primary">
+			<div className="flex flex-col gap-2">
+				<h3 id={nameId} className="my-0 text-sm font-bold text-content-primary">
 					{name}
 					{official && (
 						<>
@@ -71,19 +71,13 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 						</>
 					)}
 				</h3>
-				<p className="text-xs font-normal text-content-secondary">
+				<p className="my-0 text-xs font-normal text-content-secondary">
 					{description}
 				</p>
 
-				<div>
-					<Link
-						href={detailsUrl}
-						target="_blank"
-						className="text-xs font-normal"
-					>
-						View details
-					</Link>
-				</div>
+				<Link href={detailsUrl} target="_blank" className="text-xs font-normal">
+					View details
+				</Link>
 			</div>
 		</div>
 	);
