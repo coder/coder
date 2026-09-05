@@ -1,10 +1,10 @@
+import { cn } from "cn";
 import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { AnnouncementBanners } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
-import { cn } from "#/utils/cn";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
 import { UpdateCheckNotice } from "./UpdateCheckNotice/UpdateCheckNotice";
@@ -40,7 +40,7 @@ export const DashboardLayout: FC = () => {
 					tabIndex={-1}
 					className={cn(
 						"relative flex flex-col flex-1 min-h-0",
-						"focus:outline-none",
+						"focus:outline-hidden",
 					)}
 				>
 					<Suspense fallback={<Loader />}>

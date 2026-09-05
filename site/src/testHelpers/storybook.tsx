@@ -160,7 +160,10 @@ export const withDesktopViewport = (Story: FC) => (
 	</div>
 );
 
-export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
+export const withAuthProvider = function WithAuthProvider(
+	Story: FC,
+	{ parameters }: StoryContext,
+) {
 	if (!parameters.user) {
 		throw new Error("You forgot to add `parameters.user` to your story");
 	}

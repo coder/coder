@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { Slot } from "radix-ui";
 import type { ComponentPropsWithRef, FC } from "react";
-import { cn } from "#/utils/cn";
 
 type TranscriptRowProps = ComponentPropsWithRef<"div"> & {
 	asChild?: boolean;

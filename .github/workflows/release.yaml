@@ -185,7 +185,7 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: "zulu"
           java-version: "11.0"
@@ -297,7 +297,7 @@ jobs:
 
       - name: Install depot.dev CLI
         if: steps.image-base-tag.outputs.tag != ''
-        uses: depot/setup-action@15c09a5f77a0840ad4bce955686522a257853461 # v1.7.1
+        uses: depot/setup-action@91bc8495a33ebfc504ffc89e5674379ccf23c29c # v1.7.2
 
       # This uses OIDC authentication, so no auth variables are required.
       - name: Build base Docker image via depot.dev
@@ -620,7 +620,7 @@ jobs:
       - name: Complete Linear release
         if: ${{ !inputs.dry_run && steps.linear_version.outputs.skip != 'true' }}
         continue-on-error: true
-        uses: linear/linear-release-action@17b8c24f8ceb2b98cabaf1965ff83c55dd596fac # v0.15.1
+        uses: linear/linear-release-action@0a25abab892a91062ebf42260dbb2ce6277aa205 # v0.16.0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: complete

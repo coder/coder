@@ -114,6 +114,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/derpmetrics"
 	"github.com/coder/quartz"
+	"github.com/coder/safedial"
 	"github.com/coder/serpent"
 )
 
@@ -179,7 +180,6 @@ type Options struct {
 	ConnectionLogger               connectionlog.ConnectionLogger
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
-	ChatdInstructionLookupTimeout  time.Duration
 	AWSCertificates                awsidentity.Certificates
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              azureidentity.Options
@@ -262,13 +262,9 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// MCPOAuth2DiscoveryAllowedIPRanges exempts IP ranges from the
-	// SSRF guard applied to MCP OAuth2 metadata discovery and dynamic
-	// client registration, which refuse private/internal destinations
-	// by default. This is a seam for tests, which serve their mock MCP
-	// servers on loopback; there is intentionally no user-facing
-	// configuration for it.
-	MCPOAuth2DiscoveryAllowedIPRanges []netip.Prefix
+	// MCPAllowedPrivateCIDRs exempts IP ranges from the SSRF guard for
+	// MCP server, OAuth2 discovery, token, and revocation traffic.
+	MCPAllowedPrivateCIDRs []netip.Prefix
 	// ChatStreamPartsDialer dials remote chat stream parts.
 	// Set by enterprise for HA deployments. Nil uses chatd's local
 	// in-process channel dialer.
@@ -711,13 +707,18 @@ func New(options *Options) *API {
 			options.Pubsub,
 		)
 	}
+	mcpHTTPClient := mcpclient.NewHTTPClient(
+		options.HTTPClient,
+		safedial.WithAllowedPrefixes(options.MCPAllowedPrivateCIDRs...),
+	)
 	api := &API{
-		ctx:          ctx,
-		cancel:       cancel,
-		DeploymentID: depID,
-		ID:           uuid.New(),
-		Options:      options,
-		RootHandler:  r,
+		ctx:           ctx,
+		cancel:        cancel,
+		DeploymentID:  depID,
+		ID:            uuid.New(),
+		Options:       options,
+		mcpHTTPClient: mcpHTTPClient,
+		RootHandler:   r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -756,7 +757,7 @@ func New(options *Options) *API {
 		options.AppSigningKeyCache,
 	)
 
-	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)
@@ -774,19 +775,19 @@ func New(options *Options) *API {
 		Telemetry:             api.Telemetry.Enabled(),
 	}
 	api.SiteHandler, err = site.New(&site.Options{
-		CacheDir:          siteCacheDir,
-		Database:          options.Database,
-		Authorizer:        options.Authorizer,
-		SiteFS:            site.FS(),
-		OAuth2Configs:     oauthConfigs,
-		DocsURL:           options.DeploymentValues.DocsURL.String(),
-		AppearanceFetcher: &api.AppearanceFetcher,
-		BuildInfo:         buildInfo,
-		Entitlements:      options.Entitlements,
-		Telemetry:         options.Telemetry,
-		Logger:            options.Logger.Named("site"),
-		AITasksEnabled:    options.DeploymentValues.EnableAITasks.Value(),
-		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
+		CacheDir:                  siteCacheDir,
+		Database:                  options.Database,
+		Authorizer:                options.Authorizer,
+		SiteFS:                    site.FS(),
+		OAuth2Configs:             oauthConfigs,
+		DocsURL:                   options.DeploymentValues.DocsURL.String(),
+		AppearanceFetcher:         &api.AppearanceFetcher,
+		BuildInfo:                 buildInfo,
+		Entitlements:              options.Entitlements,
+		Telemetry:                 options.Telemetry,
+		Logger:                    options.Logger.Named("site"),
+		AIGatewayEnabled:          options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
+		UserSecretFilePathEnabled: !options.DeploymentValues.DisableUserSecretFilePath.Value(),
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
@@ -947,7 +948,6 @@ func New(options *Options) *API {
 				Experiments:                    experiments,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
-				InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
@@ -957,6 +957,7 @@ func New(options *Options) *API {
 				PrometheusRegistry:             options.PrometheusRegistry,
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
+				MCPHTTPClient:                  api.mcpHTTPClient,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 			})
@@ -1149,7 +1150,7 @@ func New(options *Options) *API {
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		options.DeploymentValues.HTTPCookies.Middleware,
-		tracing.Middleware(api.TracerProvider),
+		tracing.Middleware(api.TracerProvider, tracing.DefaultRoutePatterns, "coderd"),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		loggermw.Logger(api.Logger, func(r *http.Request) string {
@@ -1439,6 +1440,7 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
+			r.Get("/user-secrets/capabilities", api.userSecretsCapabilities)
 			r.Post("/premium-funnel-events", api.postPremiumFunnelEvent)
 		})
 		r.Route("/experiments", func(r chi.Router) {
@@ -2228,6 +2230,7 @@ type API struct {
 	DeploymentID string
 
 	*Options
+	mcpHTTPClient *http.Client
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
 	// Coder API instance, like workspace agents to a
@@ -2582,7 +2585,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	if err != nil {
 		return nil, err
 	}
-	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+	server := drpcsdk.NewServer(logger, &tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {

@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import type { ComponentProps, FC } from "react";
-import { cn } from "#/utils/cn";
 
 /**
  * Use these components as the label in FormControlLabel when implementing radio

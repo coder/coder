@@ -278,26 +278,6 @@ func TestProviderAPIKeysEmpty_RegionCountsAsConfigured(t *testing.T) {
 	}).Empty())
 }
 
-func TestMergeProviderAPIKeys_PreservesProviderRegions(t *testing.T) {
-	t.Parallel()
-
-	merged := chatprovider.MergeProviderAPIKeys(
-		chatprovider.ProviderAPIKeys{
-			RegionByProvider: map[string]string{
-				"BEDROCK": "us-east-1",
-			},
-		},
-		[]chatprovider.ConfiguredProvider{{
-			ProviderID: uuid.New(),
-			Provider:   fantasybedrock.Name,
-			Region:     "eu-central-1",
-		}},
-	)
-
-	require.Equal(t, "eu-central-1", merged.Region(fantasybedrock.Name))
-	require.False(t, merged.Empty())
-}
-
 func TestResolveUserProviderKeys_PreservesProviderRegions(t *testing.T) {
 	t.Parallel()
 

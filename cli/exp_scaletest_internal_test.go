@@ -10,9 +10,9 @@ import (
 )
 
 // TestFilterScaletestUsersByPrefix covers the pure user-selection logic behind
-// notifications --reuse-users: an infix pool must not pick up users from the
-// default pool (isolation), non-scaletest users are ignored, and the username
-// guard rejects users that only match the prefix in another field.
+// the notifications scaletest user reuse: an infix pool must not pick up users
+// from the default pool (isolation), non-scaletest users are ignored, and the
+// username guard rejects users that only match the prefix in another field.
 func TestFilterScaletestUsersByPrefix(t *testing.T) {
 	t.Parallel()
 

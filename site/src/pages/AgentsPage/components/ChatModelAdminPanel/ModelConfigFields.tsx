@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FormikContextType, getIn } from "formik";
 import { InfoIcon } from "lucide-react";
 import { type FC, Fragment, type ReactNode, useId } from "react";
@@ -35,7 +36,6 @@ import {
 import { useDebouncedValue } from "#/hooks/debounce";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { cn } from "#/utils/cn";
 import { microsToDollars } from "#/utils/currency";
 import {
 	findKnownModelByCanonicalId,
@@ -325,7 +325,7 @@ const SegmentedField: FC<
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"flex w-full items-center gap-0.75 rounded-lg border border-solid border-border p-2",
+					"flex w-full items-center rounded-lg border border-solid border-border p-2",
 					fieldError && "border-content-destructive",
 				)}
 			>
@@ -339,7 +339,7 @@ const SegmentedField: FC<
 							aria-checked={isActive}
 							disabled={disabled}
 							className={cn(
-								"flex h-6 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+								"flex h-6 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 								isActive
 									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",

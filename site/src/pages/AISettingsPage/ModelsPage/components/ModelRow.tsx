@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 import type { ChatModel } from "#/api/typesGenerated";
@@ -11,7 +12,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
-import { cn } from "#/utils/cn";
 
 type ModelRowProps = {
 	model: ChatModel;
@@ -144,7 +144,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 				<div className="flex justify-end items-center gap-8 pr-4">
 					<ChevronRightIcon
 						aria-hidden
-						className="size-icon-sm text-content-secondary flex-shrink-0"
+						className="size-icon-sm text-content-secondary shrink-0"
 					/>
 				</div>
 			</TableCell>

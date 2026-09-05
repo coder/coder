@@ -8,6 +8,7 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Input } from "#/components/Input/Input";
 import { Loader } from "#/components/Loader/Loader";
+import { passwordManagerIgnoreProps } from "#/utils/formUtils";
 import { SectionHeader } from "./components/SectionHeader";
 
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
@@ -172,11 +173,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 								id={apiKeyInputId}
 								name={`provider-api-key-${provider.provider_id}`}
 								type="password"
-								autoComplete="off"
-								data-1p-ignore
-								data-lpignore="true"
-								data-form-type="other"
-								data-bwignore
+								{...passwordManagerIgnoreProps}
 								className="h-9 font-mono text-[13px]"
 								placeholder="sk-..."
 								value={apiKey}

@@ -317,7 +317,7 @@ export const StaleTurnSummaryAfterStreamingIsSuppressed: Story = {
 		}),
 		pixel: { exclude: true },
 	},
-	render: (args) => {
+	render: function StaleTurnSummaryAfterStreamingIsSuppressedRender(args) {
 		const initialSummary = "Added Docker and Terraform validation";
 		const freshSummary = "Validated provider configs and exited cleanly";
 		const [phase, setPhase] = useState<

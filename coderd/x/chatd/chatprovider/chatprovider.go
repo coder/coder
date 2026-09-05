@@ -299,39 +299,6 @@ func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 	return merged
 }
 
-// MergeProviderAPIKeys overlays configured provider keys over fallback keys.
-func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
-	merged := mergedFromFallback(fallback)
-
-	for _, provider := range providers {
-		normalizedProvider := NormalizeProvider(provider.Provider)
-		if normalizedProvider == "" {
-			continue
-		}
-
-		if key := strings.TrimSpace(provider.APIKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
-		}
-		if url := strings.TrimSpace(provider.BaseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
-		}
-		merged.setRegion(normalizedProvider, provider.Region)
-
-		switch normalizedProvider {
-		case fantasyopenai.Name:
-			if key := strings.TrimSpace(provider.APIKey); key != "" {
-				merged.OpenAI = key
-			}
-		case fantasyanthropic.Name:
-			if key := strings.TrimSpace(provider.APIKey); key != "" {
-				merged.Anthropic = key
-			}
-		}
-	}
-
-	return merged
-}
-
 // ResolveUserProviderKeys computes effective API keys and per-provider
 // availability for a given user. It considers the provider's credential
 // policy flags alongside central (DB/deployment) keys and the user's
@@ -795,16 +762,14 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasygoogle.New(options...)
 	case fantasyopenai.Name:
+		// Resolved once here so a later mutation of the config cannot move
+		// the client off the transport NewModel records.
+		useResponses := chatopenai.UsesResponsesAPI(modelID, openAIResponsesAPIOverride(openAIConfig))
 		options := []fantasyopenai.Option{
 			fantasyopenai.WithAPIKey(apiKey),
 			fantasyopenai.WithUseResponsesAPI(),
+			fantasyopenai.WithResponsesAPIFunc(func(string) bool { return useResponses }),
 			fantasyopenai.WithUserAgent(userAgent),
-		}
-		if override := openAIResponsesAPIOverride(openAIConfig); override != nil {
-			forced := *override
-			options = append(options, fantasyopenai.WithResponsesAPIFunc(func(string) bool {
-				return forced
-			}))
 		}
 		if len(extraHeaders) > 0 {
 			options = append(options, fantasyopenai.WithHeaders(extraHeaders))
@@ -863,7 +828,7 @@ func ModelFromConfig(
 		return Model{}, xerrors.Errorf("unsupported model provider %q", provider)
 	}
 	if err != nil {
-		return Model{}, providerCreationError(provider, err)
+		return Model{}, xerrors.Errorf("create %s provider: %w", provider, err)
 	}
 
 	model, err := providerClient.LanguageModel(context.Background(), modelID)
@@ -871,10 +836,6 @@ func ModelFromConfig(
 		return Model{}, xerrors.Errorf("load %s model: %w", provider, err)
 	}
 	return NewModel(model, openAIConfig), nil
-}
-
-func providerCreationError(provider string, err error) error {
-	return xerrors.Errorf("create %s provider: %w", provider, err)
 }
 
 // Providers that allow ambient credentials, such as Bedrock, bypass

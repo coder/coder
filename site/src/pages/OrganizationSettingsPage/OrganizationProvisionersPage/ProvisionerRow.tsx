@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
@@ -19,7 +20,6 @@ import {
 	ProvisionerTruncateTags,
 } from "#/modules/provisioners/ProvisionerTags";
 import { ProvisionerKey } from "#/pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
-import { cn } from "#/utils/cn";
 import { relativeTime } from "#/utils/time";
 import { ProvisionerVersion } from "./ProvisionerVersion";
 

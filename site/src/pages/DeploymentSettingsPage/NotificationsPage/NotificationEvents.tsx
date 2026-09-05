@@ -115,7 +115,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 							<div
 								key={tpl.id}
 								data-testid="notification-template-row"
-								className="flex items-center justify-between gap-3 px-4 py-3 border-0 [&:not(:last-child)]:border-b border-solid"
+								className="flex items-center justify-between gap-3 px-4 py-3 border-0 not-last:border-b border-solid"
 							>
 								<span className="font-medium text-sm">{tpl.name}</span>
 								<MethodSelect

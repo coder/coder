@@ -21,6 +21,7 @@ const siteDir = new URL("..", import.meta.url).pathname;
 const targetDirs = [
 	"src/pages/AgentsPage",
 	"src/pages/AIBridgePage",
+	"src/pages/TemplateBuilder",
 ];
 
 const skipPatterns = [".test.", ".stories.", ".jest."];

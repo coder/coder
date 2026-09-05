@@ -55,7 +55,7 @@ const BudgetDocsLink: FC = () => (
 		// wraps to its own line under the helper text.
 		className="pl-0"
 	>
-		Learn how budgets apply across groups
+		View docs
 	</Link>
 );
 
@@ -140,7 +140,6 @@ interface UpdateGroupFormProps {
 	initialBudgetDollars: number | null;
 	errors: unknown;
 	onSubmit: (data: FormData) => void;
-	onCancel: () => void;
 	isLoading: boolean;
 }
 
@@ -150,7 +149,6 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 	initialBudgetDollars,
 	errors,
 	onSubmit,
-	onCancel,
 	isLoading,
 }) => {
 	const form = useFormik<FormData>({
@@ -166,9 +164,11 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 		onSubmit,
 	});
 	const getFieldHelpers = getFormHelpers<FormData>(form, errors);
-	const nameField = getFieldHelpers("name");
+	const nameField = getFieldHelpers("name", {
+		helperText: "Unique identifier.",
+	});
 	const displayNameField = getFieldHelpers("display_name", {
-		helperText: "Keep empty to default to the name.",
+		helperText: "Friendly name. Defaults to the name if blank.",
 	});
 	const quotaField = getFieldHelpers("quota_allowance", {
 		helperText: `This group gives ${form.values.quota_allowance} quota credits to each
@@ -177,8 +177,8 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 	const budgetField = getFieldHelpers("monthly_budget_per_member");
 
 	return (
-		<form className="flex flex-col gap-10 pb-8" onSubmit={form.handleSubmit}>
-			<section className="flex flex-col gap-4 max-w-md">
+		<form className="flex flex-col gap-6" onSubmit={form.handleSubmit}>
+			<section className="flex flex-col gap-4">
 				<div className="flex flex-col gap-2">
 					<h2 className="text-xl font-semibold text-content-primary m-0">
 						General
@@ -186,7 +186,12 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 				</div>
 				<div className="flex flex-col gap-6">
 					<div className="flex flex-col items-start gap-2">
-						<Label htmlFor={nameField.id}>Name</Label>
+						<Label htmlFor={nameField.id}>
+							Name{" "}
+							<span className="text-xs font-bold text-content-destructive">
+								*
+							</span>
+						</Label>
 						<Input
 							id={nameField.id}
 							name={nameField.name}
@@ -249,7 +254,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 			</section>
 
 			{showAISettings && (
-				<section className="flex flex-col gap-8 max-w-md">
+				<section className="flex flex-col gap-4">
 					<h2 className="m-0 text-xl font-semibold text-content-primary">
 						AI budget
 					</h2>
@@ -287,7 +292,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 				</section>
 			)}
 
-			<section className="flex flex-col gap-8">
+			<section className="flex flex-col gap-4">
 				<div className="flex flex-col gap-2">
 					<h2 className="text-xl font-semibold text-content-primary m-0">
 						Quotas
@@ -324,11 +329,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 				</div>
 			</section>
 
-			<footer className="flex items-center justify-start space-x-2">
-				<Button onClick={onCancel} variant="outline">
-					Cancel
-				</Button>
-
+			<footer className="flex items-center justify-end space-x-2">
 				<Button type="submit" disabled={isLoading}>
 					<Spinner loading={isLoading} />
 					Save
@@ -339,7 +340,6 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 };
 
 type SettingsGroupPageViewProps = {
-	onCancel: () => void;
 	onSubmit: (data: FormData) => void;
 	group: Group;
 	showAISettings: boolean;
@@ -349,7 +349,6 @@ type SettingsGroupPageViewProps = {
 };
 
 const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
-	onCancel,
 	onSubmit,
 	group,
 	showAISettings,
@@ -362,7 +361,6 @@ const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
 			group={group}
 			showAISettings={showAISettings}
 			initialBudgetDollars={initialBudgetDollars}
-			onCancel={onCancel}
 			errors={formErrors}
 			isLoading={isUpdating}
 			onSubmit={onSubmit}

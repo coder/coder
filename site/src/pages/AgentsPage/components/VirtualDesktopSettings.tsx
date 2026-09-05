@@ -107,7 +107,7 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 				) : undefined
 			}
 		>
-			<div className="flex w-[22rem] max-w-full flex-col gap-2">
+			<div className="flex w-88 max-w-full flex-col gap-2">
 				<Select
 					value={form.values.provider}
 					onValueChange={(value) => void form.setFieldValue("provider", value)}
@@ -125,7 +125,7 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 							) : undefined}
 						</SelectValue>
 					</SelectTrigger>
-					<SelectContent align="end" className="min-w-[11rem]">
+					<SelectContent align="end" className="min-w-44">
 						<SelectGroup>
 							{computerUseProviderOptions.map((option) => (
 								<SelectItem key={option.value} value={option.value}>

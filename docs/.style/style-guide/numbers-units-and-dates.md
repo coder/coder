@@ -14,7 +14,8 @@ Numbers 0 through 5 can go either way: write the digit or the word, whichever re
 
 Two cases override that flexibility:
 
-- **"More than X" and "X or more," for X 0 through 5**: always spell out the word ("more than one," "five or more"), never the digit ("more than 1," "5 or more"). Numbers 6 and higher keep the general digit rule in this construction too ("more than 6," "12 or more").
+- **"More than X" and "X or more," for X 0 through 5**: always spell out the word ("more than one," "five or more"), never the digit ("more than 1," "5 or more").
+  Numbers 6 and higher keep the general digit rule in this construction too ("more than 6," "12 or more").
 - **Literal technical values**, such as an exit code or a status code the reader matches or types verbatim: always use the digit, regardless of range, because the digit is the actual value ("exit code of 0," not "exit code of zero").
 
 If a sentence would start with a digit 6 or higher, restructure the sentence so a word comes first.

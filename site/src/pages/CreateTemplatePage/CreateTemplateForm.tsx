@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
@@ -36,7 +37,6 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
 import { SelectedTemplate } from "#/pages/CreateWorkspacePage/SelectedTemplate";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,

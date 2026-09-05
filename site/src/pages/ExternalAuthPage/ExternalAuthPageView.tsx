@@ -91,7 +91,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 										target="_blank"
 										rel="noreferrer"
 										showExternalIcon={false}
-										className="p-0 after:hover:content-none"
+										className="p-0 hover:after:content-none"
 									>
 										<Avatar
 											src={install.account.avatar_url}

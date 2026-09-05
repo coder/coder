@@ -68,13 +68,24 @@ import (
 const (
 	chatStreamBatchSize = 256
 
-	chatContextLimitModelConfigKey                = "context_limit"
-	chatContextCompressionThresholdModelConfigKey = "context_compression_threshold"
-	defaultChatContextCompressionThreshold        = int32(70)
-	minChatContextCompressionThreshold            = int32(0)
-	maxChatContextCompressionThreshold            = int32(100)
-	maxSystemPromptLenBytes                       = 131072 // 128 KiB
+	defaultChatContextCompressionThreshold = int32(70)
+	// Large-context models (1M) compact earlier; 70% of a 1M window
+	// carries too much stale context.
+	largeContextDefaultCompressionThreshold = int32(30)
+	largeContextLimitTokens                 = int64(500_000)
+	minChatContextCompressionThreshold      = int32(0)
+	maxChatContextCompressionThreshold      = int32(100)
+	maxSystemPromptLenBytes                 = 131072 // 128 KiB
 )
+
+// defaultCompressionThresholdForContextLimit returns the compaction
+// threshold used when compression_threshold is omitted at creation.
+func defaultCompressionThresholdForContextLimit(contextLimit int64) int32 {
+	if contextLimit >= largeContextLimitTokens {
+		return largeContextDefaultCompressionThreshold
+	}
+	return defaultChatContextCompressionThreshold
+}
 
 var allowedReasoningEffortValues = strings.Join(codersdk.ChatModelReasoningEffortValues(), ", ")
 
@@ -3011,7 +3022,6 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 
 	_, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chatID,
-		CreatedBy:       apiKey.UserID,
 		QueuedMessageID: queuedMessageID,
 	})
 
@@ -4625,7 +4635,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		aReq.New.PlanModeInstructions = sanitizedInstructions
 		noChange = aReq.New.PlanModeInstructions == aReq.Old.PlanModeInstructions
 		return nil
-	}, nil)
+	}, database.DefaultTXOptions().WithID("chat_plan_mode_instructions_write"))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating plan mode instructions.",
@@ -7338,7 +7348,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	compressionThreshold, thresholdErr := normalizeChatCompressionThreshold(
 		req.CompressionThreshold,
-		defaultChatContextCompressionThreshold,
+		defaultCompressionThresholdForContextLimit(contextLimit),
 	)
 	if thresholdErr != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -8187,17 +8197,11 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// invalid-state response for chats that are not in a valid
 	// execution state at all.
 
-	var dynamicTools json.RawMessage
-	if chat.DynamicTools.Valid {
-		dynamicTools = chat.DynamicTools.RawMessage
-	}
-
 	err := api.chatDaemon.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        apiKey.UserID,
 		ModelConfigID: chat.LastModelConfigID,
 		Results:       req.Results,
-		DynamicTools:  dynamicTools,
 	})
 	if err != nil {
 		if hookErr, ok := errors.AsType[*dispatch.Error](err); ok {

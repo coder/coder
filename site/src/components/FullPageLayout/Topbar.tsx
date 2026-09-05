@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	cloneElement,
 	type FC,
@@ -7,7 +8,6 @@ import {
 } from "react";
 import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
 import { Button, type ButtonProps } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 
 export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
 	className,

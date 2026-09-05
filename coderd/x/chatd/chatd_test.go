@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
@@ -63,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/safedial"
 )
 
 type recordedOpenAIRequest struct {
@@ -70,6 +72,13 @@ type recordedOpenAIRequest struct {
 	Tools         []string
 	Store         *bool
 	ContentLength int64
+}
+
+func testMCPHTTPClient() *http.Client {
+	return safedial.NewHTTPClient(nil, safedial.WithAllowedPrefixes(
+		netip.MustParsePrefix("127.0.0.0/8"),
+		netip.MustParsePrefix("::1/128"),
+	))
 }
 
 func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *atomic.Pointer[aibridge.TransportFactory] {
@@ -3935,7 +3944,6 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 			ToolCallID: toolCallID,
 			Output:     toolResultOutput,
 		}},
-		DynamicTools: dynamicToolsJSON,
 	})
 	require.NoError(t, err)
 
@@ -4225,7 +4233,6 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 			ToolCallID: toolCallID,
 			Output:     json.RawMessage(`{"result":"dynamic output"}`),
 		}},
-		DynamicTools: dynamicToolsJSON,
 	})
 	require.NoError(t, err)
 
@@ -4375,7 +4382,6 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 					ToolCallID: toolCallID,
 					Output:     json.RawMessage(`{"result":"concurrent output"}`),
 				}},
-				DynamicTools: dynamicToolsJSON,
 			})
 
 			if submitErr == nil {
@@ -5136,6 +5142,7 @@ func newTestServer(
 		ReplicaID:                  replicaID,
 		PendingChatAcquireInterval: testutil.WaitLong,
 		Experiments:                codersdk.ExperimentsKnown,
+		MCPHTTPClient:              testMCPHTTPClient(),
 	}
 	for _, o := range overrides {
 		o(&cfg)
@@ -5256,13 +5263,11 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 		ContextFileDirectory: "/home/coder/project",
 	}})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessages(ctx, chatd.BuildSingleChatMessageInsertParams(
+	_, err = db.InsertChatMessages(ctx, singleChatMessageInsertParams(
 		chat.ID,
 		database.ChatMessageRoleUser,
 		contextContent,
-		database.ChatMessageVisibilityBoth,
 		model.ID,
-		chatprompt.CurrentContentVersion,
 		user.ID,
 	))
 	require.NoError(t, err)
@@ -8702,13 +8707,11 @@ func insertChatMessageParts(
 	t.Helper()
 	content, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
-	params := chatd.BuildSingleChatMessageInsertParams(
+	params := singleChatMessageInsertParams(
 		chatID,
 		role,
 		content,
-		database.ChatMessageVisibilityBoth,
 		modelID,
-		chatprompt.CurrentContentVersion,
 		createdBy,
 	)
 	messages, err := db.InsertChatMessages(ctx, params)
@@ -8992,6 +8995,7 @@ func newActiveTestServer(
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		Experiments:                codersdk.ExperimentsKnown,
+		MCPHTTPClient:              testMCPHTTPClient(),
 	}
 	for _, o := range overrides {
 		o(&cfg)
@@ -12964,9 +12968,8 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:              coderdtest.DeploymentValues(t),
-		IncludeProvisionerDaemon:      true,
-		ChatdInstructionLookupTimeout: testutil.WaitLong,
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
 	})
 	db := api.Database
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
@@ -13447,7 +13450,6 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 
 		result, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
-			CreatedBy:       user.ID,
 			QueuedMessageID: queued.ID,
 		})
 		require.NoError(t, err)
@@ -13503,7 +13505,6 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 
 		_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
-			CreatedBy:       user.ID,
 			QueuedMessageID: queued.ID,
 		})
 		require.ErrorIs(t, err, chatd.ErrNoDefaultChatModelConfig)
@@ -13570,7 +13571,6 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 
 	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chat.ID,
-		CreatedBy:       user.ID,
 		QueuedMessageID: queued.ID,
 	})
 	require.NoError(t, err)

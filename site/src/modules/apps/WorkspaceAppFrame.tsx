@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	EllipsisVerticalIcon,
 	ExternalLinkIcon,
@@ -15,7 +16,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useProxy } from "#/contexts/ProxyContext";
-import { cn } from "#/utils/cn";
 import { isAppBlockedByMissingWildcard } from "./apps";
 import { useAppLink } from "./useAppLink";
 import { WorkspaceWildcardWarning } from "./WorkspaceWildcardWarning";

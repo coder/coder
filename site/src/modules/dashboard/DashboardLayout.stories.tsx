@@ -5,15 +5,10 @@ import {
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import { buildInfoKey } from "#/api/queries/buildInfo";
-import { chatModels } from "#/api/queries/chats";
 import { deploymentStatsQueryKey } from "#/api/queries/deployment";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { updateCheckQueryKey } from "#/api/queries/updateCheck";
 import type { UpdateCheckResponse } from "#/api/typesGenerated";
-import {
-	MockChatModel,
-	MockChatModelProviderDescriptor,
-} from "#/testHelpers/chatModels";
 import {
 	MockBuildInfo,
 	MockDefaultOrganization,
@@ -52,17 +47,6 @@ const mcpServersRouter = reactRouterParameters({
 	routing: [
 		{ path: "/", useStoryElement: true },
 		{ path: "/ai/settings", element: <h1>AI settings for sharers</h1> },
-	],
-});
-
-const modelSettingsRouter = reactRouterParameters({
-	location: { path: "/" },
-	routing: [
-		{ path: "/", useStoryElement: true },
-		{
-			path: "/ai/settings/models",
-			element: <h1>Organization models</h1>,
-		},
 	],
 });
 
@@ -122,57 +106,6 @@ export const ForMember: Story = {
 			canvas.queryByRole("link", { name: "Models" }),
 		).not.toBeInTheDocument();
 	},
-};
-
-export const CustomOrganizationRoleCanOpenModels: Story = {
-	parameters: {
-		pixel: { matrix: pixelWithDesktop },
-		user: MockUserMember,
-		permissions: MockNoPermissions,
-		reactRouter: modelSettingsRouter,
-		queries: [
-			{ key: buildInfoKey, data: MockBuildInfo },
-			{ key: updateCheckQueryKey, data: MockUpdateCheck },
-			{ key: deploymentStatsQueryKey, data: MockDeploymentStats },
-			{
-				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
-				data: {
-					[MockDefaultOrganization.id]: {
-						...MockNoOrganizationPermissions,
-						viewChatModelConfigs: true,
-					},
-				},
-			},
-		],
-	},
-	play: openModels,
-};
-
-export const ACLReadableMemberCanOpenModels: Story = {
-	parameters: {
-		pixel: { matrix: pixelWithDesktop },
-		user: MockUserMember,
-		permissions: MockNoPermissions,
-		reactRouter: modelSettingsRouter,
-		queries: [
-			{ key: buildInfoKey, data: MockBuildInfo },
-			{ key: updateCheckQueryKey, data: MockUpdateCheck },
-			{ key: deploymentStatsQueryKey, data: MockDeploymentStats },
-			{
-				key: chatModels(MockDefaultOrganization.id).queryKey,
-				data: {
-					models: [
-						{
-							...MockChatModel,
-							organization_id: MockDefaultOrganization.id,
-						},
-					],
-					providers: [MockChatModelProviderDescriptor],
-				},
-			},
-		],
-	},
-	play: openModels,
 };
 
 export const CustomOrganizationRoleCanOpenMCPServers: Story = {
@@ -243,15 +176,3 @@ export const SkipToMainContent: Story = {
 		await expect(main).toHaveFocus();
 	},
 };
-
-async function openModels({ canvasElement }: { canvasElement: HTMLElement }) {
-	const user = userEvent.setup();
-	const canvas = within(canvasElement);
-	await expect(
-		canvas.queryByRole("button", { name: "Admin settings" }),
-	).not.toBeInTheDocument();
-	await user.click(canvas.getByRole("link", { name: "Models" }));
-	await expect(
-		await canvas.findByRole("heading", { name: "Organization models" }),
-	).toBeInTheDocument();
-}

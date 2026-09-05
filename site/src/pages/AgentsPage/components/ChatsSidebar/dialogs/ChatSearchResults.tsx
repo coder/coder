@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FC, useEffect, useRef } from "react";
 import { Link, type Location } from "react-router";
 import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
@@ -6,7 +7,6 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../tree/statusConfig";
 
@@ -29,8 +29,8 @@ const RECENT_CHATS_COUNT = 10;
 // !block overrides Radix ScrollArea viewport's display:table so truncated text can shrink.
 const SCROLL_AREA_PROPS = {
 	className:
-		"h-[300px] w-full [&_[data-radix-scroll-area-viewport]>div]:!block",
-	scrollBarClassName: "w-[0.375rem]",
+		"h-[300px] w-full [&_[data-radix-scroll-area-viewport]>div]:block!",
+	scrollBarClassName: "w-1.5",
 	viewportClassName: "pr-3",
 	viewportTabIndex: -1,
 };
