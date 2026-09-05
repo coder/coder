@@ -73,7 +73,12 @@ test.describe("IdpGroupSyncPage", () => {
 
 		const row = page.getByTestId("group-idp-group-1");
 		await expect(row.getByRole("cell", { name: "idp-group-1" })).toBeVisible();
-		await row.getByRole("button", { name: /delete/i }).click();
+		await row.getByRole("button", { name: /delete mapping/i }).click();
+		const dialog = page.getByRole("dialog", { name: "Delete group mapping" });
+		await dialog
+			.getByLabel("Name of the group mapping to delete")
+			.fill("idp-group-1");
+		await dialog.getByRole("button", { name: /^delete$/i }).click();
 		await expect(
 			row.getByRole("cell", { name: "idp-group-1" }),
 		).not.toBeVisible();
@@ -89,17 +94,18 @@ test.describe("IdpGroupSyncPage", () => {
 			waitUntil: "domcontentloaded",
 		});
 
-		const syncField = page.getByRole("textbox", {
+		const groupForm = page.getByRole("form", { name: "Group sync" });
+		const syncField = groupForm.getByRole("textbox", {
 			name: "Group sync field",
 		});
-		const saveButton = page.getByRole("button", { name: /save/i });
+		const saveButton = groupForm.getByRole("button", { name: /^save$/i });
 
 		await expect(saveButton).toBeDisabled();
 
 		await syncField.fill("test-field");
 		await expect(saveButton).toBeEnabled();
 
-		await page.getByRole("button", { name: /save/i }).click();
+		await saveButton.click();
 
 		await expect(
 			page.getByText("IdP group sync settings updated."),
@@ -135,7 +141,9 @@ test.describe("IdpGroupSyncPage", () => {
 			waitUntil: "domcontentloaded",
 		});
 
-		const exportButton = page.getByRole("button", { name: /Export Policy/i });
+		const exportButton = page.getByRole("button", {
+			name: /export policy/i,
+		});
 		await expect(exportButton).toBeEnabled();
 		await exportButton.click();
 	});

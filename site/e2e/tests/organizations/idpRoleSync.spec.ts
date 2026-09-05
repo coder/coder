@@ -71,7 +71,7 @@ test.describe("IdpRoleSyncPage", () => {
 			row.getByRole("cell", { name: "idp-role-1" }),
 		).not.toBeVisible();
 		await expect(
-			page.getByText("IdP Role sync settings updated."),
+			page.getByText("IdP role sync settings updated."),
 		).toBeVisible();
 
 		await deleteOrganization(org.name);
@@ -83,20 +83,21 @@ test.describe("IdpRoleSyncPage", () => {
 			waitUntil: "domcontentloaded",
 		});
 
-		const syncField = page.getByRole("textbox", {
+		const roleForm = page.getByRole("form", { name: "Role sync" });
+		const syncField = roleForm.getByRole("textbox", {
 			name: "Role sync field",
 		});
-		const saveButton = page.getByRole("button", { name: /save/i });
+		const saveButton = roleForm.getByRole("button", { name: /^save$/i });
 
 		await expect(saveButton).toBeDisabled();
 
 		await syncField.fill("test-field");
 		await expect(saveButton).toBeEnabled();
 
-		await page.getByRole("button", { name: /save/i }).click();
+		await saveButton.click();
 
 		await expect(
-			page.getByText("IdP Role sync settings updated."),
+			page.getByText("IdP role sync settings updated."),
 		).toBeVisible();
 
 		await deleteOrganization(org.name);
@@ -110,7 +111,9 @@ test.describe("IdpRoleSyncPage", () => {
 			waitUntil: "domcontentloaded",
 		});
 
-		const exportButton = page.getByRole("button", { name: /Export Policy/i });
+		const exportButton = page.getByRole("button", {
+			name: /export policy/i,
+		});
 		await createRoleSyncSettings(org.id);
 
 		await expect(exportButton).toBeEnabled();
@@ -166,7 +169,7 @@ test.describe("IdpRoleSyncPage", () => {
 		).toBeVisible();
 
 		await expect(
-			page.getByText("IdP Role sync settings updated."),
+			page.getByText("IdP role sync settings updated."),
 		).toBeVisible();
 
 		await deleteOrganization(orgName);

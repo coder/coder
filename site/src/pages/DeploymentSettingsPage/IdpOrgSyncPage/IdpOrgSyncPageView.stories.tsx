@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { screen, userEvent, within } from "storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,
@@ -51,10 +51,18 @@ export const MissingClaims: Story = {
 		claimFieldValues: [],
 	},
 	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const warning = canvasElement.querySelector(".lucide-triangle-alert")!;
-		expect(warning).not.toBe(null);
-		await user.hover(warning);
+		const canvas = within(canvasElement);
+		const warnings = canvas.getAllByRole("button", {
+			name: "Unknown claim value",
+		});
+		const warning = warnings[0];
+		if (!warning) {
+			throw new Error("Expected an unknown claim warning");
+		}
+		await userEvent.hover(warning);
+		await screen.findByRole("tooltip", {
+			name: /has not be seen in the specified claim field/i,
+		});
 	},
 };
 

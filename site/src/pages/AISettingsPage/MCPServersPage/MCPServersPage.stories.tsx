@@ -965,6 +965,9 @@ export const AddFailurePreservesEnteredValues: Story = {
 			canvas.getByRole("combobox", { name: /authentication method/i }),
 		);
 		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
+		await waitFor(() =>
+			expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
+		);
 		await userEvent.type(canvas.getByLabelText(/client id/i), "client-id");
 		await userEvent.type(canvas.getByLabelText(/client secret/i), "secret");
 		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
