@@ -56,6 +56,21 @@ func canonicalScopes(names []string) []string {
 	return slice.Unique(canonical)
 }
 
+// firstUnknownScope returns the first name clients may not request, and whether
+// there was one. The catalog is a curation, not a validity check: RBAC also
+// expands internal-only names such as debug_info:read.
+//
+// Safe to call before or after canonicalScopes, since IsExternalScope accepts
+// the alias spellings too.
+func firstUnknownScope(names []string) (string, bool) {
+	for _, name := range names {
+		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
+			return name, true
+		}
+	}
+	return "", false
+}
+
 // noScopeAllowlist reports whether an app has no scope allowlist. NULL and ""
 // are the same state: admin-created apps store NULL, DCR-registered apps store
 // a possibly empty req.Scope. Whitespace-only is a configured allowlist that
@@ -92,9 +107,8 @@ func grantableScopes(appScope string) []string {
 	return filtered
 }
 
-// Phases of scope checking, named in the phase log field so an operator can
-// filter one comparison out of the three. Constants because a typo in a literal
-// compiles and produces a line no filter matches.
+// Phases of scope checking, named in the phase log field. Constants because a
+// typo in a literal compiles and produces a line no filter matches.
 const (
 	phaseAuthorize = "authorize"
 	phaseRedeem    = "redeem"
@@ -123,9 +137,9 @@ func firstScopeBeyondCeiling(ctx context.Context, logger slog.Logger, phase stri
 			slog.F("app_id", appID.String()),
 			slog.F("ceiling", strings.Join(ceiling, " ")),
 			slog.F("scope", string(outside)))
-		// outside is a name from the ceiling, so on refresh it comes from the
-		// token's stored grant. Both handlers answer this with a fixed string;
-		// rendering err.Error() here would echo stored values to the client.
+		// outside is a name from the ceiling, so it can be a stored value.
+		// Both handlers answer with a fixed string; rendering err.Error()
+		// here would echo it to the client.
 		return "", xerrors.Errorf("'%s': %w", outside, errCoverageUndecidable)
 	}
 	return string(outside), nil
@@ -149,16 +163,8 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	// of the two aliases, so checking after the rewrite accepts the same names.
 	granted := canonicalScopes(requested)
 
-	// The catalog is a curation, not a validity check: RBAC also expands
-	// internal-only names such as debug_info:read, but clients may not request
-	// them.
-	for _, s := range granted {
-		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
-			// '%s', matching the refresh-side check and the rest of these
-			// wrappers. %q would emit the double quote RFC 6749 §5.2 excludes,
-			// leaving sanitizeErrorDescription to rewrite what it just wrote.
-			return "", xerrors.Errorf("'%s': %w", s, errUnknownScope)
-		}
+	if unknown, ok := firstUnknownScope(granted); ok {
+		return "", xerrors.Errorf("'%s': %w", unknown, errUnknownScope)
 	}
 
 	if noScopeAllowlist(app.Scope) {
@@ -220,8 +226,8 @@ func consentScopes(granted string) (names []string, unrestricted bool) {
 // short enough for a Location header to survive the proxies in front of it.
 const maxErrorDescription = 2048
 
-// capErrorDescription bounds a description to maxErrorDescription. Descriptions
-// quote values the client sent, so their length is the client's to choose.
+// capErrorDescription bounds a description, whose length is otherwise the
+// client's to choose.
 func capErrorDescription(description string) string {
 	if len(description) > maxErrorDescription {
 		return description[:maxErrorDescription] + " (truncated)"

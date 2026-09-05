@@ -53,6 +53,42 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			mintedKeyScopes(ctx, t, db, token.RefreshToken))
 	})
 
+	// RFC 6749 §4.1.3 defines no scope parameter here, but the form carries
+	// one, and discarding it hands back what the client gave up.
+	t.Run("ExchangeNarrowsTheAccessToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+
+		form := tokenExchangeForm(app, code, verifier)
+		form.Set("scope", "workspace:ssh")
+		status, body := postTokenRequest(ctx, t, client, form)
+		token := requireTokenResponse(t, status, body)
+
+		require.Equal(t, "workspace:ssh", token.Scope)
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
+			mintedKeyScopes(ctx, t, db, token.RefreshToken))
+		require.Equal(t, scopeInCatalog, tokenRow(ctx, t, db, token.RefreshToken).Scope,
+			"the grant is what the user consented to, not what the exchange asked for")
+	})
+
+	t.Run("ExchangeCannotWidenTheScope", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+
+		form := tokenExchangeForm(app, code, verifier)
+		form.Set("scope", scopeAlsoInCatalog)
+		status, body := postTokenRequest(ctx, t, client, form)
+
+		require.Contains(t, requireTokenScopeError(t, status, body),
+			oauth2provider.ReasonScopeNotGranted)
+	})
+
 	t.Run("RefreshDoesNotWidenTheScope", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -68,9 +104,8 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		require.Equal(t, "workspace:ssh", refreshed.Scope)
 	})
 
-	// coder:workspaces.access covers workspace:ssh, so the narrowing is a
-	// genuine reduction of the authority the user consented to. It reduces the
-	// access token alone: the refresh token still represents the grant.
+	// coder:workspaces.access covers workspace:ssh, so this gives up real
+	// authority. The refresh token still carries the grant.
 	t.Run("RefreshNarrowsTheAccessToken", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -91,9 +126,8 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			"OAuth 2.1 §4.3.3: a rotated refresh token carries the scope of the one presented")
 	})
 
-	// The case OAuth 2.1 §4.3 names as a reason to refresh: narrowed earlier,
-	// now needs a different part of the same grant. Writing the narrowed value
-	// to the token row would answer both of these with invalid_scope.
+	// Narrowed earlier, now needs a different part of the same grant, which
+	// OAuth 2.1 §4.3 names as a reason to refresh.
 	t.Run("NarrowingDoesNotBindLaterRefreshes", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -139,16 +173,14 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		description := requireTokenScopeError(t, status, body)
 		require.Contains(t, description, oauth2provider.ReasonScopeNotGranted)
 		require.Contains(t, description, scopeAlsoInCatalog)
-		// No refresh can widen, so a client without this is left retrying
-		// scope combinations that cannot succeed.
+		// Without it a client retries combinations that cannot succeed.
 		require.Contains(t, description, "authorize again",
 			"the rejection must name the only way to a broader grant")
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
 			mintedKeyScopes(ctx, t, db, token.RefreshToken),
 			"a rejected refresh issues nothing")
 
-		// Redeemability is a property of the endpoint, so it is asserted
-		// through the endpoint: reading the row would still pass if the
+		// Through the endpoint: reading the row would still pass if the
 		// rejection had rotated the hash or moved ExpiresAt.
 		status, body = postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
 		require.Equal(t, "workspace:ssh", requireTokenResponse(t, status, body).Scope,
@@ -169,17 +201,13 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 		description := requireTokenScopeError(t, status, body)
 		require.Contains(t, description, oauth2provider.ReasonUnknownScope)
-		// The whole reason the catalog check runs before the coverage check is
-		// to hand a client that typo'd a scope the name to fix. All of these
-		// bytes survive sanitizeErrorDescription unchanged.
+		// The catalog check runs first so a typo gets the name to fix.
 		require.Contains(t, description, "not_a_real_scope",
 			"the client cannot fix its request without the name that failed")
 	})
 
-	// RFC 6749 §5.1 requires the scope parameter when the issued scope differs
-	// from the request, so both halves here send something the response cannot
-	// echo back: the exchange names no scope, and the refresh names an alias
-	// whose granted spelling is the canonical one.
+	// RFC 6749 §5.1 only requires the parameter when the issued scope differs
+	// from the request, so both halves here make it differ.
 	t.Run("ResponseStatesTheScopeGranted", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -194,8 +222,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		granted := exchangeCode(ctx, t, client, unrestricted, code, verifier)
 		require.Equal(t, string(database.ApiKeyScopeCoderAll), granted.Scope)
 
-		// "all" is a scope the client may request and the server never grants
-		// under that spelling, so the response parameter is load-bearing.
+		// Requestable as "all", never granted under that spelling.
 		form := refreshForm(unrestricted, granted.RefreshToken)
 		form.Set("scope", "all")
 		status, body := postTokenRequest(ctx, t, client, form)
@@ -259,17 +286,14 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 	// Grants predating the scope columns carry what migration 000569 backfilled:
 	// coder:all. Seeded the way the migration leaves it rather than exchanged.
-	// A row an older server could have written stores an alias the api_key_scope
-	// enum does not hold, so it has to be canonicalized before it is minted
-	// from. Both exits of narrowAccessScope do that, or a plain refresh would
-	// fail while the same token narrowed would succeed.
+	// An alias the api_key_scope enum does not hold, so both exits have to
+	// canonicalize it.
 	t.Run("LegacyAliasRefreshesTheSameEitherWay", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Two apps, not two tokens on one: a refreshed key's name is
-		// <user>_<app>_oauth_session_token, and nothing enforces one holder of
-		// that name for this login type.
+		// Two apps, not two tokens on one: nothing enforces a single holder
+		// of a refreshed key's name for this login type.
 		omittedApp := seedAppWithSecret(t, db, sql.NullString{})
 		narrowingApp := seedAppWithSecret(t, db, sql.NullString{})
 
@@ -380,14 +404,8 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 	})
 }
 
-// The redemptions race rather than run in sequence: a sequential pair passes
-// whether or not the delete arbitrates single use. barrierStore makes that
-// overlap deterministic instead of probabilistic.
-// RFC 6749 §5.2 restricts error_description to %x20-21 / %x23-5B / %x5D-7E.
-// The rule is on the decoded value, so JSON escaping does not satisfy it: a
-// client library hands its caller the decoded string. An unknown scope name is
-// the one value this endpoint quotes back that the client wrote, and its length
-// is the client's to choose, so both bounds are enforced at the write.
+// The token endpoint's error_description obeys RFC 6749 §5.2, on the decoded
+// value, and is bounded.
 func TestOAuth2TokenErrorDescription(t *testing.T) {
 	t.Parallel()
 
@@ -415,8 +433,7 @@ func TestOAuth2TokenErrorDescription(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// No whitespace, or strings.Fields would split this into several names
-		// and only the first would be quoted back.
+		// No whitespace, or strings.Fields splits it.
 		description := refreshWithScope(ctx, t, "\x07\x1b[31m\"\\caf\u00e9")
 
 		requireNQSCHAR(t, description)
@@ -435,9 +452,8 @@ func TestOAuth2TokenErrorDescription(t *testing.T) {
 		require.Contains(t, description, "(truncated)")
 	})
 
-	// The sanitizer runs on every description this endpoint writes, so a fixed
-	// message that strays outside NQSCHAR loses the offending characters to it.
-	// A section sign is the easy way to do that by accident.
+	// The sanitizer runs on every description, so a fixed message outside the
+	// set silently loses characters. A section sign is the easy mistake.
 	t.Run("FixedMessageIsUnchangedBySanitizing", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -454,6 +470,9 @@ func TestOAuth2TokenErrorDescription(t *testing.T) {
 	})
 }
 
+// The redemptions race rather than run in sequence: a sequential pair passes
+// whether or not the delete arbitrates single use. barrierStore makes that
+// overlap deterministic instead of probabilistic.
 func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	t.Parallel()
 
@@ -800,9 +819,8 @@ func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2
 	return token
 }
 
-// requireTokenError asserts an RFC 6749 §5.2 error response carrying want, and
-// returns its description. Decoded into codersdk.OAuth2Error, which is the type
-// the server marshals, so the error code is compared as its own type.
+// requireTokenError asserts an RFC 6749 §5.2 error response carrying want and
+// returns its description.
 func requireTokenError(t *testing.T, status int, body string, want codersdk.OAuth2ErrorCode) string {
 	t.Helper()
 
@@ -823,9 +841,8 @@ func requireTokenScopeError(t *testing.T, status int, body string) string {
 	return requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidScope)
 }
 
-// requireNQSCHAR asserts the NQSCHAR set RFC 6749 Appendix A permits in
-// error_description. Asserted on the decoded value, since that is what a client
-// library hands to its caller.
+// requireNQSCHAR asserts the set RFC 6749 Appendix A permits in
+// error_description, on the decoded value.
 func requireNQSCHAR(t *testing.T, description string) {
 	t.Helper()
 

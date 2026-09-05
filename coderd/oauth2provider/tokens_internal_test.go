@@ -92,9 +92,7 @@ var (
 	ReasonScopeNotGranted = errScopeNotGranted.Error()
 )
 
-// Two catalog scopes neither of which covers the other, so a ceiling of one
-// rejects the other. The external test package keeps its own copies, forced by
-// the package split.
+// Two catalog scopes, neither covering the other.
 const (
 	inCatalog     = "coder:workspaces.access"
 	alsoInCatalog = "coder:templates.build"
@@ -271,10 +269,8 @@ func TestNarrowAccessScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
-			// Both rows guard the same contract, which the catalog check
-			// depends on: it runs on the raw request, before canonicalization,
-			// so IsExternalScope has to admit the bare alias spellings.
-			// scopeAliases holds exactly these two.
+			// The catalog check runs before canonicalization, so
+			// IsExternalScope has to admit both bare aliases.
 			name:      "LegacyAliasCanonicalized",
 			granted:   string(database.ApiKeyScopeCoderAll),
 			requested: []string{"all"},
@@ -293,8 +289,7 @@ func TestNarrowAccessScope(t *testing.T) {
 			want:      "workspace:ssh",
 		},
 		{
-			// Refused for the same reason, and with the same error, as a
-			// request that names no scope at all.
+			// Same error as a request naming no scope.
 			name:      "GrantOutsideTheCatalogUnmintable",
 			granted:   "some_removed_scope",
 			requested: []string{"workspace:ssh"},
@@ -312,8 +307,7 @@ func TestNarrowAccessScope(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			app := database.OAuth2ProviderApp{ID: uuid.New()}
-			got, err := narrowAccessScope(t.Context(), slogtest.Make(t, nil), app, test.granted, test.requested)
+			got, err := narrowAccessScope(t.Context(), slogtest.Make(t, nil), phaseRefresh, uuid.New(), test.granted, test.requested)
 			if test.wantErr != nil {
 				require.ErrorIs(t, err, test.wantErr)
 				assert.Empty(t, got, "a rejected refresh must not return a persistable scope")

@@ -46,10 +46,9 @@ var (
 	// errStaleScope means the app's registered scopes narrowed after the code
 	// was issued and no longer cover the code's scope.
 	errStaleScope = xerrors.New("scope is no longer allowed by this app's registered scopes; authorize again to obtain a code within the current scopes")
-	// errScopeNotGranted means a refresh asked for more than the resource owner
-	// granted. Unlike errScopeNotAllowed, the ceiling is the grant itself rather
-	// than the app's current allowlist, and it does not move: no refresh can
-	// raise it, so the message names the only way forward as errStaleScope does.
+	// errScopeNotGranted means a request asked for more than the resource owner
+	// granted. The ceiling is the grant itself rather than the app's allowlist,
+	// and nothing but a new authorization raises it, so the message says so.
 	errScopeNotGranted = xerrors.New("scope requests permissions beyond the scope originally granted; a refresh cannot widen a grant, so authorize again to obtain a broader one")
 )
 
@@ -87,25 +86,23 @@ func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app databas
 	return nil
 }
 
-// narrowAccessScope returns the scope for the refreshed access token. A request
-// may ask for less than the grant but never more (RFC 6749 §6), and a request
-// naming no scope gets the whole grant. The narrowing applies to this access
-// token only: the grant is unchanged, so the next refresh may ask for a
-// different part of it.
+// narrowAccessScope returns the scope for the access token this request mints.
+// A request may ask for less than the grant but never more (RFC 6749 §6), and a
+// request naming no scope gets the whole grant. Only the access token narrows;
+// the grant is unchanged, so a later request may ask for a different part of it.
 //
-// Coverage, not membership, as in negotiateScope: a grant of
-// `coder:workspaces.access` confers `workspace:read`, and `coder:all` confers
-// every scope.
-func narrowAccessScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string, requested []string) (string, error) {
-	// Canonicalized once, for the reason checkScopeStillCovered gives: the row
-	// may have been written by an older server. Returning it raw on one exit
-	// and canonical on the other would make the shape of the result depend on
-	// whether the client sent a scope.
+// Coverage rather than membership, because `coder:all` covers every scope by
+// wildcard but is a member of no set but its own, so membership would leave an
+// unrestricted grant unnarrowable.
+//
+// appID is for the log line only. The app's own allowlist is deliberately not a
+// bound here: a narrowed registration applies at the next authorization, not
+// mid-session, so this takes the id rather than the app.
+func narrowAccessScope(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, granted string, requested []string) (string, error) {
+	// The row may have been written by an older server.
 	ceiling := canonicalScopes(strings.Fields(granted))
-	// Checked before the comparison, as authorizationCodeGrant checks the code's
-	// scope before its own: RBAC cannot expand a name outside the catalog, so
-	// the coverage check would answer "could not be determined" and 500 where an
-	// omitted request answers 400 naming the scope at fault.
+	// Before the comparison, so a stored name this deployment dropped is named
+	// in a 400 rather than failing to expand into a 500.
 	if _, err := scopeStringToAPIKeyScopes(strings.Join(ceiling, " ")); err != nil {
 		return "", err
 	}
@@ -113,20 +110,30 @@ func narrowAccessScope(ctx context.Context, logger slog.Logger, app database.OAu
 		return strings.Join(ceiling, " "), nil
 	}
 
-	// Checked first so a typo reads as an unknown scope rather than as a
-	// coverage check RBAC could not decide.
-	for _, s := range requested {
-		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
-			return "", xerrors.Errorf("'%s': %w", s, errUnknownScope)
-		}
+	// First, so a typo reads as an unknown scope rather than as a coverage
+	// check RBAC could not decide.
+	if unknown, ok := firstUnknownScope(requested); ok {
+		logger.Warn(ctx, "oauth2 token request refused: scope outside the catalog",
+			slog.F("phase", phase),
+			slog.F("app_id", appID.String()),
+			slog.F("scope", unknown))
+		return "", xerrors.Errorf("'%s': %w", unknown, errUnknownScope)
 	}
 
 	narrowed := canonicalScopes(requested)
-	outside, err := firstScopeBeyondCeiling(ctx, logger, phaseRefresh, app.ID, ceiling, narrowed)
+	outside, err := firstScopeBeyondCeiling(ctx, logger, phase, appID, ceiling, narrowed)
 	if err != nil {
 		return "", err
 	}
 	if outside != "" {
+		// Logged like every other scope refusal in this package: without it a
+		// leaked token being probed for what it can be traded up to looks the
+		// same as an ordinary client error.
+		logger.Warn(ctx, "oauth2 token request refused: scope beyond the grant",
+			slog.F("phase", phase),
+			slog.F("app_id", appID.String()),
+			slog.F("granted", granted),
+			slog.F("scope", outside))
 		return "", xerrors.Errorf("'%s': %w", outside, errScopeNotGranted)
 	}
 	return strings.Join(narrowed, " "), nil
@@ -247,13 +254,11 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAu
 	return req, nil, nil
 }
 
-// writeTokenError renders an RFC 6749 §5.2 error body. Descriptions here can
-// quote a value the client sent, so they are confined to the NQSCHAR set and
-// capped at the write rather than at each call site: the guarantee then belongs
-// to the endpoint instead of to whoever writes the next message. The redirect
-// path bounds its descriptions the same way, in redirectAuthorizeError.
+// writeTokenError renders an RFC 6749 §5.2 error body. Descriptions can quote
+// what the client sent, so they are confined and capped here rather than at each
+// call site, leaving the guarantee with the endpoint.
 func writeTokenError(ctx context.Context, rw http.ResponseWriter, status int, code codersdk.OAuth2ErrorCode, description string) {
-	// Sanitized before the cap so the bound is on what the client receives.
+	// Sanitized before the cap, so the bound is on what the client receives.
 	httpapi.WriteOAuth2Error(ctx, rw, status, code, capErrorDescription(sanitizeErrorDescription(description)))
 }
 
@@ -306,8 +311,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 				return validationError.Field == "code_verifier"
 			}) {
-				// "section" rather than the section sign, which RFC 6749 §5.2
-				// excludes from error_description and the sanitizer drops.
+				// Spelled out: §5.2 excludes the section sign.
 				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 section 4.1)")
 				return
 			}
@@ -351,12 +355,11 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
-		// invalid_grant, not invalid_scope: RFC 6749 §5.2 reserves invalid_scope
-		// for the scope the client asked for, and these report the stored grant,
-		// which the client cannot fix by asking differently. errUnmintableScope
-		// is the near miss: a refresh mints from the scope it was asked for, but
-		// the catalog check runs first and every catalog name is mintable, so a
-		// client-named scope cannot reach here.
+		// invalid_grant, not invalid_scope (RFC 6749 §5.2): these report the
+		// stored grant, which the client cannot fix by asking differently.
+		// errUnmintableScope is the near miss, since a request mints from the
+		// scope it named, but the catalog check runs first and every catalog
+		// name is mintable.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
 			errors.Is(err, errNoGrantableScope) {
 			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
@@ -514,18 +517,28 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		return codersdk.OAuth2TokenResponse{}, errInvalidResource
 	}
 
-	// Check the scope names first. RBAC cannot expand a name that is not a real
-	// scope, so the allowlist check below would answer "could not be determined"
-	// instead of naming the scope to fix.
-	//
-	// The minted key needs this list: apikey.Generate defaults to coder:all when
-	// it is empty.
-	scopes, err := scopeStringToAPIKeyScopes(dbCode.Scope)
-	if err != nil {
+	// Before the allowlist check: RBAC cannot expand a name that is not a real
+	// scope, so that check would answer "could not be determined" rather than
+	// naming the stored scope to fix.
+	if _, err := scopeStringToAPIKeyScopes(dbCode.Scope); err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
 	if err := checkScopeStillCovered(ctx, logger, app, dbCode.Scope); err != nil {
+		return codersdk.OAuth2TokenResponse{}, err
+	}
+
+	// An exchange may narrow too. RFC 6749 §4.1.3 defines no scope parameter
+	// here, but the form carries one, and accepting it silently would hand back
+	// the broader token the client asked to give up.
+	accessScope, err := narrowAccessScope(ctx, logger, phaseRedeem, app.ID, dbCode.Scope, strings.Fields(req.Scope))
+	if err != nil {
+		return codersdk.OAuth2TokenResponse{}, err
+	}
+
+	// apikey.Generate defaults to coder:all when this is empty.
+	scopes, err := scopeStringToAPIKeyScopes(accessScope)
+	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
@@ -623,7 +636,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		TokenType:    codersdk.OAuth2TokenTypeBearer,
 		RefreshToken: refreshToken.Formatted,
 		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
-		Scope:        dbCode.Scope,
+		Scope:        accessScope,
 		Expiry:       &key.ExpiresAt,
 	}, nil
 }
@@ -670,7 +683,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 		}
 	}
 
-	accessScope, err := narrowAccessScope(ctx, logger, app, dbToken.Scope, strings.Fields(req.Scope))
+	accessScope, err := narrowAccessScope(ctx, logger, phaseRefresh, app.ID, dbToken.Scope, strings.Fields(req.Scope))
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
@@ -744,12 +757,10 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,
 			Audience:    dbToken.Audience,
-			// The consented grant, not accessScope. This column is the ceiling
-			// every later refresh is bounded by, and the only record of what the
-			// resource owner approved: the code row that also carried it is
-			// deleted at redemption. OAuth 2.1 §4.3.3 requires a rotated refresh
-			// token to carry the scope of the one presented, so a narrowing
-			// applies to the access token minted above and to nothing else.
+			// The consented grant, not accessScope: this column is the ceiling
+			// later refreshes are bounded by, and the only record of what the
+			// user approved. A rotated refresh token carries the scope of the
+			// one presented (OAuth 2.1 §4.3.3).
 			Scope: dbToken.Scope,
 		})
 		if err != nil {

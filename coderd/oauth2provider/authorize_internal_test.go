@@ -265,7 +265,7 @@ var (
 	ReasonCoverageUndecidable = errCoverageUndecidable.Error()
 )
 
-// MaxErrorDescription is the description bound for the same black-box tests.
+// MaxErrorDescription is the description bound, for the same tests.
 const MaxErrorDescription = maxErrorDescription
 
 // TestGrantableScopesNotSizedByInput pins the shape of the result, not just its
@@ -421,15 +421,13 @@ func TestSanitizeErrorDescription(t *testing.T) {
 			want:        "Only response_type=code is supported",
 		},
 		{
-			// A description that already carries double quotes, whatever wrote
-			// them: §5.2 excludes the character, so it is rewritten.
+			// §5.2 excludes the double quote.
 			name:        "QuotedScopeBecomesApostrophes",
 			description: `"openid": unknown or unsupported scope`,
 			want:        "'openid': unknown or unsupported scope",
 		},
 		{
-			// A quote escaped by a backslash: the backslash goes too, since
-			// §5.2 excludes both.
+			// §5.2 excludes the backslash too.
 			name:        "EscapedQuoteLosesItsBackslash",
 			description: `"\"><img>": unknown or unsupported scope`,
 			want:        "''><img>': unknown or unsupported scope",
