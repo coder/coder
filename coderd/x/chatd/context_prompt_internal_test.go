@@ -681,9 +681,13 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 			"type": "object",
 			"properties": map[string]any{
 				"title": map[string]any{"type": "string"},
-				"body":  map[string]any{"type": "string"},
+				"body":  map[string]any{"$ref": "#/$defs/Body"},
 			},
-			"required": []any{"title"},
+			"required":             []any{"title"},
+			"additionalProperties": false,
+			"$defs": map[string]any{
+				"Body": map[string]any{"type": "string"},
+			},
 		})
 		resources := []database.ChatContextResource{
 			// Skipped: a config resource carries no tools.
@@ -719,6 +723,12 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 		require.Contains(t, infos[0].Schema, "title")
 		require.Contains(t, infos[0].Schema, "body")
 		require.NotContains(t, infos[0].Schema, "required")
+		// InputSchema carries the pushed schema whole, including keys the
+		// flattened pair cannot represent.
+		require.Equal(t, false, infos[0].InputSchema["additionalProperties"])
+		require.Contains(t, infos[0].InputSchema, "$defs")
+		require.Contains(t, infos[0].InputSchema, "properties")
+		require.Equal(t, []any{"title"}, infos[0].InputSchema["required"])
 	})
 
 	t.Run("FallsBackToSourceWhenServerNameEmpty", func(t *testing.T) {
