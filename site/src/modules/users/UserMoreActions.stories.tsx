@@ -59,6 +59,22 @@ export const OpenMenu: Story = {
 	},
 };
 
+export const OnEditPage: Story = {
+	args: {
+		showEdit: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /open menu/i }));
+		const menu = within(document.body);
+		await menu.findByRole("menuitem", { name: "View workspaces" });
+		await expect(
+			menu.queryByRole("menuitem", { name: "Edit" }),
+		).not.toBeInTheDocument();
+		await menu.findByRole("menuitem", { name: "Edit roles" });
+	},
+};
+
 export const OidcRoleSyncDisablesEditRoles: Story = {
 	args: {
 		user: { ...MockUserMember, login_type: "oidc" },
