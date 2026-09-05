@@ -16,7 +16,7 @@ import {
 	getDisplayWorkspaceStatus,
 } from "#/utils/workspace";
 
-const variantByStatusType: Record<
+export const variantByStatusType: Record<
 	DisplayWorkspaceStatusType,
 	StatusIndicatorProps["variant"]
 > = {
