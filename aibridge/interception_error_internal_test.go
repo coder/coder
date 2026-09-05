@@ -54,16 +54,16 @@ func TestCategorizeInterceptionError(t *testing.T) {
 			wantMsg:  context.DeadlineExceeded.Error(),
 		},
 		{
-			name:     "keypool permanent is unauthorized",
-			err:      &keypool.Error{Kind: keypool.ErrorKindPermanent},
-			wantType: recorder.ErrorTypeUnauthorized,
-			wantMsg:  (&keypool.Error{Kind: keypool.ErrorKindPermanent}).Error(),
-		},
-		{
 			name:     "keypool unauthorized is unauthorized",
 			err:      &keypool.Error{Kind: keypool.ErrorKindUnauthorized},
 			wantType: recorder.ErrorTypeUnauthorized,
 			wantMsg:  (&keypool.Error{Kind: keypool.ErrorKindUnauthorized}).Error(),
+		},
+		{
+			name:     "wrapped keypool error is unwrapped",
+			err:      xerrors.Errorf("key pool exhausted: %w", &keypool.Error{Kind: keypool.ErrorKindUnauthorized}),
+			wantType: recorder.ErrorTypeUnauthorized,
+			wantMsg:  "key pool exhausted: all configured keys failed authentication. Contact your Administrator",
 		},
 		{
 			name:     "keypool rate limited is rate limited",
@@ -82,12 +82,6 @@ func TestCategorizeInterceptionError(t *testing.T) {
 			err:      context.Canceled,
 			wantType: recorder.ErrorTypeUnknown,
 			wantMsg:  context.Canceled.Error(),
-		},
-		{
-			name:     "wrapped keypool error is unwrapped",
-			err:      xerrors.Errorf("key pool exhausted: %w", &keypool.Error{Kind: keypool.ErrorKindPermanent}),
-			wantType: recorder.ErrorTypeUnauthorized,
-			wantMsg:  "key pool exhausted: all configured keys are permanently unavailable",
 		},
 		{
 			name:     "delegated to provider",

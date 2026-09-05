@@ -190,11 +190,10 @@ coder_ai_gateway_interceptions_inflight{model="gpt-5-nano",provider="openai",rou
 # HELP coder_ai_gateway_interceptions_total The count of intercepted requests.
 # TYPE coder_ai_gateway_interceptions_total counter
 coder_ai_gateway_interceptions_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",method="POST",model="gpt-5-nano",provider="openai",route="/v1/chat/completions",status="completed"} 6
-# HELP coder_ai_gateway_key_pool_state The number of keys currently in each state (state: valid, temporary, permanent).
+# HELP coder_ai_gateway_key_pool_state The number of keys currently in each state (state: valid, temporary).
 # TYPE coder_ai_gateway_key_pool_state gauge
 coder_ai_gateway_key_pool_state{provider="openai",state="valid"} 2
 coder_ai_gateway_key_pool_state{provider="openai",state="temporary"} 0
-coder_ai_gateway_key_pool_state{provider="openai",state="permanent"} 0
 # HELP coder_ai_gateway_key_pool_state_transitions_total The number of API key state transitions during failover (reason: rate_limited, unauthorized).
 # TYPE coder_ai_gateway_key_pool_state_transitions_total counter
 coder_ai_gateway_key_pool_state_transitions_total{provider="openai",reason="rate_limited"} 1

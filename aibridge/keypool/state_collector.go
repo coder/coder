@@ -22,7 +22,7 @@ func NewStateCollector(pools func() []*Pool) prometheus.Collector {
 		pools: pools,
 		desc: prometheus.NewDesc(
 			"key_pool_state",
-			"The number of keys currently in each state (state: valid, temporary, permanent).",
+			"The number of keys currently in each state (state: valid, temporary).",
 			[]string{"provider", "state"},
 			nil,
 		),
@@ -42,13 +42,12 @@ func (c *stateCollector) Collect(ch chan<- prometheus.Metric) {
 		counts := map[KeyState]int{
 			KeyStateValid:     0,
 			KeyStateTemporary: 0,
-			KeyStatePermanent: 0,
 		}
 		for _, state := range pool.PoolState() {
 			counts[state]++
 		}
 
-		for _, state := range []KeyState{KeyStateValid, KeyStateTemporary, KeyStatePermanent} {
+		for _, state := range []KeyState{KeyStateValid, KeyStateTemporary} {
 			ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, float64(counts[state]), pool.providerName, string(state))
 		}
 	}

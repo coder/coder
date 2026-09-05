@@ -55,14 +55,14 @@ func categorizeInterceptionError(c errorCategorizer, err error) (recorder.ErrorT
 	}
 
 	// Centralized key-pool failover. Checked before delegating because the pool
-	// masks the client response (e.g. permanent failures become 502), which
+	// masks the client response (for example, auth failures become 502), which
 	// would otherwise hide the cause.
 	var keyPoolErr *keypool.Error
 	if errors.As(err, &keyPoolErr) {
 		switch keyPoolErr.Kind {
 		case keypool.ErrorKindRateLimited:
 			return recorder.ErrorTypeRateLimited, msg
-		case keypool.ErrorKindPermanent, keypool.ErrorKindUnauthorized:
+		case keypool.ErrorKindUnauthorized:
 			return recorder.ErrorTypeUnauthorized, msg
 		default:
 			return recorder.ErrorTypeUnknown, msg
