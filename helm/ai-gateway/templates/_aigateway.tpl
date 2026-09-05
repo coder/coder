@@ -34,11 +34,10 @@ Deployment to merge into the libcoder template.
 */}}
 {{- define "coder-ai-gateway.deployment" -}}
 spec:
+  {{- with .Values.coder.deploymentStrategy }}
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   template:
     spec:
       automountServiceAccountToken: false
