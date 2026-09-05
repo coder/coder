@@ -2,6 +2,7 @@ package mcp_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/aisdk-go"
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
@@ -162,6 +164,144 @@ func TestMCPHTTP_ModernProtocol(t *testing.T) {
 	tools, err := session.ListTools(ctx, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, tools.Tools)
+}
+
+func TestMCPHTTP_ToolArgumentValidation(t *testing.T) {
+	t.Parallel()
+
+	server, err := mcpserver.NewServer(testutil.Logger(t))
+	require.NoError(t, err)
+	require.NoError(t, server.RegisterTools(codersdk.New(testutil.MustURL(t, "http://not-used"))))
+
+	ts := httptest.NewServer(server)
+	t.Cleanup(ts.Close)
+
+	connectCtx := testutil.Context(t, testutil.WaitShort)
+	mcpClient := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
+	session, err := mcpClient.Connect(connectCtx, &sdkmcp.StreamableClientTransport{Endpoint: ts.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, session.Close())
+	})
+
+	tests := []struct {
+		name      string
+		arguments map[string]any
+		keyword   string
+		property  string
+	}{
+		{
+			name: "MissingRequiredProperty",
+			arguments: map[string]any{
+				"user":            "me",
+				"rich_parameters": map[string]any{},
+			},
+			keyword:  "required:",
+			property: "name",
+		},
+		{
+			name: "IncorrectPropertyType",
+			arguments: map[string]any{
+				"user":            false,
+				"name":            "example",
+				"rich_parameters": map[string]any{},
+			},
+			keyword:  "type:",
+			property: "user",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{
+				Name:      toolsdk.ToolNameCreateWorkspace,
+				Arguments: test.arguments,
+			})
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			require.Len(t, result.Content, 1)
+			content, ok := result.Content[0].(*sdkmcp.TextContent)
+			require.True(t, ok, "expected TextContent, got %T", result.Content[0])
+			var payload struct {
+				Error          string         `json:"error"`
+				ExpectedSchema map[string]any `json:"expectedSchema"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(content.Text), &payload))
+			require.Contains(t, payload.Error, "invalid arguments: $:")
+			require.Contains(t, payload.Error, test.keyword)
+			require.Contains(t, payload.Error, test.property)
+			require.Equal(t, "object", payload.ExpectedSchema["type"])
+			require.Equal(t, false, payload.ExpectedSchema["additionalProperties"])
+			properties, ok := payload.ExpectedSchema["properties"].(map[string]any)
+			require.True(t, ok)
+			require.Contains(t, properties, test.property)
+		})
+	}
+}
+
+func TestRegisterSDKTool(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Fail  bool   `json:"fail"`
+		Value string `json:"value"`
+	}
+	type response struct {
+		Value string `json:"value"`
+	}
+	tool := toolsdk.Tool[arguments, response]{
+		Tool: aisdk.Tool{
+			Name: "test_typed_tool",
+			Schema: aisdk.Schema{
+				Properties: map[string]any{
+					"fail":  map[string]any{"type": "boolean"},
+					"value": map[string]any{"type": "string"},
+				},
+				Required: []string{"value"},
+			},
+		},
+		Handler: func(_ context.Context, _ toolsdk.Deps, args arguments) (response, error) {
+			if args.Fail {
+				return response{}, assert.AnError
+			}
+			return response{Value: args.Value}, nil
+		},
+	}.Generic()
+
+	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
+	mcpserver.RegisterSDKTool(server, tool, toolsdk.Deps{})
+	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, serverSession.Close())
+	})
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, clientSession.Close())
+	})
+
+	result, err := clientSession.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      tool.Name,
+		Arguments: map[string]any{"value": "hello"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.Len(t, result.Content, 1)
+	content, ok := result.Content[0].(*sdkmcp.TextContent)
+	require.True(t, ok)
+	require.JSONEq(t, `{"value":"hello"}`, content.Text)
+
+	_, err = clientSession.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      tool.Name,
+		Arguments: map[string]any{"fail": true, "value": "hello"},
+	})
+	require.ErrorContains(t, err, assert.AnError.Error())
 }
 
 func TestMCPHTTP_UnsupportedProtocolVersion(t *testing.T) {
