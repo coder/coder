@@ -271,10 +271,20 @@ func TestNarrowAccessScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
+			// Both rows guard the same contract, which the catalog check
+			// depends on: it runs on the raw request, before canonicalization,
+			// so IsExternalScope has to admit the bare alias spellings.
+			// scopeAliases holds exactly these two.
 			name:      "LegacyAliasCanonicalized",
 			granted:   string(database.ApiKeyScopeCoderAll),
 			requested: []string{"all"},
 			want:      "coder:all",
+		},
+		{
+			name:      "LegacyApplicationConnectAliasCanonicalized",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"application_connect"},
+			want:      "coder:application_connect",
 		},
 		{
 			name:      "DuplicateRequestedScopesDeduplicated",
