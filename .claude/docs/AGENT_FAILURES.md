@@ -59,7 +59,7 @@ shown below when adding new failures.
   `site/e2e/test-results/debug.log`. In CI, the `test-e2e` job uploads
   artifacts named `playwright-artifacts-`, `coderd-debug-logs-`, and
   `debug-pprof-dumps-`, each followed by the matrix job name and commit SHA.
-- Existing docs or tools: [Frontend Development Guidelines](../../site/AGENTS.md),
+- Existing docs or tools: [`frontend` skill](../skills/frontend/SKILL.md),
   `site/e2e/README.md`, and `pnpm playwright:test`.
 - Missing harness piece: No central checklist tells agents which browser
   artifacts must be attached to a failure report.
