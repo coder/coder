@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
+	MockAgentRuntimeHoursFeature,
+	MockCommunityAgentRuntimeHoursFeature,
 	MockDefaultOrganization,
 	MockOrganization2,
 } from "#/testHelpers/entities";
@@ -9,6 +12,29 @@ import {
 	CoderAgentsPageView,
 	type CoderAgentsPageViewProps,
 } from "./CoderAgentsPageView";
+
+const actualMs = (10 * 60 + 18) * 60_000;
+const licensedFiniteRuntimeFeature = {
+	...MockAgentRuntimeHoursFeature,
+	limit: 100,
+	soft_limit: undefined,
+	hard_limit: 120,
+	actual: 10,
+	actual_ms: undefined,
+} satisfies CoderAgentsPageViewProps["agentRuntimeHoursFeature"];
+const licensedUnlimitedRuntimeFeature = {
+	...MockAgentRuntimeHoursFeature,
+	limit: undefined,
+	soft_limit: undefined,
+	hard_limit: undefined,
+	actual: 10,
+	actual_ms: undefined,
+} satisfies CoderAgentsPageViewProps["agentRuntimeHoursFeature"];
+const licensedHardLimitRuntimeFeature = {
+	...licensedFiniteRuntimeFeature,
+	actual: 120,
+	actual_ms: undefined,
+} satisfies CoderAgentsPageViewProps["agentRuntimeHoursFeature"];
 
 const defaultArgs: CoderAgentsPageViewProps = {
 	organization: MockDefaultOrganization,
@@ -18,6 +44,15 @@ const defaultArgs: CoderAgentsPageViewProps = {
 	isOrganizationAccessLoading: false,
 	organizationSettings: <div>Organization override controls</div>,
 	canEditDeploymentConfig: true,
+	hasDeploymentLicense: false,
+	hasAgentRuntimeLicense: false,
+	agentRuntimeHoursFeature: MockCommunityAgentRuntimeHoursFeature,
+	agentRuntimeTotalMs: actualMs,
+	isAgentRuntimeUsageLoading: false,
+	isAgentRuntimeUsageUnavailable: false,
+	agentRuntimeUsageError: undefined,
+	onRetryAgentRuntimeUsage: fn(),
+	isRetryingAgentRuntimeUsage: false,
 	adminOverridesData: { allow_users: true },
 	onSaveAdminOverrides: fn(),
 	isSavingAdminOverrides: false,
@@ -61,6 +96,45 @@ export const Default: Story = {
 	args: { onSaveAdvisorConfig: fn() },
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
+		const usage = canvas.getByRole("region", { name: "Coder Agents usage" });
+		await expect(
+			usage.compareDocumentPosition(
+				canvas.getByRole("heading", { name: "Organization settings" }),
+			) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		await expect(
+			within(usage).getByRole("heading", { name: "Usage" }),
+		).toBeVisible();
+		await expect(canvas.getByText("10.3 hours")).toBeVisible();
+		await expect(
+			canvas.getByRole("link", {
+				name: "Upgrade for unlimited concurrent agents",
+			}),
+		).toHaveAttribute("href", PREMIUM_PAGE_PATH);
+		await userEvent.hover(
+			canvas.getByRole("button", {
+				name: "Agent hours used information",
+			}),
+		);
+		await waitFor(async () => {
+			await expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"Total agent time used across all chats. Time from archived chats is excluded once deleted based on the conversation retention period.",
+			);
+		});
+		await userEvent.keyboard("{Escape}");
+		await waitFor(async () => {
+			await expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+		});
+		await userEvent.hover(
+			canvas.getByRole("button", {
+				name: "Max concurrent agents information",
+			}),
+		);
+		await waitFor(async () => {
+			await expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"Number of agents that can run at the same time.",
+			);
+		});
 		await expect(
 			canvas.getByRole("heading", { name: "Organization settings" }),
 		).toBeVisible();
@@ -88,6 +162,128 @@ export const WithoutAdvisor: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.queryByText("Advisor")).not.toBeInTheDocument();
+	},
+};
+
+export const UsageLoading: Story = {
+	args: {
+		hasAgentRuntimeLicense: undefined,
+		agentRuntimeHoursFeature: undefined,
+		isAgentRuntimeUsageLoading: true,
+		agentRuntimeTotalMs: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("status", { name: "Loading Agent Time usage" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("switch", { name: "Allow personal model overrides" }),
+		).toBeVisible();
+	},
+};
+
+export const UsageLoadError: Story = {
+	args: {
+		hasAgentRuntimeLicense: undefined,
+		agentRuntimeHoursFeature: undefined,
+		agentRuntimeUsageError: new Error("Failed to load Agent Time usage."),
+		agentRuntimeTotalMs: undefined,
+		onRetryAgentRuntimeUsage: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			"Failed to load Agent Time usage.",
+		);
+		await expect(
+			canvas.queryByText("Agent Time usage is unavailable."),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+		await expect(args.onRetryAgentRuntimeUsage).toHaveBeenCalled();
+		await expect(
+			canvas.getByRole("switch", { name: "Allow personal model overrides" }),
+		).toBeVisible();
+	},
+};
+
+export const UsageUnavailable: Story = {
+	args: {
+		hasAgentRuntimeLicense: undefined,
+		agentRuntimeHoursFeature: undefined,
+		isAgentRuntimeUsageUnavailable: true,
+		agentRuntimeTotalMs: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("Agent Time usage is unavailable."),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("switch", { name: "Allow personal model overrides" }),
+		).toBeVisible();
+	},
+};
+
+export const ZeroUsage: Story = {
+	args: { agentRuntimeTotalMs: 0 },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("0.0 hours")).toBeVisible();
+	},
+};
+
+export const LicensedFiniteAllocation: Story = {
+	args: {
+		hasAgentRuntimeLicense: true,
+		agentRuntimeHoursFeature: licensedFiniteRuntimeFeature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("10.3 / 100 hours")).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "View license" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const LicensedHardLimitReached: Story = {
+	args: {
+		hasAgentRuntimeLicense: true,
+		agentRuntimeHoursFeature: licensedHardLimitRuntimeFeature,
+		agentRuntimeTotalMs: 120 * 3_600_000,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const usage = within(
+			canvas.getByRole("region", { name: "Coder Agents usage" }),
+		);
+		await expect(usage.getByText("120.0 / 100 hours")).toBeVisible();
+		await expect(usage.getByText("5")).toBeVisible();
+		await userEvent.hover(
+			usage.getByRole("button", {
+				name: "Max concurrent agents information",
+			}),
+		);
+		await waitFor(async () => {
+			await expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"You've reached your limit: concurrent chats are now capped at 5 (down from unlimited).",
+			);
+		});
+	},
+};
+
+export const LicensedUnlimitedAllocation: Story = {
+	args: {
+		hasAgentRuntimeLicense: true,
+		agentRuntimeHoursFeature: licensedUnlimitedRuntimeFeature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("10.3 / Unlimited hours")).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: "View usage documentation" }),
+		).toBeVisible();
 	},
 };
 

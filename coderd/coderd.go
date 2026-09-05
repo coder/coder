@@ -1438,6 +1438,7 @@ func New(options *Options) *API {
 		r.Route("/deployment", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
+			r.Get("/agent-time", api.deploymentAgentTime)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
 			r.Get("/user-secrets/capabilities", api.userSecretsCapabilities)

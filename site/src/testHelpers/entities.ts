@@ -2691,6 +2691,11 @@ export const mockApiError = ({
 	},
 });
 
+export const MockCommunityAgentRuntimeHoursFeature: TypesGen.Feature = {
+	enabled: false,
+	entitlement: "not_entitled",
+};
+
 export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
 	enabled: true,
 	entitlement: "entitled",
@@ -3839,6 +3844,10 @@ export const MockTemplateVersionExternalAuthAzure: TypesGen.TemplateVersionExter
 		display_icon: "/icon/azure.svg",
 		display_name: "Azure",
 	};
+
+export const MockDeploymentAgentTime: TypesGen.DeploymentAgentTime = {
+	total_runtime_ms: (10 * 60 + 18) * 60_000,
+};
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
 	aggregated_from: "2023-03-06T19:08:55.211625Z",
