@@ -1257,7 +1257,7 @@ func TestRunner_StartsRealInterruptTask(t *testing.T) {
 	f := newTaskTestFixture(t)
 	chat := f.createRunningChat(t)
 	worker := startRealTaskWorker(t, f)
-	waitOwnedChat(t, f, chat.ID, worker.chatWorkerID())
+	waitOwnedChat(t, f, chat.ID, worker.opts.WorkerID)
 
 	f.interruptChat(t, chat.ID)
 	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(ctx context.Context) bool {
@@ -1266,7 +1266,7 @@ func TestRunner_StartsRealInterruptTask(t *testing.T) {
 	}, testutil.IntervalFast)
 	latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, worker.chatWorkerID(), latest.WorkerID.UUID)
+	require.Equal(t, worker.opts.WorkerID, latest.WorkerID.UUID)
 	f.requireWatchEvent(t, chat.ID, codersdk.ChatWatchEventKindStatusChange)
 }
 
@@ -1280,7 +1280,7 @@ func TestRunner_StartsRealRequiresActionTimeoutTask(t *testing.T) {
 
 	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(ctx context.Context) bool {
 		latest, err := f.db.GetChatByID(ctx, chat.ID)
-		return err == nil && latest.Status == database.ChatStatusRunning && latest.WorkerID.Valid && latest.WorkerID.UUID == worker.chatWorkerID()
+		return err == nil && latest.Status == database.ChatStatusRunning && latest.WorkerID.Valid && latest.WorkerID.UUID == worker.opts.WorkerID
 	}, testutil.IntervalFast)
 	latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
 	require.NoError(t, err)
@@ -1294,7 +1294,7 @@ func TestRunner_StartsRealAbandonTask(t *testing.T) {
 	f := newTaskTestFixture(t)
 	chat := f.createRunningChat(t)
 	worker := startRealTaskWorker(t, f)
-	waitOwnedChat(t, f, chat.ID, worker.chatWorkerID())
+	waitOwnedChat(t, f, chat.ID, worker.opts.WorkerID)
 
 	updated := f.forceExecutionState(t, chat.ID, database.ChatStatusError, false, sql.NullTime{})
 	f.publishChatUpdate(t, updated)

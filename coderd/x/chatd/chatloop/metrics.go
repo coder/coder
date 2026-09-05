@@ -17,7 +17,6 @@ const (
 
 	// Label values for Chats.
 	StateStreaming = "streaming"
-	StateWaiting   = "waiting"
 
 	// Label values for CompactionTotal.
 	CompactionResultSuccess = "success"

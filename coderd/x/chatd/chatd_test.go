@@ -3944,7 +3944,6 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 			ToolCallID: toolCallID,
 			Output:     toolResultOutput,
 		}},
-		DynamicTools: dynamicToolsJSON,
 	})
 	require.NoError(t, err)
 
@@ -4234,7 +4233,6 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 			ToolCallID: toolCallID,
 			Output:     json.RawMessage(`{"result":"dynamic output"}`),
 		}},
-		DynamicTools: dynamicToolsJSON,
 	})
 	require.NoError(t, err)
 
@@ -4384,7 +4382,6 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 					ToolCallID: toolCallID,
 					Output:     json.RawMessage(`{"result":"concurrent output"}`),
 				}},
-				DynamicTools: dynamicToolsJSON,
 			})
 
 			if submitErr == nil {
@@ -5266,13 +5263,11 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 		ContextFileDirectory: "/home/coder/project",
 	}})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessages(ctx, chatd.BuildSingleChatMessageInsertParams(
+	_, err = db.InsertChatMessages(ctx, singleChatMessageInsertParams(
 		chat.ID,
 		database.ChatMessageRoleUser,
 		contextContent,
-		database.ChatMessageVisibilityBoth,
 		model.ID,
-		chatprompt.CurrentContentVersion,
 		user.ID,
 	))
 	require.NoError(t, err)
@@ -8712,13 +8707,11 @@ func insertChatMessageParts(
 	t.Helper()
 	content, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
-	params := chatd.BuildSingleChatMessageInsertParams(
+	params := singleChatMessageInsertParams(
 		chatID,
 		role,
 		content,
-		database.ChatMessageVisibilityBoth,
 		modelID,
-		chatprompt.CurrentContentVersion,
 		createdBy,
 	)
 	messages, err := db.InsertChatMessages(ctx, params)
@@ -12975,9 +12968,8 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:              coderdtest.DeploymentValues(t),
-		IncludeProvisionerDaemon:      true,
-		ChatdInstructionLookupTimeout: testutil.WaitLong,
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
 	})
 	db := api.Database
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
@@ -13458,7 +13450,6 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 
 		result, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
-			CreatedBy:       user.ID,
 			QueuedMessageID: queued.ID,
 		})
 		require.NoError(t, err)
@@ -13514,7 +13505,6 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 
 		_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
-			CreatedBy:       user.ID,
 			QueuedMessageID: queued.ID,
 		})
 		require.ErrorIs(t, err, chatd.ErrNoDefaultChatModelConfig)
@@ -13581,7 +13571,6 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 
 	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chat.ID,
-		CreatedBy:       user.ID,
 		QueuedMessageID: queued.ID,
 	})
 	require.NoError(t, err)

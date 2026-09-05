@@ -641,41 +641,6 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	require.Equal(t, resolvedModelCall{}, resolved)
 }
 
-func TestParseModelOverride(t *testing.T) {
-	t.Parallel()
-
-	modelConfigID := uuid.New()
-	tests := []struct {
-		name       string
-		raw        string
-		wantID     uuid.UUID
-		wantEffort *string
-		wantOK     bool
-	}{
-		{name: "Empty", raw: "", wantOK: true},
-		{name: "Whitespace", raw: " \t\n ", wantOK: true},
-		{name: "IDOnly", raw: modelConfigID.String(), wantID: modelConfigID, wantOK: true},
-		{name: "IDWithEffort", raw: modelConfigID.String() + ":high", wantID: modelConfigID, wantEffort: new("high"), wantOK: true},
-		{name: "IDEmptyEffort", raw: modelConfigID.String() + ":", wantOK: false},
-		{name: "OuterWhitespace", raw: " \t" + modelConfigID.String() + ":high\n ", wantID: modelConfigID, wantEffort: new("high"), wantOK: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, ok := parseModelOverride(tt.raw)
-
-			require.Equal(t, tt.wantOK, ok)
-			if !tt.wantOK {
-				return
-			}
-			require.Equal(t, tt.wantID, got.modelConfigID)
-			require.Equal(t, tt.wantEffort, got.reasoningEffort)
-		})
-	}
-}
-
 func titleOverrideTestChatAndMessages(t *testing.T) (database.Chat, []database.ChatMessage) {
 	t.Helper()
 

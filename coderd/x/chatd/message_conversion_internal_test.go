@@ -1,7 +1,6 @@
 package chatd
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -9,13 +8,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestBuildAssistantPartsForPersist_PromotesToolAttachments(t *testing.T) {
+func TestBuildAssistantParts_PromotesToolAttachments(t *testing.T) {
 	t.Parallel()
 
 	fileID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
@@ -29,8 +27,7 @@ func TestBuildAssistantPartsForPersist_PromotesToolAttachments(t *testing.T) {
 	)
 	toolCallAt := time.Date(2026, time.April, 10, 0, 0, 0, 0, time.UTC)
 
-	parts := buildAssistantPartsForPersist(
-		context.Background(),
+	parts := buildAssistantParts(
 		testutil.Logger(t),
 		[]fantasy.Content{fantasy.TextContent{Text: "Here is the screenshot."}},
 		[]fantasy.ToolResultContent{{
@@ -39,11 +36,12 @@ func TestBuildAssistantPartsForPersist_PromotesToolAttachments(t *testing.T) {
 			ClientMetadata:   response.Metadata,
 			ProviderExecuted: false,
 		}},
-		chatloop.PersistedStep{
+		stepData{
 			ToolCallCreatedAt: map[string]time.Time{
 				"call-1": toolCallAt,
 			},
 		},
+		nil,
 		nil,
 	)
 
@@ -57,7 +55,7 @@ func TestBuildAssistantPartsForPersist_PromotesToolAttachments(t *testing.T) {
 	require.Equal(t, "screenshot.png", parts[1].Name)
 }
 
-func TestBuildAssistantPartsForPersist_PromotesProposePlanAttachment(t *testing.T) {
+func TestBuildAssistantParts_PromotesProposePlanAttachment(t *testing.T) {
 	t.Parallel()
 
 	fileID := uuid.MustParse("bbbbbbbb-cccc-dddd-eeee-ffffffffffff")
@@ -70,8 +68,7 @@ func TestBuildAssistantPartsForPersist_PromotesProposePlanAttachment(t *testing.
 		},
 	)
 
-	parts := buildAssistantPartsForPersist(
-		context.Background(),
+	parts := buildAssistantParts(
 		testutil.Logger(t),
 		[]fantasy.Content{fantasy.TextContent{Text: "Here is the proposed plan."}},
 		[]fantasy.ToolResultContent{{
@@ -79,7 +76,8 @@ func TestBuildAssistantPartsForPersist_PromotesProposePlanAttachment(t *testing.
 			ToolName:       "propose_plan",
 			ClientMetadata: response.Metadata,
 		}},
-		chatloop.PersistedStep{},
+		stepData{},
+		nil,
 		nil,
 	)
 
@@ -93,7 +91,7 @@ func TestBuildAssistantPartsForPersist_PromotesProposePlanAttachment(t *testing.
 	require.Equal(t, "PLAN.md", parts[1].Name)
 }
 
-func TestBuildAssistantPartsForPersist_InvalidAttachmentMetadataSkipsOnlyBrokenResult(t *testing.T) {
+func TestBuildAssistantParts_InvalidAttachmentMetadataSkipsOnlyBrokenResult(t *testing.T) {
 	t.Parallel()
 
 	goodFileID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
@@ -106,8 +104,7 @@ func TestBuildAssistantPartsForPersist_InvalidAttachmentMetadataSkipsOnlyBrokenR
 		},
 	)
 
-	parts := buildAssistantPartsForPersist(
-		context.Background(),
+	parts := buildAssistantParts(
 		testutil.Logger(t),
 		[]fantasy.Content{fantasy.TextContent{Text: "Here are the results."}},
 		[]fantasy.ToolResultContent{
@@ -122,7 +119,8 @@ func TestBuildAssistantPartsForPersist_InvalidAttachmentMetadataSkipsOnlyBrokenR
 				ClientMetadata: `{"attachments":[{"file_id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}]}`,
 			},
 		},
-		chatloop.PersistedStep{},
+		stepData{},
+		nil,
 		nil,
 	)
 
@@ -135,7 +133,7 @@ func TestBuildAssistantPartsForPersist_InvalidAttachmentMetadataSkipsOnlyBrokenR
 	require.Equal(t, "good.png", parts[1].Name)
 }
 
-func TestBuildAssistantPartsForPersist_AppliesReasoningTimestamps(t *testing.T) {
+func TestBuildAssistantParts_AppliesReasoningTimestamps(t *testing.T) {
 	t.Parallel()
 
 	startedAt1 := time.Date(2026, time.April, 10, 12, 0, 0, 0, time.UTC)
@@ -146,8 +144,7 @@ func TestBuildAssistantPartsForPersist_AppliesReasoningTimestamps(t *testing.T) 
 	// Interleave reasoning blocks with a text block to confirm the
 	// index walks reasoning content in occurrence order without
 	// being thrown off by non-reasoning entries.
-	parts := buildAssistantPartsForPersist(
-		context.Background(),
+	parts := buildAssistantParts(
 		testutil.Logger(t),
 		[]fantasy.Content{
 			fantasy.ReasoningContent{Text: "first thought"},
@@ -155,10 +152,11 @@ func TestBuildAssistantPartsForPersist_AppliesReasoningTimestamps(t *testing.T) 
 			fantasy.ReasoningContent{Text: "second thought"},
 		},
 		nil,
-		chatloop.PersistedStep{
+		stepData{
 			ReasoningStartedAt:   []time.Time{startedAt1, startedAt2},
 			ReasoningCompletedAt: []time.Time{completedAt1, completedAt2},
 		},
+		nil,
 		nil,
 	)
 
@@ -188,7 +186,7 @@ func TestBuildAssistantPartsForPersist_AppliesReasoningTimestamps(t *testing.T) 
 		"second reasoning part must use ReasoningCompletedAt[1]")
 }
 
-func TestBuildAssistantPartsForPersist_PartialReasoningTimestamps(t *testing.T) {
+func TestBuildAssistantParts_PartialReasoningTimestamps(t *testing.T) {
 	t.Parallel()
 
 	startedAt := time.Date(2026, time.April, 10, 12, 0, 0, 0, time.UTC)
@@ -200,17 +198,17 @@ func TestBuildAssistantPartsForPersist_PartialReasoningTimestamps(t *testing.T) 
 	// StartedAt (flushActiveState always stamps both with
 	// dbtime.Now()), so this is a defensive boundary test for the
 	// `variants:"reasoning?"` contract.
-	parts := buildAssistantPartsForPersist(
-		context.Background(),
+	parts := buildAssistantParts(
 		testutil.Logger(t),
 		[]fantasy.Content{
 			fantasy.ReasoningContent{Text: "incomplete thought"},
 		},
 		nil,
-		chatloop.PersistedStep{
+		stepData{
 			ReasoningStartedAt:   []time.Time{startedAt},
 			ReasoningCompletedAt: []time.Time{{}},
 		},
+		nil,
 		nil,
 	)
 
@@ -222,21 +220,21 @@ func TestBuildAssistantPartsForPersist_PartialReasoningTimestamps(t *testing.T) 
 		"zero-valued ReasoningCompletedAt must not produce a stamp")
 }
 
-func TestBuildAssistantPartsForPersist_MissingReasoningTimestamps(t *testing.T) {
+func TestBuildAssistantParts_MissingReasoningTimestamps(t *testing.T) {
 	t.Parallel()
 
 	// Legacy persisted steps and steps that never observed a
 	// reasoning block carry empty timestamp slices. The helper must
 	// leave CreatedAt and CompletedAt nil instead of panicking on
 	// the out-of-range index.
-	parts := buildAssistantPartsForPersist(
-		context.Background(),
+	parts := buildAssistantParts(
 		testutil.Logger(t),
 		[]fantasy.Content{
 			fantasy.ReasoningContent{Text: "no timestamps recorded"},
 		},
 		nil,
-		chatloop.PersistedStep{},
+		stepData{},
+		nil,
 		nil,
 	)
 

@@ -89,7 +89,6 @@ type CompactionOptions struct {
 	SummaryPrompt       string
 	SummaryHint         string
 	SystemSummaryPrefix string
-	Persist             func(context.Context, CompactionResult) error
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64
@@ -116,8 +115,6 @@ type CompactionOptions struct {
 	// clients so they see "Summarizing..." / "Summarized" UI
 	// transitions during compaction.
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
-
-	OnError func(error)
 }
 
 type CompactionResult struct {
@@ -398,7 +395,6 @@ func startCompactionDebugRun(
 		ModelConfigID:       modelConfigID,
 		TriggerMessageID:    parentRun.TriggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
-		Kind:                chatdebug.KindCompaction,
 		Provider:            provider,
 		Model:               model,
 	})

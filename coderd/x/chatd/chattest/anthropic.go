@@ -33,8 +33,6 @@ type AnthropicRequest struct {
 	MaxTokens     int                       `json:"max_tokens,omitempty"`
 	OutputConfig  json.RawMessage           `json:"output_config,omitempty"`
 	Thinking      json.RawMessage           `json:"thinking,omitempty"`
-	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
-	Options map[string]interface{} `json:",inline"` //nolint:revive
 }
 
 // AnthropicRequestMessage represents a message in an Anthropic request.
