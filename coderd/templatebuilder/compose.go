@@ -30,13 +30,15 @@ type ComposeRequest struct {
 // to render into its module block.
 type ComposeModule struct {
 	ID string
-	// AgentName is the base coder_agent the module attaches to; empty uses the
-	// base default. Must name an agent the base declares.
-	AgentName string
-	// Variables maps variable names to HCL literal values for
-	// non-sensitive, non-computed variables.
+	// Variables holds caller-supplied values keyed by variable name. A module
+	// that declares AgentNameVariable attaches to the agent named there.
 	Variables map[string]string
 }
+
+// AgentNameVariable is the module input that names the agent a module attaches
+// to. Only modules that declare it are agent-selectable: the builder resolves
+// the module's agent_id from its value, defaulting to the base's default agent.
+const AgentNameVariable = "agent_name"
 
 // ComposeResult holds the rendered Terraform files ready for bundling.
 type ComposeResult struct {
@@ -287,6 +289,19 @@ func validateModules(requested []ComposeModule, catalog map[string]ModuleManifes
 	return nil
 }
 
+// moduleDeclaresAgentName reports whether the module exposes agent_name as a
+// settable input. The value flows into both agent_name and agent_id, so it must
+// be a plain string the caller can set: computed and sensitive variables are
+// excluded from the caller-settable set elsewhere and cannot drive selection.
+func moduleDeclaresAgentName(m ModuleManifest) bool {
+	for _, v := range m.Variables {
+		if v.Name == AgentNameVariable && v.Type == "string" && !v.Computed && !v.Sensitive {
+			return true
+		}
+	}
+	return false
+}
+
 // renderModules renders the selected module blocks, each attached to its
 // resolved agent.
 func renderModules(
@@ -300,9 +315,13 @@ func renderModules(
 	for _, cm := range requested {
 		manifest := catalog[cm.ID]
 
-		agentName := cm.AgentName
-		if agentName == "" {
-			agentName = defaultName
+		// A module that declares agent_name chooses its agent through that value;
+		// every other module attaches to the base default.
+		agentName := defaultName
+		if moduleDeclaresAgentName(manifest) {
+			if v := cm.Variables[AgentNameVariable]; v != "" {
+				agentName = v
+			}
 		}
 		agentRef, ok := agentRefByName[agentName]
 		if !ok {
@@ -317,6 +336,11 @@ func renderModules(
 		vars, err := mergeModuleVariables(manifest, cm.Variables)
 		if err != nil {
 			return nil, xerrors.Errorf("module %q: %w", cm.ID, err)
+		}
+		// Pin agent_name to the resolved agent so the label matches agent_id even
+		// when the caller left it at the default.
+		if moduleDeclaresAgentName(manifest) {
+			vars[AgentNameVariable] = hclQuote(agentName)
 		}
 		modCtx := ModuleRenderContext{
 			RegistryBase:      registryURL,

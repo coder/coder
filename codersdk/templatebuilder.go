@@ -123,9 +123,7 @@ type TemplateBuilderComposeRequest struct {
 // TemplateBuilderComposeModule identifies a module and its variable
 // values for the compose request.
 type TemplateBuilderComposeModule struct {
-	ID string `json:"id"`
-	// AgentName targets a base coder_agent by name. Empty uses the base default.
-	AgentName string            `json:"agent_name,omitempty"`
+	ID        string            `json:"id"`
 	Variables map[string]string `json:"variables,omitempty"`
 }
 

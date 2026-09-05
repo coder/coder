@@ -80,13 +80,14 @@ func TestTemplateBuilderCompose(t *testing.T) {
 		tarData, err := client.TemplateBuilderCompose(ctx, codersdk.TemplateBuilderComposeRequest{
 			BaseTemplateID: "docker",
 			Modules: []codersdk.TemplateBuilderComposeModule{
-				{ID: "code-server", AgentName: "main"},
+				{ID: "zed", Variables: map[string]string{"agent_name": "main"}},
 			},
 		})
 		require.NoError(t, err)
 
 		files := extractTarFiles(t, tarData)
 		require.Contains(t, files["modules.tf"], `coder_agent.main.id`)
+		require.Contains(t, files["modules.tf"], `agent_name = "main"`)
 	})
 
 	t.Run("UnknownAgentName", func(t *testing.T) {
@@ -100,7 +101,7 @@ func TestTemplateBuilderCompose(t *testing.T) {
 		_, err := client.TemplateBuilderCompose(ctx, codersdk.TemplateBuilderComposeRequest{
 			BaseTemplateID: "docker",
 			Modules: []codersdk.TemplateBuilderComposeModule{
-				{ID: "code-server", AgentName: "nonexistent"},
+				{ID: "zed", Variables: map[string]string{"agent_name": "nonexistent"}},
 			},
 		})
 		require.Error(t, err)
