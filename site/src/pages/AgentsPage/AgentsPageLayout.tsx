@@ -25,6 +25,7 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
+	chat as chatQueryOptions,
 	infiniteChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
@@ -79,6 +80,7 @@ import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableC
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
+import { useVimNavigation } from "./hooks/useVimNavigation";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
@@ -680,9 +682,36 @@ const AgentsPageLayout: FC = () => {
 		});
 	}, [queryClient]);
 
+	// State for the shared rename-chat dialog. Lifted here so both the
+	// sidebar menu and the chat top bar open the same dialog instance.
+	const [chatPendingRename, setChatPendingRename] =
+		useState<TypesGen.Chat | null>(null);
+
+	const [vimNavigationEnabled] = useVimNavigation();
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
 		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
+		onRenameActiveChat: () => {
+			if (!agentId) {
+				return;
+			}
+			// The active chat may be a child embedded in its root's
+			// `children`, or absent from the paginated list entirely
+			// (filtered out or not yet loaded), in which case the
+			// per-chat query cache populated by the open chat page is
+			// used.
+			const activeChat =
+				chatList
+					.flatMap((chat) => [chat, ...(chat.children ?? [])])
+					.find((chat) => chat.id === agentId) ??
+				queryClient.getQueryData<TypesGen.Chat>(
+					chatQueryOptions(agentId).queryKey,
+				);
+			if (activeChat) {
+				setChatPendingRename(activeChat);
+			}
+		},
+		vimNavigationEnabled,
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only
@@ -714,11 +743,6 @@ const AgentsPageLayout: FC = () => {
 			error.message,
 		]),
 	);
-
-	// State for the shared rename-chat dialog. Lifted here so both the
-	// sidebar menu and the chat top bar open the same dialog instance.
-	const [chatPendingRename, setChatPendingRename] =
-		useState<TypesGen.Chat | null>(null);
 
 	const outletContextValue: AgentsPageOutletContext = {
 		chatErrorReasons,

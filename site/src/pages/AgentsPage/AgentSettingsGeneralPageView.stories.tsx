@@ -6,6 +6,7 @@ import {
 	AgentSettingsGeneralPageView,
 	type AgentSettingsGeneralPageViewProps,
 } from "./AgentSettingsGeneralPageView";
+import { VIM_NAVIGATION_STORAGE_KEY } from "./hooks/useVimNavigation";
 
 const preferencesData = {
 	task_notification_alert_dismissed: false,
@@ -169,6 +170,26 @@ export const TogglesSendShortcut: Story = {
 				agent_chat_send_shortcut: "modifier_enter",
 			});
 			expect(toggle).toBeChecked();
+		});
+	},
+};
+
+export const TogglesVimNavigation: Story = {
+	beforeEach: () => {
+		localStorage.removeItem(VIM_NAVIGATION_STORAGE_KEY);
+		return () => localStorage.removeItem(VIM_NAVIGATION_STORAGE_KEY);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Vim-style chat navigation",
+		});
+
+		expect(toggle).not.toBeChecked();
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(toggle).toBeChecked();
+			expect(localStorage.getItem(VIM_NAVIGATION_STORAGE_KEY)).toBe("true");
 		});
 	},
 };

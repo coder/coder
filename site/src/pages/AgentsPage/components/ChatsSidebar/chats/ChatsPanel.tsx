@@ -22,7 +22,7 @@ import {
 	SquarePenIcon,
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
-import { Link, type Location, NavLink } from "react-router";
+import { Link, type Location, NavLink, useNavigate } from "react-router";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -31,6 +31,8 @@ import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { getOSKey } from "#/utils/platform";
+import { useChatVimNavigation } from "../../../hooks/useChatVimNavigation";
+import { useVimNavigation } from "../../../hooks/useVimNavigation";
 import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
@@ -51,6 +53,7 @@ import {
 	collectVisibleChatIDs,
 } from "../tree/chatTree";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
+import { getVisibleChatOrder } from "../tree/visibleChatOrder";
 import {
 	ChatSectionHeader,
 	getSectionToggleTestId,
@@ -131,6 +134,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	location,
 	currentUserId,
 }) => {
+	const navigate = useNavigate();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
@@ -332,6 +336,35 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					),
 				}))
 	).filter((section) => section.chats.length > 0);
+
+	const [vimNavigationEnabled] = useVimNavigation();
+	const chatOrder = getVisibleChatOrder({
+		sections: [
+			{ key: PINNED_SECTION_KEY, chats: sortedPinnedChats },
+			{ key: SHARED_WITH_YOU_SECTION_KEY, chats: sharedWithYouChats },
+			...chatSections,
+		],
+		collapsedSections,
+		expandedById,
+		tree: chatTree,
+	});
+	useChatVimNavigation({
+		// The list is not rendered while loading, on error, or on
+		// settings routes, so navigation would target rows that are
+		// not on screen.
+		enabled:
+			vimNavigationEnabled && !isSettingsPanel && !isLoading && !loadError,
+		visibleChatIds: chatOrder.visible,
+		allChatIds: chatOrder.all,
+		activeChatId,
+		onSelectChat: (chatId) => {
+			navigate({ pathname: `/agents/${chatId}`, search: locationSearch });
+			document
+				.querySelector(`[data-testid="agents-tree-node-${chatId}"]`)
+				?.scrollIntoView({ block: "nearest" });
+		},
+	});
+	const searchShortcutKey = vimNavigationEnabled ? "/" : "K";
 	const isShowingEmptyState = visibleRootIDs.length === 0;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
@@ -418,7 +451,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						trailing={
 							<KbdGroup className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
 								<Kbd>{getOSKey()}</Kbd>
-								<Kbd>K</Kbd>
+								<Kbd>{searchShortcutKey}</Kbd>
 							</KbdGroup>
 						}
 					/>
