@@ -480,7 +480,7 @@ func (server *Server) prepareGeneration(
 	prompt = renderPlanPathPrompt(prompt, planPathBlock)
 	compactionPromptMessages := prompt
 	pendingUserRows := promptRows[pendingRowsStart:]
-	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 || !hasAssistantMessage(prompt) {
+	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
 		pendingUserRows = nil
 	}
 	// Full slice expression: appending the tail must not share the

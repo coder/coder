@@ -567,7 +567,7 @@ func isContextBoundaryMessage(msg database.ChatMessage) bool {
 	return false
 }
 
-// pendingUserSegmentStart returns the index of the first row of the trailing run of unanswered user-role rows (len(promptRows) when there is none); scanning persisted rows means assistant rows terminate the run even when prompt conversion drops them.
+// pendingUserSegmentStart returns the index of the first row of the trailing run of unanswered user-role rows (len(promptRows) when there is none or when no assistant row precedes it); scanning persisted rows means assistant rows terminate the run even when prompt conversion or sanitization drops them.
 func pendingUserSegmentStart(promptRows []database.ChatMessage) int {
 	start := len(promptRows)
 	for start > 0 {
@@ -577,16 +577,12 @@ func pendingUserSegmentStart(promptRows []database.ChatMessage) int {
 		}
 		start--
 	}
-	return start
-}
-
-func hasAssistantMessage(prompt []fantasy.Message) bool {
-	for _, msg := range prompt {
-		if msg.Role == fantasy.MessageRoleAssistant {
-			return true
+	for _, row := range promptRows[:start] {
+		if !row.Deleted && row.Role == database.ChatMessageRoleAssistant {
+			return start
 		}
 	}
-	return false
+	return len(promptRows)
 }
 
 func firstUncompressedAssistantAfter(messages []database.ChatMessage, index int) (database.ChatMessage, bool) {

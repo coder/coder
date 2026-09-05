@@ -1278,6 +1278,15 @@ func TestPendingUserSegmentStart(t *testing.T) {
 		require.Equal(t, len(rows), pendingUserSegmentStart(rows))
 	})
 
+	t.Run("NoAssistantBeforeSegment", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleSystem, false, codersdk.ChatMessageText("system")),
+			dbMessage(t, 2, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("first message")),
+		}
+		require.Equal(t, len(rows), pendingUserSegmentStart(rows))
+	})
+
 	t.Run("DroppedAssistantRowStillStopsSegment", func(t *testing.T) {
 		t.Parallel()
 		// An assistant row that prompt conversion drops (no replayable

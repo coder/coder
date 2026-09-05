@@ -269,19 +269,22 @@ func TestPendingUserSegmentDerivedBeforeProviderSwitchSanitization(t *testing.T)
 		return "openai", id.Valid
 	}
 
-	// Segment first: only the truly unanswered tail is pending.
+	// Segment first: only the truly unanswered tail is pending, and the
+	// foreign assistant row counts as preceding assistant context even
+	// though sanitization is about to drop it.
 	start := pendingUserSegmentStart(rows)
 	require.Equal(t, 2, start)
 
 	// The sanitizer drops the emptied foreign assistant row from the
-	// head; the answered user row stays in the head regardless.
+	// head; the answered user row stays in the head regardless, and the
+	// segment derived above is unaffected.
 	head, stats := stripForeignProviderExecutedToolRows(rows[:start], "anthropic", origin)
 	require.Equal(t, 1, stats.DroppedMessages)
 	require.Len(t, head, 1)
 	require.Equal(t, database.ChatMessageRoleUser, head[0].Role)
 
-	// Deriving the segment after sanitization would misclassify the
-	// answered user row as pending.
+	// Deriving the segment after sanitization would find no assistant
+	// row at all and therefore no pending segment.
 	sanitizedAll, _ := stripForeignProviderExecutedToolRows(rows, "anthropic", origin)
-	require.Equal(t, 0, pendingUserSegmentStart(sanitizedAll))
+	require.Equal(t, len(sanitizedAll), pendingUserSegmentStart(sanitizedAll))
 }
