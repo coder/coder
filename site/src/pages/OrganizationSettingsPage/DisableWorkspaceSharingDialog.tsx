@@ -39,7 +39,7 @@ export const DisableWorkspaceSharingDialog: FC<
 		queryFn: async () => {
 			const response = await API.getWorkspaces({
 				q: `organization:${organizationId} shared:true`,
-				limit: 0, // Avoid fetching workspaces as we only need the count.
+				limit: 1, // This dialog reads only the count.
 			});
 			return response.count;
 		},

@@ -69,7 +69,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 	const getLink = useLinks();
 	const queryText = `organization:${organizationName} template:${templateName}`;
 	const workspaceCountQuery = useQuery({
-		...workspaces({ q: queryText }),
+		...workspaces({ q: queryText, limit: 1 }),
 		select: (res) => res.count,
 	});
 	const safeToDeleteTemplate = workspaceCountQuery.data === 0;
