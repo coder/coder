@@ -50,12 +50,37 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Mount tmpfs for Go temp dir (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        # GOTMPDIR holds test binaries and t.TempDir() output. Keep them off
+        # the EBS-backed root disk like the Windows and macOS RAM disks do.
+        if [[ -z "${GOTMPDIR:-}" ]]; then
+          echo "GOTMPDIR is not set, skipping"
+          exit 0
+        fi
+        mkdir -p "${GOTMPDIR}"
+        sudo mount -t tmpfs -o size=8g tmpfs "${GOTMPDIR}"
+
     - name: Start PostgreSQL Docker container (Linux)
       if: runner.os == 'Linux'
       shell: bash
       env:
         POSTGRES_VERSION: ${{ inputs.postgres-version }}
+        TEST_POSTGRES_LOG_STATEMENT: none
       run: make test-postgres-docker
+
+    - name: Start I/O sampler (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        nohup vmstat -t 1 > "${RUNNER_TEMP}/vmstat.log" 2>&1 &
+        echo $! > "${RUNNER_TEMP}/vmstat.pid"
+        if command -v iostat > /dev/null; then
+          nohup iostat -dxt 1 > "${RUNNER_TEMP}/iostat.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/iostat.pid"
+        fi
 
     - name: Setup Embedded Postgres (Windows/macOS)
       if: runner.os != 'Linux'
@@ -102,3 +127,23 @@ runs:
         else
           make test
         fi
+
+    - name: Stop I/O sampler (Linux)
+      if: always() && runner.os == 'Linux'
+      shell: bash
+      run: |
+        for name in vmstat iostat; do
+          pidfile="${RUNNER_TEMP}/${name}.pid"
+          [[ -f "${pidfile}" ]] && kill "$(cat "${pidfile}")" 2> /dev/null || true
+        done
+
+    - name: Upload I/O samples (Linux)
+      if: failure() && runner.os == 'Linux'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: io-samples-${{ github.job }}
+        path: |
+          ${{ runner.temp }}/vmstat.log
+          ${{ runner.temp }}/iostat.log
+        if-no-files-found: ignore
+        retention-days: 7
