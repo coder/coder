@@ -18,6 +18,7 @@ const TemplateEmbedPage: React.FC = () => {
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
+	const [isConnecting, setIsConnecting] = useState(false);
 
 	const sendMessage = (formValues: Record<string, string>) => {
 		const request: DynamicParametersRequest = {
@@ -49,13 +50,20 @@ const TemplateEmbedPage: React.FC = () => {
 			me.id,
 			{
 				onMessage,
+				onOpen: () => {
+					if (ws.current === socket) {
+						setIsConnecting(false);
+					}
+				},
 				onError: (error) => {
 					if (ws.current === socket) {
+						setIsConnecting(false);
 						setWsError(error);
 					}
 				},
 				onClose: () => {
 					if (ws.current === socket) {
+						setIsConnecting(false);
 						setWsError(
 							new DetailedError(
 								"Websocket connection for dynamic parameters unexpectedly closed.",
@@ -67,6 +75,7 @@ const TemplateEmbedPage: React.FC = () => {
 			},
 		);
 
+		setIsConnecting(true);
 		ws.current = socket;
 
 		return () => {
@@ -83,8 +92,7 @@ const TemplateEmbedPage: React.FC = () => {
 			.sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
-	const isLoading =
-		ws.current?.readyState === WebSocket.CONNECTING || !latestResponse;
+	const isLoading = isConnecting || !latestResponse;
 
 	return (
 		<>
