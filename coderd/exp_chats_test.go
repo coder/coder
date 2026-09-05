@@ -3491,6 +3491,57 @@ func TestUserAIProviderKeys(t *testing.T) {
 		require.Equal(t, "AI provider is disabled.", sdkErr.Message)
 	})
 
+	t.Run("RejectsBedrockAuthenticatedProviders", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		bedrockSettings := codersdk.AIProviderSettings{
+			Bedrock: &codersdk.AIProviderBedrockSettings{
+				Region:         "us-east-1",
+				Model:          "anthropic.claude-3-5-sonnet",
+				SmallFastModel: "anthropic.claude-3-5-haiku",
+			},
+		}
+		bedrockTyped, err := adminClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:     codersdk.AIProviderTypeBedrock,
+			Name:     "test-bedrock-user-key-" + uuid.NewString(),
+			Enabled:  true,
+			BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Settings: bedrockSettings,
+		})
+		require.NoError(t, err)
+		// Legacy representation: anthropic type carrying Bedrock settings.
+		anthropicTyped, err := adminClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:     codersdk.AIProviderTypeAnthropic,
+			Name:     "test-anthropic-bedrock-user-key-" + uuid.NewString(),
+			Enabled:  true,
+			BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Settings: bedrockSettings,
+		})
+		require.NoError(t, err)
+		openAI := createOpenAIProvider(t, adminClient, "test-openai-user-key-"+uuid.NewString(), true)
+
+		configs, err := memberClient.ListUserAIProviderKeyConfigs(ctx, "me")
+		require.NoError(t, err)
+		for _, provider := range []codersdk.AIProvider{bedrockTyped, anthropicTyped} {
+			cfg := findUserAIProviderKeyConfig(t, configs, provider.ID)
+			require.NotNil(t, cfg)
+			require.False(t, cfg.SupportsUserAPIKey)
+
+			_, err = memberClient.UpsertUserAIProviderKey(ctx, "me", provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "test-user-api-key"})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Personal API keys are not supported for this provider.", sdkErr.Message)
+		}
+		cfg := findUserAIProviderKeyConfig(t, configs, openAI.ID)
+		require.NotNil(t, cfg)
+		require.True(t, cfg.SupportsUserAPIKey)
+	})
+
 	t.Run("RejectsLargeAPIKey", func(t *testing.T) {
 		t.Parallel()
 

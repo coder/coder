@@ -2589,6 +2589,7 @@ export const SettingsAPIKeysNonAdmin: Story = {
 						has_user_api_key: false,
 						has_central_api_key_fallback: false,
 						byok_enabled: true,
+						supports_user_api_key: true,
 					},
 				],
 			},

@@ -1021,6 +1021,7 @@ describe("providerInfoByIDFromUserConfigs", () => {
 				has_user_api_key: false,
 				has_central_api_key_fallback: true,
 				byok_enabled: true,
+				supports_user_api_key: true,
 			},
 		]);
 
@@ -1046,6 +1047,7 @@ describe("providerTypeByIDFromUserConfigs", () => {
 				has_user_api_key: false,
 				has_central_api_key_fallback: true,
 				byok_enabled: true,
+				supports_user_api_key: true,
 			},
 		]);
 

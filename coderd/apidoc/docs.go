@@ -30253,6 +30253,10 @@ const docTemplate = `{
                 },
                 "provider": {
                     "$ref": "#/definitions/codersdk.AIProviderSummary"
+                },
+                "supports_user_api_key": {
+                    "description": "SupportsUserAPIKey reports whether a personal API key can authenticate\nrequests to this provider. It is false for Bedrock-authenticated\nproviders, which the AI gateway signs with the deployment's AWS\ncredentials regardless of any saved user key.",
+                    "type": "boolean"
                 }
             }
         },

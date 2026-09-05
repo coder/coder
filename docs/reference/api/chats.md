@@ -4412,7 +4412,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-provider-keys \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "type": "openai"
-    }
+    },
+    "supports_user_api_key": true
   }
 ]
 ```
@@ -4427,20 +4428,21 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-provider-keys \
 
 Status Code **200**
 
-| Name                     | Type                                                               | Required | Restrictions | Description |
-|--------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`           | array                                                              | false    |              |             |
-| `» byok_enabled`         | boolean                                                            | false    |              |             |
-| `» has_provider_api_key` | boolean                                                            | false    |              |             |
-| `» has_user_api_key`     | boolean                                                            | false    |              |             |
-| `» provider`             | [codersdk.AIProviderSummary](schemas.md#codersdkaiprovidersummary) | false    |              |             |
-| `»» deleted`             | boolean                                                            | false    |              |             |
-| `»» display_name`        | string                                                             | false    |              |             |
-| `»» enabled`             | boolean                                                            | false    |              |             |
-| `»» icon`                | string                                                             | false    |              |             |
-| `»» id`                  | string(uuid)                                                       | false    |              |             |
-| `»» name`                | string                                                             | false    |              |             |
-| `»» type`                | [codersdk.AIProviderType](schemas.md#codersdkaiprovidertype)       | false    |              |             |
+| Name                      | Type                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                              |
+|---------------------------|--------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`            | array                                                              | false    |              |                                                                                                                                                                                                                                                          |
+| `» byok_enabled`          | boolean                                                            | false    |              |                                                                                                                                                                                                                                                          |
+| `» has_provider_api_key`  | boolean                                                            | false    |              |                                                                                                                                                                                                                                                          |
+| `» has_user_api_key`      | boolean                                                            | false    |              |                                                                                                                                                                                                                                                          |
+| `» provider`              | [codersdk.AIProviderSummary](schemas.md#codersdkaiprovidersummary) | false    |              |                                                                                                                                                                                                                                                          |
+| `»» deleted`              | boolean                                                            | false    |              |                                                                                                                                                                                                                                                          |
+| `»» display_name`         | string                                                             | false    |              |                                                                                                                                                                                                                                                          |
+| `»» enabled`              | boolean                                                            | false    |              |                                                                                                                                                                                                                                                          |
+| `»» icon`                 | string                                                             | false    |              |                                                                                                                                                                                                                                                          |
+| `»» id`                   | string(uuid)                                                       | false    |              |                                                                                                                                                                                                                                                          |
+| `»» name`                 | string                                                             | false    |              |                                                                                                                                                                                                                                                          |
+| `»» type`                 | [codersdk.AIProviderType](schemas.md#codersdkaiprovidertype)       | false    |              |                                                                                                                                                                                                                                                          |
+| `» supports_user_api_key` | boolean                                                            | false    |              | Supports user api key reports whether a personal API key can authenticate requests to this provider. It is false for Bedrock-authenticated providers, which the AI gateway signs with the deployment's AWS credentials regardless of any saved user key. |
 
 #### Enumerated Values
 
@@ -4497,7 +4499,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPro
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "type": "openai"
-  }
+  },
+  "supports_user_api_key": true
 }
 ```
 

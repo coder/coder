@@ -6763,14 +6763,37 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 	for _, provider := range visibleProviders {
 		_, hasUserKey := keysByProviderID[provider.ID]
 		_, hasProviderKey := providerKeysByProviderID[provider.ID]
+		supportsUserKey, err := aiProviderSupportsUserAPIKey(provider)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to decode AI provider settings", slog.Error(err), slog.F("ai_provider_id", provider.ID))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to list AI providers."})
+			return
+		}
 		configs = append(configs, codersdk.UserAIProviderKeyConfig{
-			Provider:          convertAIProviderSummary(provider),
-			HasUserAPIKey:     hasUserKey,
-			HasProviderAPIKey: hasProviderKey,
-			BYOKEnabled:       byokEnabled,
+			Provider:           convertAIProviderSummary(provider),
+			HasUserAPIKey:      hasUserKey,
+			HasProviderAPIKey:  hasProviderKey,
+			BYOKEnabled:        byokEnabled,
+			SupportsUserAPIKey: supportsUserKey,
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, configs)
+}
+
+// aiProviderSupportsUserAPIKey reports whether a personal API key can
+// authenticate requests to the provider. The AI gateway signs requests to
+// Bedrock-authenticated providers (type bedrock, or anthropic with Bedrock
+// settings) with the deployment's AWS credentials, so a user key is never
+// used for them.
+func aiProviderSupportsUserAPIKey(provider database.AIProvider) (bool, error) {
+	if provider.Type == database.AIProviderTypeBedrock {
+		return false, nil
+	}
+	settings, err := db2sdk.AIProviderSettings(provider.Settings)
+	if err != nil {
+		return false, xerrors.Errorf("decode AI provider settings: %w", err)
+	}
+	return settings.Bedrock == nil, nil
 }
 
 // @Summary Update user AI provider key
@@ -6810,6 +6833,19 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 	}
 	if !provider.Enabled {
 		writeChatProviderPreconditionError(ctx, rw, errChatProviderDisabled)
+		return
+	}
+	supportsUserKey, err := aiProviderSupportsUserAPIKey(provider)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to decode AI provider settings", slog.Error(err), slog.F("ai_provider_id", providerID))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to get AI provider."})
+		return
+	}
+	if !supportsUserKey {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Personal API keys are not supported for this provider.",
+			Detail:  "Requests to AWS Bedrock providers authenticate with the deployment's AWS credentials.",
+		})
 		return
 	}
 	var req codersdk.CreateUserAIProviderKeyRequest
@@ -6853,10 +6889,11 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAIProviderKeyConfig{
-		Provider:          convertAIProviderSummary(provider),
-		HasUserAPIKey:     true,
-		HasProviderAPIKey: len(providerKeys) > 0,
-		BYOKEnabled:       true,
+		Provider:           convertAIProviderSummary(provider),
+		HasUserAPIKey:      true,
+		HasProviderAPIKey:  len(providerKeys) > 0,
+		BYOKEnabled:        true,
+		SupportsUserAPIKey: true,
 	})
 }
 

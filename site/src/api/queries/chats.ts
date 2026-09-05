@@ -2237,6 +2237,7 @@ export const userChatProviderConfigs = () => ({
 			has_user_api_key: config.has_user_api_key,
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,
+			supports_user_api_key: config.supports_user_api_key,
 		}));
 	},
 });

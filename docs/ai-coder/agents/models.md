@@ -110,8 +110,14 @@ Provider API keys entered by administrators are centralized credentials for the 
 BYOK for Coder Agents is controlled by the
 [global AI Gateway BYOK setting](../ai-gateway/auth.md#bring-your-own-key-byok),
 not by per-provider key policy flags. When BYOK is enabled, users can save a
-personal API key for any enabled AI provider. When BYOK is disabled, saved user
-keys are ignored and users cannot add or update personal keys.
+personal API key for any enabled AI provider except AWS Bedrock. When BYOK is
+disabled, saved user keys are ignored and users cannot add or update personal
+keys.
+
+AWS Bedrock providers do not support personal API keys. AI Gateway signs
+Bedrock requests with the deployment-managed AWS credentials (SigV4), so a
+personal key would never be used. This applies to providers of type `bedrock`
+and to `anthropic` providers configured with Bedrock settings.
 
 For each provider request, Coder selects credentials in this order:
 
@@ -385,7 +391,7 @@ reject explicit model selection.
 
 When [AI Gateway BYOK](../ai-gateway/auth.md#bring-your-own-key-byok) is
 enabled, developers can supply personal API keys for any enabled AI provider
-from the Agents settings page.
+except AWS Bedrock from the Agents settings page.
 
 ### Managing personal API keys
 
@@ -398,6 +404,12 @@ from the Agents settings page.
      deployment-managed credentials for that provider.
    - **No key**, no personal key or deployment-managed credential is available.
      Add a personal key before you use models from this provider.
+   - **Not supported**, the provider authenticates with deployment-managed AWS
+     credentials and does not accept personal API keys. This applies to AWS
+     Bedrock providers.
+   - **Key not used**, a personal key was saved for a provider that no longer
+     accepts personal API keys. The key is ignored; select **Remove** to delete
+     it.
 1. Enter your API key and select **Save**.
 
 Personal API keys are encrypted at rest using the same database encryption

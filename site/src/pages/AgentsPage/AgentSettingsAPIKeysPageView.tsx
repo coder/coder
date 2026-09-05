@@ -13,6 +13,9 @@ import { SectionHeader } from "./components/SectionHeader";
 
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
+const BEDROCK_UNSUPPORTED_NOTE =
+	"AWS Bedrock providers do not support personal API keys yet. Requests authenticate with AWS credentials configured by your deployment administrator.";
+
 type ProviderStatus = {
 	label: string;
 	variant: "default" | "green" | "warning";
@@ -22,6 +25,21 @@ type ProviderStatus = {
 const getProviderStatus = (
 	provider: UserChatProviderConfig,
 ): ProviderStatus => {
+	if (!provider.supports_user_api_key) {
+		if (provider.has_user_api_key) {
+			return {
+				label: "Key not used",
+				variant: "warning",
+				note: `${BEDROCK_UNSUPPORTED_NOTE} Your saved key is not used and can be removed.`,
+			};
+		}
+		return {
+			label: "Not supported",
+			variant: "default",
+			note: BEDROCK_UNSUPPORTED_NOTE,
+		};
+	}
+
 	if (!provider.byok_enabled) {
 		return {
 			label: "User keys disabled",
@@ -119,9 +137,11 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 		onRemove(provider.provider_id);
 	};
 
-	const deleteDescription = provider.has_central_api_key_fallback
-		? "This will remove your personal API key. Requests will fall back to the shared deployment key for this provider."
-		: "This will remove your personal API key. You will need to add a new key before you can use this provider again.";
+	const deleteDescription = !provider.supports_user_api_key
+		? "This will remove your saved API key. Requests are unaffected; they continue to authenticate with AWS credentials configured by your deployment administrator."
+		: provider.has_central_api_key_fallback
+			? "This will remove your personal API key. Requests will fall back to the shared deployment key for this provider."
+			: "This will remove your personal API key. You will need to add a new key before you can use this provider again.";
 
 	return (
 		<article className="rounded-lg border border-solid border-border p-6">
@@ -139,54 +159,70 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 				</Badge>
 			</div>
 
-			<form className="mt-6 flex flex-col gap-3" onSubmit={handleSave}>
-				<label
-					htmlFor={apiKeyInputId}
-					className="text-sm font-medium text-content-primary"
-				>
-					API Key
-				</label>
-				<div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-					<div className="flex flex-col gap-1.5 lg:flex-1">
-						<Input
-							id={apiKeyInputId}
-							name={`provider-api-key-${provider.provider_id}`}
-							type="password"
-							{...passwordManagerIgnoreProps}
-							className="h-9 font-mono text-[13px]"
-							placeholder="sk-..."
-							value={apiKey}
-							onFocus={handleApiKeyFocus}
-							onChange={(event) => {
-								setApiKey(event.target.value);
-								setApiKeyTouched(true);
-							}}
-							disabled={inputDisabled}
-						/>
-						{hasAPIKeyWhitespace && (
-							<p className="m-0 text-xs text-content-destructive">
-								API key must not contain leading or trailing whitespace.
-							</p>
-						)}
-					</div>
-					<div className="flex items-center gap-2">
-						<Button type="submit" size="sm" disabled={saveDisabled}>
-							Save
-						</Button>
-						{provider.has_user_api_key && (
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => setIsDeleteDialogOpen(true)}
-								disabled={removeDisabled}
-							>
-								Remove
+			{provider.supports_user_api_key ? (
+				<form className="mt-6 flex flex-col gap-3" onSubmit={handleSave}>
+					<label
+						htmlFor={apiKeyInputId}
+						className="text-sm font-medium text-content-primary"
+					>
+						API Key
+					</label>
+					<div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+						<div className="flex flex-col gap-1.5 lg:flex-1">
+							<Input
+								id={apiKeyInputId}
+								name={`provider-api-key-${provider.provider_id}`}
+								type="password"
+								{...passwordManagerIgnoreProps}
+								className="h-9 font-mono text-[13px]"
+								placeholder="sk-..."
+								value={apiKey}
+								onFocus={handleApiKeyFocus}
+								onChange={(event) => {
+									setApiKey(event.target.value);
+									setApiKeyTouched(true);
+								}}
+								disabled={inputDisabled}
+							/>
+							{hasAPIKeyWhitespace && (
+								<p className="m-0 text-xs text-content-destructive">
+									API key must not contain leading or trailing whitespace.
+								</p>
+							)}
+						</div>
+						<div className="flex items-center gap-2">
+							<Button type="submit" size="sm" disabled={saveDisabled}>
+								Save
 							</Button>
-						)}
+							{provider.has_user_api_key && (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setIsDeleteDialogOpen(true)}
+									disabled={removeDisabled}
+								>
+									Remove
+								</Button>
+							)}
+						</div>
 					</div>
-				</div>
-			</form>
+				</form>
+			) : (
+				provider.has_user_api_key && (
+					<div className="mt-6">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => setIsDeleteDialogOpen(true)}
+							disabled={removeDisabled}
+						>
+							Remove
+						</Button>
+					</div>
+				)
+			)}
 
 			<div className="mt-6 flex flex-col gap-2">
 				<p className="m-0 text-sm font-medium text-content-primary">

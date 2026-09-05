@@ -19,6 +19,7 @@ const createProvider = (
 	has_user_api_key: overrides.has_user_api_key ?? false,
 	has_central_api_key_fallback: overrides.has_central_api_key_fallback ?? false,
 	byok_enabled: overrides.byok_enabled ?? true,
+	supports_user_api_key: overrides.supports_user_api_key ?? true,
 });
 
 const createModel = (
@@ -110,6 +111,97 @@ export const MasksApiKeyInput: Story = {
 			"type",
 			"password",
 		);
+	},
+};
+
+export const BedrockProvider: Story = {
+	args: {
+		providerItems: createProviderItems([
+			createProvider({
+				provider_id: "prov-bedrock",
+				provider: "bedrock",
+				display_name: "AWS Bedrock",
+				supports_user_api_key: false,
+			}),
+		]),
+		models: [
+			createModel({
+				id: "model-bedrock-1",
+				ai_provider_id: "prov-bedrock",
+				display_name: "Claude Sonnet 4",
+				model: "anthropic.claude-sonnet-4-20250514-v1:0",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Not supported")).toBeVisible();
+		await expect(
+			canvas.getByText(
+				/AWS Bedrock providers do not support personal API keys/,
+			),
+		).toBeVisible();
+		expect(canvas.queryByLabelText(/API Key/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Save" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const AnthropicTypedBedrockProvider: Story = {
+	args: {
+		providerItems: createProviderItems([
+			createProvider({
+				provider_id: "prov-anthropic-bedrock",
+				provider: "anthropic",
+				display_name: "Anthropic via Bedrock",
+				supports_user_api_key: false,
+			}),
+		]),
+		models: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Not supported")).toBeVisible();
+		expect(canvas.queryByLabelText(/API Key/i)).not.toBeInTheDocument();
+	},
+};
+
+export const BedrockProviderWithSavedKey: Story = {
+	args: {
+		providerItems: createProviderItems([
+			createProvider({
+				provider_id: "prov-bedrock",
+				provider: "bedrock",
+				display_name: "AWS Bedrock",
+				has_user_api_key: true,
+				supports_user_api_key: false,
+			}),
+		]),
+		models: [],
+		onRemove: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Key not used")).toBeVisible();
+		expect(canvas.queryByLabelText(/API Key/i)).not.toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Remove" }));
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = await body.findByRole("dialog");
+		await waitFor(() =>
+			expect(
+				within(dialog).getByText(
+					/Requests are unaffected; they continue to authenticate with AWS credentials/,
+				),
+			).toBeVisible(),
+		);
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Remove" }),
+		);
+		await waitFor(() => {
+			expect(args.onRemove).toHaveBeenCalledWith("prov-bedrock");
+		});
 	},
 };
 
