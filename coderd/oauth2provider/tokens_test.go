@@ -139,6 +139,10 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		description := requireTokenScopeError(t, status, body)
 		require.Contains(t, description, oauth2provider.ReasonScopeNotGranted)
 		require.Contains(t, description, scopeAlsoInCatalog)
+		// No refresh can widen, so a client without this is left retrying
+		// scope combinations that cannot succeed.
+		require.Contains(t, description, "authorize again",
+			"the rejection must name the only way to a broader grant")
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
 			mintedKeyScopes(ctx, t, db, token.RefreshToken),
 			"a rejected refresh issues nothing and leaves the original token redeemable")

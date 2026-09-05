@@ -493,7 +493,8 @@ The request may name anything the original grant confers, including a single
 permission out of a composite scope, so a token granted
 `coder:workspaces.access` can refresh down to `workspace:read` for one call and
 to `workspace:ssh` for the next. Asking for more is refused with `scope
-requests permissions beyond the scope originally granted`, and a scope this
+requests permissions beyond the scope originally granted; a refresh cannot
+widen a grant, so authorize again to obtain a broader one`, and a scope this
 deployment does not define with `unknown or unsupported scope`. A refused
 refresh mints nothing and leaves the refresh token usable.
 

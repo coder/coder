@@ -46,10 +46,11 @@ var (
 	// errStaleScope means the app's registered scopes narrowed after the code
 	// was issued and no longer cover the code's scope.
 	errStaleScope = xerrors.New("scope is no longer allowed by this app's registered scopes; authorize again to obtain a code within the current scopes")
-	// errScopeNotGranted means a refresh asked for more than the original
-	// grant. Unlike errScopeNotAllowed, the ceiling is the grant itself rather
-	// than the app's current allowlist.
-	errScopeNotGranted = xerrors.New("scope requests permissions beyond the scope originally granted")
+	// errScopeNotGranted means a refresh asked for more than the resource owner
+	// granted. Unlike errScopeNotAllowed, the ceiling is the grant itself rather
+	// than the app's current allowlist, and it does not move: no refresh can
+	// raise it, so the message names the only way forward as errStaleScope does.
+	errScopeNotGranted = xerrors.New("scope requests permissions beyond the scope originally granted; a refresh cannot widen a grant, so authorize again to obtain a broader one")
 )
 
 // checkScopeStillCovered rechecks a grant's scope against the app's registered
@@ -86,13 +87,11 @@ func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app databas
 	return nil
 }
 
-// narrowAccessScope decides the scope the refreshed access token carries. RFC
-// 6749 §6 bounds the request by the scope originally granted, so a request may
-// only give authority up; an omitted request takes the grant whole.
-//
-// The grant itself does not move: only the minted access token narrows. A later
-// refresh may therefore ask for a different part of the same grant, which OAuth
-// 2.1 §4.3 gives as one of the two reasons a client refreshes at all.
+// narrowAccessScope returns the scope for the refreshed access token. A request
+// may ask for less than the grant but never more (RFC 6749 §6), and a request
+// naming no scope gets the whole grant. The narrowing applies to this access
+// token only: the grant is unchanged, so the next refresh may ask for a
+// different part of it.
 //
 // Coverage, not membership, as in negotiateScope: a grant of
 // `coder:workspaces.access` confers `workspace:read`, and `coder:all` confers
