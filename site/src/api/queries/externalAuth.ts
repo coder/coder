@@ -42,8 +42,14 @@ export const validateExternalAuth = (
 ): UseMutationOptions<ExternalAuth, unknown, string> => {
 	return {
 		mutationFn: API.getExternalAuthProvider,
-		onSuccess: (data, providerId) => {
+		onSuccess: async (data, providerId) => {
 			queryClient.setQueryData(["external-auth", providerId], data);
+			// The list query is the only source of validate_error, so refetch it
+			// to clear a stale error captured at page load.
+			await queryClient.invalidateQueries({
+				queryKey: ["external-auth"],
+				exact: true,
+			});
 		},
 	};
 };

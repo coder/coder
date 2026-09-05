@@ -69,6 +69,7 @@ export const Failed: Story = {
 			links: [
 				{
 					...MockGithubAuthLink,
+					authenticated: false,
 					validate_error: "Failed to refresh token",
 				},
 			],
