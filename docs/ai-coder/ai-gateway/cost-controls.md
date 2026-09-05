@@ -291,8 +291,8 @@ coder exp ai-model-prices update prices.json
 >   across upgrades, so it does not pick up later price books.
 > - A price is keyed by provider type and model, so every configured provider
 >   of that type shares it.
-> - `openai-compat` providers cannot be priced. They pass through to any
->   upstream vendor, so a single price would be wrong for most of them.
+> - You can set prices for `openai-compat` providers manually, but the shipped price book does not include them.
+>   Note that two `openai-compat` providers using the same model ID share a price, which can misattribute costs when the upstream providers charge different prices.
 > - This command is experimental and can change without notice.
 
 ## Monitor spend

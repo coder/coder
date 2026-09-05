@@ -231,6 +231,32 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		require.Nil(t, prices[0].CacheWritePrice)
 	})
 
+	t.Run("SetsOpenAICompatPrice", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: an openai-compat model that the generated price book does not
+		// cover.
+		ownerClient, _ := setupAIModelPricesTest(t)
+		exp := codersdk.NewExperimentalClient(ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: an operator sets its price.
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("openai-compat", "my-model", 3_000_000)},
+		}))
+
+		// Then: the custom price is stored for the provider type and model.
+		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
+			Provider: "openai-compat",
+			Model:    "my-model",
+		})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
+		require.Equal(t, codersdk.AIModelPriceSourceCustom, prices[0].Source)
+		require.Equal(t, int64(3_000_000), *prices[0].InputPrice)
+	})
+
 	t.Run("UpdatesAPriceItSet", func(t *testing.T) {
 		t.Parallel()
 

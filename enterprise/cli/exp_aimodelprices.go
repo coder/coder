@@ -48,7 +48,9 @@ Coder's price book:
     }
   ]
   * A price is keyed by provider type and model, so every configured
-    provider of that type shares it.
+    provider of that type shares it. If two openai-compat providers use the
+    same model ID, they cannot have different prices. This can misattribute
+    costs when the upstream providers charge different prices.
   * Prices are micro-units per million tokens, so 3000000 is $3.00 per
     million tokens.
   * A 'null' price is unknown and adds no cost. An explicit 0 declares the

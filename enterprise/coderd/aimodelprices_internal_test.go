@@ -48,24 +48,20 @@ func TestValidateAIModelPrices(t *testing.T) {
 			name: "MissingProvider",
 			body: `{"prices":[{"model":"my-model",` + allPrices + `}]}`,
 			want: []codersdk.ValidationError{
-				{Field: "prices[0].provider", Detail: "Provider is required. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel."},
+				{Field: "prices[0].provider", Detail: "Provider is required. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel, openai-compat."},
 			},
 		},
 		{
 			name: "UnsupportedProvider",
 			body: `{"prices":[{"provider":"unknown-provider","model":"my-model",` + allPrices + `}]}`,
 			want: []codersdk.ValidationError{
-				{Field: "prices[0].provider", Detail: `Provider "unknown-provider" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel.`},
+				{Field: "prices[0].provider", Detail: `Provider "unknown-provider" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel, openai-compat.`},
 			},
 		},
 		{
-			// openai-compat is a generic passthrough, so a price cannot be
-			// attributed to the model behind it.
-			name: "OpenAICompatRejected",
+			name: "OpenAICompat",
 			body: `{"prices":[{"provider":"openai-compat","model":"my-model",` + allPrices + `}]}`,
-			want: []codersdk.ValidationError{
-				{Field: "prices[0].provider", Detail: `Provider "openai-compat" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel.`},
-			},
+			want: nil,
 		},
 		{
 			name: "MissingModel",
@@ -135,7 +131,7 @@ func TestValidateAIModelPrices(t *testing.T) {
 			body: `{"prices":[{"provider":"openrouter","model":"anthropic/my-model",` + allPrices + `},` +
 				`{"provider":"openrouter/anthropic","model":"my-model",` + allPrices + `}]}`,
 			want: []codersdk.ValidationError{
-				{Field: "prices[1].provider", Detail: `Provider "openrouter/anthropic" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel.`},
+				{Field: "prices[1].provider", Detail: `Provider "openrouter/anthropic" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel, openai-compat.`},
 			},
 		},
 		{
@@ -150,7 +146,7 @@ func TestValidateAIModelPrices(t *testing.T) {
 			name: "ReportsProviderBeforePrices",
 			body: `{"prices":[{"provider":"unknown-provider","model":"my-model"}]}`,
 			want: []codersdk.ValidationError{
-				{Field: "prices[0].provider", Detail: `Provider "unknown-provider" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel.`},
+				{Field: "prices[0].provider", Detail: `Provider "unknown-provider" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel, openai-compat.`},
 				{Field: "prices[0]", Detail: "At least one price must be set. Use 0 to declare a model free of charge."},
 			},
 		},
@@ -160,7 +156,7 @@ func TestValidateAIModelPrices(t *testing.T) {
 			body: `{"prices":[{"provider":"unknown-provider","model":"a",` + allPrices + `},` +
 				`{"provider":"anthropic","model":"",` + allPrices + `}]}`,
 			want: []codersdk.ValidationError{
-				{Field: "prices[0].provider", Detail: `Provider "unknown-provider" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel.`},
+				{Field: "prices[0].provider", Detail: `Provider "unknown-provider" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel, openai-compat.`},
 				{Field: "prices[1].model", Detail: "Model is required."},
 			},
 		},
