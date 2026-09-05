@@ -43,7 +43,7 @@ import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 import type { ModelSelectorOption } from "./components/ChatElements";
-import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
+import { chatSidebarTabStorage } from "./storage";
 
 // ---------------------------------------------------------------------------
 // Shared constants & helpers
@@ -1641,7 +1641,7 @@ export const TerminalFocusOnTabSwitch: Story = {
 	},
 };
 
-const sidebarTabStorageKey = `${lastActiveSidebarTabStorageKeyPrefix}${AGENT_ID}`;
+const sidebarTabStorageKey = `${chatSidebarTabStorage.prefix}${AGENT_ID}`;
 
 /**
  * When localStorage contains a persisted tab ID for this chat, the sidebar
@@ -1710,7 +1710,7 @@ export const PersistsSidebarTabClick: Story = {
 			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("git");
+		expect(chatSidebarTabStorage.forId(AGENT_ID).get()).toBe("git");
 	},
 };
 
@@ -1739,7 +1739,7 @@ export const PreservesUnavailableSidebarTab: Story = {
 
 		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
 
-		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
+		expect(chatSidebarTabStorage.forId(AGENT_ID).get()).toBe("terminal");
 	},
 };
 
@@ -1891,7 +1891,7 @@ export const PreservesUnavailableBrowserTab: Story = {
 
 		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
 
-		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("browser");
+		expect(chatSidebarTabStorage.forId(AGENT_ID).get()).toBe("browser");
 	},
 };
 
@@ -1936,7 +1936,7 @@ export const DoesNotPersistForArchivedChat: Story = {
 			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		expect(localStorage.getItem(sidebarTabStorageKey)).toBeNull();
+		expect(chatSidebarTabStorage.forId(AGENT_ID).get()).toBeNull();
 	},
 };
 

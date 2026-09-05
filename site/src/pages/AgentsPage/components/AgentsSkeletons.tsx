@@ -1,26 +1,24 @@
 import { cn } from "cn";
 import { type FC, useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useStorage } from "#/hooks/useStorage";
+import {
+	chatFullWidthStorage,
+	rightPanelOpenStorage,
+	rightPanelWidthStorage,
+} from "../storage";
+import { chatWidthClass } from "../utils/chatWidth";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 
-/** localStorage keys shared with the agents panel components. */
-const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-const RIGHT_PANEL_WIDTH_KEY = "agents.right-panel-width";
 const DEFAULT_PANEL_WIDTH = 480;
 const MIN_PANEL_WIDTH = 360;
 
 /** Read persisted right-panel state for use in static skeletons. */
 function getRightPanelState(): { open: boolean; width: number } {
-	const open = localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
-	const stored = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
-	let width = DEFAULT_PANEL_WIDTH;
-	if (stored) {
-		const parsed = Number.parseInt(stored, 10);
-		if (!Number.isNaN(parsed) && parsed >= MIN_PANEL_WIDTH) {
-			width = parsed;
-		}
-	}
+	const open = rightPanelOpenStorage.get();
+	const stored = rightPanelWidthStorage.get();
+	const width =
+		stored !== null && stored >= MIN_PANEL_WIDTH ? stored : DEFAULT_PANEL_WIDTH;
 	return { open, width };
 }
 
@@ -160,7 +158,7 @@ const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
  */
 export const AgentChatPageSkeleton: FC = () => {
 	const rightPanel = getRightPanelState();
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useStorage(chatFullWidthStorage);
 
 	return (
 		<div

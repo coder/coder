@@ -3,7 +3,14 @@ import type { FC } from "react";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { toast } from "sonner";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -50,9 +57,11 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import { clearChatStorage, rightPanelOpenStorage } from "./storage";
+import { chatDraftAttachmentStorageKey } from "./utils/chatDraftAttachmentStorage";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -916,7 +925,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 		}),
 	},
 	beforeEach: () => {
-		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		localStorage.removeItem(rightPanelOpenStorage.key);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
 		spyOn(API.experimental, "updateChat").mockResolvedValue();
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
@@ -936,7 +945,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 				byok_enabled: true,
 			},
 		]);
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 };
 
@@ -1848,8 +1857,8 @@ export const PlanModeFromChatState: Story = {
  */
 export const NarrowViewportShowsChatOverOpenPanel: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -1894,12 +1903,12 @@ let narrowingMedia: ReturnType<typeof setupMatchMedia> | undefined;
  */
 export const NarrowingSuppressesExpandedPanel: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
 		narrowingMedia = setupMatchMedia({ [belowLgViewportMediaQuery]: false });
 		return () => {
 			narrowingMedia?.restore();
 			narrowingMedia = undefined;
-			localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+			localStorage.removeItem(rightPanelOpenStorage.key);
 		};
 	},
 	parameters: {
@@ -1948,8 +1957,8 @@ export const NarrowingSuppressesExpandedPanel: Story = {
 /** Full layout with actions menu and diff panel portaled to the right slot. */
 export const CompletedWithDiffPanel: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 	parameters: {
 		queries: buildQueries(
@@ -2349,8 +2358,8 @@ export const StreamedSubagentTitle: Story = {
  */
 export const SidebarWithPRAndRepos: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 	parameters: {
 		queries: buildQueries(
@@ -2530,8 +2539,8 @@ export const SidebarWithPRAndRepos: Story = {
  */
 export const SidebarWithSingleRepo: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 	parameters: {
 		queries: buildQueries(
@@ -2618,12 +2627,12 @@ const rebuildRecoveryChat: TypesGen.Chat = {
 
 export const RecoversSidebarAfterWorkspaceRebuild: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
 		spyOn(API.experimental, "getChat").mockResolvedValue({
 			...rebuildRecoveryChat,
 			agent_id: rebuiltWorkspaceAgent.id,
 		});
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 	parameters: {
 		queries: [
@@ -4212,5 +4221,210 @@ export const SendRejectedByHookDispatchFailure: Story = {
 			await canvas.findByText("Dispatch 0f2c1f3e timed out after 1.5s."),
 		).toBeVisible();
 		expect(canvas.queryByText("Request failed")).not.toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Archive-during-upload draft cleanup
+// ---------------------------------------------------------------------------
+
+/**
+ * Outlet whose archive request runs the same per-chat storage cleanup
+ * the layout's archive mutation performs on success; the mutation
+ * wiring itself is covered in chats.test.ts.
+ */
+const ArchiveCleanupLayout: FC = () => (
+	<div className="flex h-full">
+		<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+			<Outlet
+				context={
+					{
+						chatErrorReasons: {},
+						setChatErrorReason: () => {},
+						clearChatErrorReason: () => {},
+						requestArchiveAgent: (chatId: string) => {
+							clearChatStorage(chatId);
+						},
+						requestArchiveAndDeleteWorkspace: (
+							_chatId: string,
+							_workspaceId: string,
+						) => {},
+						requestUnarchiveAgent: () => {},
+						requestPinAgent: () => {},
+						requestUnpinAgent: () => {},
+						isArchiving: false,
+						archivingChatId: undefined,
+						activeChatChildren: undefined,
+						isSidebarCollapsed: false,
+						onToggleSidebarCollapsed: () => {},
+						onExpandSidebar: () => {},
+						onChatReady: () => {},
+					} satisfies AgentsPageOutletContext
+				}
+			/>
+		</div>
+	</div>
+);
+
+const archiveDraftStorageKey = chatDraftAttachmentStorageKey(
+	"test-org-id",
+	CHAT_ID,
+);
+
+let resolveDraftUpload: (value: { id: string }) => void = () => undefined;
+
+/** Archiving while an attachment upload is in flight clears the
+ *  persisted draft, and the late upload completion must not recreate it. */
+export const ArchiveDuringAttachmentUpload: Story = {
+	render: () => <ArchiveCleanupLayout />,
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Archive during upload",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		localStorage.removeItem(archiveDraftStorageKey);
+		spyOn(API.experimental, "uploadChatFile").mockReturnValue(
+			new Promise((resolve) => {
+				resolveDraftUpload = resolve;
+			}),
+		);
+		return () => localStorage.removeItem(archiveDraftStorageKey);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.upload(
+			canvas.getByTestId("attachment-file-input"),
+			new File(["draft body"], "notes.txt", { type: "text/plain" }),
+		);
+		// The remove affordance is opacity-0 until hover, so assert
+		// presence rather than visibility.
+		expect(
+			await canvas.findByRole("button", { name: "Remove notes.txt" }),
+		).toBeInTheDocument();
+		// The pending draft record persists while the upload is in flight.
+		await waitFor(() => {
+			expect(localStorage.getItem(archiveDraftStorageKey)).not.toBeNull();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Open agent actions" }),
+		);
+		// The dropdown renders in a portal outside the canvas.
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Archive agent" }),
+		);
+		await waitFor(() => {
+			expect(localStorage.getItem(archiveDraftStorageKey)).toBeNull();
+		});
+
+		// The upload finishing later must not resurrect the archived
+		// chat's draft record.
+		resolveDraftUpload({ id: "late-file" });
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Remove notes.txt" }),
+			).not.toBeInTheDocument();
+		});
+		expect(localStorage.getItem(archiveDraftStorageKey)).toBeNull();
+	},
+};
+
+let rejectPinnedDecode: (reason: Error) => void = () => undefined;
+
+/** Archiving while an image is still resizing must clear the blocking
+ *  "processing" chip; the job never reaches the upload registry. */
+export const ArchiveDuringImageResize: Story = {
+	render: () => <ArchiveCleanupLayout />,
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Archive during image resize",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		localStorage.removeItem(archiveDraftStorageKey);
+		// Pin the real resize pipeline inside its decode step so the
+		// attachment deterministically stays in "processing" while the
+		// chat is archived. The deferred rejection lets the story settle
+		// the decode afterward, draining the module-level sequential
+		// resize queue instead of wedging later stories' resizes.
+		const pinnedDecode = new Promise<ImageBitmap>((_resolve, reject) => {
+			rejectPinnedDecode = reject;
+		});
+		// Swallow the rejection when play fails before reaching the
+		// decode, so the settle below can't become an unhandled
+		// rejection with no consumer attached.
+		pinnedDecode.catch(() => undefined);
+		spyOn(window, "createImageBitmap").mockReturnValue(pinnedDecode);
+		return () => {
+			// Safety net when play fails mid-story; a second reject after
+			// the in-play settle is a no-op.
+			rejectPinnedDecode(new Error("story cleanup"));
+			localStorage.removeItem(archiveDraftStorageKey);
+		};
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A real 1x1 PNG with padding appended after IEND: decoders
+		// ignore trailing bytes, so the dimension probe succeeds and the
+		// job reaches the pinned createImageBitmap while over the size
+		// cap.
+		const tinyPng = Uint8Array.from(
+			atob(
+				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+			),
+			(char) => char.charCodeAt(0),
+		);
+		await userEvent.upload(
+			canvas.getByTestId("attachment-file-input"),
+			new File([tinyPng, new Uint8Array(11 * 1024 * 1024)], "screenshot.png", {
+				type: "image/png",
+			}),
+		);
+		expect(
+			await canvas.findByRole("button", { name: "Remove screenshot.png" }),
+		).toBeInTheDocument();
+		// Still resizing, not failed: the archive below must interrupt a
+		// live processing window, not clean up an errored chip. The
+		// settle delay gives a broken fixture's decode-failure path time
+		// to flip the chip to an error state, which must not happen.
+		await new Promise((resolve) => setTimeout(resolve, 250));
+		expect(canvas.queryByLabelText("Upload error")).not.toBeInTheDocument();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Open agent actions" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Archive agent" }),
+		);
+
+		// The processing chip must not linger and block sending.
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Remove screenshot.png" }),
+			).not.toBeInTheDocument();
+		});
+		expect(localStorage.getItem(archiveDraftStorageKey)).toBeNull();
+
+		// Settle the pinned decode now that cleanup is verified: the
+		// queued resize finishes (rejecting), and the abandoned job must
+		// swallow it without resurrecting the archived chat's record.
+		rejectPinnedDecode(new Error("resize interrupted by archive"));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(localStorage.getItem(archiveDraftStorageKey)).toBeNull();
 	},
 };
