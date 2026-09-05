@@ -36,38 +36,71 @@ var authErrorPatterns = []string{
 // the error detail to avoid returning excessive output.
 const maxLogContextLines = 20
 
-// ClassifyProvisionerError inspects a provisioner job error and its log
-// lines, returning a user-friendly message for known failure modes.
-// For unrecognized errors, the raw jobError is returned with relevant
-// log context appended so the user can diagnose the failure.
-func ClassifyProvisionerError(jobError string, logs []string) string {
+// ProvisionerErrorCategory names the failure mode of a provisioner import
+// job. It carries no error text, so it can be reported as telemetry to
+// explain why a build failed without leaking deployment detail.
+type ProvisionerErrorCategory string
+
+const (
+	// ProvisionerErrorNetwork means the Terraform registry or a provider
+	// endpoint was unreachable from the provisioner.
+	ProvisionerErrorNetwork ProvisionerErrorCategory = "network"
+	// ProvisionerErrorAuth means the provisioner's cloud credentials were
+	// missing, expired, or insufficient.
+	ProvisionerErrorAuth ProvisionerErrorCategory = "auth"
+	// ProvisionerErrorUnknown means the failure matched no known pattern.
+	ProvisionerErrorUnknown ProvisionerErrorCategory = "unknown"
+)
+
+// ClassifyProvisionerErrorCategory inspects a provisioner job error and its
+// log lines and reports which known failure mode they match. Network
+// patterns are checked first: a credential lookup that fails because the
+// metadata endpoint is unreachable is a network problem.
+func ClassifyProvisionerErrorCategory(jobError string, logs []string) ProvisionerErrorCategory {
 	combined := strings.ToLower(jobError + "\n" + strings.Join(logs, "\n"))
 
 	for _, pattern := range networkErrorPatterns {
 		if strings.Contains(combined, pattern) {
-			return "The Terraform registry is unreachable from your provisioner. " +
-				"Check network configuration and ensure registry.terraform.io " +
-				"is accessible."
+			return ProvisionerErrorNetwork
 		}
 	}
 
 	for _, pattern := range authErrorPatterns {
 		if strings.Contains(combined, pattern) {
-			msg := "Cloud provider authentication failed. " +
-				"Check that valid credentials are configured for the provisioner."
-			if diag := extractDiagnostics(logs); diag != "" {
-				msg += "\n\n" + diag
-			}
-			return msg
+			return ProvisionerErrorAuth
 		}
 	}
 
-	// For unrecognized errors, include relevant Terraform output so the
-	// user can diagnose the failure.
-	if diag := extractDiagnostics(logs); diag != "" {
-		return jobError + "\n\n" + diag
+	return ProvisionerErrorUnknown
+}
+
+// ClassifyProvisionerError inspects a provisioner job error and its log
+// lines, returning a user-friendly message for known failure modes.
+// For unrecognized errors, the raw jobError is returned with relevant
+// log context appended so the user can diagnose the failure. The message
+// is derived from ClassifyProvisionerErrorCategory so that what a user
+// reads and what telemetry records cannot disagree.
+func ClassifyProvisionerError(jobError string, logs []string) string {
+	switch ClassifyProvisionerErrorCategory(jobError, logs) {
+	case ProvisionerErrorNetwork:
+		return "The Terraform registry is unreachable from your provisioner. " +
+			"Check network configuration and ensure registry.terraform.io " +
+			"is accessible."
+	case ProvisionerErrorAuth:
+		msg := "Cloud provider authentication failed. " +
+			"Check that valid credentials are configured for the provisioner."
+		if diag := extractDiagnostics(logs); diag != "" {
+			msg += "\n\n" + diag
+		}
+		return msg
+	default:
+		// For unrecognized errors, include relevant Terraform output so the
+		// user can diagnose the failure.
+		if diag := extractDiagnostics(logs); diag != "" {
+			return jobError + "\n\n" + diag
+		}
+		return jobError
 	}
-	return jobError
 }
 
 // diagnosticPrefixes identify Terraform diagnostic output lines worth
