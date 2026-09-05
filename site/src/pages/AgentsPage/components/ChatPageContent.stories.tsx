@@ -47,7 +47,7 @@ const StoryChatPageInput: FC<{
 		<ChatPageInput
 			organizationId={undefined}
 			store={store}
-			compressionThreshold={undefined}
+			compactionThreshold={undefined}
 			onSend={fn()}
 			sendShortcut="enter"
 			onDeleteQueuedMessage={fn()}

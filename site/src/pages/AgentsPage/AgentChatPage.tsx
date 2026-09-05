@@ -45,6 +45,7 @@ import {
 	invalidateChatEntity,
 	mcpServerConfigs,
 	openChat,
+	organizationChatModelOverrides,
 	patchChatEntity,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
@@ -83,6 +84,10 @@ import {
 	AgentChatPageView,
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import {
+	resolveCompactionThreshold,
+	resolveOrganizationCompactionTrigger,
+} from "./compactionTriggers";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
@@ -753,27 +758,6 @@ const getPersistedDetailError = ({
 	return normalizeChatErrorPayload(chatRecord?.last_error);
 };
 
-/**
- * Resolves the effective compaction threshold for a model configuration,
- * preferring the user's override when set.
- */
-function resolveCompactionThreshold(
-	modelID: string | undefined,
-	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	models: readonly TypesGen.ChatModel[] | null | undefined,
-): number | undefined {
-	if (!modelID || !Array.isArray(models)) return undefined;
-	const config = models.find((c) => c.id === modelID);
-	if (!config) return undefined;
-	const userOverride = userThresholds?.find(
-		(threshold) => threshold.model_config_id === modelID,
-	);
-	if (userOverride) {
-		return userOverride.threshold_percent;
-	}
-	return config.compression_threshold;
-}
-
 // Compile-time guard: ensures the workspace watcher bailout comparison
 // covers every WorkspaceAgent field the UI reads. If WorkspaceAgent
 // gains a new field, this will error until the field is either added
@@ -937,6 +921,15 @@ const AgentChatPage: FC = () => {
 
 	const modelsQuery = useQuery(chatModels(chatOrganizationId));
 	const models = modelsQuery.data?.models ?? [];
+	const modelOverridesQuery = useQuery(
+		organizationChatModelOverrides(chatOrganizationId),
+	);
+	const organizationCompactionTrigger = resolveOrganizationCompactionTrigger(
+		modelOverridesQuery.data?.overrides,
+		models,
+	);
+	// Cached overrides remain usable after a background refetch fails.
+	const isCompactionTriggerKnown = modelOverridesQuery.data !== undefined;
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
@@ -1375,11 +1368,14 @@ const AgentChatPage: FC = () => {
 			)
 		: undefined;
 
-	const compressionThreshold = resolveCompactionThreshold(
-		chatLastModelConfigID,
-		userThresholdsQuery.data?.thresholds,
-		models,
-	);
+	const compactionThreshold = isCompactionTriggerKnown
+		? resolveCompactionThreshold(
+				chatLastModelConfigID,
+				userThresholdsQuery.data?.thresholds,
+				models,
+				organizationCompactionTrigger,
+			)
+		: undefined;
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
 		isModelDataPending,
@@ -2057,7 +2053,7 @@ const AgentChatPage: FC = () => {
 			isModelCatalogLoading={isModelDataPending}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={handlePlanModeToggle}
-			compressionThreshold={compressionThreshold}
+			compactionThreshold={compactionThreshold}
 			isInputDisabled={isInputDisabled}
 			isSubmissionPending={isSubmissionPending}
 			isInterruptPending={isInterruptPending}
