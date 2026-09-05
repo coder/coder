@@ -14097,16 +14097,16 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name            | Type                                                                                      | Required | Restrictions | Description |
-|-----------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `agents`        | array of [codersdk.TemplateBuilderBaseAgent](#codersdktemplatebuilderbaseagent)           | false    |              |             |
-| `description`   | string                                                                                    | false    |              |             |
-| `icon`          | string                                                                                    | false    |              |             |
-| `id`            | string                                                                                    | false    |              |             |
-| `name`          | string                                                                                    | false    |              |             |
-| `os`            | string                                                                                    | false    |              |             |
-| `prerequisites` | string                                                                                    | false    |              |             |
-| `variables`     | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+| Name            | Type                                                                                      | Required | Restrictions | Description                                                           |
+|-----------------|-------------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------|
+| `agents`        | array of [codersdk.TemplateBuilderBaseAgent](#codersdktemplatebuilderbaseagent)           | false    |              | Agents are the coder_agents the base declares for modules to target.  |
+| `description`   | string                                                                                    | false    |              | Description summarizes the infrastructure the base provisions.        |
+| `icon`          | string                                                                                    | false    |              | Icon is a URL or built-in icon path.                                  |
+| `id`            | string                                                                                    | false    |              | ID uniquely identifies the base in compose requests.                  |
+| `name`          | string                                                                                    | false    |              | Name is the human-facing base template name.                          |
+| `os`            | string                                                                                    | false    |              | Os is the operating system the base provisions.                       |
+| `prerequisites` | string                                                                                    | false    |              | Prerequisites describes setup required before using the base, if any. |
+| `variables`     | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              | Variables are the base template's configurable inputs.                |
 
 ## codersdk.TemplateBuilderBaseAgent
 
@@ -14123,8 +14123,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name           | Type    | Required | Restrictions | Description                                                                     |
 |----------------|---------|----------|--------------|---------------------------------------------------------------------------------|
 | `default`      | boolean | false    |              | Default reports whether modules attach to this agent when they do not name one. |
-| `display_name` | string  | false    |              |                                                                                 |
-| `name`         | string  | false    |              |                                                                                 |
+| `display_name` | string  | false    |              | Display name is the human-facing agent name; may be empty.                      |
+| `name`         | string  | false    |              | Name is the coder_agent resource name modules target.                           |
 
 ## codersdk.TemplateBuilderBasesResponse
 
@@ -14164,9 +14164,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name    | Type                                                                  | Required | Restrictions | Description |
-|---------|-----------------------------------------------------------------------|----------|--------------|-------------|
-| `bases` | array of [codersdk.TemplateBuilderBase](#codersdktemplatebuilderbase) | false    |              |             |
+| Name    | Type                                                                  | Required | Restrictions | Description                             |
+|---------|-----------------------------------------------------------------------|----------|--------------|-----------------------------------------|
+| `bases` | array of [codersdk.TemplateBuilderBase](#codersdktemplatebuilderbase) | false    |              | Bases are the available base templates. |
 
 ## codersdk.TemplateBuilderComposeModule
 
@@ -14186,8 +14186,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name               | Type   | Required | Restrictions | Description                                                                 |
 |--------------------|--------|----------|--------------|-----------------------------------------------------------------------------|
 | `agent_name`       | string | false    |              | Agent name targets a base coder_agent by name. Empty uses the base default. |
-| `id`               | string | false    |              |                                                                             |
-| `variables`        | object | false    |              |                                                                             |
+| `id`               | string | false    |              | ID selects a catalog module to compose.                                     |
+| `variables`        | object | false    |              | Variables sets the module's input variables by name.                        |
 | » `[any property]` | string | false    |              |                                                                             |
 
 ## codersdk.TemplateBuilderComposeRequest
@@ -14214,12 +14214,12 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                   | Type                                                                                    | Required | Restrictions | Description |
-|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `base_template_id`     | string                                                                                  | false    |              |             |
-| `base_variable_values` | object                                                                                  | false    |              |             |
-| » `[any property]`     | string                                                                                  | false    |              |             |
-| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+| Name                   | Type                                                                                    | Required | Restrictions | Description                                                   |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------|
+| `base_template_id`     | string                                                                                  | false    |              | Base template ID selects the base template to compose onto.   |
+| `base_variable_values` | object                                                                                  | false    |              | Base variable values sets the base's input variables by name. |
+| » `[any property]`     | string                                                                                  | false    |              |                                                               |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              | Modules are the modules to compose onto the base.             |
 
 ## codersdk.TemplateBuilderConfig
 
@@ -14270,19 +14270,19 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                   | Type                                                                                    | Required | Restrictions | Description |
-|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `base_template_id`     | string                                                                                  | false    |              |             |
-| `base_variable_values` | object                                                                                  | false    |              |             |
-| » `[any property]`     | string                                                                                  | false    |              |             |
-| `description`          | string                                                                                  | false    |              |             |
-| `display_name`         | string                                                                                  | false    |              |             |
-| `icon`                 | string                                                                                  | false    |              |             |
-| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
-| `name`                 | string                                                                                  | true     |              |             |
-| `organization_id`      | string                                                                                  | true     |              |             |
-| `provisioner_tags`     | object                                                                                  | false    |              |             |
-| » `[any property]`     | string                                                                                  | false    |              |             |
+| Name                   | Type                                                                                    | Required | Restrictions | Description                                                     |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------|
+| `base_template_id`     | string                                                                                  | false    |              | Base template ID selects the base template to compose onto.     |
+| `base_variable_values` | object                                                                                  | false    |              | Base variable values sets the base's input variables by name.   |
+| » `[any property]`     | string                                                                                  | false    |              |                                                                 |
+| `description`          | string                                                                                  | false    |              | Description is shown on the template page.                      |
+| `display_name`         | string                                                                                  | false    |              | Display name is the human-facing template name.                 |
+| `icon`                 | string                                                                                  | false    |              | Icon is a URL or built-in icon path.                            |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              | Modules are the modules to compose onto the base.               |
+| `name`                 | string                                                                                  | true     |              | Name is the template's unique slug.                             |
+| `organization_id`      | string                                                                                  | true     |              | Organization ID owns the created template.                      |
+| `provisioner_tags`     | object                                                                                  | false    |              | Provisioner tags route the import job to matching provisioners. |
+| » `[any property]`     | string                                                                                  | false    |              |                                                                 |
 
 ## codersdk.TemplateBuilderCreateTemplateResponse
 
@@ -14351,9 +14351,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name       | Type                                   | Required | Restrictions | Description |
-|------------|----------------------------------------|----------|--------------|-------------|
-| `template` | [codersdk.Template](#codersdktemplate) | false    |              |             |
+| Name       | Type                                   | Required | Restrictions | Description                             |
+|------------|----------------------------------------|----------|--------------|-----------------------------------------|
+| `template` | [codersdk.Template](#codersdktemplate) | false    |              | Template is the newly created template. |
 
 ## codersdk.TemplateBuilderModule
 
@@ -14388,17 +14388,17 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name             | Type                                                                                      | Required | Restrictions | Description |
-|------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `category`       | string                                                                                    | false    |              |             |
-| `compatible_os`  | array of string                                                                           | false    |              |             |
-| `conflicts_with` | array of string                                                                           | false    |              |             |
-| `description`    | string                                                                                    | false    |              |             |
-| `display_name`   | string                                                                                    | false    |              |             |
-| `icon`           | string                                                                                    | false    |              |             |
-| `id`             | string                                                                                    | false    |              |             |
-| `variables`      | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
-| `version`        | string                                                                                    | false    |              |             |
+| Name             | Type                                                                                      | Required | Restrictions | Description                                                                 |
+|------------------|-------------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------|
+| `category`       | string                                                                                    | false    |              | Category groups related modules in the builder.                             |
+| `compatible_os`  | array of string                                                                           | false    |              | Compatible os lists the base operating systems the module supports.         |
+| `conflicts_with` | array of string                                                                           | false    |              | Conflicts with lists module IDs that cannot be selected alongside this one. |
+| `description`    | string                                                                                    | false    |              | Description summarizes what the module does.                                |
+| `display_name`   | string                                                                                    | false    |              | Display name is the human-facing module name.                               |
+| `icon`           | string                                                                                    | false    |              | Icon is a URL or built-in icon path.                                        |
+| `id`             | string                                                                                    | false    |              | ID uniquely identifies the module in the catalog and compose requests.      |
+| `variables`      | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              | Variables are the module's configurable inputs.                             |
+| `version`        | string                                                                                    | false    |              | Version is the pinned module version from the catalog manifest.             |
 
 ## codersdk.TemplateBuilderModuleVariable
 
@@ -14417,14 +14417,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name          | Type                                                                         | Required | Restrictions | Description |
-|---------------|------------------------------------------------------------------------------|----------|--------------|-------------|
-| `default`     | array of integer                                                             | false    |              |             |
-| `description` | string                                                                       | false    |              |             |
-| `name`        | string                                                                       | false    |              |             |
-| `required`    | boolean                                                                      | false    |              |             |
-| `sensitive`   | boolean                                                                      | false    |              |             |
-| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |             |
+| Name          | Type                                                                         | Required | Restrictions | Description                                                               |
+|---------------|------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `default`     | array of integer                                                             | false    |              | Default is applied when no value is supplied; omitted when there is none. |
+| `description` | string                                                                       | false    |              | Description is human-facing help text shown in the builder.               |
+| `name`        | string                                                                       | false    |              | Name is the Terraform variable name values are keyed by.                  |
+| `required`    | boolean                                                                      | false    |              | Required reports whether a value must be supplied to compose.             |
+| `sensitive`   | boolean                                                                      | false    |              | Sensitive hides the value in the UI and excludes it from logs.            |
+| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              | Type constrains the accepted value (string, number, or bool).             |
 
 ## codersdk.TemplateBuilderModulesResponse
 
@@ -14463,9 +14463,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name      | Type                                                                      | Required | Restrictions | Description |
-|-----------|---------------------------------------------------------------------------|----------|--------------|-------------|
-| `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              |             |
+| Name      | Type                                                                      | Required | Restrictions | Description                                               |
+|-----------|---------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------|
+| `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              | Modules are the modules available for the requested base. |
 
 ## codersdk.TemplateBuilderSessionEventType
 
@@ -14498,14 +14498,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type                                                                                 | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `base_template_id` | string                                                                               | false    |              |             |
-| `duration_seconds` | number                                                                               | false    |              |             |
-| `event_type`       | [codersdk.TemplateBuilderSessionEventType](#codersdktemplatebuildersessioneventtype) | true     |              |             |
-| `module_ids`       | array of string                                                                      | false    |              |             |
-| `session_id`       | string                                                                               | true     |              |             |
-| `success`          | boolean                                                                              | false    |              |             |
+| Name               | Type                                                                                 | Required | Restrictions | Description                                                |
+|--------------------|--------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------|
+| `base_template_id` | string                                                                               | false    |              | Base template ID is the selected base, when known.         |
+| `duration_seconds` | number                                                                               | false    |              | Duration seconds is the elapsed wizard time for the event. |
+| `event_type`       | [codersdk.TemplateBuilderSessionEventType](#codersdktemplatebuildersessioneventtype) | true     |              | Event type is the telemetry event being reported.          |
+| `module_ids`       | array of string                                                                      | false    |              | Module ids are the selected modules, when known.           |
+| `session_id`       | string                                                                               | true     |              | Session ID correlates events within one builder session.   |
+| `success`          | boolean                                                                              | false    |              | Success reports whether the composition succeeded.         |
 
 #### Enumerated Values
 

@@ -20,52 +20,80 @@ const (
 	TemplateBuilderVariableTypeBool   TemplateBuilderVariableType = "bool"
 )
 
+// TemplateBuilderModuleVariable describes a single input variable declared by a
+// base template or module manifest.
 type TemplateBuilderModuleVariable struct {
-	Name        string                      `json:"name"`
-	Type        TemplateBuilderVariableType `json:"type"`
-	Description string                      `json:"description"`
-	Default     json.RawMessage             `json:"default,omitempty"`
-	Required    bool                        `json:"required"`
-	Sensitive   bool                        `json:"sensitive"`
+	// Name is the Terraform variable name values are keyed by.
+	Name string `json:"name"`
+	// Type constrains the accepted value (string, number, or bool).
+	Type TemplateBuilderVariableType `json:"type"`
+	// Description is human-facing help text shown in the builder.
+	Description string `json:"description"`
+	// Default is applied when no value is supplied; omitted when there is none.
+	Default json.RawMessage `json:"default,omitempty"`
+	// Required reports whether a value must be supplied to compose.
+	Required bool `json:"required"`
+	// Sensitive hides the value in the UI and excludes it from logs.
+	Sensitive bool `json:"sensitive"`
 }
 
 // TemplateBuilderModule is the API response type returned by
 // GET /api/v2/templatebuilder/modules. The Version field is
 // populated from the catalog manifest's PinnedVersion at serving time.
 type TemplateBuilderModule struct {
-	ID            string                          `json:"id"`
-	DisplayName   string                          `json:"display_name"`
-	Description   string                          `json:"description"`
-	Icon          string                          `json:"icon"`
-	Category      string                          `json:"category"`
-	Version       string                          `json:"version"`
-	CompatibleOS  []string                        `json:"compatible_os"`
-	ConflictsWith []string                        `json:"conflicts_with"`
-	Variables     []TemplateBuilderModuleVariable `json:"variables"`
+	// ID uniquely identifies the module in the catalog and compose requests.
+	ID string `json:"id"`
+	// DisplayName is the human-facing module name.
+	DisplayName string `json:"display_name"`
+	// Description summarizes what the module does.
+	Description string `json:"description"`
+	// Icon is a URL or built-in icon path.
+	Icon string `json:"icon"`
+	// Category groups related modules in the builder.
+	Category string `json:"category"`
+	// Version is the pinned module version from the catalog manifest.
+	Version string `json:"version"`
+	// CompatibleOS lists the base operating systems the module supports.
+	CompatibleOS []string `json:"compatible_os"`
+	// ConflictsWith lists module IDs that cannot be selected alongside this one.
+	ConflictsWith []string `json:"conflicts_with"`
+	// Variables are the module's configurable inputs.
+	Variables []TemplateBuilderModuleVariable `json:"variables"`
 }
 
 // TemplateBuilderModulesResponse is the response body for listing template builder modules.
 type TemplateBuilderModulesResponse struct {
+	// Modules are the modules available for the requested base.
 	Modules []TemplateBuilderModule `json:"modules"`
 }
 
 // TemplateBuilderBase is the API response type for a base template
 // returned by GET /api/v2/templatebuilder/bases.
 type TemplateBuilderBase struct {
-	ID            string                          `json:"id"`
-	Name          string                          `json:"name"`
-	Description   string                          `json:"description"`
-	Icon          string                          `json:"icon"`
-	OS            string                          `json:"os"`
-	Variables     []TemplateBuilderModuleVariable `json:"variables"`
-	Prerequisites string                          `json:"prerequisites"`
-	Agents        []TemplateBuilderBaseAgent      `json:"agents"`
+	// ID uniquely identifies the base in compose requests.
+	ID string `json:"id"`
+	// Name is the human-facing base template name.
+	Name string `json:"name"`
+	// Description summarizes the infrastructure the base provisions.
+	Description string `json:"description"`
+	// Icon is a URL or built-in icon path.
+	Icon string `json:"icon"`
+	// OS is the operating system the base provisions.
+	OS string `json:"os"`
+	// Variables are the base template's configurable inputs.
+	Variables []TemplateBuilderModuleVariable `json:"variables"`
+	// Prerequisites describes setup required before using the base, if any.
+	Prerequisites string `json:"prerequisites"`
+	// Agents are the coder_agents the base declares for modules to target.
+	Agents []TemplateBuilderBaseAgent `json:"agents"`
 }
 
 // TemplateBuilderBaseAgent is a coder_agent a base template declares. Modules
 // composed onto the base target one of these by Name.
 type TemplateBuilderBaseAgent struct {
-	Name        string `json:"name"`
+	// Name is the coder_agent resource name modules target.
+	Name string `json:"name"`
+	// DisplayName is the human-facing agent name; may be empty.
 	DisplayName string `json:"display_name"`
 	// Default reports whether modules attach to this agent when they do not
 	// name one.
@@ -74,6 +102,7 @@ type TemplateBuilderBaseAgent struct {
 
 // TemplateBuilderBasesResponse is the response body for listing template builder bases.
 type TemplateBuilderBasesResponse struct {
+	// Bases are the available base templates.
 	Bases []TemplateBuilderBase `json:"bases"`
 }
 
@@ -115,17 +144,22 @@ func (c *Client) TemplateBuilderModules(ctx context.Context, base string) (Templ
 // TemplateBuilderComposeRequest is the request body for
 // POST /api/v2/templatebuilder/compose.
 type TemplateBuilderComposeRequest struct {
-	BaseTemplateID     string                         `json:"base_template_id"`
-	BaseVariableValues map[string]string              `json:"base_variable_values,omitempty"`
-	Modules            []TemplateBuilderComposeModule `json:"modules"`
+	// BaseTemplateID selects the base template to compose onto.
+	BaseTemplateID string `json:"base_template_id"`
+	// BaseVariableValues sets the base's input variables by name.
+	BaseVariableValues map[string]string `json:"base_variable_values,omitempty"`
+	// Modules are the modules to compose onto the base.
+	Modules []TemplateBuilderComposeModule `json:"modules"`
 }
 
 // TemplateBuilderComposeModule identifies a module and its variable
 // values for the compose request.
 type TemplateBuilderComposeModule struct {
+	// ID selects a catalog module to compose.
 	ID string `json:"id"`
 	// AgentName targets a base coder_agent by name. Empty uses the base default.
-	AgentName string            `json:"agent_name,omitempty"`
+	AgentName string `json:"agent_name,omitempty"`
+	// Variables sets the module's input variables by name.
 	Variables map[string]string `json:"variables,omitempty"`
 }
 
@@ -146,20 +180,30 @@ func (c *Client) TemplateBuilderCompose(ctx context.Context, req TemplateBuilder
 // TemplateBuilderCreateTemplateRequest is the request body for
 // POST /api/v2/templatebuilder/compose/template.
 type TemplateBuilderCreateTemplateRequest struct {
-	BaseTemplateID     string                         `json:"base_template_id"`
-	BaseVariableValues map[string]string              `json:"base_variable_values,omitempty"`
-	Modules            []TemplateBuilderComposeModule `json:"modules"`
-	OrganizationID     uuid.UUID                      `json:"organization_id" format:"uuid" validate:"required"`
-	Name               string                         `json:"name" validate:"required,template_name"`
-	DisplayName        string                         `json:"display_name,omitempty" validate:"template_display_name"`
-	Description        string                         `json:"description,omitempty" validate:"lt=128"`
-	Icon               string                         `json:"icon,omitempty"`
-	ProvisionerTags    map[string]string              `json:"provisioner_tags,omitempty"`
+	// BaseTemplateID selects the base template to compose onto.
+	BaseTemplateID string `json:"base_template_id"`
+	// BaseVariableValues sets the base's input variables by name.
+	BaseVariableValues map[string]string `json:"base_variable_values,omitempty"`
+	// Modules are the modules to compose onto the base.
+	Modules []TemplateBuilderComposeModule `json:"modules"`
+	// OrganizationID owns the created template.
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid" validate:"required"`
+	// Name is the template's unique slug.
+	Name string `json:"name" validate:"required,template_name"`
+	// DisplayName is the human-facing template name.
+	DisplayName string `json:"display_name,omitempty" validate:"template_display_name"`
+	// Description is shown on the template page.
+	Description string `json:"description,omitempty" validate:"lt=128"`
+	// Icon is a URL or built-in icon path.
+	Icon string `json:"icon,omitempty"`
+	// ProvisionerTags route the import job to matching provisioners.
+	ProvisionerTags map[string]string `json:"provisioner_tags,omitempty"`
 }
 
 // TemplateBuilderCreateTemplateResponse is the response body for
 // POST /api/v2/templatebuilder/compose/template.
 type TemplateBuilderCreateTemplateResponse struct {
+	// Template is the newly created template.
 	Template Template `json:"template"`
 }
 
@@ -175,12 +219,18 @@ const (
 // TemplateBuilderSessionRequest is the request body for
 // POST /api/v2/templatebuilder/sessions.
 type TemplateBuilderSessionRequest struct {
-	SessionID       uuid.UUID                       `json:"session_id" format:"uuid" validate:"required"`
-	EventType       TemplateBuilderSessionEventType `json:"event_type" validate:"required,oneof=wizard_entry compose_completion"`
-	BaseTemplateID  string                          `json:"base_template_id,omitempty"`
-	ModuleIDs       []string                        `json:"module_ids,omitempty"`
-	DurationSeconds float64                         `json:"duration_seconds,omitempty"`
-	Success         bool                            `json:"success,omitempty"`
+	// SessionID correlates events within one builder session.
+	SessionID uuid.UUID `json:"session_id" format:"uuid" validate:"required"`
+	// EventType is the telemetry event being reported.
+	EventType TemplateBuilderSessionEventType `json:"event_type" validate:"required,oneof=wizard_entry compose_completion"`
+	// BaseTemplateID is the selected base, when known.
+	BaseTemplateID string `json:"base_template_id,omitempty"`
+	// ModuleIDs are the selected modules, when known.
+	ModuleIDs []string `json:"module_ids,omitempty"`
+	// DurationSeconds is the elapsed wizard time for the event.
+	DurationSeconds float64 `json:"duration_seconds,omitempty"`
+	// Success reports whether the composition succeeded.
+	Success bool `json:"success,omitempty"`
 }
 
 // TemplateBuilderSession reports a template builder session event for

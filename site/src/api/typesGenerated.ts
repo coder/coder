@@ -9255,13 +9255,37 @@ export type TemplateBuildTimeStats = Record<
  * returned by GET /api/v2/templatebuilder/bases.
  */
 export interface TemplateBuilderBase {
+	/**
+	 * ID uniquely identifies the base in compose requests.
+	 */
 	readonly id: string;
+	/**
+	 * Name is the human-facing base template name.
+	 */
 	readonly name: string;
+	/**
+	 * Description summarizes the infrastructure the base provisions.
+	 */
 	readonly description: string;
+	/**
+	 * Icon is a URL or built-in icon path.
+	 */
 	readonly icon: string;
+	/**
+	 * OS is the operating system the base provisions.
+	 */
 	readonly os: string;
+	/**
+	 * Variables are the base template's configurable inputs.
+	 */
 	readonly variables: readonly TemplateBuilderModuleVariable[];
+	/**
+	 * Prerequisites describes setup required before using the base, if any.
+	 */
 	readonly prerequisites: string;
+	/**
+	 * Agents are the coder_agents the base declares for modules to target.
+	 */
 	readonly agents: readonly TemplateBuilderBaseAgent[];
 }
 
@@ -9271,7 +9295,13 @@ export interface TemplateBuilderBase {
  * composed onto the base target one of these by Name.
  */
 export interface TemplateBuilderBaseAgent {
+	/**
+	 * Name is the coder_agent resource name modules target.
+	 */
 	readonly name: string;
+	/**
+	 * DisplayName is the human-facing agent name; may be empty.
+	 */
 	readonly display_name: string;
 	/**
 	 * Default reports whether modules attach to this agent when they do not
@@ -9285,6 +9315,9 @@ export interface TemplateBuilderBaseAgent {
  * TemplateBuilderBasesResponse is the response body for listing template builder bases.
  */
 export interface TemplateBuilderBasesResponse {
+	/**
+	 * Bases are the available base templates.
+	 */
 	readonly bases: readonly TemplateBuilderBase[];
 }
 
@@ -9294,11 +9327,17 @@ export interface TemplateBuilderBasesResponse {
  * values for the compose request.
  */
 export interface TemplateBuilderComposeModule {
+	/**
+	 * ID selects a catalog module to compose.
+	 */
 	readonly id: string;
 	/**
 	 * AgentName targets a base coder_agent by name. Empty uses the base default.
 	 */
 	readonly agent_name?: string;
+	/**
+	 * Variables sets the module's input variables by name.
+	 */
 	readonly variables?: Record<string, string>;
 }
 
@@ -9308,8 +9347,17 @@ export interface TemplateBuilderComposeModule {
  * POST /api/v2/templatebuilder/compose.
  */
 export interface TemplateBuilderComposeRequest {
+	/**
+	 * BaseTemplateID selects the base template to compose onto.
+	 */
 	readonly base_template_id: string;
+	/**
+	 * BaseVariableValues sets the base's input variables by name.
+	 */
 	readonly base_variable_values?: Record<string, string>;
+	/**
+	 * Modules are the modules to compose onto the base.
+	 */
 	readonly modules: readonly TemplateBuilderComposeModule[];
 }
 
@@ -9325,14 +9373,41 @@ export interface TemplateBuilderConfig {
  * POST /api/v2/templatebuilder/compose/template.
  */
 export interface TemplateBuilderCreateTemplateRequest {
+	/**
+	 * BaseTemplateID selects the base template to compose onto.
+	 */
 	readonly base_template_id: string;
+	/**
+	 * BaseVariableValues sets the base's input variables by name.
+	 */
 	readonly base_variable_values?: Record<string, string>;
+	/**
+	 * Modules are the modules to compose onto the base.
+	 */
 	readonly modules: readonly TemplateBuilderComposeModule[];
+	/**
+	 * OrganizationID owns the created template.
+	 */
 	readonly organization_id: string;
+	/**
+	 * Name is the template's unique slug.
+	 */
 	readonly name: string;
+	/**
+	 * DisplayName is the human-facing template name.
+	 */
 	readonly display_name?: string;
+	/**
+	 * Description is shown on the template page.
+	 */
 	readonly description?: string;
+	/**
+	 * Icon is a URL or built-in icon path.
+	 */
 	readonly icon?: string;
+	/**
+	 * ProvisionerTags route the import job to matching provisioners.
+	 */
 	readonly provisioner_tags?: Record<string, string>;
 }
 
@@ -9342,6 +9417,9 @@ export interface TemplateBuilderCreateTemplateRequest {
  * POST /api/v2/templatebuilder/compose/template.
  */
 export interface TemplateBuilderCreateTemplateResponse {
+	/**
+	 * Template is the newly created template.
+	 */
 	readonly template: Template;
 }
 
@@ -9352,24 +9430,73 @@ export interface TemplateBuilderCreateTemplateResponse {
  * populated from the catalog manifest's PinnedVersion at serving time.
  */
 export interface TemplateBuilderModule {
+	/**
+	 * ID uniquely identifies the module in the catalog and compose requests.
+	 */
 	readonly id: string;
+	/**
+	 * DisplayName is the human-facing module name.
+	 */
 	readonly display_name: string;
+	/**
+	 * Description summarizes what the module does.
+	 */
 	readonly description: string;
+	/**
+	 * Icon is a URL or built-in icon path.
+	 */
 	readonly icon: string;
+	/**
+	 * Category groups related modules in the builder.
+	 */
 	readonly category: string;
+	/**
+	 * Version is the pinned module version from the catalog manifest.
+	 */
 	readonly version: string;
+	/**
+	 * CompatibleOS lists the base operating systems the module supports.
+	 */
 	readonly compatible_os: readonly string[];
+	/**
+	 * ConflictsWith lists module IDs that cannot be selected alongside this one.
+	 */
 	readonly conflicts_with: readonly string[];
+	/**
+	 * Variables are the module's configurable inputs.
+	 */
 	readonly variables: readonly TemplateBuilderModuleVariable[];
 }
 
 // From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderModuleVariable describes a single input variable declared by a
+ * base template or module manifest.
+ */
 export interface TemplateBuilderModuleVariable {
+	/**
+	 * Name is the Terraform variable name values are keyed by.
+	 */
 	readonly name: string;
+	/**
+	 * Type constrains the accepted value (string, number, or bool).
+	 */
 	readonly type: TemplateBuilderVariableType;
+	/**
+	 * Description is human-facing help text shown in the builder.
+	 */
 	readonly description: string;
+	/**
+	 * Default is applied when no value is supplied; omitted when there is none.
+	 */
 	readonly default?: Record<string, string>;
+	/**
+	 * Required reports whether a value must be supplied to compose.
+	 */
 	readonly required: boolean;
+	/**
+	 * Sensitive hides the value in the UI and excludes it from logs.
+	 */
 	readonly sensitive: boolean;
 }
 
@@ -9378,6 +9505,9 @@ export interface TemplateBuilderModuleVariable {
  * TemplateBuilderModulesResponse is the response body for listing template builder modules.
  */
 export interface TemplateBuilderModulesResponse {
+	/**
+	 * Modules are the modules available for the requested base.
+	 */
 	readonly modules: readonly TemplateBuilderModule[];
 }
 
@@ -9395,11 +9525,29 @@ export const TemplateBuilderSessionEventTypes: TemplateBuilderSessionEventType[]
  * POST /api/v2/templatebuilder/sessions.
  */
 export interface TemplateBuilderSessionRequest {
+	/**
+	 * SessionID correlates events within one builder session.
+	 */
 	readonly session_id: string;
+	/**
+	 * EventType is the telemetry event being reported.
+	 */
 	readonly event_type: TemplateBuilderSessionEventType;
+	/**
+	 * BaseTemplateID is the selected base, when known.
+	 */
 	readonly base_template_id?: string;
+	/**
+	 * ModuleIDs are the selected modules, when known.
+	 */
 	readonly module_ids?: readonly string[];
+	/**
+	 * DurationSeconds is the elapsed wizard time for the event.
+	 */
 	readonly duration_seconds?: number;
+	/**
+	 * Success reports whether the composition succeeded.
+	 */
 	readonly success?: boolean;
 }
 
