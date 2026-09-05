@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -95,11 +96,11 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 	}
 	cmd.Env = env
 
-	// We want logs to be written in the correct order, so we wrap all logging
-	// in a sync.Mutex.
-	mut := &sync.Mutex{}
-	cmd.Stdout = syncWriter{mut, stdOutWriter}
-	cmd.Stderr = syncWriter{mut, stdErrWriter}
+	// We want logs to be written in the correct order, so we wrap each
+	// stream in a sync.Mutex. Each stream gets its own mutex so that a
+	// blocked write on one stream cannot wedge the other.
+	cmd.Stdout = syncWriter{new(sync.Mutex), stdOutWriter}
+	cmd.Stderr = syncWriter{new(sync.Mutex), stdErrWriter}
 
 	e.server.logger.Debug(ctx, "executing terraform command",
 		slog.F("binary_path", e.binaryPath),
@@ -412,7 +413,7 @@ func (e *executor) parsePlan(ctx, killCtx context.Context, planfilePath string) 
 // logDrift must only be called while the lock is held.
 // It will log the output of `terraform show`, which will show which resources have drifted from the known state.
 func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, logr logSink) {
-	stdout, stdoutDone := resourceReplaceLogWriter(logr, e.logger)
+	stdout, stdoutDone := resourceReplaceLogWriter(logr)
 	stderr, stderrDone := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = stdout.Close()
@@ -432,16 +433,14 @@ func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, l
 //
 // The WriteCloser must be closed by the caller to end logging, after which the returned channel will be closed to
 // indicate that logging of the written data has finished.  Failure to close the WriteCloser will leak a goroutine.
-func resourceReplaceLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser, <-chan struct{}) {
+func resourceReplaceLogWriter(sink logSink) (io.WriteCloser, <-chan struct{}) {
 	r, w := io.Pipe()
 	done := make(chan struct{})
 
 	go func() {
 		defer close(done)
 
-		scanner := bufio.NewScanner(r)
-		for scanner.Scan() {
-			line := scanner.Bytes()
+		scanLines(r, sink, func(line []byte) {
 			level := proto.LogLevel_INFO
 
 			// Terraform indicates that a resource will be deleted and recreated by showing the change along with this substring.
@@ -450,10 +449,7 @@ func resourceReplaceLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser,
 			}
 
 			sink.ProvisionLog(level, string(line))
-		}
-		if err := scanner.Err(); err != nil {
-			logger.Error(context.Background(), "failed to read terraform log", slog.Error(err))
-		}
+		})
 	}()
 	return w, done
 }
@@ -597,6 +593,68 @@ type logSink interface {
 	ProvisionLog(l proto.LogLevel, o string)
 }
 
+const (
+	// defaultScannerBufferSize is the initial capacity of the buffer used
+	// to scan log lines. The buffer grows as needed up to
+	// maxScannerBufferSize.
+	defaultScannerBufferSize = 64 * 1024 // 64 KiB
+
+	// maxScannerBufferSize is the largest single log line that will be
+	// scanned. Longer lines are discarded with a warning so that scanning
+	// can continue. 4 MiB is generous for anything terraform should emit.
+	maxScannerBufferSize = 4 * 1024 * 1024 // 4 MiB
+)
+
+// scanLines reads lines from r and calls fn for each one. Lines up to
+// maxScannerBufferSize are supported; a longer line is discarded with a
+// warning and scanning continues with the next line. r is closed when
+// scanning finishes so that a paired io.PipeWriter always unblocks instead
+// of hanging the process being logged.
+func scanLines(r io.ReadCloser, sink logSink, fn func(line []byte)) {
+	defer r.Close()
+	br := bufio.NewReaderSize(r, defaultScannerBufferSize)
+	for {
+		scanner := bufio.NewScanner(br)
+		scanner.Buffer(make([]byte, 0, defaultScannerBufferSize), maxScannerBufferSize)
+		for scanner.Scan() {
+			fn(scanner.Bytes())
+		}
+		err := scanner.Err()
+		if err == nil {
+			// Clean EOF.
+			return
+		}
+		if !errors.Is(err, bufio.ErrTooLong) {
+			sink.ProvisionLog(proto.LogLevel_ERROR, fmt.Sprintf("failed to read terraform log line: %s", err))
+			return
+		}
+		// The line exceeds maxScannerBufferSize. Warn, discard the
+		// remainder of the line, and continue scanning at the next one.
+		sink.ProvisionLog(proto.LogLevel_WARN, fmt.Sprintf("terraform log line too long (> %d bytes), discarding", maxScannerBufferSize))
+		if err := discardLine(br); err != nil {
+			return
+		}
+	}
+}
+
+// discardLine reads and discards bytes from r until a newline is consumed
+// or an error occurs.
+func discardLine(r *bufio.Reader) error {
+	for {
+		_, err := r.ReadSlice('\n')
+		if err == nil {
+			// Found newline.
+			return nil
+		}
+		if errors.Is(err, bufio.ErrBufferFull) {
+			// More of the oversized line remains to be discarded.
+			continue
+		}
+		// io.EOF or another read error.
+		return err
+	}
+}
+
 // logWriter creates a WriteCloser that will log each line of text at the given level.  The WriteCloser must be closed
 // by the caller to end logging, after which the returned channel will be closed to indicate that logging of the written
 // data has finished.  Failure to close the WriteCloser will leak a goroutine.
@@ -607,19 +665,18 @@ func logWriter(sink logSink, level proto.LogLevel) (io.WriteCloser, <-chan any) 
 	return w, done
 }
 
-func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel) {
+func readAndLog(sink logSink, r io.ReadCloser, done chan<- any, level proto.LogLevel) {
 	defer close(done)
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
+	scanLines(r, sink, func(line []byte) {
 		var log terraformProvisionLog
-		err := json.Unmarshal(scanner.Bytes(), &log)
+		err := json.Unmarshal(line, &log)
 		if err != nil {
-			if strings.TrimSpace(scanner.Text()) == "" {
-				continue
+			if len(bytes.TrimSpace(line)) == 0 {
+				return
 			}
 
-			sink.ProvisionLog(level, scanner.Text())
-			continue
+			sink.ProvisionLog(level, string(line))
+			return
 		}
 
 		logLevel := convertTerraformLogLevel(log.Level, sink)
@@ -628,7 +685,7 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 			//
 			// FIXME consider config.ProvisionerLogLevel to enable custom level logging
 			// instead of "just-debug-level" mode.
-			continue
+			return
 		}
 
 		// Degrade JSON log entries marked as INFO as these are logs produced in debug mode.
@@ -636,7 +693,7 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 			logLevel = proto.LogLevel_DEBUG
 		}
 		sink.ProvisionLog(logLevel, log.Message)
-	}
+	})
 }
 
 // provisionLogWriter creates a WriteCloser that will log each JSON formatted terraform log.  The WriteCloser must be
@@ -650,16 +707,15 @@ func (e *executor) provisionLogWriter(sink logSink) (io.WriteCloser, <-chan any)
 	return w, done
 }
 
-func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
+func (e *executor) provisionReadAndLog(sink logSink, r io.ReadCloser, done chan<- any) {
 	defer close(done)
 
 	errCount := 0
 
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		log := parseTerraformLogLine(scanner.Bytes())
+	scanLines(r, sink, func(line []byte) {
+		log := parseTerraformLogLine(line)
 		if log == nil {
-			continue
+			return
 		}
 
 		logLevel := convertTerraformLogLevel(log.Level, sink)
@@ -680,13 +736,13 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 
 		// If the diagnostic is provided, let's provide a bit more info!
 		if log.Diagnostic == nil {
-			continue
+			return
 		}
 		logLevel = convertTerraformLogLevel(string(log.Diagnostic.Severity), sink)
 		for _, diagLine := range strings.Split(FormatDiagnostic(log.Diagnostic), "\n") {
 			sink.ProvisionLog(logLevel, diagLine)
 		}
-	}
+	})
 }
 
 func parseTerraformLogLine(line []byte) *terraformProvisionLog {
