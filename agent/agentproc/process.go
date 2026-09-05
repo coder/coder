@@ -2,9 +2,15 @@ package agentproc
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
+	"slices"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -15,6 +21,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentrunonce"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
@@ -24,10 +31,43 @@ var (
 	errProcessNotFound   = xerrors.New("process not found")
 	errProcessNotRunning = xerrors.New("process is not running")
 
-	// exitedProcessReapAge is how long an exited process is
-	// kept before being automatically removed from the map.
+	// exitedProcessReapAge is how long an exited process without
+	// an idempotency key is kept before being automatically
+	// removed from the map.
 	exitedProcessReapAge = 5 * time.Minute
+
+	// keyedProcessReapAge is how long a process started under an
+	// idempotency key stays retrievable after it exits, so a retried
+	// dispatch can still read the result.
+	keyedProcessReapAge = 60 * time.Minute
 )
+
+// runOnceKey scopes an idempotency key to the chat that supplied it,
+// so two chats reusing one key value get independent reservations.
+type runOnceKey struct {
+	chatID string
+	key    string
+}
+
+// startFingerprint digests the request fields that decide what gets
+// spawned. The workdir is taken as requested rather than resolved, so
+// an identical retry attaches even when the default directory
+// resolves differently between the two.
+func startFingerprint(req workspacesdk.StartProcessRequest) string {
+	h := sha256.New()
+	// Length-prefix every field so no combination of values can
+	// serialize to the same bytes as a different combination.
+	write := func(values ...string) {
+		for _, v := range values {
+			_, _ = fmt.Fprintf(h, "%d:%s", len(v), v)
+		}
+	}
+	write(req.Command, req.WorkDir, strconv.FormatBool(req.Background))
+	for _, k := range slices.Sorted(maps.Keys(req.Env)) {
+		write(k, req.Env[k])
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
 
 // process represents a running or completed process.
 type process struct {
@@ -37,15 +77,18 @@ type process struct {
 	workDir    string
 	background bool
 	chatID     string
-	cmd        *exec.Cmd
-	cancel     context.CancelFunc
-	buf        *HeadTailBuffer
-	logger     slog.Logger
-	running    bool
-	exitCode   *int
-	startedAt  int64
-	exitedAt   *int64
-	done       chan struct{} // closed when process exits
+	// keyed marks a process started under an idempotency key. Reaping
+	// leaves those to the registry, which retains them longer.
+	keyed     bool
+	cmd       *exec.Cmd
+	cancel    context.CancelFunc
+	buf       *HeadTailBuffer
+	logger    slog.Logger
+	running   bool
+	exitCode  *int
+	startedAt int64
+	exitedAt  *int64
+	done      chan struct{} // closed when process exits
 }
 
 // info returns a snapshot of the process state.
@@ -73,12 +116,15 @@ func (p *process) output() (string, *workspacesdk.ProcessTruncation) {
 
 // manager tracks processes spawned by the agent.
 type manager struct {
-	mu         sync.Mutex
-	logger     slog.Logger
-	execer     agentexec.Execer
-	fs         afero.Fs
-	clock      quartz.Clock
-	procs      map[string]*process
+	mu     sync.Mutex
+	logger slog.Logger
+	execer agentexec.Execer
+	fs     afero.Fs
+	clock  quartz.Clock
+	procs  map[string]*process
+	// runOnce reserves idempotency keys so a retried start attaches
+	// to the process the first one spawned. It holds process IDs.
+	runOnce    *agentrunonce.Registry[runOnceKey, string]
 	closed     bool
 	updateEnv  func(current []string) (updated []string, err error)
 	workingDir func() string
@@ -99,6 +145,7 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 		fs:         fs,
 		clock:      quartz.NewReal(),
 		procs:      make(map[string]*process),
+		runOnce:    agentrunonce.NewRegistry[runOnceKey, string](keyedProcessReapAge),
 		updateEnv:  updateEnv,
 		workingDir: workingDir,
 		envInfo:    envInfo,
@@ -109,13 +156,51 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 // processes use a long-lived context so the process survives
 // the HTTP request lifecycle. The background flag only affects
 // client-side polling behavior.
-func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*process, error) {
+//
+// A request whose idempotency key already started a process returns
+// that process with attached true. Reusing a key within one chat with
+// different parameters fails with agentrunonce.ErrInputMismatch. The
+// context only bounds the wait for a concurrent start holding the
+// same key; it does not cancel the spawned process.
+func (m *manager) start(ctx context.Context, req workspacesdk.StartProcessRequest, chatID string) (*process, bool, error) {
+	workDir := m.resolveWorkingDirectory(req.WorkDir)
+
 	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		return nil, xerrors.New("manager is closed")
-	}
+	m.reapExitedLocked(m.clock.Now())
 	m.mu.Unlock()
+
+	var (
+		key      *runOnceKey
+		reserved *agentrunonce.Ticket[runOnceKey, string]
+	)
+	if req.IdempotencyKey != "" {
+		key = &runOnceKey{chatID: chatID, key: req.IdempotencyKey}
+	}
+	for key != nil {
+		outcome, err := m.runOnce.Reserve(ctx, *key, startFingerprint(req))
+		if err != nil {
+			if errors.Is(err, agentrunonce.ErrClosed) {
+				return nil, false, xerrors.New("manager is closed")
+			}
+			if errors.Is(err, agentrunonce.ErrPublicationPending) && m.isClosed() {
+				return nil, false, xerrors.Errorf("manager is closed: %w", err)
+			}
+			return nil, false, err
+		}
+		if outcome.Ticket != nil {
+			reserved = outcome.Ticket
+			break
+		}
+		m.mu.Lock()
+		existing, ok := m.procs[outcome.Value]
+		m.mu.Unlock()
+		if ok {
+			return existing, true, nil
+		}
+		// Reaping removed the process after the reservation resolved.
+		// Forget only the observed generation, then reserve again.
+		m.runOnce.Forget(*key, outcome.Generation)
+	}
 
 	id := uuid.New().String()
 	logger := m.logger
@@ -128,7 +213,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	// the process is not tied to any HTTP request.
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := m.execer.CommandContext(ctx, "sh", "-c", req.Command)
-	cmd.Dir = m.resolveWorkingDirectory(req.WorkDir)
+	cmd.Dir = workDir
 	cmd.Stdin = nil
 	cmd.SysProcAttr = procSysProcAttr()
 
@@ -171,9 +256,21 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_CHAT_ID=%s", chatID))
 	}
 
-	if err := cmd.Start(); err != nil {
+	// Spawn, insert and publish in one critical section with the
+	// closed check, so every spawned process is visible to Close's
+	// kill pass and to every attaching caller.
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
 		cancel()
-		return nil, xerrors.Errorf("start process: %w", err)
+		releaseReservation(reserved)
+		return nil, false, xerrors.New("manager is closed")
+	}
+	if err := cmd.Start(); err != nil {
+		m.mu.Unlock()
+		cancel()
+		releaseReservation(reserved)
+		return nil, false, xerrors.Errorf("start process: %w", err)
 	}
 
 	now := m.clock.Now().Unix()
@@ -183,6 +280,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		workDir:    cmd.Dir,
 		background: req.Background,
 		chatID:     chatID,
+		keyed:      key != nil,
 		cmd:        cmd,
 		cancel:     cancel,
 		buf:        buf,
@@ -192,16 +290,10 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		done:       make(chan struct{}),
 	}
 
-	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		// Manager closed between our check and now. Kill the
-		// process we just started.
-		cancel()
-		_ = cmd.Wait()
-		return nil, xerrors.New("manager is closed")
-	}
 	m.procs[id] = proc
+	if reserved != nil {
+		reserved.Publish(id)
+	}
 	m.mu.Unlock()
 
 	go func() {
@@ -231,13 +323,35 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		proc.exitCode = &code
 		proc.mu.Unlock()
 
+		// Retention runs from exit, so a retry can still read this
+		// result until the reservation is reaped.
+		if key != nil {
+			m.runOnce.Complete(*key, m.clock.Now())
+		}
+
 		// Wake any waiters blocked on new output or
 		// process exit before closing the done channel.
 		proc.buf.Close()
 		close(proc.done)
 	}()
 
-	return proc, nil
+	return proc, false, nil
+}
+
+// releaseReservation frees a reservation that will never publish a
+// process, so waiting callers reserve the key again.
+func releaseReservation(reserved *agentrunonce.Ticket[runOnceKey, string]) {
+	if reserved == nil {
+		return
+	}
+	reserved.Release()
+}
+
+func (m *manager) isClosed() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.closed
 }
 
 // get returns a process by ID.
@@ -248,34 +362,49 @@ func (m *manager) get(id string) (*process, bool) {
 	return proc, ok
 }
 
-// list returns info about all tracked processes. Exited
-// processes older than exitedProcessReapAge are removed.
-// If chatID is non-empty, only processes belonging to that
-// chat are returned.
+// list returns info about all tracked processes, reaping exited ones
+// past their retention age first. If chatID is non-empty, only
+// processes belonging to that chat are returned.
 func (m *manager) list(chatID string) []workspacesdk.ProcessInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	now := m.clock.Now()
+	m.reapExitedLocked(m.clock.Now())
+
 	infos := make([]workspacesdk.ProcessInfo, 0, len(m.procs))
-	for id, proc := range m.procs {
-		info := proc.info()
-		// Reap processes that exited more than 5 minutes ago
-		// to prevent unbounded map growth.
-		if !info.Running && info.ExitedAt != nil {
-			exitedAt := time.Unix(*info.ExitedAt, 0)
-			if now.Sub(exitedAt) > exitedProcessReapAge {
-				delete(m.procs, id)
-				continue
-			}
-		}
+	for _, proc := range m.procs {
 		// Filter by chatID if provided.
 		if chatID != "" && proc.chatID != chatID {
 			continue
 		}
-		infos = append(infos, info)
+		infos = append(infos, proc.info())
 	}
 	return infos
+}
+
+// reapExitedLocked removes exited processes past their retention age
+// to prevent unbounded map growth. Keyed processes are retained by
+// the reservation registry instead, and for longer. The manager mutex
+// must be held.
+func (m *manager) reapExitedLocked(now time.Time) {
+	// Remove the reservation and process together so every retained
+	// reservation still points to a tracked process.
+	for _, id := range m.runOnce.Reap(now) {
+		delete(m.procs, id)
+	}
+	for id, proc := range m.procs {
+		if proc.keyed {
+			continue
+		}
+		info := proc.info()
+		if info.Running || info.ExitedAt == nil {
+			continue
+		}
+		if now.Sub(time.Unix(*info.ExitedAt, 0)) <= exitedProcessReapAge {
+			continue
+		}
+		delete(m.procs, id)
+	}
 }
 
 // signal sends a signal to a running process. It returns
@@ -328,6 +457,9 @@ func (m *manager) Close() error {
 		return nil
 	}
 	m.closed = true
+	m.runOnce.Close()
+	// The spawn path inserts under the same lock that checks closed,
+	// so this snapshot is complete.
 	procs := make([]*process, 0, len(m.procs))
 	for _, p := range m.procs {
 		procs = append(procs, p)
