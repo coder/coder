@@ -52,6 +52,16 @@ interface Codernaut {
 	spotlightPhase: number;
 }
 
+interface RewindSnapshot {
+	x: number;
+	y: number;
+	vx: number;
+	vy: number;
+	angle: number;
+	fuel: number;
+	aboardNames: string[];
+}
+
 interface DisembarkAnim {
 	name: string;
 	x: number;
@@ -79,6 +89,13 @@ const GRAVITY = THRUST_ACCEL / 5;
 
 // How long the explosion animation plays before respawn (seconds).
 const EXPLOSION_DURATION = 2.5;
+
+// Hidden rewind: pressing "r" during the explosion restores the game
+// to this many seconds before the crash. Intentionally undocumented.
+const REWIND_SECONDS = 5;
+
+// How often flight state is snapshotted for the rewind buffer (seconds).
+const REWIND_SAMPLE_INTERVAL = 0.25;
 
 // Number of debris lines in the explosion.
 const EXPLOSION_PARTICLES = 28;
@@ -1794,6 +1811,8 @@ export const LunarLander: FC = () => {
 		let exploding = false;
 		let explosionTimer = 0;
 		let explosionParts: ExplosionParticle[] = [];
+		let rewindBuffer: RewindSnapshot[] = [];
+		let rewindSampleTimer = 0;
 		let mouseX = -1;
 		let mouseY = -1;
 		const sidebarState: SidebarState = { scrollOffset: 0 };
@@ -1840,8 +1859,35 @@ export const LunarLander: FC = () => {
 			explosionTimer = 0;
 			explosionParts = [];
 			fuel = 100;
+			rewindBuffer = [];
+			rewindSampleTimer = 0;
 			for (const n of codernauts) {
 				if (n.aboard) n.aboard = false;
+			}
+		}
+
+		// Restore the oldest buffered snapshot (~REWIND_SECONDS before the
+		// crash) and resume play instead of waiting for the respawn.
+		function tryRewind() {
+			if (!exploding || rewindBuffer.length === 0) return;
+			const snap = rewindBuffer[0];
+			rewindBuffer = [];
+			rewindSampleTimer = 0;
+			exploding = false;
+			explosionTimer = 0;
+			explosionParts = [];
+			landed = false;
+			landedOnStation = false;
+			thrusting = false;
+			landerX = snap.x;
+			landerY = snap.y;
+			landerVx = snap.vx;
+			landerVy = snap.vy;
+			landerAngle = snap.angle;
+			fuel = snap.fuel;
+			for (const n of codernauts) {
+				if (n.saved) continue;
+				n.aboard = snap.aboardNames.includes(n.name);
 			}
 		}
 
@@ -1868,6 +1914,9 @@ export const LunarLander: FC = () => {
 				e.key === "ArrowDown"
 			) {
 				e.preventDefault();
+			}
+			if (e.key === "r" || e.key === "R") {
+				tryRewind();
 			}
 			keys.add(e.key);
 		}
@@ -2086,6 +2135,27 @@ export const LunarLander: FC = () => {
 				updateExplosion(explosionParts, dt);
 				if (explosionTimer <= 0) resetLander();
 			} else if (roundCompleteTimer <= 0) {
+				// Sample flight state into the rolling rewind buffer. The
+				// buffer freezes on crash because sampling stops while
+				// exploding, so its oldest entry is ~REWIND_SECONDS old.
+				rewindSampleTimer -= dt;
+				if (rewindSampleTimer <= 0) {
+					rewindSampleTimer = REWIND_SAMPLE_INTERVAL;
+					rewindBuffer.push({
+						x: landerX,
+						y: landerY,
+						vx: landerVx,
+						vy: landerVy,
+						angle: landerAngle,
+						fuel,
+						aboardNames: codernauts.filter((c) => c.aboard).map((c) => c.name),
+					});
+					const maxLen = Math.ceil(REWIND_SECONDS / REWIND_SAMPLE_INTERVAL);
+					while (rewindBuffer.length > maxLen) {
+						rewindBuffer.shift();
+					}
+				}
+
 				if (landed) {
 					if (landedOnStation && fuel < 100) {
 						fuel = Math.min(100, fuel + FUEL_REFILL_RATE * dt);
