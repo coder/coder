@@ -153,4 +153,26 @@ func TestClassifyProviderRow(t *testing.T) {
 		assert.Equal(t, aibridged.ProviderStatusEnabled, got.Status)
 		assert.Equal(t, "api.example.com", got.Host)
 	})
+
+	// SchemeLessBaseURLDoesNotClaimHostname is the regression guard for
+	// a scheme-less base URL being normalized to an https hostname: the
+	// row was routed as if it were valid and it consumed the hostname
+	// slot, demoting the correctly configured provider on that hostname
+	// to proxy_excluded.
+	t.Run("SchemeLessBaseURLDoesNotClaimHostname", func(t *testing.T) {
+		t.Parallel()
+
+		seen := map[string]string{}
+		schemeLess := classifyProviderRow(enabledRow("scheme-less", "api.example.com/v1"), seen)
+		assert.Equal(t, aibridged.ProviderStatusError, schemeLess.Status)
+		assert.Empty(t, schemeLess.Host, "scheme-less provider must not expose a host")
+		assert.ErrorContains(t, schemeLess.Err, "no hostname")
+		assert.Empty(t, seen, "scheme-less provider must not claim a hostname")
+
+		valid := classifyProviderRow(enabledRow("valid", "https://api.example.com/v1"), seen)
+		assert.Equal(t, aibridged.ProviderStatusEnabled, valid.Status)
+		assert.Equal(t, "api.example.com", valid.Host)
+		assert.NoError(t, valid.Err)
+		assert.Equal(t, "valid", seen["api.example.com"])
+	})
 }
