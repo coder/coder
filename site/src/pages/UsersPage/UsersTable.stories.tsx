@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { FC } from "react";
+import { useParams } from "react-router";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import {
 	MockAuditorRole,
 	MockGroup,
@@ -40,6 +43,9 @@ export const Example: Story = {
 		await expect(canvas.getByText(MockUserOwner.username)).toBeVisible();
 		await expect(
 			canvas.queryByRole("button", { name: /open menu/i }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("link", { name: MockUserOwner.username }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -95,6 +101,98 @@ export const Editable: Story = {
 		const menu = within(document.body);
 		await menu.findByRole("menuitem", { name: "Edit" });
 		await menu.findByRole("menuitem", { name: "Edit roles" });
+	},
+};
+
+const EditUserRoute: FC = () => {
+	const { user } = useParams();
+	return <div>Editing {user}</div>;
+};
+
+const editUserRouting = {
+	reactRouter: reactRouterParameters({
+		location: { path: "/deployment/users" },
+		routing: [
+			{ path: "/deployment/users", useStoryElement: true },
+			{ path: "/deployment/users/:user", Component: EditUserRoute },
+		],
+	}),
+};
+
+export const OpensEditOnRowClick: Story = {
+	args: { ...Editable.args },
+	parameters: editUserRouting,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const ownerRow = canvas.getByRole("row", {
+			name: (accessibleName) => accessibleName.includes(MockUserOwner.email),
+		});
+		await userEvent.click(ownerRow);
+		await expect(
+			await canvas.findByText(`Editing ${MockUserOwner.username}`),
+		).toBeVisible();
+	},
+};
+
+export const OpensEditOnUsernameLinkKeyboardActivation: Story = {
+	args: { ...Editable.args },
+	parameters: editUserRouting,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("link", { name: MockUserOwner.username }).focus();
+		await userEvent.keyboard("{Enter}");
+		await expect(
+			await canvas.findByText(`Editing ${MockUserOwner.username}`),
+		).toBeVisible();
+	},
+};
+
+export const NestedControlsDoNotOpenEdit: Story = {
+	args: { ...Editable.args },
+	parameters: editUserRouting,
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const ownerRow = canvas.getByRole("row", {
+			name: (accessibleName) => accessibleName.includes(MockUserOwner.email),
+		});
+
+		await step(
+			"clicking the groups popover keeps the user on the table",
+			async () => {
+				await userEvent.click(
+					within(ownerRow).getByRole("button", { name: /view 1 group/i }),
+				);
+				const groupsPopover = await body.findByRole("dialog");
+				const groupName = await within(groupsPopover).findByText(
+					MockGroup.display_name,
+				);
+				await userEvent.click(groupName);
+				await expect(groupName).toBeInTheDocument();
+				await userEvent.keyboard("{Escape}");
+			},
+		);
+
+		await step(
+			"opening the actions menu by keyboard keeps the user on the table",
+			async () => {
+				within(ownerRow)
+					.getByRole("button", { name: /open menu/i })
+					.focus();
+				await userEvent.keyboard("{Enter}");
+				await expect(
+					await body.findByRole("menuitem", { name: "Edit" }),
+				).toBeInTheDocument();
+				await userEvent.keyboard("{Escape}");
+			},
+		);
+
+		await expect(
+			canvas.queryByText(`Editing ${MockUserOwner.username}`),
+		).not.toBeInTheDocument();
+		await expect(
+			await canvas.findByRole("table", { name: "Users" }),
+		).toBeVisible();
 	},
 };
 

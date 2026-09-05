@@ -1,6 +1,8 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import type { SyntheticEvent } from "react";
+import { Link, useNavigate } from "react-router";
 import type { GroupsByUserId } from "#/api/queries/groups";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -95,10 +97,63 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	}
 
 	return users.map((user) => (
-		<TableRow key={user.id} data-testid={`user-${user.id}`}>
+		<UserRow
+			key={user.id}
+			user={user}
+			groups={groupsByUserId?.get(user.id)}
+			me={me}
+			canEditUsers={canEditUsers}
+			canViewActivity={canViewActivity}
+			oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+			onAction={onAction}
+		/>
+	));
+};
+
+type UserRowProps = {
+	user: TypesGen.User;
+	groups: readonly TypesGen.Group[] | undefined;
+	me: string;
+	canEditUsers: boolean;
+	canViewActivity?: boolean;
+	oidcRoleSyncEnabled?: boolean;
+	onAction: (action: UserAdminAction) => void;
+};
+
+const UserRow: React.FC<UserRowProps> = ({
+	user,
+	groups,
+	me,
+	canEditUsers,
+	canViewActivity,
+	oidcRoleSyncEnabled,
+	onAction,
+}) => {
+	const navigate = useNavigate();
+
+	// Nested controls must not activate the row (click, Enter, or Space).
+	const stopRowActivation = (event: SyntheticEvent) => {
+		event.stopPropagation();
+	};
+
+	return (
+		<TableRow
+			data-testid={`user-${user.id}`}
+			hover={canEditUsers}
+			onClick={canEditUsers ? () => navigate(user.username) : undefined}
+		>
 			<TableCell>
 				<AvatarData
-					title={user.username}
+					title={
+						canEditUsers ? (
+							<Link to={user.username} onClick={stopRowActivation}>
+								{user.username}
+							</Link>
+						) : (
+							user.username
+						)
+					}
+					imgFallbackText={user.username}
 					subtitle={user.is_service_account ? "Service Account" : user.email}
 					src={user.avatar_url}
 				/>
@@ -106,7 +161,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 
 			<UserRoleCell roles={user.roles} />
 
-			<UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
+			<UserGroupsCell userGroups={groups} />
 
 			<TableCell
 				className={cn(
@@ -121,7 +176,12 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 			</TableCell>
 
 			{canEditUsers && (
-				<TableCell className="w-px whitespace-nowrap text-right">
+				<TableCell
+					className="w-px whitespace-nowrap text-right"
+					onClick={stopRowActivation}
+					onKeyDown={stopRowActivation}
+					onKeyUp={stopRowActivation}
+				>
 					<div className="flex justify-end">
 						<UserMoreActions
 							user={user}
@@ -134,7 +194,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 				</TableCell>
 			)}
 		</TableRow>
-	));
+	);
 };
 
 type UsersTableSkeletonProps = {
