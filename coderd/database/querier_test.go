@@ -19359,6 +19359,35 @@ func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
 	})
 }
 
+func TestSingleUseDelete(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// Callers rely on this delete to arbitrate single use, so a delete that
+	// removed nothing must report sql.ErrNoRows rather than succeed.
+	t.Run("OAuth2ProviderAppCode", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+		code := dbgen.OAuth2ProviderAppCode(t, db, database.OAuth2ProviderAppCode{
+			AppID:  app.ID,
+			UserID: user.ID,
+		})
+
+		deleted, err := db.DeleteOAuth2ProviderAppCodeByID(ctx, code.ID)
+		require.NoError(t, err)
+		require.Equal(t, code, deleted)
+
+		_, err = db.DeleteOAuth2ProviderAppCodeByID(ctx, code.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+}
+
 func TestGetUnpricedAIModelsSince(t *testing.T) {
 	t.Parallel()
 

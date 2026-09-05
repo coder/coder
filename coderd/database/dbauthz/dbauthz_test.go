@@ -6316,7 +6316,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 			AppID:  app.ID,
 			UserID: user.ID,
 		})
-		check.Args(code.ID).Asserts(code, policy.ActionDelete)
+		check.Args(code.ID).Asserts(code, policy.ActionDelete).Returns(code)
 	}))
 	s.Run("DeleteOAuth2ProviderAppCodesByAppAndUserID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)

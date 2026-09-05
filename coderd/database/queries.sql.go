@@ -19922,13 +19922,36 @@ func (q *sqlQuerier) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UU
 	return err
 }
 
-const deleteOAuth2ProviderAppCodeByID = `-- name: DeleteOAuth2ProviderAppCodeByID :exec
-DELETE FROM oauth2_provider_app_codes WHERE id = $1
+const deleteOAuth2ProviderAppCodeByID = `-- name: DeleteOAuth2ProviderAppCodeByID :one
+DELETE FROM oauth2_provider_app_codes WHERE id = $1 RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope
 `
 
-func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppCodeByID, id)
-	return err
+// Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
+// this the arbiter of single use. A prior read cannot arbitrate: its result is
+// stale the moment it returns.
+//
+// Concurrent deletes are arbitrated at READ COMMITTED, the default isolation
+// level: the second transaction waits for the first, then removes nothing.
+// SERIALIZABLE would abort and retry it instead.
+func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
+	row := q.db.QueryRowContext(ctx, deleteOAuth2ProviderAppCodeByID, id)
+	var i OAuth2ProviderAppCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
+		&i.StateHash,
+		&i.RedirectUri,
+		&i.Scope,
+	)
+	return i, err
 }
 
 const deleteOAuth2ProviderAppCodesByAppAndUserID = `-- name: DeleteOAuth2ProviderAppCodesByAppAndUserID :exec
