@@ -1,7 +1,10 @@
 import { PackageIcon, SearchIcon } from "lucide-react";
 import { type FC, type PropsWithChildren, useMemo, useState } from "react";
 import { useQuery } from "react-query";
-import { templateBuilderModules } from "#/api/queries/templateBuilder";
+import {
+	templateBuilderBases,
+	templateBuilderModules,
+} from "#/api/queries/templateBuilder";
 import type {
 	TemplateBuilderComposeModule,
 	TemplateBuilderModule,
@@ -20,6 +23,9 @@ import {
 import { ModuleCard } from "./ModuleCard";
 import { sortByPriority } from "./sortByPriority";
 import {
+	AGENT_NAME_VARIABLE,
+	baseAgents,
+	defaultAgentName,
 	moduleHasConfigurableVars,
 	type SelectedModuleMeta,
 } from "./wizardState";
@@ -98,6 +104,8 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 	onChangeModules,
 }) => {
 	const { data, error, isLoading } = useQuery(templateBuilderModules(baseId));
+	const { data: basesData } = useQuery(templateBuilderBases());
+	const agents = baseAgents(basesData, baseId);
 	const [moduleSearchText, setModuleSearchText] = useState("");
 	const modules = data?.modules ?? [];
 	const doesBaseTemplateHaveModules = modules.length > 0;
@@ -191,9 +199,25 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 		}
 
 		const modulesById = new Map(modules.map((m) => [m.id, m]));
-		const nextModules: TemplateBuilderComposeModule[] = nextIds.map((id) => ({
-			id,
-		}));
+
+		// Newly added agent-aware modules get their agent choice seeded with the
+		// base default so the selection is explicit from the start. Already-selected
+		// modules carry no variables here, so the reducer keeps their current values.
+		const defaultAgent = defaultAgentName(agents);
+		const idsToSeedAgent = new Set(
+			nextIds.filter(
+				(id) =>
+					!selectedSet.has(id) &&
+					modulesById
+						.get(id)
+						?.variables.some((v) => v.name === AGENT_NAME_VARIABLE),
+			),
+		);
+		const nextModules: TemplateBuilderComposeModule[] = nextIds.map((id) =>
+			idsToSeedAgent.has(id) && defaultAgent
+				? { id, variables: { [AGENT_NAME_VARIABLE]: defaultAgent } }
+				: { id },
+		);
 		const nextMeta: SelectedModuleMeta[] = nextIds
 			.map((id) => modulesById.get(id))
 			.filter((m): m is TemplateBuilderModule => m != null)

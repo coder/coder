@@ -1,7 +1,11 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { templateBuilderModules } from "#/api/queries/templateBuilder";
+import {
+	templateBuilderBases,
+	templateBuilderModules,
+} from "#/api/queries/templateBuilder";
 import type {
+	TemplateBuilderBaseAgent,
 	TemplateBuilderModule,
 	TemplateBuilderModulesResponse,
 	TemplateBuilderModuleVariable,
@@ -16,6 +20,11 @@ import {
 } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
+import {
+	AGENT_NAME_VARIABLE,
+	baseAgents,
+	defaultAgentName,
+} from "./wizardState";
 
 interface ModuleSettingsStepProps {
 	baseId: string;
@@ -34,9 +43,34 @@ function variableToField(
 	variable: TemplateBuilderModuleVariable,
 	value: string,
 	onChange: (name: string, value: string) => void,
+	agents: readonly TemplateBuilderBaseAgent[],
 ): ConfigurationFieldDefinition {
 	const id = `mod-${moduleId}-${variable.name}`;
 	const label = <ConfigurationFieldLabel variable={variable} />;
+
+	// The backend only returns agent_name for multi-agent bases, so its presence
+	// is the signal to render an agent picker whose value drives both the
+	// module's agent_name and its agent_id.
+	if (variable.name === AGENT_NAME_VARIABLE && agents.length > 0) {
+		const options = agents.map((a) => ({
+			value: a.name,
+			label: a.display_name,
+		}));
+		// Guard against a stored value that names an agent this base does not
+		// declare (e.g. a default carried over from another base).
+		const selected = options.some((o) => o.value === value)
+			? value
+			: defaultAgentName(agents);
+		return {
+			type: "radio",
+			id,
+			label: variable.name,
+			description: variable.description || undefined,
+			value: selected,
+			onChange: (val) => onChange(variable.name, val),
+			options,
+		};
+	}
 
 	if (variable.type === "bool") {
 		return {
@@ -114,6 +148,9 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	const { data } = useQuery(templateBuilderModules(baseId));
 	const modules = data?.modules ?? [];
 
+	const { data: basesData } = useQuery(templateBuilderBases());
+	const agents = baseAgents(basesData, baseId);
+
 	const selectedModules = selectedModuleIds
 		.map((id) => modules.find((m) => m.id === id))
 		.filter((m): m is TemplateBuilderModule => m != null);
@@ -142,13 +179,19 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 							v,
 							vars[v.name] ?? defaultPlaceholder(v.default) ?? "",
 							(name, val) => handleChange(mod.id, name, val),
+							agents,
 						);
 
-					const requiredVars = configurableVars.filter((v) => v.required);
-					const optionalVars = configurableVars.filter((v) => !v.required);
-
-					const requiredFields = requiredVars.map(toField);
-					const optionalFields = optionalVars.map(toField);
+					// Agent selection always shows alongside the required fields, not in
+					// the collapsed additional-settings group, even though it is optional.
+					const isRequiredField = (v: TemplateBuilderModuleVariable) =>
+						v.required || (v.name === AGENT_NAME_VARIABLE && agents.length > 0);
+					const requiredFields = configurableVars
+						.filter(isRequiredField)
+						.map(toField);
+					const optionalFields = configurableVars
+						.filter((v) => !isRequiredField(v))
+						.map(toField);
 
 					return (
 						<div
