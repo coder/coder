@@ -304,11 +304,12 @@ func textFromParts(parts []codersdk.ChatMessagePart) string {
 }
 
 type buildCompactionMessagesInput struct {
-	modelConfigID  uuid.UUID
-	toolCallID     string
-	toolName       string
-	compaction     compactionOutcome
-	contentVersion int16
+	modelConfigID       uuid.UUID
+	toolCallID          string
+	toolName            string
+	compaction          compactionOutcome
+	contentVersion      int16
+	pendingUserMessages []database.ChatMessage
 }
 
 type compactionMessagesForCommit struct {
@@ -380,6 +381,15 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	}
 	for i := range messages {
 		messages[i].Compressed = true
+	}
+	for _, row := range input.pendingUserMessages {
+		messages = append(messages, chatstate.Message{
+			Role:           database.ChatMessageRoleUser,
+			Content:        row.Content,
+			Visibility:     database.ChatMessageVisibilityModel,
+			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
+			ContentVersion: row.ContentVersion,
+		})
 	}
 	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
 }
@@ -555,6 +565,24 @@ func isContextBoundaryMessage(msg database.ChatMessage) bool {
 		}
 	}
 	return false
+}
+
+// pendingUserSegmentStart returns the index of the first row of the trailing run of unanswered user-role rows (len(promptRows) when there is none or when no assistant row precedes it); scanning persisted rows means assistant rows terminate the run even when prompt conversion or sanitization drops them.
+func pendingUserSegmentStart(promptRows []database.ChatMessage) int {
+	start := len(promptRows)
+	for start > 0 {
+		row := promptRows[start-1]
+		if row.Deleted || row.Compressed || row.Role != database.ChatMessageRoleUser {
+			break
+		}
+		start--
+	}
+	for _, row := range promptRows[:start] {
+		if !row.Deleted && row.Role == database.ChatMessageRoleAssistant {
+			return start
+		}
+	}
+	return len(promptRows)
 }
 
 func firstUncompressedAssistantAfter(messages []database.ChatMessage, index int) (database.ChatMessage, bool) {

@@ -68,8 +68,7 @@ const (
 		"full content. Include brief inline summaries when the content " +
 		"itself would exceed a few lines."
 	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
-		"the earlier conversation. The assistant was actively working when " +
-		"the context was compacted. Continue the work described below:"
+		"the earlier conversation. Continue from it:"
 )
 
 // CompactionSource identifies what triggered a compaction. It is
