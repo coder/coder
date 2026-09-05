@@ -10,10 +10,10 @@ import (
 )
 
 // NewAnthropicProvider builds an Anthropic provider for tests, failing the test
-// if credential resolution fails.
-func NewAnthropicProvider(t testing.TB, cfg aibridge.AnthropicConfig, bedrockCfg *aibridge.AWSBedrockConfig) aibridge.Provider {
+// if construction fails.
+func NewAnthropicProvider(t testing.TB, cfg aibridge.AnthropicConfig) aibridge.Provider {
 	t.Helper()
-	p, err := aibridge.NewAnthropicProvider(context.Background(), cfg, bedrockCfg)
+	p, err := aibridge.NewAnthropicProvider(context.Background(), cfg)
 	require.NoError(t, err)
 	return p
 }

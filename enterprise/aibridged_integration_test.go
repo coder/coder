@@ -501,7 +501,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 			BaseURL:        mockAnthropic.URL,
 			KeyPool:        singleKeyPool(t, config.ProviderAnthropic, "test-key"),
 			CircuitBreaker: cbConfig,
-		}, nil),
+		}),
 	}
 
 	// Create pool with metrics.
@@ -600,7 +600,7 @@ func TestIntegrationRecordsUpstreamError(t *testing.T) {
 	logger := testutil.Logger(t)
 	providers := []aibridge.Provider{
 		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-key")}),
-		aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{BaseURL: mockAnthropic.URL, KeyPool: singleKeyPool(t, config.ProviderAnthropic, "test-key")}, nil),
+		aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{BaseURL: mockAnthropic.URL, KeyPool: singleKeyPool(t, config.ProviderAnthropic, "test-key")}),
 	}
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
 	require.NoError(t, err)

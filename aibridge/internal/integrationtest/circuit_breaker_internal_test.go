@@ -75,7 +75,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 					BaseURL:        baseURL,
 					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
-				}, nil)
+				})
 			},
 		},
 		{
@@ -242,7 +242,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 					BaseURL:        baseURL,
 					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
-				}, nil)
+				})
 			},
 		},
 		{
@@ -379,7 +379,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 					BaseURL:        baseURL,
 					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
-				}, nil)
+				})
 			},
 		},
 		{
@@ -558,7 +558,7 @@ func TestCircuitBreaker_PerModelIsolation(t *testing.T) {
 			BaseURL:        mockUpstream.URL,
 			KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 			CircuitBreaker: cbConfig,
-		}, nil)),
+		})),
 		withMetrics(m),
 		withActor("test-user-id", nil),
 	)

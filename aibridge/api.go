@@ -17,9 +17,9 @@ import (
 // Const + Type + function aliases for backwards compatibility.
 const (
 	ProviderAnthropic = config.ProviderAnthropic
-	ProviderBedrock   = config.ProviderBedrock
 	ProviderOpenAI    = config.ProviderOpenAI
 	ProviderCopilot   = config.ProviderCopilot
+	ProviderBedrock   = config.ProviderBedrock
 )
 
 type (
@@ -47,10 +47,13 @@ func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) co
 	return aibcontext.AsActor(ctx, actorID, metadata)
 }
 
-func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (provider.Provider, error) {
-	return provider.NewAnthropic(ctx, cfg, bedrockCfg)
+func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic) (provider.Provider, error) {
+	return provider.NewAnthropic(ctx, cfg)
 }
 
+// NewBedrockProvider constructs a standalone Bedrock provider that serves the
+// Anthropic Messages route (invoke-model and mantle) and the OpenAI-shaped
+// routes (mantle only).
 func NewBedrockProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWSBedrock) (provider.Provider, error) {
 	return provider.NewBedrock(ctx, cfg, bedrockCfg)
 }
