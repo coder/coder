@@ -239,17 +239,21 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		app := seedAppWithSecret(t, db, sql.NullString{})
+		// Two apps, not two tokens on one: a refreshed key's name is
+		// <user>_<app>_oauth_session_token, and nothing enforces one holder of
+		// that name for this login type.
+		omittedApp := seedAppWithSecret(t, db, sql.NullString{})
+		narrowingApp := seedAppWithSecret(t, db, sql.NullString{})
 
-		omitted := seedRefreshToken(ctx, t, db, app, owner.UserID, "all")
-		status, body := postTokenRequest(ctx, t, client, refreshForm(app, omitted))
+		omitted := seedRefreshToken(ctx, t, db, omittedApp, owner.UserID, "all")
+		status, body := postTokenRequest(ctx, t, client, refreshForm(omittedApp, omitted))
 		refreshed := requireTokenResponse(t, status, body)
 		require.Equal(t, string(database.ApiKeyScopeCoderAll), refreshed.Scope)
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderAll},
 			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
 
-		narrowing := seedRefreshToken(ctx, t, db, app, owner.UserID, "all")
-		form := refreshForm(app, narrowing)
+		narrowing := seedRefreshToken(ctx, t, db, narrowingApp, owner.UserID, "all")
+		form := refreshForm(narrowingApp, narrowing)
 		form.Set("scope", "workspace:read")
 		status, body = postTokenRequest(ctx, t, client, form)
 		require.Equal(t, "workspace:read", requireTokenResponse(t, status, body).Scope,

@@ -92,6 +92,15 @@ func grantableScopes(appScope string) []string {
 	return filtered
 }
 
+// Phases of scope checking, named in the phase log field so an operator can
+// filter one comparison out of the three. Constants because a typo in a literal
+// compiles and produces a line no filter matches.
+const (
+	phaseAuthorize = "authorize"
+	phaseRedeem    = "redeem"
+	phaseRefresh   = "refresh"
+)
+
 // firstScopeBeyondCeiling returns the first requested scope the ceiling does not
 // confer, or "" when it confers all of them. It compares what the scopes grant,
 // not their names: a ceiling of `coder:workspaces.access` covers
@@ -99,19 +108,14 @@ func grantableScopes(appScope string) []string {
 // expands `coder:all` but not the bare `all` alias. A comparison it cannot
 // decide refuses.
 //
-// The ceiling is the app's allowlist at authorization and the token's own grant
-// at refresh, which is what phase names in the log.
+// phase names which comparison a log line came from, and is one of
+// phaseAuthorize, phaseRedeem or phaseRefresh. The ceiling differs by phase: the
+// app's allowlist for the first two, the token's own grant for the third.
 func firstScopeBeyondCeiling(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, ceiling, requested []string) (string, error) {
-	allowedNames := make([]rbac.ScopeName, 0, len(ceiling))
-	for _, a := range ceiling {
-		allowedNames = append(allowedNames, rbac.ScopeName(a))
-	}
-	requestedNames := make([]rbac.ScopeName, 0, len(requested))
-	for _, r := range requested {
-		requestedNames = append(requestedNames, rbac.ScopeName(r))
-	}
+	ceilingNames := slice.StringEnums[rbac.ScopeName](ceiling)
+	requestedNames := slice.StringEnums[rbac.ScopeName](requested)
 	// One pass over the ceiling rather than one per requested scope.
-	outside, err := rbac.FirstScopeNotCovered(allowedNames, requestedNames)
+	outside, err := rbac.FirstScopeNotCovered(ceilingNames, requestedNames)
 	if err != nil {
 		logger.Warn(ctx, "oauth2 scope coverage could not be determined",
 			slog.Error(err),
@@ -119,6 +123,9 @@ func firstScopeBeyondCeiling(ctx context.Context, logger slog.Logger, phase stri
 			slog.F("app_id", appID.String()),
 			slog.F("ceiling", strings.Join(ceiling, " ")),
 			slog.F("scope", string(outside)))
+		// outside is a name from the ceiling, so on refresh it comes from the
+		// token's stored grant. Both handlers answer this with a fixed string;
+		// rendering err.Error() here would echo stored values to the client.
 		return "", xerrors.Errorf("'%s': %w", outside, errCoverageUndecidable)
 	}
 	return string(outside), nil
@@ -147,7 +154,10 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	// them.
 	for _, s := range granted {
 		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
-			return "", xerrors.Errorf("%q: %w", s, errUnknownScope)
+			// '%s', matching the refresh-side check and the rest of these
+			// wrappers. %q would emit the double quote RFC 6749 §5.2 excludes,
+			// leaving sanitizeErrorDescription to rewrite what it just wrote.
+			return "", xerrors.Errorf("'%s': %w", s, errUnknownScope)
 		}
 	}
 
@@ -172,7 +182,7 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		return strings.Join(allowlist, " "), nil // RFC 6749 §3.3 default
 	}
 
-	outside, err := firstScopeBeyondCeiling(ctx, logger, "authorize", app.ID, allowlist, granted)
+	outside, err := firstScopeBeyondCeiling(ctx, logger, phaseAuthorize, app.ID, allowlist, granted)
 	if err != nil {
 		return "", err
 	}

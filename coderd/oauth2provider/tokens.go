@@ -73,7 +73,7 @@ func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app databas
 	}
 
 	// Canonicalized because the row may have been written by an older server.
-	outside, err := firstScopeBeyondCeiling(ctx, logger, "redeem", app.ID, allowlist, canonicalScopes(strings.Fields(granted)))
+	outside, err := firstScopeBeyondCeiling(ctx, logger, phaseRedeem, app.ID, allowlist, canonicalScopes(strings.Fields(granted)))
 	if err != nil {
 		return err
 	}
@@ -102,6 +102,13 @@ func narrowAccessScope(ctx context.Context, logger slog.Logger, app database.OAu
 	// and canonical on the other would make the shape of the result depend on
 	// whether the client sent a scope.
 	ceiling := canonicalScopes(strings.Fields(granted))
+	// Checked before the comparison, as authorizationCodeGrant checks the code's
+	// scope before its own: RBAC cannot expand a name outside the catalog, so
+	// the coverage check would answer "could not be determined" and 500 where an
+	// omitted request answers 400 naming the scope at fault.
+	if _, err := scopeStringToAPIKeyScopes(strings.Join(ceiling, " ")); err != nil {
+		return "", err
+	}
 	if len(requested) == 0 {
 		return strings.Join(ceiling, " "), nil
 	}
@@ -115,7 +122,7 @@ func narrowAccessScope(ctx context.Context, logger slog.Logger, app database.OAu
 	}
 
 	narrowed := canonicalScopes(requested)
-	outside, err := firstScopeBeyondCeiling(ctx, logger, "refresh", app.ID, ceiling, narrowed)
+	outside, err := firstScopeBeyondCeiling(ctx, logger, phaseRefresh, app.ID, ceiling, narrowed)
 	if err != nil {
 		return "", err
 	}
@@ -345,15 +352,17 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			return
 		}
 		// invalid_grant, not invalid_scope: RFC 6749 §5.2 reserves invalid_scope
-		// for the scope the client asked for, but these come from the stored
-		// grant. The client cannot fix it by asking differently, only by
-		// authorizing again.
+		// for the scope the client asked for, and these report the stored grant,
+		// which the client cannot fix by asking differently. errUnmintableScope
+		// is the near miss: a refresh mints from the scope it was asked for, but
+		// the catalog check runs first and every catalog name is mintable, so a
+		// client-named scope cannot reach here.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
 			errors.Is(err, errNoGrantableScope) {
 			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
 			return
 		}
-		// invalid_scope for these two: the refresh named them itself, so the
+		// invalid_scope for these: the refresh named them itself, so the
 		// client can fix it by asking differently.
 		if errors.Is(err, errUnknownScope) || errors.Is(err, errScopeNotGranted) {
 			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())

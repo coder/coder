@@ -421,13 +421,15 @@ func TestSanitizeErrorDescription(t *testing.T) {
 			want:        "Only response_type=code is supported",
 		},
 		{
-			// What negotiateScope's %q produces for a well-behaved scope name.
+			// A description that already carries double quotes, whatever wrote
+			// them: §5.2 excludes the character, so it is rewritten.
 			name:        "QuotedScopeBecomesApostrophes",
 			description: `"openid": unknown or unsupported scope`,
 			want:        "'openid': unknown or unsupported scope",
 		},
 		{
-			// %q escapes a quote inside the value; the backslash goes with it.
+			// A quote escaped by a backslash: the backslash goes too, since
+			// §5.2 excludes both.
 			name:        "EscapedQuoteLosesItsBackslash",
 			description: `"\"><img>": unknown or unsupported scope`,
 			want:        "''><img>': unknown or unsupported scope",

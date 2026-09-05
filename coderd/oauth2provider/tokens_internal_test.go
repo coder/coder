@@ -92,13 +92,16 @@ var (
 	ReasonScopeNotGranted = errScopeNotGranted.Error()
 )
 
+// Two catalog scopes neither of which covers the other, so a ceiling of one
+// rejects the other. The external test package keeps its own copies, forced by
+// the package split.
+const (
+	inCatalog     = "coder:workspaces.access"
+	alsoInCatalog = "coder:templates.build"
+)
+
 func TestCheckScopeStillCovered(t *testing.T) {
 	t.Parallel()
-
-	const (
-		inCatalog     = "coder:workspaces.access"
-		alsoInCatalog = "coder:templates.build"
-	)
 
 	tests := []struct {
 		name        string
@@ -209,11 +212,6 @@ func TestCheckScopeStillCovered(t *testing.T) {
 func TestNarrowAccessScope(t *testing.T) {
 	t.Parallel()
 
-	const (
-		inCatalog     = "coder:workspaces.access"
-		alsoInCatalog = "coder:templates.build"
-	)
-
 	tests := []struct {
 		name      string
 		granted   string
@@ -285,10 +283,18 @@ func TestNarrowAccessScope(t *testing.T) {
 			want:      "workspace:ssh",
 		},
 		{
-			name:      "GrantOutsideTheCatalogUndecidable",
+			// Refused for the same reason, and with the same error, as a
+			// request that names no scope at all.
+			name:      "GrantOutsideTheCatalogUnmintable",
 			granted:   "some_removed_scope",
 			requested: []string{"workspace:ssh"},
-			wantErr:   errCoverageUndecidable,
+			wantErr:   errUnmintableScope,
+		},
+		{
+			name:      "GrantOutsideTheCatalogUnmintableWhenOmitted",
+			granted:   "some_removed_scope",
+			requested: nil,
+			wantErr:   errUnmintableScope,
 		},
 	}
 
