@@ -488,40 +488,9 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 
 	app := seedAppWithSecret(t, db, sql.NullString{})
 	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
-	form := tokenExchangeForm(app, code, verifier)
 
-	type exchange struct {
-		status int
-		body   string
-		err    error
-	}
-
-	redeem := func() exchange {
-		status, body, err := tryTokenRequest(ctx, t, client, form)
-		return exchange{status: status, body: body, err: err}
-	}
-
-	other := make(chan exchange, 1)
-	go func() { other <- redeem() }()
-	results := []exchange{redeem(), <-other}
-
-	var winner codersdk.OAuth2TokenResponse
-	var minted, rejected int
-	for _, result := range results {
-		require.NoError(t, result.err)
-		switch result.status {
-		case http.StatusOK:
-			winner = requireTokenResponse(t, result.status, result.body)
-			minted++
-		case http.StatusBadRequest:
-			require.Contains(t, result.body, string(codersdk.OAuth2ErrorCodeInvalidGrant), result.body)
-			rejected++
-		default:
-			t.Fatalf("unexpected status %d: %s", result.status, result.body)
-		}
-	}
-	require.Equal(t, 1, minted, "a code may mint at most one token")
-	require.Equal(t, 1, rejected)
+	winner := requireExactlyOneMinted(ctx, t, client, tokenExchangeForm(app, code, verifier),
+		"a code may mint at most one token")
 	requireTokenAuthenticates(ctx, t, client, winner.AccessToken)
 }
 
@@ -548,10 +517,11 @@ func TestOAuth2RefreshSingleUse(t *testing.T) {
 }
 
 // requireExactlyOneMinted posts form twice concurrently and requires one 200 and
-// one `invalid_grant`. The two requests are started together rather than held at
-// a read, so unlike the exchange's barrierStore this overlaps them without
-// pinning which of the two arbitrates.
-func requireExactlyOneMinted(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values, msg string) {
+// one `invalid_grant`, returning the winner's response. The barrier only starts
+// the two together, which overlaps them without pinning which one arbitrates. A
+// caller that needs the interleaving pinned holds them lower down, as the
+// exchange test does with barrierStore.
+func requireExactlyOneMinted(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values, msg string) codersdk.OAuth2TokenResponse {
 	t.Helper()
 
 	type attempt struct {
@@ -573,11 +543,13 @@ func requireExactlyOneMinted(ctx context.Context, t *testing.T, client *codersdk
 	go func() { other <- redeem() }()
 	results := []attempt{redeem(), <-other}
 
+	var winner codersdk.OAuth2TokenResponse
 	var minted, rejected int
 	for _, result := range results {
 		require.NoError(t, result.err)
 		switch result.status {
 		case http.StatusOK:
+			winner = requireTokenResponse(t, result.status, result.body)
 			minted++
 		case http.StatusBadRequest:
 			require.Contains(t, result.body, string(codersdk.OAuth2ErrorCodeInvalidGrant), result.body)
@@ -588,6 +560,7 @@ func requireExactlyOneMinted(ctx context.Context, t *testing.T, client *codersdk
 	}
 	require.Equal(t, 1, minted, msg)
 	require.Equal(t, 1, rejected)
+	return winner
 }
 
 // The ordinary replay: a client retries a redemption whose answer it never saw.
