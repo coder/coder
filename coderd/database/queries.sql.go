@@ -3821,8 +3821,13 @@ WHERE
 RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
 `
 
-// Returns sql.ErrNoRows when the key is already gone, which lets a caller
-// enforce single use by racing this delete instead of reading first.
+// Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
+// this the arbiter of single use. A prior read cannot arbitrate: its result is
+// stale the moment it returns.
+//
+// Concurrent deletes are arbitrated at READ COMMITTED, the default isolation
+// level: the second transaction waits for the first, then removes nothing.
+// SERIALIZABLE would abort and retry it instead.
 func (q *sqlQuerier) DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (APIKey, error) {
 	row := q.db.QueryRowContext(ctx, deleteAPIKeyByIDReturningRow, id)
 	var i APIKey
