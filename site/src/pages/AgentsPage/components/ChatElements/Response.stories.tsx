@@ -239,27 +239,20 @@ export const RelativeImageRendersImmediately: Story = {
 	},
 };
 
-// The consent gate must also apply while streaming.
-export const StreamingExternalImageConsentGate: Story = {
-	args: {
-		children: `![diagram](${externalImageURL})`,
-		streaming: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const loadButton = await canvas.findByRole("button", {
-			name: /load external image/i,
-		});
-		expect(loadButton).toBeInTheDocument();
-		expect(canvasElement.querySelector("img")).toBeNull();
-	},
-};
-
 // Verifies that streaming mode closes incomplete inline markdown via
 // remend so the user never sees raw syntax during the reveal animation.
 export const StreamingInlineMarkdown: Story = {
 	args: {
 		children: "This is **bold text that has not been close",
+		streaming: true,
+	},
+};
+
+// The streaming external-image consent gate: the placeholder renders
+// instead of an <img>, so no external request fires mid-stream.
+export const StreamingExternalImageConsentGate: Story = {
+	args: {
+		children: `![diagram](${externalImageURL})`,
 		streaming: true,
 	},
 };

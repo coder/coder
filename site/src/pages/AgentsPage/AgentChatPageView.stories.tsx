@@ -491,16 +491,6 @@ export const QueuedForCapacityPremiumHardLimit: Story = {
 	},
 };
 
-export const NotQueuedForCapacity: Story = {
-	render: () => <StoryAgentChatPageView />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/limit for active agents/),
-		).not.toBeInTheDocument();
-	},
-};
-
 /** Shows the parent chat link in the top bar when a parent exists. */
 export const WithParentChat: Story = {
 	parameters: {

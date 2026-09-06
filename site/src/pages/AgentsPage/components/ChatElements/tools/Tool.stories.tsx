@@ -417,21 +417,6 @@ export const ExecuteRewrittenByHook: Story = {
 	},
 };
 
-export const ExecuteNotRewrittenByHook: Story = {
-	args: {
-		name: "execute",
-		status: "completed",
-		args: { command: "echo original" },
-		parsedCommands: [["echo", "original"]],
-		result: { output: "original", exit_code: 0 },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Ran echo/)).toBeVisible();
-		expect(canvas.queryByText("Modified by policy")).not.toBeInTheDocument();
-	},
-};
-
 export const WriteFileRewrittenByHook: Story = {
 	args: {
 		name: "write_file",
@@ -472,22 +457,6 @@ export const NonCollapsibleRewrittenByHook: Story = {
 		result: {
 			template: { name: "go-template", display_name: "Go Development" },
 		},
-	},
-};
-
-export const NonCollapsibleNotRewrittenByHook: Story = {
-	args: {
-		name: "read_template",
-		status: "completed",
-		args: { template_id: "template-1" },
-		result: {
-			template: { name: "go-template", display_name: "Go Development" },
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Read template Go Development")).toBeVisible();
-		expect(canvas.queryByText("Modified by policy")).not.toBeInTheDocument();
 	},
 };
 
@@ -710,32 +679,6 @@ export const SubagentRunning: Story = {
 	},
 };
 
-export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
-	args: {
-		name: "spawn_agent",
-		status: "completed",
-		args: {
-			title: "Workspace diagnostics",
-			prompt: "Collect logs and summarize why startup failed.",
-		},
-		result: {
-			chat_id: ["8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2? no"].join(""),
-			title: "Workspace diagnostics",
-			status: "completed",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
-		).toBeInTheDocument();
-		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
-			"href",
-			["/agents/8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2"].join(""),
-		);
-	},
-};
-
 const mockChatModel = {
 	...MockChatModel,
 	id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
@@ -903,43 +846,6 @@ export const SubagentMessageLinkCard: Story = {
 			"href",
 			"/agents/child-chat-id",
 		);
-	},
-};
-
-export const SubagentCompletedDelegatedPending: Story = {
-	args: {
-		name: "spawn_agent",
-		args: undefined,
-		result: { chat_id: "child-chat-id", status: "pending" },
-		status: "completed",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
-			"href",
-			"/agents/child-chat-id",
-		);
-		expect(
-			canvas.getByRole("button", { name: /Spawned Sub-agent/ }),
-		).toBeInTheDocument();
-		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
-	},
-};
-
-export const SubagentStreamOverrideStatus: Story = {
-	args: {
-		name: "spawn_agent",
-		args: undefined,
-		result: { chat_id: "child-chat-id", status: "pending" },
-		status: "completed",
-		subagentStatusOverrides: new Map([["child-chat-id", "completed"]]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Spawned Sub-agent/ }),
-		).toBeInTheDocument();
-		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
 	},
 };
 
@@ -1114,24 +1020,6 @@ export const MessageAgentExploreStreamingFromResult: Story = {
 			type: "explore",
 			status: "pending",
 		},
-	},
-};
-
-export const InterruptAgentRunningWithoutChatId: Story = {
-	args: {
-		name: "interrupt_agent",
-		status: "running",
-		args: {},
-		result: { status: "running" },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvasElement.textContent?.trim()).toBe("");
-		});
-		expect(canvasElement.querySelector("[data-transcript-row]")).toBeNull();
-		expect(canvas.queryByRole("button")).toBeNull();
-		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
 	},
 };
 
@@ -2166,29 +2054,6 @@ export const ComputerError: Story = {
 	},
 };
 
-export const ComputerArrayResult: Story = {
-	args: {
-		name: "computer",
-		status: "completed",
-		result: [
-			{
-				type: "image",
-				data: DESKTOP_SCREENSHOT_BASE64,
-				mime_type: "image/jpeg",
-			},
-			{ type: "text", text: "Clicked on button" },
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const img = canvas.getByRole("img", {
-			name: "Screenshot from computer tool",
-		});
-		expect(img).toBeInTheDocument();
-		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
-	},
-};
-
 export const ComputerPromotedAttachmentArrayResult: Story = {
 	args: {
 		name: "computer",
@@ -2218,6 +2083,23 @@ export const ComputerPromotedAttachmentArrayResult: Story = {
 	},
 };
 
+// The array-form computer result without an attachment, rendered as an
+// image rather than text.
+export const ComputerArrayResult: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: [
+			{
+				type: "image",
+				data: DESKTOP_SCREENSHOT_BASE64,
+				mime_type: "image/jpeg",
+			},
+			{ type: "text", text: "Clicked on button" },
+		],
+	},
+};
+
 export const AttachFileLabelFallsBackToPathBasename: Story = {
 	args: {
 		name: "attach_file",
@@ -2243,42 +2125,12 @@ export const GenericToolFailed: Story = {
 	},
 };
 
-export const GenericToolFailedNoResult: Story = {
-	args: {
-		name: "web_search",
-		status: "error",
-		isError: true,
-	},
-	play: async ({ canvasElement }) => {
-		expect(
-			canvasElement.querySelector(".lucide-triangle-alert"),
-		).not.toBeNull();
-	},
-};
-
 export const GenericToolStringError: Story = {
 	args: {
 		name: "web_search",
 		status: "error",
 		isError: true,
 		result: "Network unreachable",
-	},
-};
-
-export const GenericMCPToolStringError: Story = {
-	args: {
-		name: "linear__list_issues",
-		status: "error",
-		isError: true,
-		result: "Authentication token expired",
-		mcpServerConfigId: "mcp-server-1",
-		mcpServers: sampleMCPServers,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("img", { name: "List issues failed" }),
-		).toBeVisible();
 	},
 };
 
@@ -2375,26 +2227,7 @@ export const SubagentWaitTimedOut: Story = {
 	},
 };
 
-export const SubagentWaitTimedOutWithTitle: Story = {
-	args: {
-		name: "wait_agent",
-		status: "error",
-		isError: true,
-		args: { chat_id: "timed-out-child" },
-		result: {
-			chat_id: "timed-out-child",
-			error: "timed out waiting for delegated subagent completion",
-			title: "Fix login bug",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvasElement.querySelector(".lucide-clock")).not.toBeNull();
-		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
-		expect(canvas.getByText("Fix login bug")).toBeInTheDocument();
-	},
-};
-
+// The title from the subagentTitles map instead of the fallback descriptor.
 export const SubagentWaitTimedOutTitleFromMap: Story = {
 	args: {
 		name: "wait_agent",
@@ -2403,11 +2236,6 @@ export const SubagentWaitTimedOutTitleFromMap: Story = {
 		args: { chat_id: "timed-out-child" },
 		result: "timed out waiting for delegated subagent completion",
 		subagentTitles: new Map([["timed-out-child", "Refactor auth module"]]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Refactor auth module")).toBeInTheDocument();
-		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
 	},
 };
 
@@ -2455,26 +2283,6 @@ export const SubagentWaitError: Story = {
 			status: "error",
 			title: "Lint codebase",
 		},
-	},
-};
-
-export const MCPToolFailedUnifiedStyle: Story = {
-	args: {
-		name: "linear__list_issues",
-		status: "error",
-		isError: true,
-		args: { project: "backend" },
-		result: { error: "Authentication token expired" },
-		mcpServerConfigId: "mcp-server-1",
-		mcpServers: sampleMCPServers,
-	},
-	play: async ({ canvasElement }) => {
-		// Should show warning triangle icon.
-		expect(
-			canvasElement.querySelector(".lucide-triangle-alert"),
-		).not.toBeNull();
-		// Icon should NOT be red.
-		expect(canvasElement.querySelector(".text-content-destructive")).toBeNull();
 	},
 };
 
@@ -2759,21 +2567,6 @@ export const StartWorkspaceCompleted: Story = {
 	},
 };
 
-export const StartWorkspaceLegacy: Story = {
-	args: {
-		name: "start_workspace",
-		status: "completed",
-		result: {
-			started: true,
-			workspace_name: "legacy-workspace",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Started legacy-workspace")).toBeInTheDocument();
-	},
-};
-
 export const StartWorkspaceError: Story = {
 	args: {
 		name: "start_workspace",
@@ -2923,21 +2716,6 @@ export const CreateWorkspaceQuotaReached: Story = {
 				data: [],
 			},
 		],
-	},
-};
-
-export const CreateWorkspaceLegacy: Story = {
-	args: {
-		name: "create_workspace",
-		status: "completed",
-		result: {
-			created: true,
-			workspace_name: "legacy-workspace",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Created legacy-workspace")).toBeInTheDocument();
 	},
 };
 

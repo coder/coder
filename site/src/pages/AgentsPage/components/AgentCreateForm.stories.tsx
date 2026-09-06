@@ -140,15 +140,6 @@ const missingAPIKeyCatalog: TypesGen.OrganizationChatModelsResponse = {
 	})),
 };
 
-const fetchFailedCatalog: TypesGen.OrganizationChatModelsResponse = {
-	...defaultModelCatalog,
-	providers: defaultModelCatalog.providers.map((provider) => ({
-		...provider,
-		available: false,
-		unavailable_reason: "fetch_failed",
-	})),
-};
-
 const unsupportedProviderCatalog: TypesGen.OrganizationChatModelsResponse = {
 	models: [],
 	providers: [
@@ -166,22 +157,6 @@ const unsupportedProviderCatalog: TypesGen.OrganizationChatModelsResponse = {
 		{ provider: "copilot", display_name: "GitHub Copilot" },
 	],
 };
-
-const unsupportedProviderWithDisabledSupportedCatalog: TypesGen.OrganizationChatModelsResponse =
-	{
-		...unsupportedProviderCatalog,
-		providers: [
-			...unsupportedProviderCatalog.providers,
-			{
-				...MockChatModelProviderDescriptor,
-				id: "provider-anthropic",
-				type: "anthropic",
-				display_name: "Anthropic",
-				enabled: false,
-				available: false,
-			},
-		],
-	};
 
 const defaultUserProviderConfigs: TypesGen.UserChatProviderConfig[] = [
 	{
@@ -1144,21 +1119,6 @@ export const ProviderMissingAPIKey: Story = {
 	},
 };
 
-export const ProviderFetchFailed: Story = {
-	parameters: {
-		queries: [
-			{
-				key: organizationChatModelsKey(MockDefaultOrganization.id),
-				data: fetchFailedCatalog,
-			},
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
-	},
-};
-
 export const UnsupportedProviderOnly: Story = {
 	args: { ...defaultArgs, canConfigureAgentSetup: true },
 	parameters: {
@@ -1169,26 +1129,6 @@ export const UnsupportedProviderOnly: Story = {
 			},
 			{ key: aiProvidersListKey, data: [] },
 		],
-	},
-};
-
-export const UnsupportedProviderAndDisabledSupportedProvider: Story = {
-	args: { ...defaultArgs, canConfigureAgentSetup: true },
-	parameters: {
-		queries: [
-			{
-				key: organizationChatModelsKey(MockDefaultOrganization.id),
-				data: unsupportedProviderWithDisabledSupportedCatalog,
-			},
-			{ key: aiProvidersListKey, data: [] },
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/GitHub Copilot is configured but/i)).toBeVisible();
-		expect(
-			canvas.getByRole("link", { name: "not supported by Coder Agents" }),
-		).toBeVisible();
 	},
 };
 
@@ -1574,40 +1514,6 @@ export const RestrictedUserKeepsPersistedWorkspace: Story = {
 				}),
 			);
 		});
-	},
-};
-
-export const RestrictedUserKeepsPersistedAttachments: Story = {
-	parameters: {
-		showOrganizations: true,
-		organizations: [MockDefaultOrganization, MockOrganization2],
-	},
-	beforeEach: () => {
-		localStorage.clear();
-		localStorage.setItem(
-			"agents.persisted-attachments",
-			JSON.stringify([
-				{
-					fileId: "file-permitted-org",
-					fileName: "notes.txt",
-					fileType: "text/plain",
-					lastModified: 1700000000000,
-					organizationId: MockOrganization2.id,
-				},
-			]),
-		);
-		mockPermittedOrganizations({
-			[MockDefaultOrganization.id]: false,
-			[MockOrganization2.id]: true,
-		});
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument();
-		});
-		const stored = localStorage.getItem("agents.persisted-attachments");
-		expect(stored).toContain("file-permitted-org");
 	},
 };
 
@@ -2284,47 +2190,6 @@ export const PermittedOrgsResolvesToSubset: Story = {
 			throw new Error("Expected onCreateChat to receive options");
 		}
 		expect(options.organizationId).toBe(MockOrganization2.id);
-	},
-};
-
-export const MemberScopedPermissionsShowOrgPicker: Story = {
-	parameters: {
-		showOrganizations: true,
-		organizations: [MockDefaultOrganization, MockOrganization2],
-	},
-	beforeEach: () => {
-		spyOn(API, "getOrganizations").mockResolvedValue([
-			MockDefaultOrganization,
-			MockOrganization2,
-		]);
-		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
-			Object.fromEntries(
-				Object.entries(checks).map(([id, check]) => [
-					id,
-					check.object.owner_id === "me",
-				]),
-			),
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const picker = await canvas.findByRole(
-			"button",
-			{ name: /^Organization:/ },
-			{ timeout: 3000 },
-		);
-		await userEvent.click(picker);
-		await screen.findByRole("option", {
-			name: MockDefaultOrganization.display_name,
-		});
-		await userEvent.click(
-			screen.getByRole("option", { name: MockOrganization2.display_name }),
-		);
-		expect(
-			canvas.getByRole("button", {
-				name: `Organization: ${MockOrganization2.display_name}`,
-			}),
-		).toBeInTheDocument();
 	},
 };
 

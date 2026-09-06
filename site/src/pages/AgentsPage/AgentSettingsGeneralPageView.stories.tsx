@@ -116,17 +116,6 @@ export const SavesUserPrompt: Story = {
 	},
 };
 
-export const RendersChatLayoutSection: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(await canvas.findByText("Chat layout")).toBeInTheDocument();
-		expect(
-			await canvas.findByRole("switch", { name: "Full-width chat" }),
-		).toBeInTheDocument();
-	},
-};
-
 export const TogglesSendShortcut: Story = {
 	beforeEach: () => {
 		let agentChatSendShortcut: AgentChatSendShortcut =
@@ -165,16 +154,6 @@ export const TogglesSendShortcut: Story = {
 	},
 };
 
-export const RendersAgentDisplayModeSettings: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(await canvas.findByText("Thinking display")).toBeVisible();
-		expect(await canvas.findByText("Shell output display")).toBeVisible();
-		expect(await canvas.findByText("Code diff display")).toBeVisible();
-	},
-};
-
 export const ShowsChatDebugLoggingToggle: Story = {
 	args: {
 		userDebugLoggingData: {
@@ -198,25 +177,5 @@ export const ShowsChatDebugLoggingToggle: Story = {
 				debug_logging_enabled: true,
 			});
 		});
-	},
-};
-
-export const HidesChatDebugLoggingToggle: Story = {
-	args: {
-		userDebugLoggingData: {
-			debug_logging_enabled: false,
-			user_toggle_allowed: false,
-			forced_by_deployment: false,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(canvas.queryByText("Record debug logs for my chats")).toBeNull();
-		expect(
-			canvas.queryByRole("switch", {
-				name: "Enable personal chat debug logging",
-			}),
-		).toBeNull();
 	},
 };

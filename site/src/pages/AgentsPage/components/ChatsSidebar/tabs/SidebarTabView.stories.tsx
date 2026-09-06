@@ -78,12 +78,6 @@ export const EmptyState: Story = {
 	},
 };
 
-export const DesktopHidden: Story = {
-	args: {
-		tabs: [],
-	},
-};
-
 export const ExpandedWithTitle: Story = {
 	args: {
 		tabs: [gitTab],

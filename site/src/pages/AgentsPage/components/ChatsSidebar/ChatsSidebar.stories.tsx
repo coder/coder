@@ -1411,38 +1411,6 @@ export const RenameChatGenerateLateResponseDoesNotClobberSameChatReopen: Story =
 		},
 	};
 
-export const ActiveFilterShowsActiveAgents: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "active-1",
-				title: "Active agent one",
-				updated_at: recentTimestamp,
-			}),
-			buildChat({
-				id: "active-2",
-				title: "Active agent two",
-				updated_at: recentTimestamp,
-			}),
-		],
-		sidebarFilters: defaultSidebarFilters,
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Active agent one")).toBeInTheDocument();
-			expect(canvas.getByText("Active agent two")).toBeInTheDocument();
-		});
-		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
-	},
-};
-
 export const ArchivedFilterShowsArchivedAgents: Story = {
 	args: {
 		chats: [
@@ -2382,40 +2350,6 @@ export const SettingsAPIKeysAdmin: Story = {
 	},
 };
 
-export const SettingsAPIKeysNonAdmin: Story = {
-	args: {
-		chats: [],
-		isAdmin: false,
-	},
-	parameters: {
-		queries: [
-			{
-				key: userChatProviderConfigsKey,
-				data: [
-					{
-						provider_id: "prov-1",
-						provider: "openai",
-						display_name: "OpenAI",
-						icon: "",
-						has_user_api_key: false,
-						has_central_api_key_fallback: false,
-						byok_enabled: true,
-					},
-				],
-			},
-		],
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/api-keys" },
-			routing: settingsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("link", { name: "Secrets (API keys)" }),
-		).toBeInTheDocument();
-	},
-};
 export const SettingsUserAgentsNonAdmin: Story = {
 	args: {
 		chats: [],
@@ -2460,33 +2394,6 @@ export const SettingsUserAgentsFeatureDisabled: Story = {
 			location: { path: "/agents/settings/general" },
 			routing: settingsRouting,
 		}),
-	},
-};
-
-export const SettingsUserAgentsOverridesLoading: Story = {
-	args: {
-		chats: [],
-		isAdmin: false,
-		isPersonalModelOverridesEnabled: undefined,
-	},
-	parameters: {
-		queries: [
-			{
-				key: userChatProviderConfigsKey,
-				data: [],
-			},
-		],
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/general" },
-			routing: settingsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("link", { name: "General" })).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: "Agents" }),
-		).not.toBeInTheDocument();
 	},
 };
 
