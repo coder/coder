@@ -46,6 +46,10 @@ var BuildAuthHeadersForTest = buildAuthHeaders
 // SummaryErrorForTest exposes summaryError for external tests.
 var SummaryErrorForTest = summaryError
 
+// UnwrapModelIntentForTest exposes unwrapModelIntent for external
+// tests.
+var UnwrapModelIntentForTest = unwrapModelIntent
+
 // MaxSummaryErrorLenForTest exposes the persisted-error byte cap for
 // external tests.
 const MaxSummaryErrorLenForTest = maxSummaryErrorLen

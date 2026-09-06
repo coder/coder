@@ -1572,6 +1572,66 @@ func TestModelIntent_Run_FallbackOnBadJSON(t *testing.T) {
 	assert.True(t, resp.IsError, "malformed input should produce an error response")
 }
 
+func TestUnwrapModelIntent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "CorrectWrapper",
+			input: `{"model_intent":"Testing","properties":{"input":"hello"}}`,
+			want:  `{"input":"hello"}`,
+		},
+		{
+			name:  "FlatNoWrapper",
+			input: `{"model_intent":"Testing","input":"world"}`,
+			want:  `{"input":"world"}`,
+		},
+		{
+			// Hybrid: stray top-level keys sit next to properties.
+			// They must be merged in, not silently dropped.
+			name:  "HybridMergesTopLevelKeys",
+			input: `{"model_intent":"Testing","owner":"coder","repo":"solstice","ref":"main","properties":{"path":"README.md"}}`,
+			want:  `{"owner":"coder","path":"README.md","ref":"main","repo":"solstice"}`,
+		},
+		{
+			// On conflict, the value inside properties wins over the
+			// stray top-level one.
+			name:  "HybridConflictPrefersProperties",
+			input: `{"model_intent":"Testing","path":"stray.md","properties":{"path":"nested.md"}}`,
+			want:  `{"path":"nested.md"}`,
+		},
+		{
+			// properties present but not an object: forwarded as-is,
+			// matching the prior behavior.
+			name:  "PropertiesNotAnObject",
+			input: `{"model_intent":"Testing","owner":"coder","properties":"README.md"}`,
+			want:  `"README.md"`,
+		},
+		{
+			name:  "NonJSONReturnedAsIs",
+			input: `not-json`,
+			want:  `not-json`,
+		},
+		{
+			name:  "JSONArrayReturnedAsIs",
+			input: `[1,2,3]`,
+			want:  `[1,2,3]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := mcpclient.UnwrapModelIntentForTest(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 	t.Parallel()
 

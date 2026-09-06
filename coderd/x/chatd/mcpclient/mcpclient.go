@@ -850,11 +850,14 @@ func (t *mcpToolWrapper) SetProviderOptions(
 
 // unwrapModelIntent strips the model_intent wrapper from tool
 // call input so the remote MCP server receives only the original
-// arguments. It handles three shapes the model may produce:
+// arguments. It handles four shapes the model may produce:
 //
 //  1. { model_intent, properties: {...} } — correct format
 //  2. { model_intent, key: val, ... } — flat, no properties wrapper
-//  3. Anything else — returned as-is
+//  3. { model_intent, key: val, ..., properties: {...} } — hybrid:
+//     stray top-level keys are merged into properties instead of
+//     being dropped; on conflict the value inside properties wins
+//  4. Anything else — returned as-is
 func unwrapModelIntent(input string) string {
 	var parsed map[string]any
 	if err := json.Unmarshal([]byte(input), &parsed); err != nil {
@@ -864,7 +867,24 @@ func unwrapModelIntent(input string) string {
 	delete(parsed, "model_intent")
 
 	// Case 1: correct { model_intent, properties: {...} } format.
+	// Case 3: hybrid — some models place arguments both inside
+	// properties and at the top level. Merge stray top-level keys
+	// into properties rather than silently dropping them. On
+	// conflict the value inside properties wins, since the
+	// correctly nested value is more trustworthy than the stray
+	// top-level one.
 	if props, ok := parsed["properties"]; ok {
+		if propsMap, isMap := props.(map[string]any); isMap {
+			for k, v := range parsed {
+				if k == "properties" {
+					continue
+				}
+				if _, exists := propsMap[k]; !exists {
+					propsMap[k] = v
+				}
+			}
+			props = propsMap
+		}
 		if b, err := json.Marshal(props); err == nil {
 			return string(b)
 		}
