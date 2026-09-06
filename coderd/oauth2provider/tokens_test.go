@@ -494,9 +494,6 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	requireTokenAuthenticates(ctx, t, client, winner.AccessToken)
 }
 
-// A refresh mints a replacement token and deletes the key the presented one
-// hangs off, so the same race as the exchange applies: the deletion has to
-// arbitrate, or both requests mint from one refresh token.
 func TestOAuth2RefreshSingleUse(t *testing.T) {
 	t.Parallel()
 
@@ -518,11 +515,6 @@ func TestOAuth2RefreshSingleUse(t *testing.T) {
 		"a refresh token may mint at most one replacement")
 }
 
-// requireExactlyOneMinted posts form twice concurrently and requires one 200 and
-// one `invalid_grant`, returning the winner's response. The barrier here only
-// starts the two together, which overlaps them without deciding which one
-// arbitrates; callers pin that with a barrierStore hold on the read their grant
-// type reaches before the transaction.
 func requireExactlyOneMinted(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values, msg string) codersdk.OAuth2TokenResponse {
 	t.Helper()
 
@@ -611,17 +603,12 @@ func (s barrierStore) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, pref
 	return code, err
 }
 
-// GetOAuth2ProviderAppTokenByPrefix has two production callers, the refresh
-// read and revocation, and a test that races refreshes reaches only the first.
 func (s barrierStore) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, prefix []byte) (database.OAuth2ProviderAppToken, error) {
 	token, err := s.Store.GetOAuth2ProviderAppTokenByPrefix(ctx, prefix)
 	hold(s.tokenReads)
 	return token, err
 }
 
-// hold releases the caller once every expected reader has arrived. A nil group
-// leaves that read alone, so a barrier on one read does not stall the
-// single-request reads a test makes while seeding.
 func hold(reads *sync.WaitGroup) {
 	if reads == nil {
 		return

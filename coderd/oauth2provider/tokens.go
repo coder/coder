@@ -728,8 +728,11 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
-		// The delete decides the race: only the refresh that removes the key
-		// mints a replacement, and the loser sees the token as already spent.
+		// Only one of two concurrent refreshes can delete this row. The other
+		// blocks until this transaction commits, then finds nothing to delete
+		// and returns invalid_grant. Grouping the delete with the inserts is
+		// what makes that safe: the loser is refused only if the winner really
+		// minted, and a failure below puts the old key back.
 		_, err := tx.DeleteAPIKeyByIDReturningRow(ctx, prevKey.ID) // This cascades to the token.
 		if errors.Is(err, sql.ErrNoRows) {
 			return errBadToken
