@@ -636,4 +636,65 @@ func TestRedirectURL(t *testing.T) {
 			require.Contains(t, parser.Errors[0].Detail, "must be a valid url")
 		}
 	})
+
+	// RFC 8252 §7.3: a loopback redirect URI may present any port. The returned
+	// URL is the presented one, since that is where the response must go.
+	t.Run("LoopbackPortDiffers", func(t *testing.T) {
+		t.Parallel()
+		for _, host := range []string{"127.0.0.1", "[::1]", "localhost"} {
+			registered, err := url.Parse("http://" + host + "/callback")
+			require.NoError(t, err)
+			presented := "http://" + host + ":53219/callback"
+
+			parser := httpapi.NewQueryParamParser()
+			vals := url.Values{"redirect_uri": []string{presented}}
+			got := parser.RedirectURL(vals, registered, "redirect_uri")
+			require.Empty(t, parser.Errors, "host %s", host)
+			require.Equal(t, presented, got.String(), "host %s", host)
+		}
+	})
+
+	t.Run("LoopbackRegisteredWithPort", func(t *testing.T) {
+		t.Parallel()
+		registered, err := url.Parse("http://localhost:9876/callback")
+		require.NoError(t, err)
+		presented := "http://localhost:53219/callback"
+
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{presented}}
+		got := parser.RedirectURL(vals, registered, "redirect_uri")
+		require.Empty(t, parser.Errors)
+		require.Equal(t, presented, got.String())
+	})
+
+	// Only the port is excepted. Any other difference is still a mismatch.
+	t.Run("LoopbackOtherComponentDiffers", func(t *testing.T) {
+		t.Parallel()
+		registered, err := url.Parse("http://127.0.0.1/callback")
+		require.NoError(t, err)
+		for name, presented := range map[string]string{
+			"path":     "http://127.0.0.1:53219/other",
+			"scheme":   "https://127.0.0.1:53219/callback",
+			"host":     "http://localhost:53219/callback",
+			"query":    "http://127.0.0.1:53219/callback?next=x",
+			"userinfo": "http://user@127.0.0.1:53219/callback",
+		} {
+			parser := httpapi.NewQueryParamParser()
+			vals := url.Values{"redirect_uri": []string{presented}}
+			parser.RedirectURL(vals, registered, "redirect_uri")
+			require.Len(t, parser.Errors, 1, "%s differs", name)
+			require.Equal(t, "redirect_uri", parser.Errors[0].Field, "%s differs", name)
+			require.Contains(t, parser.Errors[0].Detail, "must exactly match", "%s differs", name)
+		}
+	})
+
+	// A non-loopback registration keeps the exact match, port included.
+	t.Run("NonLoopbackPortDiffers", func(t *testing.T) {
+		t.Parallel()
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{"https://app.example.com:8443/callback"}}
+		parser.RedirectURL(vals, base, "redirect_uri")
+		require.Len(t, parser.Errors, 1)
+		require.Contains(t, parser.Errors[0].Detail, "must exactly match")
+	})
 }

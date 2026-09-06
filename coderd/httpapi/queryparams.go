@@ -232,8 +232,9 @@ func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryPara
 		return base
 	}
 
-	// OAuth 2.1 requires exact redirect URI matching.
-	if v.String() != base.String() {
+	// OAuth 2.1 §2.3.1 requires an exact match. RFC 8252 §7.3 excepts the port
+	// of a loopback redirect URI; the comparator owns that rule.
+	if !codersdk.RedirectURIMatches(v, base) {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must exactly match %s", queryParam, base),
