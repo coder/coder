@@ -406,13 +406,10 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 	}
 }
 
-// singleUseTxOptions pins the isolation level the single-use deletes rely on.
-// Under READ COMMITTED a delete that loses the race re-checks the row once
-// the winner commits and removes nothing, which is the sql.ErrNoRows the
-// grants map to invalid_grant. REPEATABLE READ and above raise a
-// serialization failure instead, so inheriting a server default above READ
-// COMMITTED would turn every lost race into a 500. Built per call because
-// InTx writes to the options it is handed.
+// singleUseTxOptions names the isolation level the single-use deletes need.
+// At READ COMMITTED a second delete waits for the first to commit and then
+// removes nothing; higher levels raise a serialization error instead.
+// Built per call because InTx writes to the options it receives.
 func singleUseTxOptions() *database.TxOptions {
 	return &database.TxOptions{Isolation: sql.LevelReadCommitted}
 }
@@ -591,6 +588,8 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		// token, so a later failure leaves the code redeemable.
 		_, err := tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
 		if errors.Is(err, sql.ErrNoRows) {
+			logger.Warn(ctx, "oauth2 code redemption refused: code already used",
+				slog.F("app_id", app.ID), slog.F("code_id", dbCode.ID))
 			return errBadCode
 		}
 		if err != nil {
@@ -694,8 +693,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 	}
 
 	// The token row carries the user id, so the previous key is not read
-	// here. The delete below is the first statement to touch it, which
-	// leaves two racing refreshes a single arbiter.
+	// before the delete below decides which of two refreshes proceeds.
 	// ScopeAll for the same reason as in authorizationCodeGrant.
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbToken.UserID, rbac.ScopeAll)
 	if err != nil {
@@ -737,13 +735,16 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
-		// Only one of two concurrent refreshes can delete this row. The other
-		// blocks until this transaction commits, then finds nothing to delete
-		// and returns invalid_grant. Grouping the delete with the inserts is
-		// what makes that safe: the loser is refused only if the winner really
-		// minted, and a failure below puts the old key back.
+		// RFC 6749 §10.4: the presented refresh token is invalidated so that a
+		// second use of it can be detected. Only one of two concurrent
+		// refreshes can delete this row; the other waits for this transaction
+		// to commit, finds nothing, and is refused. A failure below rolls the
+		// delete back, so the old key stays usable.
 		_, err := tx.DeleteAPIKeyByIDReturningRow(ctx, dbToken.APIKeyID) // This cascades to the token.
 		if errors.Is(err, sql.ErrNoRows) {
+			// The one place a second use of a refresh token is visible.
+			logger.Warn(ctx, "oauth2 refresh refused: refresh token already used",
+				slog.F("app_id", app.ID), slog.F("api_key_id", dbToken.APIKeyID))
 			return errBadToken
 		}
 		if err != nil {
