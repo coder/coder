@@ -95,6 +95,23 @@ func ValidateRedirectURIScheme(u *url.URL) error {
 	return validateScheme(u)
 }
 
+// RedirectURIMatches reports whether a redirect_uri a client presented may be
+// used in place of one the app registered. The rule is exact string equality
+// (OAuth 2.1 §2.3.1). The one exception is a registered http URI to a loopback
+// host, where the port is ignored (RFC 8252 §7.3).
+func RedirectURIMatches(presented, registered *url.URL) bool {
+	if presented.String() == registered.String() {
+		return true
+	}
+	if registered.Scheme != "http" || !IsLoopbackAddress(registered.Hostname()) {
+		return false
+	}
+	// Drop the port from both sides. Every other component must still match.
+	p, r := *presented, *registered
+	p.Host, r.Host = p.Hostname(), r.Hostname()
+	return p.String() == r.String()
+}
+
 func validateScheme(u *url.URL) error {
 	if u.Scheme == "" {
 		return xerrors.New("redirect URI must have a scheme")
@@ -157,7 +174,7 @@ func validateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
 			if uri.Scheme == "http" {
 				if isPublicClient {
 					// For public clients, only allow loopback (RFC 8252)
-					if !isLoopbackAddress(uri.Hostname()) {
+					if !IsLoopbackAddress(uri.Hostname()) {
 						return xerrors.Errorf("redirect URI at index %d: public clients may only use http with loopback addresses (127.0.0.1, ::1, localhost)", i)
 					}
 				} else {
@@ -307,8 +324,9 @@ func isLocalhost(hostname string) bool {
 		strings.HasSuffix(hostname, ".localhost")
 }
 
-// isLoopbackAddress checks if hostname is a strict loopback address (RFC 8252)
-func isLoopbackAddress(hostname string) bool {
+// IsLoopbackAddress reports whether hostname is one of the loopback hosts
+// RFC 8252 §7.3 names: localhost, 127.0.0.1, or ::1.
+func IsLoopbackAddress(hostname string) bool {
 	return hostname == "localhost" ||
 		hostname == "127.0.0.1" ||
 		hostname == "::1"
