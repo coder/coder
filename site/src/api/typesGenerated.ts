@@ -1511,11 +1511,15 @@ export interface AgentHookStopData {}
 // From agenthooks/types.go
 /**
  * UserPromptSubmitData includes concatenated text and persisted parts.
- * Inspect Parts when structure matters.
+ * Inspect Parts when structure matters. GoalObjective carries the chat
+ * goal objective admitted with the prompt when the submission also sets
+ * a goal; it feeds every subsequent generation's instructions, so
+ * prompt policy must observe it even when it differs from the message.
  */
 export interface AgentHookUserPromptSubmitData {
 	readonly prompt: string;
 	readonly parts?: unknown;
+	readonly goal_objective?: string;
 }
 
 // From codersdk/workspacebuilds.go
