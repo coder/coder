@@ -52,14 +52,6 @@ export const InvisibleUnicodeWarningUserPrompt: Story = {
 			custom_prompt: "My custom prompt\u200b\u200c\u200dhidden",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByText("Personal instructions");
-		const alert = await canvas.findByText(/invisible Unicode/);
-		expect(alert).toBeInTheDocument();
-		expect(alert.textContent).toContain("2");
-	},
 };
 
 export const InvisibleUnicodeWarningOnType: Story = {

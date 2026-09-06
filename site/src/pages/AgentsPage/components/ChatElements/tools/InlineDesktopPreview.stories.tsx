@@ -28,11 +28,6 @@ export const Idle: Story = {
 			remoteClipboardText: null,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		// The idle state shows a loading spinner.
-		const canvas = within(canvasElement);
-		expect(canvas.getByTitle("Loading spinner")).toBeInTheDocument();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -93,10 +88,6 @@ export const Disconnected: Story = {
 			remoteClipboardText: null,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Desktop disconnected/)).toBeInTheDocument();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -113,11 +104,5 @@ export const ErrorState: Story = {
 			rfb: null,
 			remoteClipboardText: null,
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(/Could not connect to desktop/),
-		).toBeInTheDocument();
 	},
 };

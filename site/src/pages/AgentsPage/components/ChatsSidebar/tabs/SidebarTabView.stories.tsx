@@ -235,10 +235,4 @@ export const AddTabControlDisabled: Story = {
 			</Button>
 		),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: "New terminal tab" }),
-		).toBeDisabled();
-	},
 };

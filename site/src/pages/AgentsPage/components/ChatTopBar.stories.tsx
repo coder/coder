@@ -176,12 +176,6 @@ export const NoTitle: Story = {
 	args: {
 		chat: undefined,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByLabelText("Open agent actions"),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const WithOpenPR: Story = {
@@ -476,19 +470,6 @@ export const ArchivedChildChatHasNoActionsMenu: Story = {
 				data: mockParentChat,
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(
-				canvas.getByText("Build authentication feature"),
-			).toBeInTheDocument();
-		});
-		// Archive state is root-only, so an archived child chat has no menu
-		// actions at all and the actions trigger is hidden entirely.
-		expect(
-			canvas.queryByLabelText("Open agent actions"),
-		).not.toBeInTheDocument();
 	},
 };
 

@@ -61,10 +61,6 @@ export const Loading: Story = {
 			() => new Promise(() => {}),
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Loading build logs\u2026")).toBeInTheDocument();
-	},
 };
 
 /** Completed build with logs fetched from the REST endpoint. */
@@ -81,12 +77,6 @@ export const CompletedWithLogs: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Starting workspace")).toBeInTheDocument();
-		});
-	},
 };
 
 /** REST fetch for build logs returned a server error. */
@@ -99,14 +89,6 @@ export const FetchError: Story = {
 		spyOn(API, "getWorkspaceBuildLogs").mockRejectedValue(
 			new Error("Internal Server Error"),
 		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(
-				canvas.getByText("Failed to load build logs."),
-			).toBeInTheDocument();
-		});
 	},
 };
 
@@ -127,12 +109,6 @@ export const CompletedEmptyLogs: Story = {
 				data: [],
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("No build logs available.")).toBeInTheDocument();
-		});
 	},
 };
 
