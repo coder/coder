@@ -406,6 +406,17 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 	}
 }
 
+// singleUseTxOptions pins the isolation level the single-use deletes rely on.
+// Under READ COMMITTED a delete that loses the race re-checks the row once
+// the winner commits and removes nothing, which is the sql.ErrNoRows the
+// grants map to invalid_grant. REPEATABLE READ and above raise a
+// serialization failure instead, so inheriting a server default above READ
+// COMMITTED would turn every lost race into a 500. Built per call because
+// InTx writes to the options it is handed.
+func singleUseTxOptions() *database.TxOptions {
+	return &database.TxOptions{Isolation: sql.LevelReadCommitted}
+}
+
 func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.Logger, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
 	// A public client has no secret to validate, and its token references
 	// none. PKCE and the dbCode.AppID check are what bind the exchange to the
@@ -620,7 +631,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
 		}
 		return nil
-	}, nil)
+	}, singleUseTxOptions())
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
@@ -765,7 +776,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
 		}
 		return nil
-	}, nil)
+	}, singleUseTxOptions())
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
