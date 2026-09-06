@@ -495,10 +495,9 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	t.Parallel()
 
 	db, pubsub := dbtestutil.NewDB(t)
-	var reads sync.WaitGroup
-	reads.Add(2)
+	reads := newBarrier()
 	client := coderdtest.New(t, &coderdtest.Options{
-		Database: barrierStore{Store: db, codeReads: &reads},
+		Database: barrierStore{Store: db, codeReads: reads},
 		Pubsub:   pubsub,
 	})
 	coderdtest.CreateFirstUser(t, client)
@@ -507,33 +506,38 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	app := seedAppWithSecret(t, db, sql.NullString{})
 	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
 
-	winner := requireExactlyOneMinted(ctx, t, client, tokenExchangeForm(app, code, verifier),
-		"a code may mint at most one token")
-	requireTokenAuthenticates(ctx, t, client, winner.AccessToken)
+	accepted := requireExactlyOneAccepted(ctx, t, client, tokenExchangeForm(app, code, verifier))
+	require.Equal(t, racers, reads.arrivals(), "both requests must read the code before either deletes it")
+	requireTokenAuthenticates(ctx, t, client, accepted.AccessToken)
 }
 
 func TestOAuth2RefreshSingleUse(t *testing.T) {
 	t.Parallel()
 
 	db, pubsub := dbtestutil.NewDB(t)
-	var reads sync.WaitGroup
-	reads.Add(2)
+	reads := newBarrier()
 	client := coderdtest.New(t, &coderdtest.Options{
-		Database: barrierStore{Store: db, tokenReads: &reads},
+		Database: barrierStore{Store: db, tokenReads: reads},
 		Pubsub:   pubsub,
 	})
 	coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
-	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+	// Unnarrowed, so the accepted token can be checked against /users/me.
+	app := seedAppWithSecret(t, db, sql.NullString{})
+	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
 	token := exchangeCode(ctx, t, client, app, code, verifier)
 
-	requireExactlyOneMinted(ctx, t, client, refreshForm(app, token.RefreshToken),
-		"a refresh token may mint at most one replacement")
+	accepted := requireExactlyOneAccepted(ctx, t, client, refreshForm(app, token.RefreshToken))
+	require.Equal(t, racers, reads.arrivals(), "both requests must read the token before either deletes it")
+	requireTokenAuthenticates(ctx, t, client, accepted.AccessToken)
+	requireRefreshTokenSpent(ctx, t, db, token.RefreshToken)
 }
 
-func requireExactlyOneMinted(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values, msg string) codersdk.OAuth2TokenResponse {
+// requireExactlyOneAccepted sends the same token request twice at once and
+// returns the accepted response. The other request must be refused with
+// invalid_grant.
+func requireExactlyOneAccepted(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values) codersdk.OAuth2TokenResponse {
 	t.Helper()
 
 	type attempt struct {
@@ -542,37 +546,37 @@ func requireExactlyOneMinted(ctx context.Context, t *testing.T, client *codersdk
 		err    error
 	}
 
-	var barrier sync.WaitGroup
-	barrier.Add(2)
-	redeem := func() attempt {
-		barrier.Done()
-		barrier.Wait()
+	var start sync.WaitGroup
+	start.Add(racers)
+	send := func() attempt {
+		start.Done()
+		start.Wait()
 		status, body, err := tryTokenRequest(ctx, t, client, form)
 		return attempt{status: status, body: body, err: err}
 	}
 
 	other := make(chan attempt, 1)
-	go func() { other <- redeem() }()
-	results := []attempt{redeem(), <-other}
+	go func() { other <- send() }()
+	results := []attempt{send(), <-other}
 
-	var winner codersdk.OAuth2TokenResponse
-	var minted, rejected int
+	var accepted codersdk.OAuth2TokenResponse
+	var ok, refused int
 	for _, result := range results {
 		require.NoError(t, result.err)
 		switch result.status {
 		case http.StatusOK:
-			winner = requireTokenResponse(t, result.status, result.body)
-			minted++
+			accepted = requireTokenResponse(t, result.status, result.body)
+			ok++
 		case http.StatusBadRequest:
 			require.Contains(t, result.body, string(codersdk.OAuth2ErrorCodeInvalidGrant), result.body)
-			rejected++
+			refused++
 		default:
 			t.Fatalf("unexpected status %d: %s", result.status, result.body)
 		}
 	}
-	require.Equal(t, 1, minted, msg)
-	require.Equal(t, 1, rejected)
-	return winner
+	require.Equal(t, 1, ok, "exactly one of two concurrent requests must be accepted")
+	require.Equal(t, 1, refused, "the other request must be refused with invalid_grant")
+	return accepted
 }
 
 // The ordinary replay: a client retries a redemption whose answer it never saw.
@@ -689,40 +693,74 @@ func TestOAuth2RefreshKeyMissing(t *testing.T) {
 	requireTokenGrantError(t, status, body)
 }
 
-// barrierStore holds each redemption at a chosen read until every redemption
-// has read, so both reach the delete with the same stale view. Starting the
-// requests together is not enough on its own: nothing stops one handler from
-// committing before the other reads, and the read then refuses the second
-// before the delete ever arbitrates.
+// racers is how many requests the single-use tests send at once.
+const racers = 2
+
+// barrierStore holds each request at a chosen read until all racers have
+// read, so both reach the delete with the same stale view. Starting the
+// requests together is not enough on its own: one handler could commit before
+// the other reads, and the read would then refuse the second request before
+// the delete is ever contested.
 //
 // InTx hands its closure a fresh Store, so this intercepts only the read that
-// precedes the transaction, which is the one that fixes the interleaving.
+// precedes the transaction.
 type barrierStore struct {
 	database.Store
-	codeReads  *sync.WaitGroup
-	tokenReads *sync.WaitGroup
+	codeReads  *barrier
+	tokenReads *barrier
 }
 
 // GetOAuth2ProviderAppCodeByPrefix has one production caller, the code read in
 // authorizationCodeGrant, so every arrival here is a redemption.
 func (s barrierStore) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, prefix []byte) (database.OAuth2ProviderAppCode, error) {
 	code, err := s.Store.GetOAuth2ProviderAppCodeByPrefix(ctx, prefix)
-	hold(s.codeReads)
+	s.codeReads.wait(ctx)
 	return code, err
 }
 
 func (s barrierStore) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, prefix []byte) (database.OAuth2ProviderAppToken, error) {
 	token, err := s.Store.GetOAuth2ProviderAppTokenByPrefix(ctx, prefix)
-	hold(s.tokenReads)
+	s.tokenReads.wait(ctx)
 	return token, err
 }
 
-func hold(reads *sync.WaitGroup) {
-	if reads == nil {
+// barrier releases every waiter once racers of them have arrived. A waiter
+// also gives up when its context ends, so a missing arrival fails the test
+// through the request's own result instead of hanging the package.
+type barrier struct {
+	mu       sync.Mutex
+	arrived  int
+	released chan struct{}
+}
+
+func newBarrier() *barrier {
+	return &barrier{released: make(chan struct{})}
+}
+
+func (b *barrier) wait(ctx context.Context) {
+	if b == nil {
 		return
 	}
-	reads.Done()
-	reads.Wait()
+	b.mu.Lock()
+	b.arrived++
+	if b.arrived == racers {
+		close(b.released)
+	}
+	b.mu.Unlock()
+
+	select {
+	case <-b.released:
+	case <-ctx.Done():
+	}
+}
+
+// arrivals is how many requests reached the barrier. Tests assert it equals
+// racers, which catches both a request that never got there and an extra
+// caller of the intercepted read.
+func (b *barrier) arrivals() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.arrived
 }
 
 // requireTokenAuthenticates asserts the accepted redemption's own credential
@@ -1015,6 +1053,17 @@ func tokenRow(ctx context.Context, t *testing.T, db database.Store, refreshToken
 	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(parsed.Prefix))
 	require.NoError(t, err)
 	return dbToken
+}
+
+// requireRefreshTokenSpent asserts the presented refresh token's row is gone.
+func requireRefreshTokenSpent(ctx context.Context, t *testing.T, db database.Store, refreshToken string) {
+	t.Helper()
+
+	parsed, err := oauth2provider.ParseFormattedSecret(refreshToken)
+	require.NoError(t, err)
+
+	_, err = db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(parsed.Prefix))
+	require.ErrorIs(t, err, sql.ErrNoRows, "a refresh token must not survive its own refresh")
 }
 
 func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.APIKeyScopes {
