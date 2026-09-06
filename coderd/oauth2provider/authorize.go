@@ -59,9 +59,6 @@ func canonicalScopes(names []string) []string {
 // firstUnknownScope returns the first name clients may not request, and whether
 // there was one. The catalog is a curation, not a validity check: RBAC also
 // expands internal-only names such as debug_info:read.
-//
-// Safe to call before or after canonicalScopes, since IsExternalScope accepts
-// the alias spellings too.
 func firstUnknownScope(names []string) (string, bool) {
 	for _, name := range names {
 		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
@@ -107,8 +104,6 @@ func grantableScopes(appScope string) []string {
 	return filtered
 }
 
-// Phases of scope checking, named in the phase log field. Constants because a
-// typo in a literal compiles and produces a line no filter matches.
 const (
 	phaseAuthorize = "authorize"
 	phaseRedeem    = "redeem"
@@ -121,10 +116,6 @@ const (
 // `workspace:read`. Pass both slices through canonicalScopes first, since RBAC
 // expands `coder:all` but not the bare `all` alias. A comparison it cannot
 // decide refuses.
-//
-// phase names which comparison a log line came from, and is one of
-// phaseAuthorize, phaseRedeem or phaseRefresh. The ceiling differs by phase: the
-// app's allowlist for the first two, the token's own grant for the third.
 func firstScopeBeyondCeiling(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, ceiling, requested []string) (string, error) {
 	ceilingNames := slice.StringEnums[rbac.ScopeName](ceiling)
 	requestedNames := slice.StringEnums[rbac.ScopeName](requested)

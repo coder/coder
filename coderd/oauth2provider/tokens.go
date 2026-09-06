@@ -87,17 +87,9 @@ func checkScopeStillCovered(ctx context.Context, logger slog.Logger, app databas
 }
 
 // narrowAccessScope returns the scope for the access token this request mints.
-// A request may ask for less than the grant but never more (RFC 6749 §6), and a
-// request naming no scope gets the whole grant. Only the access token narrows;
-// the grant is unchanged, so a later request may ask for a different part of it.
-//
-// Coverage rather than membership, because `coder:all` covers every scope by
-// wildcard but is a member of no set but its own, so membership would leave an
-// unrestricted grant unnarrowable.
-//
-// appID is for the log line only. The app's own allowlist is deliberately not a
-// bound here: a narrowed registration applies at the next authorization, not
-// mid-session, so this takes the id rather than the app.
+// A request may ask for part of the grant but never more (RFC 6749 §6), and a
+// request naming no scope gets the whole grant. The grant itself is unchanged,
+// so a later request may ask for a different part of it.
 func narrowAccessScope(ctx context.Context, logger slog.Logger, phase string, appID uuid.UUID, granted string, requested []string) (string, error) {
 	// The row may have been written by an older server.
 	ceiling := canonicalScopes(strings.Fields(granted))
@@ -355,11 +347,11 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
-		// invalid_grant, not invalid_scope (RFC 6749 §5.2): these report the
-		// stored grant, which the client cannot fix by asking differently.
-		// errUnmintableScope is the near miss, since a request mints from the
-		// scope it named, but the catalog check runs first and every catalog
-		// name is mintable.
+		// invalid_grant, not invalid_scope (RFC 6749 §5.2): all three report a
+		// problem with the stored grant, which the client cannot fix by asking
+		// differently. That includes errUnmintableScope: the catalog check runs
+		// first and every catalog name is mintable, so a requested scope never
+		// reaches it.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
 			errors.Is(err, errNoGrantableScope) {
 			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())

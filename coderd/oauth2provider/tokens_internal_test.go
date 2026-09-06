@@ -92,7 +92,6 @@ var (
 	ReasonScopeNotGranted = errScopeNotGranted.Error()
 )
 
-// Two catalog scopes, neither covering the other.
 const (
 	inCatalog     = "coder:workspaces.access"
 	alsoInCatalog = "coder:templates.build"
