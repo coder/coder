@@ -480,7 +480,7 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	var reads sync.WaitGroup
 	reads.Add(2)
 	client := coderdtest.New(t, &coderdtest.Options{
-		Database: barrierStore{Store: db, reads: &reads},
+		Database: barrierStore{Store: db, codeReads: &reads},
 		Pubsub:   pubsub,
 	})
 	coderdtest.CreateFirstUser(t, client)
@@ -501,8 +501,10 @@ func TestOAuth2RefreshSingleUse(t *testing.T) {
 	t.Parallel()
 
 	db, pubsub := dbtestutil.NewDB(t)
+	var reads sync.WaitGroup
+	reads.Add(2)
 	client := coderdtest.New(t, &coderdtest.Options{
-		Database: db,
+		Database: barrierStore{Store: db, tokenReads: &reads},
 		Pubsub:   pubsub,
 	})
 	coderdtest.CreateFirstUser(t, client)
@@ -517,10 +519,10 @@ func TestOAuth2RefreshSingleUse(t *testing.T) {
 }
 
 // requireExactlyOneMinted posts form twice concurrently and requires one 200 and
-// one `invalid_grant`, returning the winner's response. The barrier only starts
-// the two together, which overlaps them without pinning which one arbitrates. A
-// caller that needs the interleaving pinned holds them lower down, as the
-// exchange test does with barrierStore.
+// one `invalid_grant`, returning the winner's response. The barrier here only
+// starts the two together, which overlaps them without deciding which one
+// arbitrates; callers pin that with a barrierStore hold on the read their grant
+// type reaches before the transaction.
 func requireExactlyOneMinted(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values, msg string) codersdk.OAuth2TokenResponse {
 	t.Helper()
 
@@ -587,7 +589,7 @@ func TestOAuth2TokenExchangeReplay(t *testing.T) {
 	requireTokenAuthenticates(ctx, t, client, token.AccessToken)
 }
 
-// barrierStore holds each redemption at its code read until every redemption
+// barrierStore holds each redemption at a chosen read until every redemption
 // has read, so both reach the delete with the same stale view. Starting the
 // requests together is not enough on its own: nothing stops one handler from
 // committing before the other reads, and the read then refuses the second
@@ -597,16 +599,35 @@ func TestOAuth2TokenExchangeReplay(t *testing.T) {
 // precedes the transaction, which is the one that fixes the interleaving.
 type barrierStore struct {
 	database.Store
-	reads *sync.WaitGroup
+	codeReads  *sync.WaitGroup
+	tokenReads *sync.WaitGroup
 }
 
 // GetOAuth2ProviderAppCodeByPrefix has one production caller, the code read in
 // authorizationCodeGrant, so every arrival here is a redemption.
 func (s barrierStore) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, prefix []byte) (database.OAuth2ProviderAppCode, error) {
 	code, err := s.Store.GetOAuth2ProviderAppCodeByPrefix(ctx, prefix)
-	s.reads.Done()
-	s.reads.Wait()
+	hold(s.codeReads)
 	return code, err
+}
+
+// GetOAuth2ProviderAppTokenByPrefix has two production callers, the refresh
+// read and revocation, and a test that races refreshes reaches only the first.
+func (s barrierStore) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, prefix []byte) (database.OAuth2ProviderAppToken, error) {
+	token, err := s.Store.GetOAuth2ProviderAppTokenByPrefix(ctx, prefix)
+	hold(s.tokenReads)
+	return token, err
+}
+
+// hold releases the caller once every expected reader has arrived. A nil group
+// leaves that read alone, so a barrier on one read does not stall the
+// single-request reads a test makes while seeding.
+func hold(reads *sync.WaitGroup) {
+	if reads == nil {
+		return
+	}
+	reads.Done()
+	reads.Wait()
 }
 
 // requireTokenAuthenticates asserts the accepted redemption's own credential
