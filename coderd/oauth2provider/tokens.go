@@ -680,15 +680,11 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	// Grab the user roles so we can perform the refresh as the user.
-	//nolint:gocritic // OAuth2 system context, need to read the previous API key
-	prevKey, err := db.GetAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), dbToken.APIKeyID)
-	if err != nil {
-		return codersdk.OAuth2TokenResponse{}, err
-	}
-
+	// The token row carries the user id, so the previous key is not read
+	// here. The delete below is the first statement to touch it, which
+	// leaves two racing refreshes a single arbiter.
 	// ScopeAll for the same reason as in authorizationCodeGrant.
-	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.UserID, rbac.ScopeAll)
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbToken.UserID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
@@ -705,9 +701,9 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 	}
 
 	// Generate the new API key.
-	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", prevKey.UserID, app.ID)
+	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", dbToken.UserID, app.ID)
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
-		UserID:          prevKey.UserID,
+		UserID:          dbToken.UserID,
 		LoginType:       database.LoginTypeOAuth2ProviderApp,
 		DefaultLifetime: lifetimes.DefaultDuration.Value(),
 		Scopes:          scopes,
@@ -733,7 +729,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 		// and returns invalid_grant. Grouping the delete with the inserts is
 		// what makes that safe: the loser is refused only if the winner really
 		// minted, and a failure below puts the old key back.
-		_, err := tx.DeleteAPIKeyByIDReturningRow(ctx, prevKey.ID) // This cascades to the token.
+		_, err := tx.DeleteAPIKeyByIDReturningRow(ctx, dbToken.APIKeyID) // This cascades to the token.
 		if errors.Is(err, sql.ErrNoRows) {
 			return errBadToken
 		}
