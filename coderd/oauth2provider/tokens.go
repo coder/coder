@@ -730,7 +730,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 		ctx := dbauthz.As(ctx, actor)
 		// The delete decides the race: only the refresh that removes the key
 		// mints a replacement, and the loser sees the token as already spent.
-		_, err = tx.DeleteAPIKeyByIDReturningRow(ctx, prevKey.ID) // This cascades to the token.
+		_, err := tx.DeleteAPIKeyByIDReturningRow(ctx, prevKey.ID) // This cascades to the token.
 		if errors.Is(err, sql.ErrNoRows) {
 			return errBadToken
 		}
