@@ -83,6 +83,40 @@ func TestPing(t *testing.T) {
 	require.NoError(t, err, "must not error")
 }
 
+// TestSingleUseDeleteNotFound pins that a fetch-then-query wrapper whose
+// fetch finds nothing returns an error that still matches sql.ErrNoRows, and
+// never reaches the query. The OAuth2 grants rely on both to answer
+// invalid_grant when a single-use delete finds its row already gone.
+func TestSingleUseDeleteNotFound(t *testing.T) {
+	t.Parallel()
+
+	ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
+	newQuerier := func(t *testing.T) (*dbmock.MockStore, database.Store) {
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+		return db, dbauthz.New(db, &coderdtest.RecordingAuthorizer{}, slog.Make(), coderdtest.AccessControlStorePointer())
+	}
+
+	t.Run("DeleteAPIKeyByIDReturningRow", func(t *testing.T) {
+		t.Parallel()
+		db, q := newQuerier(t)
+		db.EXPECT().GetAPIKeyByID(gomock.Any(), "gone").Return(database.APIKey{}, sql.ErrNoRows)
+
+		_, err := q.DeleteAPIKeyByIDReturningRow(ctx, "gone")
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("DeleteOAuth2ProviderAppCodeByID", func(t *testing.T) {
+		t.Parallel()
+		db, q := newQuerier(t)
+		id := uuid.New()
+		db.EXPECT().GetOAuth2ProviderAppCodeByID(gomock.Any(), id).Return(database.OAuth2ProviderAppCode{}, sql.ErrNoRows)
+
+		_, err := q.DeleteOAuth2ProviderAppCodeByID(ctx, id)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+}
+
 // TestInTX is not perfect, just checks that it properly checks auth.
 func TestInTX(t *testing.T) {
 	t.Parallel()
