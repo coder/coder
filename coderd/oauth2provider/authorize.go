@@ -288,7 +288,7 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 	// response_type and client_id are always required.
 	p.RequiredNotEmpty("response_type", "client_id")
 
-	response, err := newAuthorizeResponse(p, vals, app.CallbackURL)
+	response, err := newAuthorizeResponse(p, vals, app)
 	if err != nil {
 		return authorizeParams{}, &authorizeFailure{corruptCallback: err}
 	}
@@ -426,11 +426,26 @@ type authorizeResponse struct {
 	state    string
 }
 
-// newAuthorizeResponse parses the app's registered callback, checks it,
-// exact-matches any redirect_uri the client sent against it, and reads the
-// state to echo back.
+// registeredRedirectURIs returns the app's redirect URIs, parsed and deduplicated,
+// with the primary callback first. CallbackURL is included because admin-created
+// apps have an empty RedirectUris list.
+func registeredRedirectURIs(app database.OAuth2ProviderApp) ([]*url.URL, error) {
+	raw := slice.Unique(append([]string{app.CallbackURL}, app.RedirectUris...))
+	out := make([]*url.URL, 0, len(raw))
+	for _, s := range raw {
+		u, err := url.Parse(s)
+		if err != nil {
+			return nil, xerrors.Errorf("parse registered redirect URI %q: %w", s, err)
+		}
+		out = append(out, u)
+	}
+	return out, nil
+}
+
+// newAuthorizeResponse checks the app's registered redirect URIs, matches any
+// redirect_uri the client sent against them, and reads the state to echo back.
 //
-// The scheme is checked on the registered URL rather than on the match's result,
+// The scheme is checked on the registered URLs rather than on the match's result,
 // because p.RedirectURL returns the client's URI when the match fails, and
 // answering 500 for a scheme the client chose would blame the app for a request
 // it did not make. It is checked before the match so no parse outcome can reach
@@ -439,16 +454,18 @@ type authorizeResponse struct {
 // A returned error means the registration itself is unusable, which is server
 // state. A mismatch is the client's mistake and joins the other parameter
 // failures in p.Errors.
-func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, registered string) (authorizeResponse, error) {
-	registeredURL, err := url.Parse(registered)
+func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, app database.OAuth2ProviderApp) (authorizeResponse, error) {
+	allowed, err := registeredRedirectURIs(app)
 	if err != nil {
 		return authorizeResponse{}, err
 	}
-	if err := codersdk.ValidateRedirectURIScheme(registeredURL); err != nil {
-		return authorizeResponse{}, err
+	for _, u := range allowed {
+		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
+			return authorizeResponse{}, err
+		}
 	}
 
-	callback := p.RedirectURL(vals, registeredURL, "redirect_uri")
+	callback := p.RedirectURL(vals, allowed, "redirect_uri")
 	response := authorizeResponse{state: p.String(vals, "", "state")}
 	// The field, not a count of errors across these two lines: reading state
 	// can fail too, and that failure belongs to the client's callback rather

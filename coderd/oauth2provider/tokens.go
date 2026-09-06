@@ -106,7 +106,7 @@ func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 // extractTokenRequest parses and validates the /oauth2/tokens form. It takes
 // the app because whether client_secret is required depends on the client
 // type.
-func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
+func extractTokenRequest(r *http.Request, allowed []*url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
 	if err != nil {
@@ -180,7 +180,7 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAu
 	}
 
 	// Validate redirect URI - errors are added to p.Errors.
-	_ = p.RedirectURL(vals, callbackURL, "redirect_uri")
+	_ = p.RedirectURL(vals, allowed, "redirect_uri")
 
 	// Validate resource parameter syntax (RFC 8707): must be absolute URI without fragment.
 	if err := validateResourceParameter(req.Resource); err != nil {
@@ -205,7 +205,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 
-		callbackURL, err := url.Parse(app.CallbackURL)
+		allowed, err := registeredRedirectURIs(app)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate form values.",
@@ -214,7 +214,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			return
 		}
 
-		req, validationErrs, err := extractTokenRequest(r, callbackURL, app)
+		req, validationErrs, err := extractTokenRequest(r, allowed, app)
 		if err != nil {
 			if errors.Is(err, errConflictingClientAuth) {
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")

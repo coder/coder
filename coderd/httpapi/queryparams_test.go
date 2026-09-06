@@ -596,7 +596,7 @@ func TestRedirectURL(t *testing.T) {
 	t.Run("Omitted", func(t *testing.T) {
 		t.Parallel()
 		parser := httpapi.NewQueryParamParser()
-		got := parser.RedirectURL(url.Values{}, base, "redirect_uri")
+		got := parser.RedirectURL(url.Values{}, []*url.URL{base}, "redirect_uri")
 		require.Empty(t, parser.Errors)
 		require.Equal(t, base.String(), got.String())
 	})
@@ -605,7 +605,7 @@ func TestRedirectURL(t *testing.T) {
 		t.Parallel()
 		parser := httpapi.NewQueryParamParser()
 		vals := url.Values{"redirect_uri": []string{base.String()}}
-		got := parser.RedirectURL(vals, base, "redirect_uri")
+		got := parser.RedirectURL(vals, []*url.URL{base}, "redirect_uri")
 		require.Empty(t, parser.Errors)
 		require.Equal(t, base.String(), got.String())
 	})
@@ -614,7 +614,7 @@ func TestRedirectURL(t *testing.T) {
 		t.Parallel()
 		parser := httpapi.NewQueryParamParser()
 		vals := url.Values{"redirect_uri": []string{"https://evil.example.com/steal"}}
-		parser.RedirectURL(vals, base, "redirect_uri")
+		parser.RedirectURL(vals, []*url.URL{base}, "redirect_uri")
 		require.Len(t, parser.Errors, 1)
 		require.Contains(t, parser.Errors[0].Detail, "must match")
 	})
@@ -627,7 +627,7 @@ func TestRedirectURL(t *testing.T) {
 			parser := httpapi.NewQueryParamParser()
 			vals := url.Values{"redirect_uri": []string{raw}}
 			require.NotPanics(t, func() {
-				got := parser.RedirectURL(vals, base, "redirect_uri")
+				got := parser.RedirectURL(vals, []*url.URL{base}, "redirect_uri")
 				require.NotNil(t, got, "a nil URL would panic in the caller")
 				require.Equal(t, base.String(), got.String())
 			}, "redirect_uri=%q must not panic", raw)
@@ -648,7 +648,7 @@ func TestRedirectURL(t *testing.T) {
 
 			parser := httpapi.NewQueryParamParser()
 			vals := url.Values{"redirect_uri": []string{presented}}
-			got := parser.RedirectURL(vals, registered, "redirect_uri")
+			got := parser.RedirectURL(vals, []*url.URL{registered}, "redirect_uri")
 			require.Empty(t, parser.Errors, "host %s", host)
 			require.Equal(t, presented, got.String(), "host %s", host)
 		}
@@ -662,7 +662,7 @@ func TestRedirectURL(t *testing.T) {
 
 		parser := httpapi.NewQueryParamParser()
 		vals := url.Values{"redirect_uri": []string{presented}}
-		got := parser.RedirectURL(vals, registered, "redirect_uri")
+		got := parser.RedirectURL(vals, []*url.URL{registered}, "redirect_uri")
 		require.Empty(t, parser.Errors)
 		require.Equal(t, presented, got.String())
 	})
@@ -675,10 +675,10 @@ func TestRedirectURL(t *testing.T) {
 		require.NoError(t, err)
 		parser := httpapi.NewQueryParamParser()
 		vals := url.Values{"redirect_uri": []string{"http://127.0.0.1:53219/other"}}
-		parser.RedirectURL(vals, registered, "redirect_uri")
+		parser.RedirectURL(vals, []*url.URL{registered}, "redirect_uri")
 		require.Len(t, parser.Errors, 1)
 		require.Equal(t, "redirect_uri", parser.Errors[0].Field)
-		require.Contains(t, parser.Errors[0].Detail, "must match")
+		require.Contains(t, parser.Errors[0].Detail, "must match one of")
 	})
 
 	// A non-loopback registration keeps the exact match, port included.
@@ -686,8 +686,41 @@ func TestRedirectURL(t *testing.T) {
 		t.Parallel()
 		parser := httpapi.NewQueryParamParser()
 		vals := url.Values{"redirect_uri": []string{"https://app.example.com:8443/callback"}}
-		parser.RedirectURL(vals, base, "redirect_uri")
+		parser.RedirectURL(vals, []*url.URL{base}, "redirect_uri")
 		require.Len(t, parser.Errors, 1)
 		require.Contains(t, parser.Errors[0].Detail, "must match")
+	})
+
+	// RFC 6749 §3.1.2.3: the presented URI must match one of the registered URIs,
+	// not only the first.
+	t.Run("MatchesAnyRegisteredEntry", func(t *testing.T) {
+		t.Parallel()
+		second, err := url.Parse("https://www.cursor.com/agents/mcp/oauth/callback")
+		require.NoError(t, err)
+		allowed := []*url.URL{base, second}
+
+		for _, want := range allowed {
+			parser := httpapi.NewQueryParamParser()
+			vals := url.Values{"redirect_uri": []string{want.String()}}
+			got := parser.RedirectURL(vals, allowed, "redirect_uri")
+			require.Empty(t, parser.Errors, want.String())
+			require.Equal(t, want.String(), got.String())
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{"https://evil.example.com/steal"}}
+		parser.RedirectURL(vals, allowed, "redirect_uri")
+		require.Len(t, parser.Errors, 1)
+		require.Contains(t, parser.Errors[0].Detail, "must match one of")
+	})
+
+	t.Run("OmittedWithSeveralRegisteredDefaultsToPrimary", func(t *testing.T) {
+		t.Parallel()
+		second, err := url.Parse("https://www.cursor.com/agents/mcp/oauth/callback")
+		require.NoError(t, err)
+		parser := httpapi.NewQueryParamParser()
+		got := parser.RedirectURL(url.Values{}, []*url.URL{base, second}, "redirect_uri")
+		require.Empty(t, parser.Errors)
+		require.Equal(t, base.String(), got.String())
 	})
 }
