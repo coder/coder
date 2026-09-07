@@ -14,7 +14,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
-import { ProviderIcon } from "./ProviderIcon";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { getProviderDisplayType } from "./providerFormApiMap";
 
 type ProviderRowProps = {

@@ -13,15 +13,15 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import type { FormHelpers } from "#/utils/formUtils";
+import { applyKnownModelDefaults } from "./knownModels/applyKnownModelDefaults";
 import {
 	findKnownModelByCanonicalId,
 	findKnownModelByExactAlias,
 	formatContextBadge,
 	getKnownModelsForProvider,
-	type KnownModel,
 	searchKnownModels,
-} from "./knownModels";
-import { applyKnownModelDefaults } from "./knownModels/applyKnownModelDefaults";
+} from "./knownModels/catalog";
+import type { KnownModel } from "./knownModels/types";
 import { deepGet, deepSet, type ModelFormValues } from "./modelConfigFormLogic";
 
 type ModelFormMode = "add" | "edit" | "duplicate";

@@ -6,6 +6,7 @@ import type { UrlTransform } from "streamdown";
 import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -49,7 +50,6 @@ import {
 } from "./ChatConversation/messageParsing";
 import { buildStreamTools } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
-import type { ModelSelectorOption } from "./ChatElements/ModelSelector";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 

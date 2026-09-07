@@ -76,7 +76,7 @@ const longNameModel: ModelSelectorOption = {
 };
 
 const meta: Meta<typeof ModelSelector> = {
-	title: "pages/AgentsPage/ChatElements/ModelSelector",
+	title: "modules/aiModels/ModelSelector",
 	component: ModelSelector,
 	args: {
 		options: openAIModels,
