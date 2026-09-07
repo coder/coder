@@ -22,7 +22,7 @@ import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
-	chat,
+	chat as chatById,
 	chatMessagesForInfiniteScroll,
 	chatModels,
 	chatQueueConvergence,
@@ -129,7 +129,6 @@ import {
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./utils/modelOptions";
-import { parsePullRequestUrl } from "./utils/pullRequest";
 import { pickReasoningEffort } from "./utils/reasoningEffort";
 import {
 	CHAT_SLASH_COMMANDS,
@@ -227,7 +226,7 @@ const AgentChatPage: FC = () => {
 	});
 	const parentChatID = getParentChatID(chatQuery.data);
 	const parentChatQuery = useQuery({
-		...chat(parentChatID ?? ""),
+		...chatById(parentChatID ?? ""),
 		enabled: Boolean(parentChatID),
 	});
 	const workspaceId = chatQuery.data?.workspace_id;
@@ -313,19 +312,17 @@ const AgentChatPage: FC = () => {
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
 
-	const chatRecord = chatQuery.data;
-	const isArchived = Boolean(chatRecord?.archived);
-	const isSharedChat = Boolean(chatRecord?.shared);
+	const chat = chatQuery.data;
+	const isArchived = Boolean(chat?.archived);
 	const isViewerNotOwner =
-		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
-	const isRootChat =
-		chatRecord !== undefined && getParentChatID(chatRecord) === undefined;
+		chat !== undefined && currentUser.id !== chat.owner_id;
+	const isRootChat = chat !== undefined && getParentChatID(chat) === undefined;
 	const chatAuthorizationObject =
-		chatRecord !== undefined
+		chat !== undefined
 			? {
 					resource_type: "chat" as const,
-					owner_id: chatRecord.owner_id,
-					organization_id: chatRecord.organization_id,
+					owner_id: chat.owner_id,
+					organization_id: chat.organization_id,
 				}
 			: undefined;
 	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
@@ -341,15 +338,7 @@ const AgentChatPage: FC = () => {
 	});
 	const canShareChat =
 		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
-	const chatOwner = isViewerNotOwner
-		? {
-				...(chatRecord?.owner_username
-					? { username: chatRecord.owner_username }
-					: {}),
-				...(chatRecord?.owner_name ? { name: chatRecord.owner_name } : {}),
-			}
-		: undefined;
-	const planModeEnabled = chatRecord?.plan_mode === "plan";
+	const planModeEnabled = chat?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
 	const effectiveMCPServerIds = (() => {
@@ -358,8 +347,8 @@ const AgentChatPage: FC = () => {
 		}
 		// If the chat has MCP server IDs recorded (even empty, meaning
 		// the user deliberately opted out), use those.
-		if (chatRecord?.mcp_server_ids) {
-			return chatRecord.mcp_server_ids;
+		if (chat?.mcp_server_ids) {
+			return chat.mcp_server_ids;
 		}
 		// Check for a previously saved selection in localStorage.
 		const saved = chatOrganizationId
@@ -408,7 +397,7 @@ const AgentChatPage: FC = () => {
 					has_more: Boolean(chatMessagesQuery.data?.pages.at(-1)?.has_more),
 				}
 			: undefined;
-	const chatLastModelConfigID = chatRecord?.last_model_config_id;
+	const chatLastModelConfigID = chat?.last_model_config_id;
 
 	// Destructure mutation results directly so the React Compiler
 	// tracks stable primitives/functions instead of the whole result
@@ -505,7 +494,7 @@ const AgentChatPage: FC = () => {
 	} = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
-		chatRecord,
+		chatRecord: chat,
 		chatRecordUpdatedAt: chatQuery.dataUpdatedAt,
 		chatMessagesData,
 		chatQueuedMessages,
@@ -514,10 +503,10 @@ const AgentChatPage: FC = () => {
 		aiGatewayDisabled,
 	});
 	const liveChatStatus =
-		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
+		useChatSelector(store, selectChatStatus) ?? chat?.status ?? null;
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
-		chatRecord,
+		chatRecord: chat,
 		cachedError: agentId ? chatErrorReasons[agentId] : undefined,
 	});
 
@@ -549,13 +538,6 @@ const AgentChatPage: FC = () => {
 		chatInputRef.current?.focus();
 	};
 
-	// Prefer the explicit PR number from the API, and only fall back to URL
-	// parsing when older metadata does not provide it.
-	const parsedPrNumber = Number(
-		parsePullRequestUrl(chatQuery.data?.diff_status?.url)?.number,
-	);
-	const prNumber =
-		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 	// Validate explicit and historical choices against organization options.
 	// Prefer the usable organization default before another organization model.
 	const effectiveSelectedModel = (() => {
@@ -609,7 +591,7 @@ const AgentChatPage: FC = () => {
 	);
 	const effectiveReasoningEffort = effectiveModelOption
 		? pickReasoningEffort(
-				selectedReasoningEffort || chatRecord?.last_reasoning_effort,
+				selectedReasoningEffort || chat?.last_reasoning_effort,
 				effectiveModelOption.reasoningEfforts ?? [],
 				effectiveModelOption.reasoningEffortDefault,
 			)
@@ -782,12 +764,12 @@ const AgentChatPage: FC = () => {
 	};
 
 	const handleOpenRenameDialogAction =
-		onOpenRenameDialog && chatRecord
+		onOpenRenameDialog && chat
 			? () => {
 					if (isArchived) {
 						return;
 					}
-					onOpenRenameDialog(chatRecord);
+					onOpenRenameDialog(chat);
 				}
 			: undefined;
 
@@ -1221,31 +1203,22 @@ const AgentChatPage: FC = () => {
 						}}
 					/>
 				)
-			) : !chatQuery.data ||
-				!chatMessagesQuery.data?.pages?.length ||
-				!agentId ? (
+			) : !chat || !chatMessagesQuery.data?.pages?.length || !agentId ? (
 				<AgentChatPageNotFoundView />
 			) : (
 				<AgentChatPageView
 					key={agentId}
-					agentId={agentId}
+					chat={chat}
 					sendShortcut={getAgentChatSendShortcut(
 						preferencesQuery.data?.agent_chat_send_shortcut,
 						preferencesQuery.isLoading,
 					)}
-					organizationId={chatQuery.data?.organization_id}
-					chatTitle={chatTitle}
 					parentChat={parentChatQuery.data}
 					persistedError={persistedError}
-					isArchived={isArchived}
-					isSharedChat={isSharedChat}
-					chatOwner={chatOwner}
 					canShareChat={canShareChat}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
-					chatBuildId={chatQuery.data?.build_id}
 					store={store}
-					initialChatStatus={chatQuery.data.status}
 					initialMessages={chatMessagesList ?? []}
 					editing={{ ...editing, handleEditUserMessage }}
 					effectiveSelectedModel={effectiveSelectedModel}
@@ -1269,22 +1242,18 @@ const AgentChatPage: FC = () => {
 					aiGatewayDisabled={aiGatewayDisabled}
 					hasModelOptions={hasModelOptions}
 					isModelCatalogLoading={isModelDataPending}
-					planModeEnabled={planModeEnabled}
 					onPlanModeToggle={handlePlanModeToggle}
 					compressionThreshold={compressionThreshold}
 					isInputDisabled={isInputDisabled}
 					isSubmissionPending={isSubmissionPending}
 					isInterruptPending={isInterruptPending}
 					workspaceOptions={workspaceOptions}
-					selectedWorkspaceId={selectedWorkspaceId}
 					onWorkspaceChange={
 						canUpdateChatWorkspace ? handleWorkspaceChange : undefined
 					}
 					isWorkspaceLoading={isWorkspaceLoading}
 					showSidebarPanel={showSidebarPanel}
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
-					prNumber={prNumber}
-					diffStatusData={chatQuery.data?.diff_status}
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
 					sshCommand={sshCommand}
@@ -1306,8 +1275,6 @@ const AgentChatPage: FC = () => {
 						isArchiving &&
 						(archivingChatId === undefined || archivingChatId === agentId)
 					}
-					isPinned={(chatRecord?.pin_order ?? 0) > 0}
-					isChildChat={parentChatID !== undefined}
 					isArchiveBlocked={
 						!chatFamilyAllowsArchive(liveChatStatus, activeChatChildren)
 					}
@@ -1322,8 +1289,6 @@ const AgentChatPage: FC = () => {
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
 					onMCPAuthComplete={handleMCPAuthComplete}
-					chatContext={chatQuery.data?.context}
-					queuedForCapacity={Boolean(chatQuery.data?.queued_for_capacity)}
 					workspaceSkills={chatWorkspaceSkills}
 				/>
 			)}
