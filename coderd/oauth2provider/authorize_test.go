@@ -361,7 +361,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 				"%s: the user must not be redirected to a URI the app did not register", method)
 			// The request also carries an invalid scope, so this pins which
 			// guard rejected it first.
-			require.Contains(t, readBody(t, resp), "must exactly match",
+			require.Contains(t, readBody(t, resp), "must match",
 				"%s: the rejection must come from redirect_uri validation", method)
 		}
 

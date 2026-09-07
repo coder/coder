@@ -237,7 +237,7 @@ func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryPara
 	if !codersdk.RedirectURIMatches(v, base) {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must exactly match %s", queryParam, base),
+			Detail: fmt.Sprintf("Query param %q must match %s; only the port of a loopback URI may differ", queryParam, base),
 		})
 	}
 

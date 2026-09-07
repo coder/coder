@@ -616,7 +616,7 @@ func TestRedirectURL(t *testing.T) {
 		vals := url.Values{"redirect_uri": []string{"https://evil.example.com/steal"}}
 		parser.RedirectURL(vals, base, "redirect_uri")
 		require.Len(t, parser.Errors, 1)
-		require.Contains(t, parser.Errors[0].Detail, "must exactly match")
+		require.Contains(t, parser.Errors[0].Detail, "must match")
 	})
 
 	// url.Parse returns a nil URL alongside its error for these, so a caller
@@ -684,7 +684,7 @@ func TestRedirectURL(t *testing.T) {
 			parser.RedirectURL(vals, registered, "redirect_uri")
 			require.Len(t, parser.Errors, 1, "%s differs", name)
 			require.Equal(t, "redirect_uri", parser.Errors[0].Field, "%s differs", name)
-			require.Contains(t, parser.Errors[0].Detail, "must exactly match", "%s differs", name)
+			require.Contains(t, parser.Errors[0].Detail, "must match", "%s differs", name)
 		}
 	})
 
@@ -695,6 +695,6 @@ func TestRedirectURL(t *testing.T) {
 		vals := url.Values{"redirect_uri": []string{"https://app.example.com:8443/callback"}}
 		parser.RedirectURL(vals, base, "redirect_uri")
 		require.Len(t, parser.Errors, 1)
-		require.Contains(t, parser.Errors[0].Detail, "must exactly match")
+		require.Contains(t, parser.Errors[0].Detail, "must match")
 	})
 }
