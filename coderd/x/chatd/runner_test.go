@@ -17,6 +17,8 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -89,10 +91,11 @@ func TestRunner_SerializesReplacementTasksForSameHistoryAndStatus(t *testing.T) 
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(true)
 	worker := startWorker(t, testOptions(t, f, starter))
+	cancelWorker := worker.cancel
 	t.Cleanup(func() {
 		// Stop recovery before releasing tasks that ignore cancellation.
 		// startWorker's cleanup joins the worker after these gates open.
-		worker.cancel()
+		cancelWorker()
 		starter.releaseAll()
 	})
 	first := starter.waitCall(t, taskKindGeneration, chat.ID)
@@ -113,10 +116,11 @@ func TestRunner_AllowsReplacementForDifferentHistoryOrStatus(t *testing.T) {
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(true)
 	worker := startWorker(t, testOptions(t, f, starter))
+	cancelWorker := worker.cancel
 	t.Cleanup(func() {
 		// Stop recovery before releasing tasks that ignore cancellation.
 		// startWorker's cleanup joins the worker after these gates open.
-		worker.cancel()
+		cancelWorker()
 		starter.releaseAll()
 	})
 	first := starter.waitCall(t, taskKindGeneration, chat.ID)
@@ -196,645 +200,515 @@ func TestWorker_CleanupStopsRoutingAndCancelsTasks(t *testing.T) {
 	starter.assertNoCall(t)
 }
 
+// Completion must restore work without a notification, maintenance tick, or
+// task-timeout retry. The task IDs distinguish replacement from retry.
 func TestRunner_CompletionRecovery(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		status   database.ChatStatus
 		archived bool
-		history  int64
 		kind     taskKind
 	}{
-		{name: "EqualSnapshotUnchangedWork", status: database.ChatStatusRunning, history: 5, kind: taskKindGeneration},
-		{name: "EqualSnapshotAdvancedHistory", status: database.ChatStatusRunning, history: 6, kind: taskKindGeneration},
-		{name: "Interrupt", status: database.ChatStatusInterrupting, history: 5, kind: taskKindInterrupt},
-		{name: "RequiresAction", status: database.ChatStatusRequiresAction, history: 5, kind: taskKindRequiresActionTimeout},
-		{name: "Archived", status: database.ChatStatusRunning, archived: true, history: 5, kind: taskKindAbandon},
-		{name: "Waiting", status: database.ChatStatusWaiting, history: 5, kind: taskKindAbandon},
-		{name: "Error", status: database.ChatStatusError, history: 5, kind: taskKindAbandon},
+		{name: "Running", status: database.ChatStatusRunning, kind: taskKindGeneration},
+		{name: "Interrupting", status: database.ChatStatusInterrupting, kind: taskKindInterrupt},
+		{name: "RequiresAction", status: database.ChatStatusRequiresAction, kind: taskKindRequiresActionTimeout},
+		{name: "Waiting", status: database.ChatStatusWaiting, kind: taskKindAbandon},
+		{name: "Error", status: database.ChatStatusError, kind: taskKindAbandon},
+		{name: "Archived", status: database.ChatStatusRunning, archived: true, kind: taskKindAbandon},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			r, starter, store, _, chat := newRunnerRecoveryTest(t)
-			runRecoveryTestRunner(t, r, store, chat)
-			first := starter.waitCall(t, taskKindGeneration, chat.ID)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newWorkerTestFixture(t)
+			var chat database.Chat
+			if tc.status == database.ChatStatusRequiresAction {
+				chat = f.createRequiresActionChat(t)
+			} else {
+				chat = f.createRunningChat(t)
+				if tc.status == database.ChatStatusInterrupting {
+					chat = forceExecutionState(t, f, chat.ID, tc.status, false)
+				}
+			}
+			starter := newBlockingTaskStarter(false)
+			store := newGatedChatStore(f.db, chat.ID)
+			clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+			opts := testOptions(t, f, starter)
+			opts.Store, opts.Clock = store, clock
+			startWorker(t, opts)
+			first := starter.waitCall(t, "", uuid.Nil)
+			current, err := f.db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			if tc.kind == taskKindAbandon {
+				current = forceExecutionState(t, f, chat.ID, tc.status, tc.archived)
+			} else {
+				require.Equal(t, tc.kind, first.kind)
+			}
+			store.enabled.Store(true)
 			starter.release(t, 0)
-			// No clock advance or state notification can cause this read.
-			read := testutil.RequireReceive(r.ctx, t, store.reads)
-			chat.Status, chat.Archived, chat.HistoryVersion = tc.status, tc.archived, tc.history
-			chat.GenerationAttempt = 7
-			chat.RequiresActionDeadlineAt = sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true}
-			read.reply <- runnerRefreshResult{chat: chat}
-			second := starter.waitCall(t, tc.kind, chat.ID)
+			read := testutil.RequireReceive(ctx, t, store.reads)
+			require.NoError(t, read.err)
+			require.Equal(t, current.SnapshotVersion, read.chat.SnapshotVersion)
+			require.Equal(t, current.HistoryVersion, read.chat.HistoryVersion)
+			testutil.RequireSend(ctx, t, read.release, nil)
+			second := starter.waitCall(t, "", uuid.Nil)
+			require.Equal(t, tc.kind, second.kind)
+			require.Equal(t, chat.ID, second.input.ChatID)
 			require.NotEqual(t, first.input.TaskID, second.input.TaskID)
-			require.Equal(t, chat.HistoryVersion, second.input.HistoryVersion)
-			require.Equal(t, chat.GenerationAttempt, second.input.GenerationAttempt)
-			require.Equal(t, chat.RequiresActionDeadlineAt, second.input.RequiresActionDeadlineAt)
-			require.ErrorIs(t, read.ctx.Err(), context.Canceled)
-			starter.assertNoCall(t)
-		})
-	}
-}
-
-func TestRunner_CompletionRecoveryCleanupBeforeSelect(t *testing.T) {
-	t.Parallel()
-	r, starter, store, _, chat := newRunnerRecoveryTest(t)
-	r.processState(stateUpdateFromChat(chat))
-	first := starter.waitCall(t, taskKindGeneration, chat.ID)
-	id := finishRecoveryTestTask(t, r, starter, 0)
-	chat.SnapshotVersion++
-	r.processState(stateUpdateFromChat(chat))
-	require.False(t, r.activeTaskSet)
-	require.Equal(t, id, r.recoveryTaskID)
-	require.Empty(t, r.tasks)
-	require.Empty(t, r.tasksByIndex)
-	requireTaskCanceled(t, first)
-	r.scheduleRecovery()
-	read := testutil.RequireReceive(r.ctx, t, store.reads)
-	read.reply <- runnerRefreshResult{chat: chat}
-	r.applyRefresh(testutil.RequireReceive(r.ctx, t, r.refreshResults))
-	second := starter.waitCall(t, taskKindGeneration, chat.ID)
-	require.NotEqual(t, first.input.TaskID, second.input.TaskID)
-	require.Equal(t, 100*time.Millisecond, r.recoveryDelay)
-}
-
-func TestRunner_CompletionRecoverySupersededTask(t *testing.T) {
-	t.Parallel()
-	r, starter, store, _, chat := newRunnerRecoveryTest(t)
-	starter.ignoreCancel = true
-	t.Cleanup(func() {
-		r.rec.cancel()
-		starter.releaseAll()
-	})
-	r.processState(stateUpdateFromChat(chat))
-	first := starter.waitCall(t, taskKindGeneration, chat.ID)
-	oldID := r.activeTaskID
-	chat.SnapshotVersion++
-	chat.HistoryVersion++
-	r.processState(stateUpdateFromChat(chat))
-	second := starter.waitCall(t, taskKindGeneration, chat.ID)
-	r.recoveryDelay = 200 * time.Millisecond
-	starter.release(t, 0)
-	testutil.TryReceive(r.ctx, t, r.tasks[oldID].done)
-	r.removeFinishedTasks()
-	r.scheduleRecovery()
-	require.Equal(t, taskInstanceID(second.input.TaskID), r.activeTaskID)
-	require.True(t, r.activeTaskSet)
-	require.Zero(t, r.recoveryTaskID)
-	require.False(t, r.refreshInFlight)
-	require.Empty(t, store.reads)
-	require.Equal(t, 200*time.Millisecond, r.recoveryDelay)
-	require.NoError(t, second.ctx.Err())
-	requireTaskCanceled(t, first)
-	starter.assertNoCall(t)
-}
-
-func TestRunner_CompletionRecoveryObsoleteRefresh(t *testing.T) {
-	t.Parallel()
-	for _, finishes := range []bool{false, true} {
-		t.Run(fmt.Sprintf("ReplacementFinishes=%t", finishes), func(t *testing.T) {
-			t.Parallel()
-			r, starter, store, _, chat := newRunnerRecoveryTest(t)
-			r.processState(stateUpdateFromChat(chat))
-			starter.waitCall(t, taskKindGeneration, chat.ID)
-			finishRecoveryTestTask(t, r, starter, 0)
-			r.removeFinishedTasks()
-			r.scheduleRecovery()
-			readA := testutil.RequireReceive(r.ctx, t, store.reads)
-
-			newChat := chat
-			newChat.SnapshotVersion++
-			newChat.HistoryVersion++
-			r.processState(stateUpdateFromChat(newChat))
-			second := starter.waitCall(t, taskKindGeneration, chat.ID)
-			require.True(t, r.refreshInFlight)
-			r.scheduleRecovery()
-			require.Empty(t, store.reads, "the outstanding read must be consumed before another starts")
-			require.Zero(t, r.recoveryTaskID)
-			if finishes {
-				finishRecoveryTestTask(t, r, starter, 1)
-				// Leave completion unrecognized until A's result is applied.
+			require.Equal(t, first.input.RunnerID, second.input.RunnerID)
+			require.Equal(t, current.HistoryVersion, second.input.HistoryVersion)
+			require.Equal(t, current.RequiresActionDeadlineAt, second.input.RequiresActionDeadlineAt)
+			require.Same(t, first.input.SessionStart, second.input.SessionStart)
+			// Also prove abandonment tasks participate in completion recovery.
+			if tc.kind == taskKindAbandon {
+				starter.release(t, 1)
+				read = testutil.RequireReceive(ctx, t, store.reads)
+				testutil.RequireSend(ctx, t, read.release, nil)
+				third := starter.waitCall(t, "", uuid.Nil)
+				require.Equal(t, taskKindAbandon, third.kind)
+				require.NotEqual(t, second.input.TaskID, third.input.TaskID)
 			}
-			readA.reply <- runnerRefreshResult{chat: chat}
-			r.applyRefresh(testutil.RequireReceive(r.ctx, t, r.refreshResults))
-			require.Equal(t, stateUpdateFromChat(newChat), r.latestState)
-			if !finishes {
-				require.True(t, r.activeTaskSet)
-				require.Equal(t, taskInstanceID(second.input.TaskID), r.activeTaskID)
-				require.NoError(t, second.ctx.Err())
-				starter.assertNoCall(t)
-				return
-			}
-			require.False(t, r.activeTaskSet)
-			require.Equal(t, taskInstanceID(second.input.TaskID), r.recoveryTaskID)
-			r.scheduleRecovery()
-			readB := testutil.RequireReceive(r.ctx, t, store.reads)
-			readB.reply <- runnerRefreshResult{chat: newChat}
-			r.applyRefresh(testutil.RequireReceive(r.ctx, t, r.refreshResults))
-			third := starter.waitCall(t, taskKindGeneration, chat.ID)
-			require.Equal(t, newChat.HistoryVersion, third.input.HistoryVersion)
 		})
 	}
 }
 
 func TestRunner_CompletionRecoveryBackoff(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []string{"DatabaseError", "ReadTimeout", "NilExit", "ExpectedExit", "SnapshotAndAttemptOnly"} {
+	for _, mode := range []string{"NilExit", "ExpectedExit", "DatabaseError", "ReadTimeout", "SnapshotOnly", "NormalizedMaximum"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()
-			r, starter, store, clock, chat := newRunnerRecoveryTest(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			starter := newBlockingTaskStarter(false)
 			if mode == "ExpectedExit" {
-				r.opts.TaskStarter = runnerExitTaskStarter{chatWorkerTaskStarter: starter}
+				starter.exitErr = errTaskExpectedExit
 			}
+			store := newGatedChatStore(f.db, chat.ID)
+			clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 			trap := clock.Trap().NewTimer("chatworker", "runner-recovery")
 			defer trap.Close()
-			runRecoveryTestRunner(t, r, store, chat)
-			starter.waitCall(t, taskKindGeneration, chat.ID)
-			starter.release(t, 0)
-			for i, delay := range []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 400 * time.Millisecond} {
-				read := testutil.RequireReceive(r.ctx, t, store.reads)
-				switch mode {
-				case "ReadTimeout":
-					clock.Advance(runnerRefreshTimeout).MustWait(r.ctx)
-					testutil.TryReceive(r.ctx, t, read.ctx.Done())
-					require.ErrorIs(t, context.Cause(read.ctx), context.DeadlineExceeded)
-				case "DatabaseError":
-					read.reply <- runnerRefreshResult{err: xerrors.New("database unavailable")}
-				default:
-					if mode == "SnapshotAndAttemptOnly" {
-						chat.SnapshotVersion++
-						chat.GenerationAttempt++
-						r.rec.stateCh <- stateUpdateFromChat(chat)
-					}
-					read.reply <- runnerRefreshResult{chat: chat}
-					call := starter.waitCall(t, taskKindGeneration, chat.ID)
-					require.Equal(t, chat.GenerationAttempt, call.input.GenerationAttempt)
-					starter.release(t, i+1)
-				}
-				wait := trap.MustWait(r.ctx)
-				require.Equal(t, delay, wait.Duration)
-				wait.MustRelease(r.ctx)
-				starter.assertNoCall(t)
-				require.Empty(t, store.reads)
-				clock.Advance(delay).MustWait(r.ctx)
+			opts := testOptions(t, f, starter)
+			opts.Clock, opts.Store = clock, store
+			opts.TaskRetryInitialBackoff = 100 * time.Millisecond
+			opts.TaskRetryMaxBackoff = 400 * time.Millisecond
+			if mode == "NormalizedMaximum" {
+				opts.TaskRetryMaxBackoff = time.Millisecond
 			}
-			// Expiry must launch a read, not indefinitely rearm the delay.
-			testutil.RequireReceive(r.ctx, t, store.reads)
+			startWorker(t, opts)
+			first := starter.waitCall(t, "", uuid.Nil)
+			store.enabled.Store(true)
+			starter.release(t, 0)
+			for index, delay := range []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 400 * time.Millisecond} {
+				if mode == "NormalizedMaximum" {
+					delay = 100 * time.Millisecond
+				}
+				read := testutil.RequireReceive(ctx, t, store.reads)
+				switch mode {
+				case "DatabaseError":
+					testutil.RequireSend(ctx, t, read.release, xerrors.New("database unavailable"))
+				case "ReadTimeout":
+					clock.Advance(5 * time.Second).MustWait(ctx)
+					testutil.TryReceive(ctx, t, read.ctx.Done())
+					require.ErrorIs(t, context.Cause(read.ctx), context.DeadlineExceeded)
+				default:
+					testutil.RequireSend(ctx, t, read.release, nil)
+					next := starter.waitCall(t, "", uuid.Nil)
+					require.Equal(t, taskKindGeneration, next.kind)
+					require.NotEqual(t, first.input.TaskID, next.input.TaskID)
+					require.Equal(t, first.input.RunnerID, next.input.RunnerID)
+					require.Equal(t, read.chat.GenerationAttempt, next.input.GenerationAttempt)
+					if mode == "SnapshotOnly" {
+						machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+						require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+							_, err := tx.RecordGenerationAttempt(chatstate.RecordGenerationAttemptInput{})
+							return err
+						}))
+					}
+					starter.release(t, index+1)
+				}
+				wait := trap.MustWait(ctx)
+				require.Equal(t, delay, wait.Duration)
+				wait.MustRelease(ctx)
+				clock.Advance(delay).MustWait(ctx)
+			}
+			read := testutil.RequireReceive(ctx, t, store.reads)
+			testutil.RequireSend(ctx, t, read.release, nil)
+			next := starter.waitCall(t, "", uuid.Nil)
+			require.Equal(t, taskKindGeneration, next.kind)
+			require.Equal(t, int32(1), store.maxActive.Load())
 		})
 	}
 }
 
-func TestRunner_CompletionRecoveryWorkChangeCancelsBackoff(t *testing.T) {
+func TestRunner_WorkChangeResetsRecovery(t *testing.T) {
 	t.Parallel()
 	for _, field := range []string{"History", "Status", "Archived"} {
 		t.Run(field, func(t *testing.T) {
 			t.Parallel()
-			r, starter, store, clock, chat := newRunnerRecoveryTest(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			starter := newBlockingTaskStarter(false)
+			store := newGatedChatStore(f.db, chat.ID)
+			clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 			trap := clock.Trap().NewTimer("chatworker", "runner-recovery")
 			defer trap.Close()
-			runRecoveryTestRunner(t, r, store, chat)
-			starter.waitCall(t, taskKindGeneration, chat.ID)
+			opts := testOptions(t, f, starter)
+			opts.Clock, opts.Store = clock, store
+			startWorker(t, opts)
+			starter.waitCall(t, "", uuid.Nil)
+			store.enabled.Store(true)
 			starter.release(t, 0)
-			read := testutil.RequireReceive(r.ctx, t, store.reads)
-			read.reply <- runnerRefreshResult{err: xerrors.New("database unavailable")}
-			trap.MustWait(r.ctx).MustRelease(r.ctx)
-			chat.SnapshotVersion++
+			read := testutil.RequireReceive(ctx, t, store.reads)
+			testutil.RequireSend(ctx, t, read.release, xerrors.New("database unavailable"))
+			trap.MustWait(ctx).MustRelease(ctx)
 			kind := taskKindGeneration
 			switch field {
 			case "History":
-				chat.HistoryVersion++
+				chat = commitAssistantStep(t, f, chat.ID, "new history")
 			case "Status":
-				chat.Status, kind = database.ChatStatusInterrupting, taskKindInterrupt
+				chat = interruptChat(t, f, chat.ID)
+				kind = taskKindInterrupt
 			case "Archived":
-				chat.Archived, kind = true, taskKindAbandon
+				chat = forceExecutionStateAndPublish(t, f, chat.ID, database.ChatStatusRunning, true)
+				kind = taskKindAbandon
 			}
-			r.rec.stateCh <- stateUpdateFromChat(chat)
-			starter.waitCall(t, kind, chat.ID)
-			// Only the task's own timeout should remain scheduled.
-			delay, ok := clock.Peek()
-			require.True(t, ok)
-			require.Equal(t, defaultTaskTimeout, delay)
+			next := starter.waitCall(t, "", uuid.Nil)
+			require.Equal(t, kind, next.kind)
+			require.Equal(t, chat.HistoryVersion, next.input.HistoryVersion)
 			starter.release(t, 1)
-			// Required-work changes restore immediate recovery.
-			read = testutil.RequireReceive(r.ctx, t, store.reads)
-			read.reply <- runnerRefreshResult{chat: chat}
-			starter.waitCall(t, kind, chat.ID)
+			// No time has elapsed: changed work restores immediate observation.
+			read = testutil.RequireReceive(ctx, t, store.reads)
+			testutil.RequireSend(ctx, t, read.release, nil)
+			next = starter.waitCall(t, "", uuid.Nil)
+			require.Equal(t, kind, next.kind)
 		})
 	}
 }
 
-func TestRunner_CompletionRecoveryRejectsStaleRows(t *testing.T) {
-	t.Parallel()
-	for _, field := range []string{"Snapshot", "History"} {
-		t.Run(field, func(t *testing.T) {
-			t.Parallel()
-			r, starter, store, clock, chat := newRunnerRecoveryTest(t)
-			r.processState(stateUpdateFromChat(chat))
-			starter.waitCall(t, taskKindGeneration, chat.ID)
-			id := finishRecoveryTestTask(t, r, starter, 0)
-			r.removeFinishedTasks()
-			r.scheduleRecovery()
-			read := testutil.RequireReceive(r.ctx, t, store.reads)
-			stale := chat
-			if field == "Snapshot" {
-				stale.SnapshotVersion--
-			} else {
-				stale.SnapshotVersion++
-				stale.HistoryVersion--
-			}
-			read.reply <- runnerRefreshResult{chat: stale}
-			r.applyRefresh(testutil.RequireReceive(r.ctx, t, r.refreshResults))
-			require.Equal(t, stateUpdateFromChat(chat), r.latestState)
-			require.False(t, r.activeTaskSet)
-			require.Equal(t, id, r.recoveryTaskID)
-			r.scheduleRecovery()
-			delay, ok := clock.Peek()
-			require.True(t, ok)
-			require.Equal(t, 100*time.Millisecond, delay)
-			starter.assertNoCall(t)
-		})
-	}
-}
-
-func TestRunner_CompletionRecoveryLateHints(t *testing.T) {
-	t.Parallel()
-	r, starter, store, _, chat := newRunnerRecoveryTest(t)
-	r.processState(stateUpdateFromChat(chat))
-	starter.waitCall(t, taskKindGeneration, chat.ID)
-	id := finishRecoveryTestTask(t, r, starter, 0)
-	stale := chat
-	stale.WorkerID = uuid.NullUUID{}
-	stale.HistoryVersion--
-	r.processState(stateUpdateFromChat(stale))
-	stale.SnapshotVersion--
-	r.processState(stateUpdateFromChat(stale))
-	require.False(t, r.stopping)
-	require.Equal(t, stateUpdateFromChat(chat), r.latestState)
-	r.removeFinishedTasks()
-	require.Equal(t, id, r.recoveryTaskID)
-	r.scheduleRecovery()
-	read := testutil.RequireReceive(r.ctx, t, store.reads)
-	read.reply <- runnerRefreshResult{chat: chat}
-	r.applyRefresh(testutil.RequireReceive(r.ctx, t, r.refreshResults))
-	starter.waitCall(t, taskKindGeneration, chat.ID)
-}
-
-func TestRunner_CompletionRecoveryCleanup(t *testing.T) {
-	t.Parallel()
-	for _, mode := range []string{"Deleted", "WorkerChanged", "RunnerChanged", "OwnershipHint"} {
-		t.Run(mode, func(t *testing.T) {
-			t.Parallel()
-			r, starter, store, _, chat := newRunnerRecoveryTest(t)
-			r.processState(stateUpdateFromChat(chat))
-			starter.waitCall(t, taskKindGeneration, chat.ID)
-			finishRecoveryTestTask(t, r, starter, 0)
-			r.removeFinishedTasks()
-			r.scheduleRecovery()
-			read := testutil.RequireReceive(r.ctx, t, store.reads)
-			result := runnerRefreshResult{chat: chat}
-			switch mode {
-			case "Deleted":
-				result.err = sql.ErrNoRows
-			case "WorkerChanged":
-				result.chat.WorkerID.UUID = uuid.New()
-			case "RunnerChanged":
-				result.chat.RunnerID.UUID = uuid.New()
-			case "OwnershipHint":
-				lost := chat
-				lost.SnapshotVersion++
-				lost.WorkerID = uuid.NullUUID{}
-				r.processState(stateUpdateFromChat(lost))
-			}
-			read.reply <- result
-			r.applyRefresh(testutil.RequireReceive(r.ctx, t, r.refreshResults))
-			require.Equal(t, r.rec.key, testutil.RequireReceive(r.ctx, t, r.mgr.cleanupReqCh))
-			require.True(t, r.stopping)
-			require.NoError(t, r.ctx.Err(), "manager cancellation has not arrived")
-			chat.SnapshotVersion += 2
-			chat.HistoryVersion++
-			r.processState(stateUpdateFromChat(chat))
-			r.scheduleRecovery()
-			require.False(t, r.activeTaskSet)
-			require.False(t, r.refreshInFlight)
-			require.Nil(t, r.recoveryTimer)
-			starter.assertNoCall(t)
-		})
-	}
-}
-
-func TestRunner_CompletionRecoveryShutdown(t *testing.T) {
-	t.Parallel()
-	for _, mode := range []string{"Timer", "Read", "ResultDelivery"} {
-		t.Run(mode, func(t *testing.T) {
-			t.Parallel()
-			r, starter, store, clock, chat := newRunnerRecoveryTest(t)
-			trap := clock.Trap().NewTimer("chatworker", "runner-recovery")
-			defer trap.Close()
-			runRecoveryTestRunner(t, r, store, chat)
-			starter.waitCall(t, taskKindGeneration, chat.ID)
-			starter.release(t, 0)
-			read := testutil.RequireReceive(r.ctx, t, store.reads)
-			if mode == "Timer" {
-				read.reply <- runnerRefreshResult{err: xerrors.New("database unavailable")}
-				trap.MustWait(r.ctx).MustRelease(r.ctx)
-			}
-			r.rec.cancel()
-			if mode == "ResultDelivery" {
-				read.reply <- runnerRefreshResult{chat: chat}
-			}
-			testutil.TryReceive(testutil.Context(t, testutil.WaitLong), t, r.rec.done)
-			require.ErrorIs(t, read.ctx.Err(), context.Canceled)
-			require.Nil(t, r.recoveryTimer)
-			_, pending := clock.Peek()
-			require.False(t, pending)
-			starter.assertNoCall(t)
-		})
-	}
-}
-
-func TestRunner_CompletionRecoveryCanceledResult(t *testing.T) {
-	t.Parallel()
-	r, starter, store, clock, chat := newRunnerRecoveryTest(t)
-	r.processState(stateUpdateFromChat(chat))
-	starter.waitCall(t, taskKindGeneration, chat.ID)
-	finishRecoveryTestTask(t, r, starter, 0)
-	r.removeFinishedTasks()
-	r.scheduleRecovery()
-	read := testutil.RequireReceive(r.ctx, t, store.reads)
-	read.reply <- runnerRefreshResult{chat: chat}
-	result := testutil.RequireReceive(r.ctx, t, r.refreshResults)
-	r.rec.cancel()
-	r.applyRefresh(result)
-	r.scheduleRecovery()
-	require.False(t, r.activeTaskSet)
-	require.False(t, r.refreshInFlight)
-	require.Nil(t, r.recoveryTimer)
-	_, pending := clock.Peek()
-	require.False(t, pending)
-	starter.assertNoCall(t)
-}
-
-func TestRunner_CompletionRecoveryShutdownWithFullResults(t *testing.T) {
-	t.Parallel()
-	r, starter, store, _, chat := newRunnerRecoveryTest(t)
-	r.processState(stateUpdateFromChat(chat))
-	starter.waitCall(t, taskKindGeneration, chat.ID)
-	finishRecoveryTestTask(t, r, starter, 0)
-	r.removeFinishedTasks()
-	r.scheduleRecovery()
-	read := testutil.RequireReceive(r.ctx, t, store.reads)
-	// Block result delivery to exercise its cancellation alternative.
-	r.refreshResults <- runnerRefreshResult{}
-	read.reply <- runnerRefreshResult{chat: chat}
-	testutil.TryReceive(r.ctx, t, read.ctx.Done())
-	r.rec.cancel()
-	joined := make(chan struct{})
-	go func() {
-		r.refreshWG.Wait()
-		close(joined)
-	}()
-	testutil.TryReceive(testutil.Context(t, testutil.WaitLong), t, joined)
-	require.Len(t, r.refreshResults, 1)
-	starter.assertNoCall(t)
-}
-
-func TestRunner_CompletionRecoveryRealGeneration(t *testing.T) {
+func TestRunner_ObsoleteReadDoesNotReplaceNewWork(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	f := newWorkerTestFixture(t)
-	require.NotNil(t, f.sqlDB, "history-fence regression requires PostgreSQL triggers")
+	chat := f.createRunningChat(t)
+	starter := newBlockingTaskStarter(false)
+	store := newGatedChatStore(f.db, chat.ID)
+	store.ignoreCancel = true
 	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
-	firstEntered := make(chan struct{})
-	releaseFirst := make(chan struct{})
-	var calls atomic.Int32
-	providerURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("completion recovery")
-		}
-		if calls.Add(1) == 1 {
-			close(firstEntered)
-			select {
-			case <-releaseFirst:
-			case <-req.Context().Done():
-			case <-ctx.Done():
-			}
-			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("stale response must not commit")...)
-		}
-		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("recovered response")...)
-	})
-	provider := dbgen.ChatProvider(t, f.db, database.ChatProvider{
-		Provider: "openai-compat", DisplayName: "recovery", BaseUrl: providerURL,
-	})
-	model := dbgen.ChatModelConfig(t, f.db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: f.org.ID,
-	})
-	var transport atomic.Pointer[aibridge.TransportFactory]
-	var factory aibridge.TransportFactory = chattest.NewMockAIBridgeTransport(t, providerURL)
-	transport.Store(&factory)
-	sink := testutil.NewFakeSink(t)
-	server := New(f.pubsub, Config{
-		Logger: sink.Logger(), Database: f.db, ReplicaID: uuid.New(), Clock: clock,
-		Experiments: codersdk.ExperimentsKnown, AIBridgeTransportFactory: &transport,
-	})
-	t.Cleanup(func() { require.NoError(t, server.Close()) })
-	created, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID: f.org.ID, OwnerID: f.user.ID, ModelConfigID: model.ID,
-		Title: "completion recovery", InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	// Construct the real runner and manager directly so stateCh can be an
-	// unbuffered acceptance barrier. Neither task execution nor the runner
-	// event loop is replaced, and the manager's periodic loops remain active.
-	runnerCtx, cancel := context.WithCancel(ctx)
-	opts := server.chatWorker.opts
-	mgr := newRunnerManager(runnerCtx, server, opts)
-	opts.TaskStarter, err = newTaskStarter(server, opts, mgr.RouteStateHint, mgr.requestCleanup)
-	require.NoError(t, err)
-	done := make(chan struct{})
-	rec := &runnerRecord{
-		key: runnerKey{ChatID: created.ID, RunnerID: uuid.New()}, workerID: opts.WorkerID,
-		cancel: cancel, done: done, stateCh: make(chan runnerStateUpdate),
-	}
-	acquireChat(t, f, created.ID, rec.workerID, rec.key.RunnerID)
-	mgr.runners[rec.key] = rec
-	mgr.runnersByChat[created.ID] = map[uuid.UUID]*runnerRecord{rec.key.RunnerID: rec}
-	store := &runnerGenerationRefreshStore{Store: f.db, refreshed: make(chan database.Chat, 16)}
-	opts.Store = store
-	r := newRunner(runnerCtx, mgr, rec, opts)
-	syncTrap := clock.Trap().NewTicker("chatworker", "runner-sync")
-	defer syncTrap.Close()
-	mgr.start()
-	mgr.wg.Go(func() {
-		defer close(done)
-		r.run()
-	})
+	opts := testOptions(t, f, starter)
+	opts.Clock, opts.Store = clock, store
+	worker := startWorker(t, opts)
+	cancelWorker := worker.cancel
 	t.Cleanup(func() {
-		cancel()
-		mgr.wait()
+		cancelWorker()
+		close(store.releaseAll)
 	})
-	syncTrap.MustWait(ctx).MustRelease(ctx)
-	testutil.TryReceive(ctx, t, firstEntered)
-	before, err := f.db.GetChatByID(ctx, created.ID)
-	require.NoError(t, err)
-	require.Positive(t, before.GenerationAttempt)
-	require.Greater(t, before.SnapshotVersion, before.HistoryVersion)
-
-	// The second unbuffered send cannot complete until processState has
-	// finished accepting the first. Both carry the actual attempt row; the
-	// second is a duplicate, not an artificial version or work transition.
-	state := stateUpdateFromChat(before)
-	testutil.RequireSend(ctx, t, rec.stateCh, state)
-	testutil.RequireSend(ctx, t, rec.stateCh, state)
-	require.Empty(t, store.refreshed)
-
-	result, err := f.sqlDB.ExecContext(ctx, `
-		UPDATE chat_messages
-		SET content = '[{"type":"text","text":"hello after out-of-band edit"}]'::jsonb
-		WHERE chat_id = $1 AND role = 'user' AND NOT deleted
-	`, created.ID)
-	require.NoError(t, err)
-	affected, err := result.RowsAffected()
-	require.NoError(t, err)
-	require.Equal(t, int64(1), affected)
-	mutated, err := f.db.GetChatByID(ctx, created.ID)
-	require.NoError(t, err)
-	require.Equal(t, before.SnapshotVersion, mutated.SnapshotVersion)
-	require.Equal(t, mutated.SnapshotVersion, mutated.HistoryVersion)
-	require.Greater(t, mutated.HistoryVersion, before.HistoryVersion)
-	require.Zero(t, mutated.GenerationAttempt)
-
-	// No further state hint, clock advance, or snapshot allocation occurs in
-	// the test. A real history fence must reject the blocked response, then
-	// active-task completion must cause this database read.
-	close(releaseFirst)
-	refreshed := testutil.RequireReceive(ctx, t, store.refreshed)
-	require.Equal(t, mutated.SnapshotVersion, refreshed.SnapshotVersion)
-	require.Equal(t, mutated.HistoryVersion, refreshed.HistoryVersion)
-	require.Equal(t, database.ChatStatusRunning, refreshed.Status)
-	require.Equal(t, mutated.RunnerID, refreshed.RunnerID)
-	var fenceExit string
-	for _, entry := range sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "chatworker task exited" }) {
-		fields := fmt.Sprint(entry.Fields)
-		if strings.Contains(fields, "chat history version mismatch") {
-			fenceExit = fields
-			break
-		}
-	}
-	require.Contains(t, fenceExit, "expected_non_retryable_exit")
-	require.Contains(t, fenceExit, "chat history version mismatch")
-
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		chat, err := f.db.GetChatByID(ctx, created.ID)
-		return err == nil && chat.Status == database.ChatStatusWaiting && !chat.WorkerID.Valid && !chat.RunnerID.Valid
-	}, testutil.IntervalFast, "successor must commit and abandon without a periodic sync")
-	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.ID})
-	require.NoError(t, err)
-	var users, assistants int
-	for _, message := range messages {
-		switch message.Role {
-		case database.ChatMessageRoleUser:
-			users++
-			require.Contains(t, string(message.Content.RawMessage), "hello after out-of-band edit")
-		case database.ChatMessageRoleAssistant:
-			assistants++
-			require.Contains(t, string(message.Content.RawMessage), "recovered response")
-		}
-		require.NotContains(t, string(message.Content.RawMessage), "stale response must not commit")
-	}
-	require.Equal(t, 1, users, "no recovery message was sent")
-	require.Equal(t, 1, assistants)
-	require.Equal(t, int32(2), calls.Load())
-	final, err := f.db.GetChatByID(ctx, created.ID)
-	require.NoError(t, err)
-	require.False(t, final.LastError.Valid)
+	starter.waitCall(t, "", uuid.Nil)
+	store.enabled.Store(true)
+	starter.release(t, 0)
+	oldRead := testutil.RequireReceive(ctx, t, store.reads)
+	updated := commitAssistantStep(t, f, chat.ID, "replacement history")
+	second := starter.waitCall(t, "", uuid.Nil)
+	require.Equal(t, updated.HistoryVersion, second.input.HistoryVersion)
+	testutil.TryReceive(ctx, t, oldRead.ctx.Done())
+	starter.release(t, 1)
+	testutil.RequireSend(ctx, t, oldRead.release, nil)
+	newRead := testutil.RequireReceive(ctx, t, store.reads)
+	require.Equal(t, int32(1), store.maxActive.Load(), "canceled reads must finish before another database read starts")
+	require.Equal(t, updated.HistoryVersion, newRead.chat.HistoryVersion)
+	testutil.RequireSend(ctx, t, newRead.release, nil)
+	third := starter.waitCall(t, "", uuid.Nil)
+	require.Equal(t, taskKindGeneration, third.kind)
+	require.Equal(t, updated.HistoryVersion, third.input.HistoryVersion)
+	require.NotEqual(t, second.input.TaskID, third.input.TaskID)
+	require.NoError(t, worker.Close())
+	require.Empty(t, starter.callCh)
 }
 
-func TestRunner_CompletionRecoveryBootstrapFailure(t *testing.T) {
+func TestRunner_CompletionReadOwnershipAndShutdown(t *testing.T) {
 	t.Parallel()
-	for _, failure := range []string{"Subscribe", "Read"} {
-		t.Run(failure, func(t *testing.T) {
+	for _, outcome := range []string{"OwnershipLost", "NotFound", "Shutdown", "ShutdownDelayedRead"} {
+		t.Run(outcome, func(t *testing.T) {
 			t.Parallel()
-			r, starter, store, clock, _ := newRunnerRecoveryTest(t)
-			failureErr := xerrors.New("bootstrap unavailable")
-			if failure == "Subscribe" {
-				r.opts.Pubsub = runnerSubscribeErrorPubsub{chatWorkerPubsub: r.opts.Pubsub, err: failureErr}
-			} else {
-				r.opts.Store = runnerBootstrapStore{getChat: func(context.Context, uuid.UUID) (database.Chat, error) {
-					return database.Chat{}, failureErr
-				}}
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			starter := newBlockingTaskStarter(false)
+			store := newGatedChatStore(f.db, chat.ID)
+			clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+			opts := testOptions(t, f, starter)
+			opts.Clock, opts.Store = clock, store
+			store.ignoreCancel = outcome == "ShutdownDelayedRead"
+			worker := startWorker(t, opts)
+			cancelWorker := worker.cancel
+			t.Cleanup(func() {
+				cancelWorker()
+				close(store.releaseAll)
+			})
+			starter.waitCall(t, "", uuid.Nil)
+			store.enabled.Store(true)
+			if outcome == "OwnershipLost" {
+				// Commit ownership without delivering a hint to this worker.
+				quiet := *f
+				quiet.pubsub = dbpubsub.NewInMemory()
+				acquireChat(t, &quiet, chat.ID, uuid.New(), uuid.New())
 			}
-
-			r.run()
-			require.True(t, r.stopping)
-			require.Equal(t, r.rec.key, testutil.RequireReceive(r.ctx, t, r.mgr.cleanupReqCh))
-			require.NoError(t, r.ctx.Err(), "cleanup request must precede manager cancellation")
-			require.False(t, r.hasAcceptedState)
-			require.False(t, r.activeTaskSet)
-			require.Empty(t, r.tasks)
-			require.False(t, r.refreshInFlight)
-			require.Nil(t, r.recoveryTimer)
-			r.scheduleRecovery()
-			require.Empty(t, store.reads)
-			_, pending := clock.Peek()
-			require.False(t, pending)
-			starter.assertNoCall(t)
+			starter.release(t, 0)
+			read := testutil.RequireReceive(ctx, t, store.reads)
+			switch outcome {
+			case "ShutdownDelayedRead":
+				closed := make(chan error, 1)
+				go func() { closed <- worker.Close() }()
+				testutil.TryReceive(ctx, t, read.ctx.Done())
+				testutil.RequireSend(ctx, t, read.release, nil)
+				require.NoError(t, testutil.RequireReceive(ctx, t, closed))
+			case "Shutdown":
+				require.NoError(t, worker.Close())
+				testutil.TryReceive(ctx, t, read.ctx.Done())
+			case "NotFound":
+				testutil.RequireSend(ctx, t, read.release, sql.ErrNoRows)
+			case "OwnershipLost":
+				testutil.RequireSend(ctx, t, read.release, nil)
+			}
+			if outcome != "Shutdown" && outcome != "ShutdownDelayedRead" {
+				// idle is manager-locked and is reached only after runner cleanup.
+				testutil.Eventually(ctx, t, func(context.Context) bool { return worker.manager.idle() }, testutil.IntervalFast)
+				require.NoError(t, worker.Close())
+			}
+			require.Empty(t, starter.callCh)
+			require.Zero(t, store.active.Load())
 		})
 	}
 }
 
-func TestRunner_CompletionRecoveryCanceledDuringBootstrap(t *testing.T) {
+// A database read must not roll back an accepted watermark even when it
+// belongs to the current task. Replay a previously read, coherent database row.
+func TestRunner_RejectsStaleCurrentTaskSnapshot(t *testing.T) {
 	t.Parallel()
-	r, starter, store, clock, chat := newRunnerRecoveryTest(t)
-	r.opts.Store = runnerBootstrapStore{getChat: func(context.Context, uuid.UUID) (database.Chat, error) {
-		// A successful read can race shutdown. The loop must honor cancellation
-		// even though bootstrap returns a valid owned row.
-		r.rec.cancel()
-		return chat, nil
-	}}
-
-	r.run()
-	require.ErrorIs(t, r.ctx.Err(), context.Canceled)
-	require.False(t, r.hasAcceptedState)
-	require.False(t, r.activeTaskSet)
-	require.Empty(t, r.tasks)
-	require.False(t, r.refreshInFlight)
-	require.Empty(t, store.reads)
-	require.Empty(t, r.mgr.cleanupReqCh)
-	_, pending := clock.Peek()
-	require.False(t, pending)
-	starter.assertNoCall(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	starter := newBlockingTaskStarter(false)
+	store := newGatedChatStore(f.db, chat.ID)
+	store.enabled.Store(true)
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+	trap := clock.Trap().NewTimer("chatworker", "runner-recovery")
+	defer trap.Close()
+	opts := testOptions(t, f, starter)
+	opts.Clock, opts.Store = clock, store
+	worker := startWorker(t, opts)
+	bootstrap := testutil.RequireReceive(ctx, t, store.reads)
+	stale := bootstrap.chat
+	quiet := *f
+	quiet.pubsub = dbpubsub.NewInMemory()
+	current := forceExecutionState(t, &quiet, chat.ID, database.ChatStatusRunning, false)
+	require.Greater(t, current.SnapshotVersion, stale.SnapshotVersion)
+	require.Equal(t, stale.HistoryVersion, current.HistoryVersion)
+	// The newer real row seeds bootstrap's watermark synchronously.
+	bootstrap.chat = current
+	testutil.RequireSend(ctx, t, bootstrap.release, nil)
+	first := starter.waitCall(t, "", uuid.Nil)
+	starter.release(t, 0)
+	read := testutil.RequireReceive(ctx, t, store.reads)
+	read.chat = stale
+	testutil.RequireSend(ctx, t, read.release, nil)
+	wait := trap.MustWait(ctx)
+	require.Equal(t, defaultTaskRetryInitialBackoff, wait.Duration)
+	wait.MustRelease(ctx)
+	clock.Advance(wait.Duration).MustWait(ctx)
+	read = testutil.RequireReceive(ctx, t, store.reads)
+	require.Equal(t, current.SnapshotVersion, read.chat.SnapshotVersion)
+	testutil.RequireSend(ctx, t, read.release, nil)
+	second := starter.waitCall(t, "", uuid.Nil)
+	require.NotEqual(t, first.input.TaskID, second.input.TaskID)
+	require.Equal(t, first.input.RunnerID, second.input.RunnerID)
+	require.NoError(t, worker.Close())
+	require.Empty(t, starter.callCh)
 }
 
-func TestRunner_CompletionRecoverySpawnGuard(t *testing.T) {
+func TestRunner_BootstrapFailureAndShutdown(t *testing.T) {
 	t.Parallel()
-	for _, condition := range []string{"Stopping", "Canceled"} {
-		t.Run(condition, func(t *testing.T) {
+	for _, outcome := range []string{"DatabaseError", "Shutdown", "ShutdownDelayedRead"} {
+		t.Run(outcome, func(t *testing.T) {
 			t.Parallel()
-			r, starter, store, clock, chat := newRunnerRecoveryTest(t)
-			pending := taskInstanceID(uuid.New())
-			r.recoveryTaskID = pending
-			r.recoveryDelay = r.opts.TaskRetryInitialBackoff
-			if condition == "Stopping" {
-				r.requestCleanup()
-				require.NoError(t, r.ctx.Err(), "manager cancellation has not arrived")
-			} else {
-				r.rec.cancel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			starter := newBlockingTaskStarter(false)
+			store := newGatedChatStore(f.db, chat.ID)
+			store.enabled.Store(true)
+			store.ignoreCancel = outcome == "ShutdownDelayedRead"
+			opts := testOptions(t, f, starter)
+			opts.Store = store
+			opts.Clock = quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+			worker := startWorker(t, opts)
+			cancelWorker := worker.cancel
+			t.Cleanup(func() {
+				cancelWorker()
+				close(store.releaseAll)
+			})
+			read := testutil.RequireReceive(ctx, t, store.reads)
+			switch outcome {
+			case "DatabaseError":
+				testutil.RequireSend(ctx, t, read.release, xerrors.New("bootstrap database unavailable"))
+				testutil.Eventually(ctx, t, func(context.Context) bool { return worker.manager.idle() }, testutil.IntervalFast)
+				require.NoError(t, worker.Close())
+			case "Shutdown":
+				require.NoError(t, worker.Close())
+				testutil.TryReceive(ctx, t, read.ctx.Done())
+			case "ShutdownDelayedRead":
+				closed := make(chan error, 1)
+				go func() { closed <- worker.Close() }()
+				testutil.TryReceive(ctx, t, read.ctx.Done())
+				testutil.RequireSend(ctx, t, read.release, nil)
+				require.NoError(t, testutil.RequireReceive(ctx, t, closed))
 			}
+			require.Empty(t, starter.callCh, "bootstrap failure must never invoke a task")
+			require.Zero(t, store.active.Load())
+		})
+	}
+}
 
-			r.spawnForState(stateUpdateFromChat(chat))
-			require.False(t, r.activeTaskSet)
-			require.Empty(t, r.tasks)
-			require.Empty(t, r.tasksByIndex)
-			require.Equal(t, pending, r.recoveryTaskID)
-			require.Equal(t, r.opts.TaskRetryInitialBackoff, r.recoveryDelay)
-			r.scheduleRecovery()
-			require.False(t, r.refreshInFlight)
-			require.Empty(t, store.reads)
-			require.Nil(t, r.recoveryTimer)
-			_, scheduled := clock.Peek()
-			require.False(t, scheduled)
-			starter.assertNoCall(t)
+func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
+	t.Parallel()
+	for _, phase := range []string{"BootstrapSnapshot", "InFlightResponse"} {
+		t.Run(phase, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newWorkerTestFixture(t)
+			clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+			firstRequest := make(chan struct{})
+			releaseResponse := make(chan struct{})
+			recoveredRequest := make(chan string, 2)
+			var requests atomic.Int32
+			providerURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("history fence")
+				}
+				if requests.Add(1) == 1 && phase == "InFlightResponse" {
+					close(firstRequest)
+					select {
+					case <-releaseResponse:
+					case <-req.Context().Done():
+					case <-ctx.Done():
+					}
+					return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("stale response must not commit")...)
+				}
+				select {
+				case recoveredRequest <- string(req.RawBody):
+				case <-req.Context().Done():
+				}
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("recovered response")...)
+			})
+			provider := dbgen.ChatProvider(t, f.db, database.ChatProvider{
+				Provider: "openai-compat", DisplayName: "history fence", BaseUrl: providerURL,
+			})
+			model := dbgen.ChatModelConfig(t, f.db, database.ChatModelConfig{
+				AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: f.org.ID,
+			})
+			var transport atomic.Pointer[aibridge.TransportFactory]
+			var factory aibridge.TransportFactory = chattest.NewMockAIBridgeTransport(t, providerURL)
+			transport.Store(&factory)
+			sink := testutil.NewFakeSink(t)
+			server := New(f.pubsub, Config{
+				Logger: sink.Logger(), Database: f.db, ReplicaID: uuid.New(), Clock: clock,
+				Experiments: codersdk.ExperimentsKnown, AIBridgeTransportFactory: &transport,
+			})
+			t.Cleanup(func() { require.NoError(t, server.Close()) })
+			created, err := server.CreateChat(ctx, CreateOptions{
+				OrganizationID: f.org.ID, OwnerID: f.user.ID, ModelConfigID: model.ID,
+				Title: "history fence", InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+			})
+			require.NoError(t, err)
+			store := newGatedChatStore(f.db, created.ID)
+			// Keep API and preparation reads on the real store; only the worker
+			// dependency delays root reads. Transactional generation stays real.
+			server.chatWorker.opts.Store = store
+			if phase == "BootstrapSnapshot" {
+				store.enabled.Store(true)
+			}
+			server.Start()
+			var before database.Chat
+			var bootstrap *gatedChatRead
+			if phase == "BootstrapSnapshot" {
+				bootstrap = testutil.RequireReceive(ctx, t, store.reads)
+				require.NoError(t, bootstrap.err)
+				before = bootstrap.chat
+			} else {
+				testutil.TryReceive(ctx, t, firstRequest)
+				before, err = f.db.GetChatByID(ctx, created.ID)
+				require.NoError(t, err)
+				require.Positive(t, before.GenerationAttempt)
+				store.enabled.Store(true)
+			}
+			require.Greater(t, before.SnapshotVersion, before.HistoryVersion)
+			result, err := f.sqlDB.ExecContext(ctx, `
+				UPDATE chat_messages
+				SET content = '[{"type":"text","text":"hello after out-of-band edit"}]'::jsonb
+				WHERE chat_id = $1 AND role = 'user' AND NOT deleted
+			`, created.ID)
+			require.NoError(t, err)
+			affected, err := result.RowsAffected()
+			require.NoError(t, err)
+			require.Equal(t, int64(1), affected)
+			mutated, err := f.db.GetChatByID(ctx, created.ID)
+			require.NoError(t, err)
+			require.Equal(t, before.SnapshotVersion, mutated.SnapshotVersion)
+			require.Equal(t, mutated.SnapshotVersion, mutated.HistoryVersion)
+			require.Greater(t, mutated.HistoryVersion, before.HistoryVersion)
+			require.Zero(t, mutated.GenerationAttempt)
+			if bootstrap != nil {
+				// Bootstrap accepts its captured snapshot before entering the loop.
+				testutil.RequireSend(ctx, t, bootstrap.release, nil)
+			} else {
+				close(releaseResponse)
+			}
+			// No clock advance, recovery message, or new state hint drives this.
+			read := testutil.RequireReceive(ctx, t, store.reads)
+			require.Equal(t, mutated.SnapshotVersion, read.chat.SnapshotVersion)
+			require.Equal(t, mutated.HistoryVersion, read.chat.HistoryVersion)
+			require.Equal(t, before.RunnerID, read.chat.RunnerID)
+			store.enabled.Store(false)
+			testutil.RequireSend(ctx, t, read.release, nil)
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				chat, err := f.db.GetChatByID(ctx, created.ID)
+				return err == nil && chat.Status == database.ChatStatusWaiting && !chat.WorkerID.Valid && !chat.RunnerID.Valid
+			}, testutil.IntervalFast)
+			var fenceExit string
+			for _, entry := range sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "chatworker task exited" }) {
+				fields := fmt.Sprint(entry.Fields)
+				if strings.Contains(fields, "chat history version mismatch") {
+					fenceExit = fields
+					break
+				}
+			}
+			require.Contains(t, fenceExit, "expected_non_retryable_exit")
+			messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.ID})
+			require.NoError(t, err)
+			var users, assistants int
+			for _, message := range messages {
+				switch message.Role {
+				case database.ChatMessageRoleUser:
+					users++
+					require.Contains(t, string(message.Content.RawMessage), "hello after out-of-band edit")
+				case database.ChatMessageRoleAssistant:
+					assistants++
+					require.Contains(t, string(message.Content.RawMessage), "recovered response")
+				}
+				require.NotContains(t, string(message.Content.RawMessage), "stale response must not commit")
+			}
+			require.Equal(t, 1, users)
+			require.Equal(t, 1, assistants)
+			wantRequests := int32(1)
+			if phase == "InFlightResponse" {
+				wantRequests = 2
+			}
+			require.Equal(t, wantRequests, requests.Load())
+			require.Contains(t, testutil.RequireReceive(ctx, t, recoveredRequest), "hello after out-of-band edit")
+			final, err := f.db.GetChatByID(ctx, created.ID)
+			require.NoError(t, err)
+			require.False(t, final.LastError.Valid)
 		})
 	}
 }

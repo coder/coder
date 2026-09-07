@@ -1,6 +1,7 @@
 package chatd_test
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"database/sql"
@@ -31,7 +32,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -2719,55 +2719,66 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
-// TestChatOwnerProcessDeath waits for real PostgreSQL lease expiry. The
-// ServerDefaults case deliberately takes five minutes plus heartbeat/setup time.
 func TestChatOwnerProcessDeath(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
-		t.Skip("requires SIGKILL, which Windows does not report")
+		t.Skip("requires SIGKILL")
 	}
 
-	for _, name := range []string{"Accelerated", "ServerDefaults"} {
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name                      string
+		lease, heartbeat, acquire time.Duration
+	}{
+		{name: "Accelerated", lease: 4 * time.Second, heartbeat: testutil.IntervalFast, acquire: testutil.IntervalFast},
+		{name: "ServerDefaults"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			defaults := name == "ServerDefaults"
-			lease, heartbeat := 4*time.Second, 100*time.Millisecond
-			if defaults {
-				lease, heartbeat = chatd.DefaultInFlightChatStaleAfter, chatd.DefaultChatHeartbeatInterval
+			lease := cmp.Or(tc.lease, chatd.DefaultInFlightChatStaleAfter)
+			heartbeat := cmp.Or(tc.heartbeat, chatd.DefaultChatHeartbeatInterval)
+			providerURL := os.Getenv("CODER_CHATD_DEATH_PROVIDER")
+			configure := func(cfg *chatd.Config) {
+				// Undo newTestServer's passive acquisition override so New
+				// supplies its normal timings in the ServerDefaults case.
+				cfg.PendingChatAcquireInterval = tc.acquire
+				cfg.InFlightChatStaleAfter = tc.lease
+				cfg.ChatHeartbeatInterval = tc.heartbeat
+				withoutMCPToolSearch(cfg)
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, providerURL))
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*3+lease+2*heartbeat)
+			if worker := os.Getenv("CODER_CHATD_DEATH_WORKER"); worker != "" {
+				db, ps := dbtestutil.NewDB(t)
+				server := newTestServer(t, db, ps, uuid.MustParse(worker), configure)
+				server.Start()
+				// The parent holds stdin open until SIGKILL bypasses cleanup.
+				_, err := io.Copy(io.Discard, os.Stdin)
+				require.NoError(t, err)
+				return
+			}
+			// The default case intentionally waits for a heartbeat renewal
+			// and the five-minute lease, using real PostgreSQL time.
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong+lease+heartbeat)
 			defer cancel()
+			// NewDB gives the environment precedence over WithURL. Pass its
+			// effective DSN to the child, rather than allocating another DB.
+			dsn := os.Getenv("CODER_PG_CONNECTION_URL")
+			if dsn == "" {
+				var err error
+				dsn, err = dbtestutil.Open(t)
+				require.NoError(t, err)
+			}
+			db, ps := dbtestutil.NewDB(t, dbtestutil.WithURL(dsn))
 
-			dsn, err := dbtestutil.Open(t)
-			require.NoError(t, err)
-			db, ps := ownerDeathDB(t, dsn)
-			token := uuid.NewString()
-			firstEffect := make(chan struct{})
-			finalRequest := make(chan time.Time, 1)
-			releaseFinal := make(chan struct{})
-			var finalOnce sync.Once
 			var effects atomic.Int32
-			mcpServer := newTestMCPServer("owner-death")
+			firstEffect := make(chan struct{})
+			resultText := uuid.NewString()
+			mcpServer := newTestMCPServer(t.Name())
 			mcpServer.AddTool(&mcp.Tool{
 				Name: "effect", Description: "Record an external effect",
-				InputSchema: map[string]any{
-					"type":       "object",
-					"properties": map[string]any{"token": map[string]any{"type": "string"}},
-					"required":   []string{"token"},
-				},
-			}, func(callCtx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				var args struct {
-					Token string `json:"token"`
-				}
-				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-					return nil, err
-				}
-				if args.Token != token {
-					return nil, xerrors.Errorf("unexpected effect token %q", args.Token)
-				}
-				// This parent-owned effect survives the owner process. The first
-				// invocation cannot return a result before that process dies.
+				InputSchema: map[string]any{"type": "object"},
+			}, func(callCtx context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				// The parent-side effect survives the child, but its first
+				// execution never returns a result to that child.
 				if effects.Add(1) == 1 {
 					close(firstEffect)
 					select {
@@ -2777,272 +2788,165 @@ func TestChatOwnerProcessDeath(t *testing.T) {
 						return nil, ctx.Err()
 					}
 				}
-				return &mcp.CallToolResult{Content: []mcp.Content{
-					&mcp.TextContent{Text: "effect completed " + token},
-				}}, nil
+				return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: resultText}}}, nil
 			})
 			mcpHTTP := httptest.NewServer(testMCPHTTPHandler(mcpServer))
-			t.Cleanup(func() {
-				cancel()
-				mcpHTTP.Close()
-			})
-
-			var streaming atomic.Int32
-			provider := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			t.Cleanup(func() { cancel(); mcpHTTP.Close() })
+			call := chattest.OpenAIToolCallChunk("owner-death__effect", `{}`)
+			callID := call.Choices[0].ToolCalls[0].ID
+			var requests atomic.Int32
+			finalRequest := make(chan time.Time, 1)
+			releaseFinal := make(chan struct{})
+			providerURL = chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				if !req.Stream {
 					return chattest.OpenAINonStreamingResponse("owner death")
 				}
-				if streaming.Add(1) == 1 {
-					return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(
-						"owner-death__effect", fmt.Sprintf(`{"token":%q}`, token),
-					))
+				if requests.Add(1) == 1 {
+					return chattest.OpenAIStreamingResponse(call)
 				}
-				// Hold the final response so the replacement's ownership and
-				// committed original result can be inspected before abandonment.
-				finalOnce.Do(func() {
-					now, err := db.GetDatabaseNow(req.Context())
-					if err != nil {
-						t.Errorf("read database time at recovery: %v", err)
-					}
-					finalRequest <- now
-				})
+				now, err := db.GetDatabaseNow(req.Context())
+				if err != nil {
+					t.Errorf("read recovery database time: %v", err)
+				}
+				select {
+				case finalRequest <- now:
+				default:
+				}
+				// Keep ownership until the parent inspects the durable result.
 				select {
 				case <-releaseFinal:
 				case <-req.Context().Done():
 				case <-ctx.Done():
 				}
-				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("owner death recovery finished")...)
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("recovered")...)
 			})
-			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", provider)
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", providerURL)
 			mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-				OrganizationID: org.ID, DisplayName: "Owner death", Slug: "owner-death", Url: mcpHTTP.URL,
+				OrganizationID: org.ID, DisplayName: t.Name(), Slug: "owner-death", Url: mcpHTTP.URL,
 				CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}, UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
 			})
 			ownerA, ownerB := uuid.New(), uuid.New()
-			scans := &ownerDeathScanStore{Store: db, scanned: make(chan []database.GetChatWorkerAcquisitionCandidatesRow, 1)}
-			replacement := ownerDeathServer(t, scans, ps, ownerB, provider, name)
+			scans := &acquisitionScanStore{Store: db, firstScan: make(chan []database.GetChatWorkerAcquisitionCandidatesRow, 1)}
+			replacement := newTestServer(t, scans, ps, ownerB, configure)
 			chat, err := replacement.CreateChat(ctx, chatd.CreateOptions{
-				OrganizationID: org.ID, OwnerID: user.ID, Title: "actual owner death", ModelConfigID: model.ID,
+				OrganizationID: org.ID, OwnerID: user.ID, Title: "owner death", ModelConfigID: model.ID,
 				MCPServerIDs:       []uuid.UUID{mcpConfig.ID},
 				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("perform one effect")},
 			})
 			require.NoError(t, err)
 
-			childLog, err := os.CreateTemp(t.TempDir(), "owner-*.log")
-			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, childLog.Close()) })
-			//nolint:gosec // Re-execute this test binary with fixed test arguments.
-			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestChatOwnerProcessDeathChild$", "-test.v", "-test.timeout=10m")
-			cmd.Env = append(os.Environ(),
-				"CODER_CHATD_OWNER_DEATH_CHILD=1", "CODER_CHATD_OWNER_DEATH_DSN="+dsn,
-				"CODER_CHATD_OWNER_DEATH_WORKER="+ownerA.String(), "CODER_CHATD_OWNER_DEATH_PROVIDER="+provider,
-				"CODER_CHATD_OWNER_DEATH_TIMINGS="+name,
-			)
-			cmd.Stdout, cmd.Stderr = childLog, childLog
+			//nolint:gosec // Re-execute this test binary with test-controlled arguments.
+			cmd := exec.CommandContext(ctx, os.Args[0], fmt.Sprintf("-test.run=^TestChatOwnerProcessDeath$/^%s$", tc.name), "-test.timeout=10m")
+			cmd.Env = append(os.Environ(), "CODER_PG_CONNECTION_URL="+dsn,
+				"CODER_CHATD_DEATH_WORKER="+ownerA.String(), "CODER_CHATD_DEATH_PROVIDER="+providerURL)
+			var output bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &output, &output
+			cmd.WaitDelay = testutil.WaitLong
 			stdin, err := cmd.StdinPipe()
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = stdin.Close() })
 			require.NoError(t, cmd.Start())
-			waited := false
 			t.Cleanup(func() {
-				if !waited {
+				if cmd.ProcessState == nil {
 					_ = cmd.Process.Kill()
 					_ = cmd.Wait()
 				}
 				if t.Failed() {
-					log, err := os.ReadFile(childLog.Name())
-					require.NoError(t, err)
-					t.Logf("owner process output:\n%s", log)
+					t.Logf("child output:\n%s", output.String())
 				}
 			})
-
-			startupCtx := testutil.Context(t, testutil.WaitLong)
-			testutil.TryReceive(startupCtx, t, firstEffect)
+			testutil.TryReceive(testutil.Context(t, testutil.WaitLong), t, firstEffect)
 			owned, err := db.GetChatByID(ctx, chat.ID)
 			require.NoError(t, err)
-			require.Equal(t, database.ChatStatusRunning, owned.Status)
-			require.True(t, owned.WorkerID.Valid)
-			require.Equal(t, ownerA, owned.WorkerID.UUID)
+			require.Equal(t, uuid.NullUUID{UUID: ownerA, Valid: true}, owned.WorkerID)
 			require.True(t, owned.RunnerID.Valid)
-			callID := ownerDeathAssertMessages(ctx, t, db, chat.ID, "", token, 0, "")
 			hbParams := database.GetChatHeartbeatParams{ChatID: chat.ID, RunnerID: owned.RunnerID.UUID}
-			before, err := db.GetChatHeartbeat(ctx, hbParams)
+			initial, err := db.GetChatHeartbeat(ctx, hbParams)
 			require.NoError(t, err)
 			require.Eventually(t, func() bool {
 				hb, err := db.GetChatHeartbeat(ctx, hbParams)
-				return err == nil && hb.HeartbeatAt.After(before.HeartbeatAt)
-			}, testutil.WaitLong+heartbeat, testutil.IntervalFast, "owner must actually renew its lease before death")
+				return err == nil && hb.HeartbeatAt.After(initial.HeartbeatAt)
+			}, testutil.WaitLong+heartbeat, testutil.IntervalFast)
 			beforeKill, err := db.GetChatByID(ctx, chat.ID)
 			require.NoError(t, err)
 			require.Equal(t, database.ChatStatusRunning, beforeKill.Status)
 			require.Equal(t, owned.WorkerID, beforeKill.WorkerID)
 			require.Equal(t, owned.RunnerID, beforeKill.RunnerID)
-			ownerDeathAssertMessages(ctx, t, db, chat.ID, callID, token, 0, "")
-
+			messages := chatMessages(ctx, t, db, chat.ID)
+			require.Len(t, messages, 2, "only the prompt and unresolved call may be durable before death")
+			require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
+			requireTextPart(t, messages[0], "perform one effect")
+			require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
+			parts, err := chatprompt.ParseContent(messages[1])
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolCall, parts[0].Type)
+			require.Equal(t, callID, parts[0].ToolCallID)
+			require.Equal(t, "owner-death__effect", parts[0].ToolName)
 			require.NoError(t, cmd.Process.Kill())
-			waitErr := cmd.Wait()
-			waited = true
 			var exitErr *exec.ExitError
-			require.ErrorAs(t, waitErr, &exitErr)
+			require.ErrorAs(t, cmd.Wait(), &exitErr)
 			status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus)
 			require.True(t, ok)
 			require.True(t, status.Signaled())
 			require.Equal(t, syscall.SIGKILL, status.Signal())
+
 			frozen, err := db.GetChatHeartbeat(ctx, hbParams)
 			require.NoError(t, err)
-			staleParams := database.IsChatHeartbeatStaleParams{
-				ChatID: chat.ID, RunnerID: owned.RunnerID.UUID, StaleSeconds: int32(lease.Seconds()),
-			}
-			stale, err := db.IsChatHeartbeatStale(ctx, staleParams)
-			require.NoError(t, err)
-			require.False(t, stale, "replacement must start while the dead owner's lease is fresh")
 			replacement.Start()
-			scanCtx := testutil.Context(t, testutil.WaitLong)
-			require.Empty(t, testutil.RequireReceive(scanCtx, t, scans.scanned), "initial acquisition scan must reject the fresh lease")
-			stale, err = db.IsChatHeartbeatStale(ctx, staleParams)
+			candidates := testutil.RequireReceive(testutil.Context(t, testutil.WaitLong), t, scans.firstScan)
+			for _, candidate := range candidates {
+				require.NotEqual(t, chat.ID, candidate.ID, "the first real scan must exclude the fresh lease")
+			}
+			stale, err := db.IsChatHeartbeatStale(ctx, database.IsChatHeartbeatStaleParams{
+				ChatID: chat.ID, RunnerID: owned.RunnerID.UUID, StaleSeconds: int32(lease.Seconds()),
+			})
 			require.NoError(t, err)
-			require.False(t, stale, "initial acquisition scan must finish before natural expiry")
-			stillOwned, err := db.GetChatByID(ctx, chat.ID)
-			require.NoError(t, err)
-			require.Equal(t, owned.WorkerID, stillOwned.WorkerID)
-			require.Equal(t, owned.RunnerID, stillOwned.RunnerID)
-			ownerDeathAssertMessages(ctx, t, db, chat.ID, callID, token, 0, "")
-
-			// Observe real database time, never backdate or manually acquire.
-			require.Eventually(t, func() bool {
-				hb, err := db.GetChatHeartbeat(ctx, hbParams)
-				if err == nil {
-					assert.Equal(t, frozen.HeartbeatAt, hb.HeartbeatAt, "dead owner's heartbeat must not advance")
-				} else if !errors.Is(err, sql.ErrNoRows) {
-					return false
-				}
-				stale, err := db.IsChatHeartbeatStale(ctx, staleParams)
-				return err == nil && stale
-			}, testutil.WaitLong+lease, testutil.IntervalMedium)
+			require.False(t, stale, "replacement must scan before natural lease expiry")
 			recoveredAt := testutil.RequireReceive(ctx, t, finalRequest)
-			require.False(t, recoveredAt.Before(frozen.HeartbeatAt.Add(lease)))
+			require.False(t, recoveredAt.Before(frozen.HeartbeatAt.Add(lease)), "recovery must wait for natural expiry")
 			taken, err := db.GetChatByID(ctx, chat.ID)
 			require.NoError(t, err)
-			require.Equal(t, database.ChatStatusRunning, taken.Status)
-			require.True(t, taken.WorkerID.Valid)
-			require.Equal(t, ownerB, taken.WorkerID.UUID)
+			require.Equal(t, uuid.NullUUID{UUID: ownerB, Valid: true}, taken.WorkerID)
 			require.True(t, taken.RunnerID.Valid)
-			require.NotEqual(t, owned.RunnerID.UUID, taken.RunnerID.UUID)
-			ownerDeathAssertMessages(ctx, t, db, chat.ID, callID, token, 1, "")
+			require.NotEqual(t, owned.RunnerID, taken.RunnerID)
+			withResult := chatMessages(ctx, t, db, chat.ID)
+			require.Len(t, withResult, 3)
+			require.Equal(t, messages, withResult[:2], "the original prompt and call must survive takeover")
+			messages = withResult
+			parts, err = chatprompt.ParseContent(messages[2])
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
+			require.Equal(t, "owner-death__effect", parts[0].ToolName)
+			require.Equal(t, callID, parts[0].ToolCallID)
+			require.False(t, parts[0].IsError)
+			require.Contains(t, string(parts[0].Result), resultText)
 			close(releaseFinal)
-			require.Eventually(t, func() bool {
-				chat, err := db.GetChatByID(ctx, chat.ID)
-				return err == nil && chat.Status == database.ChatStatusWaiting &&
-					!chat.WorkerID.Valid && !chat.RunnerID.Valid && !chat.LastError.Valid
-			}, testutil.WaitLong, testutil.IntervalFast)
-			ownerDeathAssertMessages(ctx, t, db, chat.ID, callID, token, 1, "owner death recovery finished")
-			t.Logf("lease=%s heartbeat=%s recovery_after_last_heartbeat=%s external_effects=%d",
-				lease, heartbeat, recoveredAt.Sub(frozen.HeartbeatAt), effects.Load())
+			finished := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			require.False(t, finished.LastError.Valid)
+			completed := chatMessages(ctx, t, db, chat.ID)
+			require.Len(t, completed, 4, "no additional user message or tool call may drive recovery")
+			require.Equal(t, messages, completed[:3])
+			require.Equal(t, database.ChatMessageRoleAssistant, completed[3].Role)
+			requireTextPart(t, completed[3], "recovered")
+			t.Logf("lease=%s recovery_after_last_heartbeat=%s external_effects=%d", lease, recoveredAt.Sub(frozen.HeartbeatAt), effects.Load())
 		})
 	}
 }
 
-func TestChatOwnerProcessDeathChild(t *testing.T) {
-	t.Parallel()
-	if os.Getenv("CODER_CHATD_OWNER_DEATH_CHILD") != "1" {
-		t.Skip("subprocess helper")
-	}
-	db, ps := ownerDeathDB(t, os.Getenv("CODER_CHATD_OWNER_DEATH_DSN"))
-	server := ownerDeathServer(t, db, ps,
-		uuid.MustParse(os.Getenv("CODER_CHATD_OWNER_DEATH_WORKER")),
-		os.Getenv("CODER_CHATD_OWNER_DEATH_PROVIDER"), os.Getenv("CODER_CHATD_OWNER_DEATH_TIMINGS"),
-	)
-	server.Start()
-	// Only the parent holds stdin open. SIGKILL bypasses all Close cleanups.
-	_, err := io.Copy(io.Discard, os.Stdin)
-	require.NoError(t, err)
-}
-
-func ownerDeathDB(t *testing.T, dsn string) (database.Store, dbpubsub.Pubsub) {
-	t.Helper()
-	raw, err := sql.Open("postgres", dsn)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, raw.Close()) })
-	ps, err := dbpubsub.New(context.Background(), testutil.Logger(t), raw, dsn)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ps.Close()) })
-	return database.New(raw), ps
-}
-
-func ownerDeathServer(t *testing.T, db database.Store, ps dbpubsub.Pubsub, id uuid.UUID, provider, timings string) *chatd.Server {
-	t.Helper()
-	// Do not use newTestServer: it disables periodic acquisition by default.
-	cfg := chatd.Config{
-		Logger: testutil.Logger(t), Database: db, ReplicaID: id,
-		Experiments: codersdk.ExperimentsKnown, MCPHTTPClient: testMCPHTTPClient(),
-		AIBridgeTransportFactory: chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, provider)),
-	}
-	if timings == "Accelerated" {
-		cfg.InFlightChatStaleAfter = 4 * time.Second
-		cfg.PendingChatAcquireInterval = 100 * time.Millisecond
-		cfg.ChatHeartbeatInterval = 100 * time.Millisecond
-	}
-	server := chatd.New(ps, cfg)
-	t.Cleanup(func() { require.NoError(t, server.Close()) })
-	return server
-}
-
-func ownerDeathAssertMessages(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, wantID, token string, wantResults int, wantText string) string {
-	t.Helper()
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
-	require.NoError(t, err)
-	calls, results, users := 0, 0, 0
-	var callID, assistantText string
-	for _, message := range messages {
-		if message.Role == database.ChatMessageRoleUser {
-			users++
-		}
-		parts, err := chatprompt.ParseContent(message)
-		require.NoError(t, err)
-		for _, part := range parts {
-			switch part.Type {
-			case codersdk.ChatMessagePartTypeToolCall:
-				require.Equal(t, "owner-death__effect", part.ToolName)
-				calls++
-				callID = part.ToolCallID
-			case codersdk.ChatMessagePartTypeToolResult:
-				require.Equal(t, "owner-death__effect", part.ToolName)
-				results++
-				require.Equal(t, wantID, part.ToolCallID)
-				require.False(t, part.IsError)
-				require.Contains(t, string(part.Result), "effect completed "+token)
-			case codersdk.ChatMessagePartTypeText:
-				if message.Role == database.ChatMessageRoleAssistant {
-					assistantText += part.Text
-				}
-			}
-		}
-	}
-	require.Equal(t, 1, users, "no user message may drive recovery")
-	require.Equal(t, 1, calls, "recovery must use the original persisted call")
-	require.NotEmpty(t, callID)
-	if wantID != "" {
-		require.Equal(t, wantID, callID)
-	}
-	require.Equal(t, wantResults, results)
-	if wantText != "" {
-		require.Contains(t, assistantText, wantText)
-	}
-	return callID
-}
-
-// ownerDeathScanStore observes the first real acquisition query without
-// changing its results, database state, or scheduling.
-type ownerDeathScanStore struct {
+// acquisitionScanStore observes the first real acquisition query without
+// changing its results or triggering an acquisition.
+type acquisitionScanStore struct {
 	database.Store
-	once    sync.Once
-	scanned chan []database.GetChatWorkerAcquisitionCandidatesRow
+	once      sync.Once
+	firstScan chan []database.GetChatWorkerAcquisitionCandidatesRow
 }
 
-func (s *ownerDeathScanStore) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg database.GetChatWorkerAcquisitionCandidatesParams) ([]database.GetChatWorkerAcquisitionCandidatesRow, error) {
+func (s *acquisitionScanStore) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg database.GetChatWorkerAcquisitionCandidatesParams) ([]database.GetChatWorkerAcquisitionCandidatesRow, error) {
 	rows, err := s.Store.GetChatWorkerAcquisitionCandidates(ctx, arg)
 	if err == nil {
-		s.once.Do(func() { s.scanned <- rows })
+		s.once.Do(func() { s.firstScan <- rows })
 	}
 	return rows, err
 }

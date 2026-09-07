@@ -12,13 +12,16 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
-	"github.com/coder/quartz"
 )
 
 const runnerRefreshTimeout = 5 * time.Second
 
-type runnerRefreshResult struct {
-	taskID taskInstanceID
+// runnerObservation belongs to one completed task. Its result is readable
+// after done closes; cancellation does not release the single-flight slot.
+type runnerObservation struct {
+	task   *taskRecord
+	cancel context.CancelFunc
+	done   <-chan struct{}
 	chat   database.Chat
 	err    error
 }
@@ -39,11 +42,6 @@ type localWorkKey struct {
 	status         database.ChatStatus
 }
 
-type taskIndexKey struct {
-	kind taskKind
-	key  localWorkKey
-}
-
 type taskRecord struct {
 	id       taskInstanceID
 	kind     taskKind
@@ -62,167 +60,150 @@ type runner struct {
 	hasAcceptedState    bool
 	latestState         runnerStateUpdate
 
-	recoveryTaskID  taskInstanceID
-	refreshInFlight bool
-	refreshResults  chan runnerRefreshResult
-	recoveryDelay   time.Duration
-	recoveryTimer   *quartz.Timer
-	refreshWG       sync.WaitGroup
-	stopping        bool
-
-	activeTaskID  taskInstanceID
-	activeTaskSet bool
-	tasks         map[taskInstanceID]*taskRecord
-	tasksByIndex  map[taskIndexKey]taskInstanceID
-	localLocks    *localLockSet
-	debugTurn     *runnerDebugTurn
-	sessionStart  sessionStartTracker
-	stopNudges    stopNudgeTracker
+	// The current task remains here after completion until an authoritative
+	// observation reconciles it or a state notification supersedes it.
+	currentTask  *taskRecord
+	tasks        map[taskInstanceID]*taskRecord
+	localLocks   *localLockSet
+	debugTurn    *runnerDebugTurn
+	sessionStart sessionStartTracker
+	stopNudges   stopNudgeTracker
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
 	return &runner{
-		refreshResults: make(chan runnerRefreshResult, 1),
-		ctx:            ctx,
-		mgr:            mgr,
-		rec:            rec,
-		opts:           opts,
-		tasks:          make(map[taskInstanceID]*taskRecord),
-		tasksByIndex:   make(map[taskIndexKey]taskInstanceID),
-		localLocks:     newLocalLockSet(),
-		debugTurn:      newRunnerDebugTurn(ctx, opts.Logger),
+		ctx:        ctx,
+		mgr:        mgr,
+		rec:        rec,
+		opts:       opts,
+		tasks:      make(map[taskInstanceID]*taskRecord),
+		localLocks: newLocalLockSet(),
+		debugTurn:  newRunnerDebugTurn(ctx, opts.Logger),
 	}
 }
 
 func (r *runner) run() {
+	var observation *runnerObservation
 	defer func() {
-		r.stopRecoveryTimer()
+		if observation != nil {
+			observation.cancel()
+		}
 		r.cancelActiveTask()
 		r.waitForTasks()
-		r.refreshWG.Wait()
+		if observation != nil {
+			<-observation.done
+		}
 		r.closeDebugTurn()
 	}()
 	if !r.bootstrap() {
 		return
 	}
+
+	var delay time.Duration
 	for {
 		if r.ctx.Err() != nil {
 			return
 		}
 		r.removeFinishedTasks()
-		r.scheduleRecovery()
-		var activeDone <-chan struct{}
-		if r.activeTaskSet {
-			activeDone = r.tasks[r.activeTaskID].done
-		}
-		var retry <-chan time.Time
-		if r.recoveryTimer != nil {
-			retry = r.recoveryTimer.C
+		var taskDone, observed <-chan struct{}
+		if observation != nil {
+			observed = observation.done
+			if observation.task != r.currentTask {
+				// Keep the slot until the canceled read actually returns.
+				observation.cancel()
+			}
+		} else if r.currentTask != nil {
+			taskDone = r.currentTask.done
 		}
 		select {
 		case state := <-r.rec.stateCh:
-			r.processState(state)
-		case <-activeDone:
-			r.removeFinishedTasks()
-		case result := <-r.refreshResults:
-			r.applyRefresh(result)
-		case <-retry:
-			r.stopRecoveryTimer()
-			r.removeFinishedTasks()
-			// This wait has been consumed; do not rearm the same delay.
-			if r.needsRefresh() {
-				r.launchRefresh()
+			if state.SnapshotVersion > r.lastSnapshotVersion && r.requiredWorkChanged(state) {
+				delay = 0
 			}
+			if !r.processState(state) {
+				return
+			}
+		case <-taskDone:
+			observation = r.observeTask(r.currentTask, delay)
+			if delay == 0 {
+				delay = r.opts.TaskRetryInitialBackoff
+			} else {
+				// Subtract before adding to avoid overflowing durations.
+				delay += min(delay, r.opts.TaskRetryMaxBackoff-delay)
+			}
+		case <-observed:
+			completed := observation
+			observation = nil
+			if r.ctx.Err() != nil {
+				return
+			}
+			if completed.task != r.currentTask {
+				continue
+			}
+			if errors.Is(completed.err, sql.ErrNoRows) {
+				r.mgr.requestCleanup(r.ctx, r.rec.key)
+				return
+			}
+			if completed.err != nil {
+				r.opts.Logger.Warn(r.ctx, "chatworker runner refresh failed", slogError(completed.err))
+				continue
+			}
+			state := stateUpdateFromChat(completed.chat)
+			if state.SnapshotVersion < r.lastSnapshotVersion || state.HistoryVersion < r.latestState.HistoryVersion {
+				continue
+			}
+			if !uuidPtrEqual(state.WorkerID, r.rec.workerID) || !uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID) {
+				r.mgr.requestCleanup(r.ctx, r.rec.key)
+				return
+			}
+			if r.requiredWorkChanged(state) {
+				delay = 0
+			}
+			// Only an authoritative read may restore missing work at an
+			// equal snapshot. Keep its fields together, without merging hints.
+			r.cancelActiveTask()
+			r.acceptState(state)
+			r.spawnForState(state)
 		case <-r.ctx.Done():
 			return
 		}
 	}
 }
 
-func (r *runner) needsRefresh() bool {
-	return !r.stopping && r.ctx.Err() == nil &&
-		r.recoveryTaskID != (taskInstanceID{}) && !r.activeTaskSet && !r.refreshInFlight
-}
-
-func (r *runner) scheduleRecovery() {
-	if !r.needsRefresh() || r.recoveryTimer != nil {
-		return
-	}
-	if r.recoveryDelay == 0 {
-		r.launchRefresh()
-		return
-	}
-	r.recoveryTimer = r.opts.Clock.NewTimer(r.recoveryDelay, "chatworker", "runner-recovery")
-}
-
-func (r *runner) stopRecoveryTimer() {
-	if r.recoveryTimer != nil {
-		r.recoveryTimer.Stop()
-		r.recoveryTimer = nil
-	}
-}
-
-func (r *runner) launchRefresh() {
-	r.refreshInFlight = true
-	if r.recoveryDelay == 0 {
-		r.recoveryDelay = r.opts.TaskRetryInitialBackoff
-	} else {
-		// Subtract before adding so large configured durations cannot overflow.
-		r.recoveryDelay += min(r.recoveryDelay, r.opts.TaskRetryMaxBackoff-r.recoveryDelay)
-	}
-	ctx, store, clock := r.ctx, r.opts.Store, r.opts.Clock
-	chatID, taskID, results := r.rec.key.ChatID, r.recoveryTaskID, r.refreshResults
-	r.refreshWG.Go(func() {
-		readCtx, cancel := context.WithCancelCause(ctx)
+// observeTask waits before reading current state without blocking the runner.
+// Only the runner applies the result after observing done.
+func (r *runner) observeTask(task *taskRecord, delay time.Duration) *runnerObservation {
+	ctx, cancel := context.WithCancel(r.ctx)
+	done := make(chan struct{})
+	observation := &runnerObservation{task: task, cancel: cancel, done: done}
+	store, clock, chatID := r.opts.Store, r.opts.Clock, r.rec.key.ChatID
+	go func() {
+		defer close(done)
+		defer cancel()
+		if delay > 0 {
+			timer := clock.NewTimer(delay, "chatworker", "runner-recovery")
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+			}
+			timer.Stop()
+		}
+		if ctx.Err() != nil {
+			observation.err = ctx.Err()
+			return
+		}
+		readCtx, cancelRead := context.WithCancelCause(ctx)
+		defer cancelRead(nil)
 		timer := clock.AfterFunc(runnerRefreshTimeout, func() {
-			cancel(context.DeadlineExceeded)
+			cancelRead(context.DeadlineExceeded)
 		}, "chatworker", "runner-refresh-timeout")
-		chat, err := store.GetChatByID(readCtx, chatID)
+		defer timer.Stop()
+		observation.chat, observation.err = store.GetChatByID(readCtx, chatID)
 		if readCtx.Err() != nil {
-			err = context.Cause(readCtx)
+			observation.err = context.Cause(readCtx)
 		}
-		timer.Stop()
-		cancel(nil)
-		select {
-		case results <- runnerRefreshResult{taskID: taskID, chat: chat, err: err}:
-		case <-ctx.Done():
-		}
-	})
-}
-
-func (r *runner) applyRefresh(result runnerRefreshResult) {
-	// A replacement may have finished while the previous read was running.
-	r.removeFinishedTasks()
-	r.refreshInFlight = false
-	if r.stopping || r.ctx.Err() != nil || r.activeTaskSet || result.taskID != r.recoveryTaskID {
-		return
-	}
-	if errors.Is(result.err, sql.ErrNoRows) {
-		r.requestCleanup()
-		return
-	}
-	if result.err != nil {
-		r.opts.Logger.Warn(r.ctx, "chatworker runner refresh failed", slogError(result.err))
-		return
-	}
-	state := stateUpdateFromChat(result.chat)
-	if state.SnapshotVersion < r.lastSnapshotVersion || state.HistoryVersion < r.latestState.HistoryVersion {
-		return
-	}
-	if !uuidPtrEqual(state.WorkerID, r.rec.workerID) || !uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID) {
-		r.requestCleanup()
-		return
-	}
-	// Unlike a notification, this read can restore missing work at an equal
-	// snapshot version. Accept the whole row, preserving its field coherence.
-	r.acceptState(state)
-	r.spawnForState(state)
-}
-
-func (r *runner) requestCleanup() {
-	r.stopping = true
-	r.stopRecoveryTimer()
-	r.mgr.requestCleanup(r.ctx, r.rec.key)
+	}()
+	return observation
 }
 
 func (r *runner) bootstrap() bool {
@@ -237,7 +218,7 @@ func (r *runner) bootstrap() bool {
 		},
 	))
 	if err != nil {
-		r.requestCleanup()
+		r.mgr.requestCleanup(r.ctx, r.rec.key)
 		return false
 	}
 	if !r.rec.setUnsubscribe(unsubscribe) {
@@ -246,7 +227,7 @@ func (r *runner) bootstrap() bool {
 	chat, err := r.opts.Store.GetChatByID(r.ctx, r.rec.key.ChatID)
 	if err != nil {
 		r.opts.Logger.Warn(r.ctx, "chatworker runner bootstrap failed", slogError(err))
-		r.requestCleanup()
+		r.mgr.requestCleanup(r.ctx, r.rec.key)
 		return false
 	}
 	// Apply the database snapshot directly instead of routing it through
@@ -259,8 +240,7 @@ func (r *runner) bootstrap() bool {
 	// Processing the snapshot here seeds lastSnapshotVersion before the
 	// run loop drains stateCh, so the dedup in processState drops every
 	// hint at or below this version regardless of delivery path.
-	r.processState(stateUpdateFromChat(chat))
-	return true
+	return r.processState(stateUpdateFromChat(chat))
 }
 
 func stateUpdateFromPubsub(chatID uuid.UUID, payload coderdpubsub.ChatStateUpdateMessage) runnerStateUpdate {
@@ -277,29 +257,27 @@ func stateUpdateFromPubsub(chatID uuid.UUID, payload coderdpubsub.ChatStateUpdat
 	}
 }
 
-func (r *runner) processState(state runnerStateUpdate) {
-	if r.stopping || r.ctx.Err() != nil || state.SnapshotVersion <= r.lastSnapshotVersion {
-		return
+// processState applies an ordered notification and reports whether to continue.
+func (r *runner) processState(state runnerStateUpdate) bool {
+	if r.ctx.Err() != nil {
+		return false
 	}
-
-	r.removeFinishedTasks()
+	if state.SnapshotVersion <= r.lastSnapshotVersion {
+		return true
+	}
 
 	if !uuidPtrEqual(state.WorkerID, r.rec.workerID) || !uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID) {
 		r.acceptState(state)
-		r.requestCleanup()
-		return
+		r.mgr.requestCleanup(r.ctx, r.rec.key)
+		return false
 	}
 
-	if !r.requiredWorkChanged(state) {
-		r.acceptState(state)
-		return
-	}
-	if r.hasAcceptedState && r.activeTaskSet {
+	if r.requiredWorkChanged(state) {
 		r.cancelActiveTask()
+		r.spawnForState(state)
 	}
-
-	r.spawnForState(state)
 	r.acceptState(state)
+	return true
 }
 
 func (r *runner) requiredWorkChanged(state runnerStateUpdate) bool {
@@ -308,9 +286,6 @@ func (r *runner) requiredWorkChanged(state runnerStateUpdate) bool {
 }
 
 func (r *runner) acceptState(state runnerStateUpdate) {
-	if r.requiredWorkChanged(state) {
-		r.recoveryDelay = 0
-	}
 	r.hasAcceptedState = true
 	r.latestState = state
 	r.lastSnapshotVersion = state.SnapshotVersion
@@ -336,17 +311,14 @@ func (r *runner) spawnForState(state runnerStateUpdate) {
 }
 
 func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
-	if r.stopping || r.ctx.Err() != nil {
+	if r.ctx.Err() != nil {
 		return
 	}
 	key := localWorkKey{historyVersion: state.HistoryVersion, status: state.Status}
-	idx := taskIndexKey{kind: kind, key: key}
-	if r.activeTaskSet && r.tasksByIndex[idx] == r.activeTaskID {
+	if r.currentTask != nil && r.currentTask.kind == kind && r.currentTask.localKey == key {
 		return
 	}
 
-	r.recoveryTaskID = taskInstanceID{}
-	r.stopRecoveryTimer()
 	id := taskInstanceID(uuid.New())
 	taskCtx, cancel := context.WithCancel(r.ctx)
 	done := make(chan struct{})
@@ -358,9 +330,7 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		done:     done,
 	}
 	r.tasks[id] = record
-	r.tasksByIndex[idx] = id
-	r.activeTaskID = id
-	r.activeTaskSet = true
+	r.currentTask = record
 
 	input := chatWorkerTaskStartInput{
 		TaskID:                   uuid.UUID(id),
@@ -420,13 +390,9 @@ func (r *runner) runTask(
 }
 
 func (r *runner) cancelActiveTask() {
-	if !r.activeTaskSet {
-		return
-	}
-	id := r.activeTaskID
-	r.activeTaskSet = false
-	if record := r.tasks[id]; record != nil {
-		record.cancel()
+	if r.currentTask != nil {
+		r.currentTask.cancel()
+		r.currentTask = nil
 	}
 }
 
@@ -447,18 +413,13 @@ func (r *runner) closeDebugTurn() {
 
 func (r *runner) removeFinishedTasks() {
 	for id, record := range r.tasks {
+		if record == r.currentTask {
+			continue
+		}
 		select {
 		case <-record.done:
-			delete(r.tasks, id)
-			idx := taskIndexKey{kind: record.kind, key: record.localKey}
-			if r.tasksByIndex[idx] == id {
-				delete(r.tasksByIndex, idx)
-			}
-			if r.activeTaskSet && r.activeTaskID == id {
-				r.recoveryTaskID = id
-				r.activeTaskSet = false
-			}
 			record.cancel()
+			delete(r.tasks, id)
 		default:
 		}
 	}
