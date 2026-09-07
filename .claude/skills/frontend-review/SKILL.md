@@ -24,7 +24,7 @@ before they see the PR.
    `origin` remote and the local `main` may be stale. List the changed files.
 2. For each changed file, audit against each FE rule using the checklist
    below. Read the full file when the diff alone cannot answer a check (for
-   example, whether a story's `play` function exercises the new behavior).
+   example, whether a `.test.tsx` covers the changed behavior).
 3. Report results as a per-rule verdict table (see Output format). Every FAIL
    must carry `file:line` and a one-line reason.
 4. Fix all FAIL findings with the smallest safe diff. Re-run the audit until
@@ -34,13 +34,18 @@ before they see the PR.
 
 ## Per-rule diff checklist
 
-- **FE1 (Storybook coverage)**: Does any changed component or page alter
-  user-visible behavior? Then a changed or added `.stories.tsx` must exist,
-  and its `play` function must perform the new interaction (open the menu,
-  submit the form), not merely render. Interaction tests added to `.test.tsx`
-  files are a FAIL unless they cover pure logic; `renderHook` suites for
-  stateful UI hooks count as interaction tests and belong in the consuming
-  component's story.
+- **FE1 (behavior and visual coverage)**: Does any changed component or page
+  alter frontend behavior? Then a changed or added `.test.tsx` must cover
+  the behavior, and a changed or added `.stories.tsx` must cover the new
+  visual states. A `play` function may only drive state setup the screenshot
+  needs (open the menu, type the text); assertions in a `play` function are a
+  FAIL, as is behavior covered only by a story. In the test, queries locate
+  the element to interact with; the assertion must be the non-visual outcome
+  (callback, request, attribute, state). An outcome assertion on what the
+  DOM renders (`toBeVisible`, `toBeInTheDocument`, geometry) is a FAIL: the
+  story's screenshot already covers it. Flag stories marked
+  `parameters.pixel.exclude: true` that have no equivalent test, since an
+  excluded story is never screenshotted.
 - **FE2 (types)**: Search the diff for `any`, `as unknown as`, non-null
   assertions in any form (`x!.y`, `items[0]!`, `fn()!`, `value! as T`), and
   new `as` casts. Check that API data uses types from `api/typesGenerated.ts`.

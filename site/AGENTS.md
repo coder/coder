@@ -4,7 +4,7 @@ Read [Frontend Patterns](../.claude/docs/FRONTEND_PATTERNS.md) before changing `
 
 ## Frontend contract
 
-- **FE1:** UI behavior changes ship with Storybook stories whose `play` function exercises the real interaction. Vitest or RTL is for pure logic only.
+- **FE1:** UI behavior changes ship with a Vitest/RTL test for the behavior and a Storybook story for each visual state. Pixel screenshots every story in CI, so a story's `play` function may drive the component into the state being captured (open the menu, type text) but must not assert behavior. Tests drive the interaction and assert the non-visual outcome (callback, request, attribute, state); assertions on what the DOM renders, such as visibility or presence, are the screenshot's job.
 - **FE2:** No `any`, `as unknown as`, or avoidable casts. Use generated API types from `api/typesGenerated.ts`.
 - **FE3:** Search for an existing component or helper before writing one. Keep changes single-purpose.
 - **FE4:** Do not add comments that restate identifiers, assertions, or control flow.
@@ -70,7 +70,8 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 
 ## Testing
 
-- Add or update Storybook stories for component and page behavior, visual states, keyboard interaction, focus, and accessibility.
+- Add or update Storybook stories for component and page visual states: loading, error, empty, refetch, keyboard, focus, and accessibility states as rendered. Cover behavior with Vitest/RTL tests that assert the non-visual outcome of the interaction (callback, request, attribute, state).
+- Stories run their `play` function during Pixel captures, so a `play` function is only for state setup that the screenshot needs (open a menu, toggle a switch); do not put assertions in it. Asserting what the DOM renders (visibility, presence, layout) belongs to the screenshot, whether in a story or a test.
 - Assert observable behavior with semantic queries. Do not assert Tailwind classes or implementation details.
 - Use `data-testid` only when an element has no suitable role or accessible name.
 - Do not depend on smooth scrolling in tests. Use instant behavior or control the scroll position directly.

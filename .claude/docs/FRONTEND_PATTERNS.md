@@ -14,38 +14,39 @@ How to use this document:
 `site/AGENTS.md` holds the one-line summary of each rule plus general frontend
 workflow guidance. This file is the authoritative version with examples.
 
-## FE1: UI behavior ships with Storybook interaction coverage
+## FE1: Vitest covers behavior, Storybook covers visual states
 
-Every user-visible behavior change needs a Storybook story whose `play`
-function actually exercises the interaction. Jest/RTL tests are for pure logic
-(helpers, hooks without DOM interaction), not for UI interactions.
+Every frontend change needs a Vitest/RTL test for the behavior, and/or
+a Storybook story for every visual state the change can render. CI runs
+Pixel, our internal visual regression tool for Storybook, over the build:
+it loads each story, runs its `play` function, waits for the DOM to
+settle, and screenshots it. The screenshot is the visual regression
+check: what the DOM renders, shows, or hides. The test is the behavior
+check: what the component did.
 
-- The story must perform the real interaction: open the dropdown, submit the
-  form, pin the mobile viewport. A story that renders a closed popover tests
-  nothing.
-- Cover the meaningful branches: error, empty, disabled, and mobile states,
-  not only the happy path.
-- Assert both sides of an invariant: the item that changed and a neighboring
-  item that must not change.
+- Write the behavior test in a `.test.tsx` file using RTL and `userEvent`.
+  Drive the real interaction, then assert the non-visual outcome: the
+  callback payload, the API request, the attribute value, the state change.
+  This includes stateful UI hooks consumed by a component: cover them
+  through that component's test.
+- Use semantic queries (`getByRole`, `getByLabelText`) to locate the elements
+  you interact with, not as the assertion. An outcome assertion such as
+  `expect(el).toBeVisible()` or `toBeInTheDocument()` reports what the DOM
+  renders, which is exactly what the story's screenshot already captures.
+- A story's `play` function exists only for state setup the screenshot needs:
+  open the menu, toggle the switch, type the text, focus the trigger. Do not
+  put assertions in a play function. Pixel fails the capture only if the
+  setup throws.
+- Cover the meaningful visual branches: error, empty, disabled, and mobile
+  states, not only the happy path.
+- Stories excluded from Pixel (`parameters.pixel.exclude`) are never
+  screenshot, so they provide no coverage at all; cover their behavior with a
+  Vitest test instead.
 - When a component depends on the current time or date, accept it as a prop or
   via context instead of reading `new Date()` or `Date.now()` internally, so
   stories render deterministically without mocking globals.
-- `renderHook` suites for stateful UI hooks are interaction tests, not pure
-  logic. Cover that behavior through the story of the component that uses the
-  hook.
 
-**Incorrect (interaction test in Jest/RTL):**
-
-```tsx
-// ModelSelector.test.tsx
-it("selects a model", async () => {
-  render(<ModelSelector {...props} />);
-  await userEvent.click(screen.getByRole("button"));
-  // ...
-});
-```
-
-**Correct (Storybook story with a play function):**
+**Incorrect (assertions in a play function):**
 
 ```tsx
 // ModelSelector.stories.tsx
@@ -54,6 +55,40 @@ export const SelectModel: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: /model/i }));
     await expect(canvas.getByRole("listbox")).toBeVisible();
+  },
+};
+```
+
+**Incorrect (visibility as the test's outcome; that is the screenshot's job):**
+
+```tsx
+// ModelSelector.test.tsx
+it("selects a model", async () => {
+  render(<ModelSelector {...props} />);
+  await userEvent.click(screen.getByRole("button", { name: /model/i }));
+  expect(screen.getByRole("listbox")).toBeVisible();
+});
+```
+
+**Correct (the test asserts the callback, the story captures the visual):**
+
+```tsx
+// ModelSelector.test.tsx
+it("selects a model", async () => {
+  const onValueChange = vi.fn();
+  render(<ModelSelector {...props} onValueChange={onValueChange} />);
+  await userEvent.click(screen.getByRole("button", { name: /model/i }));
+  await userEvent.click(screen.getByRole("option", { name: "GPT-4o Mini" }));
+  expect(onValueChange).toHaveBeenCalledWith("gpt-4o-mini");
+});
+```
+
+```tsx
+// ModelSelector.stories.tsx
+export const SelectModel: Story = {
+  // Opens the listbox so the screenshot captures the open state.
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("button", { name: /model/i }));
   },
 };
 ```
