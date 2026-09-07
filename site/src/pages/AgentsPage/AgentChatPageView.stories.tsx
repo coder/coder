@@ -43,7 +43,7 @@ import {
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
-import type { ModelSelectorOption } from "./components/ChatElements";
+import type { ModelSelectorOption } from "./components/ChatElements/ModelSelector";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
 // ---------------------------------------------------------------------------

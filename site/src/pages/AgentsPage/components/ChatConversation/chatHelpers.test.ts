@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
-import type { ModelSelectorOption } from "../ChatElements";
+import type { ModelSelectorOption } from "../ChatElements/ModelSelector";
 import {
 	extractContextUsageFromMessage,
 	getLatestContextUsage,

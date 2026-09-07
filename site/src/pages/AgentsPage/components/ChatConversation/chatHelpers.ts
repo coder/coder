@@ -1,7 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import type { AgentContextUsage } from "../AgentChatInput";
-import type { ModelSelectorOption } from "../ChatElements";
+import type { ModelSelectorOption } from "../ChatElements/ModelSelector";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { asNonEmptyString } from "./blockUtils";
 

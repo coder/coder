@@ -4,7 +4,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
-import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "./ChatElements/ModelSelector";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 import { SectionHeader } from "./SectionHeader";
 
