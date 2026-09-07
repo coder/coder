@@ -13,7 +13,21 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
+// ErrUnknownRoute is returned when a request path does not match any of the
+// provider's routes.
 var ErrUnknownRoute = xerrors.New("unknown route")
+
+// PassthroughTransportWrapper is an optional capability implemented by
+// providers that authenticate by signing requests or by minting tokens rather
+// than by injecting a static key. Passthrough auth is otherwise driven entirely
+// by the key pool, so without this the provider's passthrough routes would be
+// unauthenticated.
+//
+// The returned transport wraps inner and is installed beneath the key failover
+// transport, so BYOK and centralized keys still take precedence.
+type PassthroughTransportWrapper interface {
+	WrapPassthroughTransport(inner http.RoundTripper) http.RoundTripper
+}
 
 // ErrNoCredential is returned when a request resolves to centralized
 // authentication but the provider has no centralized keys configured (and the

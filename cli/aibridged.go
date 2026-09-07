@@ -302,7 +302,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
-		}, nil)
+		}, nil, nil)
 
 	case database.AIProviderTypeBedrock:
 		// A spec typed 'bedrock' authenticates exclusively via settings;
