@@ -2,14 +2,7 @@ import {
 	MessageScroller,
 	useMessageScroller,
 } from "@shadcn/react/message-scroller";
-import {
-	type FC,
-	useEffect,
-	useEffectEvent,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 
 import {
 	useInfiniteQuery,
@@ -20,10 +13,9 @@ import {
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import {
-	type ChatPlanModeOrClear,
-	type CreateChatMessageRequestWithClearablePlanMode,
-	watchWorkspace,
+import type {
+	ChatPlanModeOrClear,
+	CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
@@ -61,19 +53,15 @@ import {
 	workspaces,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
-import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
-import { belowLgViewportMediaQuery, isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
-import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -108,10 +96,8 @@ import {
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
-import {
-	isChatAgentBindingUnresolved,
-	isWatchedWorkspaceViewUnchanged,
-} from "./components/ChatConversation/watchedWorkspace";
+import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
+import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import {
@@ -120,13 +106,16 @@ import {
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
-import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
+import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./components/workspaceOptions";
+import {
+	BuiltInCommandPendingError,
+	useConversationEditingState,
+} from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import {
 	draftInputStorageKeyPrefix,
-	type ParsedDraft,
 	parseStoredDraft,
 } from "./utils/draftStorage";
 import {
@@ -154,8 +143,6 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-class BuiltInCommandPendingError extends Error {}
-
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
 type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
@@ -171,235 +158,6 @@ const buildAttachmentMediaTypes = (
 		attachments.map(({ fileId, mediaType }) => [fileId, mediaType]),
 	);
 };
-
-/** @internal Exported for testing. */
-export function useConversationEditingState(deps: {
-	chatID: string | undefined;
-	onSend: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
-	) => Promise<void>;
-	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
-	inputValueRef: React.RefObject<string>;
-}) {
-	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
-	const draftStorageKey = chatID
-		? `${draftInputStorageKeyPrefix}${chatID}`
-		: null;
-	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
-		() => {
-			if (!draftStorageKey) {
-				return { editorInitialValue: "", initialEditorState: undefined };
-			}
-			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));
-			return {
-				editorInitialValue: draft.text,
-				initialEditorState: draft.editorState,
-			};
-		},
-	);
-	const serializedEditorStateRef = useRef<string | undefined>(
-		initialEditorState,
-	);
-
-	// Monotonic counter to force LexicalComposer remount.
-	const [remountKey, setRemountKey] = useState(0);
-
-	// Sync the ref with the initial draft value so callers that
-	// read inputValueRef.current see the persisted draft. Uses a
-	// layout effect so the value is available before paint.
-	const initialSyncDone = useRef(false);
-	useLayoutEffect(() => {
-		if (!initialSyncDone.current && editorInitialValue) {
-			initialSyncDone.current = true;
-			(inputValueRef as React.MutableRefObject<string>).current =
-				editorInitialValue;
-		}
-	}, [editorInitialValue, inputValueRef]);
-
-	// -- History editing state --
-	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
-	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] =
-		useState<ParsedDraft | null>(null);
-	const [editingFileBlocks, setEditingFileBlocks] = useState<
-		readonly ChatMessagePart[]
-	>([]);
-
-	const handleEditUserMessage = (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly ChatMessagePart[],
-	) => {
-		if (editingMessageId === null) {
-			// Read the current serialized editor state from localStorage
-			// (kept up-to-date by handleContentChange) rather than from
-			// the stale initialEditorState React state.
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
-				: undefined;
-			setDraftBeforeHistoryEdit({
-				text: inputValueRef.current,
-				editorState: currentEditorState,
-			});
-		}
-		setEditingMessageId(messageId);
-		setDraftState({
-			editorInitialValue: text,
-			initialEditorState: undefined,
-		});
-		serializedEditorStateRef.current = undefined;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = text;
-		setEditingFileBlocks(fileBlocks ?? []);
-	};
-
-	const handleCancelHistoryEdit = () => {
-		const savedText = draftBeforeHistoryEdit?.text ?? "";
-		const savedState = draftBeforeHistoryEdit?.editorState;
-		setDraftState({
-			editorInitialValue: savedText,
-			initialEditorState: savedState,
-		});
-		serializedEditorStateRef.current = savedState;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = savedText;
-		setEditingMessageId(null);
-		setDraftBeforeHistoryEdit(null);
-		setEditingFileBlocks([]);
-	};
-
-	// Clears the composer for an in-flight history edit and
-	// returns a rollback function that restores the editing draft
-	// if the send fails.
-	const clearInputForHistoryEdit = (message: string) => {
-		const snapshot = {
-			editorState: serializedEditorStateRef.current,
-			fileBlocks: editingFileBlocks,
-			messageId: editingMessageId,
-		};
-
-		chatInputRef.current?.clear();
-		inputValueRef.current = "";
-		setEditingMessageId(null);
-
-		return () => {
-			setDraftState({
-				editorInitialValue: message,
-				initialEditorState: snapshot.editorState,
-			});
-			serializedEditorStateRef.current = snapshot.editorState;
-			setRemountKey((k) => k + 1);
-			inputValueRef.current = message;
-			setEditingMessageId(snapshot.messageId);
-			setEditingFileBlocks(snapshot.fileBlocks);
-		};
-	};
-
-	// Clears all input and editing state after a successful send.
-	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
-		chatInputRef.current?.clear();
-		if (!isMobileViewport()) {
-			chatInputRef.current?.focus();
-		}
-		inputValueRef.current = "";
-		serializedEditorStateRef.current = undefined;
-		if (draftStorageKey) {
-			localStorage.removeItem(draftStorageKey);
-		}
-		if (editedMessageID !== undefined) {
-			setDraftBeforeHistoryEdit(null);
-			setEditingFileBlocks([]);
-		}
-	};
-
-	// Wraps the parent onSend to clear local input/editing state.
-	const handleSendFromInput = async (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => {
-		const editedMessageID =
-			editingMessageId !== null ? editingMessageId : undefined;
-		const sendPromise = onSend(message, attachments, editedMessageID);
-
-		// For history edits, clear input immediately and prepare
-		// a rollback in case the send fails.
-		const rollback =
-			editedMessageID !== undefined
-				? clearInputForHistoryEdit(message)
-				: undefined;
-
-		try {
-			await sendPromise;
-		} catch (error) {
-			if (error instanceof BuiltInCommandPendingError) {
-				return;
-			}
-			rollback?.();
-			throw error;
-		}
-
-		finalizeSuccessfulSend(editedMessageID);
-	};
-
-	const handleContentChange = (
-		content: string,
-		serializedEditorState: string,
-		hasFileReferences: boolean,
-	) => {
-		inputValueRef.current = content;
-		serializedEditorStateRef.current = serializedEditorState;
-
-		// Don't overwrite the persisted draft while editing a history message.
-		// The original draft is saved in React state and should survive a cancel.
-		if (editingMessageId !== null) {
-			return;
-		}
-
-		if (draftStorageKey) {
-			const shouldPersist = content.trim() || hasFileReferences;
-			if (shouldPersist) {
-				try {
-					localStorage.setItem(draftStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
-			} else {
-				localStorage.removeItem(draftStorageKey);
-			}
-		}
-	};
-
-	// Separate from handleContentChange, which avoids setState to prevent
-	// per-keystroke re-renders. The loading editor is a different instance
-	// that unmounts on load, so the seed must advance here.
-	const handleLoadingDraftChange = (
-		content: string,
-		serializedEditorState: string,
-		hasFileReferences: boolean,
-	) => {
-		handleContentChange(content, serializedEditorState, hasFileReferences);
-		setDraftState({
-			editorInitialValue: content,
-			initialEditorState: serializedEditorState,
-		});
-	};
-
-	return {
-		inputValueRef,
-		chatInputRef,
-		editorInitialValue,
-		initialEditorState,
-		remountKey,
-		editingMessageId,
-		editingFileBlocks,
-		handleEditUserMessage,
-		handleCancelHistoryEdit,
-		handleSendFromInput,
-		handleContentChange,
-		handleLoadingDraftChange,
-	};
-}
 
 const AgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
@@ -436,37 +194,8 @@ const AgentChatPage: FC = () => {
 			: "",
 	);
 
-	// Right panel open/closed state is owned here so the loading
-	// skeleton and the loaded view share the same layout, preventing
-	// a horizontal shift when data arrives.
-	const [sidebarPanelPreference, setSidebarPanelPreference] = useState(() => {
-		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
-	});
-	// Below the lg breakpoint, chat and the right panel are mutually
-	// exclusive, so a panel left open on a wide window would hide chat
-	// as soon as the window narrows. Suppression hides the panel while
-	// narrow without touching the persisted preference: widening
-	// restores the panel, and an explicit toggle overrides it.
-	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
-	const [panelSuppressedOnNarrow, setPanelSuppressedOnNarrow] =
-		useState(isBelowLg);
-	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);
-	// Render-time state adjustment on breakpoint crossings; see
-	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-	if (isBelowLg !== prevIsBelowLg) {
-		setPrevIsBelowLg(isBelowLg);
-		setPanelSuppressedOnNarrow(isBelowLg);
-	}
-	// Canonical panel visibility: the persisted preference gated by the
-	// narrow-viewport suppression. Only this derived value may be
-	// rendered or handed to children; the raw preference stays local.
-	const showSidebarPanel = sidebarPanelPreference && !panelSuppressedOnNarrow;
-
-	const handleSetShowSidebarPanel = (next: boolean) => {
-		setPanelSuppressedOnNarrow(false);
-		setSidebarPanelPreference(next);
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(next));
-	};
+	const { showSidebarPanel, handleSetShowSidebarPanel } =
+		useAgentChatPanelPreference();
 
 	const chatQuery = useQuery({
 		...openChat(agentId ?? ""),
@@ -576,72 +305,11 @@ const AgentChatPage: FC = () => {
 		modelsQuery.data,
 	);
 
-	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
-	// Subscribe to live workspace updates so that agent status changes
-	// (e.g. connected/disconnected) are reflected without a page refresh.
-	const applyWatchedWorkspaceUpdate = useEffectEvent(
-		(watchedWorkspaceId: string, next: TypesGen.Workspace) => {
-			queryClient.setQueryData<TypesGen.Workspace | undefined>(
-				workspaceByIdKey(watchedWorkspaceId),
-				(prev) => {
-					// Return the same reference when nothing the UI
-					// reads has changed. This prevents react-query
-					// from notifying subscribers and avoids a full
-					// AgentChatPage re-render on every heartbeat.
-					if (
-						prev &&
-						isWatchedWorkspaceViewUnchanged(prev, next, chatAgentId)
-					) {
-						return prev;
-					}
-					return next;
-				},
-			);
-			// Refetch once per chat/build/binding key for immediate repair
-			// after a rebuild; the chat query's refetchInterval owns retries
-			// when repair fails, so the latch never blocks recovery.
-			if (!agentId || !isChatAgentBindingUnresolved(next, chatAgentId)) {
-				return;
-			}
-			const refetchKey = `${agentId}:${next.latest_build.id}:${chatAgentId ?? ""}`;
-			if (agentBindingRefetchKeyRef.current === refetchKey) {
-				return;
-			}
-			agentBindingRefetchKeyRef.current = refetchKey;
-			void invalidateChatEntity(queryClient, agentId);
-		},
-	);
-	useEffect(() => {
-		if (!workspaceId) {
-			return;
-		}
-		return createReconnectingWebSocket({
-			connect() {
-				const socket = watchWorkspace(workspaceId);
-				socket.addEventListener("message", (event) => {
-					if (event.parseError) {
-						return;
-					}
-					if (event.parsedMessage.type === "data") {
-						applyWatchedWorkspaceUpdate(
-							workspaceId,
-							event.parsedMessage.data as TypesGen.Workspace,
-						);
-					}
-				});
-				return socket;
-			},
-			onOpen() {
-				// Refetch workspace data on reconnection to cover
-				// events missed while disconnected. Also fires on the
-				// initial connection (harmless, may deduplicate with
-				// the in-flight useQuery fetch).
-				void queryClient.invalidateQueries({
-					queryKey: workspaceByIdKey(workspaceId),
-				});
-			},
-		});
-	}, [workspaceId, queryClient]);
+	useWorkspaceWatch({
+		workspaceId,
+		agentId,
+		chatAgentId,
+	});
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
