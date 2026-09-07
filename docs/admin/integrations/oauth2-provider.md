@@ -130,7 +130,7 @@ If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_
 > A public client may use `http://` only with a loopback host (`localhost`, `127.0.0.1`, `[::1]`).
 > An `http://` redirect URI to any other host is rejected, so use `https://` instead.
 > A confidential client has the same restriction but also accepts `.localhost` subdomains over `http://`.
-> The port of a loopback redirect URI is not compared, as RFC 8252 requires for native apps that choose a port at runtime.
+> Coder ignores the port of an `http://` redirect URI to one of those three loopback hosts, for public and confidential clients alike. RFC 8252 requires this for `127.0.0.1` and `[::1]` so that native apps can choose a port at runtime. Coder applies it to `localhost` too. A `.localhost` subdomain still requires an exact port match.
 > Register `http://127.0.0.1/callback` and present whichever port the client is listening on.
 >
 > Which schemes a redirect URI may use is a separate restriction that
