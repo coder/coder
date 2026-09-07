@@ -456,9 +456,9 @@ resource "coder_agent" "dev" {
       MISE_DATA_DIR : "/home/coder/.local/share/mise",
     },
     {
-      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/anthropic",
+      ANTHROPIC_BASE_URL : "${trimsuffix(data.coder_workspace.me.access_url, "/")}/api/v2/ai-gateway/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/openai/v1",
+      OPENAI_BASE_URL : "${trimsuffix(data.coder_workspace.me.access_url, "/")}/api/v2/ai-gateway/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     }
   )
