@@ -239,7 +239,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
 		}
 		// Remove child rows orphaned by a user soft-delete that predates the
-		// guard triggers and cleanup coverage (migration 000591). The guards
+		// guard triggers and cleanup coverage (migration 000592). The guards
 		// prevent new orphans, so after the first pass this is a no-op.
 		if err := tx.PurgeSoftDeletedUserResources(ctx); err != nil {
 			return xerrors.Errorf("failed to purge soft-deleted user resources: %w", err)

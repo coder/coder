@@ -215,7 +215,7 @@ func genData(t *testing.T, db database.Store, sqlDB *sql.DB) []database.User {
 				randName := testutil.MustRandString(t, 32)
 				// Users in the deleted lane are created live, seeded, and
 				// soft-deleted below with the cleanup trigger suppressed:
-				// the guard triggers (migration 000591) reject inserting
+				// the guard triggers (migration 000592) reject inserting
 				// child rows for already-deleted users, and the point of
 				// the deleted lane is encrypting the orphaned rows that
 				// predate them.
@@ -284,7 +284,7 @@ func genData(t *testing.T, db database.Store, sqlDB *sql.DB) []database.User {
 				}
 				if deleted {
 					// Reconstructs orphaned child rows that predate the
-					// migration 000591 guards; rotation must handle them.
+					// migration 000592 guards; rotation must handle them.
 					dbtestutil.SoftDeleteUserKeepingRows(context.Background(), t, sqlDB, usr.ID)
 					usr.Deleted = true
 				}

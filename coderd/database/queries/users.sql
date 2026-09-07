@@ -745,7 +745,7 @@ WHERE id = @id::uuid;
 
 -- Acquires the users-row lock that the soft-delete guard triggers take on
 -- child-table inserts and owner reassignments (see check_user_not_deleted in
--- migration 000591). Any transaction that writes a guarded child row
+-- migration 000592). Any transaction that writes a guarded child row
 -- (INSERT, UPDATE, or DELETE) and later inserts a guarded row for the same
 -- user (for example the OAuth2 token exchange, which replaces api_keys rows)
 -- must call this first so its lock order (users first, then child rows)
@@ -767,7 +767,7 @@ WHERE id = @user_id
 FOR NO KEY UPDATE;
 
 -- Deletes child rows belonging to already-soft-deleted users. The guard
--- triggers (migration 000591) prevent new rows from being created for
+-- triggers (migration 000592) prevent new rows from being created for
 -- soft-deleted users, and delete_deleted_user_resources cleans rows at
 -- soft-delete time; this reaper removes what predates both (legacy orphans
 -- from before cleanup coverage, and race products from before the guards).

@@ -912,7 +912,7 @@ BEGIN
 	-- DELETE) and later inserts a guarded row for the same user must call
 	-- AcquireUserSoftDeleteGuardLock first, so its lock order (users, then
 	-- child rows) matches delete_deleted_user_resources. The same contract
-	-- covers the cap triggers' advisory locks (migration 000590): without
+	-- covers the cap triggers' advisory locks (migration 000591): without
 	-- the users lock first, an update-then-insert writer can cycle with a
 	-- concurrent insert that holds the users lock and waits on the
 	-- advisory lock. coderd/database/user_soft_delete_guards_test.go

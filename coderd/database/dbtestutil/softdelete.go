@@ -13,7 +13,7 @@ import (
 // delete_deleted_user_resources cleanup trigger, so the user's child rows
 // (api_keys, user_links, and the other guarded tables) survive. This
 // reconstructs the orphaned-row state that could exist before migration
-// 000591 closed the insert-vs-soft-delete race (the insert guards now also
+// 000592 closed the insert-vs-soft-delete race (the insert guards now also
 // reject new rows for deleted users, so the state can only be constructed
 // this way). Tests use it to prove such legacy rows stay inert.
 func SoftDeleteUserKeepingRows(ctx context.Context, t testing.TB, sqlDB *sql.DB, userID uuid.UUID) {

@@ -3556,7 +3556,7 @@ func TestDeleteIdentifiedModuleCacheFiles(t *testing.T) {
 
 // TestPurgeSoftDeletedUserResources verifies the reaper removes child rows
 // orphaned by a user soft-delete that predates the guard triggers and
-// cleanup coverage (migration 000591 deliberately has no backfill), while a
+// cleanup coverage (migration 000592 deliberately has no backfill), while a
 // live user's rows survive.
 //
 //nolint:paralleltest // It uses LockIDDBPurge.

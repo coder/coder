@@ -16,7 +16,7 @@ import (
 
 // TestSoftDeleteGuardWinsConcurrentInsert verifies that all eight soft-delete
 // guard triggers serialize against a concurrent user soft-delete via the
-// parent-row lock added in migration 000591: the insert blocks on the locked
+// parent-row lock added in migration 000592: the insert blocks on the locked
 // users row and, once the soft-delete commits, fails with the guard's
 // constraint instead of resurrecting a row for the deleted user. Each
 // subtest also pins its database.Check* constant against the live trigger by
@@ -177,7 +177,7 @@ func TestSoftDeleteGuardWinsConcurrentInsert(t *testing.T) {
 }
 
 // TestSoftDeleteGuardBlocksOwnerReassignment pins the UPDATE ... SET user_id
-// leg added by migration 000591: re-parenting a live child row onto a
+// leg added by migration 000592: re-parenting a live child row onto a
 // soft-deleted user is rejected, both when the target is already deleted and
 // when the soft-delete races the reassignment (the reassignment takes the
 // same users-row lock as an insert). api_keys covers the dedicated
@@ -574,7 +574,7 @@ func TestSoftDeleteGuardLockOrderPaths(t *testing.T) {
 
 	// The advisory-lock leg of the ordering contract: an update-then-insert
 	// user_secrets writer holds the per-user advisory lock (from the
-	// UPDATE-path cap trigger, migration 000590) with no users lock, so a
+	// UPDATE-path cap trigger, migration 000591) with no users lock, so a
 	// concurrent insert that holds the users lock and waits on the advisory
 	// lock would cycle with it. Taking the users lock first (as the
 	// contract requires) serializes the two: the concurrent insert queues

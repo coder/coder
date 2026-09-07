@@ -1,7 +1,7 @@
 package database
 
 // Constraint names raised by the user soft-delete guard trigger functions
-// installed by migration 000591 (check_user_not_deleted and the per-table
+// installed by migration 000592 (check_user_not_deleted and the per-table
 // functions delegating to it). These are raised with USING CONSTRAINT from
 // plpgsql, not declared as table CHECK constraints, so dbgen does not emit
 // them in check_constraint.go; they are declared once here so handlers and

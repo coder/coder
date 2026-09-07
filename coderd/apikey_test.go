@@ -73,7 +73,7 @@ func TestTokenCRUD(t *testing.T) {
 // TestAPIKeysDeletedUser verifies both key-creation handlers map the
 // api_keys soft-delete guard to a 409: the {user} parameter resolves
 // deleted users by ID, so a stale ID reaches the insert and the guard
-// trigger (migration 000591) rejects it instead of surfacing a 500.
+// trigger (migration 000592) rejects it instead of surfacing a 500.
 func TestAPIKeysDeletedUser(t *testing.T) {
 	t.Parallel()
 
