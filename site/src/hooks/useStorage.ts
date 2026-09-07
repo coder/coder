@@ -7,13 +7,17 @@ export function useStorage<T>(
 		(Extract<T, (...args: never[]) => unknown> extends never
 			? unknown
 			: { storageValuesMustNotBeCallable: never }),
-): [T, (value: T | ((prev: T) => T)) => PersistResult, () => PersistResult] {
+): [
+	T,
+	(value: NonNullable<T> | ((prev: T) => NonNullable<T>)) => PersistResult,
+	() => PersistResult,
+] {
 	const value = useSyncExternalStore(handle.subscribe, handle.getSnapshot);
 	const set = useCallback(
-		(next: T | ((prev: T) => T)) =>
+		(next: NonNullable<T> | ((prev: T) => NonNullable<T>)) =>
 			handle.set(
 				typeof next === "function"
-					? (next as (prev: T) => T)(handle.get())
+					? (next as (prev: T) => NonNullable<T>)(handle.get())
 					: next,
 			),
 		[handle],

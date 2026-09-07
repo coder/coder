@@ -210,10 +210,10 @@ export const RightPanel = ({
 	// rendered side-by-side panel never overflows.
 	useEffect(() => {
 		const handleResize = () => {
-			setStoredWidth((prev) => {
-				const max = getSideBySideMaxWidth(panelRef.current);
-				return widthFromStored(prev) > max ? Math.round(max) : prev;
-			});
+			const max = getSideBySideMaxWidth(panelRef.current);
+			if (widthFromStored(rightPanelWidthStorage.get()) > max) {
+				setStoredWidth(Math.round(max));
+			}
 		};
 		handleResize();
 		const parent = panelRef.current?.parentElement;

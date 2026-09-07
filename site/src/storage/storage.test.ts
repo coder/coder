@@ -1,5 +1,13 @@
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	expectTypeOf,
+	it,
+	vi,
+} from "vitest";
 import { array, string } from "yup";
 import { useStorage } from "#/hooks/useStorage";
 import {
@@ -126,10 +134,11 @@ describe("storage core", () => {
 		expect(Object.is(numberKey.get(), 0)).toBe(true);
 	});
 
-	it("removes the key when setting null", () => {
+	it("removes the key explicitly", () => {
+		expectTypeOf(numberKey.set).parameter(0).toEqualTypeOf<number>();
 		numberKey.set(7);
 		expect(localStorage.getItem("test.number")).toBe("7");
-		expect(numberKey.set(null)).toEqual({ ok: true });
+		expect(numberKey.remove()).toEqual({ ok: true });
 		expect(localStorage.getItem("test.number")).toBeNull();
 	});
 
@@ -172,13 +181,12 @@ describe("storage core", () => {
 		expect(localStorage.getItem("test.cycle")).toBeNull();
 	});
 
-	it("reports removal failures from remove and set(null)", () => {
+	it("reports removal failures", () => {
 		numberKey.set(7);
 		vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
 			throw new Error("denied");
 		});
 		expect(numberKey.remove()).toEqual({ ok: false, reason: "unavailable" });
-		expect(numberKey.set(null)).toEqual({ ok: false, reason: "unavailable" });
 		expect(localStorage.getItem("test.number")).toBe("7");
 	});
 
@@ -522,6 +530,9 @@ describe("useStorage", () => {
 
 	it("evaluates updaters against the storage snapshot", () => {
 		const { result } = renderHook(() => useStorage(numberKey));
+		expectTypeOf(result.current[1])
+			.parameter(0)
+			.toEqualTypeOf<number | ((prev: number | null) => number)>();
 
 		// Two updater calls before a render commits compose instead of
 		// both reading the same stale render closure.
