@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useLocation } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { PopoverContent } from "#/components/Popover/Popover";
@@ -24,8 +24,6 @@ const defaultProps = {
 	onUnpinAgent: fn(),
 	onOpenRenameDialog: fn(),
 	onUnarchiveAgent: fn(),
-	isSidebarCollapsed: false,
-	onToggleSidebarCollapsed: fn(),
 } satisfies React.ComponentProps<typeof ChatTopBar>;
 
 const meta: Meta<typeof ChatTopBar> = {
@@ -88,8 +86,31 @@ export const WithParentChat: Story = {
 };
 
 export const SidebarCollapsed: Story = {
-	args: {
-		isSidebarCollapsed: true,
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-1" },
+			routing: [
+				{
+					path: "/",
+					element: (
+						<Outlet
+							context={{
+								isSidebarCollapsed: true,
+								onToggleSidebarCollapsed: fn(),
+								onExpandSidebar: () => {},
+							}}
+						/>
+					),
+					children: [{ path: "agents/:agentId", useStoryElement: true }],
+				},
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Expand sidebar" }),
+		).toBeVisible();
 	},
 };
 

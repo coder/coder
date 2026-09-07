@@ -162,10 +162,6 @@ interface AgentChatPageViewProps {
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading?: boolean;
 
-	// Sidebar / panel state.
-	isSidebarCollapsed: boolean;
-	onToggleSidebarCollapsed: () => void;
-
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
 	showSidebarPanel: boolean;
@@ -359,8 +355,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	selectedWorkspaceId = null,
 	onWorkspaceChange,
 	isWorkspaceLoading = false,
-	isSidebarCollapsed,
-	onToggleSidebarCollapsed,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	prNumber,
@@ -899,8 +893,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									isArchived={isArchived}
 									diffStatusData={diffStatusData}
 									isSharedChat={isSharedChat}
-									isSidebarCollapsed={isSidebarCollapsed}
-									onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 									renderChatSharingContent={
 										canOpenChatSharing
 											? (open) => (
@@ -1054,8 +1046,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 							onClose={() => onSetShowSidebarPanel(false)}
 							onVisualExpandedChange={setDragVisualExpanded}
-							isSidebarCollapsed={isSidebarCollapsed}
-							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 						>
 							<SidebarTabView
 								effectiveTabId={effectiveSidebarTabId}
@@ -1078,8 +1068,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onToggleExpanded={() =>
 									setIsRightPanelExpanded((prev) => !prev)
 								}
-								isSidebarCollapsed={isSidebarCollapsed}
-								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 								chatTitle={chatTitle}
 							/>
 						</RightPanel>
@@ -1110,8 +1098,6 @@ interface AgentChatPageLoadingViewProps {
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
-	isSidebarCollapsed: boolean;
-	onToggleSidebarCollapsed: () => void;
 	showRightPanel: boolean;
 }
 
@@ -1131,8 +1117,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	isModelCatalogLoading = false,
 	planModeEnabled,
 	onPlanModeToggle,
-	isSidebarCollapsed,
-	onToggleSidebarCollapsed,
 	showRightPanel,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
@@ -1153,8 +1137,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 					onUnarchiveAgent={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
 					hasWorkspace={false}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
 				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 					<div className="px-4">
@@ -1197,8 +1179,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 					isExpanded={false}
 					onToggleExpanded={() => {}}
 					onClose={() => {}}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				>
 					<RightPanelSkeleton />
 				</RightPanel>
@@ -1207,15 +1187,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	);
 };
 
-interface AgentChatPageNotFoundViewProps {
-	isSidebarCollapsed: boolean;
-	onToggleSidebarCollapsed: () => void;
-}
-
-export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
-	isSidebarCollapsed,
-	onToggleSidebarCollapsed,
-}) => {
+export const AgentChatPageNotFoundView: FC = () => {
 	return (
 		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
 			<ChatTopBar
@@ -1227,8 +1199,6 @@ export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
 				onUnarchiveAgent={() => {}}
 				onArchiveAndDeleteWorkspace={() => {}}
 				hasWorkspace={false}
-				isSidebarCollapsed={isSidebarCollapsed}
-				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			/>
 			<div className="flex flex-1 items-center justify-center text-content-secondary">
 				Chat not found

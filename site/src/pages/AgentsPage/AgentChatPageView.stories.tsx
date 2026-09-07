@@ -1,6 +1,7 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, type FC, useRef, useState } from "react";
+import { Outlet } from "react-router";
 import {
 	expect,
 	fireEvent,
@@ -109,6 +110,31 @@ const agentsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
+const collapsedSidebarRouter = reactRouterParameters({
+	location: {
+		path: `/agents/${AGENT_ID}`,
+		pathParams: { agentId: AGENT_ID },
+	},
+	routing: [
+		{
+			path: "/",
+			element: (
+				<Outlet
+					context={{
+						isSidebarCollapsed: true,
+						onToggleSidebarCollapsed: () => {},
+						onExpandSidebar: () => {},
+					}}
+				/>
+			),
+			children: [
+				{ path: "agents/:agentId", useStoryElement: true },
+				{ path: "agents", useStoryElement: true },
+			],
+		},
+	],
+});
+
 // ---------------------------------------------------------------------------
 // Wrapper component.
 //
@@ -150,8 +176,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
-		isSidebarCollapsed: false,
-		onToggleSidebarCollapsed: fn(),
 		showSidebarPanel: false,
 		onSetShowSidebarPanel: fn(),
 		prNumber: undefined as number | undefined,
@@ -671,7 +695,8 @@ index abc1234..def5678 100644
 
 /** Left sidebar is collapsed. */
 export const SidebarCollapsed: Story = {
-	render: () => <StoryAgentChatPageView isSidebarCollapsed />,
+	parameters: { reactRouter: collapsedSidebarRouter },
+	render: () => <StoryAgentChatPageView />,
 };
 
 /** No model options available — shows a disabled status message. */
@@ -916,8 +941,6 @@ export const Loading: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -939,8 +962,6 @@ export const LoadingWithModelOptions: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -961,8 +982,6 @@ export const LoadingWithRightPanel: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel
 		/>
 	),
@@ -970,6 +989,7 @@ export const LoadingWithRightPanel: Story = {
 
 /** Loading state with the left sidebar collapsed. */
 export const LoadingSidebarCollapsed: Story = {
+	parameters: { reactRouter: collapsedSidebarRouter },
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
@@ -984,8 +1004,6 @@ export const LoadingSidebarCollapsed: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -1107,22 +1125,13 @@ export const EditingMessage: Story = {
 
 /** Shows the "Chat not found" message. */
 export const NotFound: Story = {
-	render: () => (
-		<AgentChatPageNotFoundView
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
-		/>
-	),
+	render: () => <AgentChatPageNotFoundView />,
 };
 
 /** "Chat not found" with the left sidebar collapsed. */
 export const NotFoundSidebarCollapsed: Story = {
-	render: () => (
-		<AgentChatPageNotFoundView
-			isSidebarCollapsed
-			onToggleSidebarCollapsed={fn()}
-		/>
-	),
+	parameters: { reactRouter: collapsedSidebarRouter },
+	render: () => <AgentChatPageNotFoundView />,
 };
 
 // ---------------------------------------------------------------------------
