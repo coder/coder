@@ -36,6 +36,12 @@ var authHeaders = []string{
 	"X-Api-Key",
 }
 
+// HeaderAnthropicWorkspaceID identifies the Anthropic workspace a request is
+// attributed to. Claude Platform for AWS requires it on every data plane
+// request. It is set from provider configuration, never preserved from the
+// client, so a client cannot choose which workspace its traffic bills to.
+const HeaderAnthropicWorkspaceID = "Anthropic-Workspace-Id"
+
 // proxyHeaders describe the path the inbound request took to reach
 // aibridge. On bridge routes aibridge acts as a client, not a proxy,
 // so these headers are not meaningful on the outbound request.
@@ -75,6 +81,9 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 	for _, h := range agentFirewallHeaders {
 		prepared.Del(h)
 	}
+	// Never forward a client-supplied workspace ID: providers that need one set
+	// it from their own configuration.
+	prepared.Del(HeaderAnthropicWorkspaceID)
 	return prepared
 }
 
