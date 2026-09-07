@@ -1821,6 +1821,48 @@ func TestAgent_Metadata(t *testing.T) {
 			t.Fatalf("expected metadata to be collected again")
 		}
 	})
+
+	t.Run("Stderr", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("stderr redirection test uses sh syntax")
+		}
+
+		//nolint:dogsled
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
+				{
+					Key:      "noisy",
+					Interval: 0,
+					Script:   "echo 'shell startup noise' >&2; echo 'hello'",
+				},
+				{
+					Key:      "failing",
+					Interval: 0,
+					Script:   "echo 'permission denied' >&2; exit 1",
+				},
+			},
+		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ReportMetadataInterval = testutil.IntervalFast
+		})
+
+		var gotMd map[string]agentsdk.Metadata
+		require.Eventually(t, func() bool {
+			gotMd = client.GetMetadata()
+			return len(gotMd) == 2
+		}, testutil.WaitShort, testutil.IntervalFast/2)
+
+		// A script that succeeds reports stdout only, even when the shell
+		// wrote to stderr on startup.
+		require.Equal(t, "hello", strings.TrimSpace(gotMd["noisy"].Value))
+		require.Empty(t, gotMd["noisy"].Error)
+
+		// A script that fails reports stderr in the error, where it can
+		// explain the failure.
+		require.Empty(t, strings.TrimSpace(gotMd["failing"].Value))
+		require.Contains(t, gotMd["failing"].Error, "permission denied")
+	})
 }
 
 func TestAgentMetadata_Timing(t *testing.T) {
