@@ -174,8 +174,6 @@ const AgentChatPage: FC = () => {
 		archivingChatId,
 		activeChatChildren,
 		onOpenRenameDialog,
-		isSidebarCollapsed,
-		onToggleSidebarCollapsed,
 		onChatReady,
 	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
@@ -1201,20 +1199,13 @@ const AgentChatPage: FC = () => {
 					isModelCatalogLoading={isModelDataPending}
 					planModeEnabled={planModeEnabled}
 					onPlanModeToggle={handlePlanModeToggle}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					showRightPanel={showSidebarPanel}
 				/>
 			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
-					<AgentChatPageNotFoundView
-						isSidebarCollapsed={isSidebarCollapsed}
-						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-					/>
+					<AgentChatPageNotFoundView />
 				) : (
 					<AgentChatPageErrorView
-						isSidebarCollapsed={isSidebarCollapsed}
-						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 						error={
 							chatQuery.isLoadingError
 								? chatQuery.error
@@ -1233,10 +1224,7 @@ const AgentChatPage: FC = () => {
 			) : !chatQuery.data ||
 				!chatMessagesQuery.data?.pages?.length ||
 				!agentId ? (
-				<AgentChatPageNotFoundView
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-				/>
+				<AgentChatPageNotFoundView />
 			) : (
 				<AgentChatPageView
 					key={agentId}
@@ -1293,8 +1281,6 @@ const AgentChatPage: FC = () => {
 						canUpdateChatWorkspace ? handleWorkspaceChange : undefined
 					}
 					isWorkspaceLoading={isWorkspaceLoading}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					showSidebarPanel={showSidebarPanel}
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					prNumber={prNumber}

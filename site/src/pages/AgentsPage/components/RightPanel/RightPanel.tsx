@@ -6,6 +6,8 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useOutletContext } from "react-router";
+import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
@@ -65,8 +67,6 @@ interface RightPanelProps {
 	 * null when the drag ends so the parent falls back to the
 	 * committed isExpanded prop. */
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
-	isSidebarCollapsed?: boolean;
-	onToggleSidebarCollapsed?: () => void;
 	children: ReactNode;
 }
 
@@ -202,10 +202,10 @@ export const RightPanel = ({
 	onToggleExpanded,
 	onClose,
 	onVisualExpandedChange,
-	isSidebarCollapsed,
-	onToggleSidebarCollapsed,
 	children,
 }: RightPanelProps) => {
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 	const [width, setWidth] = useState(loadPersistedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
 

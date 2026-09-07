@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { Navigate, useOutletContext } from "react-router";
+import { Navigate } from "react-router";
 import {
 	expect,
 	fireEvent,
@@ -43,9 +43,7 @@ import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsLayout from "./AgentSettingsLayout";
-import AgentsPageLayout, {
-	type AgentsPageOutletContext,
-} from "./AgentsPageLayout";
+import AgentsPageLayout from "./AgentsPageLayout";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -196,8 +194,6 @@ const setInnerWidthForStory = (width: number) => {
 };
 
 const AgentTopBarRouteElement = () => {
-	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
-		useOutletContext<AgentsPageOutletContext>();
 	return (
 		<ChatTopBar
 			chatTitle="Collapsed sidebar agent"
@@ -205,8 +201,6 @@ const AgentTopBarRouteElement = () => {
 			onArchiveAgent={fn()}
 			onArchiveAndDeleteWorkspace={fn()}
 			onUnarchiveAgent={fn()}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 		/>
 	);
 };
