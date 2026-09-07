@@ -58,7 +58,8 @@ func TestRegisterSDKToolErrors(t *testing.T) {
 				Tool: aisdk.Tool{Name: "test_error", Schema: aisdk.Schema{Properties: map[string]any{"value": map[string]any{"type": "string"}}}},
 				Handler: func(context.Context, toolsdk.Deps, struct {
 					Value string `json:"value"`
-				}) (string, error) {
+				},
+				) (string, error) {
 					if tt.panicValue != nil {
 						panic(tt.panicValue)
 					}
