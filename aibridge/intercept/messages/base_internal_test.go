@@ -185,7 +185,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 			t.Parallel()
 
 			base := &interceptionBase{
-				bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", "")),
+				auth: AuthRuntime{Bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""))},
 			}
 			opts, err := base.withBedrockInvokeModelOptions(context.Background())
 
@@ -202,7 +202,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 
 // TestAWSBedrockOptionsRequireRuntime verifies that option assembly fails when
 // the Bedrock runtime was not set. This should never happen in practice, since
-// withBedrockInvokeModelOptions is only called when i.bedrock != nil.
+// withBedrockInvokeModelOptions is only called when i.auth.Bedrock != nil.
 func TestAWSBedrockOptionsRequireRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -254,7 +254,7 @@ func TestModelForBedrockInvokeModel(t *testing.T) {
 
 			i := &interceptionBase{
 				reqPayload:       mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
-				bedrock:          runtime,
+				auth:             AuthRuntime{Bedrock: runtime},
 				isSmallFastModel: tt.smallFast,
 				logger:           slog.Make(),
 			}
@@ -296,10 +296,10 @@ func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
 		newInterception func(payload RequestPayload) *interceptionBase
 	}{
 		{name: "blocking", newInterception: func(payload RequestPayload) *interceptionBase {
-			return &NewBlockingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, http.Header{}, nil).interceptionBase
+			return &NewBlockingInterceptor(uuid.New(), payload, intercept.Config{}, nil, AuthRuntime{Bedrock: runtime}, http.Header{}, nil).interceptionBase
 		}},
 		{name: "streaming", newInterception: func(payload RequestPayload) *interceptionBase {
-			return &NewStreamingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, http.Header{}, nil).interceptionBase
+			return &NewStreamingInterceptor(uuid.New(), payload, intercept.Config{}, nil, AuthRuntime{Bedrock: runtime}, http.Header{}, nil).interceptionBase
 		}},
 	}
 
@@ -343,10 +343,10 @@ func TestModelForPlainBedrockModelID(t *testing.T) {
 
 	i := &interceptionBase{
 		reqPayload: mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
-		bedrock: NewBedrockRuntime(config.AWSBedrock{
+		auth: AuthRuntime{Bedrock: NewBedrockRuntime(config.AWSBedrock{
 			Model:          "eu.anthropic.claude-opus-4-8",
 			SmallFastModel: "anthropic.claude-haiku-4-5",
-		}, nil),
+		}, nil)},
 		logger: slog.Make(),
 	}
 
@@ -1003,12 +1003,12 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			// Plain model IDs resolve to themselves; an application inference
 			i := &interceptionBase{
 				reqPayload: mustMessagesPayload(t, tc.requestBody),
-				bedrock: NewBedrockRuntime(config.AWSBedrock{
+				auth: AuthRuntime{Bedrock: NewBedrockRuntime(config.AWSBedrock{
 					Model:                  tc.bedrockModel,
 					SmallFastModel:         "anthropic.claude-haiku-3-5",
 					ResolvedModel:          tc.resolvedModel,
 					ResolvedSmallFastModel: "anthropic.claude-haiku-3-5",
-				}, nil),
+				}, nil)},
 				clientHeaders: clientHeaders,
 				logger:        slog.Make(),
 			}
@@ -1357,11 +1357,11 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 	i := &interceptionBase{
 		reqPayload: mustMessagesPayload(t,
 			`{"model":"anthropic.claude-opus-4-8","max_tokens":10000,"thinking":{"type":"adaptive"},"metadata":{"user_id":"u123"},"context_management":{"type":"auto"}}`),
-		bedrock: NewBedrockRuntime(config.AWSBedrock{
+		auth: AuthRuntime{Bedrock: NewBedrockRuntime(config.AWSBedrock{
 			Region:   "us-east-1",
 			BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
 			Protocol: config.BedrockProtocolMantle,
-		}, credentials.NewStaticCredentialsProvider("test-key", "test-secret", "")),
+		}, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""))},
 		logger: slog.Make(),
 	}
 
@@ -1412,7 +1412,7 @@ func TestAWSMantleOptionsValidation(t *testing.T) {
 			t.Parallel()
 
 			base := &interceptionBase{
-				bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", "")),
+				auth: AuthRuntime{Bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""))},
 			}
 			opts, err := base.withBedrockMantleOptions(t.Context())
 			if tt.errorMsg != "" {

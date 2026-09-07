@@ -35,7 +35,7 @@ func NewBlockingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrock *BedrockRuntime,
+	auth AuthRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
@@ -44,7 +44,7 @@ func NewBlockingInterceptor(
 		reqPayload:       reqPayload,
 		cfg:              cfg,
 		cred:             cred,
-		bedrock:          bedrock,
+		auth:             auth,
 		clientHeaders:    clientHeaders,
 		tracer:           tracer,
 		isSmallFastModel: isSmallFastModel(reqPayload.model()),
