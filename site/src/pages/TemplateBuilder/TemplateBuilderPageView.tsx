@@ -355,7 +355,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 					{showContinueError && !canContinue && (
 						<p className="flex justify-end mt-2 mb-0 text-xs text-content-destructive">
-							{continueErrorMessage(currentStep.id)}
+							{getContinueErrorMessage(currentStep.id)}
 						</p>
 					)}
 
@@ -484,7 +484,7 @@ const StepContent: FC<StepContentProps> = ({
  * Human-readable reason a step's requirements are not yet met, shown in red
  * when the user clicks Continue on an incomplete step.
  */
-function continueErrorMessage(stepId: StepId): string {
+function getContinueErrorMessage(stepId: StepId): string {
 	switch (stepId) {
 		case "base-infra":
 			return "Select a base template to continue.";
