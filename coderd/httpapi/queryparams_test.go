@@ -667,25 +667,18 @@ func TestRedirectURL(t *testing.T) {
 		require.Equal(t, presented, got.String())
 	})
 
-	// Only the port is excepted. Any other difference is still a mismatch.
+	// Only the port is excepted. codersdk.TestRedirectURIMatches covers each
+	// other component; this checks the wrapper reports the mismatch.
 	t.Run("LoopbackOtherComponentDiffers", func(t *testing.T) {
 		t.Parallel()
 		registered, err := url.Parse("http://127.0.0.1/callback")
 		require.NoError(t, err)
-		for name, presented := range map[string]string{
-			"path":     "http://127.0.0.1:53219/other",
-			"scheme":   "https://127.0.0.1:53219/callback",
-			"host":     "http://localhost:53219/callback",
-			"query":    "http://127.0.0.1:53219/callback?next=x",
-			"userinfo": "http://user@127.0.0.1:53219/callback",
-		} {
-			parser := httpapi.NewQueryParamParser()
-			vals := url.Values{"redirect_uri": []string{presented}}
-			parser.RedirectURL(vals, registered, "redirect_uri")
-			require.Len(t, parser.Errors, 1, "%s differs", name)
-			require.Equal(t, "redirect_uri", parser.Errors[0].Field, "%s differs", name)
-			require.Contains(t, parser.Errors[0].Detail, "must match", "%s differs", name)
-		}
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{"http://127.0.0.1:53219/other"}}
+		parser.RedirectURL(vals, registered, "redirect_uri")
+		require.Len(t, parser.Errors, 1)
+		require.Equal(t, "redirect_uri", parser.Errors[0].Field)
+		require.Contains(t, parser.Errors[0].Detail, "must match")
 	})
 
 	// A non-loopback registration keeps the exact match, port included.
