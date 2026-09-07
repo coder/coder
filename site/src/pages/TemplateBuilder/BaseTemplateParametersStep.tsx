@@ -22,10 +22,6 @@ interface BaseTemplateParametersStepProps {
 	baseId: string;
 	values: Record<string, string>;
 	onChangeValues: (values: Record<string, string>) => void;
-	/**
-	 * When true, required fields left empty are outlined in red to show why
-	 * the step cannot continue.
-	 */
 	showErrors?: boolean;
 }
 
