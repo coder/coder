@@ -1,8 +1,8 @@
-// Package bedrocksig holds the shared AWS SigV4 signing and Bedrock Mantle
+// Package awssig holds the shared AWS SigV4 signing and Bedrock Mantle
 // routing helpers used by both the anthropic-go and openai-go interceptors.
 // It depends only on stdlib and the AWS SDK so it can be imported from either
 // SDK-specific interceptor package without pulling in the other SDK.
-package bedrocksig
+package awssig
 
 import (
 	"bytes"
@@ -19,12 +19,16 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// SigningService is the AWS SigV4 service name for Bedrock Mantle.
-const SigningService = "bedrock-mantle"
+// ServiceBedrockMantle is the AWS SigV4 service name for Bedrock Mantle.
+const ServiceBedrockMantle = "bedrock-mantle"
 
 // PRMUserAgent is Coder's AWS Partner Revenue Measurement (PRM) attribution
 // marker for outbound Bedrock requests. It is appended to the User-Agent
 // header so AWS can recognize the traffic as Coder-associated Bedrock usage.
+//
+// It is Bedrock-specific: only the Bedrock option builders apply it. Other
+// AWS-signed endpoints must not send it without their own attribution
+// agreement.
 const PRMUserAgent = "sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24"
 
 // AppendPRMUserAgent appends the Coder PRM attribution marker to the request's
@@ -36,17 +40,18 @@ func AppendPRMUserAgent(req *http.Request) {
 }
 
 // SignMiddleware returns an stdlib HTTP middleware that SigV4-signs the request
-// for the Bedrock Mantle service. It appends the PRM user-agent, reads and
-// restores the body for hashing, then signs with the given credentials and
-// region. Callers wrap it in their SDK-specific option.WithMiddleware adapter.
-func SignMiddleware(creds aws.CredentialsProvider, region string) func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
+// for the named AWS service. It reads and restores the body for hashing, then
+// signs with the given credentials and region. Callers wrap it in their
+// SDK-specific option.WithMiddleware adapter.
+//
+// The caller is responsible for any service-specific headers or user-agent
+// attribution; this middleware only signs.
+func SignMiddleware(creds aws.CredentialsProvider, region, service string) func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
 	signer := v4.NewSigner()
 	return func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
-		AppendPRMUserAgent(req)
-
 		resolved, err := creds.Retrieve(req.Context())
 		if err != nil {
-			return nil, xerrors.Errorf("mantle SigV4: resolve AWS credentials: %w", err)
+			return nil, xerrors.Errorf("%s SigV4: resolve AWS credentials: %w", service, err)
 		}
 
 		// SigV4 requires a payload hash, so read the body to hash it and then
@@ -55,7 +60,7 @@ func SignMiddleware(creds aws.CredentialsProvider, region string) func(req *http
 		if req.Body != nil {
 			body, err = io.ReadAll(req.Body)
 			if err != nil {
-				return nil, xerrors.Errorf("mantle SigV4: read request body: %w", err)
+				return nil, xerrors.Errorf("%s SigV4: read request body: %w", service, err)
 			}
 			_ = req.Body.Close()
 			req.Body = io.NopCloser(bytes.NewReader(body))
@@ -63,8 +68,8 @@ func SignMiddleware(creds aws.CredentialsProvider, region string) func(req *http
 		}
 
 		hash := sha256.Sum256(body)
-		if err := signer.SignHTTP(req.Context(), resolved, req, hex.EncodeToString(hash[:]), SigningService, region, time.Now()); err != nil {
-			return nil, xerrors.Errorf("mantle SigV4: sign request: %w", err)
+		if err := signer.SignHTTP(req.Context(), resolved, req, hex.EncodeToString(hash[:]), service, region, time.Now()); err != nil {
+			return nil, xerrors.Errorf("%s SigV4: sign request: %w", service, err)
 		}
 		return next(req)
 	}
