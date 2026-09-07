@@ -2604,6 +2604,19 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
+func TestDefaultSystemPromptDelegationGuidance(t *testing.T) {
+	t.Parallel()
+
+	require.NotContains(t, DefaultSystemPrompt, "execute AS MANY TOOLS")
+	require.Contains(t, DefaultSystemPrompt, "without redundant calls")
+	require.Contains(t, DefaultSystemPrompt, "do only independent work; do not repeat its investigation or implementation")
+	require.Contains(t, DefaultSystemPrompt, "use wait_agent instead of doing that work yourself")
+	require.Contains(t, DefaultSystemPrompt, "findings and cited source locations as already-read context")
+	require.Contains(t, DefaultSystemPrompt, "Re-check only a specific gap, contradiction, suspected change, or exact content needed for an edit")
+	require.Contains(t, DefaultSystemPrompt, "message_agent with interrupt=true when available")
+	require.Contains(t, DefaultSystemPrompt, "proceed only after wait_agent confirms it has stopped")
+}
+
 func TestDefaultSystemPromptPlanningGuidance_SteersSubagentSelection(t *testing.T) {
 	t.Parallel()
 
@@ -2611,6 +2624,7 @@ func TestDefaultSystemPromptPlanningGuidance_SteersSubagentSelection(t *testing.
 	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="general" even for read-only work when the task is open-ended, multi-step, parallel, requires synthesis, or may later need edits`)
 	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
 	require.Contains(t, defaultSystemPromptPlanningGuidance, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)
+	require.Contains(t, defaultSystemPromptPlanningGuidance, "wait for its report before investigating that scope yourself")
 	require.NotContains(t, defaultSystemPromptPlanningGuidance, "research the codebase")
 	require.NotContains(t, defaultSystemPromptPlanningGuidance, "Reserve type=\"general\" for writable delegated work")
 }
@@ -2657,6 +2671,9 @@ func TestSpawnAgent_DescriptionSteersGeneralForSubstantialResearch(t *testing.T)
 
 	require.Contains(t, description, `Prefer type="general" for substantial delegated research, analysis, reasoning, review, planning support, or implementation`)
 	require.Contains(t, description, "even when the child should only report findings")
+	require.Contains(t, description, "The assigned scope belongs to the child")
+	require.Contains(t, description, "do not read, search, edit, or test in support of that scope yourself")
+	require.Contains(t, description, "Use wait_agent for dependent work")
 	require.Contains(t, description, `When using type="general" for read-only work, explicitly instruct the child not to modify files and to return findings`)
 	require.Contains(t, description, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
 	require.Contains(t, description, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)

@@ -22,7 +22,8 @@ const (
 	subagentTypeComputerUse = "computer_use"
 
 	defaultSystemPromptPlanningGuidance = "1. Use " + spawnAgentToolName +
-		" and wait_agent when delegation helps gather context. Prefer type=\"" +
+		" and wait_agent when delegation helps gather context. Once a scope is delegated, " +
+		"wait for its report before investigating that scope yourself. Prefer type=\"" +
 		subagentTypeGeneral +
 		"\" for substantial delegated research, analysis, reasoning, review, " +
 		"planning support, or implementation. Use type=\"" + subagentTypeGeneral +
@@ -309,7 +310,10 @@ func buildSpawnAgentDescription(
 ) string {
 	availableDefs := availableSubagentDefinitions(ctx, p, currentChat)
 	description := "Spawn a delegated child subagent to work on a clearly scoped, " +
-		"independent task in parallel. Use the type field to choose " +
+		"independent task in parallel. The assigned scope belongs to the child. " +
+		"While it is running, do not read, search, edit, or test in support of " +
+		"that scope yourself. Parallel work must address a different question. " +
+		"Use wait_agent for dependent work. Use the type field to choose " +
 		"the right specialist. Available type values: " +
 		formatSubagentDefinitionsWithDescriptionOverrides(availableDefs, nil) + ". Do not use this for " +
 		"simple or quick operations you can handle directly with execute, " +

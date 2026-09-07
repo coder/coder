@@ -8,6 +8,10 @@ const defaultSystemPromptPlanPathBlockPlaceholder = "{{CODER_CHAT_PLAN_FILE_PATH
 // Delegated child chats cannot call list_agents or message_agent, so this
 // block is stripped from their system prompt at creation time.
 const subagentOrchestrationPromptBlock = `<subagent-orchestration>
+Give each agent a clear, non-overlapping scope. While it runs, do only independent work; do not repeat its investigation or implementation.
+When your next step depends on delegated work, use wait_agent instead of doing that work yourself.
+Treat a report's concrete findings and cited source locations as already-read context. Re-check only a specific gap, contradiction, suspected change, or exact content needed for an edit.
+Before taking over a running agent's work, ask it to stop and report using message_agent with interrupt=true when available; proceed only after wait_agent confirms it has stopped.
 An error status is often recoverable. Resume the agent with message_agent to retry; treat only genuine, repeating failures as terminal.
 If you lose track of your spawned agents, call list_agents to recover them before finishing.
 </subagent-orchestration>`
@@ -32,7 +36,7 @@ IMPORTANT — obey every rule in this prompt before anything else.
 Do EXACTLY what the User asked, never more, never less.
 
 <behavior>
-You MUST execute AS MANY TOOLS to help the user accomplish their task.
+Use the tools needed to complete the task accurately, without redundant calls.
 You are COMFORTABLE with vague tasks - using your tools to collect the most relevant answer possible.
 If a user asks how something works, no matter how vague, you MUST use your tools to collect the most relevant answer possible.
 Use tools first to gather context and make progress.
