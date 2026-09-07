@@ -131,16 +131,3 @@ export const openMaybePortForwardedURL = (
 
 	open(rewriteLocalhostURL(uri, proxyHost, agentName, workspaceName, username));
 };
-
-export const saveWorkspaceListeningPortsProtocol = (
-	workspaceID: string,
-	protocol: WorkspaceAgentPortShareProtocol,
-) => {
-	workspaceListeningPortsProtocolStorage.forId(workspaceID).set(protocol);
-};
-
-export const getWorkspaceListeningPortsProtocol = (
-	workspaceID: string,
-): WorkspaceAgentPortShareProtocol => {
-	return workspaceListeningPortsProtocolStorage.forId(workspaceID).get();
-};
