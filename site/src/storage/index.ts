@@ -11,12 +11,6 @@ export type PersistResult =
 
 type StorageArea = "local" | "session";
 
-/**
- * Encodes a typed value to the raw string stored in the browser and
- * decodes it back. `decode` returns undefined for invalid or corrupt
- * input so reads fall back to the key's default value. T is the
- * non-null value type; key handles layer null-for-absence on top.
- */
 type StorageCodec<T> = {
 	decode: (raw: string) => T | undefined;
 	encode: (value: T) => string;
@@ -24,34 +18,17 @@ type StorageCodec<T> = {
 
 export type StorageKeyHandle<T> = {
 	readonly key: string;
-	/** Read the stored value, falling back to the default when absent or invalid. */
 	get: () => T;
-	/**
-	 * Persist a value. Passing null or undefined removes the key,
-	 * matching localStorage semantics where absence is the null state.
-	 */
-	set: (value: T) => PersistResult;
-	/** Remove the persisted value; like set, reports whether it took effect. */
+	set: (value: NonNullable<T>) => PersistResult;
 	remove: () => PersistResult;
-	/** Subscribe to same-tab and cross-tab changes of this key. */
 	subscribe: (listener: () => void) => () => void;
-	/**
-	 * Referentially stable read for useSyncExternalStore: repeated
-	 * calls return the same object until the stored bytes change.
-	 */
 	getSnapshot: () => T;
 };
 
 type EntityStorageKey<T> = {
 	readonly prefix: string;
 	forId: (...idParts: string[]) => StorageKeyHandle<T>;
-	/** Key suffixes (the part after `prefix`) currently stored in localStorage. */
 	listStoredSuffixes: () => string[];
-	/**
-	 * Remove every stored key in this family owned by the given entity
-	 * ID, reporting the first failure when some keys could not be
-	 * removed.
-	 */
 	clear: (id: string) => PersistResult;
 };
 
@@ -255,6 +232,7 @@ const createHandle = <T>(
 		return decoded === undefined ? defaultValue : decoded;
 	};
 
+	/** Referentially stable across repeated reads. */
 	const getSnapshot = (): T => {
 		const raw = readRaw(area, key);
 		if (cached && cached.raw === raw) {
@@ -287,10 +265,7 @@ const createHandle = <T>(
 		return { ok: true };
 	};
 
-	const set = (value: T): PersistResult => {
-		if (value === null || value === undefined) {
-			return remove();
-		}
+	const set = (value: NonNullable<T>): PersistResult => {
 		let raw: string;
 		try {
 			raw = codec.encode(value);
