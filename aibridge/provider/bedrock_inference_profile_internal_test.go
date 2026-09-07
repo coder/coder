@@ -248,12 +248,12 @@ func TestNewAnthropic_ServesStoredResolution(t *testing.T) {
 
 		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(cfg *config.AWSBedrock) {
 			cfg.ResolvedModel = "anthropic.claude-opus-4-8"
-		}))
+		}), nil)
 		require.NoError(t, err)
-		require.Equal(t, "anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
+		require.Equal(t, "anthropic.claude-opus-4-8", p.auth.Bedrock.ResolvedModel())
 		// The profile stays the configured identifier so AWS attributes spend to it.
-		require.Equal(t, profileARN, p.bedrock.ConfiguredModel())
-		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
+		require.Equal(t, profileARN, p.auth.Bedrock.ConfiguredModel())
+		require.Equal(t, "anthropic.claude-haiku-4-5", p.auth.Bedrock.ResolvedSmallFastModel())
 	})
 
 	t.Run("unresolved profile serves the configured identifier", func(t *testing.T) {
@@ -263,9 +263,9 @@ func TestNewAnthropic_ServesStoredResolution(t *testing.T) {
 		// still serves, with the ARN as its own identity, which is wrong for
 		// capability detection and pricing but visible to the operator as the
 		// error their save returned.
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(*config.AWSBedrock) {}))
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(*config.AWSBedrock) {}), nil)
 		require.NoError(t, err)
-		require.Equal(t, profileARN, p.bedrock.ResolvedModel())
+		require.Equal(t, profileARN, p.auth.Bedrock.ResolvedModel())
 	})
 
 	t.Run("plain model ids serve themselves", func(t *testing.T) {
@@ -273,9 +273,9 @@ func TestNewAnthropic_ServesStoredResolution(t *testing.T) {
 
 		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(cfg *config.AWSBedrock) {
 			cfg.Model = "eu.anthropic.claude-opus-4-8"
-		}))
+		}), nil)
 		require.NoError(t, err)
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ConfiguredModel())
+		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.auth.Bedrock.ResolvedModel())
+		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.auth.Bedrock.ConfiguredModel())
 	})
 }
