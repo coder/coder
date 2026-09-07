@@ -321,7 +321,6 @@ const AgentChatPage: FC = () => {
 		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
 	const isRootChat =
 		chatRecord !== undefined && getParentChatID(chatRecord) === undefined;
-	const shouldCheckCanShareChat = isRootChat;
 	const chatAuthorizationObject =
 		chatRecord !== undefined
 			? {
@@ -331,7 +330,7 @@ const AgentChatPage: FC = () => {
 				}
 			: undefined;
 	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
-	if (chatAuthorizationObject !== undefined && shouldCheckCanShareChat) {
+	if (chatAuthorizationObject !== undefined && isRootChat) {
 		chatAuthorizationChecks.canShareChat = {
 			object: chatAuthorizationObject,
 			action: "share",
@@ -751,7 +750,6 @@ const AgentChatPage: FC = () => {
 		</title>
 	);
 
-	const parentChat = parentChatQuery.data;
 	const sshCommand =
 		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
@@ -1265,7 +1263,7 @@ const AgentChatPage: FC = () => {
 			)}
 			organizationId={chatQuery.data?.organization_id}
 			chatTitle={chatTitle}
-			parentChat={parentChat}
+			parentChat={parentChatQuery.data}
 			persistedError={persistedError}
 			isArchived={isArchived}
 			isSharedChat={isSharedChat}
@@ -1356,7 +1354,7 @@ const AgentChatPage: FC = () => {
 			onMCPAuthComplete={handleMCPAuthComplete}
 			chatContext={chatQuery.data?.context}
 			queuedForCapacity={chatQuery.data?.queued_for_capacity ?? false}
-			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
+			workspaceSkills={chatWorkspaceSkills}
 		/>
 	);
 };
