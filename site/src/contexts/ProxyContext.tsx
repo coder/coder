@@ -5,7 +5,6 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
-	useState,
 } from "react";
 import { useQuery } from "react-query";
 import { boolean, object, string } from "yup";
@@ -14,6 +13,7 @@ import { cachedQuery } from "#/api/queries/util";
 import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useStorage } from "#/hooks/useStorage";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { defineStorageKey, yupCodec } from "#/storage";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
@@ -110,10 +110,8 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
-	// Using a useState so the caller always has the latest user saved
-	// proxy.
-	const [userSavedProxy, setUserSavedProxy] = useState(
-		() => userSelectedProxyStorage.get() ?? undefined,
+	const [userSavedProxy, setUserSavedProxy, clearUserSavedProxy] = useStorage(
+		userSelectedProxyStorage,
 	);
 
 	const { permissions } = useAuthenticated();
@@ -156,7 +154,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		() =>
 			getPreferredProxy(
 				proxiesResp ?? [],
-				userSavedProxy,
+				userSavedProxy ?? undefined,
 				proxyLatencies,
 				// Do not auto select based on latencies, as inconsistent
 				// latencies can cause this to change on each call. The proxy
@@ -187,17 +185,16 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		);
 
 		if (best?.proxy) {
-			userSelectedProxyStorage.set(best.proxy);
 			setUserSavedProxy(best.proxy);
 		}
-	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
+	}, [latenciesLoaded, proxiesResp, proxyLatencies, setUserSavedProxy]);
 
 	return (
 		<ProxyContext.Provider
 			value={{
 				proxyLatencies,
 				refetchProxyLatencies,
-				userProxy: userSavedProxy,
+				userProxy: userSavedProxy ?? undefined,
 				proxy: proxy,
 				proxies: proxiesResp,
 				latenciesLoaded: latenciesLoaded,
@@ -206,14 +203,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 				error: proxiesError,
 
 				// These functions are exposed to allow the user to select a proxy.
-				setProxy: (proxy: Region) => {
-					userSelectedProxyStorage.set(proxy);
-					setUserSavedProxy(proxy);
-				},
-				clearProxy: () => {
-					userSelectedProxyStorage.remove();
-					setUserSavedProxy(undefined);
-				},
+				setProxy: setUserSavedProxy,
+				clearProxy: clearUserSavedProxy,
 			}}
 		>
 			{children}

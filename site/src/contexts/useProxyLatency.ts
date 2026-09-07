@@ -11,7 +11,7 @@ import {
 } from "yup";
 import { API } from "#/api/api";
 import type { Region } from "#/api/typesGenerated";
-import { defineStorageKey, integerCodec, type StorageCodec } from "#/storage";
+import { defineStorageKey, integerCodec, jsonCodec } from "#/storage";
 import { generateRandomBase64String } from "#/utils/random";
 
 /** Mirrors ProxyLatencyReport below; `date()` revives the persisted ISO string. */
@@ -42,16 +42,9 @@ const storedProxyLatenciesSchema = lazy((value: unknown) =>
 	),
 );
 
-const proxyLatenciesCodec: StorageCodec<StoredProxyLatencies> = {
-	decode: (raw) => {
-		try {
-			return storedProxyLatenciesSchema.validateSync(JSON.parse(raw));
-		} catch {
-			return undefined;
-		}
-	},
-	encode: (value) => JSON.stringify(value),
-};
+const proxyLatenciesCodec = jsonCodec<StoredProxyLatencies>((parsed) =>
+	storedProxyLatenciesSchema.validateSync(parsed),
+);
 
 /**
  * Cached per-proxy latency reports so a single slow request does not

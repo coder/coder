@@ -17,7 +17,7 @@ type StorageArea = "local" | "session";
  * input so reads fall back to the key's default value. T is the
  * non-null value type; key handles layer null-for-absence on top.
  */
-export type StorageCodec<T> = {
+type StorageCodec<T> = {
 	decode: (raw: string) => T | undefined;
 	encode: (value: T) => string;
 };

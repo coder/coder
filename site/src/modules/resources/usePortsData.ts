@@ -7,7 +7,7 @@ import type {
 	WorkspaceAgentListeningPort,
 	WorkspaceAgentPortShare,
 } from "#/api/typesGenerated";
-import { getWorkspaceListeningPortsProtocol } from "#/utils/portForward";
+import { workspaceListeningPortsProtocolStorage } from "#/utils/portForward";
 
 /**
  * Whether port-forwarding UI (ports menus, port preview tabs) should be shown
@@ -41,7 +41,9 @@ export const usePortsData = (
 	agent: WorkspaceAgent,
 	enabled: boolean,
 ): PortsData => {
-	const protocol = getWorkspaceListeningPortsProtocol(workspace.id);
+	const protocol = workspaceListeningPortsProtocolStorage
+		.forId(workspace.id)
+		.get();
 
 	const { data: listeningPorts } = useQuery({
 		...agentListeningPorts(agent.id),
