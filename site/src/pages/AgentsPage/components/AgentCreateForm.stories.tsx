@@ -33,7 +33,6 @@ import {
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
-import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
@@ -43,6 +42,8 @@ import {
 	emptyInputStorageKey,
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
+
+const persistedAttachmentsKey = "agents.persisted-attachments";
 
 let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>
@@ -1320,6 +1321,45 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 	},
 };
 
+export const RestoresSanitizedAttachments: Story = {
+	args: {
+		...defaultArgs,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		// A corrupt sibling must not block restoring the valid entry and
+		// must be dropped from storage by the restore's sanitize rewrite.
+		localStorage.setItem(
+			"agents.persisted-attachments",
+			JSON.stringify([
+				{
+					fileId: "persisted-file-1",
+					fileName: "photo.png",
+					fileType: "image/png",
+					lastModified: 1000,
+					organizationId: "my-organization-id",
+				},
+				{ fileId: 123, corruptMarker: true },
+			]),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove photo.png")).toBeInTheDocument();
+		});
+		await waitFor(() => {
+			const stored = localStorage.getItem("agents.persisted-attachments");
+			if (stored === null) {
+				throw new Error("persisted attachments were removed entirely");
+			}
+			const parsed = JSON.parse(stored);
+			expect(parsed).toHaveLength(1);
+			expect(parsed[0].fileId).toBe("persisted-file-1");
+		});
+	},
+};
+
 export const HookDispatchFailed: Story = {
 	args: {
 		...defaultArgs,
@@ -2080,7 +2120,7 @@ export const RevokedPendingOrgClosesConfirmDialog: Story = {
 	beforeEach: () => {
 		localStorage.clear();
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsKey,
 			JSON.stringify([
 				{
 					fileId: "file-default-org",
@@ -2291,7 +2331,7 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		// Another org's persisted attachment must survive a visit while
 		// the user has no chat permission anywhere.
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsKey,
 			JSON.stringify([
 				{
 					fileId: "file-other-org",
@@ -2319,9 +2359,9 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		);
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 		expect(args.onCreateChat).not.toHaveBeenCalled();
-		expect(
-			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
-		).toContain("file-other-org");
+		expect(localStorage.getItem(persistedAttachmentsKey) ?? "").toContain(
+			"file-other-org",
+		);
 	},
 };
 
