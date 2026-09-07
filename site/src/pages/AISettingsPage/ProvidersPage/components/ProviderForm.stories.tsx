@@ -297,7 +297,9 @@ export const AddBedrockWithoutStaticCredentials: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const accessKeyInput = await canvas.findByLabelText(/^access key\s*$/i);
+		const accessKeyInput = await canvas.findByRole("textbox", {
+			name: /^access key$/i,
+		});
 		const accessKeySecretInput =
 			await canvas.findByLabelText(/access key secret/i);
 
@@ -343,7 +345,9 @@ export const AddBedrockHalfCredentialPairBlocked: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const accessKeyInput = await canvas.findByLabelText(/^access key\s*$/i);
+		const accessKeyInput = await canvas.findByRole("textbox", {
+			name: /^access key$/i,
+		});
 
 		await userEvent.type(accessKeyInput, "AKIAIOSFODNN7EXAMPLE");
 
@@ -390,7 +394,7 @@ export const EditBedrockKeepCredentials: Story = {
 	},
 	args: {
 		editing: true,
-		bedrockSavedAccessCredentials: true,
+		awsSavedAccessCredentials: true,
 		initialValues: {
 			type: "bedrock",
 			name: "bedrock",
@@ -464,8 +468,8 @@ export const EditBedrockKeepCredentials: Story = {
 export const EditBedrockWithExternalId: Story = {
 	args: {
 		editing: true,
-		bedrockSavedAccessCredentials: true,
-		bedrockExternalId: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
+		awsSavedAccessCredentials: true,
+		awsExternalId: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
 		initialValues: {
 			type: "bedrock",
 			name: "bedrock",
@@ -501,7 +505,9 @@ export const AddCopilot: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByLabelText(/endpoint/i);
-		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("textbox", { name: /api key/i }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -520,15 +526,17 @@ export const EditCopilot: Story = {
 		const canvas = within(canvasElement);
 		const name = await canvas.findByLabelText(/^name/i);
 		expect(name).toBeDisabled();
-		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("textbox", { name: /api key/i }),
+		).not.toBeInTheDocument();
 	},
 };
 
 export const EditProvider: Story = {
 	args: {
 		editing: true,
-		openAiAnthropicSavedApiKey: true,
-		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		hasSavedApiKey: true,
+		savedApiKeyMask: "sk-ant-***\u2026***ABCD",
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
@@ -543,7 +551,7 @@ export const EditProvider: Story = {
 export const EditOpenAiAnthropicNoSavedKey: Story = {
 	args: {
 		editing: true,
-		openAiAnthropicSavedApiKey: false,
+		hasSavedApiKey: false,
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
@@ -580,8 +588,8 @@ export const CredentialFocusClear: Story = {
 	},
 	args: {
 		editing: true,
-		openAiAnthropicSavedApiKey: true,
-		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		hasSavedApiKey: true,
+		savedApiKeyMask: "sk-ant-***\u2026***ABCD",
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
@@ -593,7 +601,9 @@ export const CredentialFocusClear: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const apiKeyInput = await canvas.findByRole("textbox", {
+			name: /api key/i,
+		});
 
 		expect(apiKeyInput).toHaveProperty("type", "text");
 		expect(apiKeyInput).toHaveValue("sk-ant-***\u2026***ABCD");
@@ -644,8 +654,8 @@ export const FailedSubmitKeepsCredential: Story = {
 	},
 	args: {
 		editing: true,
-		openAiAnthropicSavedApiKey: true,
-		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		hasSavedApiKey: true,
+		savedApiKeyMask: "sk-ant-***\u2026***ABCD",
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
@@ -657,7 +667,9 @@ export const FailedSubmitKeepsCredential: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const apiKeyInput = await canvas.findByRole("textbox", {
+			name: /api key/i,
+		});
 
 		await userEvent.click(apiKeyInput);
 		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
@@ -699,8 +711,8 @@ export const ExternalLoadingKeepsCredential: Story = {
 	},
 	args: {
 		editing: true,
-		openAiAnthropicSavedApiKey: true,
-		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		hasSavedApiKey: true,
+		savedApiKeyMask: "sk-ant-***\u2026***ABCD",
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
@@ -712,7 +724,9 @@ export const ExternalLoadingKeepsCredential: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const apiKeyInput = await canvas.findByRole("textbox", {
+			name: /api key/i,
+		});
 		const submitButton = canvas.getByRole("button", {
 			name: /update provider/i,
 		});
@@ -776,7 +790,9 @@ export const AddOpenAICompatSingleLabelHost: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const apiKeyInput = await canvas.findByRole("textbox", {
+			name: /api key/i,
+		});
 		await userEvent.type(apiKeyInput, "sk-local");
 
 		const submitButton = canvas.getByRole("button", { name: /add provider/i });
@@ -803,11 +819,297 @@ export const AddOpenAICompatEmptyEndpointBlocked: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const apiKeyInput = await canvas.findByRole("textbox", {
+			name: /api key/i,
+		});
 		await userEvent.type(apiKeyInput, "sk-local");
 
 		const submitButton = canvas.getByRole("button", { name: /add provider/i });
 
 		await waitFor(() => expect(submitButton).toBeDisabled());
+	},
+};
+
+// Claude Platform for AWS is an authentication method on the Anthropic form,
+// so choosing it swaps the endpoint to the regional host and reveals the
+// AWS-specific fields instead of adding a provider type.
+export const AddAnthropicClaudePlatformIam: Story = {
+	args: {
+		initialValues: { type: "anthropic" },
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("radio", { name: /claude platform for aws/i }),
+		);
+
+		const endpoint = canvas.getByLabelText(/^endpoint\s*\*?$/i);
+		await waitFor(() =>
+			expect(endpoint).toHaveValue(
+				"https://aws-external-anthropic.us-east-1.api.aws",
+			),
+		);
+		expect(
+			canvas.queryByRole("textbox", { name: /workspace api key/i }),
+		).not.toBeInTheDocument();
+
+		await userEvent.type(
+			canvas.getByLabelText(/workspace id/i),
+			"wrkspc_12345",
+		);
+
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "anthropic",
+					authMethod: "claude_platform_aws",
+					claudePlatformAuthMode: "iam",
+					claudePlatformRegion: "us-east-1",
+					claudePlatformWorkspaceId: "wrkspc_12345",
+					apiKey: "",
+				}),
+			),
+		);
+	},
+};
+
+// The workspace key is the credential in api_key mode, so Save stays disabled
+// until it is entered and the AWS credential inputs disappear.
+export const AddClaudePlatformWorkspaceKey: Story = {
+	args: {
+		initialValues: {
+			type: "anthropic",
+			authMethod: "claude_platform_aws",
+			name: "claude-platform",
+			claudePlatformWorkspaceId: "wrkspc_12345",
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("radio", { name: /workspace api key/i }),
+		);
+
+		await waitFor(() =>
+			expect(
+				canvas.queryByRole("textbox", { name: /^access key$/i }),
+			).not.toBeInTheDocument(),
+		);
+
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+		await waitFor(() => expect(submitButton).toBeDisabled());
+
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: /workspace api key/i }),
+			"sk-ant-workspace",
+		);
+
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					claudePlatformAuthMode: "api_key",
+					apiKey: "sk-ant-workspace",
+				}),
+			),
+		);
+	},
+};
+
+// The region drives the signing scope. A canonical endpoint follows the region,
+// but an operator-supplied proxy URL is never rewritten.
+export const ClaudePlatformRegionKeepsProxyEndpoint: Story = {
+	args: {
+		initialValues: {
+			type: "anthropic",
+			authMethod: "claude_platform_aws",
+			name: "claude-platform",
+			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+			claudePlatformWorkspaceId: "wrkspc_12345",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const region = await canvas.findByLabelText(/^region\s*\*?$/i);
+		const endpoint = canvas.getByLabelText(/^endpoint\s*\*?$/i);
+
+		await userEvent.clear(region);
+		await userEvent.type(region, "eu-west-1");
+		await waitFor(() =>
+			expect(endpoint).toHaveValue(
+				"https://aws-external-anthropic.eu-west-1.api.aws",
+			),
+		);
+
+		await userEvent.clear(endpoint);
+		await userEvent.type(endpoint, "https://anthropic-proxy.example.com");
+		await userEvent.clear(region);
+		await userEvent.type(region, "us-west-2");
+		expect(endpoint).toHaveValue("https://anthropic-proxy.example.com");
+	},
+};
+
+// A region that is not a valid host label is never interpolated, so the
+// endpoint stays generated and resumes tracking once the region is valid.
+export const ClaudePlatformInvalidRegionKeepsEndpoint: Story = {
+	args: {
+		initialValues: {
+			type: "anthropic",
+			authMethod: "claude_platform_aws",
+			name: "claude-platform",
+			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+			claudePlatformWorkspaceId: "wrkspc_12345",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const region = await canvas.findByLabelText(/^region\s*\*?$/i);
+		const endpoint = canvas.getByLabelText(/^endpoint\s*\*?$/i);
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+
+		await userEvent.clear(region);
+		// Leading underscore is invalid from the first keystroke, so the endpoint
+		// is never interpolated with a partial value.
+		await userEvent.type(region, "_bad");
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		expect(endpoint).toHaveValue(
+			"https://aws-external-anthropic.us-east-1.api.aws",
+		);
+
+		await userEvent.clear(region);
+		await userEvent.type(region, "ap-south-1");
+		await waitFor(() =>
+			expect(endpoint).toHaveValue(
+				"https://aws-external-anthropic.ap-south-1.api.aws",
+			),
+		);
+		await waitFor(() => expect(submitButton).toBeEnabled());
+	},
+};
+
+// Toggling the AWS mode keeps what the operator already typed: the API
+// mapping only sends the credential the active mode uses.
+export const ClaudePlatformModeToggleKeepsInput: Story = {
+	args: {
+		initialValues: {
+			type: "anthropic",
+			authMethod: "claude_platform_aws",
+			name: "claude-platform",
+			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+			claudePlatformWorkspaceId: "wrkspc_12345",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const accessKey = await canvas.findByRole("textbox", {
+			name: /^access key$/i,
+		});
+		await userEvent.type(accessKey, "AKIAIOSFODNN7EXAMPLE");
+
+		await userEvent.click(
+			canvas.getByRole("radio", { name: /workspace api key/i }),
+		);
+		// A half-entered AWS pair is hidden in api_key mode, so it must not block
+		// the save.
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: /workspace api key/i }),
+			"sk-ant-workspace",
+		);
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+		await waitFor(() => expect(submitButton).toBeEnabled());
+
+		await userEvent.click(canvas.getByRole("radio", { name: /aws iam/i }));
+		expect(
+			await canvas.findByRole("textbox", { name: /^access key$/i }),
+		).toHaveValue("AKIAIOSFODNN7EXAMPLE");
+	},
+};
+
+// Editing an IAM provider seeds the masked credentials and surfaces the
+// server-generated external ID for the role's trust policy.
+export const EditClaudePlatformWithExternalId: Story = {
+	args: {
+		editing: true,
+		awsSavedAccessCredentials: true,
+		awsExternalId: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
+		initialValues: {
+			type: "anthropic",
+			authMethod: "claude_platform_aws",
+			name: "claude-platform",
+			displayName: "Claude Platform",
+			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+			claudePlatformAuthMode: "iam",
+			claudePlatformRegion: "us-east-1",
+			claudePlatformWorkspaceId: "wrkspc_12345",
+			roleArn: "arn:aws:iam::123456789012:role/ClaudePlatformRole",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.findByText("7QF3ZK2MLP4RS6TUVWXY2ABCDE"),
+		).resolves.toBeVisible();
+		expect(
+			await canvas.findByRole("textbox", { name: /^access key$/i }),
+		).toHaveValue(SAVED_CREDENTIAL_MASK);
+	},
+};
+
+// The authentication method is fixed after creation, and switching an IAM
+// provider to workspace-key auth needs a key: none is on file, so Save stays
+// disabled until one is entered.
+export const EditClaudePlatformSwitchToWorkspaceKey: Story = {
+	args: {
+		editing: true,
+		awsSavedAccessCredentials: true,
+		initialValues: {
+			type: "anthropic",
+			authMethod: "claude_platform_aws",
+			name: "claude-platform",
+			displayName: "Claude Platform",
+			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+			claudePlatformAuthMode: "iam",
+			claudePlatformRegion: "us-east-1",
+			claudePlatformWorkspaceId: "wrkspc_12345",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByRole("radio", { name: /claude platform for aws/i }),
+		).toBeDisabled();
+
+		await userEvent.click(
+			canvas.getByRole("radio", { name: /workspace api key/i }),
+		);
+
+		const submitButton = canvas.getByRole("button", {
+			name: /update provider/i,
+		});
+		await waitFor(() => expect(submitButton).toBeDisabled());
+
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: /workspace api key/i }),
+			"sk-ant-workspace",
+		);
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					claudePlatformAuthMode: "api_key",
+					apiKey: "sk-ant-workspace",
+				}),
+			),
+		);
 	},
 };
