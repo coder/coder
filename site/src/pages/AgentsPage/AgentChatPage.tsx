@@ -264,8 +264,9 @@ const AgentChatPage: FC = () => {
 		currentUser.id,
 	);
 	const desktopEnabled = experiments.includes("chat-virtual-desktop");
-	const debugLoggingEnabled =
-		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
+	const debugLoggingEnabled = Boolean(
+		userDebugLoggingQuery.data?.debug_logging_enabled,
+	);
 
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
@@ -315,8 +316,8 @@ const AgentChatPage: FC = () => {
 	const { proxy } = useProxy();
 
 	const chatRecord = chatQuery.data;
-	const isArchived = chatRecord?.archived ?? false;
-	const isSharedChat = chatRecord?.shared ?? false;
+	const isArchived = Boolean(chatRecord?.archived);
+	const isSharedChat = Boolean(chatRecord?.shared);
 	const isViewerNotOwner =
 		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
 	const isRootChat =
@@ -406,7 +407,7 @@ const AgentChatPage: FC = () => {
 			? {
 					messages: chatMessagesList,
 					queued_messages: chatQueuedMessages ?? [],
-					has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
+					has_more: Boolean(chatMessagesQuery.data?.pages.at(-1)?.has_more),
 				}
 			: undefined;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
@@ -588,9 +589,7 @@ const AgentChatPage: FC = () => {
 	})();
 	const hasModelOptions = modelOptions.length > 0;
 	const hasResolvedModelData =
-		!isModelDataPending &&
-		modelsQuery.data !== undefined &&
-		modelsQuery.error == null;
+		!isModelDataPending && Boolean(modelsQuery.data) && !modelsQuery.error;
 	const hasUnavailableHistoricalModel =
 		hasResolvedModelData &&
 		isUnavailableHistoricalModelID(chatLastModelConfigID, modelOptions);
@@ -1327,7 +1326,7 @@ const AgentChatPage: FC = () => {
 						!chatFamilyAllowsArchive(liveChatStatus, activeChatChildren)
 					}
 					urlTransform={urlTransform}
-					hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
+					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
 					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 					isHydratingMessages={isHydratingMessages}
 					hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
@@ -1338,7 +1337,7 @@ const AgentChatPage: FC = () => {
 					onMCPSelectionChange={handleMCPSelectionChange}
 					onMCPAuthComplete={handleMCPAuthComplete}
 					chatContext={chatQuery.data?.context}
-					queuedForCapacity={chatQuery.data?.queued_for_capacity ?? false}
+					queuedForCapacity={Boolean(chatQuery.data?.queued_for_capacity)}
 					workspaceSkills={chatWorkspaceSkills}
 				/>
 			)}
