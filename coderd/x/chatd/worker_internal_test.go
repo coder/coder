@@ -138,8 +138,8 @@ func TestWorker_TwoWorkersRaceSingleOwner(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
-	firstStarter := newRecordingTaskStarter()
-	secondStarter := newRecordingTaskStarter()
+	firstStarter := newBlockingTaskStarter(false)
+	secondStarter := newBlockingTaskStarter(false)
 	first := startWorker(t, testOptions(t, f, firstStarter))
 	second := startWorker(t, testOptions(t, f, secondStarter))
 
@@ -162,7 +162,7 @@ func TestWorker_AcquisitionBatchSizeLimitsSuccessfulAcquisitions(t *testing.T) {
 	first := f.createRunningChat(t)
 	second := f.createRunningChat(t)
 	third := f.createRunningChat(t)
-	starter := newRecordingTaskStarter()
+	starter := newBlockingTaskStarter(false)
 	opts := testOptions(t, f, starter)
 	opts.AcquisitionBatchSize = 1
 	worker := startWorker(t, opts)

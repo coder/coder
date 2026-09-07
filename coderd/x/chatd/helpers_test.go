@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 type workerTestFixture struct {
@@ -560,4 +561,155 @@ func makeHeartbeatStale(t *testing.T, f *workerTestFixture, chatID uuid.UUID, ru
 	})
 	require.NoError(t, err)
 	return heartbeat.HeartbeatAt
+}
+
+// runnerRefreshStore passes through only the initial bootstrap read. Each
+// subsequent read waits for an explicit response or context cancellation.
+type runnerRefreshStore struct {
+	database.Store
+	bootstrap *database.Chat
+	once      sync.Once
+	reads     chan runnerRefreshRead
+}
+
+type runnerRefreshRead struct {
+	ctx   context.Context
+	reply chan runnerRefreshResult
+}
+
+func (s *runnerRefreshStore) GetChatByID(ctx context.Context, _ uuid.UUID) (database.Chat, error) {
+	var bootstrap *database.Chat
+	s.once.Do(func() { bootstrap = s.bootstrap })
+	if bootstrap != nil {
+		return *bootstrap, nil
+	}
+	read := runnerRefreshRead{ctx: ctx, reply: make(chan runnerRefreshResult, 1)}
+	select {
+	case s.reads <- read:
+	case <-ctx.Done():
+		return database.Chat{}, ctx.Err()
+	}
+	select {
+	case result := <-read.reply:
+		return result.chat, result.err
+	case <-ctx.Done():
+		return database.Chat{}, ctx.Err()
+	}
+}
+
+func newRunnerRecoveryTest(t *testing.T) (*runner, *recordingTaskStarter, *runnerRefreshStore, *quartz.Mock, database.Chat) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+	starter := newBlockingTaskStarter(false)
+	store := &runnerRefreshStore{reads: make(chan runnerRefreshRead, 1)}
+	opts, err := (chatWorkerOptions{
+		WorkerID: uuid.New(), Store: store, Pubsub: dbpubsub.NewInMemory(),
+		TaskStarter: starter, Clock: clock, Logger: testutil.Logger(t),
+		TaskRetryInitialBackoff: 100 * time.Millisecond,
+		TaskRetryMaxBackoff:     400 * time.Millisecond,
+	}).withDefaults()
+	require.NoError(t, err)
+	rec := &runnerRecord{
+		key:      runnerKey{ChatID: uuid.New(), RunnerID: uuid.New()},
+		workerID: opts.WorkerID, cancel: cancel,
+		stateCh: make(chan runnerStateUpdate, 16),
+	}
+	mgr := newRunnerManager(ctx, nil, opts)
+	r := newRunner(ctx, mgr, rec, opts)
+	chat := database.Chat{
+		ID: rec.key.ChatID, WorkerID: uuid.NullUUID{UUID: rec.workerID, Valid: true},
+		RunnerID:        uuid.NullUUID{UUID: rec.key.RunnerID, Valid: true},
+		SnapshotVersion: 10, HistoryVersion: 5, Status: database.ChatStatusRunning,
+	}
+	t.Cleanup(func() {
+		cancel()
+		if rec.done != nil {
+			testutil.TryReceive(testutil.Context(t, testutil.WaitLong), t, rec.done)
+		}
+		r.stopRecoveryTimer()
+		r.waitForTasks()
+		r.refreshWG.Wait()
+		if rec.unsubscribe != nil {
+			rec.unsubscribe()
+		}
+	})
+	return r, starter, store, clock, chat
+}
+
+func runRecoveryTestRunner(t *testing.T, r *runner, store *runnerRefreshStore, chat database.Chat) {
+	t.Helper()
+	store.bootstrap = &chat
+	done := make(chan struct{})
+	r.rec.done = done
+	go func() {
+		defer close(done)
+		r.run()
+	}()
+}
+
+func finishRecoveryTestTask(t *testing.T, r *runner, starter *recordingTaskStarter, index int) taskInstanceID {
+	t.Helper()
+	id := r.activeTaskID
+	starter.release(t, index)
+	testutil.TryReceive(testutil.Context(t, testutil.WaitLong), t, r.tasks[id].done)
+	return id
+}
+
+// runnerExitTaskStarter makes a released generation take the retry wrapper's
+// expected-exit path without changing the recording starter's nil semantics.
+type runnerExitTaskStarter struct {
+	chatWorkerTaskStarter
+}
+
+func (s runnerExitTaskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskStartInput) error {
+	if err := s.chatWorkerTaskStarter.StartGeneration(ctx, input); err != nil {
+		return err
+	}
+	return errTaskExpectedExit
+}
+
+// runnerGenerationRefreshStore observes only the runner's reads. Tasks and
+// the manager retain the real store, so their queries cannot satisfy the
+// completion-refresh assertion.
+type runnerGenerationRefreshStore struct {
+	database.Store
+	bootstrap bool
+	refreshed chan database.Chat
+}
+
+func (s *runnerGenerationRefreshStore) GetChatByID(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
+	chat, err := s.Store.GetChatByID(ctx, chatID)
+	if !s.bootstrap {
+		s.bootstrap = true
+		return chat, err
+	}
+	if err == nil {
+		select {
+		case s.refreshed <- chat:
+		case <-ctx.Done():
+			return database.Chat{}, ctx.Err()
+		}
+	}
+	return chat, err
+}
+
+// runnerBootstrapStore controls the bootstrap result without replacing the
+// runner loop or its shutdown path.
+type runnerBootstrapStore struct {
+	database.Store
+	getChat func(context.Context, uuid.UUID) (database.Chat, error)
+}
+
+func (s runnerBootstrapStore) GetChatByID(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
+	return s.getChat(ctx, chatID)
+}
+
+type runnerSubscribeErrorPubsub struct {
+	chatWorkerPubsub
+	err error
+}
+
+func (p runnerSubscribeErrorPubsub) SubscribeWithErr(string, dbpubsub.ListenerWithErr) (func(), error) {
+	return nil, p.err
 }

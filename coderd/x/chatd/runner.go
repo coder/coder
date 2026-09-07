@@ -2,15 +2,26 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/quartz"
 )
+
+const runnerRefreshTimeout = 5 * time.Second
+
+type runnerRefreshResult struct {
+	taskID taskInstanceID
+	chat   database.Chat
+	err    error
+}
 
 type taskKind string
 
@@ -51,6 +62,14 @@ type runner struct {
 	hasAcceptedState    bool
 	latestState         runnerStateUpdate
 
+	recoveryTaskID  taskInstanceID
+	refreshInFlight bool
+	refreshResults  chan runnerRefreshResult
+	recoveryDelay   time.Duration
+	recoveryTimer   *quartz.Timer
+	refreshWG       sync.WaitGroup
+	stopping        bool
+
 	activeTaskID  taskInstanceID
 	activeTaskSet bool
 	tasks         map[taskInstanceID]*taskRecord
@@ -63,32 +82,147 @@ type runner struct {
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
 	return &runner{
-		ctx:          ctx,
-		mgr:          mgr,
-		rec:          rec,
-		opts:         opts,
-		tasks:        make(map[taskInstanceID]*taskRecord),
-		tasksByIndex: make(map[taskIndexKey]taskInstanceID),
-		localLocks:   newLocalLockSet(),
-		debugTurn:    newRunnerDebugTurn(ctx, opts.Logger),
+		refreshResults: make(chan runnerRefreshResult, 1),
+		ctx:            ctx,
+		mgr:            mgr,
+		rec:            rec,
+		opts:           opts,
+		tasks:          make(map[taskInstanceID]*taskRecord),
+		tasksByIndex:   make(map[taskIndexKey]taskInstanceID),
+		localLocks:     newLocalLockSet(),
+		debugTurn:      newRunnerDebugTurn(ctx, opts.Logger),
 	}
 }
 
 func (r *runner) run() {
+	defer func() {
+		r.stopRecoveryTimer()
+		r.cancelActiveTask()
+		r.waitForTasks()
+		r.refreshWG.Wait()
+		r.closeDebugTurn()
+	}()
 	if !r.bootstrap() {
 		return
 	}
 	for {
+		if r.ctx.Err() != nil {
+			return
+		}
+		r.removeFinishedTasks()
+		r.scheduleRecovery()
+		var activeDone <-chan struct{}
+		if r.activeTaskSet {
+			activeDone = r.tasks[r.activeTaskID].done
+		}
+		var retry <-chan time.Time
+		if r.recoveryTimer != nil {
+			retry = r.recoveryTimer.C
+		}
 		select {
 		case state := <-r.rec.stateCh:
 			r.processState(state)
+		case <-activeDone:
+			r.removeFinishedTasks()
+		case result := <-r.refreshResults:
+			r.applyRefresh(result)
+		case <-retry:
+			r.stopRecoveryTimer()
+			r.removeFinishedTasks()
+			// This wait has been consumed; do not rearm the same delay.
+			if r.needsRefresh() {
+				r.launchRefresh()
+			}
 		case <-r.ctx.Done():
-			r.cancelActiveTask()
-			r.waitForTasks()
-			r.closeDebugTurn()
 			return
 		}
 	}
+}
+
+func (r *runner) needsRefresh() bool {
+	return !r.stopping && r.ctx.Err() == nil &&
+		r.recoveryTaskID != (taskInstanceID{}) && !r.activeTaskSet && !r.refreshInFlight
+}
+
+func (r *runner) scheduleRecovery() {
+	if !r.needsRefresh() || r.recoveryTimer != nil {
+		return
+	}
+	if r.recoveryDelay == 0 {
+		r.launchRefresh()
+		return
+	}
+	r.recoveryTimer = r.opts.Clock.NewTimer(r.recoveryDelay, "chatworker", "runner-recovery")
+}
+
+func (r *runner) stopRecoveryTimer() {
+	if r.recoveryTimer != nil {
+		r.recoveryTimer.Stop()
+		r.recoveryTimer = nil
+	}
+}
+
+func (r *runner) launchRefresh() {
+	r.refreshInFlight = true
+	if r.recoveryDelay == 0 {
+		r.recoveryDelay = r.opts.TaskRetryInitialBackoff
+	} else {
+		// Subtract before adding so large configured durations cannot overflow.
+		r.recoveryDelay += min(r.recoveryDelay, r.opts.TaskRetryMaxBackoff-r.recoveryDelay)
+	}
+	ctx, store, clock := r.ctx, r.opts.Store, r.opts.Clock
+	chatID, taskID, results := r.rec.key.ChatID, r.recoveryTaskID, r.refreshResults
+	r.refreshWG.Go(func() {
+		readCtx, cancel := context.WithCancelCause(ctx)
+		timer := clock.AfterFunc(runnerRefreshTimeout, func() {
+			cancel(context.DeadlineExceeded)
+		}, "chatworker", "runner-refresh-timeout")
+		chat, err := store.GetChatByID(readCtx, chatID)
+		if readCtx.Err() != nil {
+			err = context.Cause(readCtx)
+		}
+		timer.Stop()
+		cancel(nil)
+		select {
+		case results <- runnerRefreshResult{taskID: taskID, chat: chat, err: err}:
+		case <-ctx.Done():
+		}
+	})
+}
+
+func (r *runner) applyRefresh(result runnerRefreshResult) {
+	// A replacement may have finished while the previous read was running.
+	r.removeFinishedTasks()
+	r.refreshInFlight = false
+	if r.stopping || r.ctx.Err() != nil || r.activeTaskSet || result.taskID != r.recoveryTaskID {
+		return
+	}
+	if errors.Is(result.err, sql.ErrNoRows) {
+		r.requestCleanup()
+		return
+	}
+	if result.err != nil {
+		r.opts.Logger.Warn(r.ctx, "chatworker runner refresh failed", slogError(result.err))
+		return
+	}
+	state := stateUpdateFromChat(result.chat)
+	if state.SnapshotVersion < r.lastSnapshotVersion || state.HistoryVersion < r.latestState.HistoryVersion {
+		return
+	}
+	if !uuidPtrEqual(state.WorkerID, r.rec.workerID) || !uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID) {
+		r.requestCleanup()
+		return
+	}
+	// Unlike a notification, this read can restore missing work at an equal
+	// snapshot version. Accept the whole row, preserving its field coherence.
+	r.acceptState(state)
+	r.spawnForState(state)
+}
+
+func (r *runner) requestCleanup() {
+	r.stopping = true
+	r.stopRecoveryTimer()
+	r.mgr.requestCleanup(r.ctx, r.rec.key)
 }
 
 func (r *runner) bootstrap() bool {
@@ -103,7 +237,7 @@ func (r *runner) bootstrap() bool {
 		},
 	))
 	if err != nil {
-		r.mgr.requestCleanup(r.ctx, r.rec.key)
+		r.requestCleanup()
 		return false
 	}
 	if !r.rec.setUnsubscribe(unsubscribe) {
@@ -112,7 +246,7 @@ func (r *runner) bootstrap() bool {
 	chat, err := r.opts.Store.GetChatByID(r.ctx, r.rec.key.ChatID)
 	if err != nil {
 		r.opts.Logger.Warn(r.ctx, "chatworker runner bootstrap failed", slogError(err))
-		r.mgr.requestCleanup(r.ctx, r.rec.key)
+		r.requestCleanup()
 		return false
 	}
 	// Apply the database snapshot directly instead of routing it through
@@ -144,7 +278,7 @@ func stateUpdateFromPubsub(chatID uuid.UUID, payload coderdpubsub.ChatStateUpdat
 }
 
 func (r *runner) processState(state runnerStateUpdate) {
-	if state.SnapshotVersion <= r.lastSnapshotVersion {
+	if r.stopping || r.ctx.Err() != nil || state.SnapshotVersion <= r.lastSnapshotVersion {
 		return
 	}
 
@@ -152,15 +286,11 @@ func (r *runner) processState(state runnerStateUpdate) {
 
 	if !uuidPtrEqual(state.WorkerID, r.rec.workerID) || !uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID) {
 		r.acceptState(state)
-		r.mgr.requestCleanup(r.ctx, r.rec.key)
+		r.requestCleanup()
 		return
 	}
 
-	changed := !r.hasAcceptedState ||
-		r.latestState.HistoryVersion != state.HistoryVersion ||
-		r.latestState.Status != state.Status ||
-		r.latestState.Archived != state.Archived
-	if !changed {
+	if !r.requiredWorkChanged(state) {
 		r.acceptState(state)
 		return
 	}
@@ -172,7 +302,15 @@ func (r *runner) processState(state runnerStateUpdate) {
 	r.acceptState(state)
 }
 
+func (r *runner) requiredWorkChanged(state runnerStateUpdate) bool {
+	return !r.hasAcceptedState || r.latestState.HistoryVersion != state.HistoryVersion ||
+		r.latestState.Status != state.Status || r.latestState.Archived != state.Archived
+}
+
 func (r *runner) acceptState(state runnerStateUpdate) {
+	if r.requiredWorkChanged(state) {
+		r.recoveryDelay = 0
+	}
 	r.hasAcceptedState = true
 	r.latestState = state
 	r.lastSnapshotVersion = state.SnapshotVersion
@@ -198,12 +336,17 @@ func (r *runner) spawnForState(state runnerStateUpdate) {
 }
 
 func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
+	if r.stopping || r.ctx.Err() != nil {
+		return
+	}
 	key := localWorkKey{historyVersion: state.HistoryVersion, status: state.Status}
 	idx := taskIndexKey{kind: kind, key: key}
 	if r.activeTaskSet && r.tasksByIndex[idx] == r.activeTaskID {
 		return
 	}
 
+	r.recoveryTaskID = taskInstanceID{}
+	r.stopRecoveryTimer()
 	id := taskInstanceID(uuid.New())
 	taskCtx, cancel := context.WithCancel(r.ctx)
 	done := make(chan struct{})
@@ -312,8 +455,10 @@ func (r *runner) removeFinishedTasks() {
 				delete(r.tasksByIndex, idx)
 			}
 			if r.activeTaskSet && r.activeTaskID == id {
+				r.recoveryTaskID = id
 				r.activeTaskSet = false
 			}
+			record.cancel()
 		default:
 		}
 	}
