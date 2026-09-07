@@ -905,7 +905,6 @@ export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -929,7 +928,6 @@ export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -952,7 +950,6 @@ export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -976,7 +973,6 @@ export const LoadingSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -1113,7 +1109,6 @@ export const EditingMessage: Story = {
 export const NotFound: Story = {
 	render: () => (
 		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 		/>
@@ -1124,7 +1119,6 @@ export const NotFound: Story = {
 export const NotFoundSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
 			isSidebarCollapsed
 			onToggleSidebarCollapsed={fn()}
 		/>
