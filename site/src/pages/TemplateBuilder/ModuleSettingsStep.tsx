@@ -27,10 +27,6 @@ interface ModuleSettingsStepProps {
 	) => void;
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
-	/**
-	 * When true, required fields left empty are outlined in red to show why
-	 * the step cannot continue.
-	 */
 	showErrors?: boolean;
 }
 
