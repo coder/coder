@@ -67,9 +67,6 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	...MockChat,
 	id: AGENT_ID,
-	owner_id: "owner-1",
-	owner_username: "owner",
-	owner_name: "Owner",
 	title: "Help me refactor",
 	last_model_config_id: defaultModelID,
 	created_at: oneWeekAgo,
@@ -146,27 +143,25 @@ const collapsedSidebarRouter = reactRouterParameters({
 // ---------------------------------------------------------------------------
 type StoryProps = Omit<
 	Partial<ComponentProps<typeof AgentChatPageView>>,
-	"editing"
+	"editing" | "chat"
 > & {
 	editing?: Partial<ComponentProps<typeof AgentChatPageView>["editing"]>;
+	chat?: Partial<TypesGen.Chat>;
 };
 
-const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
+const StoryAgentChatPageView: FC<StoryProps> = ({
+	editing,
+	chat,
+	...overrides
+}) => {
 	const defaultStoreRef = useRef(createChatStore());
 	const store = overrides.store ?? defaultStoreRef.current;
 
 	const props = {
-		agentId: AGENT_ID,
+		chat: buildChat(chat),
 		sendShortcut: "enter" as const,
-		organizationId: "test-org-id",
-		chatTitle: "Help me refactor",
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
-		isArchived: false,
-		isSharedChat: false,
-		chatOwner: undefined as ComponentProps<
-			typeof AgentChatPageView
-		>["chatOwner"],
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -178,10 +173,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		isInterruptPending: false,
 		showSidebarPanel: false,
 		onSetShowSidebarPanel: fn(),
-		prNumber: undefined as number | undefined,
-		diffStatusData: undefined as ComponentProps<
-			typeof AgentChatPageView
-		>["diffStatusData"],
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
 		sshCommand: undefined as string | undefined,
@@ -207,7 +198,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
-		initialChatStatus: "waiting" as const,
 		initialMessages: [],
 		...overrides,
 		store,
@@ -290,13 +280,19 @@ export const CachedModelsWithRefetchError: Story = {
 
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
-	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
+	render: () => (
+		<StoryAgentChatPageView chat={{ archived: true }} isInputDisabled />
+	),
 };
 
 export const OtherUserChatReadOnly: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+			}}
 			isInputDisabled
 		/>
 	),
@@ -317,7 +313,11 @@ export const OtherUserChatReadOnly: Story = {
 export const OtherUserChatUsernameFallback: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: undefined,
+			}}
 			isInputDisabled
 		/>
 	),
@@ -336,7 +336,16 @@ export const OtherUserChatUsernameFallback: Story = {
 };
 
 export const OtherUserChatOwnerFallback: Story = {
-	render: () => <StoryAgentChatPageView chatOwner={{}} isInputDisabled />,
+	render: () => (
+		<StoryAgentChatPageView
+			chat={{
+				owner_id: "other-user",
+				owner_username: undefined,
+				owner_name: undefined,
+			}}
+			isInputDisabled
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByText(
@@ -355,9 +364,13 @@ export const OtherUserChatOwnerFallback: Story = {
 export const ArchivedOtherUserChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			isArchived
+			chat={{
+				archived: true,
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: undefined,
+			}}
 			isInputDisabled
-			chatOwner={{ username: "OtherUser" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -375,7 +388,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 	parameters: {
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const callout = within(canvas.getByRole("alert"));
@@ -399,7 +412,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 };
 
 export const QueuedForCapacityCommunityMember: Story = {
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -422,7 +435,7 @@ export const QueuedForCapacityPremiumAdmin: Story = {
 		features: ["multiple_organizations"],
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -444,7 +457,7 @@ export const QueuedForCapacityPremiumMember: Story = {
 	parameters: {
 		features: ["multiple_organizations"],
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -475,7 +488,7 @@ export const QueuedForCapacityPremiumHardLimit: Story = {
 		],
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -551,19 +564,19 @@ export const WithSidebarPanel: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			prNumber={123}
-			diffStatusData={
-				{
+			chat={{
+				diff_status: {
 					chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
+					pr_number: 123,
 					pull_request_title: "fix: resolve race condition in workspace builds",
 					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
 					changed_files: 5,
-				} satisfies ChatDiffStatus
-			}
+				} satisfies ChatDiffStatus,
+			}}
 		/>
 	),
 	beforeEach: () => {
@@ -635,19 +648,19 @@ export const RefreshInvalidatesPRDiff: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			prNumber={123}
-			diffStatusData={
-				{
+			chat={{
+				diff_status: {
 					chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
+					pr_number: 123,
 					pull_request_title: "fix: resolve race condition in workspace builds",
 					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
 					changed_files: 5,
-				} satisfies ChatDiffStatus
-			}
+				} satisfies ChatDiffStatus,
+			}}
 		/>
 	),
 	beforeEach: () => {
@@ -907,7 +920,7 @@ export const WorkspaceNoAgent: Story = {
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
 			workspaceOptions={[MockWorkspace]}
-			selectedWorkspaceId={MockWorkspace.id}
+			chat={{ workspace_id: MockWorkspace.id }}
 			onWorkspaceChange={fn()}
 		/>
 	),
@@ -1067,7 +1080,11 @@ const otherUserActionMessages: TypesGen.ChatMessage[] = [
 export const OtherUserChatHidesInlineActions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+			}}
 			isInputDisabled
 			onImplementPlan={fn()}
 			store={buildStoreWithMessages(otherUserActionMessages)}
@@ -1917,7 +1934,7 @@ export const DoesNotPersistForArchivedChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			isArchived
+			chat={{ archived: true }}
 			isInputDisabled
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
@@ -1946,10 +1963,12 @@ export const DoesNotPersistForArchivedChat: Story = {
 export const ArchivedWithSharing: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			isArchived
+			chat={{
+				archived: true,
+				organization_id: MockDefaultOrganization.id,
+			}}
 			isInputDisabled
 			canShareChat
-			organizationId={MockDefaultOrganization.id}
 		/>
 	),
 	beforeEach: () => {
@@ -1985,7 +2004,7 @@ export const ShareChatPopoverFromTopBar: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			canShareChat
-			organizationId={MockDefaultOrganization.id}
+			chat={{ organization_id: MockDefaultOrganization.id }}
 		/>
 	),
 	beforeEach: () => {

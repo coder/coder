@@ -13,7 +13,6 @@ import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	AgentChatSendShortcut,
-	ChatDiffStatus,
 	ChatMessagePart,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -37,6 +36,7 @@ import {
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
+import { getParentChatID } from "./components/ChatConversation/chatHelpers";
 import type { useChatStore } from "./components/ChatConversation/chatStore";
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import type { ModelSelectorOption } from "./components/ChatElements";
@@ -60,6 +60,7 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -77,11 +78,6 @@ import {
 } from "./utils/sidebarTabStorage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
-
-type ChatOwnerInfo = {
-	name?: string;
-	username?: string;
-};
 
 interface EditingState {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
@@ -108,26 +104,16 @@ interface EditingState {
 }
 
 interface AgentChatPageViewProps {
-	// Chat data.
-	agentId: string;
+	chat: TypesGen.Chat;
 	sendShortcut: AgentChatSendShortcut;
-	organizationId: string | undefined;
-	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
-	isArchived: boolean;
-	isSharedChat: boolean;
-	chatOwner: ChatOwnerInfo | undefined;
-	queuedForCapacity?: boolean;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
-	chatBuildId?: string;
 
 	// Store handle.
 	store: ChatStoreHandle;
-	/** Chat status when the page first loaded, before any in-session turn. */
-	initialChatStatus: TypesGen.ChatStatus;
 	/** Messages as first loaded; read once at mount for the initial anchor. */
 	initialMessages: readonly TypesGen.ChatMessage[];
 
@@ -151,14 +137,12 @@ interface AgentChatPageViewProps {
 	aiGatewayDisabled?: boolean;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
-	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
 	workspaceOptions?: readonly TypesGen.Workspace[];
-	selectedWorkspaceId?: string | null;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading?: boolean;
 
@@ -168,8 +152,6 @@ interface AgentChatPageViewProps {
 	onSetShowSidebarPanel: (next: boolean) => void;
 
 	// Sidebar content data.
-	prNumber: number | undefined;
-	diffStatusData: ChatDiffStatus | undefined;
 	debugLoggingEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
@@ -198,8 +180,6 @@ interface AgentChatPageViewProps {
 	handlePinAgentAction?: () => void;
 	handleUnpinAgentAction?: () => void;
 	handleOpenRenameDialogAction?: () => void;
-	isPinned?: boolean;
-	isChildChat?: boolean;
 	isArchivingThisChat?: boolean;
 	isArchiveBlocked?: boolean;
 
@@ -221,7 +201,6 @@ interface AgentChatPageViewProps {
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
 
-	chatContext?: TypesGen.ChatContext;
 	workspaceSkills?: readonly SkillMetadata[];
 }
 
@@ -311,22 +290,14 @@ const UserTabContent: FC<UserTabContentProps> = ({
 };
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
-	agentId,
+	chat,
 	sendShortcut,
-	organizationId,
-	chatTitle,
 	parentChat,
 	persistedError,
-	isArchived,
-	isSharedChat,
-	chatOwner,
-	queuedForCapacity,
 	canShareChat,
 	workspaceAgent,
 	workspace,
-	chatBuildId,
 	store,
-	initialChatStatus,
 	initialMessages,
 	editing,
 	effectiveSelectedModel,
@@ -345,20 +316,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	aiGatewayDisabled,
 	hasModelOptions,
 	isModelCatalogLoading = false,
-	planModeEnabled,
 	onPlanModeToggle,
 	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
 	workspaceOptions = [],
-	selectedWorkspaceId = null,
 	onWorkspaceChange,
 	isWorkspaceLoading = false,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
-	prNumber,
-	diffStatusData,
 	debugLoggingEnabled,
 	gitWatcher,
 	sshCommand,
@@ -374,8 +341,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handlePinAgentAction,
 	handleUnpinAgentAction,
 	handleOpenRenameDialogAction,
-	isPinned,
-	isChildChat,
 	isArchivingThisChat,
 	isArchiveBlocked,
 	hasMoreMessages,
@@ -389,16 +354,20 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	desktopChatId,
-	chatContext,
 	workspaceSkills,
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
 	const { entitlements } = useDashboard();
-	const { permissions } = useAuthenticated();
+	const { permissions, user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
-
-	const canOpenChatSharing = canShareChat && organizationId !== undefined;
+	const agentId = chat.id;
+	const organizationId = chat.organization_id;
+	const isArchived = chat.archived;
+	const parsedPrNumber = Number(
+		parsePullRequestUrl(chat.diff_status?.url)?.number,
+	);
+	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
@@ -422,7 +391,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// sequence, so every user row created after mount (sends, queue
 	// promotions, edit re-sends) has an id above the initial maximum.
 	const [initialActiveTurnMaxMessageId] = useState<number | undefined>(() =>
-		initialChatStatus === "running" || initialChatStatus === "interrupting"
+		chat.status === "running" || chat.status === "interrupting"
 			? (initialMessages.at(-1)?.id ?? -1)
 			: undefined,
 	);
@@ -724,7 +693,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						onRefresh={handleRefresh}
 						onCommit={handleCommit}
 						isExpanded={visualExpanded}
-						remoteDiffStats={diffStatusData}
+						remoteDiffStats={chat.diff_status}
 						chatInputRef={editing.chatInputRef}
 					/>
 				);
@@ -827,11 +796,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const isEditing = editing.editingMessageId !== null;
 
-	const chatOwnerUsername = chatOwner?.username?.trim();
+	const chatOwnerUsername = chat.owner_username?.trim();
 	const chatOwnerLabel =
-		chatOwner?.name?.trim() ||
+		chat.owner_name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
-	const isOtherUserReadOnly = !isArchived && chatOwner !== undefined;
+	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
 	const chatOwnerWarning = isOtherUserReadOnly
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
@@ -850,7 +819,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
 			<ChatWorkspaceContext
-				value={{ workspaceId: workspace?.id, buildId: chatBuildId }}
+				value={{ workspaceId: workspace?.id, buildId: chat.build_id }}
 			>
 				<DesktopPanelContext value={desktopPanelCtx}>
 					<div
@@ -870,7 +839,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							<div className="relative z-10 shrink-0 overflow-visible">
 								{" "}
 								<ChatTopBar
-									chatTitle={chatTitle}
+									chatTitle={chat.title}
 									parentChat={parentChat}
 									panel={{
 										showSidebarPanel,
@@ -885,16 +854,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									onPinAgent={handlePinAgentAction}
 									onUnpinAgent={handleUnpinAgentAction}
 									onOpenRenameDialog={handleOpenRenameDialogAction}
-									isPinned={isPinned}
-									isChildChat={isChildChat}
+									isPinned={chat.pin_order > 0}
+									isChildChat={getParentChatID(chat) !== undefined}
 									isArchiving={isArchivingThisChat}
 									isArchiveBlocked={isArchiveBlocked}
 									hasWorkspace={Boolean(workspace)}
 									isArchived={isArchived}
-									diffStatusData={diffStatusData}
-									isSharedChat={isSharedChat}
+									diffStatusData={chat.diff_status}
+									isSharedChat={chat.shared}
 									renderChatSharingContent={
-										canOpenChatSharing
+										canShareChat
 											? (open) => (
 													<ChatSharingPopoverContent
 														chatId={agentId}
@@ -974,7 +943,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										: canSendAskUserQuestionResponse
 								}
 								footer={
-									queuedForCapacity ? (
+									chat.queued_for_capacity ? (
 										<QueuedForCapacityCallout
 											hasLicense={hasLicense}
 											canManageLicenses={canManageLicenses}
@@ -1009,12 +978,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									modelSelectorHelp={modelSelectorHelp}
 									reasoningEffort={reasoningEffort}
 									onReasoningEffortChange={onReasoningEffortChange}
-									planModeEnabled={planModeEnabled}
+									planModeEnabled={chat.plan_mode === "plan"}
 									onPlanModeToggle={onPlanModeToggle}
 									isModelCatalogLoading={isModelCatalogLoading}
 									workspaceOptions={workspaceOptions}
 									chatOrganizationId={organizationId}
-									selectedWorkspaceId={selectedWorkspaceId}
+									selectedWorkspaceId={chat.workspace_id ?? null}
 									onWorkspaceChange={onWorkspaceChange}
 									isWorkspaceLoading={isWorkspaceLoading}
 									inputRef={editing.chatInputRef}
@@ -1029,7 +998,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									selectedMCPServerIds={selectedMCPServerIds}
 									onMCPSelectionChange={onMCPSelectionChange}
 									onMCPAuthComplete={onMCPAuthComplete}
-									chatContext={chatContext}
+									chatContext={chat.context}
 									workspaceSkills={workspaceSkills}
 									workspace={workspace}
 									workspaceAgent={workspaceAgent}
@@ -1068,7 +1037,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onToggleExpanded={() =>
 									setIsRightPanelExpanded((prev) => !prev)
 								}
-								chatTitle={chatTitle}
+								chatTitle={chat.title}
 							/>
 						</RightPanel>
 					</div>
