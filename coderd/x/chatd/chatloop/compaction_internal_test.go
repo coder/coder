@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -337,6 +338,207 @@ func TestGenerateCompactionSummaryUsesToolDefinitions(t *testing.T) {
 	require.Equal(t, toolChoice, *got.ToolChoice)
 	require.Len(t, got.Prompt, 2)
 	require.Equal(t, originalMessages, messages)
+}
+
+// TestGenerateCompactionSummaryRetriesWithoutToolsWhenContextTooLarge
+// verifies the compaction recovery path: when the provider rejects the
+// tool-carrying summary request for exceeding the context window, the
+// summary is regenerated once without tool definitions, with the rest
+// of the call unchanged.
+func TestGenerateCompactionSummaryRetriesWithoutToolsWhenContextTooLarge(t *testing.T) {
+	t.Parallel()
+
+	toolDefinitions := []fantasy.Tool{
+		fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
+	}
+	toolChoice := fantasy.ToolChoiceNone
+	var calls []fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			calls = append(calls, call)
+			if len(call.Tools) > 0 {
+				return nil, &fantasy.ProviderError{
+					Title:      "bad request",
+					Message:    "Your input exceeds the context window of this model. Please adjust your input and try again.",
+					StatusCode: http.StatusBadRequest,
+				}
+			}
+			return &fantasy.Response{Content: []fantasy.Content{fantasy.TextContent{Text: "summary"}}}, nil
+		},
+	}
+
+	summary, err := generateCompactionSummary(context.Background(), model,
+		[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+		CompactionOptions{
+			SummaryPrompt:   "summarize",
+			SummaryCall:     fantasy.Call{ToolChoice: &toolChoice},
+			ToolDefinitions: toolDefinitions,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, "summary", summary)
+	require.Len(t, calls, 2)
+	require.Equal(t, toolDefinitions, calls[0].Tools)
+	require.Nil(t, calls[1].Tools)
+	require.Equal(t, calls[0].Prompt, calls[1].Prompt)
+	require.Equal(t, calls[0].ToolChoice, calls[1].ToolChoice)
+}
+
+// TestGenerateCompactionSummaryDoesNotRetryOtherFailures verifies the
+// tool-less retry fires only for a context-window rejection of a
+// request that actually carried tools; every other failure is returned
+// after a single attempt.
+func TestGenerateCompactionSummaryDoesNotRetryOtherFailures(t *testing.T) {
+	t.Parallel()
+
+	contextTooLarge := &fantasy.ProviderError{
+		Message:    "Your input exceeds the context window of this model.",
+		StatusCode: http.StatusBadRequest,
+	}
+	cases := []struct {
+		name            string
+		toolDefinitions []fantasy.Tool
+		err             error
+	}{
+		{
+			name:            "unrelated bad request",
+			toolDefinitions: []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
+			err: &fantasy.ProviderError{
+				Message:    "Unsupported parameter: 'temperature' is not supported with this model.",
+				StatusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:            "server error",
+			toolDefinitions: []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
+			err: &fantasy.ProviderError{
+				Message:    "context window service unavailable",
+				StatusCode: http.StatusServiceUnavailable,
+			},
+		},
+		{
+			name:            "non-provider error",
+			toolDefinitions: []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
+			err:             xerrors.New("context window"),
+		},
+		{
+			name: "no tools to drop",
+			err:  contextTooLarge,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			calls := 0
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+					calls++
+					return nil, tc.err
+				},
+			}
+
+			_, err := generateCompactionSummary(context.Background(), model,
+				[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				CompactionOptions{
+					SummaryPrompt:   "summarize",
+					ToolDefinitions: tc.toolDefinitions,
+				},
+			)
+			require.ErrorIs(t, err, tc.err)
+			require.Equal(t, 1, calls)
+		})
+	}
+}
+
+func TestIsContextTooLargeError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "parsed by fantasy",
+			err: &fantasy.ProviderError{
+				StatusCode:         http.StatusBadRequest,
+				ContextTooLargeErr: true,
+				ContextMaxTokens:   16385,
+				ContextUsedTokens:  20000,
+			},
+			want: true,
+		},
+		{
+			name: "openai responses wording",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "Your input exceeds the context window of this model. Please adjust your input and try again.",
+			},
+			want: true,
+		},
+		{
+			name: "anthropic wording",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "prompt is too long: 213462 tokens > 200000 maximum",
+			},
+			want: true,
+		},
+		{
+			name: "openai error code in response body",
+			err: &fantasy.ProviderError{
+				StatusCode:   http.StatusBadRequest,
+				Message:      "Request too large for this model.",
+				ResponseBody: []byte(`{"error":{"message":"Request too large for this model.","type":"invalid_request_error","code":"context_length_exceeded"}}`),
+			},
+			want: true,
+		},
+		{
+			name: "wrapped provider error",
+			err: xerrors.Errorf("generate summary text: %w", &fantasy.ProviderError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "This model's maximum context length is 16385 tokens.",
+			}),
+			want: true,
+		},
+		{
+			name: "unrelated bad request",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "Invalid schema for function 'read_file'.",
+			},
+			want: false,
+		},
+		{
+			name: "matching wording on a non bad-request status",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusTooManyRequests,
+				Message:    "context window tokens per minute exceeded",
+			},
+			want: false,
+		},
+		{
+			name: "non-provider error",
+			err:  xerrors.New("prompt is too long"),
+			want: false,
+		},
+		{
+			name: "nil",
+			err:  nil,
+			want: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, isContextTooLargeError(tc.err))
+		})
+	}
 }
 
 func TestGenerateCompactionSummary_UsesCallerContext(t *testing.T) {
