@@ -151,9 +151,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		moduleVarMap,
 	);
 
-	// The Continue button stays enabled at all times. When the current step's
-	// requirements are not met, clicking it reveals this validation message in
-	// red instead of advancing.
 	const [showContinueError, setShowContinueError] = useState(false);
 	const [errorStepId, setErrorStepId] = useState(currentStep.id);
 
