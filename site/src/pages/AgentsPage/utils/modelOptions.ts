@@ -321,6 +321,27 @@ export const getProviderForModelOption = (
 
 export { formatProviderLabel } from "#/utils/aiProviders";
 
+export function resolveCompactionThreshold(
+	modelID: string | undefined,
+	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
+	models: readonly TypesGen.ChatModel[] | null | undefined,
+): number | undefined {
+	if (!modelID || !Array.isArray(models)) {
+		return undefined;
+	}
+	const config = models.find((c) => c.id === modelID);
+	if (!config) {
+		return undefined;
+	}
+	const userOverride = userThresholds?.find(
+		(threshold) => threshold.model_config_id === modelID,
+	);
+	if (userOverride) {
+		return userOverride.threshold_percent;
+	}
+	return config.compression_threshold;
+}
+
 export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],
 	isModelCatalogLoading: boolean,

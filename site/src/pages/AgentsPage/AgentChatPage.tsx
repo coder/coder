@@ -11,7 +11,6 @@ import {
 	useState,
 } from "react";
 
-import type { QueryClient } from "react-query";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -75,7 +74,6 @@ import { belowLgViewportMediaQuery, isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import { getWorkspaceAgents } from "#/utils/workspace";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -87,22 +85,33 @@ import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
+	getPersistedDetailError,
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
-	normalizeChatErrorPayload,
 } from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
 } from "./components/ChatConversation/chatHelpers";
 import {
-	type ChatStore,
-	type ChatStoreState,
+	buildInactiveChatQueueReconciliation,
+	reconcilePromotedQueueHead,
+	restoreOptimisticRequestSnapshot,
+	runPromoteQueuedMessage,
+	settlePromotedQueueHead,
+	submitEdit,
+	waitForPendingChatSettingsSyncs,
+} from "./components/ChatConversation/chatQueueReconciliation";
+import {
 	selectChatStatus,
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
+import {
+	isChatAgentBindingUnresolved,
+	isWatchedWorkspaceViewUnchanged,
+} from "./components/ChatConversation/watchedWorkspace";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import {
@@ -111,9 +120,15 @@ import {
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
+import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
+import { getWorkspaceOptionsWithLinkedWorkspace } from "./components/workspaceOptions";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
-import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
+import {
+	draftInputStorageKeyPrefix,
+	type ParsedDraft,
+	parseStoredDraft,
+} from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
@@ -121,6 +136,7 @@ import {
 	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
 	isUnavailableHistoricalModelID,
+	resolveCompactionThreshold,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./utils/modelOptions";
@@ -134,365 +150,15 @@ import {
 	resolveChatSlashCommandAvailability,
 } from "./utils/slashCommands";
 
-/** localStorage key controlling whether the right panel is visible. */
-export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
 class BuiltInCommandPendingError extends Error {}
 
-/** @internal Exported for testing. */
-export const draftInputStorageKeyPrefix = "agents.draft-input.";
-
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
 type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
-
-/**
- * Read the persisted plain-text draft for a given chat ID.
- * Returns the text portion of the draft (stripping Lexical JSON
- * wrapper if present) for backward compatibility.
- */
-export function getPersistedDraftInputValue(
-	chatID: string | undefined,
-): string {
-	if (!chatID) {
-		return "";
-	}
-	return parseStoredDraft(
-		localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`),
-	).text;
-}
-
-/** @internal Exported for testing. */
-export const restoreOptimisticRequestSnapshot = (
-	store: Pick<
-		ChatStore,
-		| "batch"
-		| "setChatStatus"
-		| "setQueuedMessages"
-		| "setStreamError"
-		| "setStreamState"
-	>,
-	snapshot: Pick<
-		ChatStoreState,
-		"chatStatus" | "queuedMessages" | "streamError" | "streamState"
-	>,
-): void => {
-	store.batch(() => {
-		store.setQueuedMessages(snapshot.queuedMessages);
-		store.setChatStatus(snapshot.chatStatus);
-		store.setStreamState(snapshot.streamState);
-		store.setStreamError(snapshot.streamError);
-	});
-};
-
-/**
- * Runs the optimistic queued-message promotion flow.
- *
- * The promote endpoint returns 202 Accepted with no message body, so the
- * actual user message is delivered via SSE or the messages REST endpoint.
- * Suppress the promoted ID so the transient reordered queue published by
- * the running-case backend does not flash the message back into the
- * visible queue. Roll back queue, status, and suppression on API error.
- *
- * @internal Exported for testing.
- */
-export const runPromoteQueuedMessage = async (params: {
-	id: number;
-	store: Pick<
-		ChatStore,
-		| "batch"
-		| "clearStreamError"
-		| "clearStreamState"
-		| "getSnapshot"
-		| "setChatStatus"
-		| "setQueuedMessages"
-		| "setStreamError"
-		| "setStreamState"
-		| "suppressQueuedMessageID"
-		| "unsuppressQueuedMessageID"
-	>;
-	promoteQueuedMessage: (id: number) => Promise<void>;
-	agentId: string | undefined;
-	clearChatErrorReason: (chatID: string) => void;
-	onError: (error: unknown) => void;
-}): Promise<void> => {
-	const {
-		id,
-		store,
-		promoteQueuedMessage,
-		agentId,
-		clearChatErrorReason,
-		onError,
-	} = params;
-	const previousSnapshot = store.getSnapshot();
-	store.batch(() => {
-		store.suppressQueuedMessageID(id);
-		store.setQueuedMessages(
-			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
-		);
-		store.clearStreamState();
-		store.clearStreamError();
-		store.setChatStatus("running");
-	});
-	if (agentId) {
-		clearChatErrorReason(agentId);
-	}
-	try {
-		await promoteQueuedMessage(id);
-	} catch (error) {
-		store.unsuppressQueuedMessageID(id);
-		restoreOptimisticRequestSnapshot(store, previousSnapshot);
-		onError(error);
-		throw error;
-	}
-};
-
-const buildPromotedQueueReconciliation = (
-	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
-	insertedMessages: readonly TypesGen.ChatMessage[],
-	promotedHeadID: number | undefined,
-	queuedTail: TypesGen.ChatQueuedMessage | undefined,
-	hasObservedQueuedMessageID: (id: number) => boolean,
-): readonly TypesGen.ChatQueuedMessage[] | undefined => {
-	if (promotedHeadID === undefined) {
-		return undefined;
-	}
-	if (!insertedMessages.some((message) => message.role === "user")) {
-		return undefined;
-	}
-	const remaining = queuedMessages.filter(
-		(message) => message.id !== promotedHeadID,
-	);
-	const tailPending =
-		queuedTail !== undefined &&
-		!remaining.some((message) => message.id === queuedTail.id) &&
-		!hasObservedQueuedMessageID(queuedTail.id);
-	return tailPending ? [...remaining, queuedTail] : remaining;
-};
-
-// Prefer an inactive chat's cached queue so messages queued during the send
-// are not dropped; fall back when no cache exists.
-export const buildInactiveChatQueueReconciliation = (
-	cachedQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
-	queuedMessagesBeforeSend: readonly TypesGen.ChatQueuedMessage[],
-	insertedMessages: readonly TypesGen.ChatMessage[],
-	promotedHeadID: number | undefined,
-	queuedTail: TypesGen.ChatQueuedMessage | undefined,
-): readonly TypesGen.ChatQueuedMessage[] | undefined =>
-	buildPromotedQueueReconciliation(
-		cachedQueuedMessages ?? queuedMessagesBeforeSend,
-		insertedMessages,
-		promotedHeadID,
-		queuedTail,
-		() => false,
-	);
-
-// Queue updates may rotate the head before the response arrives.
-export const reconcilePromotedQueueHead = (
-	store: Pick<
-		ChatStore,
-		| "batch"
-		| "getSnapshot"
-		| "setQueuedMessages"
-		| "markQueuedMessagePromoted"
-		| "hasObservedQueuedMessageID"
-	>,
-	insertedMessages: readonly TypesGen.ChatMessage[],
-	promotedHeadID: number | undefined,
-	queuedTail: TypesGen.ChatQueuedMessage | undefined,
-): readonly TypesGen.ChatQueuedMessage[] | undefined => {
-	const next = buildPromotedQueueReconciliation(
-		store.getSnapshot().queuedMessages,
-		insertedMessages,
-		promotedHeadID,
-		queuedTail,
-		store.hasObservedQueuedMessageID,
-	);
-	if (!next || promotedHeadID === undefined) {
-		return next;
-	}
-	store.batch(() => {
-		// The promoted user row proves the server deleted its queue row.
-		store.markQueuedMessagePromoted(promotedHeadID);
-		store.setQueuedMessages(next);
-	});
-	return next;
-};
-
-const fetchChatMessages = (queryClient: QueryClient) => (chatID: string) =>
-	queryClient.fetchQuery(chatQueueConvergence(chatID));
-
-// A promoted head is suppressed locally, but another tab can queue or
-// promote concurrently, so only the server knows the resulting queue.
-export const settlePromotedQueueHead = async (
-	store: Pick<
-		ChatStore,
-		"getQueueConvergenceFence" | "applyPromoteRefetchQueuedMessages"
-	>,
-	chatID: string,
-	promotedHeadID: number,
-	fetchMessages: (chatID: string) => Promise<TypesGen.ChatMessagesResponse>,
-): Promise<readonly TypesGen.ChatQueuedMessage[] | undefined> => {
-	const baselineFence = store.getQueueConvergenceFence();
-	let response: TypesGen.ChatMessagesResponse;
-	try {
-		response = await fetchMessages(chatID);
-	} catch {
-		// Convergence is best effort; a later authoritative update can correct it.
-		return undefined;
-	}
-	return store.applyPromoteRefetchQueuedMessages(
-		chatID,
-		promotedHeadID,
-		response.queued_messages ?? [],
-		baselineFence,
-	);
-};
-
-export async function submitEdit({
-	editMessage,
-	editArgs,
-	onError,
-}: {
-	editMessage: (args: {
-		messageId: number;
-		optimisticMessage?: TypesGen.ChatMessage;
-		req: TypesGen.EditChatMessageRequest;
-	}) => Promise<unknown>;
-	editArgs: {
-		messageId: number;
-		optimisticMessage?: TypesGen.ChatMessage;
-		req: TypesGen.EditChatMessageRequest;
-	};
-	onError: (error: unknown) => void;
-}): Promise<void> {
-	try {
-		await editMessage(editArgs);
-	} catch (error) {
-		onError(error);
-		throw error;
-	}
-}
-
-/** @internal Exported for testing. */
-export const waitForPendingChatSettingsSyncs = async (
-	pendingSyncs: readonly (Promise<unknown> | null | undefined)[],
-): Promise<void> => {
-	const activeSyncs = pendingSyncs.filter(
-		(pendingSync): pendingSync is Promise<unknown> =>
-			pendingSync !== null && pendingSync !== undefined,
-	);
-	if (activeSyncs.length === 0) {
-		return;
-	}
-	await Promise.all(activeSyncs);
-};
-
-/** @internal Exported for testing. */
-export const filterWorkspaceOptionsByOrganization = (
-	workspaceOptions: readonly TypesGen.Workspace[],
-	organizationID: string | undefined,
-): readonly TypesGen.Workspace[] => {
-	if (!organizationID) {
-		return [];
-	}
-	return workspaceOptions.filter(
-		(workspace) => workspace.organization_id === organizationID,
-	);
-};
-
-/** @internal Exported for testing. */
-export const getWorkspaceOptionsWithLinkedWorkspace = (
-	workspaceOptions: readonly TypesGen.Workspace[],
-	workspace: TypesGen.Workspace | undefined,
-	ownerID: string,
-): readonly TypesGen.Workspace[] => {
-	if (!workspace || workspace.owner_id !== ownerID) {
-		return workspaceOptions;
-	}
-
-	const existingIndex = workspaceOptions.findIndex(
-		(candidate) => candidate.id === workspace.id,
-	);
-	if (existingIndex === -1) {
-		return [workspace, ...workspaceOptions];
-	}
-
-	if (workspaceOptions[existingIndex] === workspace) {
-		return workspaceOptions;
-	}
-
-	const nextWorkspaceOptions = [...workspaceOptions];
-	nextWorkspaceOptions[existingIndex] = workspace;
-	return nextWorkspaceOptions;
-};
-
-// Keep this list in sync with app fields consumed by the chat UI, or live
-// updates to those fields can retain stale query data.
-const watchedAgentAppFields: readonly (keyof TypesGen.WorkspaceApp)[] = [
-	"id",
-	"slug",
-	"health",
-	"hidden",
-	"external",
-	"command",
-	"subdomain",
-	"subdomain_name",
-	"display_name",
-];
-
-/** @internal Exported for testing. */
-export const isWatchedWorkspaceViewUnchanged = (
-	prev: TypesGen.Workspace,
-	next: TypesGen.Workspace,
-	chatAgentId: string | undefined,
-): boolean => {
-	const prevAgent = getWorkspaceAgent(prev, chatAgentId);
-	const nextAgent = getWorkspaceAgent(next, chatAgentId);
-	const prevApps = prevAgent?.apps ?? [];
-	const nextApps = nextAgent?.apps ?? [];
-	return (
-		prev.latest_build.id === next.latest_build.id &&
-		prev.latest_build.status === next.latest_build.status &&
-		prev.health.healthy === next.health.healthy &&
-		prev.name === next.name &&
-		prev.owner_name === next.owner_name &&
-		prevAgent?.id === nextAgent?.id &&
-		prevAgent?.status === nextAgent?.status &&
-		prevAgent?.name === nextAgent?.name &&
-		prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
-		prevAgent?.lifecycle_state === nextAgent?.lifecycle_state &&
-		prevApps.length === nextApps.length &&
-		prevApps.every((prevApp, index) => {
-			const nextApp = nextApps[index];
-			return watchedAgentAppFields.every(
-				(field) => prevApp[field] === nextApp[field],
-			);
-		})
-	);
-};
-
-/**
- * True when a running workspace has agents but the chat's agent ID is absent
- * from the latest build (stale after a rebuild, or not yet persisted). Chat
- * reads can return a repaired ID, so callers should refetch the chat.
- *
- * @internal Exported for testing.
- */
-export const isChatAgentBindingUnresolved = (
-	workspace: TypesGen.Workspace | undefined,
-	chatAgentId: string | undefined,
-): boolean => {
-	if (workspace?.latest_build.status !== "running") {
-		return false;
-	}
-	const agents = getWorkspaceAgents(workspace);
-	return agents.length > 0 && !agents.some((agent) => agent.id === chatAgentId);
-};
 
 const buildAttachmentMediaTypes = (
 	attachments?: readonly PendingAttachment[],
@@ -734,96 +400,6 @@ export function useConversationEditingState(deps: {
 		handleLoadingDraftChange,
 	};
 }
-
-const getPersistedDetailError = ({
-	chatStatus,
-	chatRecord,
-	cachedError,
-}: {
-	chatStatus: TypesGen.ChatStatus | null;
-	chatRecord: TypesGen.Chat | undefined;
-	cachedError: ChatDetailError | undefined;
-}): ChatDetailError | undefined => {
-	if (chatStatus !== "error") {
-		return undefined;
-	}
-	if (cachedError) {
-		return cachedError;
-	}
-	return normalizeChatErrorPayload(chatRecord?.last_error);
-};
-
-/**
- * Resolves the effective compaction threshold for a model configuration,
- * preferring the user's override when set.
- */
-function resolveCompactionThreshold(
-	modelID: string | undefined,
-	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	models: readonly TypesGen.ChatModel[] | null | undefined,
-): number | undefined {
-	if (!modelID || !Array.isArray(models)) return undefined;
-	const config = models.find((c) => c.id === modelID);
-	if (!config) return undefined;
-	const userOverride = userThresholds?.find(
-		(threshold) => threshold.model_config_id === modelID,
-	);
-	if (userOverride) {
-		return userOverride.threshold_percent;
-	}
-	return config.compression_threshold;
-}
-
-// Compile-time guard: ensures the workspace watcher bailout comparison
-// covers every WorkspaceAgent field the UI reads. If WorkspaceAgent
-// gains a new field, this will error until the field is either added
-// to the comparison or explicitly excluded here.
-type _UncoveredAgentFields = Omit<
-	TypesGen.WorkspaceAgent,
-	| "id"
-	| "status"
-	| "name"
-	| "expanded_directory"
-	| "lifecycle_state"
-	// Fields below are intentionally not compared. They change
-	// frequently (stats, metadata) or are objects/arrays that would
-	// require deep comparison, and the UI does not read them.
-	| "parent_id"
-	| "created_at"
-	| "updated_at"
-	| "first_connected_at"
-	| "last_connected_at"
-	| "disconnected_at"
-	| "started_at"
-	| "ready_at"
-	| "resource_id"
-	| "instance_id"
-	| "architecture"
-	| "environment_variables"
-	| "operating_system"
-	| "logs_length"
-	| "logs_overflowed"
-	| "directory"
-	| "version"
-	| "api_version"
-	| "apps"
-	| "latency"
-	| "connection_timeout_seconds"
-	| "troubleshooting_url"
-	| "subsystems"
-	| "health"
-	| "display_apps"
-	| "log_sources"
-	| "scripts"
-	| "metadata"
-	| "startup_script_behavior"
->;
-// If this errors, a new field was added to WorkspaceAgent.
-// Decide: does the UI read it? If yes, add it to the first
-// section of the Omit above and to the bailout comparison
-// in the workspace watcher message handler. If no, add it
-// to the excluded section of the Omit.
-const _agentFieldGuard: Record<keyof _UncoveredAgentFields, true> = {};
 
 const AgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
@@ -1891,12 +1467,9 @@ const AgentChatPage: FC = () => {
 							store,
 							agentId,
 							queueHeadIDBeforeSend,
-							fetchChatMessages(queryClient),
-						).then((settled) => {
-							if (settled) {
-								setCacheQueuedMessages(settled);
-							}
-						});
+							(chatID) => queryClient.fetchQuery(chatQueueConvergence(chatID)),
+							setCacheQueuedMessages,
+						);
 					}
 				}
 			}
