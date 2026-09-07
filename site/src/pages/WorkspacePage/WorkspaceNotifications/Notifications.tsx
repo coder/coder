@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FC, type ReactNode, useState } from "react";
 import type { AlertProps } from "#/components/Alert/Alert";
 import { Badge } from "#/components/Badge/Badge";
@@ -8,7 +9,6 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import type { ThemeRole } from "#/theme/roles";
-import { cn } from "#/utils/cn";
 
 export type NotificationItem = {
 	title: string;

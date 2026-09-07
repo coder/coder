@@ -1,8 +1,8 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
-import { cn } from "#/utils/cn";
 import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 
 const getTagLabel = (tag: string) => {
@@ -71,7 +71,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 					<h2 className="m-0 text-base font-normal text-content-primary">
 						Choose a starter template
 					</h2>
-					<span className="text-xs font-semibold uppercase tracking-[0.1em] text-content-secondary">
+					<span className="text-xs font-semibold uppercase tracking-widest text-content-secondary">
 						Filter
 					</span>
 					{tags.map((tag) => (

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FormikContextType } from "formik";
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
@@ -43,7 +44,6 @@ import type {
 	ModelConfigFormBuildResult,
 	ModelFormValues,
 } from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import type { FormHelpers } from "#/utils/formUtils";
 import {

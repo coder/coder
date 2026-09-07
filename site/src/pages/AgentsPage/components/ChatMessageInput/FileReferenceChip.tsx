@@ -1,16 +1,16 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import type { CSSProperties, FC } from "react";
 import { FileIcon } from "#/components/FileIcon/FileIcon";
-import { cn } from "#/utils/cn";
 import { getFileReferenceDisplay } from "./fileReferenceDisplay";
 
 const fileReferenceChipVariants = cva(
-	"inline-flex min-h-5 max-w-[300px] select-none items-center gap-1 rounded-md border border-border-default bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-[13px] font-normal leading-none text-inherit shadow-sm transition-colors",
+	"inline-flex min-h-5 max-w-[300px] select-none items-center gap-1 rounded-md border border-border-default bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-[13px] font-normal leading-none text-inherit shadow-xs transition-colors",
 	{
 		variants: {
 			interactive: {
-				true: "cursor-pointer hover:border-border-secondary hover:bg-surface-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+				true: "cursor-pointer hover:border-border-secondary hover:bg-surface-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				false: "cursor-default",
 			},
 			selected: {
@@ -30,7 +30,7 @@ const fileReferenceTriggerVariants = cva(
 	{
 		variants: {
 			interactive: {
-				true: "cursor-pointer focus-visible:outline-none",
+				true: "cursor-pointer focus-visible:outline-hidden",
 				false: "cursor-default",
 			},
 		},

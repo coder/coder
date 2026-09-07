@@ -84,12 +84,12 @@ func TestFirstUser(t *testing.T) {
 
 	t.Run("Trial", func(t *testing.T) {
 		t.Parallel()
-		trialGenerated := make(chan struct{})
+		trialGenerated := make(chan codersdk.LicensorTrialRequest, 1)
 		entitlementsRefreshed := make(chan struct{})
 
 		client := coderdtest.New(t, &coderdtest.Options{
-			TrialGenerator: func(context.Context, codersdk.LicensorTrialRequest) error {
-				close(trialGenerated)
+			TrialGenerator: func(_ context.Context, req codersdk.LicensorTrialRequest) error {
+				trialGenerated <- req
 				return nil
 			},
 			RefreshEntitlements: func(context.Context) error {
@@ -111,7 +111,9 @@ func TestFirstUser(t *testing.T) {
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
 
-		_ = testutil.TryReceive(ctx, t, trialGenerated)
+		trialReq := testutil.TryReceive(ctx, t, trialGenerated)
+
+		require.Equal(t, codersdk.LicensorTrialSourceNewUser, trialReq.Source)
 		_ = testutil.TryReceive(ctx, t, entitlementsRefreshed)
 	})
 }

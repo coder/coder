@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderBases } from "#/api/queries/templateBuilder";
@@ -10,7 +11,6 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
-import { cn } from "#/utils/cn";
 import {
 	type ConfigurationFieldDefinition,
 	ConfigurationFieldLabel,

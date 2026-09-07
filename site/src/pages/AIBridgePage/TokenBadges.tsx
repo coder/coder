@@ -27,13 +27,13 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 				<TooltipTrigger asChild>
 					<span>
 						<Badge className="gap-0.5 rounded-e-none">
-							<ArrowDownIcon className="size-icon-xs flex-shrink-0" />
+							<ArrowDownIcon className="size-icon-xs shrink-0" />
 							<span className="truncate min-w-0">
 								{roundTokenDisplay(inputTokens)}
 							</span>
 						</Badge>
 						<Badge className="gap-0.5 bg-surface-tertiary rounded-s-none">
-							<ArrowUpIcon className="size-icon-xs flex-shrink-0" />
+							<ArrowUpIcon className="size-icon-xs shrink-0" />
 							<span className="truncate min-w-0">
 								{roundTokenDisplay(outputTokens)}
 							</span>
@@ -44,7 +44,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 					<div className="grid grid-cols-2 gap-8">
 						<div>
 							<div className="flex items-center gap-1">
-								<ArrowDownIcon className="size-icon-sm flex-shrink-0" />
+								<ArrowDownIcon className="size-icon-sm shrink-0" />
 								<span className="text-content-primary text-sm">
 									Input tokens
 								</span>
@@ -59,7 +59,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 
 						<div>
 							<div className="flex items-center gap-1">
-								<ArrowUpIcon className="size-icon-sm flex-shrink-0" />
+								<ArrowUpIcon className="size-icon-sm shrink-0" />
 								<span className="text-content-primary text-sm">
 									Output tokens
 								</span>

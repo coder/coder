@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog/v3"
 	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/notifications"
@@ -36,7 +35,6 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 		smtpRequestTimeout      time.Duration
 		dialTimeout             time.Duration
 		noCleanup               bool
-		reuseUsers              bool
 		usernameInfix           string
 		smtpAPIURL              string
 
@@ -120,17 +118,13 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			}()
 
 			var adminReuse, regularReuse []notificationReuseUser
-			if reuseUsers {
-				_, _ = fmt.Fprintln(inv.Stderr, "Reusing existing scaletest users...")
-				// Bound token lifetime to just beyond the run so tokens orphaned by a
-				// hard kill expire quickly rather than at the deployment default.
-				tokenLifetime := notificationTimeout + dialTimeout + time.Hour
-				adminReuse, regularReuse, err = selectNotificationReuseUsers(ctx, client, usernameInfix, int(templateAdminCount), int(regularUserCount), tokenLifetime)
-				if err != nil {
-					return err
-				}
-			} else {
-				_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
+			_, _ = fmt.Fprintln(inv.Stderr, "Reusing existing scaletest users...")
+			// Bound token lifetime to just beyond the run so tokens orphaned by a
+			// hard kill expire quickly rather than at the deployment default.
+			tokenLifetime := notificationTimeout + dialTimeout + time.Hour
+			adminReuse, regularReuse, err = selectNotificationReuseUsers(ctx, client, usernameInfix, int(templateAdminCount), int(regularUserCount), tokenLifetime)
+			if err != nil {
+				return err
 			}
 
 			dialBarrier := &sync.WaitGroup{}
@@ -168,13 +162,8 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					SMTPApiURL:               smtpAPIURL,
 					SMTPRequestTimeout:       smtpRequestTimeout,
 					SMTPHttpClient:           smtpHTTPClient,
-				}
-				if reuseUsers {
-					config.SessionToken = adminReuse[i].sessionToken
-					config.PreCreatedUser = adminReuse[i].user
-				} else {
-					config.User = createusers.Config{OrganizationID: me.OrganizationIDs[0]}
-					config.Roles = []string{codersdk.RoleTemplateAdmin}
+					SessionToken:             adminReuse[i].sessionToken,
+					PreCreatedUser:           adminReuse[i].user,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -188,13 +177,8 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					DialBarrier:           dialBarrier,
 					ReceivingWatchBarrier: templateAdminWatchBarrier,
 					Metrics:               metrics,
-				}
-				if reuseUsers {
-					config.SessionToken = regularReuse[i].sessionToken
-					config.PreCreatedUser = regularReuse[i].user
-				} else {
-					config.User = createusers.Config{OrganizationID: me.OrganizationIDs[0]}
-					config.Roles = []string{}
+					SessionToken:          regularReuse[i].sessionToken,
+					PreCreatedUser:        regularReuse[i].user,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -323,15 +307,9 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			Value:       serpent.BoolOf(&noCleanup),
 		},
 		{
-			Flag:        "reuse-users",
-			Env:         "CODER_SCALETEST_NOTIFICATION_REUSE_USERS",
-			Description: "Reuse existing scaletest users instead of creating new ones. Enough users, including template admins, must already exist (see \"coder exp scaletest create-users\") or the command errors. Run only one user-selecting scaletest command at a time to avoid overlapping selections.",
-			Value:       serpent.BoolOf(&reuseUsers),
-		},
-		{
 			Flag:        "username-infix",
 			Env:         "CODER_SCALETEST_NOTIFICATION_USERNAME_INFIX",
-			Description: "Username infix identifying the user pool to reuse when --reuse-users is set. It must match the --username-infix used by the create-users run that provisioned the pool: for example asdf selects users named scaletest-asdf-<random>-<id> so notifications reuses only its own pool and does not compete with other load generators. Leave empty to select any scaletest- user. Ignored without --reuse-users.",
+			Description: "Username infix identifying the user pool to reuse. It must match the --username-infix used by the create-users run that provisioned the pool: for example asdf selects users named scaletest-asdf-<random>-<id> so notifications reuses only its own pool and does not compete with other load generators. Leave empty to select any scaletest- user.",
 			Value:       serpent.StringOf(&usernameInfix),
 		},
 		{

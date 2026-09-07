@@ -1,7 +1,8 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
-import { EnterpriseBadge } from "#/components/Badges/Badges";
+import { EnterpriseBadge } from "#/components/Badge/PresetBadges";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { FormFields } from "#/components/Form/Form";
@@ -18,7 +19,6 @@ import {
 import { Label } from "#/components/Label/Label";
 import { Textarea } from "#/components/Textarea/Textarea";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 

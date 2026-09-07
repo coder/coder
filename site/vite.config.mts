@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
@@ -18,11 +19,16 @@ compilerPreset.rolldown.filter = {
 	...compilerPreset.rolldown.filter,
 	id: {
 		// Keep in sync with targetDirs in scripts/check-compiler.mjs.
-		include: [/src\/pages\/AgentsPage\//, /src\/pages\/AIBridgePage\//],
+		include: [
+			/src\/pages\/AgentsPage\//,
+			/src\/pages\/AIBridgePage\//,
+			/src\/pages\/TemplateBuilder\//,
+		],
 	},
 };
 
 const plugins: PluginOption[] = [
+	tailwindcss(),
 	react(),
 	babel({ presets: [compilerPreset] }),
 	checker({

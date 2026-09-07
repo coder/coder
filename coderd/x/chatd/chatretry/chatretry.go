@@ -31,12 +31,6 @@ const (
 
 type ClassifiedError = chaterror.ClassifiedError
 
-// IsRetryable reports whether err is retryable. Unlike Retry, it does not
-// reclassify bare context.Canceled as a transport reset.
-func IsRetryable(err error) bool {
-	return chaterror.Classify(err).Retryable
-}
-
 // Delay returns the backoff duration for the given 0-indexed attempt.
 // Uses exponential backoff: min(InitialDelay * 2^attempt, MaxDelay).
 // Matches the backoff curve used in coder/mux.

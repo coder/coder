@@ -1,0 +1,35 @@
+# Coder.OneSentencePerLine - flag a sentence boundary that is followed by more
+# text on the same Markdown source line.
+#
+# The docs use semantic line breaks: each sentence gets its own source line.
+# The policy lives in the style guide:
+# docs/.style/style-guide/formatting.md#one-sentence-per-line
+#
+# Implementation: a raw-scoped existence rule. Line structure is only visible
+# in `scope: raw`; every other scope hands Vale text that has already been
+# joined, so a rule about where the newlines go cannot see them. The regex
+# matches a lowercase word ending in sentence punctuation, one or more spaces,
+# then a capitalized word, which is the shape of two sentences sharing a line.
+#
+# The two-lowercase-letter prefix keeps the rule off abbreviations and
+# initialisms that end in a period (`e.g.`, `i.e.`, `U.S.`), version strings
+# (`v2.34.`), and single-letter list labels. Raw scope also means the pattern
+# can reach fenced code, so the token requires a space before the capital,
+# which excludes the `foo.Bar` selector shape common in Go and TypeScript.
+#
+# Level: warning. The rule is advisory and does not fail CI, matching how the
+# rest of the Coder package ships.
+#
+# Rollout: enabled per directory in .vale.ini rather than repo-wide. The
+# convention postdates most of the corpus, so a repo-wide switch would report
+# roughly 2,200 findings and break the zero-baseline doctrine in
+# docs/.style/README.md. Add a directory to the allowlist once its pages are
+# converted.
+extends: existence
+message: "Two sentences share a source line ('%s'); start a new line after each sentence."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/formatting.md#one-sentence-per-line
+level: warning
+scope: raw
+nonword: true
+tokens:
+  - '[a-z]{3}[.!?] +[A-Z]'

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { OctagonXIcon } from "lucide-react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -8,7 +9,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
@@ -55,7 +55,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 		hasTranscriptBlocks ||
 		status === "running" ||
 		isBackgrounded ||
-		!!killedBySignal
+		killedBySignal
 			? "preview"
 			: "collapsed";
 	const isRunning = status === "running";

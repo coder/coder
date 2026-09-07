@@ -273,7 +273,7 @@ export const parseMessageContent = (
 						!lastBlock.sources.some((s) => s.url === part.url)
 					) {
 						lastBlock.sources.push(source);
-					} else if (!lastBlock || lastBlock.type !== "sources") {
+					} else if (lastBlock?.type !== "sources") {
 						parsed.blocks.push({
 							type: "sources",
 							sources: [source],

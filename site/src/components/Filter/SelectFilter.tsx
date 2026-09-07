@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC, ReactNode } from "react";
 import {
 	Combobox,
@@ -9,7 +10,6 @@ import {
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 
 const BASE_WIDTH = 200;
 
@@ -55,7 +55,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 				<ComboboxButton
 					selectedOption={selectedOption}
 					placeholder={placeholder}
-					className="flex-shrink-0 grow"
+					className="shrink-0 grow"
 					style={{ flexBasis: width }}
 					aria-label={label}
 				/>

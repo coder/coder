@@ -48,7 +48,9 @@ const withWorkspaceCount = (count: number) => (Story: FC) => {
 	return <Story />;
 };
 
-const withUnavailableWorkspaceCount = (Story: FC) => {
+const withUnavailableWorkspaceCount = function WithUnavailableWorkspaceCount(
+	Story: FC,
+) {
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(workspacesKey(userWorkspacesRequest), {
 		workspaces: [],
@@ -67,7 +69,7 @@ const withUsageIndicatorFrame = (
 	return (Story) => (
 		<div
 			data-testid={frameTestId}
-			className={`flex h-12 min-w-0 items-stretch justify-end rounded-md bg-surface-secondary [container-type:inline-size] ${widthClassName}`}
+			className={`flex h-12 min-w-0 items-stretch justify-end rounded-md bg-surface-secondary @container ${widthClassName}`}
 		>
 			<Story />
 		</div>

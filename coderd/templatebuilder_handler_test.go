@@ -102,7 +102,25 @@ func TestTemplateBuilderBases(t *testing.T) {
 			} else {
 				require.Empty(t, b.Variables, "base %q should have no variables", spec.id)
 			}
+
+			// Every base declares at least one agent, exactly one default.
+			require.NotEmpty(t, b.Agents, "base %q should declare agents", spec.id)
+			defaults := 0
+			for _, a := range b.Agents {
+				if a.Default {
+					defaults++
+				}
+			}
+			require.Equal(t, 1, defaults, "base %q should mark exactly one default agent", spec.id)
 		}
+
+		// aws-linux names its agent "dev"; the rest use "main".
+		require.Equal(t,
+			[]codersdk.TemplateBuilderBaseAgent{{Name: "dev", Default: true}},
+			basesByID["aws-linux"].Agents)
+		require.Equal(t,
+			[]codersdk.TemplateBuilderBaseAgent{{Name: "main", Default: true}},
+			basesByID["docker"].Agents)
 	})
 
 	t.Run("Sorted", func(t *testing.T) {

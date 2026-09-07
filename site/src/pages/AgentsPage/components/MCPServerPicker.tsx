@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { mcpServerOAuth2ConnectPath } from "#/api/api";
@@ -17,7 +18,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -310,7 +310,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-52 p-0">
 				<TooltipProvider delayDuration={300}>
-					<div className="max-h-64 overflow-y-auto py-1 [scrollbar-width:thin]">
+					<div className="max-h-64 overflow-y-auto py-1 scrollbar-thin">
 						{enabledServers.map((server) => {
 							const isForceOn = server.availability === "force_on";
 							const isSelected =

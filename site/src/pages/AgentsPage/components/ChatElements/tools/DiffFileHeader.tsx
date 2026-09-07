@@ -1,5 +1,5 @@
 import type { FileContents, FileDiffMetadata } from "@pierre/diffs";
-import { cn } from "#/utils/cn";
+import { cn } from "cn";
 import { countChangedLines } from "../../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../../utils/diffColors";
 

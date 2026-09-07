@@ -341,24 +341,24 @@ func (s *failNextAcquireLockStore) AcquireLock(ctx context.Context, id int64) er
 	return s.Store.AcquireLock(ctx, id)
 }
 
-// failNextChatInstructionTransactionStore lets a test force transaction setup
-// to fail before the callback runs.
-type failNextChatInstructionTransactionStore struct {
+type failNextTxStore struct {
 	database.Store
 
+	txID                string
 	failNextTransaction *atomic.Bool
 }
 
-func newFailNextChatInstructionTransactionStore(store database.Store) *failNextChatInstructionTransactionStore {
-	return &failNextChatInstructionTransactionStore{
+func newFailNextTxStore(store database.Store, txID string) *failNextTxStore {
+	return &failNextTxStore{
 		Store:               store,
+		txID:                txID,
 		failNextTransaction: &atomic.Bool{},
 	}
 }
 
-func (s *failNextChatInstructionTransactionStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
-	if s.failNextTransaction.CompareAndSwap(true, false) {
-		return stderrors.New("forced chat instruction transaction failure")
+func (s *failNextTxStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	if txOpts != nil && txOpts.TxIdentifier == s.txID && s.failNextTransaction.CompareAndSwap(true, false) {
+		return stderrors.New("forced transaction failure for " + s.txID)
 	}
 	return s.Store.InTx(function, txOpts)
 }
@@ -15308,7 +15308,7 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextChatInstructionTransactionStore(rawDB)
+		store := newFailNextTxStore(rawDB, "chat_plan_mode_instructions_write")
 		mAudit := audit.NewMock()
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,

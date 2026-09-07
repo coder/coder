@@ -55,3 +55,41 @@ WHERE
 	AND provisioner_jobs.type = 'template_version_import'
 	AND file_id = @file_id
 ;
+
+-- name: DeleteCachedModuleFilesCreatedBetween :execrows
+-- Deletes cached Terraform module archives ingested in the given time range and
+-- clears the template version references to them. created_by and mimetype
+-- identify a provisionerd-written module archive, matching the checks in
+-- provisionerdserver, so user-uploaded template tarballs are never removed.
+-- Only archives referenced by a template version are considered.
+WITH doomed AS (
+	SELECT
+		files.id
+	FROM
+		files
+	INNER JOIN
+		template_version_terraform_values
+		ON template_version_terraform_values.cached_module_files = files.id
+	WHERE
+		files.created_by = '00000000-0000-0000-0000-000000000000'
+		AND files.mimetype = 'application/x-tar'
+		AND files.created_at >= @created_at_after
+		AND files.created_at < @created_at_before
+), cleared AS (
+	-- The foreign key is NO ACTION, so references must be cleared before the
+	-- files rows can be deleted. Data-modifying CTEs always run to completion,
+	-- and the constraint is checked at the end of the statement.
+	UPDATE
+		template_version_terraform_values
+	SET
+		cached_module_files = NULL
+	WHERE
+		cached_module_files IN (SELECT id FROM doomed)
+	RETURNING 1
+)
+DELETE FROM
+	files
+USING
+	doomed
+WHERE
+	files.id = doomed.id;

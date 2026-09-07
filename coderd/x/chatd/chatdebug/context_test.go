@@ -21,7 +21,6 @@ func TestContextWithRunRoundTrip(t *testing.T) {
 		ModelConfigID:       uuid.New(),
 		TriggerMessageID:    11,
 		HistoryTipMessageID: 22,
-		Kind:                chatdebug.KindChatTurn,
 		Provider:            "anthropic",
 		Model:               "claude-sonnet",
 	}
@@ -45,12 +44,11 @@ func TestContextWithStepRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	sc := &chatdebug.StepContext{
-		StepID:              uuid.New(),
-		RunID:               uuid.New(),
-		ChatID:              uuid.New(),
-		StepNumber:          7,
-		Operation:           chatdebug.OperationStream,
-		HistoryTipMessageID: 33,
+		StepID:     uuid.New(),
+		RunID:      uuid.New(),
+		ChatID:     uuid.New(),
+		StepNumber: 7,
+		Operation:  chatdebug.OperationStream,
 	}
 
 	ctx := chatdebug.ContextWithStep(context.Background(), sc)

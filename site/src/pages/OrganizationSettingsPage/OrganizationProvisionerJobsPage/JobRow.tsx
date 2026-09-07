@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
@@ -12,7 +13,6 @@ import {
 	ProvisionerTags,
 	ProvisionerTruncateTags,
 } from "#/modules/provisioners/ProvisionerTags";
-import { cn } from "#/utils/cn";
 import { relativeTime } from "#/utils/time";
 import { CancelJobButton } from "./CancelJobButton";
 

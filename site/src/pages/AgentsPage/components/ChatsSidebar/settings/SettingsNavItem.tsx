@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ShieldIcon } from "lucide-react";
 import type { ComponentProps, FC, ReactNode } from "react";
 import { Link } from "react-router";
@@ -6,7 +7,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 type SettingsNavItemProps = {
 	icon: FC<{ className?: string }>;

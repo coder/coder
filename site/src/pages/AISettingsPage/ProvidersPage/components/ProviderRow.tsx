@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import {
 	AgentsUnsupportedProviderTypes,
@@ -13,7 +14,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
-import { cn } from "#/utils/cn";
 import { ProviderIcon } from "./ProviderIcon";
 import { getProviderDisplayType } from "./providerFormApiMap";
 
@@ -139,7 +139,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 				<div className="flex justify-end items-center gap-8 pr-4">
 					<ChevronRightIcon
 						aria-hidden
-						className="size-icon-sm text-content-secondary flex-shrink-0"
+						className="size-icon-sm text-content-secondary shrink-0"
 					/>
 				</div>
 			</TableCell>

@@ -1,4 +1,3 @@
-import { InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
@@ -127,9 +126,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	return (
 		<>
 			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
-			<TemplateBuilderSubtitle>
-				Set values for module variables.
-			</TemplateBuilderSubtitle>
+			<TemplateBuilderSubtitle>Customise your modules.</TemplateBuilderSubtitle>
 
 			<div className="flex flex-col gap-6">
 				{selectedModules.map((mod) => {
@@ -164,25 +161,9 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 								detailsUrl={moduleDetailsUrl(mod.id)}
 								fields={requiredFields}
 								optionalFields={optionalFields}
+								sensitiveVariables={sensitiveVars}
 								onRemove={() => onRemoveModule(mod.id)}
 							/>
-
-							{sensitiveVars.length > 0 && (
-								<div className="flex items-center gap-2 mt-2 p-3 rounded-md text-xs text-content-secondary">
-									<InfoIcon className="size-icon-sm shrink-0 mt-0.5" />
-									<p>
-										{sensitiveVars.map((v) => (
-											<code
-												key={v.name}
-												className="mr-1 px-1.5 py-1 bg-surface-secondary"
-											>
-												{v.name}
-											</code>
-										))}
-										will be collected from developers at workspace creation.
-									</p>
-								</div>
-							)}
 						</div>
 					);
 				})}

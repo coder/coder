@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	ChevronRightIcon,
@@ -9,7 +10,7 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { type FC, Fragment, type ReactNode, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useOutletContext } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -21,7 +22,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
@@ -55,8 +56,6 @@ type ChatTopBarProps = {
 	isArchiveBlocked?: boolean;
 	isChildChat?: boolean;
 	isPinned?: boolean;
-	isSidebarCollapsed: boolean;
-	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
 	isSharedChat?: boolean;
 	renderChatSharingContent?: (open: boolean) => ReactNode;
@@ -111,14 +110,14 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	isArchiveBlocked = false,
 	isChildChat = false,
 	isPinned = false,
-	isSidebarCollapsed,
-	onToggleSidebarCollapsed,
 	diffStatusData,
 	isSharedChat,
 	renderChatSharingContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
 	const prUrl = diffStatusData?.url;
 	const prState = diffStatusData?.pull_request_state;
@@ -255,7 +254,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					<PrStateIcon
 						state={prState}
 						draft={prDraft}
-						className="!size-3.5 shrink-0"
+						className="size-3.5! shrink-0"
 					/>
 					<span className="truncate max-w-[120px] hidden sm:inline">
 						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}

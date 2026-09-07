@@ -85,9 +85,12 @@ import (
 // API v2.11:
 //   - Added the session_counts map to Stats on the Agent API, deprecating
 //     the fixed session_count_* fields.
+//
+// API v2.12:
+//   - Added the client_session_id to TelemetryEvent.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 11
+	CurrentMinor = 12
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

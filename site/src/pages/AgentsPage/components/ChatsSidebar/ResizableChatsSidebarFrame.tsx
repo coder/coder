@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type ReactNode,
@@ -7,7 +8,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cn } from "#/utils/cn";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
@@ -112,7 +112,7 @@ export const ResizableChatsSidebarFrame = ({
 			}}
 			className={cn(
 				className,
-				"relative sm:w-[var(--agents-left-sidebar-width)] sm:min-w-[var(--agents-left-sidebar-min-width)] sm:max-w-[var(--agents-left-sidebar-max-width)]",
+				"relative sm:w-(--agents-left-sidebar-width) sm:min-w-(--agents-left-sidebar-min-width) sm:max-w-(--agents-left-sidebar-max-width)",
 			)}
 		>
 			{children}
@@ -130,7 +130,7 @@ export const ResizableChatsSidebarFrame = ({
 				onPointerUp={handlePointerEnd}
 				onPointerCancel={handlePointerEnd}
 				onKeyDown={handleKeyDown}
-				className="absolute top-0 right-0 z-20 hidden h-full w-1 touch-none cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-none sm:block"
+				className="absolute top-0 right-0 z-20 hidden h-full w-1 touch-none cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-hidden sm:block"
 			/>
 		</div>
 	);

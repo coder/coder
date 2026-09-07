@@ -11,7 +11,7 @@ import {
 	AgentSettingsUserAgentsPageView,
 	type AgentSettingsUserAgentsPageViewProps,
 } from "./AgentSettingsUserAgentsPageView";
-import type { ModelSelectorOption } from "./components/ChatElements";
+import type { ModelSelectorOption } from "./components/ChatElements/ModelSelector";
 
 const UNAVAILABLE_WARNING =
 	"The saved model is unavailable and will be ignored until you choose a valid model override.";

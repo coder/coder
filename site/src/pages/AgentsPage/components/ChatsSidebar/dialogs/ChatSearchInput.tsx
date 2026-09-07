@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ListFilterIcon, SearchIcon, XIcon } from "lucide-react";
 import type {
 	ChangeEventHandler,
@@ -5,7 +6,6 @@ import type {
 	KeyboardEventHandler,
 	RefObject,
 } from "react";
-import { cn } from "#/utils/cn";
 
 export type SearchFilter = {
 	readonly key: string;
@@ -88,7 +88,7 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 					onChange={onChange}
 					onKeyDown={onKeyDown}
 					placeholder={filters.length > 0 ? "" : "Search chats..."}
-					className="min-w-[60px] flex-1 basis-[60px] border-none bg-transparent py-0.5 text-sm text-content-primary outline-none placeholder:text-content-disabled"
+					className="min-w-[60px] flex-1 basis-[60px] border-none bg-transparent py-0.5 text-sm text-content-primary outline-hidden placeholder:text-content-disabled"
 					aria-label="Search chats"
 					role="combobox"
 					aria-controls={hasResults ? listboxId : undefined}

@@ -157,20 +157,23 @@ describe("coerceStepResponse", () => {
 		["numeric zero", 0, "0"],
 		["boolean false", false, "false"],
 		["explicit null", null, "null"],
-	])("preserves primitive tool-result %s in debug payloads", (_label, result, expected) => {
-		const response = coerceStepResponse({
-			content: [
-				{
-					type: "tool-result",
-					tool_call_id: "call-1",
-					tool_name: "probe",
-					result,
-				},
-			],
-		});
+	])(
+		"preserves primitive tool-result %s in debug payloads",
+		(_label, result, expected) => {
+			const response = coerceStepResponse({
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "call-1",
+						tool_name: "probe",
+						result,
+					},
+				],
+			});
 
-		expect(response.content).toBe(expected);
-	});
+			expect(response.content).toBe(expected);
+		},
+	);
 
 	it("extracts tool_input streaming deltas as tool calls", () => {
 		// Interrupted streams emit `tool_input` parts with the accumulated
