@@ -5323,8 +5323,8 @@ type ChatModelConfig struct {
 	Options              json.RawMessage `db:"options" json:"options"`
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
 	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
-	GroupACL             json.RawMessage `db:"group_acl" json:"group_acl"`
-	UserACL              json.RawMessage `db:"user_acl" json:"user_acl"`
+	GroupACL             ChatACL         `db:"group_acl" json:"group_acl"`
+	UserACL              ChatACL         `db:"user_acl" json:"user_acl"`
 }
 
 type ChatOrganizationModelOverride struct {
