@@ -525,6 +525,7 @@ func TestUpdateStats(t *testing.T) {
 		batcher.Mu.Lock()
 		defer batcher.Mu.Unlock()
 		require.EqualValues(t, 1, batcher.Called)
+		require.Empty(t, batcher.LastStats.GetSessionCounts())
 		require.EqualValues(t, 0, batcher.LastStats.SessionCountSsh)
 		require.EqualValues(t, 0, batcher.LastStats.SessionCountJetbrains)
 		require.EqualValues(t, 0, batcher.LastStats.SessionCountVscode)

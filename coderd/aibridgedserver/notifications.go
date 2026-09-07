@@ -137,6 +137,10 @@ func (s *Server) notifyBudgetThresholdCrossings(ctx context.Context, crossings [
 	if err != nil {
 		return xerrors.Errorf("look up group %q: %w", effectiveGroupID, err)
 	}
+	org, err := s.store.GetOrganizationByID(ctx, group.OrganizationID)
+	if err != nil {
+		return xerrors.Errorf("look up organization %q: %w", group.OrganizationID, err)
+	}
 	user, err := s.store.GetUserByID(ctx, userID)
 	if err != nil {
 		return xerrors.Errorf("look up user %q: %w", userID, err)
@@ -158,6 +162,7 @@ func (s *Server) notifyBudgetThresholdCrossings(ctx context.Context, crossings [
 			"limit_source":         string(c.limitSource),
 			"username":             user.Username,
 			"effective_group_name": group.Name,
+			"organization_name":    org.Name,
 			// Both bounds carry the year so a period straddling a year boundary
 			// (e.g. December 1, 2026 - January 1, 2027) is unambiguous.
 			"period_start": c.periodStart.UTC().Format("January 2, 2006"),

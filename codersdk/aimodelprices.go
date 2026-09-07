@@ -14,15 +14,40 @@ import (
 // calculation treats the same as zero. Distinguish that from an explicit 0,
 // which declares the model free of charge.
 type AIModelPrice struct {
-	Provider        string    `json:"provider"`
-	Model           string    `json:"model"`
-	InputPrice      *int64    `json:"input_price"`
-	OutputPrice     *int64    `json:"output_price"`
-	CacheReadPrice  *int64    `json:"cache_read_price"`
-	CacheWritePrice *int64    `json:"cache_write_price"`
-	CreatedAt       time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
+	Provider        string             `json:"provider"`
+	Model           string             `json:"model"`
+	InputPrice      *int64             `json:"input_price"`
+	OutputPrice     *int64             `json:"output_price"`
+	CacheReadPrice  *int64             `json:"cache_read_price"`
+	CacheWritePrice *int64             `json:"cache_write_price"`
+	Source          AIModelPriceSource `json:"source"`
+	CreatedAt       time.Time          `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time          `json:"updated_at" format:"date-time"`
 }
+
+// AIModelPriceSource is where a model price came from.
+type AIModelPriceSource string
+
+const (
+	// AIModelPriceSourceDefault is a price from the embedded price book.
+	AIModelPriceSourceDefault AIModelPriceSource = "default"
+	// AIModelPriceSourceCustom is a price set through the API.
+	AIModelPriceSourceCustom AIModelPriceSource = "custom"
+)
+
+// AIModelPriceSourceFilter selects which prices a listing reports. It is
+// distinct from AIModelPriceSource because no stored price is "all".
+//
+// @typescript-ignore AIModelPriceSourceFilter
+type AIModelPriceSourceFilter string
+
+const (
+	AIModelPriceSourceFilterDefault = AIModelPriceSourceFilter(AIModelPriceSourceDefault)
+	AIModelPriceSourceFilterCustom  = AIModelPriceSourceFilter(AIModelPriceSourceCustom)
+	// AIModelPriceSourceFilterAll reports every price a model holds, so a model
+	// carrying both appears twice.
+	AIModelPriceSourceFilterAll AIModelPriceSourceFilter = "all"
+)
 
 // MaxAIModelPricesBytes bounds an upsert request body.
 const MaxAIModelPricesBytes = 1 << 20 // 1 MiB
@@ -51,6 +76,9 @@ type AIModelPriceUpsert struct {
 type AIModelPricesFilter struct {
 	Provider string `json:"provider,omitempty"`
 	Model    string `json:"model,omitempty"`
+	// Source narrows to prices from one source. A model with both reports only
+	// its custom price unless this is set.
+	Source AIModelPriceSourceFilter `json:"source,omitempty"`
 }
 
 func (f AIModelPricesFilter) asRequestOption() RequestOption {
@@ -61,6 +89,9 @@ func (f AIModelPricesFilter) asRequestOption() RequestOption {
 		}
 		if f.Model != "" {
 			query.Set("model", f.Model)
+		}
+		if f.Source != "" {
+			query.Set("source", string(f.Source))
 		}
 		r.URL.RawQuery = query.Encode()
 	}

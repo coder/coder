@@ -59,6 +59,20 @@ const (
 	chatSearchBackfillMaxBatches = 5
 )
 
+// Terraform module archives ingested during this window may contain the
+// identified upstream module.
+//
+// This is a one-off cleanup, not a recurring purge. It runs once per coderd
+// process because the window is fixed in the past: after a successful pass
+// there is nothing left to match. It lives here rather than in a migration
+// because migrations cannot be backported. The version table records a single
+// high-water mark, so a migration cherry-picked onto a release branch would
+// cause later upgrades to skip every migration in between.
+var (
+	identifiedModuleCacheStart = time.Date(2026, 8, 31, 8, 0, 0, 0, time.UTC)
+	identifiedModuleCacheEnd   = time.Date(2026, 8, 31, 22, 0, 0, 0, time.UTC)
+)
+
 type Option func(*instance)
 
 // WithClock overrides the clock used by the purger. Defaults to
@@ -180,6 +194,14 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	}
 
 	chatConfigErr := errors.Join(chatRetentionErr, chatDebugRetentionErr)
+
+	// Set inside the transaction closure, applied to the instance only
+	// after the transaction commits.
+	var staleDrained bool
+
+	// Latched after a successful commit so the one-off module cache cleanup
+	// is attempted again if the transaction rolls back.
+	ranModuleCachePurge := false
 
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
@@ -354,6 +376,42 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
+		// Rewrite vectors produced with a stale text search config
+		// ('simple' rows from before migration 000585, or rows written by
+		// an old binary mid rolling upgrade). Upgraded binaries always
+		// stamp search_tsv_config, so this backlog is finite: once a pass
+		// returns fewer rows than the batch size the scan has reached the
+		// end of the table and is skipped for the process lifetime.
+		var reindexedChatSearchRows int64
+		if !i.chatSearchStaleDrained {
+			for range i.chatSearchBackfillMaxBatches {
+				n, err := tx.ReindexStaleChatMessagesSearchTsv(ctx, i.chatSearchBackfillBatchSize)
+				if err != nil {
+					return xerrors.Errorf("reindex stale chat_messages.search_tsv: %w", err)
+				}
+				reindexedChatSearchRows += n
+				if n < int64(i.chatSearchBackfillBatchSize) {
+					staleDrained = true
+					break
+				}
+			}
+		}
+		backfilledChatSearchRows += reindexedChatSearchRows
+
+		// One-off cleanup of the identified Terraform module cache. Skipped
+		// once this process has completed a pass.
+		var purgedIdentifiedModuleFiles int64
+		if !i.identifiedModuleCachePurged {
+			purgedIdentifiedModuleFiles, err = tx.DeleteCachedModuleFilesCreatedBetween(ctx, database.DeleteCachedModuleFilesCreatedBetweenParams{
+				CreatedAtAfter:  identifiedModuleCacheStart,
+				CreatedAtBefore: identifiedModuleCacheEnd,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete identified module cache files: %w", err)
+			}
+			ranModuleCachePurge = true
+		}
+
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
@@ -367,6 +425,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("chat_debug_runs", purgedChatDebugRuns),
 			slog.F("chat_search_rows_backfilled", backfilledChatSearchRows),
+			slog.F("identified_module_files", purgedIdentifiedModuleFiles),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
@@ -382,6 +441,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
 			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
+			i.recordsPurged.WithLabelValues("identified_module_files").Add(float64(purgedIdentifiedModuleFiles))
 		}
 		if i.chatSearchRowsBackfilled != nil {
 			i.chatSearchRowsBackfilled.Add(float64(backfilledChatSearchRows))
@@ -398,6 +458,13 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	}, database.DefaultTXOptions().WithID("db_purge"))
 	if err != nil {
 		return err
+	}
+	if staleDrained {
+		i.chatSearchStaleDrained = true
+	}
+
+	if ranModuleCachePurge {
+		i.identifiedModuleCachePurged = true
 	}
 
 	// Surface the deferred chat-config error so doTick records
@@ -420,6 +487,12 @@ type instance struct {
 	chatSearchRowsBackfilled     prometheus.Counter
 	chatSearchBackfillBatchSize  int32
 	chatSearchBackfillMaxBatches int
+	chatSearchStaleDrained       bool
+
+	// identifiedModuleCachePurged latches once this process has completed a
+	// pass of the one-off module cache cleanup. The window is fixed in the
+	// past, so a completed pass leaves nothing to match on later ticks.
+	identifiedModuleCachePurged bool
 }
 
 func (i *instance) Close() error {

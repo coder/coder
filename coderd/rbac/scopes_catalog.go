@@ -35,6 +35,10 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"api_key:delete": {},
 	"api_key:*":      {},
 
+	// Chat model configs
+	"chat_model_config:read":  {},
+	"chat_model_config:share": {},
+
 	// Files
 	"file:read":   {},
 	"file:create": {},
@@ -85,13 +89,28 @@ var externalComposite = map[ScopeName]struct{}{
 	"coder:apikeys.manage_self": {},
 }
 
-// IsExternalScope returns true if the scope is public, including the
-// `all` and `application_connect` special scopes and the curated
-// low-level resource:action scopes.
+// scopeAliases maps the spellings accepted for backward compatibility onto the
+// names the api_key_scope enum stores. IsExternalScope accepts every key and
+// CanonicalScopeName rewrites it to its value, so the two agree by reading one
+// table rather than by keeping two switches in step. Drift between them is
+// worse in one direction than the other: a name accepted as public but not
+// rewritten is declared requestable and then fails to expand on every request
+// naming it.
+var scopeAliases = map[ScopeName]ScopeName{
+	"all":                 ScopeAll,
+	"application_connect": ScopeApplicationConnect,
+}
+
+// IsExternalScope returns true if the scope is public: the `all` and
+// `application_connect` aliases, the canonical `coder:all` and
+// `coder:application_connect`, a curated low-level resource:action scope, or a
+// curated composite `coder:*` scope.
 func IsExternalScope(name ScopeName) bool {
+	if _, ok := scopeAliases[name]; ok {
+		return true
+	}
 	switch name {
-	// Include `all` and `application_connect` for backward compatibility.
-	case "all", ScopeAll, "application_connect", ScopeApplicationConnect:
+	case ScopeAll, ScopeApplicationConnect:
 		return true
 	}
 	if _, ok := externalLowLevel[name]; ok {
@@ -104,19 +123,37 @@ func IsExternalScope(name ScopeName) bool {
 	return false
 }
 
-// ExternalScopeNames returns a sorted list of all public scopes, which
-// includes the `all` and `application_connect` special scopes, curated
-// low-level resource:action names, and curated composite coder:* scopes.
+// CanonicalScopeName maps the backward-compatibility aliases IsExternalScope
+// accepts onto the names the api_key_scope enum stores. Any other name is
+// returned unchanged.
+//
+// IsExternalScope answers whether a name may be requested; it does not answer
+// how that name is spelled once persisted. The aliases `all` and
+// `application_connect` are accepted but are not enum members, so a caller
+// that stores what it validated must canonicalize in between.
+func CanonicalScopeName(name ScopeName) ScopeName {
+	if canonical, ok := scopeAliases[name]; ok {
+		return canonical
+	}
+	return name
+}
+
+// ExternalScopeNames returns a sorted list of all public scopes: the canonical
+// `coder:all` and `coder:application_connect` spellings, the curated low-level
+// resource:action names, and the curated composite coder:* scopes.
+//
+// This is the set IsExternalScope accepts, minus the bare `all` and
+// `application_connect` aliases. Every name here is canonical, so match a
+// client-supplied name through CanonicalScopeName or an alias reads as unknown.
 func ExternalScopeNames() []string {
 	names := make([]string, 0, len(externalLowLevel)+len(externalComposite)+2)
 	names = append(names, string(ScopeAll))
 	names = append(names, string(ScopeApplicationConnect))
 
-	// curated low-level names, filtered for validity
+	// curated low-level names, unfiltered: IsExternalScope accepts every key
+	// here, so filtering would hide an unparsable entry instead of failing on it.
 	for name := range externalLowLevel {
-		if _, _, ok := parseLowLevelScope(name); ok {
-			names = append(names, string(name))
-		}
+		names = append(names, string(name))
 	}
 
 	// curated composite names

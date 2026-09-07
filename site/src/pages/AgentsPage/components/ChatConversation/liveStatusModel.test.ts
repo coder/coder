@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatDetailError } from "./chatError";
-import { deriveLiveStatus } from "./liveStatusModel";
+import { deriveLiveStatus, type LiveStatusModel } from "./liveStatusModel";
 import { buildReconnectState, buildRetryState } from "./storyFixtures";
 import type { StreamState } from "./types";
 
@@ -35,6 +35,7 @@ const derive = (
 		streamError: null,
 		persistedError: null,
 		isAwaitingFirstStreamChunk: false,
+		chatStatus: null,
 		...overrides,
 	});
 
@@ -48,7 +49,7 @@ describe("deriveLiveStatus", () => {
 		attempt: 2,
 		provider: "anthropic",
 		retryingAt: "2026-03-10T00:00:02.000Z",
-	};
+	} satisfies LiveStatusModel;
 	const reconnectingStatus = {
 		phase: "reconnecting",
 		hasAccumulatedOutput: false,
@@ -57,7 +58,7 @@ describe("deriveLiveStatus", () => {
 		attempt: 1,
 		delayMs: 1000,
 		retryingAt: "2026-03-10T00:00:01.000Z",
-	};
+	} satisfies LiveStatusModel;
 	const failedStatus = {
 		phase: "failed",
 		hasAccumulatedOutput: false,
@@ -66,9 +67,13 @@ describe("deriveLiveStatus", () => {
 		message: "Chat processing failed.",
 		provider: "anthropic",
 		statusCode: 500,
-	};
+	} satisfies LiveStatusModel;
 
-	it.each([
+	const cases: [
+		string,
+		Partial<Parameters<typeof deriveLiveStatus>[0]> | undefined,
+		LiveStatusModel,
+	][] = [
 		["idle", undefined, { phase: "idle", hasAccumulatedOutput: false }],
 		[
 			"starting",
@@ -91,8 +96,25 @@ describe("deriveLiveStatus", () => {
 			{ streamState: buildStreamState() },
 			{ phase: "streaming", hasAccumulatedOutput: false },
 		],
-	])("returns %s", (_phase, overrides, expected) => {
+		[
+			"interrupting",
+			{ chatStatus: "interrupting" },
+			{ phase: "interrupting", hasAccumulatedOutput: false },
+		],
+	];
+	it.each(cases)("returns %s", (_phase, overrides, expected) => {
 		expect(derive(overrides)).toEqual(expected);
+	});
+
+	it("treats interrupting as outranking stream leftovers", () => {
+		expect(
+			derive({
+				chatStatus: "interrupting",
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+			}),
+		).toEqual({ phase: "interrupting", hasAccumulatedOutput: true });
 	});
 
 	it("uses the persisted error as the idle fallback", () => {
@@ -110,18 +132,42 @@ describe("deriveLiveStatus", () => {
 		).toEqual({ phase: "streaming", hasAccumulatedOutput: false });
 	});
 
-	it("tracks accumulated output on failed streams", () => {
+	it("suppresses accumulated output after a terminal stream error", () => {
 		expect(
 			derive({
 				streamState: buildStreamState({
 					blocks: [{ type: "response", text: "Partial response" }],
 				}),
 				streamError: buildStreamError(),
+				chatStatus: "error",
+			}),
+		).toEqual(failedStatus);
+	});
+
+	it("keeps accumulated output when a non-terminal error leaves the stream live", () => {
+		expect(
+			derive({
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				streamError: buildStreamError(),
+				chatStatus: "running",
 			}),
 		).toEqual({
 			...failedStatus,
 			hasAccumulatedOutput: true,
 		});
+	});
+
+	it("does not stream stale output while a retry is in flight after an error", () => {
+		expect(
+			derive({
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				chatStatus: "error",
+			}),
+		).toEqual({ phase: "idle", hasAccumulatedOutput: false });
 	});
 
 	it("passes provider detail through failed status", () => {
@@ -148,6 +194,21 @@ describe("deriveLiveStatus", () => {
 		).toEqual({
 			...reconnectingStatus,
 			hasAccumulatedOutput: true,
+		});
+	});
+
+	it("suppresses accumulated output while reconnecting after a terminal error", () => {
+		expect(
+			derive({
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				reconnectState: buildReconnectState(),
+				chatStatus: "error",
+			}),
+		).toEqual({
+			...reconnectingStatus,
+			hasAccumulatedOutput: false,
 		});
 	});
 

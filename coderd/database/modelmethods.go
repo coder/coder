@@ -227,6 +227,14 @@ func (c Chat) RBACObject() rbac.Object {
 		WithGroupACL(c.GroupACL.RBACACL())
 }
 
+func (m MCPServerConfig) RBACObject() rbac.Object {
+	return rbac.ResourceMCPServerConfig.
+		WithID(m.ID).
+		InOrg(m.OrganizationID).
+		WithGroupACL(m.GroupACL.RBACACL()).
+		WithACLUserList(m.UserACL.RBACACL())
+}
+
 func (c Chat) IsSubChat() bool {
 	return c.RootChatID.Valid || c.ParentChatID.Valid
 }
@@ -281,11 +289,10 @@ func (s APIKeyScopes) Has(target APIKeyScope) bool {
 }
 
 // expandRBACScope merges the permissions of all scopes in the list into a
-// single RBAC scope. If the list is empty, it defaults to rbac.ScopeAll for
-// backward compatibility. This method is internal; use ScopeSet() to combine
-// scopes with the API key's allow list for authorization.
+// single RBAC scope. An empty list is an error rather than rbac.ScopeAll, which
+// would widen a key rather than fail it. This method is internal; use
+// ScopeSet() to combine scopes with the API key's allow list for authorization.
 func (s APIKeyScopes) expandRBACScope() (rbac.Scope, error) {
-	// Default to ScopeAll for backward compatibility when no scopes provided.
 	if len(s) == 0 {
 		return rbac.Scope{}, xerrors.New("no scopes provided")
 	}
@@ -653,9 +660,10 @@ func (u GetUsersRow) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
 }
 
-func (u GitSSHKey) RBACObject() rbac.Object        { return rbac.ResourceUserObject(u.UserID) }
-func (u ExternalAuthLink) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
-func (u UserLink) RBACObject() rbac.Object         { return rbac.ResourceUserObject(u.UserID) }
+func (u GitSSHKey) RBACObject() rbac.Object          { return rbac.ResourceUserObject(u.UserID) }
+func (u ExternalAuthLink) RBACObject() rbac.Object   { return rbac.ResourceUserObject(u.UserID) }
+func (u UserLink) RBACObject() rbac.Object           { return rbac.ResourceUserObject(u.UserID) }
+func (u MCPServerUserToken) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
 
 func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
 	return &oauth2.Token{
@@ -683,6 +691,14 @@ func (OAuth2ProviderAppSecret) RBACObject() rbac.Object {
 
 func (OAuth2ProviderApp) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2App
+}
+
+// IsPublic reports whether the app is a public (secretless, PKCE-only)
+// OAuth2 client per RFC 7591 §2 / OAuth 2.1 §2.1, as opposed to confidential.
+// An unset or unrecognized client type reads as confidential, so an app can
+// never skip client authentication by accident.
+func (a OAuth2ProviderApp) IsPublic() bool {
+	return a.ClientType == OAuth2ProviderAppClientTypePublic
 }
 
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {

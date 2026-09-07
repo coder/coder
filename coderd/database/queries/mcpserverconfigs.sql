@@ -6,55 +6,75 @@ FROM
 WHERE
     id = @id::uuid;
 
--- name: GetMCPServerConfigBySlug :one
+-- name: GetMCPServerConfigByIDForUpdate :one
 SELECT
     *
 FROM
     mcp_server_configs
 WHERE
-    slug = @slug::text;
+    id = @id::uuid
+FOR UPDATE;
 
--- name: GetMCPServerConfigs :many
+-- name: GetMCPServerConfigByOrganizationAndSlug :one
 SELECT
     *
 FROM
     mcp_server_configs
+WHERE
+    organization_id = @organization_id::uuid
+    AND slug = @slug::text;
+
+-- name: GetMCPServerConfigsByOrganization :many
+SELECT
+    *
+FROM
+    mcp_server_configs
+WHERE
+    organization_id = @organization_id::uuid
+    -- Authorize Filter clause will be injected below in GetAuthorizedMCPServerConfigs
+    -- @authorize_filter
 ORDER BY
     display_name ASC;
 
--- name: GetEnabledMCPServerConfigs :many
+-- name: GetEnabledMCPServerConfigsByOrganization :many
 SELECT
     *
 FROM
     mcp_server_configs
 WHERE
-    enabled = TRUE
+    organization_id = @organization_id::uuid
+    AND enabled = TRUE
 ORDER BY
     display_name ASC;
 
--- name: GetMCPServerConfigsByIDs :many
+-- name: GetEnabledMCPServerConfigsByOrganizationAndIDs :many
 SELECT
     *
 FROM
     mcp_server_configs
 WHERE
-    id = ANY(@ids::uuid[])
+    organization_id = @organization_id::uuid
+    AND id = ANY(@ids::uuid[])
+    AND enabled = TRUE
 ORDER BY
     display_name ASC;
 
--- name: GetForcedMCPServerConfigs :many
+-- name: GetForcedMCPServerConfigsByOrganization :many
 SELECT
     *
 FROM
     mcp_server_configs
 WHERE
-    enabled = TRUE
+    organization_id = @organization_id::uuid
+    AND enabled = TRUE
     AND availability = 'force_on'
 ORDER BY
     display_name ASC;
 
 -- name: InsertMCPServerConfig :one
 INSERT INTO mcp_server_configs (
+    id,
+    organization_id,
     display_name,
     slug,
     description,
@@ -81,9 +101,13 @@ INSERT INTO mcp_server_configs (
     model_intent,
     allow_in_plan_mode,
     forward_coder_headers,
+    group_acl,
+    user_acl,
     created_by,
     updated_by
 ) VALUES (
+    @id::uuid,
+    @organization_id::uuid,
     @display_name::text,
     @slug::text,
     @description::text,
@@ -110,6 +134,8 @@ INSERT INTO mcp_server_configs (
     @model_intent::boolean,
     @allow_in_plan_mode::boolean,
     @forward_coder_headers::boolean,
+    @group_acl,
+    @user_acl,
     @created_by::uuid,
     @updated_by::uuid
 )
@@ -153,6 +179,16 @@ WHERE
 RETURNING
     *;
 
+-- name: UpdateMCPServerConfigACLByID :exec
+UPDATE mcp_server_configs
+SET
+    group_acl = @group_acl,
+    user_acl = @user_acl,
+    updated_by = @updated_by::uuid,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid;
+
 -- name: DeleteMCPServerConfigByID :exec
 DELETE FROM
     mcp_server_configs
@@ -167,6 +203,14 @@ FROM
 WHERE
     mcp_server_config_id = @mcp_server_config_id::uuid
     AND user_id = @user_id::uuid;
+
+-- name: GetMCPServerUserTokenByID :one
+SELECT
+    *
+FROM
+    mcp_server_user_tokens
+WHERE
+    id = @id::uuid;
 
 -- name: GetMCPServerUserTokensByUserID :many
 SELECT
@@ -256,6 +300,12 @@ DELETE FROM
 WHERE
     mcp_server_config_id = @mcp_server_config_id::uuid
     AND user_id = @user_id::uuid;
+
+-- name: DeleteMCPServerUserTokensByConfigID :exec
+DELETE FROM
+    mcp_server_user_tokens
+WHERE
+    mcp_server_config_id = @mcp_server_config_id::uuid;
 
 -- name: CleanupDeletedMCPServerIDsFromChats :exec
 UPDATE chats

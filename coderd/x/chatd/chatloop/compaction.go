@@ -89,17 +89,14 @@ type CompactionOptions struct {
 	SummaryPrompt       string
 	SummaryHint         string
 	SystemSummaryPrefix string
-	Persist             func(context.Context, CompactionResult) error
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64
 
-	// Summary model identity and call options; see
-	// GenerateCompactionOptions.
 	ResolvedProvider string
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
-	ProviderOptions  fantasy.ProviderOptions
+	SummaryCall      fantasy.Call
 
 	// Force skips the threshold gate (including the threshold=100
 	// disable and the zero-usage early return). Set for manual,
@@ -118,8 +115,6 @@ type CompactionOptions struct {
 	// clients so they see "Summarizing..." / "Summarized" UI
 	// transitions during compaction.
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
-
-	OnError func(error)
 }
 
 type CompactionResult struct {
@@ -236,7 +231,7 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		ResolvedProvider:    opts.ResolvedProvider,
 		ResolvedModel:       opts.ResolvedModel,
 		ModelConfigID:       opts.ModelConfigID,
-		ProviderOptions:     opts.ProviderOptions,
+		SummaryCall:         opts.SummaryCall,
 		Force:               opts.Force,
 		Source:              opts.Source,
 		ToolCallID:          opts.ToolCallID,
@@ -400,7 +395,6 @@ func startCompactionDebugRun(
 		ModelConfigID:       modelConfigID,
 		TriggerMessageID:    parentRun.TriggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
-		Kind:                chatdebug.KindCompaction,
 		Provider:            provider,
 		Model:               model,
 	})
@@ -440,7 +434,6 @@ func generateCompactionSummary(
 		Role:    fantasy.MessageRoleUser,
 		Content: summaryParts,
 	})
-	toolChoice := fantasy.ToolChoiceNone
 
 	summaryCtx, finishDebugRun := startCompactionDebugRun(ctx, options)
 	defer func() {
@@ -458,11 +451,9 @@ func generateCompactionSummary(
 		finishDebugRun(err)
 	}()
 
-	response, err := model.Generate(summaryCtx, fantasy.Call{
-		Prompt:          summaryPrompt,
-		ToolChoice:      &toolChoice,
-		ProviderOptions: options.ProviderOptions,
-	})
+	call := options.SummaryCall
+	call.Prompt = summaryPrompt
+	response, err := model.Generate(summaryCtx, call)
 	if err != nil {
 		return "", xerrors.Errorf("generate summary text: %w", err)
 	}

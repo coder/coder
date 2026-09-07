@@ -1,6 +1,7 @@
 import { ArrowUpRightIcon } from "lucide-react";
 import type { FC } from "react";
 import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
+import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
@@ -12,7 +13,7 @@ interface DeploymentSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
 	showOrganizations: boolean;
-	hasPremiumLicense: boolean;
+	hidePremiumTab: boolean;
 	experiments: Experiment[];
 	buildInfo: BuildInfoResponse;
 }
@@ -24,7 +25,7 @@ interface DeploymentSidebarViewProps {
 export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 	permissions,
 	showOrganizations,
-	hasPremiumLicense,
+	hidePremiumTab,
 	experiments,
 	buildInfo,
 }) => {
@@ -98,8 +99,10 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						</div>
 					</SidebarNavItem>
 				)}
-				{!hasPremiumLicense && (
-					<SidebarNavItem href="/deployment/premium">Premium</SidebarNavItem>
+				{!hidePremiumTab && (
+					<SidebarNavItem href={PREMIUM_PAGE_PATH}>
+						Trial Upgrade
+					</SidebarNavItem>
 				)}
 			</div>
 		</BaseSidebar>

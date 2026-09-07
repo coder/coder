@@ -13,7 +13,7 @@ export type SubagentDescriptor = {
 	fallbackTitle: string;
 	supportsDesktopAffordance: boolean;
 	/** Set only when the spawn args explicitly selected a model. */
-	modelConfigId?: string;
+	modelId?: string;
 	/** Set only when the spawn args explicitly pinned a reasoning effort. */
 	reasoningEffort?: string;
 };
@@ -145,7 +145,7 @@ export const getSubagentDescriptor = ({
 	const title =
 		getProvidedSubagentTitle({ args: argsRecord, result: resultRecord }) ||
 		catalogEntry.fallbackTitle;
-	const modelConfigId =
+	const modelId =
 		action === "spawn" ? asString(argsRecord?.model_config_id).trim() : "";
 	const reasoningEffort =
 		action === "spawn"
@@ -159,7 +159,7 @@ export const getSubagentDescriptor = ({
 		title,
 		fallbackTitle: catalogEntry.fallbackTitle,
 		supportsDesktopAffordance: catalogEntry.supportsDesktopAffordance,
-		...(modelConfigId ? { modelConfigId } : {}),
+		...(modelId ? { modelId } : {}),
 		...(reasoningEffort ? { reasoningEffort } : {}),
 	};
 };

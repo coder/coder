@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { PaginationStatus, TableToolbar } from "./TableToolbar";
+import { TableToolbar } from "./TableToolbar";
 
 const meta: Meta<typeof TableToolbar> = {
 	title: "components/TableToolbar",
@@ -9,21 +9,12 @@ const meta: Meta<typeof TableToolbar> = {
 export default meta;
 type Story = StoryObj<typeof TableToolbar>;
 
-export const WithPagination: Story = {
+export const Default: Story = {
 	args: {
 		children: (
-			<PaginationStatus
-				isLoading={false}
-				label="items"
-				showing={10}
-				total={100}
-			/>
+			<div>
+				Showing <strong>10</strong> of <strong>100</strong> items
+			</div>
 		),
-	},
-};
-
-export const WithLoadingPagination: Story = {
-	args: {
-		children: <PaginationStatus isLoading />,
 	},
 };

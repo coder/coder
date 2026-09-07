@@ -1,19 +1,20 @@
+import { cn } from "cn";
 import { type FC, memo, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
-import { cn } from "#/utils/cn";
-import { Response, Tool } from "../ChatElements";
-import { WebSearchSources } from "../ChatElements/tools";
+import { Response } from "../ChatElements/Response";
 import { ReadFilesTool } from "../ChatElements/tools/ReadFilesTool";
 import {
 	getReadFileToolData,
 	ReadFileTool,
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { Tool } from "../ChatElements/tools/Tool";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
+import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -187,6 +188,7 @@ const ReadFileTimelineBlock = memo<{
 });
 
 export type BlockListProps = {
+	organizationId?: string;
 	blocks: readonly RenderBlock[];
 	tools: readonly MergedTool[];
 	keyPrefix: string;
@@ -212,6 +214,7 @@ export type BlockListProps = {
 // consumers stay in sync. PascalCase so the React Compiler auto-memoizes every
 // element inside.
 export const BlockList: FC<BlockListProps> = ({
+	organizationId,
 	blocks,
 	tools,
 	keyPrefix,
@@ -331,6 +334,7 @@ export const BlockList: FC<BlockListProps> = ({
 							// Streaming placeholder for not-yet-resolved tool.
 							return (
 								<Tool
+									organizationId={organizationId}
 									key={block.id}
 									name="Tool"
 									status="running"
@@ -349,6 +353,7 @@ export const BlockList: FC<BlockListProps> = ({
 						}
 						return (
 							<Tool
+								organizationId={organizationId}
 								key={tool.id}
 								name={tool.name}
 								args={tool.args}
@@ -410,6 +415,7 @@ export const BlockList: FC<BlockListProps> = ({
 			})}
 			{remainingTools.map((tool) => (
 				<Tool
+					organizationId={organizationId}
 					key={tool.id}
 					name={tool.name}
 					args={tool.args}

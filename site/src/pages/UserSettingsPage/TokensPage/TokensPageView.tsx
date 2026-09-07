@@ -20,8 +20,7 @@ dayjs.extend(relativeTime);
 
 const lastUsedOrNever = (lastUsed: string) => {
 	const t = dayjs(lastUsed);
-	const now = dayjs();
-	return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never";
+	return t.valueOf() > 0 ? t.fromNow() : "Never";
 };
 
 interface TokensPageViewProps {
@@ -90,48 +89,44 @@ const TokensTableBody: FC<TokensTableBodyProps> = ({
 	if (hasLoaded && (!tokens || tokens.length === 0)) {
 		return <TableEmpty message="No tokens found" />;
 	}
-	return (
-		<>
-			{tokens?.map((token) => (
-				<TableRow key={token.id} data-testid={`token-${token.id}`} tabIndex={0}>
-					<TableCell>
-						<span className="text-content-secondary">{token.id}</span>
-					</TableCell>
+	return tokens?.map((token) => (
+		<TableRow key={token.id} data-testid={`token-${token.id}`} tabIndex={0}>
+			<TableCell>
+				<span className="text-content-secondary">{token.id}</span>
+			</TableCell>
 
-					<TableCell>
-						<span className="text-content-secondary">{token.token_name}</span>
-					</TableCell>
+			<TableCell>
+				<span className="text-content-secondary">{token.token_name}</span>
+			</TableCell>
 
-					<TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
+			<TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
 
-					<TableCell>
-						<span className="text-content-secondary" data-pixel="ignore">
-							{dayjs(token.expires_at).fromNow()}
-						</span>
-					</TableCell>
+			<TableCell>
+				<span className="text-content-secondary" data-pixel="ignore">
+					{dayjs(token.expires_at).fromNow()}
+				</span>
+			</TableCell>
 
-					<TableCell>
-						<span className="text-content-secondary">
-							{dayjs(token.created_at).fromNow()}
-						</span>
-					</TableCell>
+			<TableCell>
+				<span className="text-content-secondary">
+					{dayjs(token.created_at).fromNow()}
+				</span>
+			</TableCell>
 
-					<TableCell>
-						<span className="text-content-secondary">
-							<Button
-								onClick={() => {
-									onDelete(token);
-								}}
-								size="icon"
-								variant="destructive"
-								aria-label="Delete token"
-							>
-								<TrashIcon className="size-icon-sm" />
-							</Button>
-						</span>
-					</TableCell>
-				</TableRow>
-			))}
-		</>
-	);
+			<TableCell>
+				<span className="text-content-secondary">
+					<Button
+						onClick={() => {
+							onDelete(token);
+						}}
+						size="icon"
+						variant="destructive"
+						aria-label="Delete token"
+					>
+						<TrashIcon className="size-icon-sm" />
+					</Button>
+				</span>
+			</TableCell>
+		</TableRow>
+	));
 };

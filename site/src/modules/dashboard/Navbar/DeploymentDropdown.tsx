@@ -25,7 +25,7 @@ export const AdminSettingsDropdown: FC<AdminSettingsDropdownProps> = ({
 				</Button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="w-[180px] min-w-auto">
+			<DropdownMenuContent align="end" className="w-[180px]">
 				<nav>
 					<AdminSettingsItems permissions={permissions} />
 				</nav>

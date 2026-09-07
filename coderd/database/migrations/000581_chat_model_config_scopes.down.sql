@@ -1,0 +1,2 @@
+-- Enum additions to api_key_scope are intentionally not reverted because
+-- Postgres cannot drop enum values safely.

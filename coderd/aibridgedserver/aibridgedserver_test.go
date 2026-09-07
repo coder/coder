@@ -52,7 +52,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
@@ -463,7 +462,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 500}, nil)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         false,
-					SpendLimitMicros: ptr.Ref(int64(1_000)),
+					SpendLimitMicros: new(int64(1_000)),
 				}, uuid.Nil
 			},
 			wantMetricOutcome: "allowed",
@@ -481,7 +480,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 1_000}, nil)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
-					SpendLimitMicros: ptr.Ref(int64(1_000)),
+					SpendLimitMicros: new(int64(1_000)),
 				}, groupID
 			},
 			wantMetricOutcome: "blocked",
@@ -500,7 +499,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 0}, nil)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
-					SpendLimitMicros: ptr.Ref(int64(0)),
+					SpendLimitMicros: new(int64(0)),
 				}, groupID
 			},
 			wantMetricOutcome: "blocked",
@@ -518,7 +517,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 1_500}, nil)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
-					SpendLimitMicros: ptr.Ref(int64(1_000)),
+					SpendLimitMicros: new(int64(1_000)),
 				}, groupID
 			},
 			wantMetricOutcome: "blocked",
@@ -540,7 +539,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 				})).Return(database.GetUserAISpendSinceRow{SpendMicros: 600}, nil)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
-					SpendLimitMicros: ptr.Ref(int64(500)),
+					SpendLimitMicros: new(int64(500)),
 				}, overrideGroupID
 			},
 			wantMetricOutcome: "blocked",
@@ -1066,7 +1065,7 @@ func TestRecordInterception(t *testing.T) {
 					Model:           "claude-4-opus",
 					Metadata:        metadataProto,
 					StartedAt:       timestamppb.Now(),
-					ClientSessionId: ptr.Ref("session-abc-123"),
+					ClientSessionId: new("session-abc-123"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -1107,7 +1106,7 @@ func TestRecordInterception(t *testing.T) {
 					Model:           "claude-4-opus",
 					Metadata:        metadataProto,
 					StartedAt:       timestamppb.Now(),
-					ClientSessionId: ptr.Ref(""),
+					ClientSessionId: new(""),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -1147,8 +1146,8 @@ func TestRecordInterception(t *testing.T) {
 					Model:                       "claude-4-opus",
 					Metadata:                    metadataProto,
 					StartedAt:                   timestamppb.Now(),
-					AgentFirewallSessionId:      ptr.Ref(uuid.NewString()),
-					AgentFirewallSequenceNumber: ptr.Ref(int32(42)),
+					AgentFirewallSessionId:      new(uuid.NewString()),
+					AgentFirewallSequenceNumber: new(int32(42)),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -1227,8 +1226,8 @@ func TestRecordInterception(t *testing.T) {
 					Model:                       "claude-4-opus",
 					Metadata:                    metadataProto,
 					StartedAt:                   timestamppb.Now(),
-					AgentFirewallSessionId:      ptr.Ref("not-a-uuid"),
-					AgentFirewallSequenceNumber: ptr.Ref(int32(7)),
+					AgentFirewallSessionId:      new("not-a-uuid"),
+					AgentFirewallSequenceNumber: new(int32(7)),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -1429,7 +1428,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: ptr.Ref("call_abc"),
+					CorrelatingToolCallId: new("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -1463,7 +1462,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: ptr.Ref("call_abc"),
+					CorrelatingToolCallId: new("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -1492,7 +1491,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: ptr.Ref("call_abc"),
+					CorrelatingToolCallId: new("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -1524,7 +1523,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: ptr.Ref("call_orphan"),
+					CorrelatingToolCallId: new("call_orphan"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -1731,7 +1730,6 @@ func TestRecordTokenUsage(t *testing.T) {
 					// No override
 					expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
 
-					// input 300 + output 1200 + cache read 15 + cache write 40.
 					const wantCost int64 = 1555
 
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
@@ -2197,7 +2195,6 @@ func TestRecordTokenUsage(t *testing.T) {
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
 
-					// input 300 + output 1200 + cache read 15 + cache write 40.
 					const wantCost int64 = 1555
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
@@ -2506,7 +2503,7 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 		"cache_write_price": 4_000_000,
 	}})
 	require.NoError(t, err)
-	require.NoError(t, rawDB.UpsertAIModelPrices(ctx, priceSeed), "seed model prices")
+	require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceDefault}), "seed model prices")
 
 	// The interception's provider name resolves to this provider, whose type keys
 	// the price lookup.
@@ -2559,7 +2556,6 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 6_000_000, Valid: true}, tokenUsage.OutputPriceMicros, "output price")
 	require.Equal(t, sql.NullInt64{Int64: 300_000, Valid: true}, tokenUsage.CacheReadPriceMicros, "cache read price")
 	require.Equal(t, sql.NullInt64{Int64: 4_000_000, Valid: true}, tokenUsage.CacheWritePriceMicros, "cache write price")
-	// input 300 + output 1200 + cache read 15 + cache write 40.
 	const wantCost int64 = 1555
 	require.Equal(t, sql.NullInt64{Int64: wantCost, Valid: true}, tokenUsage.CostMicros, "cost")
 
@@ -2575,6 +2571,233 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	require.Equal(t, group.ID, spend.EffectiveGroupID, "effective group ID")
 	require.True(t, today.Equal(spend.PeriodStart), "period start: want %s, got %s", today, spend.PeriodStart)
 	require.Equal(t, wantCost, spend.SpendMicros, "spend micros")
+}
+
+// TestBudgetNotificationAuthorized exercises the budget threshold notification
+// path end-to-end against a real database through the dbauthz layer as
+// subjectAibridged. This catches missing RBAC grants on the aibridged subject
+// and verifies the group and organization labels round-trip from storage.
+func TestBudgetNotificationAuthorized(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	rawDB, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+	// Seed prerequisites via the raw (unauthorized) store. The user belongs to a
+	// group with a budget, so the effective group resolves to that group.
+	org := dbgen.Organization(t, rawDB, database.Organization{})
+	user := dbgen.User(t, rawDB, database.User{})
+	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+	group := dbgen.Group(t, rawDB, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, rawDB, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+
+	// The interception below costs 1555 micros, which crosses 85% of this limit
+	// (1530 micros) without reaching the limit itself.
+	_, err := rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+		GroupID:          group.ID,
+		SpendLimitMicros: 1_800,
+	})
+	require.NoError(t, err, "upsert group AI budget")
+
+	const provider, model = "anthropic", "claude-sonnet-4-6"
+	priceSeed, err := json.Marshal([]map[string]any{{
+		"provider":          provider,
+		"model":             model,
+		"input_price":       3_000_000,
+		"output_price":      6_000_000,
+		"cache_read_price":  300_000,
+		"cache_write_price": 4_000_000,
+	}})
+	require.NoError(t, err)
+	require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceDefault}), "seed model prices")
+
+	aiProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+		Name: "anthropic-eu",
+		Type: database.AIProviderTypeAnthropic,
+	})
+	intc := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:  user.ID,
+		Provider:     provider,
+		ProviderName: aiProvider.Name,
+		Model:        model,
+	}, nil)
+
+	enq := &notificationstest.FakeEnqueuer{}
+	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+		Store:         authzDB,
+		AISeatTracker: agplaiseats.Noop{},
+		AccessURL:     "/",
+		GatewayCfg:    codersdk.AIBridgeConfig{},
+		Experiments:   requiredExperiments,
+		Enqueuer:      enq,
+		Logger:        logger,
+		Clock:         quartz.NewReal(),
+	})
+	require.NoError(t, err)
+
+	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId:        intc.ID.String(),
+		MsgId:                 "msg_budget_authz",
+		InputTokens:           100,
+		OutputTokens:          200,
+		CacheReadInputTokens:  50,
+		CacheWriteInputTokens: 10,
+		CreatedAt:             timestamppb.New(time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)),
+	})
+	require.NoError(t, err, "record token usage")
+
+	// Notification failures are logged rather than returned, so the enqueued
+	// message is the only signal that both lookups were authorized.
+	sent := enq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIBudgetWarningUser))
+	require.Len(t, sent, 1, "expected one budget warning notification")
+	require.Equal(t, group.Name, sent[0].Labels["effective_group_name"])
+	require.Equal(t, org.Name, sent[0].Labels["organization_name"])
+}
+
+// TestRecordTokenUsageModelPriceResolution covers which price an interception
+// snapshots when a model carries a price from the embedded book, a price set
+// through the API, or both.
+func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
+	t.Parallel()
+
+	const provider, model = "anthropic", "claude-sonnet-4-6"
+
+	priceSeed := func(input, output, cacheRead, cacheWrite int64) json.RawMessage {
+		seed, err := json.Marshal([]map[string]any{{
+			"provider":          provider,
+			"model":             model,
+			"input_price":       input,
+			"output_price":      output,
+			"cache_read_price":  cacheRead,
+			"cache_write_price": cacheWrite,
+		}})
+		require.NoError(t, err)
+		return seed
+	}
+
+	tests := []struct {
+		name        string
+		defaultSeed json.RawMessage
+		customSeed  json.RawMessage
+		want        database.AIBridgeTokenUsage
+	}{
+		{
+			name:        "DefaultOnly",
+			defaultSeed: priceSeed(3_000_000, 6_000_000, 300_000, 4_000_000),
+			want: database.AIBridgeTokenUsage{
+				InputPriceMicros:      sql.NullInt64{Int64: 3_000_000, Valid: true},
+				OutputPriceMicros:     sql.NullInt64{Int64: 6_000_000, Valid: true},
+				CacheReadPriceMicros:  sql.NullInt64{Int64: 300_000, Valid: true},
+				CacheWritePriceMicros: sql.NullInt64{Int64: 4_000_000, Valid: true},
+				// 100 input, 200 output, 50 cache read, and 10 cache write
+				// tokens, priced per million: 300 + 1200 + 15 + 40.
+				CostMicros: sql.NullInt64{Int64: 1555, Valid: true},
+			},
+		},
+		{
+			// A model the price book does not cover, priced through the API.
+			name:       "CustomOnly",
+			customSeed: priceSeed(2_000_000, 4_000_000, 200_000, 1_000_000),
+			want: database.AIBridgeTokenUsage{
+				InputPriceMicros:      sql.NullInt64{Int64: 2_000_000, Valid: true},
+				OutputPriceMicros:     sql.NullInt64{Int64: 4_000_000, Valid: true},
+				CacheReadPriceMicros:  sql.NullInt64{Int64: 200_000, Valid: true},
+				CacheWritePriceMicros: sql.NullInt64{Int64: 1_000_000, Valid: true},
+				// 100 input, 200 output, 50 cache read, and 10 cache write
+				// tokens, priced per million: 200 + 800 + 10 + 10.
+				CostMicros: sql.NullInt64{Int64: 1020, Valid: true},
+			},
+		},
+		{
+			name:        "CustomWinsOverDefault",
+			defaultSeed: priceSeed(3_000_000, 6_000_000, 300_000, 4_000_000),
+			customSeed:  priceSeed(9_000_000, 12_000_000, 900_000, 8_000_000),
+			want: database.AIBridgeTokenUsage{
+				InputPriceMicros:      sql.NullInt64{Int64: 9_000_000, Valid: true},
+				OutputPriceMicros:     sql.NullInt64{Int64: 12_000_000, Valid: true},
+				CacheReadPriceMicros:  sql.NullInt64{Int64: 900_000, Valid: true},
+				CacheWritePriceMicros: sql.NullInt64{Int64: 8_000_000, Valid: true},
+				// 100 input, 200 output, 50 cache read, and 10 cache write
+				// tokens, priced per million: 900 + 2400 + 45 + 80.
+				CostMicros: sql.NullInt64{Int64: 3425, Valid: true},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+
+			rawDB, _ := dbtestutil.NewDB(t)
+			authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+			org := dbgen.Organization(t, rawDB, database.Organization{})
+			user := dbgen.User(t, rawDB, database.User{})
+			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+
+			if tt.defaultSeed != nil {
+				require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+					Seed:   tt.defaultSeed,
+					Source: database.AIModelPriceSourceDefault,
+				}), "seed model prices")
+			}
+			if tt.customSeed != nil {
+				require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+					Seed:   tt.customSeed,
+					Source: database.AIModelPriceSourceCustom,
+				}), "set custom model price")
+			}
+
+			aiProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+				Name: "anthropic-eu",
+				Type: database.AIProviderTypeAnthropic,
+			})
+			intc := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:  user.ID,
+				Provider:     provider,
+				ProviderName: aiProvider.Name,
+				Model:        model,
+			}, nil)
+
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         authzDB,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Logger:        logger,
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+				InterceptionId:        intc.ID.String(),
+				MsgId:                 "msg_price_resolution",
+				InputTokens:           100,
+				OutputTokens:          200,
+				CacheReadInputTokens:  50,
+				CacheWriteInputTokens: 10,
+				CreatedAt:             timestamppb.New(time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)),
+			})
+			require.NoError(t, err, "record token usage")
+
+			tokenUsages, err := rawDB.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
+			require.NoError(t, err)
+			require.Len(t, tokenUsages, 1)
+
+			tokenUsage := tokenUsages[0]
+			require.Equal(t, tt.want.InputPriceMicros, tokenUsage.InputPriceMicros, "input price")
+			require.Equal(t, tt.want.OutputPriceMicros, tokenUsage.OutputPriceMicros, "output price")
+			require.Equal(t, tt.want.CacheReadPriceMicros, tokenUsage.CacheReadPriceMicros, "cache read price")
+			require.Equal(t, tt.want.CacheWritePriceMicros, tokenUsage.CacheWritePriceMicros, "cache write price")
+			require.Equal(t, tt.want.CostMicros, tokenUsage.CostMicros, "cost")
+		})
+	}
 }
 
 // TestRecordTokenUsageProviderResolution covers provider resolution against a real
@@ -2601,7 +2824,7 @@ func TestRecordTokenUsageProviderResolution(t *testing.T) {
 		{"provider": string(database.AIProviderTypeAzure), "model": gptModel, "input_price": azureInputPrice},
 	})
 	require.NoError(t, err)
-	require.NoError(t, rawDB.UpsertAIModelPrices(setupCtx, priceSeed), "seed model prices")
+	require.NoError(t, rawDB.UpsertAIModelPrices(setupCtx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceDefault}), "seed model prices")
 
 	srv, err := aibridgedserver.NewServer(setupCtx, aibridgedserver.Options{
 		Store:         authzDB,
@@ -2845,11 +3068,15 @@ func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
 				Return(database.AIUserDailySpend{}, nil)
 			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
-			// The group and user are resolved once per interception that
-			// notifies, regardless of how many thresholds it crosses.
+			// The group, organization, and user are resolved once per
+			// interception that notifies, regardless of how many thresholds it
+			// crosses.
 			if len(tc.wantTemplates) > 0 {
+				orgID := uuid.New()
 				db.EXPECT().GetGroupByID(gomock.Any(), groupID).
-					Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+					Return(database.Group{ID: groupID, Name: "Engineering", OrganizationID: orgID}, nil)
+				db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
+					Return(database.Organization{ID: orgID, Name: "coder"}, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
 					Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
 				// No admins configured, so only the user is notified.
@@ -2943,8 +3170,11 @@ func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
 			gotPeriodStart = p.PeriodStart
 			return database.GetUserAISpendSinceRow{SpendMicros: warnAt}, nil
 		})
+	orgID := uuid.New()
 	db.EXPECT().GetGroupByID(gomock.Any(), groupID).
-		Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+		Return(database.Group{ID: groupID, Name: "Engineering", OrganizationID: orgID}, nil)
+	db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
+		Return(database.Organization{ID: orgID, Name: "coder"}, nil)
 	db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
 		Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
 	// No admins configured, so only the user is notified.
@@ -3226,8 +3456,11 @@ func TestRecordTokenUsageBudgetAdminNotification(t *testing.T) {
 				Return(database.AIUserDailySpend{}, nil)
 			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
+			orgID := uuid.New()
 			db.EXPECT().GetGroupByID(gomock.Any(), groupID).
-				Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+				Return(database.Group{ID: groupID, Name: "Engineering", OrganizationID: orgID}, nil)
+			db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
+				Return(database.Organization{ID: orgID, Name: "coder"}, nil)
 			db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
 				Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
 			db.EXPECT().GetUsers(gomock.Any(), database.GetUsersParams{
@@ -3269,6 +3502,7 @@ func TestRecordTokenUsageBudgetAdminNotification(t *testing.T) {
 			require.Equal(t, tc.wantThreshold, adminSent[0].Labels["threshold"])
 			require.Equal(t, "$100.00", adminSent[0].Labels["limit"])
 			require.Equal(t, "Engineering", adminSent[0].Labels["effective_group_name"])
+			require.Equal(t, "coder", adminSent[0].Labels["organization_name"])
 			require.Equal(t, tc.wantLimitSource, adminSent[0].Labels["limit_source"])
 		})
 	}
@@ -3440,11 +3674,11 @@ func TestRecordToolUsage(t *testing.T) {
 					MsgId:           "msg_123",
 					ToolCallId:      "call_xyz",
 					ItemId:          "fc_item_xyz",
-					ServerUrl:       ptr.Ref("https://api.example.com"),
+					ServerUrl:       new("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        false,
-					InvocationError: ptr.Ref("permission denied"),
+					InvocationError: new("permission denied"),
 					Metadata:        metadataProto,
 					CreatedAt:       timestamppb.Now(),
 				},
@@ -3752,8 +3986,8 @@ func TestStructuredLogging(t *testing.T) {
 					Model:                 "claude-4-opus",
 					Metadata:              metadataProto,
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: ptr.Ref(toolCallID),
-					ClientSessionId:       ptr.Ref(sessionID),
+					CorrelatingToolCallId: new(toolCallID),
+					ClientSessionId:       new(sessionID),
 				})
 
 				return err
@@ -3913,11 +4147,11 @@ func TestStructuredLogging(t *testing.T) {
 				_, err := srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 					InterceptionId:  intcID.String(),
 					MsgId:           "msg_123",
-					ServerUrl:       ptr.Ref("https://api.example.com"),
+					ServerUrl:       new("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        true,
-					InvocationError: ptr.Ref("permission denied"),
+					InvocationError: new("permission denied"),
 					Metadata:        metadataProto,
 					CreatedAt:       timestamppb.Now(),
 				})
@@ -4072,7 +4306,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 		Provider:              "anthropic",
 		Model:                 "claude-4-opus",
 		StartedAt:             timestamppb.Now(),
-		CorrelatingToolCallId: ptr.Ref("call_a"),
+		CorrelatingToolCallId: new("call_a"),
 	})
 	require.NoError(t, err)
 
@@ -4100,7 +4334,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 		Provider:              "anthropic",
 		Model:                 "claude-4-opus",
 		StartedAt:             timestamppb.Now(),
-		CorrelatingToolCallId: ptr.Ref("call_b"),
+		CorrelatingToolCallId: new("call_b"),
 	})
 	require.NoError(t, err)
 
@@ -4221,8 +4455,8 @@ func TestGetAIProviders(t *testing.T) {
 			Region:          "us-east-1",
 			Model:           "anthropic.claude-3",
 			SmallFastModel:  "anthropic.claude-haiku",
-			AccessKey:       ptr.Ref("AKID"),
-			AccessKeySecret: ptr.Ref("secret"),
+			AccessKey:       new("AKID"),
+			AccessKeySecret: new("secret"),
 			RoleARN:         "arn:aws:iam::123456789012:role/bedrock",
 		},
 	})

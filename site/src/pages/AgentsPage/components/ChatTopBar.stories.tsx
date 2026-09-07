@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useLocation } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { PopoverContent } from "#/components/Popover/Popover";
@@ -24,8 +24,6 @@ const defaultProps = {
 	onUnpinAgent: fn(),
 	onOpenRenameDialog: fn(),
 	onUnarchiveAgent: fn(),
-	isSidebarCollapsed: false,
-	onToggleSidebarCollapsed: fn(),
 } satisfies React.ComponentProps<typeof ChatTopBar>;
 
 const meta: Meta<typeof ChatTopBar> = {
@@ -88,8 +86,31 @@ export const WithParentChat: Story = {
 };
 
 export const SidebarCollapsed: Story = {
-	args: {
-		isSidebarCollapsed: true,
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-1" },
+			routing: [
+				{
+					path: "/",
+					element: (
+						<Outlet
+							context={{
+								isSidebarCollapsed: true,
+								onToggleSidebarCollapsed: fn(),
+								onExpandSidebar: () => {},
+							}}
+						/>
+					),
+					children: [{ path: "agents/:agentId", useStoryElement: true }],
+				},
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Expand sidebar" }),
+		).toBeVisible();
 	},
 };
 
@@ -364,6 +385,55 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
 			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
 		});
+	},
+};
+
+export const IdleChatArchiveActionsEnabled: Story = {
+	args: {
+		hasWorkspace: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		const body = within(document.body);
+		const archiveItem = await body.findByRole("menuitem", {
+			name: "Archive agent",
+		});
+		const archiveAndDeleteItem = body.getByRole("menuitem", {
+			name: "Archive & delete workspace",
+		});
+		expect(archiveItem).not.toHaveAttribute("aria-disabled", "true");
+		expect(archiveAndDeleteItem).not.toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.queryByText("Interrupt or wait for the agent to finish first."),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ActiveChatArchiveActionsDisabled: Story = {
+	args: {
+		hasWorkspace: true,
+		isArchiveBlocked: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		const body = within(document.body);
+		const archiveItem = await body.findByRole("menuitem", {
+			name: "Archive agent",
+		});
+		const archiveAndDeleteItem = body.getByRole("menuitem", {
+			name: "Archive & delete workspace",
+		});
+		expect(archiveItem).toHaveAttribute("aria-disabled", "true");
+		expect(archiveAndDeleteItem).toHaveAttribute("aria-disabled", "true");
+		const hint = "Interrupt or wait for the agent to finish first.";
+		// The menu content fades in, so visibility needs a retry window.
+		await waitFor(() => {
+			expect(body.getByText(hint)).toBeVisible();
+		});
+		expect(archiveItem).toHaveAccessibleDescription(hint);
+		expect(archiveAndDeleteItem).toHaveAccessibleDescription(hint);
 	},
 };
 

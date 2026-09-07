@@ -157,20 +157,23 @@ describe("coerceStepResponse", () => {
 		["numeric zero", 0, "0"],
 		["boolean false", false, "false"],
 		["explicit null", null, "null"],
-	])("preserves primitive tool-result %s in debug payloads", (_label, result, expected) => {
-		const response = coerceStepResponse({
-			content: [
-				{
-					type: "tool-result",
-					tool_call_id: "call-1",
-					tool_name: "probe",
-					result,
-				},
-			],
-		});
+	])(
+		"preserves primitive tool-result %s in debug payloads",
+		(_label, result, expected) => {
+			const response = coerceStepResponse({
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "call-1",
+						tool_name: "probe",
+						result,
+					},
+				],
+			});
 
-		expect(response.content).toBe(expected);
-	});
+			expect(response.content).toBe(expected);
+		},
+	);
 
 	it("extracts tool_input streaming deltas as tool calls", () => {
 		// Interrupted streams emit `tool_input` parts with the accumulated
@@ -826,6 +829,8 @@ describe("coerceRunSummary", () => {
 			stepCount: 3,
 			totalInputTokens: 120,
 			totalOutputTokens: 45,
+			mcpConnect: [],
+			mcpConnectDropped: 0,
 			warnings: [],
 		});
 	});
@@ -851,8 +856,68 @@ describe("coerceRunSummary", () => {
 			stepCount: undefined,
 			totalInputTokens: undefined,
 			totalOutputTokens: undefined,
+			mcpConnect: [],
+			mcpConnectDropped: 0,
 			warnings: [],
 		});
+	});
+
+	it("coerces MCP connect summaries and drops malformed entries", () => {
+		const summary = coerceRunSummary({
+			mcp_connect: [
+				{
+					slug: "registry",
+					outcome: "timeout",
+					duration_ms: 10000,
+					error: "connect: context deadline exceeded",
+				},
+				{
+					slug: "linear",
+					outcome: "connected",
+					duration_ms: 320,
+					tool_count: 12,
+				},
+				{ outcome: "error" },
+				"not-a-record",
+			],
+		});
+
+		expect(summary.mcpConnect).toEqual([
+			{
+				slug: "registry",
+				outcome: "timeout",
+				durationMs: 10000,
+				toolCount: undefined,
+				error: "connect: context deadline exceeded",
+			},
+			{
+				slug: "linear",
+				outcome: "connected",
+				durationMs: 320,
+				toolCount: 12,
+				error: undefined,
+			},
+		]);
+	});
+
+	it("returns an empty MCP connect list for non-array values", () => {
+		expect(coerceRunSummary({ mcp_connect: "oops" }).mcpConnect).toEqual([]);
+	});
+
+	it("coerces the dropped MCP connect sample count", () => {
+		expect(
+			coerceRunSummary({ mcp_connect_dropped: 25 }).mcpConnectDropped,
+		).toBe(25);
+		expect(coerceRunSummary({ mcpConnectDropped: "7" }).mcpConnectDropped).toBe(
+			7,
+		);
+		expect(
+			coerceRunSummary({ mcp_connect_dropped: -3 }).mcpConnectDropped,
+		).toBe(0);
+		expect(
+			coerceRunSummary({ mcp_connect_dropped: "oops" }).mcpConnectDropped,
+		).toBe(0);
+		expect(coerceRunSummary({}).mcpConnectDropped).toBe(0);
 	});
 
 	it("unwraps JSON-string payloads before coercing", () => {

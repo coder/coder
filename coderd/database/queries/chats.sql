@@ -331,8 +331,27 @@ WITH batch AS (
 UPDATE chat_messages cm
 -- NULL means "pending", empty tsvector means "backfilled, no text".
 SET search_tsv = COALESCE(
-    to_tsvector('simple', chat_message_search_text(cm.content)),
-    ''::tsvector)
+        to_tsvector('english', chat_message_search_text(cm.content)),
+        ''::tsvector),
+    search_tsv_config = 'english'
+FROM batch WHERE cm.id = batch.id;
+
+-- name: ReindexStaleChatMessagesSearchTsv :execrows
+WITH batch AS (
+    SELECT id FROM chat_messages
+    WHERE search_tsv IS NOT NULL
+      AND search_tsv_config IS DISTINCT FROM 'english'
+      AND deleted = false
+      AND visibility IN ('user', 'both')
+      AND role IN ('user', 'assistant')
+    ORDER BY id DESC
+    LIMIT @batch_size::int
+)
+UPDATE chat_messages cm
+SET search_tsv = COALESCE(
+        to_tsvector('english', chat_message_search_text(cm.content)),
+        ''::tsvector),
+    search_tsv_config = 'english'
 FROM batch WHERE cm.id = batch.id;
 
 -- name: GetChatByID :one
@@ -702,7 +721,10 @@ WHERE
                     AND cm.deleted = false
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
-                    AND cm.search_tsv @@ websearch_to_tsquery('simple', @search)
+                    AND (
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', @search))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', @search))
+                    )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
@@ -1626,6 +1648,84 @@ WHERE agent_id = @agent_id::uuid
     AND context_dirty_since IS NULL
 RETURNING id, owner_id;
 
+-- name: SyncAgentChatsContextMCPResources :many
+-- MCP resources bypass context drift and are live-synced on each push.
+-- Changed chats are locked in ID order so concurrent clear-then-copy re-pins
+-- cannot interleave with the replacement.
+WITH agent_mcp AS (
+    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    FROM workspace_agent_context_resources
+    WHERE workspace_agent_id = @agent_id::uuid
+        AND body_kind IN ('mcp_config', 'mcp_server')
+),
+changed AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.agent_id = @agent_id::uuid
+        AND chats.archived = false
+        AND chats.context_aggregate_hash IS NOT NULL
+        AND (
+            EXISTS (
+                SELECT 1 FROM agent_mcp m
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM chat_context_resources ccr
+                    WHERE ccr.chat_id = chats.id
+                        AND ccr.source = m.source
+                        AND ccr.body_kind = m.body_kind
+                        AND ccr.content_hash = m.content_hash
+                        AND ccr.status = m.status
+                        AND ccr.error = m.error
+                )
+            )
+            OR EXISTS (
+                SELECT 1 FROM chat_context_resources ccr
+                WHERE ccr.chat_id = chats.id
+                    AND ccr.body_kind IN ('mcp_config', 'mcp_server')
+                    AND NOT EXISTS (
+                        SELECT 1 FROM agent_mcp m
+                        WHERE m.source = ccr.source
+                            AND m.body_kind = ccr.body_kind
+                            AND m.content_hash = ccr.content_hash
+                            AND m.status = ccr.status
+                            AND m.error = ccr.error
+                    )
+            )
+        )
+),
+locked AS (
+    SELECT id FROM chats
+    WHERE id IN (SELECT id FROM changed)
+    ORDER BY id
+    FOR UPDATE
+),
+deleted AS (
+    DELETE FROM chat_context_resources
+    USING locked
+    WHERE chat_context_resources.chat_id = locked.id
+        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
+        AND chat_context_resources.source NOT IN (SELECT source FROM agent_mcp)
+),
+upserted AS (
+    INSERT INTO chat_context_resources (
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    )
+    SELECT
+        locked.id, m.source, m.body_kind, m.body, m.content_hash,
+        m.size_bytes, m.status, m.error, m.source_path
+    FROM locked
+    CROSS JOIN agent_mcp m
+    ON CONFLICT (chat_id, source) DO UPDATE SET
+        body_kind = EXCLUDED.body_kind,
+        body = EXCLUDED.body,
+        content_hash = EXCLUDED.content_hash,
+        size_bytes = EXCLUDED.size_bytes,
+        status = EXCLUDED.status,
+        error = EXCLUDED.error,
+        source_path = EXCLUDED.source_path,
+        updated_at = now()
+)
+SELECT id FROM locked;
+
 -- name: InsertAgentContextResourcesIntoChat :exec
 -- Copies an agent's current context resources onto a single chat. Pair
 -- with DeleteChatContextResourcesByChatID (clear-then-copy, in a
@@ -2178,6 +2278,30 @@ SET
 WHERE
     chat_id = @chat_id::uuid;
 
+-- name: ClearChatDiffStatusPR :exec
+UPDATE
+    chat_diff_statuses
+SET
+    url = NULL,
+    pull_request_state = NULL,
+    pull_request_title = '',
+    pull_request_draft = FALSE,
+    changes_requested = FALSE,
+    additions = 0,
+    deletions = 0,
+    changed_files = 0,
+    author_login = NULL,
+    author_avatar_url = NULL,
+    base_branch = NULL,
+    head_branch = NULL,
+    pr_number = NULL,
+    commits = NULL,
+    approved = NULL,
+    reviewer_count = NULL,
+    stale_at = @stale_at::timestamptz
+WHERE
+    chat_id = @chat_id::uuid;
+
 -- name: GetChatDiffStatusSummary :one
 -- Returns aggregate PR counts across all agent chats for telemetry.
 -- Deduplicates by PR URL so forked chats referencing the same pull
@@ -2246,7 +2370,7 @@ WHERE chats.id = deletable.id
 -- snapshot collection. Uses updated_at so that long-running chats
 -- still appear in each snapshot window while they are active.
 SELECT
-    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    c.id, c.owner_id, c.organization_id, c.created_at, c.updated_at, c.status,
     (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
     c.root_chat_id, c.workspace_id,
     c.mode, c.archived, c.last_model_config_id, c.client_type,
@@ -2280,9 +2404,8 @@ WHERE cm.created_at > @created_after
 GROUP BY cm.chat_id;
 
 -- name: GetChatModelConfigsForTelemetry :many
--- Returns all model configurations for telemetry snapshot collection.
 -- deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
-SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
+SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default, cmc.organization_id
 FROM chat_model_configs cmc
 JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE cmc.deleted = false;
@@ -2303,46 +2426,64 @@ WHERE chat_id = @chat_id::uuid
     AND content::jsonb @> '[{"type": "context-file"}]';
 
 -- name: GetChatWorkerAcquisitionCandidates :many
--- Returns chats that workers may try to acquire. Candidates must be:
---   - in a worker-runnable execution status;
---   - unarchived; and
---   - missing ownership, carrying inconsistent ownership, or lacking a
---     fresh heartbeat for the assigned runner.
---
--- Missing ownership is worker_id IS NULL. Inconsistent ownership is
--- runner_id IS NULL while worker_id is set. Stale ownership is no
--- heartbeat row for (chat_id, runner_id), or one older than
--- @stale_seconds by database time. Candidates are ordered by oldest
--- updated_at first so workers drain stale runnable chats predictably.
+-- Returns a bounded, pool-interleaved set of chats that workers may acquire.
+-- Interrupting chats finish active work first. Requires-action chats follow so
+-- their runner can enforce the action deadline before new generations start.
+WITH candidate_partitions AS (
+    SELECT true AS is_root, 'interrupting'::chat_status AS status, 0 AS status_priority, 0 AS pool_priority
+    UNION ALL
+    SELECT false, 'interrupting'::chat_status, 0, 1
+    UNION ALL
+    SELECT true, 'requires_action'::chat_status, 1, 0
+    UNION ALL
+    SELECT false, 'requires_action'::chat_status, 1, 1
+    UNION ALL
+    SELECT true, 'running'::chat_status, 2, 0
+    UNION ALL
+    SELECT false, 'running'::chat_status, 2, 1
+),
+candidates AS (
+    SELECT
+        candidate.id,
+        candidate_partitions.status_priority,
+        candidate_partitions.pool_priority,
+        ROW_NUMBER() OVER (
+            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_root
+            ORDER BY candidate.updated_at ASC, candidate.id ASC
+        ) AS pool_position
+    FROM candidate_partitions
+    CROSS JOIN LATERAL (
+        SELECT chats.id, chats.updated_at
+        FROM chats
+        WHERE (chats.parent_chat_id IS NULL) = candidate_partitions.is_root
+          AND chats.status = candidate_partitions.status
+          AND chats.archived = false
+          AND (
+              chats.worker_id IS NULL
+              OR chats.runner_id IS NULL
+              OR NOT EXISTS (
+                  SELECT 1
+                  FROM chat_heartbeats current_lease
+                  WHERE current_lease.chat_id = chats.id
+                    AND current_lease.runner_id = chats.runner_id
+                    AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+              )
+          )
+        ORDER BY chats.updated_at ASC, chats.id ASC
+        LIMIT @limit_count::int
+    ) candidate
+)
 SELECT
-    chats_expanded.*,
-    chat_heartbeats.heartbeat_at AS current_heartbeat_at,
-    NOT EXISTS (
-        SELECT 1
-        FROM chat_heartbeats current_lease
-        WHERE current_lease.chat_id = chats_expanded.id
-          AND current_lease.runner_id = chats_expanded.runner_id
-          AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-    ) AS heartbeat_stale
-FROM chats_expanded
-LEFT JOIN chat_heartbeats
-    ON chat_heartbeats.chat_id = chats_expanded.id
-    AND chat_heartbeats.runner_id = chats_expanded.runner_id
-WHERE
-    chats_expanded.status IN ('running'::chat_status, 'interrupting'::chat_status, 'requires_action'::chat_status)
-    AND chats_expanded.archived = false
-    AND (
-        chats_expanded.worker_id IS NULL
-        OR chats_expanded.runner_id IS NULL
-        OR NOT EXISTS (
-            SELECT 1
-            FROM chat_heartbeats current_lease
-            WHERE current_lease.chat_id = chats_expanded.id
-              AND current_lease.runner_id = chats_expanded.runner_id
-              AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-        )
-    )
-ORDER BY chats_expanded.updated_at ASC, chats_expanded.id ASC
+    chats.id,
+    chats.status,
+    chats.parent_chat_id
+FROM candidates
+JOIN chats ON chats.id = candidates.id
+ORDER BY
+    candidates.status_priority ASC,
+    candidates.pool_position ASC,
+    candidates.pool_priority ASC,
+    chats.id ASC
 LIMIT @limit_count::int;
 
 -- name: GetChatsByIDsForRunnerSync :many
@@ -2800,3 +2941,71 @@ LEFT JOIN to_archive t ON t.id = a.id
 -- created_at ASC flows through to dbpurge's digest truncation; see
 -- buildDigestData in dbpurge.go for the tradeoff rationale.
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
+
+-- name: CountChatCapacityActiveByPool :one
+-- Excluding the candidate keeps ownership takeover capacity-neutral.
+SELECT
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS active_subagent_count
+FROM chat_heartbeats hb
+JOIN chats c
+  ON c.id = hb.chat_id
+ AND c.runner_id = hb.runner_id
+WHERE c.worker_id IS NOT NULL
+  AND c.id != @exclude_chat_id::uuid
+  AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int);
+
+-- name: CountChatCapacityQueuedByPool :one
+SELECT
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
+FROM chats c
+WHERE c.status = 'running'::chat_status
+  AND c.archived = false
+  AND (
+      c.worker_id IS NULL
+      OR c.runner_id IS NULL
+      OR NOT EXISTS (
+          SELECT 1
+          FROM chat_heartbeats hb
+          WHERE hb.chat_id = c.id
+            AND hb.runner_id = c.runner_id
+            AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+      )
+  );
+
+-- name: GetChatQueuedForCapacity :one
+-- Pool fullness distinguishes capacity waits from worker pickup delays.
+WITH active AS (
+    SELECT
+        COUNT(*) FILTER (WHERE a.parent_chat_id IS NULL)::bigint AS root_count,
+        COUNT(*) FILTER (WHERE a.parent_chat_id IS NOT NULL)::bigint AS subagent_count
+    FROM chat_heartbeats hb
+    JOIN chats a
+      ON a.id = hb.chat_id
+     AND a.runner_id = hb.runner_id
+    WHERE a.worker_id IS NOT NULL
+      AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+)
+SELECT (
+    c.status = 'running'::chat_status
+    AND c.archived = false
+    AND (
+        c.worker_id IS NULL
+        OR c.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1
+            FROM chat_heartbeats hb
+            WHERE hb.chat_id = c.id
+              AND hb.runner_id = c.runner_id
+              AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+        )
+    )
+    AND CASE
+        WHEN c.parent_chat_id IS NULL THEN active.root_count >= @root_capacity::bigint
+        ELSE active.subagent_count >= @subagent_capacity::bigint
+    END
+)::boolean AS queued_for_capacity
+FROM chats c
+CROSS JOIN active
+WHERE c.id = @chat_id::uuid;

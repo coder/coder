@@ -1,4 +1,6 @@
-# Workspace Scheduling
+---
+title: Workspace Scheduling
+---
 
 You can configure a template to control how workspaces are started and stopped.
 You can also manage the lifecycle of failed or inactive workspaces.

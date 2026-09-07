@@ -174,16 +174,16 @@ func main() {
 									Output:    fmt.Sprintf("Some log %d", count),
 									Level:     codersdk.LogLevelInfo,
 								}
-								switch {
-								case count == 10:
+								switch count {
+								case 10:
 									log.Stage = "Setting Up"
-								case count == 20:
+								case 20:
 									log.Stage = "Executing Hook"
-								case count == 30:
+								case 30:
 									log.Stage = "Parsing Variables"
-								case count == 40:
+								case 40:
 									log.Stage = "Provisioning"
-								case count == 50:
+								case 50:
 									log.Stage = "Cleaning Up"
 								}
 								if count%5 == 0 {

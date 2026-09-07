@@ -199,7 +199,9 @@ export function getMaxDeadline(ws: Workspace | undefined): dayjs.Dayjs {
 	// note: we count runtime from updated_at as started_at counts from the start of
 	// the workspace build process, which can take a while.
 	if (ws === undefined) {
-		throw Error("Cannot calculate max deadline because workspace is undefined");
+		throw new Error(
+			"Cannot calculate max deadline because workspace is undefined",
+		);
 	}
 	const startedAt = dayjs(ws.latest_build.updated_at);
 	return startedAt.add(deadlineExtensionMax);

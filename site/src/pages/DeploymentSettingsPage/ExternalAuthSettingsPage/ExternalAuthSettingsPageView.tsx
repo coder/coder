@@ -3,8 +3,6 @@ import type {
 	DeploymentValues,
 	ExternalAuthConfig,
 } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
-import { PremiumBadge } from "#/components/Badges/Badges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -20,24 +18,27 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { PremiumPaywallSmall } from "#/modules/paywall/PremiumPaywallSmall";
 import { docs } from "#/utils/docs";
 
 type ExternalAuthSettingsPageViewProps = {
 	config: DeploymentValues;
+	/** True when the deployment may configure more than one provider. */
+	isEntitled: boolean;
+	canViewPremium: boolean;
 };
 
 export const ExternalAuthSettingsPageView: FC<
 	ExternalAuthSettingsPageViewProps
-> = ({ config }) => {
+> = ({ config, isEntitled, canViewPremium }) => {
 	return (
 		<>
-			<SettingsHeader
-				actions={<SettingsHeaderDocsLink href={docs("/admin/external-auth")} />}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>External Authentication</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Coder integrates with GitHub, GitLab, BitBucket, Azure Repos, and
-					OpenID Connect to authenticate developers with external services.
+					OpenID Connect to authenticate developers with external services.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/external-auth")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -53,23 +54,21 @@ export const ExternalAuthSettingsPageView: FC<
 				}}
 			/>
 
-			<div className="mt-6 mb-6">
-				<Alert severity="info" actions={<PremiumBadge />}>
-					Integrating with multiple external authentication providers is a
-					Premium feature.{" "}
-					<a
-						href={docs(
-							"/admin/external-auth#multiple-external-providers-premium",
-						)}
-						target="_blank"
-						rel="noreferrer"
-						className="text-content-link font-medium"
-					>
-						Read the External Authentication documentation
-					</a>
-					.
-				</Alert>
-			</div>
+			{!isEntitled && (
+				<div className="mt-6 mb-6">
+					<PremiumPaywallSmall
+						source="external_auth"
+						message="External Authentication"
+						description="Connect multiple Git and OAuth providers at once."
+						features={[
+							"Connect multiple Git providers at once",
+							"Match providers by regex per host",
+							"Separate credentials for each provider",
+						]}
+						canViewPremium={canViewPremium}
+					/>
+				</div>
+			)}
 
 			<Table className="[&_td]:py-6 [&_td:last-child]:pl-8 [&_th:last-child]:pl-8">
 				<TableHeader>

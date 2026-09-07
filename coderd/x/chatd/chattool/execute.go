@@ -85,6 +85,9 @@ type ExecuteResult struct {
 	Truncated           *workspacesdk.ProcessTruncation `json:"truncated,omitempty"`
 	Note                string                          `json:"note,omitempty"`
 	BackgroundProcessID string                          `json:"background_process_id,omitempty"`
+	Command             string                          `json:"command,omitempty"`
+	Running             bool                            `json:"running,omitempty"`
+	Backgrounded        bool                            `json:"backgrounded,omitempty"`
 }
 
 // ExecuteOptions configures the execute tool.
@@ -107,7 +110,7 @@ type ProcessToolOptions struct {
 // ExecuteArgs are the parameters accepted by the execute tool.
 type ExecuteArgs struct {
 	Command         string  `json:"command" description:"The shell command to execute. Runs under \"sh -c\" (POSIX)."`
-	ModelIntent     *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing what you are doing. This is shown to the user alongside the command. Use plain English with no underscores or technical jargon. The UI appends \"using <command>\" and \"for <duration>\" automatically, so do not repeat the command or include a duration. Keep it under 100 characters. Good examples: \"Running the unit tests\", \"Checking repository state\", \"Inspecting build output\"."`
+	ModelIntent     *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing what you are doing. This is shown to the user alongside the command, with backgrounded commands framed as \"<intent> in the background using <command>\", so do not include the word \"background\" or restate the command or a duration. Use plain English with no underscores or technical jargon. Keep it under 100 characters. Good examples: \"Running the unit tests\", \"Checking repository state\", \"Inspecting build output\"."`
 	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '5m'). Default is 10s. The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
 	WorkDir         *string `json:"workdir,omitempty" description:"Working directory for the command."`
 	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes. It will not work correctly. Always use this parameter instead."`
@@ -200,6 +203,7 @@ func executeBackground(
 	result := ExecuteResult{
 		Success:             true,
 		BackgroundProcessID: resp.ID,
+		Backgrounded:        true,
 	}
 	data, err := json.Marshal(result)
 	if err != nil {
@@ -422,6 +426,7 @@ const (
 type ProcessOutputArgs struct {
 	ProcessID   string  `json:"process_id"`
 	WaitTimeout *string `json:"wait_timeout,omitempty" description:"Override the default 10s block duration. The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting."`
+	ModelIntent *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing why you are checking this process. This is shown as the user's primary label for the action, so make it self-sufficient: the command itself is not displayed alongside it. Use plain English with no underscores or technical jargon. Do not restate the command or include a duration. Keep it under 100 characters. Good examples: \"Waiting for the dev server to be ready\", \"Confirming the tests still pass\"."`
 }
 
 // ProcessOutput returns an AgentTool that retrieves the output
@@ -499,11 +504,13 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				Output:    output,
 				ExitCode:  exitCode,
 				Truncated: resp.Truncated,
+				Command:   resp.Command,
 			}
 			if resp.Running {
 				// Process is still running, success is not
 				// yet determined.
 				result.Success = true
+				result.Running = true
 				result.Note = "process is still running"
 			}
 			data, err := json.Marshal(result)

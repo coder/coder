@@ -28,13 +28,13 @@ It reads as a misspelling of the product name.
 
 **Do**:
 
-> Coder runs `coder login` to authenticate against the Coder server.
+> Run `coder login` to authenticate against the Coder server.
 >
 > Open the AI Gateway integration page to configure model providers.
 
 **Don't**:
 
-> coder runs coder login to authenticate against the coder server.
+> Run coder login to authenticate against the coder server.
 >
 > Open the ai gateway integration page to configure model providers.
 
@@ -80,7 +80,8 @@ The Coder docs follow the same conventions.
 `envbuilder` is the implementation tool Coder uses to build dev containers.
 It isn't itself the concept, so it stays in backticks as a tool name.
 
-> [!NOTE] The Coder feature that integrates the open standard with Coder workspaces is named `Dev Containers` in product context.
+> [!NOTE]
+> The Coder feature that integrates the open standard with Coder workspaces is named `Dev Containers` in product context.
 > The capitalization there comes from the [Coder product and feature names](#coder-product-and-feature-names) rule for Coder features, not from the underlying concept.
 
 | Do                                  | Don't                                                |
@@ -113,7 +114,7 @@ It isn't itself the concept, so it stays in backticks as a tool name.
 
 Pick one name for each thing, then use that name every time the thing appears.
 Synonyms read as new concepts.
-A page that alternates between "workspace", "environment", and "dev box" makes the reader ask whether the three differ.
+A page that alternates between "workspace," "environment," and "dev box" makes the reader ask whether the three terms differ.
 
 The [glossary](../../reference/glossary.md) is the registry of canonical names.
 When a concept has a glossary entry, use the entry's term.
@@ -151,7 +152,7 @@ Treat them consistently across the docs.
 | start up         | startup                       |
 | shut down        | shutdown                      |
 
-`Quickstart` is one word, always, even though it derives from "quick start".
+`Quickstart` is one word, always, even though it derives from "quick start."
 
 **Do**:
 
@@ -217,7 +218,7 @@ The plain-language alternatives carry register information that "see" doesn't, a
 
 The same reservation covers "see" used to mean "understand" or "find out".
 In a list of outcomes, "learn why the build fails" or "find out why the build fails" names what the reader gains.
-"See why the build fails" borrows the observational sense of "see" for a comprehension outcome, so prefer "learn" or "find out".
+"See why the build fails" borrows the observational sense of "see" for a comprehension outcome, so prefer "learn" or "find out."
 
 **Do**:
 
@@ -244,7 +245,7 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 ## Learn more, not Next steps
 
 End-of-page navigation that points the reader at related material uses the heading **Learn more**, not **Next steps**.
-Two rationales apply:
+The heading choice rests on 2 rationales:
 
 - **Sequencing**: "Next steps" implies the reader must follow a specific sequence.
   "Learn more" frames the section as optional related reading, which matches the Diátaxis distinction between a tutorial (sequenced) and a how-to or reference (independent).
@@ -270,10 +271,10 @@ Two rationales apply:
 - [Set workspace autostart](./autostart.md)
 ```
 
-### Sequenced tutorials: What's next?
+### The What's next? section in sequenced tutorials
 
 A tutorial in an ordered series may add a **What's next?** section that points to the single next tutorial in that series.
-Place it above **Learn more**, and write it as a short sentence with the link.
+Place it before **Learn more** and write it as a short sentence with the link.
 
 **What's next?** is distinct from **Learn more**: it carries the reader along a defined sequence, while **Learn more** stays optional.
 It also avoids the "steps" mobility metaphor, so the ban on **Next steps** still holds.
@@ -290,7 +291,8 @@ Now that you added a language, [install your own command-line tools](./install-c
 - [Parameters](../../admin/templates/extending-templates/parameters.md) in the Coder documentation
 ```
 
-*Enforced by `Coder.LearnMore` (planned). The planned rule flags Next steps, not What's next?.*
+*Enforced by `Coder.LearnMore` (planned).
+The planned rule flags **Next steps** only.*
 
 ## Tutorial, not walkthrough
 
@@ -311,33 +313,52 @@ Neutral alternatives like "tutorial" don't encode that assumption.
 ## Select, not click
 
 Use "select" for actions on UI elements, regardless of input device.
-"Click" assumes a mouse.
-Touch devices tap, keyboard users press Enter, and assistive-technology users activate.
-"Select" covers every case and matches the Microsoft style guide convention.
+Not every reader clicks: sighted mouse users click, but keyboard-only users tab to a control and press Enter, touch users tap, and screen-reader users activate a control without a pointer at all.
+"Click" names the first group's motion and excludes the rest, so it isn't a style preference; a reader with no way to click still needs to know what to do.
+"Select" names the outcome instead of the mechanism and covers every input method, matching the Microsoft style guide convention.
+Where a more specific verb is clearer, use it instead as long as it doesn't name a device: "open," "expand," "run," and "choose" are all device-agnostic.
+This is one instance of the broader [input-device-agnostic language](./accessibility-and-inclusion.md#input-device-agnostic-language) principle.
 
-Reserve "click" for code or configuration that literally fires on a click event, like a `onClick` handler or a DOM `click` event.
+Not every instance of "click" is a violation.
+Reserve it for:
+
+- Code or configuration that literally fires on a click event, like an `onClick` handler or a DOM `click` event (already exempt: Vale's prose scope skips code spans and fenced code blocks).
+- Explicit mouse-button phrasing: "click," "left-click," "right-click," "middle-click," and "mouse click," with their `-s`/`-ed`/`-ing` forms, describe a literal mouse action and have no device-agnostic equivalent worth writing around.
+- "One-click" and "single-click" as a compound feature descriptor ("one-click install," "a single-click button"), and the industry term "ClickOps."
+
+Mouse-button phrasing carries a condition: state the keyboard- or screen-reader-accessible way to do the same thing in the same passage, unless the surrounding content is itself about a specific device (a keyboard shortcut table, a touch-gesture reference, third-party software that records mouse and keyboard input by name).
+If no accessible path exists, that's a product gap to raise with engineering, not something to paper over by documenting the mouse-only path as if it were the only one.
 
 **Do**:
 
 > Select **Save** to apply the changes.
 >
 > Select **Templates** > **Settings** > **Schedule**.
+>
+> Open the **Templates** tab, then select **Advanced**.
+>
+> On Mac or Windows, select the files, then open the context menu (right-click, or press the Menu key on Windows) and choose **Compress**.
 
 **Don't**:
 
 > Click **Save** to apply the changes.
 >
 > Click on the **Templates** tab, then click **Settings**.
+>
+> On Mac or Windows, highlight the files and right-click; choose **Compress** from the menu that appears.
 
-*Enforced by `Coder.SelectClick` (planned).*
+The third **Don't** example names a mouse action with no accessible alternative given, which the fourth **Do** example fixes by adding the keyboard path.
+
+*Enforced by `Coder.SelectClick` at `warning` severity: a substitution rule that suggests `select` or `open` in place of `click`/`clicks`/`clicked`/`clicking`.
+Two generated API reference pages use "click" as a noun for a recorded analytics event (a funnel "click," an attribution ID that "identifies this click"); that names a logged data point, not an instruction, and the text is generated from a Go source comment and an API operation ID, so fixing it is a separate, larger change outside a docs-style-guide PR.*
 
 ## Don't assume simplicity or difficulty
 
-Words that minimize the difficulty of an action ("simply", "just", "easy", "easily", "obviously", "of course", "clearly") assume the reader's experience matches the author's.
+Words that minimize the difficulty of an action ("simply," "just," "easy," "easily," "obviously," "of course," "clearly") assume the reader's experience matches the author's.
 If something is "obvious" to the author and not to the reader, the reader may feel the document is confusing or condescending.
 Cut the simplicity-assuming word or restructure the sentence.
 
-The reverse pattern, exaggerating difficulty ("complex", "intricate", "non-trivial"), is also banned.
+The reverse pattern, exaggerating difficulty ("complex," "intricate," "non-trivial"), is also banned.
 Both patterns predict the reader's reaction instead of describing the work.
 
 **Do**:
@@ -355,10 +376,10 @@ Both patterns predict the reader's reaction instead of describing the work.
 
 ## Avoid weasel words
 
-Vague attributions ("many believe", "some say", "experts agree", "studies show", "it is widely accepted that", "most people") let the prose claim something without naming a source.
+Vague attributions ("many believe," "some say," "experts agree," "studies show," "it is widely accepted that," "most people") let the prose claim something without naming a source.
 Either name the source or remove the claim.
 
-Vague qualifiers ("often", "usually", "sometimes", "in most cases") tell the reader the statement is sometimes false but don't say when.
+Vague qualifiers ("often," "usually," "sometimes," "in most cases") tell the reader the statement is sometimes false but don't say when.
 Replace with the specific condition, or remove the qualifier and accept the statement as a default.
 
 **Do**:
@@ -453,7 +474,7 @@ The published page stays the same for everyone.
 *Documentation-only.
 Planned Vale rule `Coder.InternalReferences`.*
 
-## Related
+## Learn more
 
 - [Style guide landing page](./README.md)
 - [Voice and tone](./voice-and-tone.md)

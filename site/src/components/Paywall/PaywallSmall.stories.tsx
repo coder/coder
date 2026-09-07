@@ -37,8 +37,8 @@ export const CannotViewLicenses: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.getByRole("link", { name: "Learn more about premium" }),
-		).toBeVisible();
+			canvas.queryByRole("link", { name: "Learn more about premium" }),
+		).not.toBeInTheDocument();
 		await expect(
 			canvas.getByText(/contact your deployment administrator/i),
 		).toBeVisible();

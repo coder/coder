@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/aibridge/prices"
 	"github.com/coder/coder/v2/coderd/aibridge/prices/providers"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -19,6 +18,13 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// aiModelPriceSources lists the accepted source filters.
+var aiModelPriceSources = []string{
+	string(codersdk.AIModelPriceSourceFilterDefault),
+	string(codersdk.AIModelPriceSourceFilterCustom),
+	string(codersdk.AIModelPriceSourceFilterAll),
+}
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
@@ -29,15 +35,30 @@ import (
 // @Tags Enterprise
 // @Param provider query string false "Only return prices for this provider"
 // @Param model query string false "Only return prices for this model"
+// @Param source query string false "Only return prices from this source, or all to return every price a model holds" Enums(default,custom,all)
 // @Success 200 {array} codersdk.AIModelPrice
 // @Router /api/experimental/ai/model-prices [get]
 // @x-apidocgen {"skip": true}
 func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// An absent source leaves the listing unfiltered.
+	source := r.URL.Query().Get("source")
+	if source != "" && !slices.Contains(aiModelPriceSources, source) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid AI model price source.",
+			Validations: []codersdk.ValidationError{{
+				Field:  "source",
+				Detail: fmt.Sprintf("Source %q is not supported. Supported sources: %s.", source, strings.Join(aiModelPriceSources, ", ")),
+			}},
+		})
+		return
+	}
+
 	dbPrices, err := api.Database.GetAIModelPrices(ctx, database.GetAIModelPricesParams{
 		Provider: r.URL.Query().Get("provider"),
 		Model:    r.URL.Query().Get("model"),
+		Source:   source,
 	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -123,7 +144,10 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	err = api.Database.UpsertAIModelPrices(ctx, seed)
+	err = api.Database.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   seed,
+		Source: database.AIModelPriceSourceCustom,
+	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
@@ -156,9 +180,8 @@ type modelKey struct {
 }
 
 // validateAIModelPrices reports every problem with the requested prices: a
-// supported provider, a model Coder's price book does not already cover, all
-// four price keys, non-negative prices with at least one set, and no repeated
-// model.
+// supported provider, a model, all four price keys, non-negative prices with
+// at least one set, and no repeated model.
 func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[string]json.RawMessage) []codersdk.ValidationError {
 	if len(requested) == 0 {
 		return []codersdk.ValidationError{{
@@ -193,17 +216,6 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 				Detail: "Model is required.",
 			})
 		}
-		// The price book is re-applied on every server start, so a price set for
-		// a model it covers would not survive a restart.
-		// TODO(ssncferreira): drop this once custom pricing is supported
-		// (AIGOV-589).
-		if prices.IsDefaultPriced(price.Provider, price.Model) {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  field,
-				Detail: fmt.Sprintf("%s/%s is priced by Coder's default price book. Overriding a default price is not supported.", price.Provider, price.Model),
-			})
-		}
-
 		named := []struct {
 			name  string
 			value *int64

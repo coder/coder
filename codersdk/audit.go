@@ -44,17 +44,21 @@ const (
 	ResourceTypeWorkspaceAgent ResourceType = "workspace_agent"
 	// Deprecated: Workspace App connections are now included in the
 	// connection log.
-	ResourceTypeWorkspaceApp         ResourceType = "workspace_app"
-	ResourceTypeTask                 ResourceType = "task"
-	ResourceTypeAISeat               ResourceType = "ai_seat"
-	ResourceTypeAIProvider           ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey        ResourceType = "ai_provider_key"
-	ResourceTypeAIGatewayKey         ResourceType = "ai_gateway_key"
-	ResourceTypeGroupAIBudget        ResourceType = "group_ai_budget"
-	ResourceTypeUserAIBudgetOverride ResourceType = "user_ai_budget_override"
-	ResourceTypeChat                 ResourceType = "chat"
-	ResourceTypeUserSecret           ResourceType = "user_secret"
-	ResourceTypeUserSkill            ResourceType = "user_skill"
+	ResourceTypeWorkspaceApp            ResourceType = "workspace_app"
+	ResourceTypeTask                    ResourceType = "task"
+	ResourceTypeAISeat                  ResourceType = "ai_seat"
+	ResourceTypeAIProvider              ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey           ResourceType = "ai_provider_key"
+	ResourceTypeAIGatewayKey            ResourceType = "ai_gateway_key"
+	ResourceTypeGroupAIBudget           ResourceType = "group_ai_budget"
+	ResourceTypeUserAIBudgetOverride    ResourceType = "user_ai_budget_override"
+	ResourceTypeChat                    ResourceType = "chat"
+	ResourceTypeMCPServerConfig         ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig         ResourceType = "chat_model_config"
+	ResourceTypeUserSecret              ResourceType = "user_secret"
+	ResourceTypeUserSkill               ResourceType = "user_skill"
+	ResourceTypeChatInstructionSettings ResourceType = "chat_instruction_settings"
+	ResourceTypeChatOperationalSettings ResourceType = "chat_operational_settings"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -129,10 +133,18 @@ func (r ResourceType) FriendlyString() string {
 		return "user ai budget override"
 	case ResourceTypeChat:
 		return "chat"
+	case ResourceTypeMCPServerConfig:
+		return "mcp server config"
+	case ResourceTypeChatModelConfig:
+		return "chat model config"
 	case ResourceTypeUserSecret:
 		return "user secret"
 	case ResourceTypeUserSkill:
 		return "user skill"
+	case ResourceTypeChatInstructionSettings:
+		return "chat instruction settings"
+	case ResourceTypeChatOperationalSettings:
+		return "chat operational settings"
 	default:
 		return "unknown"
 	}
@@ -255,7 +267,7 @@ type CreateTestAuditLogRequest struct {
 
 // AuditLogs retrieves audit logs from the given page.
 func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit", nil, req.asRequestOption(), func(r *http.Request) {
 		q := r.URL.Query()
 		var params []string
 		if req.SearchQuery != "" {

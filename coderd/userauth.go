@@ -42,7 +42,6 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/site"
@@ -1861,7 +1860,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 					// If org sync is enabled and configured, the user's groups
 					// will change based on the org sync settings.
 					OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
-					UserStatus:      ptr.Ref(codersdk.UserStatusActive),
+					UserStatus:      new(codersdk.UserStatusActive),
 				},
 				LoginType:          params.LoginType,
 				accountCreatorName: "oauth",

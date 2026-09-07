@@ -10,16 +10,21 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw/loggermock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -138,6 +143,219 @@ func TestRead(t *testing.T) {
 		require.Len(t, v.Validations, 1)
 		require.Equal(t, "value", v.Validations[0].Field)
 		require.Equal(t, "Validation failed for tag \"required\" with value: \"\"", v.Validations[0].Detail)
+	})
+}
+
+// readBody is decoded by the request body limit tests. It carries no validate
+// tags so that a decode failure is unambiguously a body-size failure.
+type readBody struct {
+	Value string `json:"value"`
+}
+
+// jsonBodyOfSize returns a JSON object that decodes into readBody and is
+// exactly size bytes long.
+func jsonBodyOfSize(size int) string {
+	const (
+		prefix = `{"value":"`
+		suffix = `"}`
+	)
+	return prefix + strings.Repeat("a", size-len(prefix)-len(suffix)) + suffix
+}
+
+func TestReadDefaultLimit(t *testing.T) {
+	t.Parallel()
+
+	// requireTooLarge asserts the 413 response shape shared by every
+	// over-limit case.
+	requireTooLarge := func(t *testing.T, rw *httptest.ResponseRecorder, limit int) {
+		t.Helper()
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+		require.Equal(t, "Request body too large.", resp.Message)
+		require.Contains(t, resp.Detail, strconv.Itoa(limit),
+			"the detail must name the limit so the error is actionable")
+	}
+
+	t.Run("AtDefaultLimit", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+
+		var v readBody
+		require.True(t, httpapi.Read(context.Background(), rw, r, &v))
+		require.Len(t, v.Value, httpapi.DefaultMaxRequestBodyBytes-len(`{"value":""}`))
+	})
+
+	t.Run("OverDefaultLimitByOneByte", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes + 1)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+
+		var v readBody
+		require.False(t, httpapi.Read(context.Background(), rw, r, &v))
+		requireTooLarge(t, rw, httpapi.DefaultMaxRequestBodyBytes)
+	})
+
+	// The limit is enforced on bytes actually read, so neither an absent nor a
+	// dishonest Content-Length can raise it. Asserted in-process rather than
+	// over a connection because a client still streaming an oversized body may
+	// see the connection reset instead of the 413, which would make a
+	// network-driven assertion racy.
+	t.Run("NoContentLength", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes + 1)
+		rw := httptest.NewRecorder()
+		// io.NopCloser hides the length, which is what net/http sees for a
+		// chunked request.
+		r := httptest.NewRequest(http.MethodPost, "/", io.NopCloser(strings.NewReader(body)))
+		r.TransferEncoding = []string{"chunked"}
+		require.EqualValues(t, -1, r.ContentLength)
+
+		var v readBody
+		require.False(t, httpapi.Read(context.Background(), rw, r, &v))
+		requireTooLarge(t, rw, httpapi.DefaultMaxRequestBodyBytes)
+	})
+
+	t.Run("UnderstatedContentLength", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes + 1)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		r.ContentLength = 10
+
+		var v readBody
+		require.False(t, httpapi.Read(context.Background(), rw, r, &v))
+		requireTooLarge(t, rw, httpapi.DefaultMaxRequestBodyBytes)
+	})
+
+	t.Run("ChunkedUnderLimit", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", io.NopCloser(strings.NewReader(body)))
+		r.TransferEncoding = []string{"chunked"}
+
+		var v readBody
+		require.True(t, httpapi.Read(context.Background(), rw, r, &v))
+	})
+}
+
+func TestReadLimit(t *testing.T) {
+	t.Parallel()
+
+	// A limit above the default must not be tightened by the default that Read
+	// installs. This is the unit-level regression test for the endpoints that
+	// legitimately accept more than DefaultMaxRequestBodyBytes; without
+	// ReadLimit they would be silently capped at the default.
+	t.Run("AboveDefaultIsNotTightened", func(t *testing.T) {
+		t.Parallel()
+		const limit = 8 << 20
+		body := jsonBodyOfSize(6 << 20)
+		require.Greater(t, len(body), httpapi.DefaultMaxRequestBodyBytes)
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+
+		var v readBody
+		require.True(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
+		require.Len(t, v.Value, len(body)-len(`{"value":""}`))
+	})
+
+	t.Run("BelowDefaultIsEnforced", func(t *testing.T) {
+		t.Parallel()
+		const limit = 1024
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(limit+1)))
+
+		var v readBody
+		require.False(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+		require.Contains(t, resp.Detail, strconv.Itoa(limit))
+	})
+
+	t.Run("AtLimit", func(t *testing.T) {
+		t.Parallel()
+		const limit = 1024
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(limit)))
+
+		var v readBody
+		require.True(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
+	})
+
+	// The limit lands on the request's existing log line rather than one of its
+	// own: a caller can produce 413s at will, so a dedicated line would let them
+	// drive log volume.
+	t.Run("RecordsLimitOnRequestLog", func(t *testing.T) {
+		t.Parallel()
+		const limit = 1024
+
+		ctrl := gomock.NewController(t)
+		requestLogger := loggermock.NewMockRequestLogger(ctrl)
+		requestLogger.EXPECT().
+			WithFields(slog.F("max_request_body_bytes", int64(limit))).
+			Times(1)
+
+		ctx := loggermw.WithRequestLogger(context.Background(), requestLogger)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(limit+1))).WithContext(ctx)
+
+		var v readBody
+		require.False(t, httpapi.ReadLimit(ctx, rw, r, limit, &v))
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+	})
+
+	// A caller that installs its own reader is doing what the docstring
+	// forbids, but the number reported must still be the one that rejected the
+	// request. Nested readers compose as tightest-wins, so reporting the limit
+	// this call installed would tell the client and the log a cap that is not
+	// the one it hit.
+	t.Run("ReportsLimitThatTripped", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			tight = 1024
+			loose = 1 << 20
+		)
+
+		for _, tc := range []struct {
+			name       string
+			callerWrap int64
+			readLimit  int64
+		}{
+			{name: "CallerWrapsTighter", callerWrap: tight, readLimit: loose},
+			{name: "CallerWrapsLooser", callerWrap: loose, readLimit: tight},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				requestLogger := loggermock.NewMockRequestLogger(ctrl)
+				requestLogger.EXPECT().
+					WithFields(slog.F("max_request_body_bytes", int64(tight))).
+					Times(1)
+
+				ctx := loggermw.WithRequestLogger(context.Background(), requestLogger)
+				rw := httptest.NewRecorder()
+				r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(tight+1))).WithContext(ctx)
+				r.Body = http.MaxBytesReader(rw, r.Body, tc.callerWrap)
+
+				var v readBody
+				require.False(t, httpapi.ReadLimit(ctx, rw, r, tc.readLimit, &v))
+				require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+
+				var resp codersdk.Response
+				require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+				require.Contains(t, resp.Detail, strconv.Itoa(tight))
+				require.NotContains(t, resp.Detail, strconv.Itoa(loose))
+			})
+		}
 	})
 }
 
@@ -592,5 +810,37 @@ func TestServerSentEventSender(t *testing.T) {
 		result := <-resultC
 		require.NoError(t, result.Err)
 		require.True(t, result.Success)
+	})
+}
+
+// TestRecordRequestBodyLimit pins both halves of the call every oversized-body
+// 413 site shares: the log field naming the limit, and the metric tracker.
+func TestRecordRequestBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RecordsFieldAndMarksTracker", func(t *testing.T) {
+		t.Parallel()
+		const limit = int64(4096)
+
+		ctrl := gomock.NewController(t)
+		requestLogger := loggermock.NewMockRequestLogger(ctrl)
+		requestLogger.EXPECT().
+			WithFields(slog.F("max_request_body_bytes", limit)).
+			Times(1)
+
+		tracker := &httpapi.RequestBodyLimitTracker{}
+		ctx := httpapi.WithRequestBodyLimitTracker(
+			loggermw.WithRequestLogger(context.Background(), requestLogger), tracker)
+
+		require.False(t, tracker.Exceeded())
+		httpapi.RecordRequestBodyLimit(ctx, limit)
+		require.True(t, tracker.Exceeded())
+	})
+
+	// The middleware that installs the tracker is not mounted on every route, so
+	// a call without one must not panic.
+	t.Run("NoTrackerInContext", func(t *testing.T) {
+		t.Parallel()
+		httpapi.RecordRequestBodyLimit(context.Background(), 4096)
 	})
 }

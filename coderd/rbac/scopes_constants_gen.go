@@ -48,6 +48,11 @@ const (
 	ScopeChatRead                            ScopeName = "chat:read"
 	ScopeChatShare                           ScopeName = "chat:share"
 	ScopeChatUpdate                          ScopeName = "chat:update"
+	ScopeChatModelConfigCreate               ScopeName = "chat_model_config:create"
+	ScopeChatModelConfigDelete               ScopeName = "chat_model_config:delete"
+	ScopeChatModelConfigRead                 ScopeName = "chat_model_config:read"
+	ScopeChatModelConfigShare                ScopeName = "chat_model_config:share"
+	ScopeChatModelConfigUpdate               ScopeName = "chat_model_config:update"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
 	ScopeCryptoKeyCreate                     ScopeName = "crypto_key:create"
@@ -73,6 +78,11 @@ const (
 	ScopeLicenseCreate                       ScopeName = "license:create"
 	ScopeLicenseDelete                       ScopeName = "license:delete"
 	ScopeLicenseRead                         ScopeName = "license:read"
+	ScopeMcpServerConfigCreate               ScopeName = "mcp_server_config:create"
+	ScopeMcpServerConfigDelete               ScopeName = "mcp_server_config:delete"
+	ScopeMcpServerConfigRead                 ScopeName = "mcp_server_config:read"
+	ScopeMcpServerConfigShare                ScopeName = "mcp_server_config:share"
+	ScopeMcpServerConfigUpdate               ScopeName = "mcp_server_config:update"
 	ScopeNotificationMessageCreate           ScopeName = "notification_message:create"
 	ScopeNotificationMessageDelete           ScopeName = "notification_message:delete"
 	ScopeNotificationMessageRead             ScopeName = "notification_message:read"
@@ -236,6 +246,11 @@ func (e ScopeName) Valid() bool {
 		ScopeChatRead,
 		ScopeChatShare,
 		ScopeChatUpdate,
+		ScopeChatModelConfigCreate,
+		ScopeChatModelConfigDelete,
+		ScopeChatModelConfigRead,
+		ScopeChatModelConfigShare,
+		ScopeChatModelConfigUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -261,6 +276,11 @@ func (e ScopeName) Valid() bool {
 		ScopeLicenseCreate,
 		ScopeLicenseDelete,
 		ScopeLicenseRead,
+		ScopeMcpServerConfigCreate,
+		ScopeMcpServerConfigDelete,
+		ScopeMcpServerConfigRead,
+		ScopeMcpServerConfigShare,
+		ScopeMcpServerConfigUpdate,
 		ScopeNotificationMessageCreate,
 		ScopeNotificationMessageDelete,
 		ScopeNotificationMessageRead,
@@ -425,6 +445,11 @@ func AllScopeNameValues() []ScopeName {
 		ScopeChatRead,
 		ScopeChatShare,
 		ScopeChatUpdate,
+		ScopeChatModelConfigCreate,
+		ScopeChatModelConfigDelete,
+		ScopeChatModelConfigRead,
+		ScopeChatModelConfigShare,
+		ScopeChatModelConfigUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -450,6 +475,11 @@ func AllScopeNameValues() []ScopeName {
 		ScopeLicenseCreate,
 		ScopeLicenseDelete,
 		ScopeLicenseRead,
+		ScopeMcpServerConfigCreate,
+		ScopeMcpServerConfigDelete,
+		ScopeMcpServerConfigRead,
+		ScopeMcpServerConfigShare,
+		ScopeMcpServerConfigUpdate,
 		ScopeNotificationMessageCreate,
 		ScopeNotificationMessageDelete,
 		ScopeNotificationMessageRead,

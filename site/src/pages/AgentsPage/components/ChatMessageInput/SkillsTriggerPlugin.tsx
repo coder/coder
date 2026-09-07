@@ -13,13 +13,12 @@ import {
 } from "lexical";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
 import { parsePersonalSkillTrigger } from "../../utils/personalSkills";
-import type { CaretAnchorRect, SkillMenuItem } from "./SkillsTriggerMenu";
+import type { SkillMenuItem } from "./SkillsTriggerMenu";
 
 export type ActiveSkillsTrigger = {
 	nodeKey: NodeKey;
 	slashOffset: number;
 	query: string;
-	anchorRect: CaretAnchorRect | null;
 };
 
 type DismissedSkillsTrigger = Pick<
@@ -30,40 +29,11 @@ type DismissedSkillsTrigger = Pick<
 type SkillsTriggerPluginProps = {
 	open: boolean;
 	skills: readonly SkillMenuItem[];
+	skillsLoading: boolean;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
 	onTriggerChange: (trigger: ActiveSkillsTrigger | null) => void;
 	onSkillSelect: (skill: SkillMenuItem) => void;
-};
-
-const currentCaretRect = (): CaretAnchorRect | null => {
-	const selection = getSelection();
-	if (!selection || selection.rangeCount === 0) {
-		return null;
-	}
-
-	const range = selection.getRangeAt(0);
-	let rect = range.getBoundingClientRect();
-	if ((rect.width === 0 && rect.height === 0) || Number.isNaN(rect.top)) {
-		const fallbackRange = range.cloneRange();
-		if (fallbackRange.startOffset > 0) {
-			fallbackRange.setStart(
-				fallbackRange.startContainer,
-				fallbackRange.startOffset - 1,
-			);
-		}
-		rect = fallbackRange.getBoundingClientRect();
-	}
-
-	if (Number.isNaN(rect.top)) {
-		return null;
-	}
-
-	return {
-		top: rect.top,
-		left: rect.left,
-		height: rect.height,
-	};
 };
 
 const isSameTrigger = (
@@ -76,10 +46,7 @@ const isSameTrigger = (
 	);
 };
 
-const activeTriggerFromSelection = (): Omit<
-	ActiveSkillsTrigger,
-	"anchorRect"
-> | null => {
+const activeTriggerFromSelection = (): ActiveSkillsTrigger | null => {
 	const selection = $getSelection();
 	if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
 		return null;
@@ -112,6 +79,7 @@ const activeTriggerFromSelection = (): Omit<
 export const SkillsTriggerPlugin = ({
 	open,
 	skills,
+	skillsLoading,
 	selectedIndex,
 	onSelectedIndexChange,
 	onTriggerChange,
@@ -146,29 +114,12 @@ export const SkillsTriggerPlugin = ({
 			return;
 		}
 
-		onTriggerChange({
-			...trigger,
-			anchorRect: currentCaretRect(),
-		});
+		onTriggerChange(trigger);
 	});
 
 	useEffect(() => {
 		return editor.registerUpdateListener(() => refreshTrigger());
 	}, [editor]);
-
-	useEffect(() => {
-		return editor.registerRootListener((rootElement, previousRootElement) => {
-			previousRootElement?.removeEventListener("scroll", refreshTrigger);
-			rootElement?.addEventListener("scroll", refreshTrigger, {
-				passive: true,
-			});
-		});
-	}, [editor]);
-
-	useEffect(() => {
-		addEventListener("resize", refreshTrigger);
-		return () => removeEventListener("resize", refreshTrigger);
-	}, []);
 
 	const moveMenuHighlight = useEffectEvent(
 		(event: KeyboardEvent, delta: number) => {
@@ -193,11 +144,25 @@ export const SkillsTriggerPlugin = ({
 		if (!open) {
 			return false;
 		}
-		event?.preventDefault();
 		const skill = selectedIndex >= 0 ? skills[selectedIndex] : undefined;
-		if (skill) {
-			onSkillSelect(skill);
+		if (!skill) {
+			// A still-loading source may yet produce matches, so keep
+			// consuming Enter until every source resolves.
+			if (skillsLoading) {
+				event?.preventDefault();
+				return true;
+			}
+			// Nothing is selectable (e.g. the trailing token is a filesystem
+			// path, not a skill): dismiss the menu and let the same keypress
+			// fall through to the submit handler.
+			dismissedTriggerRef.current = editor
+				.getEditorState()
+				.read(() => activeTriggerFromSelection());
+			onTriggerChange(null);
+			return false;
 		}
+		event?.preventDefault();
+		onSkillSelect(skill);
 		return true;
 	});
 

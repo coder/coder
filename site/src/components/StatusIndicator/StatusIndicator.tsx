@@ -1,11 +1,11 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { createContext, type FC, useContext } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 const statusIndicatorVariants = cva(
 	"font-medium inline-flex items-center gap-2",
@@ -73,7 +73,7 @@ const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 	},
 });
 
-export interface StatusIndicatorDotProps
+interface StatusIndicatorDotProps
 	extends React.HTMLAttributes<HTMLDivElement>,
 		VariantProps<typeof dotVariants> {}
 

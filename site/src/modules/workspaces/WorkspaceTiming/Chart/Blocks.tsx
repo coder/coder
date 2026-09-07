@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { EllipsisIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
-import { cn } from "#/utils/cn";
 
 const spaceBetweenBlocks = 4;
 const moreIconSize = 18;

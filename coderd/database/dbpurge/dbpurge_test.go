@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -256,6 +257,8 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().DeleteCachedModuleFilesCreatedBetween(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteCachedModuleFilesCreatedBetweenParams{})).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
@@ -308,6 +311,8 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().DeleteCachedModuleFilesCreatedBetween(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteCachedModuleFilesCreatedBetweenParams{})).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
@@ -2234,8 +2239,9 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 			DisplayName: "OpenAI",
 		})
 		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "test-model",
-			ContextLimit: 8192,
+			Model:          "test-model",
+			ContextLimit:   8192,
+			OrganizationID: org.ID,
 		})
 		return chatDebugDeps{user: user, org: org, modelConfig: modelConfig}
 	}
@@ -2460,8 +2466,9 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			DisplayName: "OpenAI",
 		})
 		mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "test-model",
-			ContextLimit: 8192,
+			Model:          "test-model",
+			ContextLimit:   8192,
+			OrganizationID: org.ID,
 		})
 		return chatDeps{user: user, org: org, modelConfig: mc}
 	}
@@ -3051,8 +3058,9 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 			DisplayName: "OpenAI",
 		})
 		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "test-model",
-			ContextLimit: 8192,
+			Model:          "test-model",
+			ContextLimit:   8192,
+			OrganizationID: org.ID,
 		})
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
@@ -3110,15 +3118,19 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		isNull, _ := searchTsv(ctx, t, rawDB, id)
 		require.False(t, isNull, msg)
 	}
-	// Asserts the row's tsvector matches expectedText, not just non-NULL.
+	// Asserts the row's tsvector matches expectedText and that the sweep
+	// stamped the config that produced it.
 	requireTsvFor := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64, expectedText string) {
 		t.Helper()
 		var matches bool
+		var config sql.NullString
 		err := rawDB.QueryRowContext(ctx,
-			"SELECT search_tsv = to_tsvector('simple', $2::text) FROM chat_messages WHERE id = $1", id, expectedText).
-			Scan(&matches)
+			"SELECT search_tsv = to_tsvector('english', $2::text), search_tsv_config FROM chat_messages WHERE id = $1", id, expectedText).
+			Scan(&matches, &config)
 		require.NoError(t, err)
 		require.True(t, matches, "search_tsv should contain the lexemes of %q", expectedText)
+		require.Equal(t, sql.NullString{String: "english", Valid: true}, config,
+			"backfilled rows must record the config that produced the vector")
 	}
 	requireNotBackfilled := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64, msg string) {
 		t.Helper()
@@ -3282,6 +3294,71 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 	})
 
 	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("ReindexesStaleConfigVectors", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+
+		countStale := func() int {
+			var count int
+			err := rawDB.QueryRowContext(ctx, `
+				SELECT COUNT(*) FROM chat_messages
+				WHERE search_tsv IS NOT NULL
+				  AND search_tsv_config IS DISTINCT FROM 'english'
+				  AND deleted = false
+				  AND visibility IN ('user', 'both')
+				  AND role IN ('user', 'assistant')`).Scan(&count)
+			require.NoError(t, err)
+			return count
+		}
+		makeStale := func(id int64) {
+			// Simulates a vector produced before the 'english' switch or by
+			// a binary that predates search_tsv_config (e.g. an old replica
+			// winning the dbpurge lock mid rolling upgrade).
+			_, err := rawDB.ExecContext(ctx, `
+				UPDATE chat_messages
+				SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
+				    search_tsv_config = NULL
+				WHERE id = $1`, id)
+			require.NoError(t, err)
+		}
+
+		preexisting := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("refactoring the deployment"))
+		makeStale(preexisting.ID)
+		require.Equal(t, 1, countStale())
+
+		tick := awaitDoTicks(ctx, t, clk, 2)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+
+		// The first tick rewrites the stale backlog with 'english' and
+		// latches off the stale scan for the process lifetime.
+		tick()
+		requireTsvFor(ctx, t, rawDB, preexisting.ID, "refactoring the deployment")
+		require.Zero(t, countStale())
+
+		// A stale row appearing after the latch (old replica racing the
+		// tail of a rolling upgrade) is intentionally not rewritten by
+		// this process; it stays correctly searchable via its recorded
+		// config until a restart re-runs one stale pass.
+		makeStale(preexisting.ID)
+		tick()
+		require.Equal(t, 1, countStale(), "stale scan must stay latched off after drain")
+		require.NoError(t, closer.Close())
+
+		// A new dbpurge instance (process restart) re-runs one stale pass
+		// and repairs the row.
+		tick = awaitDoTicks(ctx, t, clk, 1)
+		closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+		defer closer.Close()
+		tick()
+		requireTsvFor(ctx, t, rawDB, preexisting.ID, "refactoring the deployment")
+		require.Zero(t, countStale())
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
 	t.Run("SteadyStateNoop", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		clk := quartz.NewMock(t)
@@ -3338,6 +3415,7 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 			Return(int32(0), nil).AnyTimes()
 		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(false, nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Times(0)
+		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Times(0)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
 				return f(mDB)
@@ -3349,4 +3427,127 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 	})
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestDeleteIdentifiedModuleCacheFiles(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clk := quartz.NewMock(t)
+	clk.Set(dbtime.Now()).MustWait(ctx)
+
+	// The window under test is supplied explicitly rather than copied from the
+	// production constants, so revising the incident timestamps cannot silently
+	// invalidate these boundary assertions.
+	windowStart := time.Date(2026, 8, 31, 8, 0, 0, 0, time.UTC)
+	windowEnd := time.Date(2026, 8, 31, 22, 0, 0, 0, time.UTC)
+	inWindow := windowStart.Add(time.Minute)
+
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	mkFile := func(name string, createdBy uuid.UUID, mimetype string, createdAt time.Time) database.File {
+		file, err := db.InsertFile(ctx, database.InsertFileParams{
+			ID:        uuid.New(),
+			Hash:      fmt.Sprintf("%x", sha256.Sum256([]byte(name))),
+			CreatedBy: createdBy,
+			CreatedAt: createdAt,
+			Mimetype:  mimetype,
+			Data:      []byte{},
+		})
+		require.NoError(t, err, "insert file %q", name)
+		return file
+	}
+
+	// mkVersion creates a template version whose cached module files point at a
+	// file with the given properties. InsertFile is used directly because
+	// dbgen.File treats uuid.Nil as unset and substitutes a random creator,
+	// while uuid.Nil is exactly what identifies a provisionerd module archive.
+	mkVersion := func(name string, createdBy uuid.UUID, mimetype string, createdAt time.Time) (database.File, database.TemplateVersion) {
+		file := mkFile(name, createdBy, mimetype, createdAt)
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			Name:           name,
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		_ = dbgen.TemplateVersionTerraformValues(t, db, database.TemplateVersionTerraformValue{
+			TemplateVersionID: tv.ID,
+			CachedModuleFiles: uuid.NullUUID{UUID: file.ID, Valid: true},
+		})
+		return file, tv
+	}
+
+	// Identified: a provisionerd module archive cached inside the window.
+	identified, identifiedTV := mkVersion("identified", uuid.Nil, "application/x-tar", inWindow)
+	// The lower bound is inclusive.
+	atStart, atStartTV := mkVersion("at-start", uuid.Nil, "application/x-tar", windowStart)
+	// The upper bound is exclusive, so this archive is known good.
+	atEnd, atEndTV := mkVersion("at-end", uuid.Nil, "application/x-tar", windowEnd)
+	// Cached before and after the window.
+	before, beforeTV := mkVersion("before", uuid.Nil, "application/x-tar", windowStart.Add(-time.Hour))
+	after, afterTV := mkVersion("after", uuid.Nil, "application/x-tar", windowEnd.Add(time.Hour))
+	// A user-uploaded template tarball shares the mimetype but has a real
+	// creator, so it must survive even though it is inside the window.
+	userUpload, userUploadTV := mkVersion("user-upload", user.ID, "application/x-tar", inWindow)
+
+	// An unreferenced archive inside the window. Only archives referenced by a
+	// template version are in scope.
+	orphan := mkFile("orphan", uuid.Nil, "application/x-tar", inWindow)
+
+	// when dbpurge runs
+	tick := awaitDoTicks(ctx, t, clk, 2)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+	defer closer.Close()
+	tick() // doTick() has now run.
+
+	assertFileDeleted := func(id uuid.UUID, name string) {
+		t.Helper()
+		_, err := db.GetFileByID(ctx, id)
+		require.ErrorIs(t, err, sql.ErrNoRows, "%s should be deleted", name)
+	}
+	assertFileExists := func(id uuid.UUID, name string) {
+		t.Helper()
+		_, err := db.GetFileByID(ctx, id)
+		require.NoError(t, err, "%s should be retained", name)
+	}
+	// assertCacheRef checks the template version still exists and that its
+	// module cache reference was cleared only when the file was deleted.
+	assertCacheRef := func(tv database.TemplateVersion, wantFile uuid.UUID, wantValid bool, name string) {
+		t.Helper()
+		values, err := db.GetTemplateVersionTerraformValues(ctx, tv.ID)
+		require.NoError(t, err, "%s: terraform values row must be retained", name)
+		require.Equal(t, wantValid, values.CachedModuleFiles.Valid, "%s: cache reference validity", name)
+		if wantValid {
+			require.Equal(t, wantFile, values.CachedModuleFiles.UUID, "%s: cache reference target", name)
+		}
+	}
+
+	// then the identified archives are deleted and their references cleared
+	assertFileDeleted(identified.ID, "archive inside the window")
+	assertCacheRef(identifiedTV, uuid.Nil, false, "archive inside the window")
+	assertFileDeleted(atStart.ID, "archive at the inclusive lower bound")
+	assertCacheRef(atStartTV, uuid.Nil, false, "archive at the inclusive lower bound")
+
+	// and everything else is untouched
+	assertFileExists(atEnd.ID, "archive at the exclusive upper bound")
+	assertCacheRef(atEndTV, atEnd.ID, true, "archive at the exclusive upper bound")
+	assertFileExists(before.ID, "archive cached before the window")
+	assertCacheRef(beforeTV, before.ID, true, "archive cached before the window")
+	assertFileExists(after.ID, "archive cached after the window")
+	assertCacheRef(afterTV, after.ID, true, "archive cached after the window")
+	assertFileExists(userUpload.ID, "user-uploaded tarball")
+	assertCacheRef(userUploadTV, userUpload.ID, true, "user-uploaded tarball")
+	assertFileExists(orphan.ID, "unreferenced archive")
+
+	// The cleanup is one-off, not a recurring purge. A second tick must not
+	// repeat it, so an archive inserted into the window after the first pass
+	// survives. This documents the latch: the window is fixed in the past and
+	// nothing can legitimately land in it again.
+	late, lateTV := mkVersion("late", uuid.Nil, "application/x-tar", inWindow)
+	tick()
+	assertFileExists(late.ID, "archive inserted after the one-off pass")
+	assertCacheRef(lateTV, late.ID, true, "archive inserted after the one-off pass")
 }

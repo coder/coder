@@ -26,6 +26,11 @@ exclude_pathspecs=(
 	# Generated CLI golden files embed serpent's emdash-bordered footer.
 	":(exclude)cli/testdata/*.golden"
 	":(exclude)enterprise/cli/testdata/*.golden"
+	# Generated notification golden files embed every stored notification
+	# template, and one carries an emdash from before this check existed
+	# (migration 000324). It lives in an applied migration, so it cannot be
+	# edited in place.
+	":(exclude)coderd/notifications/testdata/rendered-templates/**/*.golden"
 )
 
 scan_all_files() {

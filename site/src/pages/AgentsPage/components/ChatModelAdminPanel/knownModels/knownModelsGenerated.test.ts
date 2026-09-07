@@ -24,8 +24,10 @@ describe("knownModelsGenerated", () => {
 			}),
 		);
 		expect(thinkingMode).toEqual({
+			"claude-fable-5-1": "reasoningEffort",
 			"claude-fable-5": "reasoningEffort",
 			"claude-mythos-5": "reasoningEffort",
+			"claude-opus-5": "reasoningEffort",
 			"claude-opus-4-8": "reasoningEffort",
 			"claude-opus-4-7": "reasoningEffort",
 			"claude-opus-4-6": "reasoningEffort",

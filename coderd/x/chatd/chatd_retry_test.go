@@ -29,6 +29,8 @@ func TestActiveServer_RetryStatePersistedDuringBackoff(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
 	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+	retryTrap := clock.Trap().NewTimer("chatworker", "generation-retry")
+	defer retryTrap.Close()
 	sink := testutil.NewFakeSink(t)
 	var calls atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -65,8 +67,10 @@ func TestActiveServer_RetryStatePersistedDuringBackoff(t *testing.T) {
 	require.Equal(t, 429, retryPayload.StatusCode)
 	require.False(t, retryPayload.RetryingAt.IsZero())
 
-	advanceToNextTimer(ctx, clock)
-	advanceUntilProviderCall(ctx, clock, &calls, 2)
+	retryTimer := retryTrap.MustWait(ctx)
+	retryTimer.MustRelease(ctx)
+	advanceMockClockBy(ctx, t, clock, retryTimer.Duration)
+	waitUntilProviderCall(ctx, t, &calls, 2)
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	require.Equal(t, int32(2), calls.Load())
 	latest, err := db.GetChatByID(ctx, chat.ID)
@@ -104,10 +108,11 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 		})
 		user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:     "gpt-4o",
-			Enabled:   true,
-			CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
-			UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+			Model:          "gpt-4o",
+			Enabled:        true,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			OrganizationID: org.ID,
 		})
 		factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -275,17 +280,6 @@ func advanceMockClockBy(ctx context.Context, t *testing.T, clock *quartz.Mock, d
 		waiter.MustWait(ctx)
 		remaining -= next
 	}
-}
-
-func advanceUntilProviderCall(ctx context.Context, clock *quartz.Mock, calls *atomic.Int32, want int32) {
-	for calls.Load() < want {
-		advanceToNextTimer(ctx, clock)
-	}
-}
-
-func advanceToNextTimer(ctx context.Context, clock *quartz.Mock) {
-	_, waiter := clock.AdvanceNext()
-	waiter.MustWait(ctx)
 }
 
 func openAITextChunksWithStop(deltas ...string) []chattest.OpenAIChunk {

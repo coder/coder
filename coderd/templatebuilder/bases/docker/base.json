@@ -15,5 +15,11 @@
 			"sensitive": false,
 			"computed": false
 		}
+	],
+	"agents": [
+		{
+			"name": "main",
+			"default": true
+		}
 	]
 }

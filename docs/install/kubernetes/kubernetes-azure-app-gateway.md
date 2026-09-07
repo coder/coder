@@ -1,4 +1,6 @@
-# Deploy Coder on Azure with an Application Gateway
+---
+title: Deploy Coder on Azure with an Application Gateway
+---
 
 In certain enterprise environments, the [Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) is required.
 

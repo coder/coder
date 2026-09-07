@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { useMutation } from "react-query";
@@ -21,7 +22,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
 type LoginTypeConfirmation =

@@ -32,7 +32,7 @@ export interface FieldSchema {
 /**
  * A group of fields belonging to a single provider or the general section.
  */
-export interface ProviderSchema {
+interface ProviderSchema {
 	fields: FieldSchema[];
 }
 
@@ -44,15 +44,14 @@ export interface ProviderSchema {
  * - `provider_aliases` maps alternate names to canonical provider names
  *   (e.g. "azure" → "openai").
  */
-export interface ModelOptionsSchema {
+interface ModelOptionsSchema {
 	general: ProviderSchema;
 	providers: Record<string, ProviderSchema>;
 	provider_aliases: Record<string, string>;
 }
 
 /** The imported schema, typed as {@link ModelOptionsSchema}. */
-export const modelOptionsSchema: ModelOptionsSchema =
-	schema as ModelOptionsSchema;
+const modelOptionsSchema: ModelOptionsSchema = schema as ModelOptionsSchema;
 
 /**
  * Get the general (provider-independent) fields such as temperature
@@ -93,14 +92,6 @@ export function resolveProvider(provider: string): string {
  */
 export function getProviderNames(): string[] {
 	return Object.keys(modelOptionsSchema.providers);
-}
-
-/**
- * Check whether a provider is known, either as a canonical name or an alias.
- */
-export function isKnownProvider(provider: string): boolean {
-	const resolved = resolveProvider(provider);
-	return resolved in modelOptionsSchema.providers;
 }
 
 /**

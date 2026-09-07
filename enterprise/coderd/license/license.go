@@ -347,12 +347,6 @@ func LicensesEntitlements(
 	keys map[string]ed25519.PublicKey,
 	featureArguments FeatureArguments,
 ) (codersdk.Entitlements, error) {
-	// TODO: Remove this tracking once AI Bridge is enforced as an add-on license.
-	// Track if AI Bridge was explicitly granted via license Features (add-on)
-	// vs inherited from FeatureSet (Premium). Only explicit grants should
-	// suppress the soft warning for AI Bridge GA.
-	hasExplicitAIBridgeEntitlement := false
-
 	// Each valid license's FeatureUserLimit claim forms a candidate pairing of
 	// seat limit and counting mode: licenses carrying the AI Governance
 	// addon count workspace-capable users, others count all active users.
@@ -512,15 +506,6 @@ func LicensesEntitlements(
 					End:   usagePeriodEnd,
 				},
 			})
-		}
-
-		// TODO: Remove this tracking once AI Bridge is enforced as an add-on license.
-		// Track explicit AI Bridge entitlement (add-on license). This is checked
-		// at the license level since AI Bridge may come from the FeatureSet
-		// (Premium) rather than being explicitly listed in claims.Features.
-		// Only having the AI Governance addon should suppress the soft warning.
-		if slices.Contains(claims.Addons, codersdk.AddonAIGovernance) {
-			hasExplicitAIBridgeEntitlement = true
 		}
 
 		// Add all features from the feature set.
@@ -924,17 +909,6 @@ func LicensesEntitlements(
 			default:
 			}
 		}
-
-		// TODO: Remove this soft warning block once AI Bridge is enforced as an add-on license.
-		// AI Bridge soft warning: Show warning when AI Bridge is enabled and
-		// entitled via Premium FeatureSet but not via explicit add-on license.
-		// This is a transitional warning as AI Bridge moves to GA and will
-		// require a separate add-on license in future versions.
-		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		if aiBridgeFeature.Enabled && aiBridgeFeature.Entitlement.Entitled() && !hasExplicitAIBridgeEntitlement {
-			entitlements.Warnings = append(entitlements.Warnings,
-				"The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more.")
-		}
 	}
 
 	// Wrap up by disabling all features that are not entitled.
@@ -1253,7 +1227,7 @@ func validateClaims(tok *jwt.Token) (*Claims, error) {
 		}
 
 		yearsHardLimit := time.Now().Add(5 /* years */ * 365 * 24 * time.Hour)
-		if claims.LicenseExpires == nil || claims.LicenseExpires.Time.After(yearsHardLimit) {
+		if claims.LicenseExpires == nil || claims.LicenseExpires.After(yearsHardLimit) {
 			return nil, ErrMissingLicenseExpires
 		}
 		if claims.ExpiresAt == nil {

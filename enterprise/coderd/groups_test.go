@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -175,9 +174,9 @@ func TestPatchGroup(t *testing.T) {
 
 		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name:           "ddd502d2-2984-4724-b5bf-1109a4d7462d", // GUID should fit.
-			AvatarURL:      ptr.Ref("https://google.com"),
-			QuotaAllowance: ptr.Ref(20),
-			DisplayName:    ptr.Ref(displayName),
+			AvatarURL:      new("https://google.com"),
+			QuotaAllowance: new(20),
+			DisplayName:    new(displayName),
 		})
 		require.NoError(t, err)
 		require.Equal(t, displayName, group.DisplayName)
@@ -208,8 +207,8 @@ func TestPatchGroup(t *testing.T) {
 
 		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name:           "bye",
-			AvatarURL:      ptr.Ref("https://google.com"),
-			QuotaAllowance: ptr.Ref(20),
+			AvatarURL:      new("https://google.com"),
+			QuotaAllowance: new(20),
 		})
 		require.NoError(t, err)
 		require.Equal(t, displayName, group.DisplayName)
@@ -388,7 +387,7 @@ func TestPatchGroup(t *testing.T) {
 
 		group1, err = userAdminClient.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
 			Name:      group2.Name,
-			AvatarURL: ptr.Ref("https://google.com"),
+			AvatarURL: new("https://google.com"),
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
@@ -418,6 +417,52 @@ func TestPatchGroup(t *testing.T) {
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+	})
+
+	// A group member can read the group but must not be able to update it.
+	// The update must be rejected as an authorization failure that returns a
+	// 404 to not leak resource existence.
+	t.Run("MemberWithoutUpdatePermission", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		// Make the actor a member of the group so it can read the group but
+		// still lacks group:update.
+		_, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{member.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// Updating the group budget must fail as unauthorized (404).
+		_, err = memberClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			QuotaAllowance: new(20),
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+
+		// Adding a member must also fail as unauthorized (404).
+		_, err = memberClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user.UserID.String()},
+		})
+		require.Error(t, err)
+		cerr, ok = codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 	})
 
 	t.Run("MalformedUUID", func(t *testing.T) {
@@ -552,7 +597,7 @@ func TestPatchGroup(t *testing.T) {
 			userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 			ctx := testutil.Context(t, testutil.WaitLong)
 			_, err := userAdminClient.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
-				DisplayName: ptr.Ref("hi"),
+				DisplayName: new("hi"),
 			})
 			require.Error(t, err)
 			cerr, ok := codersdk.AsError(err)
@@ -619,7 +664,7 @@ func TestPatchGroup(t *testing.T) {
 
 			expectedQuota := 123
 			group, err = userAdminClient.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
-				QuotaAllowance: ptr.Ref(expectedQuota),
+				QuotaAllowance: new(expectedQuota),
 			})
 			require.NoError(t, err)
 			require.Equal(t, expectedQuota, group.QuotaAllowance)
@@ -1082,7 +1127,7 @@ func TestGroups(t *testing.T) {
 			if g.ID == everyoneGroup.ID || g.ID == group2.ID {
 				// Only expect the 1 member, themselves.
 				require.Len(t, g.Members, 1)
-				require.Equal(t, user5.ReducedUser.ID, g.Members[0].MinimalUser.ID)
+				require.Equal(t, user5.ID, g.Members[0].ID)
 				continue
 			}
 

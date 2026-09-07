@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/intercept"
-	"github.com/coder/coder/v2/internal/googleopenai"
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 )
 
 func TestGoogleOpenAICompatThoughtSignaturePatchSurvivesParamRoundTrip(t *testing.T) {
@@ -97,4 +97,58 @@ func googleThoughtSignatureFromBody(t *testing.T, body []byte, messageIndex int,
 	google, _ := extraContent["google"].(map[string]any)
 	signature, _ := google["thought_signature"].(string)
 	return signature
+}
+
+func TestGoogleOpenAICompatExtraBodySurvivesParamRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"model":"gemini-3-flash-preview",
+		"stream":true,
+		"extra_body":{"google":{"thinking_config":{"include_thoughts":true,"thinking_level":"high"}}},
+		"messages":[{"role":"user","content":"current turn"}]
+	}`)
+
+	var req ChatCompletionNewParamsWrapper
+	require.NoError(t, json.Unmarshal(raw, &req))
+
+	roundTripped, err := json.Marshal(req.ChatCompletionNewParams)
+	require.NoError(t, err)
+	require.NotContains(t, string(roundTripped), "extra_body",
+		"openai-go drops extra_body during the typed param round-trip")
+
+	body, err := (&interceptionBase{
+		req: &req,
+		cfg: intercept.Config{BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"},
+	}).chatCompletionRequestBody()
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(body, &payload))
+	require.Equal(t, map[string]any{
+		"google": map[string]any{
+			"thinking_config": map[string]any{
+				"include_thoughts": true,
+				"thinking_level":   "high",
+			},
+		},
+	}, payload["extra_body"])
+}
+
+func TestGoogleOpenAICompatExtraBodyNotForwardedToOtherUpstreams(t *testing.T) {
+	t.Parallel()
+
+	var req ChatCompletionNewParamsWrapper
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"model":"gpt-4o",
+		"extra_body":{"google":{"thinking_config":{"include_thoughts":true}}},
+		"messages":[{"role":"user","content":"current turn"}]
+	}`), &req))
+
+	body, err := (&interceptionBase{
+		req: &req,
+		cfg: intercept.Config{BaseURL: "https://api.openai.com/v1"},
+	}).chatCompletionRequestBody()
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "extra_body")
 }

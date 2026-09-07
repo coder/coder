@@ -154,7 +154,7 @@ func decodeInstructionContent(body json.RawMessage) (content string, decoded boo
 	if !ok {
 		return "", false
 	}
-	return SanitizePromptText(string(decodedBody.GetContent())), true
+	return codersdk.SanitizePromptText(string(decodedBody.GetContent())), true
 }
 
 // decodeSkillIdentity decodes a skill resource body and returns its name and

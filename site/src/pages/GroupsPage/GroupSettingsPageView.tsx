@@ -2,8 +2,6 @@ import { useFormik } from "formik";
 import type { FC, ReactNode } from "react";
 import * as Yup from "yup";
 import type { Group } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
-import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
@@ -13,6 +11,7 @@ import {
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	aiBudgetRangeError,
@@ -20,6 +19,7 @@ import {
 	maxAIBudgetDollars,
 } from "#/modules/groups";
 import { usdBudgetFormatter } from "#/utils/currency";
+import { docs } from "#/utils/docs";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -31,19 +31,33 @@ type FormData = {
 	display_name: string;
 	avatar_url: string;
 	quota_allowance: number;
-	// Per-member AI budget, in dollars. "" is unlimited; 0 disables.
+	// Per-member AI budget, in dollars. "" means no budget; 0 disables AI access.
 	monthly_budget_per_member: string;
 };
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),
 	quota_allowance: Yup.number().required().min(0).integer(),
-	// Optional: empty is unlimited. A value must be within the range; 0 disables.
+	// Optional: empty means no budget. A value must be within the range; 0 disables.
 	monthly_budget_per_member: Yup.number()
 		.transform((value, original) => (original === "" ? undefined : value))
 		.min(0, aiBudgetRangeError)
 		.max(maxAIBudgetDollars, aiBudgetRangeError),
 });
+
+const BudgetDocsLink: FC = () => (
+	<Link
+		href={docs("/ai-coder/ai-gateway/cost-controls#effective-group-resolution")}
+		target="_blank"
+		rel="noreferrer"
+		size="sm"
+		// The link's default left padding reads as a stray gap when the link
+		// wraps to its own line under the helper text.
+		className="pl-0"
+	>
+		View docs
+	</Link>
+);
 
 interface AIBudgetFeedbackProps {
 	error: boolean;
@@ -69,26 +83,34 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 	const budgetValue = monthlyBudgetPerMember.trim();
 	const budgetAmount = Number(budgetValue);
 
-	// Empty means unlimited spend; $0 disables AI access. Both states show an
+	// Empty means no budget; $0 disables AI access. Both states show an
 	// explanatory alert alongside the summary line.
 	if (budgetValue === "" || budgetAmount === 0) {
-		const { label, message } =
+		const { summary, message } =
 			budgetValue === ""
 				? {
-						label: "unlimited budget",
-						message: "Members in this group have no spending cap.",
+						summary: "This group doesn't have a budget set.",
+						message:
+							"Members will fall back to another group's limit, or if no budgets have been set, they will have no spend limit.",
 					}
 				: {
-						label: "no budget",
-						message: "A $0 limit disables AI access for this group.",
+						summary: (
+							<>
+								This group's limit has been set to{" "}
+								<span className="font-medium text-content-primary">$0</span>.
+							</>
+						),
+						message:
+							"A $0 limit blocks AI access for members that aren't in another group with a budget set.",
 					};
 		return (
 			<>
 				<span className="text-left text-xs text-content-secondary">
-					This group has{" "}
-					<span className="font-medium text-content-primary">{label}</span>.
+					{summary}
 				</span>
-				<Alert severity="info">{message}</Alert>
+				<span className="text-left text-xs text-content-secondary">
+					{message} <BudgetDocsLink />
+				</span>
 			</>
 		);
 	}
@@ -96,12 +118,13 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 	if (Number.isFinite(budgetAmount) && budgetAmount > 0) {
 		return (
 			<span className="text-left text-xs text-content-secondary">
+				This group's limit is{" "}
 				<span className="font-medium text-content-primary">
 					{usdBudgetFormatter.format(budgetAmount * memberCount)}
 				</span>
 				/month, based on{" "}
 				<span className="font-medium text-content-primary">{memberCount}</span>{" "}
-				{memberCount === 1 ? "member" : "members"}.
+				{memberCount === 1 ? "member" : "members"}. <BudgetDocsLink />
 			</span>
 		);
 	}
@@ -111,13 +134,12 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 
 interface UpdateGroupFormProps {
 	group: Group;
-	/** Whether the AI add-on settings are shown (gated by the aibridge feature). */
+	/** Whether the AI budget settings are shown (gated by the aibridge feature). */
 	showAISettings: boolean;
 	/** Per-member AI budget in dollars, or null for unlimited spend. */
 	initialBudgetDollars: number | null;
 	errors: unknown;
 	onSubmit: (data: FormData) => void;
-	onCancel: () => void;
 	isLoading: boolean;
 }
 
@@ -127,7 +149,6 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 	initialBudgetDollars,
 	errors,
 	onSubmit,
-	onCancel,
 	isLoading,
 }) => {
 	const form = useFormik<FormData>({
@@ -143,9 +164,11 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 		onSubmit,
 	});
 	const getFieldHelpers = getFormHelpers<FormData>(form, errors);
-	const nameField = getFieldHelpers("name");
+	const nameField = getFieldHelpers("name", {
+		helperText: "Unique identifier.",
+	});
 	const displayNameField = getFieldHelpers("display_name", {
-		helperText: "Keep empty to default to the name.",
+		helperText: "Friendly name. Defaults to the name if blank.",
 	});
 	const quotaField = getFieldHelpers("quota_allowance", {
 		helperText: `This group gives ${form.values.quota_allowance} quota credits to each
@@ -154,8 +177,8 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 	const budgetField = getFieldHelpers("monthly_budget_per_member");
 
 	return (
-		<form className="flex flex-col gap-10 pb-8" onSubmit={form.handleSubmit}>
-			<section className="flex flex-col gap-4 max-w-md">
+		<form className="flex flex-col gap-6" onSubmit={form.handleSubmit}>
+			<section className="flex flex-col gap-4">
 				<div className="flex flex-col gap-2">
 					<h2 className="text-xl font-semibold text-content-primary m-0">
 						General
@@ -163,7 +186,12 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 				</div>
 				<div className="flex flex-col gap-6">
 					<div className="flex flex-col items-start gap-2">
-						<Label htmlFor={nameField.id}>Name</Label>
+						<Label htmlFor={nameField.id}>
+							Name{" "}
+							<span className="text-xs font-bold text-content-destructive">
+								*
+							</span>
+						</Label>
 						<Input
 							id={nameField.id}
 							name={nameField.name}
@@ -226,15 +254,10 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 			</section>
 
 			{showAISettings && (
-				<section className="flex flex-col gap-8 max-w-md">
-					<div className="flex items-center gap-2">
-						<h2 className="m-0 text-xl font-semibold text-content-primary">
-							AI budget
-						</h2>
-						<Badge variant="purple" size="sm">
-							AI add-on
-						</Badge>
-					</div>
+				<section className="flex flex-col gap-4">
+					<h2 className="m-0 text-xl font-semibold text-content-primary">
+						AI budget
+					</h2>
 					<div className="flex flex-col gap-6">
 						<div className="flex flex-col items-start gap-2">
 							<Label htmlFor={budgetField.id}>Monthly limit per member</Label>
@@ -251,10 +274,12 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 									min="0"
 									max={maxAIBudgetDollars}
 									step="1"
-									placeholder="unlimited"
+									placeholder="no budget"
 									aria-invalid={budgetField.error}
 								/>
-								<InputGroupAddon align="inline-end">USD</InputGroupAddon>
+								<InputGroupAddon align="inline-end" className="pr-3">
+									USD
+								</InputGroupAddon>
 							</InputGroup>
 							<AIBudgetFeedback
 								error={budgetField.error}
@@ -267,7 +292,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 				</section>
 			)}
 
-			<section className="flex flex-col gap-8">
+			<section className="flex flex-col gap-4">
 				<div className="flex flex-col gap-2">
 					<h2 className="text-xl font-semibold text-content-primary m-0">
 						Quotas
@@ -304,11 +329,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 				</div>
 			</section>
 
-			<footer className="flex items-center justify-start space-x-2">
-				<Button onClick={onCancel} variant="outline">
-					Cancel
-				</Button>
-
+			<footer className="flex items-center justify-end space-x-2">
 				<Button type="submit" disabled={isLoading}>
 					<Spinner loading={isLoading} />
 					Save
@@ -319,7 +340,6 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 };
 
 type SettingsGroupPageViewProps = {
-	onCancel: () => void;
 	onSubmit: (data: FormData) => void;
 	group: Group;
 	showAISettings: boolean;
@@ -329,7 +349,6 @@ type SettingsGroupPageViewProps = {
 };
 
 const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
-	onCancel,
 	onSubmit,
 	group,
 	showAISettings,
@@ -342,7 +361,6 @@ const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
 			group={group}
 			showAISettings={showAISettings}
 			initialBudgetDollars={initialBudgetDollars}
-			onCancel={onCancel}
 			errors={formErrors}
 			isLoading={isUpdating}
 			onSubmit={onSubmit}

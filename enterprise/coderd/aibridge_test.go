@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -265,8 +264,8 @@ func TestAIBridgeListSessions(t *testing.T) {
 		t.Parallel()
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
-		opts.Options.Database = db
-		opts.Options.Pubsub = ps
+		opts.Database = db
+		opts.Pubsub = ps
 		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1711,8 +1710,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		// role grants boundary_log:create; they are written by the agent path.
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
-		opts.Options.Database = db
-		opts.Options.Pubsub = ps
+		opts.Database = db
+		opts.Pubsub = ps
 		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1799,8 +1798,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		// its own sequence) is excluded by the exclusive lower bound.
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
-		opts.Options.Database = db
-		opts.Options.Pubsub = ps
+		opts.Database = db
+		opts.Pubsub = ps
 		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1867,8 +1866,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		// by session B's interception and B's calls never bleed into A's counts.
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
-		opts.Options.Database = db
-		opts.Options.Pubsub = ps
+		opts.Database = db
+		opts.Pubsub = ps
 		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1935,8 +1934,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		// truncated but the summary total stays authoritative.
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
-		opts.Options.Database = db
-		opts.Options.Pubsub = ps
+		opts.Database = db
+		opts.Pubsub = ps
 		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -3538,7 +3537,7 @@ func TestUserAISpendStatus(t *testing.T) {
 	}{
 		{
 			name:                  "GroupBudget/ZeroSpend",
-			groupBudget:           ptr.Ref(int64(1_000_000_000)),
+			groupBudget:           new(int64(1_000_000_000)),
 			wantHasEffectiveGroup: true,
 			wantEffectiveBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 1_000_000_000,
@@ -3547,7 +3546,7 @@ func TestUserAISpendStatus(t *testing.T) {
 		},
 		{
 			name:                  "GroupBudget/PartialSpend",
-			groupBudget:           ptr.Ref(int64(1_000_000_000)),
+			groupBudget:           new(int64(1_000_000_000)),
 			spent:                 250_000_000,
 			wantHasEffectiveGroup: true,
 			wantEffectiveBudget: &codersdk.AIBudgetLimit{
@@ -3558,7 +3557,7 @@ func TestUserAISpendStatus(t *testing.T) {
 		},
 		{
 			name:                  "GroupBudget/SpendExceedsLimit",
-			groupBudget:           ptr.Ref(int64(1_000_000_000)),
+			groupBudget:           new(int64(1_000_000_000)),
 			spent:                 1_500_000_000,
 			wantHasEffectiveGroup: true,
 			wantEffectiveBudget: &codersdk.AIBudgetLimit{
@@ -3569,8 +3568,8 @@ func TestUserAISpendStatus(t *testing.T) {
 		},
 		{
 			name:                  "UserOverride/ZeroSpend",
-			groupBudget:           ptr.Ref(int64(5_000_000_000)),
-			overrideLimit:         ptr.Ref(int64(200_000_000)),
+			groupBudget:           new(int64(5_000_000_000)),
+			overrideLimit:         new(int64(200_000_000)),
 			wantHasEffectiveGroup: true,
 			wantEffectiveBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 200_000_000,
@@ -3579,8 +3578,8 @@ func TestUserAISpendStatus(t *testing.T) {
 		},
 		{
 			name:                  "UserOverride/PartialSpend",
-			groupBudget:           ptr.Ref(int64(5_000_000_000)),
-			overrideLimit:         ptr.Ref(int64(200_000_000)),
+			groupBudget:           new(int64(5_000_000_000)),
+			overrideLimit:         new(int64(200_000_000)),
 			spent:                 50_000_000,
 			wantHasEffectiveGroup: true,
 			wantEffectiveBudget: &codersdk.AIBudgetLimit{
@@ -3591,8 +3590,8 @@ func TestUserAISpendStatus(t *testing.T) {
 		},
 		{
 			name:                  "UserOverride/SpendExceedsLimit",
-			groupBudget:           ptr.Ref(int64(5_000_000_000)),
-			overrideLimit:         ptr.Ref(int64(200_000_000)),
+			groupBudget:           new(int64(5_000_000_000)),
+			overrideLimit:         new(int64(200_000_000)),
 			spent:                 350_000_000,
 			wantHasEffectiveGroup: true,
 			wantEffectiveBudget: &codersdk.AIBudgetLimit{
@@ -3916,16 +3915,16 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 			name:                "ZeroLimitBudget",
 			setBudget:           true,
 			spendLimit:          0,
-			wantSpendLimit:      ptr.Ref(int64(0)),
-			wantTotalSpendLimit: ptr.Ref(int64(0)),
+			wantSpendLimit:      new(int64(0)),
+			wantTotalSpendLimit: new(int64(0)),
 			wantCurrentSpend:    0,
 		},
 		{
 			name:                "BudgetZeroSpend",
 			setBudget:           true,
 			spendLimit:          1_000_000_000,
-			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
-			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantSpendLimit:      new(int64(1_000_000_000)),
+			wantTotalSpendLimit: new(int64(1_000_000_000)),
 			wantCurrentSpend:    0,
 		},
 		{
@@ -3933,8 +3932,8 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 			setBudget:           true,
 			spendLimit:          1_000_000_000,
 			spent:               250_000_000,
-			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
-			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantSpendLimit:      new(int64(1_000_000_000)),
+			wantTotalSpendLimit: new(int64(1_000_000_000)),
 			wantCurrentSpend:    250_000_000,
 		},
 		{
@@ -3942,8 +3941,8 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 			setBudget:           true,
 			spendLimit:          1_000_000_000,
 			spent:               1_500_000_000,
-			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
-			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantSpendLimit:      new(int64(1_000_000_000)),
+			wantTotalSpendLimit: new(int64(1_000_000_000)),
 			wantCurrentSpend:    1_500_000_000,
 		},
 	}
@@ -4020,8 +4019,8 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 
 		// Then: the total covers both members while the per-member limit is unchanged.
 		require.Len(t, got.Groups, 1)
-		require.Equal(t, ptr.Ref(int64(1_000_000_000)), got.Groups[0].SpendLimitMicros)
-		require.Equal(t, ptr.Ref(int64(2_000_000_000)), got.Groups[0].TotalSpendLimitMicros)
+		require.Equal(t, new(int64(1_000_000_000)), got.Groups[0].SpendLimitMicros)
+		require.Equal(t, new(int64(2_000_000_000)), got.Groups[0].TotalSpendLimitMicros)
 		require.Equal(t, int64(0), got.Groups[0].CurrentSpendMicros)
 	})
 }
@@ -5026,16 +5025,16 @@ func TestGroupAISpend(t *testing.T) {
 			name:                "ZeroLimitBudget",
 			setBudget:           true,
 			spendLimit:          0,
-			wantSpendLimit:      ptr.Ref(int64(0)),
-			wantTotalSpendLimit: ptr.Ref(int64(0)),
+			wantSpendLimit:      new(int64(0)),
+			wantTotalSpendLimit: new(int64(0)),
 			wantCurrentSpend:    0,
 		},
 		{
 			name:                "BudgetZeroSpend",
 			setBudget:           true,
 			spendLimit:          1_000_000_000,
-			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
-			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantSpendLimit:      new(int64(1_000_000_000)),
+			wantTotalSpendLimit: new(int64(1_000_000_000)),
 			wantCurrentSpend:    0,
 		},
 		{
@@ -5043,8 +5042,8 @@ func TestGroupAISpend(t *testing.T) {
 			setBudget:           true,
 			spendLimit:          1_000_000_000,
 			spent:               250_000_000,
-			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
-			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantSpendLimit:      new(int64(1_000_000_000)),
+			wantTotalSpendLimit: new(int64(1_000_000_000)),
 			wantCurrentSpend:    250_000_000,
 		},
 		{
@@ -5052,8 +5051,8 @@ func TestGroupAISpend(t *testing.T) {
 			setBudget:           true,
 			spendLimit:          1_000_000_000,
 			spent:               1_500_000_000,
-			wantSpendLimit:      ptr.Ref(int64(1_000_000_000)),
-			wantTotalSpendLimit: ptr.Ref(int64(1_000_000_000)),
+			wantSpendLimit:      new(int64(1_000_000_000)),
+			wantTotalSpendLimit: new(int64(1_000_000_000)),
 			wantCurrentSpend:    1_500_000_000,
 		},
 	}
@@ -5128,8 +5127,8 @@ func TestGroupAISpend(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: the total covers both members while the per-member limit is unchanged.
-		require.Equal(t, ptr.Ref(int64(1_000_000_000)), got.SpendLimitMicros)
-		require.Equal(t, ptr.Ref(int64(2_000_000_000)), got.TotalSpendLimitMicros)
+		require.Equal(t, new(int64(1_000_000_000)), got.SpendLimitMicros)
+		require.Equal(t, new(int64(2_000_000_000)), got.TotalSpendLimitMicros)
 		require.Equal(t, int64(0), got.CurrentSpendMicros)
 	})
 }
@@ -5422,6 +5421,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, resp.Members, 1)
 		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
 		require.Equal(t, &group.OrganizationID, resp.Members[0].EffectiveGroupID)
+		require.Nil(t, resp.Members[0].EffectiveBudget)
 		require.Nil(t, resp.Members[0].GroupBudget)
 		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
 	})
@@ -5429,10 +5429,12 @@ func TestGroupMembersAISpend(t *testing.T) {
 	tests := []struct {
 		name                  string
 		groupLimit            int64
+		everyoneLimit         int64
 		overrideLimit         int64
 		spent                 int64
 		wantEffectiveGroup    bool
 		wantEffectiveEveryone bool
+		wantEffectiveBudget   *codersdk.AIBudgetLimit
 		wantGroupBudget       *codersdk.AIBudgetLimit
 		wantSpendMicros       int64
 	}{
@@ -5440,6 +5442,10 @@ func TestGroupMembersAISpend(t *testing.T) {
 			name:               "BudgetZeroSpend",
 			groupLimit:         1_000_000_000,
 			wantEffectiveGroup: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 1_000_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+			},
 			wantGroupBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 1_000_000_000,
 				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
@@ -5450,6 +5456,10 @@ func TestGroupMembersAISpend(t *testing.T) {
 			groupLimit:         1_000_000_000,
 			spent:              250_000_000,
 			wantEffectiveGroup: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 1_000_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+			},
 			wantGroupBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 1_000_000_000,
 				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
@@ -5460,9 +5470,22 @@ func TestGroupMembersAISpend(t *testing.T) {
 			name:               "OverrideBudget",
 			overrideLimit:      500_000_000,
 			wantEffectiveGroup: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 500_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+			},
 			wantGroupBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 500_000_000,
 				LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+			},
+		},
+		{
+			name:                  "EveryoneBudget",
+			everyoneLimit:         750_000_000,
+			wantEffectiveEveryone: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 750_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
 			},
 		},
 		{
@@ -5505,6 +5528,12 @@ func TestGroupMembersAISpend(t *testing.T) {
 				})
 				require.NoError(t, err)
 			}
+			if tt.everyoneLimit > 0 {
+				_, err := adminClient.UpsertGroupAIBudget(ctx, group.OrganizationID, codersdk.UpsertGroupAIBudgetRequest{
+					SpendLimitMicros: tt.everyoneLimit,
+				})
+				require.NoError(t, err)
+			}
 			if tt.overrideLimit > 0 {
 				_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
 					GroupID:          group.ID,
@@ -5541,6 +5570,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 			default:
 				require.Nil(t, got.Members[0].EffectiveGroupID)
 			}
+			require.Equal(t, tt.wantEffectiveBudget, got.Members[0].EffectiveBudget)
 			require.Equal(t, tt.wantGroupBudget, got.Members[0].GroupBudget)
 			require.Equal(t, tt.wantSpendMicros, got.Members[0].GroupSpendMicros)
 		})
@@ -5600,6 +5630,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, resp.Members, 1)
 		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
 		require.Nil(t, resp.Members[0].EffectiveGroupID, "cross-org effective group must be masked even for the owner")
+		require.Nil(t, resp.Members[0].EffectiveBudget)
 		require.Nil(t, resp.Members[0].GroupBudget)
 		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
 	})
@@ -5658,6 +5689,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, resp.Members, 1)
 		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
 		require.Nil(t, resp.Members[0].EffectiveGroupID, "cross-org fallback effective group must be masked")
+		require.Nil(t, resp.Members[0].EffectiveBudget)
 		require.Nil(t, resp.Members[0].GroupBudget)
 		require.Equal(t, int64(100_000_000), resp.Members[0].GroupSpendMicros)
 	})
@@ -5688,6 +5720,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, got.Members, 1)
 		require.Equal(t, targetUser.ID, got.Members[0].UserID)
 		require.Equal(t, &group.OrganizationID, got.Members[0].EffectiveGroupID)
+		require.Nil(t, got.Members[0].EffectiveBudget)
 		require.Nil(t, got.Members[0].GroupBudget)
 		require.Equal(t, int64(0), got.Members[0].GroupSpendMicros)
 	})

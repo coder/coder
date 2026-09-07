@@ -217,7 +217,6 @@ const EnabledToggle: FC<EnabledToggleProps> = ({
 	// An enabled secret must have at least one injection target. Prevent
 	// enabling a target-less secret; the user must add a target first.
 	const cannotEnable = !secret.enabled && !hasTarget;
-	const stateLabel = secret.enabled ? "Enabled" : "Disabled";
 
 	return (
 		<Tooltip>
@@ -230,7 +229,7 @@ const EnabledToggle: FC<EnabledToggleProps> = ({
 				 */}
 				<span tabIndex={0} className="inline-flex">
 					<Switch
-						aria-label={stateLabel}
+						aria-label={`Toggle secret ${secret.name}`}
 						checked={secret.enabled}
 						disabled={isPending || cannotEnable}
 						onCheckedChange={(checked) => onToggle(secret, checked)}

@@ -67,6 +67,14 @@ const effortModel: ModelSelectorOption = {
 	],
 };
 
+const longNameModel: ModelSelectorOption = {
+	...MockModelSelectorOption,
+	id: "openai/gpt-4o-mini-extended",
+	model: "gpt-4o-mini-extended-ultra-long-context-preview",
+	displayName: "GPT-4o mini Extended Ultra Long Context Preview Edition",
+	contextLimit: 1_000_000,
+};
+
 const meta: Meta<typeof ModelSelector> = {
 	title: "pages/AgentsPage/ChatElements/ModelSelector",
 	component: ModelSelector,
@@ -89,6 +97,63 @@ export const Default: Story = {};
 export const WithSelectedValue: Story = {
 	args: {
 		value: "openai/gpt-4o",
+	},
+};
+
+export const SelectedValueShowsProviderIcon: Story = {
+	args: {
+		options: allModels,
+		value: "anthropic/claude-sonnet-4",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByTestId("model-selector-trigger-icon"),
+		).toBeInTheDocument();
+	},
+};
+
+export const SelectedValueShowsCustomProviderIcon: Story = {
+	args: {
+		options: [
+			{
+				...MockModelSelectorOption,
+				id: "anthropic-hyper/claude-opus-4",
+				provider: "anthropic",
+				providerId: "provider-anthropic-hyper",
+				providerLabel: "Hyper",
+				providerIcon: "/icon/coder.svg",
+				model: "claude-opus-4-20250514",
+				displayName: "Claude Opus 4",
+			},
+		],
+		value: "anthropic-hyper/claude-opus-4",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Opus 4" }),
+		).toBeInTheDocument();
+		const icon = canvas.getByTestId("model-selector-trigger-icon");
+		expect(icon.querySelector("img")).toHaveAttribute("src", "/icon/coder.svg");
+	},
+};
+
+export const PlaceholderShowsNoIcon: Story = {
+	args: {
+		value: "",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Select model" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByTestId("model-selector-trigger-icon"),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -117,7 +182,7 @@ export const InputBorderTreatment: Story = {
 	args: {
 		value: "openai/gpt-4o-mini",
 		className:
-			"h-10 border border-border border-solid bg-transparent px-3 shadow-sm",
+			"h-10 border border-border border-solid bg-transparent px-3 shadow-xs",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -135,6 +200,47 @@ export const Disabled: Story = {
 		disabled: true,
 		value: "openai/gpt-4o",
 	},
+};
+
+// Form-style call sites (settings pages) stretch the trigger wider than
+// its content (w-full below the md breakpoint, fixed widths like
+// md:w-[18rem] above it) and pass justify-between with an h-10 height.
+// The visual snapshot of this story guards that the provider icon and
+// label stay adjacent (instead of the label floating to the center) and
+// that the call site's h-10 wins over the component's base sizing.
+export const FormFieldTriggerKeepsIconAndLabelAdjacent: Story = {
+	args: {
+		options: allModels,
+		value: "anthropic/claude-sonnet-4",
+		className:
+			"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-xs md:w-[18rem]",
+	},
+	decorators: [
+		(Story) => (
+			<div className="w-120">
+				<Story />
+			</div>
+		),
+	],
+};
+
+// A model name longer than the trigger truncates while the provider icon
+// keeps its full size; without shrink-0 on the icon wrapper, flex
+// shrinking combined with preflight's img max-width scales the icon down.
+export const FormFieldTriggerTruncatesLongModelName: Story = {
+	args: {
+		options: [longNameModel],
+		value: longNameModel.id,
+		className:
+			"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-xs md:w-[18rem]",
+	},
+	decorators: [
+		(Story) => (
+			<div className="w-120">
+				<Story />
+			</div>
+		),
+	],
 };
 
 // ---------------------------------------------------------------------------

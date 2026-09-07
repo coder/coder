@@ -1,9 +1,9 @@
+import { cn } from "cn";
 import { Building2Icon } from "lucide-react";
 import type { FC } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { getProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
-import { cn } from "#/utils/cn";
 
 interface ProviderIconProps {
 	provider: string;

@@ -160,6 +160,8 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 			viewportClassName="max-h-64"
+			viewportTabIndex={0}
+			viewportAriaLabel="Workspace build log"
 			scrollBarClassName="w-1.5"
 		>
 			<WorkspaceBuildLogs

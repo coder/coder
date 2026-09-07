@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon, InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -23,7 +24,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
-import { cn } from "#/utils/cn";
 import { formatReasoningEffort } from "../../utils/reasoningEffort";
 
 export interface ModelSelectorOption {
@@ -163,13 +163,27 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					type="button"
 					variant="subtle"
 					className={cn(
-						"h-8 min-w-0 shrink justify-start gap-0.5 border-0 bg-transparent px-1 text-xs font-medium shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link md:w-auto md:shrink-0 md:gap-1.5 [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
+						"h-7 min-w-0 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:size-3.5! [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition hover:[&>svg]:text-content-primary [&>img]:size-3! [&>img]:p-0!",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
 				>
-					<span className="truncate">{triggerLabel}</span>
-					<ChevronDownIcon open={open} className="size-icon-sm" />
+					<span className="flex min-w-0 items-center gap-1">
+						{selectedModel && (
+							<span
+								className="flex shrink-0 items-center"
+								data-testid="model-selector-trigger-icon"
+							>
+								<ProviderIcon
+									provider={selectedModel.provider}
+									icon={selectedModel.providerIcon}
+									className="size-3 shrink-0"
+								/>
+							</span>
+						)}
+						<span className="truncate">{triggerLabel}</span>
+					</span>
+					<ChevronDownIcon open={open} />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -333,7 +347,7 @@ const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
 						<button
 							type="button"
 							aria-label="About reasoning effort"
-							className="inline-flex size-3 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+							className="inline-flex size-3 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 						>
 							<InfoIcon aria-hidden="true" className="size-3" />
 						</button>

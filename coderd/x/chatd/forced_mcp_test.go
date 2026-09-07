@@ -12,11 +12,18 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -81,20 +88,47 @@ func TestCreateChat_ForceOnMCPServerEnforced(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	forcedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName:  "Forced MCP",
-		Slug:         "forced-mcp",
-		Url:          forcedURL,
-		Availability: "force_on",
-		CreatedBy:    uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:    uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Forced MCP",
+		Slug:           "forced-mcp",
+		Url:            forcedURL,
+		Availability:   "force_on",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+	// Grant read access only to an unrelated group.
+	dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "ACL Denied Forced MCP",
+		Slug:           "acl-denied-forced-mcp",
+		Url:            newEchoMCPTestServer(t, "acl-denied-forced-mcp"),
+		Availability:   "force_on",
+		GroupACL: database.ChatACL{
+			uuid.NewString(): {Permissions: []policy.Action{policy.ActionRead}},
+		},
+		UserACL:   database.ChatACL{},
+		CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+	// Use the dbauthz wrapper so the MCP ACL post-filter runs.
+	authzDB := dbauthz.New(
+		db,
+		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		coderdtest.AccessControlStorePointer(),
+	)
+	server := newActiveTestServer(t, authzDB, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
+	ownerSubject, _, err := httpmw.UserRBACSubject(dbauthz.AsSystemRestricted(ctx), db, user.ID, rbac.ScopeAll)
+	require.NoError(t, err)
+	ownerCtx := dbauthz.As(ctx, ownerSubject)
+
 	// The attacker strips every MCP server ID from the request.
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+	chat, err := server.CreateChat(ownerCtx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 		Title:          "forced-mcp-create",
@@ -125,6 +159,8 @@ func TestCreateChat_ForceOnMCPServerEnforced(t *testing.T) {
 	require.NotEmpty(t, calls)
 	require.Contains(t, calls[0], "forced-mcp__echo",
 		"force_on MCP tools must be offered to the LLM despite a stripped mcp_server_ids list")
+	require.NotContains(t, calls[0], "acl-denied-forced-mcp__echo",
+		"force_on MCP tools must not be offered when the server's ACL denies the chat owner")
 }
 
 // TestSendMessage_ForceOnMCPServerEnforced reproduces CDM-02-010 for
@@ -143,22 +179,25 @@ func TestSendMessage_ForceOnMCPServerEnforced(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	forcedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName:  "Forced MCP",
-		Slug:         "forced-mcp",
-		Url:          forcedURL,
-		Availability: "force_on",
-		CreatedBy:    uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:    uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Forced MCP",
+		Slug:           "forced-mcp",
+		Url:            forcedURL,
+		Availability:   "force_on",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 	optionalConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Optional MCP",
-		Slug:        "optional-mcp",
-		Url:         optionalURL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Optional MCP",
+		Slug:           "optional-mcp",
+		Url:            optionalURL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
@@ -231,6 +270,7 @@ func TestGeneration_ForceOnMCPServerEnforcedForExistingChats(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
@@ -251,12 +291,25 @@ func TestGeneration_ForceOnMCPServerEnforcedForExistingChats(t *testing.T) {
 
 	// An admin marks a server force_on after the chat already exists.
 	dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName:  "Forced MCP",
-		Slug:         "forced-mcp",
-		Url:          forcedURL,
-		Availability: "force_on",
-		CreatedBy:    uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:    uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Forced MCP",
+		Slug:           "forced-mcp",
+		Url:            forcedURL,
+		Availability:   "force_on",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+
+	// A force_on server in another organization must not attach: the
+	// forced set is scoped to the chat's organization.
+	dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+		DisplayName:    "Foreign Forced MCP",
+		Slug:           "foreign-forced-mcp",
+		Url:            forcedURL,
+		Availability:   "force_on",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	// A send that does not touch mcp_server_ids must still pick up
@@ -284,4 +337,6 @@ func TestGeneration_ForceOnMCPServerEnforcedForExistingChats(t *testing.T) {
 		"no force_on server existed during the first turn")
 	require.Contains(t, calls[len(calls)-1], "forced-mcp__echo",
 		"force_on MCP tools must reach generation for chats created before the policy")
+	require.NotContains(t, calls[len(calls)-1], "foreign-forced-mcp__echo",
+		"another organization's force_on server must not attach")
 }

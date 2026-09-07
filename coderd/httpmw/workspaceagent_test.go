@@ -1,7 +1,10 @@
 package httpmw_test
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -59,6 +62,38 @@ func TestWorkspaceAgent(t *testing.T) {
 		res := rw.Result()
 		t.Cleanup(func() { _ = res.Body.Close() })
 		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("InactiveUser", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		authToken := uuid.New()
+		req, rtr, workspace, _ := setup(t, db, authToken, httpmw.ExtractWorkspaceAgentAndLatestBuild(
+			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+				DB:       db,
+				Optional: false,
+			}),
+		)
+
+		_, err := db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
+			ID:        workspace.OwnerID,
+			Status:    database.UserStatusSuspended,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		rw := httptest.NewRecorder()
+		req.Header.Set(codersdk.SessionTokenHeader, authToken.String())
+		rtr.ServeHTTP(rw, req)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		var response codersdk.Response
+		require.NoError(t, json.Unmarshal(body, &response))
+		require.Contains(t, response.Message, `User is not active (status = "suspended")`)
 	})
 
 	t.Run("Latest", func(t *testing.T) {

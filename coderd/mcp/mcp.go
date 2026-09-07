@@ -10,7 +10,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 )
@@ -155,9 +154,9 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 		// remains explicit on the wire.
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:    sdkTool.MCPAnnotations.ReadOnlyHint,
-			DestructiveHint: ptr.Ref(sdkTool.MCPAnnotations.DestructiveHint),
+			DestructiveHint: new(sdkTool.MCPAnnotations.DestructiveHint),
 			IdempotentHint:  sdkTool.MCPAnnotations.IdempotentHint,
-			OpenWorldHint:   ptr.Ref(sdkTool.MCPAnnotations.OpenWorldHint),
+			OpenWorldHint:   new(sdkTool.MCPAnnotations.OpenWorldHint),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		result, err := sdkTool.Handler(ctx, tb, req.Params.Arguments)

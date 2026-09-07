@@ -1,4 +1,6 @@
-# Auditing AI Sessions
+---
+title: Auditing AI Sessions
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is
@@ -46,9 +48,13 @@ not just what was called.
 
 ### Sessions list
 
-The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists all sessions in
-reverse-chronological order. Each row shows the last prompt, initiator, provider,
-client, token usage, network requests, thread count, and timestamp.
+The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists sessions in
+reverse-chronological order. By default it shows sessions with activity in the
+last 24 hours. Use the time range filter in the filter bar to widen or narrow
+the window, for example to see older sessions.
+
+Each row shows the last prompt, initiator, provider, client, token usage,
+network requests, thread count, and timestamp.
 
 The **Network Requests** column reports the total and blocked
 [Agent Firewall](../agent-firewall/index.md) requests for the session. It shows
@@ -61,7 +67,7 @@ Select one to view its full details.
 
 ### Session detail
 
-Click into a session to see a chronological causal chain of events.
+Open a session to see a chronological causal chain of events.
 
 Within a thread, each step shows token usage, tool call details (including
 arguments and MCP server URLs), duration, and any errors or warnings.

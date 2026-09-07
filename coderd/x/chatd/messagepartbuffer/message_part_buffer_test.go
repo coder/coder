@@ -148,6 +148,66 @@ func TestBuffer_ModelInvokedAt(t *testing.T) {
 	require.Zero(t, buffer.ModelInvokedAt(implicit))
 }
 
+func TestBuffer_ToolCompletions(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+	defer buffer.Close()
+
+	key := testEpisodeKey()
+	require.Nil(t, buffer.ToolCompletions(key), "unknown episode has no completions")
+	require.ErrorIs(t, buffer.RecordToolStart(key, 0, clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
+	require.ErrorIs(t, buffer.RecordToolCompletion(key, 0, clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
+
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.Empty(t, buffer.ToolCompletions(key), "episode without started tools has no completions")
+	require.NoError(t, buffer.RecordToolCompletion(key, 2, clock.Now()))
+	require.Empty(t, buffer.ToolCompletions(key), "completion without a start must be dropped")
+
+	clock.Advance(time.Second)
+	secondStartedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolStart(key, 2, secondStartedAt))
+	clock.Advance(time.Second)
+	firstStartedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolStart(key, 1, firstStartedAt))
+	started := map[int]messagepartbuffer.ToolCompletion{
+		1: {StartedAt: firstStartedAt},
+		2: {StartedAt: secondStartedAt},
+	}
+	require.Equal(t, started, buffer.ToolCompletions(key))
+
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.RecordToolStart(key, 2, clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(key, -1, clock.Now()))
+	require.Equal(t, started, buffer.ToolCompletions(key), "repeated and invalid starts must not replace or append occurrences")
+
+	clock.Advance(time.Second)
+	secondCompletedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolCompletion(key, 2, secondCompletedAt))
+	clock.Advance(2 * time.Second)
+	firstCompletedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolCompletion(key, 1, firstCompletedAt))
+	completions := buffer.ToolCompletions(key)
+	require.Equal(t, map[int]messagepartbuffer.ToolCompletion{
+		1: {StartedAt: firstStartedAt, CompletedAt: firstCompletedAt},
+		2: {StartedAt: secondStartedAt, CompletedAt: secondCompletedAt},
+	}, completions)
+
+	completion := completions[2]
+	completion.CompletedAt = clock.Now()
+	completions[2] = completion
+	require.Equal(t, secondCompletedAt, buffer.ToolCompletions(key)[2].CompletedAt)
+
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.RecordToolCompletion(key, 5, clock.Now()))
+	require.Len(t, buffer.ToolCompletions(key), 2, "completion without a start must be dropped")
+
+	require.NoError(t, buffer.CloseEpisode(key))
+	require.ErrorIs(t, buffer.RecordToolStart(key, 0, clock.Now()), messagepartbuffer.ErrEpisodeClosed)
+	require.ErrorIs(t, buffer.RecordToolCompletion(key, 0, clock.Now()), messagepartbuffer.ErrEpisodeClosed)
+}
+
 func TestBuffer_SubscribeExistingReplaysThenStreamsLiveParts(t *testing.T) {
 	t.Parallel()
 

@@ -49,8 +49,7 @@ var errBundleFilesFileLimit = xerrors.New("bundle files file count limit reached
 // resolves against the agent user's home directory.
 func (api *API) HandleBundleFiles(w http.ResponseWriter, r *http.Request) {
 	var req workspacesdk.BundleFilesRequest
-	r.Body = http.MaxBytesReader(w, r.Body, bundleFilesRequestMaxBytes)
-	if !httpapi.Read(r.Context(), w, r, &req) {
+	if !httpapi.ReadLimit(r.Context(), w, r, bundleFilesRequestMaxBytes, &req) {
 		return
 	}
 

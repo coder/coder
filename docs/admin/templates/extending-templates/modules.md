@@ -1,4 +1,4 @@
-# Reusing template code
+# Reuse template code
 
 To reuse code across different Coder templates, such as common scripts or
 resource definitions, we suggest using
@@ -51,6 +51,38 @@ across templates. Some of the modules we publish are,
 
 For a full list of available modules please check
 [Coder module registry](https://registry.coder.com/modules).
+
+## Module caching
+
+Module caching is enabled by default for all templates. When you publish a
+new template version, Coder runs `terraform init` to resolve every module the
+template references, then archives the resulting `.terraform/modules`
+directory and stores it alongside that template version. On every subsequent
+workspace build, Coder provisioners reuse this cached archive instead of
+re-fetching modules from their original sources (a git repository, the Coder
+registry, or another Terraform registry). This avoids redundant network and
+disk I/O on each build and prevents build failures caused by a module source
+being slow or temporarily unavailable.
+
+Coder limits cached module archives to 20MB per template version. If your
+modules exceed this limit, some are skipped and unavailable for [Dynamic
+Parameters](./dynamic-parameters.md#module-not-loaded-errors-when-using-dynamic-parameters)
+evaluation, though builds still fetch the skipped modules directly. Template
+versions published before Coder started archiving modules have no cache at
+all, which produces the same ["Module not
+loaded"](./dynamic-parameters.md#module-not-loaded-errors-when-using-dynamic-parameters)
+warnings for every module in the workspace creation form; publishing a new
+template version fixes this.
+
+To force Coder to re-download modules on every workspace build instead of
+using the cached archive, select **Disable Terraform module caching** in a
+template's **Settings** > **General** page, or set `disable_module_cache` to
+`true` with the [templates API](../../../reference/api/templates.md#update-template-settings-by-id).
+
+> [!WARNING]
+> Disabling module caching makes workspace builds slower and less
+> predictable, since Terraform re-resolves and downloads every module on each
+> build. This isn't recommended for production templates.
 
 ## Offline installations
 
@@ -157,7 +189,7 @@ If you are running Coder on Docker or Kubernetes, `git` is pre-installed in the
 Coder image. However, you still need to mount credentials. This can be done via
 a Docker volume mount or Kubernetes secrets.
 
-#### Passing git credentials in Kubernetes
+#### Pass git credentials in Kubernetes
 
 First, create a `.gitconfig` and `.git-credentials` file on your local machine.
 You might want to do this in a temporary directory to avoid conflicting with

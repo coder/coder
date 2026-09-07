@@ -1,4 +1,6 @@
-# Workspace Tags
+---
+title: Workspace Tags
+---
 
 Template administrators can leverage static template tags to limit workspace
 provisioning to designated provisioner groups that have locally deployed

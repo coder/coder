@@ -12,6 +12,7 @@ import {
 	MockProvisionerKey,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { OrganizationProvisionerKeysPageView } from "./OrganizationProvisionerKeysPageView";
 
 const mockProvisionerKeyDaemons: ProvisionerKeyDaemons[] = [
@@ -99,6 +100,9 @@ export const Paywalled: Story = {
 
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute("href", docs("/admin/provisioners"));
 	},
 };
 

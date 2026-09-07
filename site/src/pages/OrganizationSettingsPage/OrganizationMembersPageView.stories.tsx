@@ -54,12 +54,6 @@ type Story = StoryObj<typeof OrganizationMembersPageView>;
 
 export const Default: Story = {};
 
-export const WithAIAddonColumn: Story = {
-	args: {
-		showAISeatColumn: true,
-	},
-};
-
 export const Loading: Story = {
 	args: {
 		members: undefined,

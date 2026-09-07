@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type ComponentProps,
 	type FC,
@@ -14,7 +15,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
-import { cn } from "#/utils/cn";
 import {
 	durationInDays,
 	durationInHours,

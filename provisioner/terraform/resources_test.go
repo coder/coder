@@ -20,7 +20,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -703,22 +702,22 @@ func TestConvertResources(t *testing.T) {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-2",
-				ValidationMin: ptr.Ref(int32(-3)),
-				ValidationMax: ptr.Ref(int32(0)),
+				ValidationMin: new(int32(-3)),
+				ValidationMax: new(int32(0)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: ptr.Ref(int32(3)),
-				ValidationMax: ptr.Ref(int32(6)),
+				ValidationMin: new(int32(3)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: ptr.Ref(int32(0)),
-				ValidationMax: ptr.Ref(int32(6)),
+				ValidationMin: new(int32(0)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Sample",
@@ -787,34 +786,34 @@ func TestConvertResources(t *testing.T) {
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: nil,
-				ValidationMax: ptr.Ref(int32(6)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-3",
 				ValidationMin: nil,
-				ValidationMax: ptr.Ref(int32(0)),
+				ValidationMax: new(int32(0)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: ptr.Ref(int32(3)),
+				ValidationMin: new(int32(3)),
 				ValidationMax: nil,
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: ptr.Ref(int32(3)),
-				ValidationMax: ptr.Ref(int32(6)),
+				ValidationMin: new(int32(3)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: ptr.Ref(int32(0)),
+				ValidationMin: new(int32(0)),
 				ValidationMax: nil,
 				FormType:      proto.ParameterFormType_INPUT,
 			}},

@@ -50,7 +50,8 @@ func newTestFixture(t *testing.T) *testFixture {
 		BaseUrl:     "http://example.invalid",
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		IsDefault: true,
+		OrganizationID: org.ID,
+		IsDefault:      true,
 	})
 	pub := newRecordingPubsub()
 	return &testFixture{

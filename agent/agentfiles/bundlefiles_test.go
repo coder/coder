@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -160,6 +161,30 @@ func TestBundleFilesDedupeByCleanedPath(t *testing.T) {
 	requireBundleEntry(t, entries, home, "dup.log", "one")
 	requireBundleEntry(t, entries, home, "other.log", "two")
 	require.Len(t, entries.manifest.Files, 2)
+}
+
+// TestBundleFilesRequestBodyLimit pins the 64 KiB cap on the request body and
+// the limit named in the rejection. The handler decodes an attacker-supplied
+// path list, so the cap is what stops one request from buffering unbounded
+// memory in the agent.
+func TestBundleFilesRequestBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	// One path long enough to push the encoded request past the cap.
+	body, err := json.Marshal(workspacesdk.BundleFilesRequest{
+		Paths: []string{"~/" + strings.Repeat("a", 64*1024)},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/bundle-files", bytes.NewReader(body))
+	res := httptest.NewRecorder()
+	newBundleFilesHandler(t, testutil.TempDirResolved(t)).ServeHTTP(res, req)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, res.Code)
+
+	var resp codersdk.Response
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+	require.Contains(t, resp.Detail, "65536")
 }
 
 // fakeBundleEnvInfo overrides the home directory so tests can point path

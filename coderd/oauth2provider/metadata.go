@@ -28,15 +28,17 @@ func GetAuthorizationServerMetadata(db database.Store, accessURL *url.URL) http.
 		}
 
 		metadata := codersdk.OAuth2AuthorizationServerMetadata{
-			Issuer:                            accessURL.String(),
-			AuthorizationEndpoint:             accessURL.JoinPath("/oauth2/authorize").String(),
-			TokenEndpoint:                     accessURL.JoinPath("/oauth2/tokens").String(),
-			RevocationEndpoint:                accessURL.JoinPath("/oauth2/revoke").String(), // RFC 7009
-			ResponseTypesSupported:            []codersdk.OAuth2ProviderResponseType{codersdk.OAuth2ProviderResponseTypeCode},
-			GrantTypesSupported:               []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode, codersdk.OAuth2ProviderGrantTypeRefreshToken},
-			CodeChallengeMethodsSupported:     []codersdk.OAuth2PKCECodeChallengeMethod{codersdk.OAuth2PKCECodeChallengeMethodS256},
-			ScopesSupported:                   rbac.ExternalScopeNames(),
-			TokenEndpointAuthMethodsSupported: []codersdk.OAuth2TokenEndpointAuthMethod{codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic, codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost},
+			Issuer:                        accessURL.String(),
+			AuthorizationEndpoint:         accessURL.JoinPath("/oauth2/authorize").String(),
+			TokenEndpoint:                 accessURL.JoinPath("/oauth2/tokens").String(),
+			RevocationEndpoint:            accessURL.JoinPath("/oauth2/revoke").String(), // RFC 7009
+			ResponseTypesSupported:        []codersdk.OAuth2ProviderResponseType{codersdk.OAuth2ProviderResponseTypeCode},
+			GrantTypesSupported:           []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode, codersdk.OAuth2ProviderGrantTypeRefreshToken},
+			CodeChallengeMethodsSupported: []codersdk.OAuth2PKCECodeChallengeMethod{codersdk.OAuth2PKCECodeChallengeMethodS256},
+			ScopesSupported:               rbac.ExternalScopeNames(),
+			// Not gated on dcrEnabled: existing clients still need to
+			// exchange tokens when new registrations are turned off.
+			TokenEndpointAuthMethodsSupported: codersdk.AdvertisedOAuth2TokenEndpointAuthMethods(),
 		}
 		if dcrEnabled {
 			metadata.RegistrationEndpoint = accessURL.JoinPath("/oauth2/register").String() // RFC 7591

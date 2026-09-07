@@ -39,28 +39,50 @@ When multiple `coder_env` resources define the same variable name, use the
 The `append` and `prepend` strategies use `:` as a separator, which matches
 the convention for `PATH`-style variables on Unix systems.
 
+### Merges and the host environment
+
+`merge_strategy` only combines values across `coder_env` resources in the same template.
+It does not know about the value already set by the workspace's image or host, such as the base `PATH`.
+An `append` or `prepend` builds its value from `coder_env` resources alone, and that value replaces whatever the host had set for that variable.
+
+To extend a variable that the host already sets, reference it directly in one of the values (for example, `$PATH`), so the agent expands it against the real environment at startup.
+Only one resource in the chain needs the reference; the rest can use plain values.
+The next example covers this.
+
 ### Example: Appending to PATH
 
-Multiple `coder_env` resources can each add directories to `PATH`:
+Multiple `coder_env` resources can each add directories to `PATH`.
+Reference `$PATH` in one of them to keep the host's original directories:
 
 ```tf
-resource "coder_env" "path_tools" {
+resource "coder_agent" "dev" {
+  os   = "linux"
+  arch = "amd64"
+}
+
+resource "coder_env" "path_cuda" {
   agent_id       = coder_agent.dev.id
   name           = "PATH"
-  value          = "/home/coder/tools/bin"
+  value          = "$PATH:/usr/local/cuda/bin"
   merge_strategy = "append"
 }
 
 resource "coder_env" "path_go" {
   agent_id       = coder_agent.dev.id
   name           = "PATH"
-  value          = "/home/coder/go/bin"
+  value          = "/usr/local/go/bin"
+  merge_strategy = "append"
+}
+
+resource "coder_env" "path_rust_cargo" {
+  agent_id       = coder_agent.dev.id
+  name           = "PATH"
+  value          = "/usr/local/cargo/bin"
   merge_strategy = "append"
 }
 ```
 
-This produces `PATH` with the value
-`/home/coder/tools/bin:/home/coder/go/bin`.
+This produces `PATH` with the host's original value, followed by `/usr/local/cuda/bin:/usr/local/go/bin:/usr/local/cargo/bin`.
 
 ### Example: Preventing duplicates
 
@@ -83,9 +105,8 @@ a clear error message.
 When multiple `coder_env` resources append or prepend to the same variable,
 they are processed in alphabetical order by their
 [Terraform resource address](https://developer.hashicorp.com/terraform/cli/state/resource-addressing).
-In the PATH example above, `coder_env.path_go` is processed before
-`coder_env.path_tools` because `path_go` sorts before `path_tools`
-alphabetically.
+In the previous `PATH` example, `coder_env.path_cuda` is processed first, then `coder_env.path_go`, then `coder_env.path_rust_cargo`, because that is their alphabetical order.
+This is why only one resource in the chain needs the `$PATH` reference: the merged value is built as one string before it's expanded, so the reference works no matter where in the chain it appears.
 
 ## Agent env override
 

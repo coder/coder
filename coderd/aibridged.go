@@ -43,7 +43,7 @@ func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
 	api.aiGatewayHandler = srv
 
 	factory := aibridged.NewTransportFactory(http.StripPrefix(agplaibridge.AIGatewayRootPath, srv))
-	var asInterface agplaibridge.TransportFactory = factory
+	asInterface := factory
 	api.AIBridgeTransportFactory.Store(&asInterface)
 }
 
@@ -84,7 +84,7 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	if err := aibridgedserver.Register(mux, srv); err != nil {
 		return nil, err
 	}
-	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+	server := drpcsdk.NewServer(api.Logger, &tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {

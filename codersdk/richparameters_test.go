@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -74,8 +73,8 @@ func TestParameterResolver_ValidateResolve_PrevInvalid(t *testing.T) {
 	p := codersdk.TemplateVersionParameter{
 		Name:          "n",
 		Type:          "number",
-		ValidationMax: ptr.Ref(int32(10)),
-		ValidationMin: ptr.Ref(int32(1)),
+		ValidationMax: new(int32(10)),
+		ValidationMin: new(int32(1)),
 	}
 	v, err := uut.ValidateResolve(p, nil)
 	require.Error(t, err)
@@ -91,8 +90,8 @@ func TestParameterResolver_ValidateResolve_DefaultInvalid(t *testing.T) {
 	p := codersdk.TemplateVersionParameter{
 		Name:          "n",
 		Type:          "number",
-		ValidationMax: ptr.Ref(int32(10)),
-		ValidationMin: ptr.Ref(int32(1)),
+		ValidationMax: new(int32(10)),
+		ValidationMin: new(int32(1)),
 		DefaultValue:  "11",
 	}
 	v, err := uut.ValidateResolve(p, nil)
@@ -224,31 +223,31 @@ func TestRichParameterValidation(t *testing.T) {
 
 		numberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10))},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: new(int32(3)), ValidationMax: new(int32(10))},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		numberRichParametersMinOnly := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(5))},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: new(int32(5))},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		numberRichParametersMaxOnly := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMax: ptr.Ref(int32(5))},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMax: new(int32(5))},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		monotonicIncreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: codersdk.MonotonicOrderIncreasing},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: new(int32(3)), ValidationMax: new(int32(100)), ValidationMonotonic: codersdk.MonotonicOrderIncreasing},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		monotonicDecreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: codersdk.MonotonicOrderDecreasing},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: new(int32(3)), ValidationMax: new(int32(100)), ValidationMonotonic: codersdk.MonotonicOrderDecreasing},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
@@ -446,8 +445,8 @@ func TestParameterResolver_ValidateResolve_Number_CustomError(t *testing.T) {
 		Mutable:      true,
 		DefaultValue: "5",
 
-		ValidationMin:   ptr.Ref(int32(4)),
-		ValidationMax:   ptr.Ref(int32(6)),
+		ValidationMin:   new(int32(4)),
+		ValidationMax:   new(int32(6)),
 		ValidationError: "These are values for testing purposes: {min}, {max}, and {value}.",
 	}
 	_, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{

@@ -31,10 +31,6 @@ export const castNotificationMethod = (value: string) => {
 	);
 };
 
-export function isTaskNotification(tmpl: NotificationTemplate): boolean {
-	return tmpl.group === "Task Events";
-}
-
 // Determines if a notification is disabled based on user preferences and system defaults
 // A notification is considered disabled if:
 // 1. It's NOT enabled by default AND the user hasn't set any preference (undefined), OR

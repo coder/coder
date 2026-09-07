@@ -1,4 +1,6 @@
-# Envbuilder
+---
+title: Envbuilder
+---
 
 Envbuilder is an open-source tool that builds development environments from
 [dev container](https://containers.dev/implementors/spec/) configuration files.

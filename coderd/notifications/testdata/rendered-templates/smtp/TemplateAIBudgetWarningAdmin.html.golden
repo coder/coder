@@ -18,6 +18,12 @@ Effective group: Engineering
 
 AI budget period: July 1, 2026 - August 1, 2026
 
+How to configure AI budgets (https://coder.com/docs/ai-coder/ai-gateway/cos=
+t-controls#budget)
+
+
+Manage user AI budget: http://test.com/organizations/coder/groups/Engineeri=
+ng?filter=3Dalice
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
@@ -54,8 +60,18 @@ hly AI budget ($1000.00).</p>
 <p>Effective group: <strong>Engineering</strong></p>
 
 <p>AI budget period: July 1, 2026 - August 1, 2026</p>
+
+<p><a href=3D"https://coder.com/docs/ai-coder/ai-gateway/cost-controls#budg=
+et">How to configure AI budgets</a></p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
+       =20
+        <a href=3D"http://test.com/organizations/coder/groups/Engineering?f=
+ilter=3Dalice" style=3D"display: inline-block; padding: 13px 24px; backgrou=
+nd-color: #020617; color: #f8fafc; text-decoration: none; border-radius: 8p=
+x; margin: 0 4px;">
+          Manage user AI budget
+        </a>
        =20
       </div>
       <div style=3D"border-top: 1px solid #e2e8f0; color: #475569; font-siz=

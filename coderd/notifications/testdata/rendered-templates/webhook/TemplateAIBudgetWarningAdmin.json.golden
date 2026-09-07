@@ -9,11 +9,17 @@
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",
-    "actions": [],
+    "actions": [
+      {
+        "label": "Manage user AI budget",
+        "url": "http://test.com/organizations/coder/groups/Engineering?filter=alice"
+      }
+    ],
     "labels": {
       "effective_group_name": "Engineering",
       "limit": "$1000.00",
       "limit_source": "group",
+      "organization_name": "coder",
       "period": "monthly",
       "period_end": "August 1, 2026",
       "period_start": "July 1, 2026",
@@ -25,6 +31,6 @@
   },
   "title": "alice is approaching their monthly AI budget limit",
   "title_markdown": "alice is approaching their monthly AI budget limit",
-  "body": "User alice has used more than 85% of their monthly AI budget ($1000.00).\n\nEffective group: Engineering\n\nAI budget period: July 1, 2026 - August 1, 2026",
-  "body_markdown": "User **alice** has used more than 85% of their monthly AI budget ($1000.00).\n\nEffective group: **Engineering**\n\nAI budget period: July 1, 2026 - August 1, 2026"
+  "body": "User alice has used more than 85% of their monthly AI budget ($1000.00).\n\nEffective group: Engineering\n\nAI budget period: July 1, 2026 - August 1, 2026\n\nHow to configure AI budgets (https://coder.com/docs/ai-coder/ai-gateway/cost-controls#budget)",
+  "body_markdown": "User **alice** has used more than 85% of their monthly AI budget ($1000.00).\n\nEffective group: **Engineering**\n\nAI budget period: July 1, 2026 - August 1, 2026\n\n[How to configure AI budgets](https://coder.com/docs/ai-coder/ai-gateway/cost-controls#budget)"
 }

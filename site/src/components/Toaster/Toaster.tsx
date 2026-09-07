@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CheckIcon,
 	InfoIcon,
@@ -7,7 +8,6 @@ import {
 } from "lucide-react";
 import { Toaster as Sonner, type ToasterProps as SonnerProps } from "sonner";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 
 export const Toaster = ({ ...props }: SonnerProps) => {
 	return (
@@ -26,7 +26,7 @@ export const Toaster = ({ ...props }: SonnerProps) => {
 				classNames: {
 					toast: cn(
 						"bg-surface-secondary text-content-secondary border border-solid text-sm p-3 pr-12",
-						"shadow rounded-md grid grid-cols-[auto_1fr] w-96 gap-2",
+						"shadow-sm rounded-md grid grid-cols-[auto_1fr] w-96 gap-2",
 						"data-[expanded=false]:data-[front=false]:overflow-hidden",
 						"[&[data-expanded=false][data-front=false]>*]:opacity-0",
 					),
@@ -41,8 +41,8 @@ export const Toaster = ({ ...props }: SonnerProps) => {
 					closeButton:
 						"absolute top-4 right-3 bg-transparent border-none p-0 text-content-primary",
 					// Loading styles require a bit more love, the icon doesn't render inline.
-					loader: "!left-5 !top-7 !-translate-x-[none]",
-					loading: "!pl-[30px]",
+					loader: "left-5! top-7! -translate-x-[none]!",
+					loading: "pl-[30px]!",
 				},
 			}}
 			{...props}

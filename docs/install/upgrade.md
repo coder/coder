@@ -46,7 +46,7 @@ docker-compose pull coder && docker-compose up -d coder
 ### Kubernetes
 
 See
-[Upgrading Coder via Helm](../install/kubernetes.md#upgrading-coder-via-helm).
+[Upgrade Coder via Helm](../install/kubernetes.md#upgrade-coder-via-helm).
 
 ### Coder AMI on AWS
 

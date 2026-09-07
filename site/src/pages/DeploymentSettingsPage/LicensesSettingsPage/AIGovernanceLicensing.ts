@@ -1,6 +1,6 @@
-import dayjs from "dayjs";
 import type { GetLicensesResponse } from "#/api/api";
 import type { Feature } from "#/api/typesGenerated";
+import { isLicenseApplicableForFeatureUsage } from "./licenseApplicability";
 
 function isPremiumLicense(license: GetLicensesResponse): boolean {
 	return license.claims.feature_set?.toLowerCase() === "premium";
@@ -19,24 +19,6 @@ export function licenseShowsAiGovernanceAddOn(
 	);
 }
 
-export function isLicenseApplicableForAiGovernanceOverage(
-	license: GetLicensesResponse,
-	aiGovernanceUserFeature: Feature | undefined,
-): boolean {
-	const isExpired = dayjs
-		.unix(license.claims.license_expires)
-		.isBefore(dayjs());
-	const isNotYetValid =
-		license.claims.nbf !== undefined &&
-		dayjs.unix(license.claims.nbf).isAfter(dayjs());
-	const isAiGovernanceEntitlementInGracePeriod =
-		aiGovernanceUserFeature?.entitlement === "grace_period";
-
-	return (
-		!isNotYetValid && (!isExpired || isAiGovernanceEntitlementInGracePeriod)
-	);
-}
-
 export function hasAiGovernanceAddOnLicense(
 	licenses: GetLicensesResponse[] | undefined,
 	aiGovernanceUserFeature: Feature | undefined,
@@ -45,10 +27,7 @@ export function hasAiGovernanceAddOnLicense(
 		licenses?.some(
 			(license) =>
 				licenseShowsAiGovernanceAddOn(license) &&
-				isLicenseApplicableForAiGovernanceOverage(
-					license,
-					aiGovernanceUserFeature,
-				),
+				isLicenseApplicableForFeatureUsage(license, aiGovernanceUserFeature),
 		) ?? false
 	);
 }
@@ -65,10 +44,7 @@ function aiGovernanceLimitFromLicenses(
 		.filter(
 			(license) =>
 				licenseShowsAiGovernanceAddOn(license) &&
-				isLicenseApplicableForAiGovernanceOverage(
-					license,
-					aiGovernanceUserFeature,
-				),
+				isLicenseApplicableForFeatureUsage(license, aiGovernanceUserFeature),
 		)
 		.map((license) => license.claims.features?.ai_governance_user_limit)
 		.filter((limit): limit is number => limit !== undefined);

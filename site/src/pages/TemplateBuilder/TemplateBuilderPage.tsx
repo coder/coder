@@ -1,7 +1,6 @@
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
-import { v4 as uuidv4 } from "uuid";
 import { deploymentConfig } from "#/api/queries/deployment";
 import {
 	createTemplateFromBuilder,
@@ -12,12 +11,17 @@ import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
+import { generateUUID } from "#/utils/random";
 import { TemplateBuilderPageView } from "./TemplateBuilderPageView";
 import type {
 	SelectedBaseMeta,
 	TemplateBuilderWizardState,
 } from "./wizardState";
-import { toCreateTemplateRequest, toSelectedBaseMeta } from "./wizardState";
+import {
+	type CustomizationsFormValues,
+	toCreateTemplateRequest,
+	toSelectedBaseMeta,
+} from "./wizardState";
 
 const TemplateBuilderPage: FC = () => {
 	const navigate = useNavigate();
@@ -26,11 +30,11 @@ const TemplateBuilderPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { data, error, isLoading } = useQuery(deploymentConfig());
 	const createMutation = useMutation(createTemplateFromBuilder());
-	const sessionMutation = useMutation(recordTemplateBuilderSession());
+	const { mutate: recordSession } = useMutation(recordTemplateBuilderSession());
 
 	// Stable session ID for the lifetime of this page mount, shared
 	// across wizard_entry and compose_completion telemetry events.
-	const sessionId = useMemo(() => uuidv4(), []);
+	const sessionId = useMemo(() => generateUUID(), []);
 
 	const builderDisabled = data?.config?.template_builder?.disabled ?? false;
 	const wizardReady =
@@ -38,11 +42,11 @@ const TemplateBuilderPage: FC = () => {
 
 	// Report wizard_entry once the builder is ready and accessible.
 	const reportEntry = useCallback(() => {
-		sessionMutation.mutate({
+		recordSession({
 			session_id: sessionId,
 			event_type: "wizard_entry",
 		});
-	}, [sessionMutation.mutate, sessionId]);
+	}, [recordSession, sessionId]);
 
 	// Report compose_completion when the create request settles. Duration
 	// is captured at submit time so it measures wizard usage, not the
@@ -53,7 +57,7 @@ const TemplateBuilderPage: FC = () => {
 			success: boolean,
 			durationSeconds: number,
 		) => {
-			sessionMutation.mutate({
+			recordSession({
 				session_id: state.sessionId,
 				event_type: "compose_completion",
 				base_template_id: state.baseTemplateId ?? undefined,
@@ -62,7 +66,7 @@ const TemplateBuilderPage: FC = () => {
 				success,
 			});
 		},
-		[sessionMutation.mutate],
+		[recordSession],
 	);
 
 	useEffect(() => {
@@ -109,8 +113,11 @@ const TemplateBuilderPage: FC = () => {
 		return <Navigate to="/templates/new" replace />;
 	}
 
-	const handleCreate = (state: TemplateBuilderWizardState) => {
-		const req = toCreateTemplateRequest(state);
+	const handleCreate = (
+		state: TemplateBuilderWizardState,
+		customizations: CustomizationsFormValues,
+	) => {
+		const req = toCreateTemplateRequest(state, customizations);
 		const durationSeconds = (Date.now() - state.enteredAt) / 1000;
 
 		createMutation.mutate(req, {

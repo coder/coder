@@ -1,4 +1,6 @@
-# Air-gapped Deployments
+---
+title: Air-gapped Deployments
+---
 
 All Coder features are supported in air-gapped / behind firewalls / disconnected / offline.
 This is a general comparison. Keep reading for a full tutorial running Coder
@@ -258,6 +260,12 @@ CODER_TEMPLATE_BUILDER_REGISTRY_URL=registry.internal.example.com
 
 This makes the builder generate module source paths pointing at your mirror
 rather than `registry.coder.com`.
+
+The value is a bare host, optionally with a port (for example, `mirror.internal:8443`).
+A leading `http(s)://` scheme and trailing slash are stripped, and a path, query, fragment, or credentials is rejected at server start.
+
+For a complete walkthrough of setting up the mirror, see
+[Mirror the Coder Registry with JFrog Artifactory](./registry-mirror-artifactory.md).
 
 ## Coder Modules
 

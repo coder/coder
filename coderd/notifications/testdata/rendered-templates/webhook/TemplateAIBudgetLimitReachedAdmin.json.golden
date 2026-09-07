@@ -9,11 +9,17 @@
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",
-    "actions": [],
+    "actions": [
+      {
+        "label": "Manage user AI budget",
+        "url": "http://test.com/organizations/coder/groups/Engineering?filter=alice"
+      }
+    ],
     "labels": {
       "effective_group_name": "Engineering",
       "limit": "$1000.00",
       "limit_source": "user_override",
+      "organization_name": "coder",
       "period": "monthly",
       "period_end": "August 1, 2026",
       "period_start": "July 1, 2026",
@@ -24,6 +30,6 @@
   },
   "title": "alice has reached their monthly AI budget limit",
   "title_markdown": "alice has reached their monthly AI budget limit",
-  "body": "User alice has reached their monthly AI budget limit ($1000.00). Subsequent requests will be blocked.\n\nEffective group: Engineering\n\nThis limit is a per-user override.\n\nAI budget period: July 1, 2026 - August 1, 2026",
-  "body_markdown": "User **alice** has reached their monthly AI budget limit ($1000.00). Subsequent requests will be blocked.\n\nEffective group: **Engineering**\n\nThis limit is a per-user override.\n\nAI budget period: July 1, 2026 - August 1, 2026"
+  "body": "User alice has reached their monthly AI budget limit ($1000.00). Subsequent requests will be blocked until August 1, 2026.\n\nEffective group: Engineering\n\nThis limit is a per-user override.\n\nAI budget period: July 1, 2026 - August 1, 2026\n\nRaise this user's limit to unblock them sooner. How to configure AI budgets (https://coder.com/docs/ai-coder/ai-gateway/cost-controls#budget).",
+  "body_markdown": "User **alice** has reached their monthly AI budget limit ($1000.00). Subsequent requests will be blocked until August 1, 2026.\n\nEffective group: **Engineering**\n\nThis limit is a per-user override.\n\nAI budget period: July 1, 2026 - August 1, 2026\n\nRaise this user's limit to unblock them sooner. [How to configure AI budgets](https://coder.com/docs/ai-coder/ai-gateway/cost-controls#budget)."
 }

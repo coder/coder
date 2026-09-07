@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -18,9 +17,9 @@ type modelClientRequest struct {
 	ModelName    string
 	UserAgent    string
 	ExtraHeaders map[string]string
-	// ConfigOptions holds the model config row's Options JSONB; empty for
-	// paths without a config row.
-	ConfigOptions json.RawMessage
+	// CallConfig is the parsed model config row's options; zero for paths
+	// without a config row.
+	CallConfig codersdk.ChatModelCallConfig
 }
 
 type modelBuildOptions struct {

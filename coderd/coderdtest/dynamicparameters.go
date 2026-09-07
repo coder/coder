@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -118,11 +117,11 @@ func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UU
 
 	if args.TemplateID == uuid.Nil {
 		tpl = CreateTemplate(t, client, org, version.ID, func(request *codersdk.CreateTemplateRequest) {
-			request.UseClassicParameterFlow = ptr.Ref(false)
+			request.UseClassicParameterFlow = new(false)
 		})
 	} else {
 		tpl, err = client.UpdateTemplateMeta(t.Context(), args.TemplateID, codersdk.UpdateTemplateMeta{
-			UseClassicParameterFlow: ptr.Ref(false),
+			UseClassicParameterFlow: new(false),
 		})
 		require.NoError(t, err)
 	}

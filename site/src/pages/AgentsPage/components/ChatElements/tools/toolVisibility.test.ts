@@ -14,6 +14,7 @@ describe("toolVisibility", () => {
 						output: " fetched ",
 						wall_duration_ms: "47200",
 						background_process_id: "process-1",
+						backgrounded: true,
 					},
 				),
 			).toEqual({
@@ -23,6 +24,95 @@ describe("toolVisibility", () => {
 				durationMs: 47200,
 				isBackgrounded: true,
 			});
+		});
+
+		it("does not treat a foreground timeout's process ID as backgrounded", () => {
+			// Foreground commands that exceed their timeout also return
+			// background_process_id so the caller can re-attach; only an
+			// explicit backgrounded flag marks an intentional launch.
+			expect(
+				getExecuteRenderData(
+					{ command: "make test" },
+					{
+						success: false,
+						error: "command timed out after 10s",
+						exit_code: -1,
+						background_process_id: "process-1",
+					},
+				).isBackgrounded,
+			).toBe(false);
+		});
+
+		it("reads legacy background launches from the call args", () => {
+			// Transcripts recorded before the backgrounded flag existed
+			// carry the launch intent in the persisted args.
+			expect(
+				getExecuteRenderData(
+					{ command: "npm start", run_in_background: true },
+					{
+						success: true,
+						background_process_id: "process-1",
+					},
+				).isBackgrounded,
+			).toBe(true);
+		});
+
+		it("does not let legacy args override an explicit negative result", () => {
+			// A new-backend foreground timeout has backgrounded omitted
+			// (not false), so the args fallback must not resurrect it.
+			expect(
+				getExecuteRenderData(
+					{ command: "make test", run_in_background: true },
+					{
+						success: false,
+						error: "command timed out after 10s",
+						background_process_id: "process-1",
+						backgrounded: false,
+					},
+				).isBackgrounded,
+			).toBe(false);
+		});
+
+		it("recognizes legacy trailing-ampersand background launches", () => {
+			// The execute tool promotes `cmd &` to background mode and
+			// strips the ampersand, but the persisted args keep the
+			// original command without run_in_background.
+			expect(
+				getExecuteRenderData(
+					{ command: "npm start &" },
+					{
+						success: true,
+						background_process_id: "process-1",
+					},
+				).isBackgrounded,
+			).toBe(true);
+		});
+
+		it("ignores ampersand chains that are not background promotions", () => {
+			expect(
+				getExecuteRenderData(
+					{ command: "cmd1 && cmd2" },
+					{ success: true, background_process_id: "process-1" },
+				).isBackgrounded,
+			).toBe(false);
+			expect(
+				getExecuteRenderData(
+					{ command: "cmd |& tee log" },
+					{ success: true, background_process_id: "process-1" },
+				).isBackgrounded,
+			).toBe(false);
+		});
+
+		it("does not treat a failed background start as launched", () => {
+			// A failed StartProcess returns an error result with no
+			// process ID, so the legacy args alone must not mark it
+			// backgrounded.
+			expect(
+				getExecuteRenderData(
+					{ command: "npm start", run_in_background: true },
+					{ success: false, error: "start process: boom" },
+				).isBackgrounded,
+			).toBe(false);
 		});
 
 		it("normalizes execute error results into transcript blocks", () => {

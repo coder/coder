@@ -1,4 +1,6 @@
-# Notifications
+---
+title: Notifications
+---
 
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.

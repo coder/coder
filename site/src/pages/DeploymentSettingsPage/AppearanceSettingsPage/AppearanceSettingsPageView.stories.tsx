@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockPermissions } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 
 const meta: Meta<typeof AppearanceSettingsPageView> = {
@@ -22,9 +23,11 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
 					background_color: "#ffaff3",
 				},
 			],
+			codernauts_enabled: true,
 		},
 		isEntitled: false,
 		canViewPremium: MockPermissions.viewAllLicenses,
+		onSaveAppearance: fn(),
 	},
 };
 
@@ -45,7 +48,7 @@ export const Entitled: Story = {
 			canvas.getByRole("heading", { name: "Announcement Banners" }),
 		).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Learn about Premium" }),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -54,8 +57,11 @@ export const NotEntitled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute("href", docs("/admin/setup/appearance"));
 		await expect(
 			canvas.queryByRole("form", { name: "Appearance settings" }),
 		).not.toBeInTheDocument();
@@ -76,7 +82,46 @@ export const NotEntitledWithoutLicenseAccess: Story = {
 			canvas.getByText(/contact your deployment administrator/i),
 		).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Learn about Premium" }),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const CodernautsToggle: Story = {
+	args: {
+		isEntitled: true,
+	},
+	play: async ({ canvasElement, args, step }) => {
+		const canvas = within(canvasElement);
+		await step("switching off saves the game as disabled", async () => {
+			const switchEl = canvas.getByRole("switch", {
+				name: "Codernauts game",
+			});
+			expect(switchEl).toBeChecked();
+			await userEvent.click(switchEl);
+			await waitFor(() =>
+				expect(args.onSaveAppearance).toHaveBeenCalledWith({
+					codernauts_enabled: false,
+				}),
+			);
+		});
+	},
+};
+
+export const CodernautsToggleNotEntitled: Story = {
+	play: async ({ canvasElement, args, step }) => {
+		const canvas = within(canvasElement);
+		await step("the switch saves even without entitlement", async () => {
+			const switchEl = canvas.getByRole("switch", {
+				name: "Codernauts game",
+			});
+			expect(switchEl).toBeEnabled();
+			await userEvent.click(switchEl);
+			await waitFor(() =>
+				expect(args.onSaveAppearance).toHaveBeenCalledWith({
+					codernauts_enabled: false,
+				}),
+			);
+		});
 	},
 };

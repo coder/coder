@@ -74,12 +74,42 @@ func ChatNoACLConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+func MCPServerConfigConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("mcp_server_configs.organization_id :: text", []string{"input", "object", "org_owner"}),
+		sqltypes.AlwaysFalse(userOwnerMatcher()),
+	)
+	matcher.RegisterMatcher(
+		ACLMappingMatcher(matcher, "mcp_server_configs.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),
+		ACLMappingMatcher(matcher, "mcp_server_configs.user_acl", []string{"input", "object", "acl_user_list"}).UsingSubfield("permissions"),
+	)
+	return matcher
+}
+
 func chatBaseConverter() *sqltypes.VariableConverter {
 	return sqltypes.NewVariableConverter().RegisterMatcher(
 		chatResourceIDMatcher(),
 		sqltypes.StringVarMatcher("chats_expanded.organization_id :: text", []string{"input", "object", "org_owner"}),
 		userOwnerMatcher(),
 	)
+}
+
+// ChatModelConfigConverter qualifies columns against the cmc alias used by
+// GetChatModelConfigs. Chat model configs have no user owner,
+// only an organization owner.
+func ChatModelConfigConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		sqltypes.StringVarMatcher("cmc.id :: text", []string{"input", "object", "id"}),
+		sqltypes.StringVarMatcher("cmc.organization_id :: text", []string{"input", "object", "org_owner"}),
+		sqltypes.AlwaysFalse(userOwnerMatcher()),
+	)
+	matcher.RegisterMatcher(
+		ACLMappingMatcher(matcher, "cmc.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),
+		ACLMappingMatcher(matcher, "cmc.user_acl", []string{"input", "object", "acl_user_list"}).UsingSubfield("permissions"),
+	)
+
+	return matcher
 }
 
 func AuditLogConverter() *sqltypes.VariableConverter {

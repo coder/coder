@@ -1,0 +1,31 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations edit [flags]
+
+  Edit organization settings.
+
+    - Replace the roles every member of the organization holds:
+  
+       $ coder organizations edit --default-org-member-roles
+  organization-workspace-access,organization-template-admin
+  
+    - Grant members no roles at all:
+  
+       $ coder organizations edit --default-org-member-roles ""
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+      --default-org-member-roles string-array
+          Replaces the roles every member of the organization holds. Accepts a
+          comma-separated list and may be repeated. An empty value removes every
+          role. New organizations start with organization-workspace-access,
+          which grants members access to their own workspaces.
+
+  -y, --yes bool
+          Bypass confirmation prompts.
+
+———
+Run `coder --help` for a list of global options.

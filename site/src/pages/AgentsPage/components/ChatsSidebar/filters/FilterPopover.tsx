@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { FilterIcon } from "lucide-react";
 import {
 	type ComponentProps,
@@ -16,7 +17,6 @@ import {
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { SearchField } from "#/components/SearchField/SearchField";
-import { cn } from "#/utils/cn";
 import {
 	AGENT_ARCHIVE_STATUS_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
@@ -316,7 +316,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 						/>
 						<ScrollArea
 							type="always"
-							className="mt-5 h-[240px] [&_[data-radix-scroll-area-viewport]>div]:!block"
+							className="mt-5 h-[240px] [&_[data-radix-scroll-area-viewport]>div]:block!"
 							scrollBarClassName="w-1.5"
 							viewportClassName="pr-3"
 						>

@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -48,7 +47,7 @@ func makeScimUser(t testing.TB) legacyscim.SCIMUser {
 		}{
 			{Primary: true, Value: fmt.Sprintf("%s@coder.com", rstr)},
 		},
-		Active: ptr.Ref(true),
+		Active: new(true),
 	}
 }
 
@@ -227,7 +226,7 @@ func TestLegacyScim(t *testing.T) {
 
 		// Suspend via PATCH.
 		mockAudit.ResetLogs()
-		sUser.Active = ptr.Ref(false)
+		sUser.Active = new(false)
 		res, err = client.Request(ctx, "PATCH", "/scim/v2/Users/"+createdUser.ID, sUser, setScimAuth(scimAPIKey))
 		require.NoError(t, err)
 		defer res.Body.Close()
@@ -274,7 +273,7 @@ func TestLegacyScim(t *testing.T) {
 
 		// Suspend via PUT.
 		mockAudit.ResetLogs()
-		sUser.Active = ptr.Ref(false)
+		sUser.Active = new(false)
 		res, err = client.Request(ctx, "PUT", "/scim/v2/Users/"+createdUser.ID, sUser, setScimAuth(scimAPIKey))
 		require.NoError(t, err)
 		defer res.Body.Close()
@@ -320,7 +319,7 @@ func makeScim2User(t testing.TB) scim2UserBody {
 	b := scim2UserBody{
 		Schemas:  []string{"urn:ietf:params:scim:schemas:core:2.0:User"},
 		UserName: rstr,
-		Active:   ptr.Ref(true),
+		Active:   new(true),
 	}
 	b.Name.GivenName = rstr
 	b.Name.FamilyName = rstr
@@ -654,7 +653,7 @@ func TestScim(t *testing.T) {
 		require.Equal(t, http.StatusCreated, res.StatusCode)
 
 		// PUT with active=false.
-		sUser.Active = ptr.Ref(false)
+		sUser.Active = new(false)
 		res, err = client.Request(ctx, "PUT", "/scim/v2/Users/"+created.ID, sUser, setScimAuth(scimAPIKey))
 		require.NoError(t, err)
 		_ = res.Body.Close()

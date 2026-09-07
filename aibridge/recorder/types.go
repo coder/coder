@@ -28,6 +28,8 @@ type ToolArgs any
 
 type Metadata map[string]any
 
+const MetadataKeyServiceTier = "service_tier"
+
 type InterceptionRecord struct {
 	ID                    string
 	InitiatorID           string

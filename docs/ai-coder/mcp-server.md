@@ -1,4 +1,6 @@
-# MCP Server
+---
+title: MCP Server
+---
 
 Coder includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/)
 (MCP) server that provides AI assistants with tools and context about your Coder
@@ -94,8 +96,8 @@ through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers
 `GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone
 server-event stream or explicit session termination, both permitted by the
 specification). The server exposes tools only; MCP resources, prompts,
-structured tool output, elicitation, and the MCP Tasks extension (which is
-unrelated to Coder's task tools) are not implemented.
+structured tool output, elicitation, and the MCP Tasks extension are not
+implemented.
 
 ### Prerequisites
 
@@ -178,8 +180,7 @@ MCP clients that support [RFC 9728](https://datatracker.ietf.org/doc/html/rfc972
 server advertises its OAuth2 capabilities via the `WWW-Authenticate` header and
 `/.well-known/oauth-protected-resource` endpoint.
 
-This enables a seamless "click-to-connect" experience where users authenticate
-through their browser without manually managing tokens.
+This enables a seamless connect-and-authenticate experience where users sign in through their browser without manually managing tokens.
 
 > [!NOTE]
 > OAuth2 requires the `oauth2` experiment to be enabled on your Coder deployment.
@@ -198,7 +199,6 @@ The MCP server exposes tools across several areas:
 - **Template operations**: list, inspect, create, and manage templates and versions
 - **File operations**: read, write, and edit files in a workspace
 - **Workspace interaction**: run commands, forward ports, list apps, and read logs
-- **Task management**: create, list, inspect, and control tasks
 - **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models
 - **User and system**: authenticated user details, tar uploads, and task reporting
 

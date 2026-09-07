@@ -21,12 +21,11 @@
   <br>
   <br>
 
-[Quickstart](#quickstart) | [Docs](https://coder.com/docs) | [Why Coder](https://coder.com/why) | [Premium](https://coder.com/pricing#compare-plans)
+[Quickstart](#quickstart) | [Docs](https://coder.com/docs) | [Why Coder](https://coder.com/docs/about#why-coder) | [Premium](https://coder.com/pricing#compare-plans)
 
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://cdr.co/discord-Y6fMxGdNRg)
 [![release](https://img.shields.io/github/v/release/coder/coder)](https://github.com/coder/coder/releases/latest)
 [![godoc](https://pkg.go.dev/badge/github.com/coder/coder.svg)](https://pkg.go.dev/github.com/coder/coder)
-[![Go Report Card](https://goreportcard.com/badge/github.com/coder/coder/v2)](https://goreportcard.com/report/github.com/coder/coder/v2)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9511/badge)](https://www.bestpractices.dev/projects/9511)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/coder/coder/badge)](https://scorecard.dev/viewer/?uri=github.com%2Fcoder%2Fcoder)
 [![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)
@@ -50,45 +49,27 @@
 
 ## Quickstart
 
-The most convenient way to try Coder is to install it on your local machine and experiment with provisioning cloud development environments using Docker (works on Linux, macOS, and Windows).
+> Check out our [install guides](https://coder.com/docs/install) for other methods and a complete tutorial.
 
-```shell
-# First, install Coder
-curl -L https://coder.com/install.sh | sh
-
-# Start the Coder server (caches data in ~/.cache/coder)
-coder server
-
-# Navigate to http://localhost:3000 to create your initial user,
-# create a Docker template and provision a workspace
-```
-
-## Install
-
-The easiest way to install Coder is to use the
-[install script](https://github.com/coder/coder/blob/main/install.sh) for Linux
-and macOS. For Windows, use the latest `..._installer.exe` file from GitHub
-Releases.
+Try Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or grab the latest binary or installer from [GitHub Releases](https://github.com/coder/coder/releases/) on Windows:
 
 ```shell
 curl -L https://coder.com/install.sh | sh
 ```
 
-You can run the install script with `--dry-run` to see the commands that will be used to install without executing them. Run the install script with `--help` for additional flags.
-
-> See [install](https://coder.com/docs/install) for additional methods.
-
-Once installed, you can start a production deployment with a single command:
+Start the server and open [http://localhost:3000](http://localhost:3000) to create your initial user, create a Docker template, and provision your first workspace:
 
 ```shell
-# Automatically sets up an external access URL on *.try.coder.app
 coder server
+```
 
-# Requires a PostgreSQL instance (version 13 or higher) and external access URL
+For a production deployment, add a PostgreSQL database (version 13 or later) and an external access URL, and see our [validated architectures](https://coder.com/docs/admin/infrastructure/validated-architectures) for sizing and infrastructure guidance:
+
+```shell
 coder server --postgres-url <url> --access-url <url>
 ```
 
-Use `coder --help` to get a list of flags and environment variables. See the [install guides](https://coder.com/docs/install) for a complete tutorial.
+Without these flags, Coder uses a built-in database and sets up a `*.try.coder.app` access URL for evaluation. Use `coder --help` for the full list of flags and environment variables.
 
 ## Documentation
 
@@ -97,15 +78,18 @@ Browse the [documentation](https://coder.com/docs) or visit a specific section b
 - [**Workspaces**](https://coder.com/docs/user-guides/workspace-management): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
 - [**Templates**](https://coder.com/docs/admin/templates): Templates are written in Terraform and describe the infrastructure for workspaces
 - [**Coder Agents**](https://coder.com/docs/ai-coder/agents): Delegate coding work to AI agents running on your self-hosted infrastructure
+- [**AI Gateway**](https://coder.com/docs/ai-coder/ai-gateway): Centralize authentication, auditing, and cost controls for AI tooling
 - [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
 - [**Premium**](https://coder.com/pricing#compare-plans): Learn about paid features built for large teams
 - [**IDEs**](https://coder.com/docs/user-guides/workspace-access): Connect your existing editor to a workspace
 
 ## Support
 
-Feel free to [open an issue](https://github.com/coder/coder/issues/new) if you have questions, run into bugs, or have a feature request.
+[Open an issue](https://github.com/coder/coder/issues/new) for bugs and feature requests.
 
-[Join our Discord](https://discord.gg/coder) to provide feedback on in-progress features and chat with the community using Coder!
+For community support, showcasing what you built, and feedback on in-progress features, join our [Discord](https://discord.gg/coder) or [GitHub Discussions](https://github.com/coder/coder/discussions).
+
+Dedicated support is included in Coder Premium. For more information, visit [coder.com/pricing](https://coder.com/pricing).
 
 ## Integrations
 
@@ -114,21 +98,22 @@ New integrations are always in progress. Open an issue to request one. Contribut
 ### Official
 
 - [**Coder Registry**](https://registry.coder.com): Templates, modules, and integrations for common development environments
+- [**Coding Agents**](https://registry.coder.com/modules?search=tag%3Aagent): Run agents like Claude Code, Codex, and OpenCode isolated in Coder workspaces
+- [**coderd Terraform Provider**](https://github.com/coder/terraform-provider-coderd): Declaratively manage your Coder deployment configuration as code
 - [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): Open any Coder workspace in VS Code with a single click
 - [**JetBrains Toolbox Plugin**](https://plugins.jetbrains.com/plugin/26968-coder): Open any Coder workspace from JetBrains Toolbox with a single click
-- [**JetBrains Gateway Plugin**](https://plugins.jetbrains.com/plugin/19620-coder): Open any Coder workspace in JetBrains Gateway with a single click
-- [**Dev Containers**](https://github.com/coder/envbuilder): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
+- [**Dev Containers**](https://coder.com/docs/user-guides/devcontainers): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
 - [**Kubernetes Log Stream**](https://github.com/coder/coder-logstream-kube): Stream Kubernetes Pod events to the Coder startup logs
 - [**Self-Hosted VS Code Extension Marketplace**](https://github.com/coder/code-marketplace): A private extension marketplace that works in restricted or airgapped networks integrating with [code-server](https://github.com/coder/code-server).
 - [**GitHub Actions**](https://github.com/marketplace/actions/setup-coder): An action to set up the Coder CLI in GitHub workflows
 
 ### Community
 
-- [**Community Templates**](https://registry.coder.com/templates): Community-contributed workspace templates in the Coder Registry
-- [**Community Modules**](https://registry.coder.com/modules): Community-contributed modules to extend Coder templates
-- [**Provision Coder with Terraform**](https://github.com/ElliotG/coder-oss-tf): Provision Coder on Google GKE, Azure AKS, AWS EKS, DigitalOcean DOKS, IBMCloud K8s, OVHCloud K8s, and Scaleway K8s Kapsule with Terraform
+- [**Coder Discord**](https://cdr.co/discord-5hw2sjadGU): Chat with the community, get support, and hear about new product updates first
+- [**Community Templates**](https://registry.coder.com/templates?search=status%3Acommunity): Community-contributed workspace templates in the Coder Registry
+- [**Community Modules**](https://registry.coder.com/modules?search=status%3Acommunity): Community-contributed modules to extend Coder templates
 - [**Coder Template GitHub Action**](https://github.com/marketplace/actions/update-coder-template): A GitHub Action that updates Coder templates
-- [**Discord**](https://cdr.co/discord-5hw2sjadGU): Chat with the community and provide feedback on in-progress features
+- [**Coder Agents Chat Action**](https://github.com/coder/agents-chat-action): A GitHub Action that starts a Coder Agents chat against a GitHub issue or pull request
 
 ## Contributing
 

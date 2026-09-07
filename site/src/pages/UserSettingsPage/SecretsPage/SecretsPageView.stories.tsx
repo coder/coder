@@ -28,11 +28,9 @@ const meta: Meta<typeof SecretsPageView> = {
 		secrets: visibleSecrets,
 		isLoading: false,
 		hasLoaded: true,
-		isRefreshing: false,
 		isCreating: false,
 		isUpdating: false,
 		isDeleting: false,
-		onRefresh: fn(),
 		onCreateSecret: fn(),
 		onUpdateSecret: fn(),
 		onImportSecrets: fn(),
@@ -111,7 +109,7 @@ export const Loaded: Story = {
 		await expect(canvas.getByText("env var + file")).toBeInTheDocument();
 		await expect(canvas.getByText("not injected")).toBeInTheDocument();
 
-		const docsLink = canvas.getByRole("link", { name: "View docs" });
+		const docsLink = canvas.getByRole("link", { name: /View docs/ });
 		await expect(docsLink).toHaveAttribute(
 			"href",
 			expect.stringContaining("/user-guides/user-secrets"),
@@ -135,25 +133,9 @@ export const Loading: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.getByRole("button", { name: /Refresh/ }),
-		).toBeDisabled();
-	},
-};
-
-export const RefreshingWithRows: Story = {
-	args: {
-		secrets: visibleSecrets,
-		isLoading: false,
-		hasLoaded: true,
-		isRefreshing: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await expect(canvas.getAllByText(visibleSecrets[0].name)[0]).toBeVisible();
-		await expect(
-			canvas.getByRole("button", { name: /Refresh/ }),
-		).toBeDisabled();
+			canvas.getByRole("status", { name: "Loading" }),
+		).toBeInTheDocument();
+		await expect(canvas.queryByText("No secrets yet")).not.toBeInTheDocument();
 	},
 };
 
@@ -780,9 +762,11 @@ export const ImportSecretsParseError: Story = {
 			new File(["GOOD=1\nbad line"], "secrets.env"),
 		);
 
-		await expect(
-			await dialog.findByText("Failed to parse secrets file."),
-		).toBeVisible();
+		// findByText retries only DOM presence, so a one-shot toBeVisible can
+		// catch the dialog mid fade-in at opacity 0. Retry visibility itself.
+		await waitFor(() =>
+			expect(dialog.getByText("Failed to parse secrets file.")).toBeVisible(),
+		);
 		expect(dialog.getByText("Line 2 must contain KEY=VALUE.")).toBeVisible();
 		expect(dialog.queryByText("Response data")).not.toBeInTheDocument();
 		expect(dialog.queryByText("Stack Trace")).not.toBeInTheDocument();
@@ -803,9 +787,11 @@ export const ImportSecretsFileReadError: Story = {
 			new File(["A=1"], "secrets.env"),
 		);
 
-		await expect(
-			await dialog.findByText("Failed to read the selected file."),
-		).toBeVisible();
+		await waitFor(() =>
+			expect(
+				dialog.getByText("Failed to read the selected file."),
+			).toBeVisible(),
+		);
 	},
 };
 
@@ -856,11 +842,13 @@ export const ImportSecretsRemoveAndRetry: Story = {
 			new File(["not a secret"], "bad.txt"),
 		);
 
-		await expect(
-			await dialog.findByText(
-				"Unsupported file type. Import a .env, .json, .yaml, or .yml file.",
-			),
-		).toBeVisible();
+		await waitFor(() =>
+			expect(
+				dialog.getByText(
+					"Unsupported file type. Import a .env, .json, .yaml, or .yml file.",
+				),
+			).toBeVisible(),
+		);
 		await user.click(dialog.getByRole("button", { name: "Remove file" }));
 		expect(
 			dialog.queryByText(

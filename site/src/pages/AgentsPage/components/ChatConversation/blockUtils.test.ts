@@ -161,9 +161,10 @@ describe("groupSequentialReadFileBlocks", () => {
 				{ type: "tool", id: "read-2" },
 			],
 		],
-	] satisfies Array<
-		[string, RenderBlock[]]
-	>)("does not collapse read_file blocks across %s", (_, blocks) => {
-		expect(groupSequentialReadFileBlocks(blocks, tools)).toEqual(blocks);
-	});
+	] satisfies Array<[string, RenderBlock[]]>)(
+		"does not collapse read_file blocks across %s",
+		(_, blocks) => {
+			expect(groupSequentialReadFileBlocks(blocks, tools)).toEqual(blocks);
+		},
+	);
 });

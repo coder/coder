@@ -291,8 +291,9 @@ func TestOAuth2WithoutPKCEIsRejected(t *testing.T) {
 		State:        state,
 	}
 
-	oauth2providertest.AuthorizeOAuth2AppExpectingError(
-		t, client, client.URL.String(), authParams, http.StatusBadRequest,
+	oauth2providertest.AuthorizeOAuth2AppExpectingRedirectError(
+		t, client, client.URL.String(), authParams, codersdk.OAuth2ErrorCodeInvalidRequest,
+		"is required and cannot be empty",
 	)
 }
 
@@ -324,8 +325,9 @@ func TestOAuth2MalformedCodeChallengeIsRejected(t *testing.T) {
 		CodeChallengeMethod: "S256",
 	}
 
-	oauth2providertest.AuthorizeOAuth2AppExpectingError(
-		t, client, client.URL.String(), authParams, http.StatusBadRequest,
+	oauth2providertest.AuthorizeOAuth2AppExpectingRedirectError(
+		t, client, client.URL.String(), authParams, codersdk.OAuth2ErrorCodeInvalidRequest,
+		"must be 43 to 128 characters",
 	)
 }
 
@@ -438,38 +440,6 @@ func TestOAuth2TokenExchangeClientSecretBasicInvalidSecret(t *testing.T) {
 	require.Equal(t, `Basic realm="coder"`, resp.Header.Get("WWW-Authenticate"), "missing WWW-Authenticate header")
 
 	oauth2providertest.RequireOAuth2Error(t, resp, oauth2providertest.OAuth2ErrorTypes.InvalidClient)
-}
-
-func TestOAuth2PKCEPlainMethodRejected(t *testing.T) {
-	t.Parallel()
-
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: false,
-	})
-	_ = coderdtest.CreateFirstUser(t, client)
-
-	// Create OAuth2 app
-	app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
-	t.Cleanup(func() {
-		oauth2providertest.CleanupOAuth2App(t, client, app.ID)
-	})
-
-	// Generate PKCE parameters but use "plain" method (should be rejected)
-	_, codeChallenge := oauth2providertest.GeneratePKCE(t)
-	state := oauth2providertest.GenerateState(t)
-
-	// Attempt authorization with plain method - should fail
-	authParams := oauth2providertest.AuthorizeParams{
-		ClientID:            app.ID.String(),
-		ResponseType:        string(codersdk.OAuth2ProviderResponseTypeCode),
-		RedirectURI:         oauth2providertest.TestRedirectURI,
-		State:               state,
-		CodeChallenge:       codeChallenge,
-		CodeChallengeMethod: string(codersdk.OAuth2PKCECodeChallengeMethodPlain),
-	}
-
-	// Should get a 400 Bad Request
-	oauth2providertest.AuthorizeOAuth2AppExpectingError(t, client, client.URL.String(), authParams, 400)
 }
 
 func TestOAuth2ResourceParameter(t *testing.T) {
@@ -633,4 +603,22 @@ func TestOAuth2ErrorResponses(t *testing.T) {
 			t, client.URL.String(), tokenParams, oauth2providertest.OAuth2ErrorTypes.InvalidRequest,
 		)
 	})
+}
+
+// TestOAuth2RegisterPublicClient exercises the RegisterPublicClient helper
+// end-to-end against a real server: registering with token_endpoint_auth_
+// method "none" issues no client secret. A bug in the helper's request
+// shape or assertions would otherwise ride uncaught until a later PR's test
+// happened to call it.
+func TestOAuth2RegisterPublicClient(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: false,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+
+	resp := oauth2providertest.RegisterPublicClient(t, client, "test-public-client", "https://example.com/callback")
+	require.NotEmpty(t, resp.ClientID)
 }

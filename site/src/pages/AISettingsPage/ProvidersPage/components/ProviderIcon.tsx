@@ -37,7 +37,7 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
 }) => {
 	const iconSrc = icon || getProviderIcon(provider);
 	if (iconSrc === undefined) {
-		return <Building2Icon className={`${className} flex-shrink-0`} />;
+		return <Building2Icon className={`${className} shrink-0`} />;
 	}
 	return <ExternalImage src={iconSrc} alt="" className={className} />;
 };
