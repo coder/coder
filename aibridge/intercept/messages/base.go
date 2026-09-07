@@ -74,14 +74,36 @@ type BedrockRuntime struct {
 	Creds aws.CredentialsProvider
 }
 
+// ClaudePlatformRuntime carries everything a Claude Platform for AWS
+// interception needs. Creds is nil in api_key mode, where the workspace key
+// comes from the provider's key pool instead of AWS signing.
+type ClaudePlatformRuntime struct {
+	Cfg   aibconfig.AWSClaudePlatform
+	Creds aws.CredentialsProvider
+}
+
+// AuthRuntime carries the provider-level authentication configuration resolved
+// once at provider construction. At most one variant is non-nil; all nil means
+// a plain bearer-token Anthropic provider (BYOK or a centralized key pool).
+//
+// Grouping the variants keeps the interceptor constructors from growing a
+// positional argument per authentication method.
+type AuthRuntime struct {
+	// Bedrock is set for AWS Bedrock providers.
+	Bedrock *BedrockRuntime
+	// ClaudePlatform is set for Claude Platform for AWS providers.
+	ClaudePlatform *ClaudePlatformRuntime
+}
+
 type interceptionBase struct {
 	id         uuid.UUID
 	reqPayload RequestPayload
 
 	cfg  intercept.Config
 	cred intercept.Credential
-	// bedrock is nil for non-Bedrock providers.
-	bedrock *BedrockRuntime
+	// auth carries the provider's resolved authentication runtime; its fields
+	// are nil for plain bearer-token providers.
+	auth AuthRuntime
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
@@ -147,16 +169,22 @@ func (i *interceptionBase) CorrelatingToolCallID() *string {
 	return i.reqPayload.correlatingToolCallID()
 }
 
+// isClaudePlatform reports whether the interception targets Claude Platform
+// for AWS.
+func (i *interceptionBase) isClaudePlatform() bool {
+	return i.auth.ClaudePlatform != nil
+}
+
 // isBedrockMantle reports whether the interception targets the Bedrock mantle
 // protocol.
 func (i *interceptionBase) isBedrockMantle() bool {
-	return i.bedrock != nil && i.bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolMantle
+	return i.auth.Bedrock != nil && i.auth.Bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolMantle
 }
 
 // isBedrockInvokeModel reports whether the interception targets the Bedrock
 // InvokeModel protocol.
 func (i *interceptionBase) isBedrockInvokeModel() bool {
-	return i.bedrock != nil && i.bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolInvokeModel
+	return i.auth.Bedrock != nil && i.auth.Bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolInvokeModel
 }
 
 func (i *interceptionBase) Model() string {
@@ -169,9 +197,9 @@ func (i *interceptionBase) Model() string {
 	// passthrough, non-Bedrock providers) returns the model the client sent in
 	// the body.
 	if i.isBedrockInvokeModel() {
-		model := i.bedrock.Cfg.Model
+		model := i.auth.Bedrock.Cfg.Model
 		if i.isSmallFastModel() {
-			model = i.bedrock.Cfg.SmallFastModel
+			model = i.auth.Bedrock.Cfg.SmallFastModel
 		}
 		return model
 	}
@@ -187,10 +215,10 @@ func (i *interceptionBase) baseTraceAttributes(r *http.Request, streaming bool) 
 		attribute.String(tracing.Provider, i.cfg.ProviderName),
 		attribute.String(tracing.Model, i.Model()),
 		attribute.Bool(tracing.Streaming, streaming),
-		attribute.Bool(tracing.IsBedrock, i.bedrock != nil),
+		attribute.Bool(tracing.IsBedrock, i.auth.Bedrock != nil),
 	}
-	if i.bedrock != nil {
-		attrs = append(attrs, attribute.String(tracing.BedrockProtocol, string(i.bedrock.Cfg.ResolvedProtocol())))
+	if i.auth.Bedrock != nil {
+		attrs = append(attrs, attribute.String(tracing.BedrockProtocol, string(i.auth.Bedrock.Cfg.ResolvedProtocol())))
 	}
 	return attrs
 }
@@ -328,6 +356,16 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		opts = append(opts, bedrockOpts...)
 	}
 
+	if i.isClaudePlatform() {
+		ctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
+		defer cancel()
+		claudePlatformOpts, err := i.withClaudePlatformOptions(ctx)
+		if err != nil {
+			return anthropic.MessageService{}, err
+		}
+		opts = append(opts, claudePlatformOpts...)
+	}
+
 	return anthropic.NewMessageService(opts...), nil
 }
 
@@ -342,13 +380,13 @@ func (i *interceptionBase) withBody() option.RequestOption {
 // withBedrockInvokeModelOptions returns request options for the AWS Bedrock
 // InvokeModel protocol.
 //
-// Credentials come from i.bedrock.Creds. It is a shared credentials cache, so the per-request Retrieve()
+// Credentials come from i.auth.Bedrock.Creds. It is a shared credentials cache, so the per-request Retrieve()
 // below is served from that cache and does not re-resolve or re-assume on every request.
 func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([]option.RequestOption, error) {
-	if i.bedrock == nil {
+	if i.auth.Bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
 	}
-	cfg := i.bedrock.Cfg
+	cfg := i.auth.Bedrock.Cfg
 	if err := cfg.Validate(); err != nil {
 		return nil, xerrors.Errorf("bedrock invoke-model config: %w", err)
 	}
@@ -356,13 +394,13 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 	// Fail fast: ensure credentials can be resolved before signing. Served from
 	// the shared cache on most requests (no network); on the cold or refresh
 	// path this performs the actual STS/IMDS call.
-	if _, err := i.bedrock.Creds.Retrieve(ctx); err != nil {
+	if _, err := i.auth.Bedrock.Creds.Retrieve(ctx); err != nil {
 		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
 	}
 
 	awsCfg := aws.Config{
 		Region:      cfg.Region,
-		Credentials: i.bedrock.Creds,
+		Credentials: i.auth.Bedrock.Creds,
 	}
 
 	var out []option.RequestOption
@@ -423,10 +461,10 @@ func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProv
 // the native Messages wire format, so this only SigV4-signs the request
 // (service "bedrock-mantle") and forwards it; the response is plain SSE.
 func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]option.RequestOption, error) {
-	if i.bedrock == nil {
+	if i.auth.Bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
 	}
-	cfg := i.bedrock.Cfg
+	cfg := i.auth.Bedrock.Cfg
 	if err := cfg.Validate(); err != nil {
 		return nil, xerrors.Errorf("bedrock mantle config: %w", err)
 	}
@@ -441,7 +479,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 		}),
 	}
 
-	signed, err := withAWSSignedMessagesOptions(ctx, i.bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle, nil)
+	signed, err := withAWSSignedMessagesOptions(ctx, i.auth.Bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -449,12 +487,60 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 	return append(out, signed...), nil
 }
 
+// withClaudePlatformOptions returns request options for Claude Platform for
+// AWS (aws-external-anthropic.{region}.api.aws/v1/messages). It speaks the
+// native Messages wire format with standard Anthropic model IDs, so nothing in
+// the request or response is translated.
+//
+// In IAM mode the request is SigV4-signed for the aws-external-anthropic
+// service. In api_key mode the workspace key is already carried by the
+// provider's key pool, so only routing and the workspace header apply.
+//
+// Bedrock's PRM attribution marker is deliberately not sent: it is a
+// Bedrock-specific revenue-attribution agreement.
+func (i *interceptionBase) withClaudePlatformOptions(ctx context.Context) ([]option.RequestOption, error) {
+	if i.auth.ClaudePlatform == nil {
+		return nil, xerrors.New("nil claude platform runtime")
+	}
+	cfg := i.auth.ClaudePlatform.Cfg
+	if err := cfg.Validate(); err != nil {
+		return nil, xerrors.Errorf("claude platform config: %w", err)
+	}
+
+	// anthropic-workspace-id is required on every data plane request. It is set
+	// from provider configuration rather than preserved from the client, so a
+	// client cannot choose which workspace its traffic is billed to.
+	headers := map[string]string{
+		intercept.HeaderAnthropicWorkspaceID: cfg.WorkspaceID,
+	}
+
+	if cfg.AuthMode == aibconfig.ClaudePlatformAuthModeAPIKey {
+		// The key pool supplies x-api-key; only route and set the header.
+		return []option.RequestOption{
+			option.WithBaseURL(cfg.ResolvedBaseURL()),
+			option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+				for name, value := range headers {
+					req.Header.Set(name, value)
+				}
+				return next(req)
+			}),
+		}, nil
+	}
+
+	if i.auth.ClaudePlatform.Creds == nil {
+		return nil, xerrors.New("claude platform iam mode requires aws credentials")
+	}
+
+	return withAWSSignedMessagesOptions(ctx, i.auth.ClaudePlatform.Creds,
+		cfg.ResolvedBaseURL(), cfg.Region, aibconfig.ClaudePlatformSigningService, headers)
+}
+
 // augmentRequestForBedrockInvokeModel changes the model used for the request since AWS Bedrock doesn't support
 // Anthropics' model names. It also converts adaptive thinking to enabled with a budget for models that
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
 // adaptive.
 func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
-	if i.bedrock == nil {
+	if i.auth.Bedrock == nil {
 		return
 	}
 

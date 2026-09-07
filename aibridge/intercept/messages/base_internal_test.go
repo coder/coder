@@ -179,10 +179,10 @@ func TestAWSBedrockValidation(t *testing.T) {
 			t.Parallel()
 
 			base := &interceptionBase{
-				bedrock: &BedrockRuntime{
+				auth: AuthRuntime{Bedrock: &BedrockRuntime{
 					Cfg:   tt.cfg,
 					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
-				},
+				}},
 			}
 			opts, err := base.withBedrockInvokeModelOptions(context.Background())
 
@@ -806,12 +806,12 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 
 			i := &interceptionBase{
 				reqPayload: mustMessagesPayload(t, tc.requestBody),
-				bedrock: &BedrockRuntime{
+				auth: AuthRuntime{Bedrock: &BedrockRuntime{
 					Cfg: config.AWSBedrock{
 						Model:          tc.bedrockModel,
 						SmallFastModel: "anthropic.claude-haiku-3-5",
 					},
-				},
+				}},
 				clientHeaders: clientHeaders,
 				logger:        slog.Make(),
 			}
@@ -1159,14 +1159,14 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 	i := &interceptionBase{
 		reqPayload: mustMessagesPayload(t,
 			`{"model":"anthropic.claude-opus-4-8","max_tokens":10000,"thinking":{"type":"adaptive"},"metadata":{"user_id":"u123"},"context_management":{"type":"auto"}}`),
-		bedrock: &BedrockRuntime{
+		auth: AuthRuntime{Bedrock: &BedrockRuntime{
 			Cfg: config.AWSBedrock{
 				Region:   "us-east-1",
 				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
 				Protocol: config.BedrockProtocolMantle,
 			},
 			Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
-		},
+		}},
 		logger: slog.Make(),
 	}
 
@@ -1217,10 +1217,10 @@ func TestAWSMantleOptionsValidation(t *testing.T) {
 			t.Parallel()
 
 			base := &interceptionBase{
-				bedrock: &BedrockRuntime{
+				auth: AuthRuntime{Bedrock: &BedrockRuntime{
 					Cfg:   tt.cfg,
 					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
-				},
+				}},
 			}
 			opts, err := base.withBedrockMantleOptions(t.Context())
 			if tt.errorMsg != "" {

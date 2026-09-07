@@ -311,7 +311,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
-		}, bedrock)
+		}, bedrock, nil)
 
 	case database.AIProviderTypeCopilot:
 		// Copilot is always BYOK; the per-user token is supplied on each

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -13,6 +14,92 @@ const (
 	ProviderOpenAI    = "openai"
 	ProviderCopilot   = "copilot"
 )
+
+// ClaudePlatformAuthMode selects how the gateway authenticates to Anthropic's
+// AWS-hosted Messages API.
+type ClaudePlatformAuthMode string
+
+const (
+	// ClaudePlatformAuthModeIAM signs requests with AWS SigV4.
+	ClaudePlatformAuthModeIAM ClaudePlatformAuthMode = "iam"
+	// ClaudePlatformAuthModeAPIKey authenticates with a workspace API key sent
+	// as x-api-key. The key comes from the provider's key pool, so this mode
+	// needs no AWS credentials.
+	ClaudePlatformAuthModeAPIKey ClaudePlatformAuthMode = "api_key"
+)
+
+// ClaudePlatformSigningService is the AWS SigV4 service name for Anthropic's
+// AWS-hosted Messages API.
+const ClaudePlatformSigningService = "aws-external-anthropic"
+
+// AWSClaudePlatform carries configuration for Claude Platform for AWS:
+// Anthropic's native Messages API hosted on AWS. Unlike Bedrock it speaks the
+// standard Messages wire format with standard Anthropic model IDs, so requests
+// and responses pass through unchanged; only routing and authentication differ.
+type AWSClaudePlatform struct {
+	// AuthMode selects SigV4 signing or a workspace API key. Required.
+	AuthMode ClaudePlatformAuthMode
+	// Region is the AWS region. It is always required, including when BaseURL
+	// is set, because SigV4 signatures are region-scoped and a proxy base URL
+	// must still be signed for the real upstream region.
+	Region string
+	// WorkspaceID is sent as the anthropic-workspace-id header on every
+	// request. Required in both auth modes.
+	WorkspaceID string
+	// AccessKey and AccessKeySecret select static AWS credentials. When unset,
+	// the AWS default credential chain resolves the base identity. IAM mode
+	// only.
+	AccessKey, AccessKeySecret string
+	// RoleARN, when set, is assumed via STS before signing. IAM mode only.
+	RoleARN string
+	// ExternalID is sent as the STS external ID on the AssumeRole call. It is
+	// meaningful only alongside RoleARN.
+	ExternalID string
+	// BaseURL overrides the default regional endpoint
+	// https://aws-external-anthropic.{region}.api.aws, for example to route
+	// through a proxy. Region still determines the signing scope.
+	BaseURL string
+}
+
+// ResolvedBaseURL returns the configured base URL, defaulting to the regional
+// Claude Platform endpoint.
+func (c AWSClaudePlatform) ResolvedBaseURL() string {
+	if c.BaseURL != "" {
+		return c.BaseURL
+	}
+	return fmt.Sprintf("https://aws-external-anthropic.%s.api.aws", c.Region)
+}
+
+// Validate verifies the Claude Platform configuration.
+func (c AWSClaudePlatform) Validate() error {
+	if c.Region == "" {
+		return xerrors.New("region required")
+	}
+	if c.WorkspaceID == "" {
+		return xerrors.New("workspace id required")
+	}
+	switch c.AuthMode {
+	case ClaudePlatformAuthModeIAM:
+		if (c.AccessKey == "") != (c.AccessKeySecret == "") {
+			return xerrors.New("both access key and access key secret must be provided together")
+		}
+	case ClaudePlatformAuthModeAPIKey:
+		// The workspace key lives in the provider's key pool, so no AWS
+		// identity may be configured; a stray access key or role would
+		// silently do nothing.
+		if c.AccessKey != "" || c.AccessKeySecret != "" {
+			return xerrors.New("access key credentials are not valid with api_key auth mode")
+		}
+		if c.RoleARN != "" {
+			return xerrors.New("role arn is not valid with api_key auth mode")
+		}
+	case "":
+		return xerrors.New("auth mode required")
+	default:
+		return xerrors.Errorf("unknown claude platform auth mode: %q", c.AuthMode)
+	}
+	return nil
+}
 
 // Anthropic carries configuration for an Anthropic provider.
 type Anthropic struct {
