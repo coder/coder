@@ -506,7 +506,7 @@ func TestUserMemories(t *testing.T) {
 		// A missing parent passes the guard trigger (no row to lock, NULL
 		// deleted) and is rejected by the hard foreign key at end of
 		// statement; there is deliberately no fail-closed trigger branch
-		// (see the guard comment in migration 000592).
+		// (see the guard comment in migration 000593).
 		_, err := insertMemory(ctx, uuid.New(), "orphan.md")
 		require.Error(t, err)
 		require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyUserMemoriesUserID), "got: %v", err)

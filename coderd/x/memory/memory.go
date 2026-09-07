@@ -14,7 +14,7 @@ import "github.com/coder/coder/v2/coderd/database"
 // check_constraint.go cannot own them; each is pinned by a failing write in
 // TestUserMemories or TestChatMemories matching the raised name. The
 // user_memory_user_deleted name is passed as an argument to the shared
-// fail_if_user_deleted guard from migration 000591.
+// fail_if_user_deleted guard from migration 000592.
 const (
 	// UserMemoryInsertIsolationConstraint rejects inserts at any isolation
 	// level other than READ COMMITTED, where the cap count is race-free.

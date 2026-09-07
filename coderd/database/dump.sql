@@ -1676,7 +1676,7 @@ BEGIN
     -- COMMITTED semantics. The gate is deliberately scoped to the two
     -- brand-new memory tables: rejecting a stronger level here cannot
     -- break any existing feature write (the pre-existing cap triggers
-    -- state this contract in migration 000590 instead of enforcing it,
+    -- state this contract in migration 000591 instead of enforcing it,
     -- because a runtime gate would turn a deployment-level
     -- default_transaction_isolation setting into an outage of shipped
     -- features). No production writer of the memory tables runs above READ

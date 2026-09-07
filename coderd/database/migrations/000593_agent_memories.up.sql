@@ -47,7 +47,7 @@ CREATE UNIQUE INDEX chat_memories_root_chat_id_path_idx ON chat_memories (root_c
 
 -- user_memories joins the delete_deleted_user_resources cleanup set below,
 -- so it attaches the shared fail_if_user_deleted guard from migration
--- 000591 like the other guarded tables: one encoding of the users-row lock
+-- 000592 like the other guarded tables: one encoding of the users-row lock
 -- (check_user_not_deleted) and the operation gate. The trigger is
 -- INSERT-only rather than also covering UPDATE OF user_id because the
 -- owner column is immutable below; there is no reassignment path to guard.
@@ -74,7 +74,7 @@ CREATE UNIQUE INDEX chat_memories_root_chat_id_path_idx ON chat_memories (root_c
 -- the cost is accepted.
 --
 -- The lock also imposes the ordering contract documented on
--- check_user_not_deleted (migration 000591): a transaction that writes any
+-- check_user_not_deleted (migration 000592): a transaction that writes any
 -- row user soft-deletion removes (directly in delete_deleted_user_resources
 -- or by cascade from those deletes, for example group_members,
 -- user_ai_budget_overrides, and oauth2_provider_app_tokens) and then
@@ -103,7 +103,7 @@ BEGIN
     -- COMMITTED semantics. The gate is deliberately scoped to the two
     -- brand-new memory tables: rejecting a stronger level here cannot
     -- break any existing feature write (the pre-existing cap triggers
-    -- state this contract in migration 000590 instead of enforcing it,
+    -- state this contract in migration 000591 instead of enforcing it,
     -- because a runtime gate would turn a deployment-level
     -- default_transaction_isolation setting into an outage of shipped
     -- features). No production writer of the memory tables runs above READ
