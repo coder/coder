@@ -26,7 +26,6 @@ import {
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { pageTitle } from "#/utils/page";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import {
@@ -854,12 +853,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			? runtimeHours.hard_limit
 			: undefined;
 
-	const titleElement = (
-		<title>
-			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
-		</title>
-	);
-
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
 			<ChatWorkspaceContext
@@ -872,7 +865,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							shouldShowSidebar && !visualExpanded && "flex-row",
 						)}
 					>
-						{titleElement}
 						<div
 							data-testid="agents-chat-panel"
 							className={cn(
@@ -1100,7 +1092,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 interface AgentChatPageLoadingViewProps {
 	sendShortcut: AgentChatSendShortcut;
-	titleElement: React.ReactNode;
 	inputRef: RefObject<ChatMessageInputRef | null>;
 	initialValue: string;
 	initialEditorState: string | undefined;
@@ -1126,7 +1117,6 @@ interface AgentChatPageLoadingViewProps {
 
 export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	sendShortcut,
-	titleElement,
 	inputRef,
 	initialValue,
 	initialEditorState,
@@ -1153,7 +1143,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 				showRightPanel && "flex-row",
 			)}
 		>
-			{titleElement}
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)">
 				<ChatTopBar
 					panel={{
@@ -1219,19 +1208,16 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 };
 
 interface AgentChatPageNotFoundViewProps {
-	titleElement: React.ReactNode;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 }
 
 export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
-	titleElement,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 }) => {
 	return (
 		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-			{titleElement}
 			<ChatTopBar
 				panel={{
 					showSidebarPanel: false,
