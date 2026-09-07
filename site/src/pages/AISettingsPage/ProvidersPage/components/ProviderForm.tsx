@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import * as Yup from "yup";
 import type {
 	AIProviderBedrockProtocol,
+	AIProviderClaudePlatformAWSAuthMode,
 	AIProviderType,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -27,10 +28,23 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
+import {
+	type AnthropicAuthMethod,
+	AnthropicAuthMethodField,
+	ClaudePlatformFields,
+} from "./AnthropicAuthFields";
 import { CredentialField } from "./CredentialField";
+import {
+	CLAUDE_PLATFORM_DEFAULT_REGION,
+	CLAUDE_PLATFORM_REGION_REGEX,
+	claudePlatformBaseUrl,
+	isCanonicalClaudePlatformUrl,
+} from "./claudePlatform";
 
 export type ProviderFormValues = {
 	type: AIProviderType | "";
+	/** Only meaningful when type is "anthropic". */
+	authMethod: AnthropicAuthMethod;
 	name: string;
 	displayName: string;
 	icon: string;
@@ -38,6 +52,9 @@ export type ProviderFormValues = {
 	protocol: AIProviderBedrockProtocol;
 	model: string;
 	smallFastModel: string;
+	claudePlatformAuthMode: AIProviderClaudePlatformAWSAuthMode;
+	claudePlatformRegion: string;
+	claudePlatformWorkspaceId: string;
 	accessKey: string;
 	accessKeySecret: string;
 	roleArn: string;
@@ -84,6 +101,7 @@ const makeDisplayNameSchema = (_editing: boolean) => Yup.string();
 
 const defaultInitialValues: ProviderFormValues = {
 	type: "anthropic",
+	authMethod: "api_key",
 	name: "",
 	displayName: "",
 	icon: "",
@@ -91,6 +109,9 @@ const defaultInitialValues: ProviderFormValues = {
 	protocol: "invoke-model",
 	model: "",
 	smallFastModel: "",
+	claudePlatformAuthMode: "iam",
+	claudePlatformRegion: CLAUDE_PLATFORM_DEFAULT_REGION,
+	claudePlatformWorkspaceId: "",
 	accessKey: "",
 	accessKeySecret: "",
 	roleArn: "",
@@ -117,11 +138,13 @@ const BEDROCK_DEFAULT_SMALL_FAST_MODEL =
 const BEDROCK_MODEL_CARDS_URL =
 	"https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html";
 
+const ANTHROPIC_DEFAULT_BASE_URL = "https://api.anthropic.com";
+
 const providerDefaults: Partial<
 	Record<AIProviderType, Partial<ProviderFormValues>>
 > = {
 	openai: { name: "openai", baseUrl: "https://api.openai.com/v1/" },
-	anthropic: { name: "anthropic", baseUrl: "https://api.anthropic.com" },
+	anthropic: { name: "anthropic", baseUrl: ANTHROPIC_DEFAULT_BASE_URL },
 	bedrock: {
 		name: "bedrock",
 		baseUrl: bedrockInvokeModelBaseUrl(BEDROCK_DEFAULT_REGION),
@@ -179,7 +202,7 @@ const credentialFilled = (value: string | undefined): boolean => {
 	return trimmed !== "" && trimmed !== SAVED_CREDENTIAL_MASK;
 };
 
-const BEDROCK_ACCESS_KEY_PAIRED_MESSAGE =
+const AWS_ACCESS_KEY_PAIRED_MESSAGE =
 	"Enter both access key and secret, or leave both blank to use AWS environment credentials.";
 
 // Bedrock access keys are optional: when both are blank the server
@@ -227,7 +250,7 @@ const makeBedrockSchema = (editing: boolean) =>
 		}),
 		accessKey: Yup.string().test(
 			"access-key-paired",
-			BEDROCK_ACCESS_KEY_PAIRED_MESSAGE,
+			AWS_ACCESS_KEY_PAIRED_MESSAGE,
 			function (value) {
 				const secret = (this.parent as { accessKeySecret?: string })
 					.accessKeySecret;
@@ -236,12 +259,87 @@ const makeBedrockSchema = (editing: boolean) =>
 		),
 		accessKeySecret: Yup.string().test(
 			"access-key-secret-paired",
-			BEDROCK_ACCESS_KEY_PAIRED_MESSAGE,
+			AWS_ACCESS_KEY_PAIRED_MESSAGE,
 			function (value) {
 				const accessKey = (this.parent as { accessKey?: string }).accessKey;
 				return !(credentialFilled(accessKey) && !credentialFilled(value));
 			},
 		),
+		enabled: Yup.boolean(),
+	});
+
+// `hasSavedApiKey` reports whether a workspace key is already on file. In
+// api_key mode a key must exist after the save, so the input is required
+// unless the server already holds one, including when an existing IAM
+// provider is switched to api_key mode.
+const makeClaudePlatformSchema = (editing: boolean, hasSavedApiKey: boolean) =>
+	Yup.object({
+		type: Yup.string()
+			.oneOf(["anthropic"] as const)
+			.required(),
+		authMethod: Yup.string()
+			.oneOf(["claude_platform_aws"] as const)
+			.required(),
+		name: makeNameSchema(editing),
+		displayName: makeDisplayNameSchema(editing),
+		icon: Yup.string(),
+		// The endpoint may be overridden for a proxy, so only presence is
+		// checked; the region below, not the host, decides the signing scope.
+		baseUrl: Yup.string().required("Endpoint is required"),
+		claudePlatformAuthMode: Yup.string()
+			.oneOf(["iam", "api_key"] as const)
+			.required(),
+		claudePlatformRegion: Yup.string()
+			.matches(
+				CLAUDE_PLATFORM_REGION_REGEX,
+				"Region must be lowercase, hyphen-separated (e.g. 'us-east-1').",
+			)
+			.required("Region is required"),
+		claudePlatformWorkspaceId: Yup.string().required(
+			"Workspace ID is required",
+		),
+		// The workspace key is the credential in api_key mode, so it is required
+		// there and unused in iam mode, where requests are signed.
+		apiKey: Yup.string().when("claudePlatformAuthMode", {
+			is: (mode: string) => mode === "api_key" && !hasSavedApiKey,
+			then: (schema) => schema.required("Workspace API key is required"),
+			otherwise: (schema) => schema,
+		}),
+		// The AWS pair only applies in iam mode. Testing it in api_key mode would
+		// let a half-typed value the form no longer shows block the save.
+		accessKey: Yup.string().test(
+			"access-key-paired",
+			AWS_ACCESS_KEY_PAIRED_MESSAGE,
+			function (value) {
+				const parent = this.parent as {
+					accessKeySecret?: string;
+					claudePlatformAuthMode?: string;
+				};
+				if (parent.claudePlatformAuthMode !== "iam") {
+					return true;
+				}
+				return !(
+					credentialFilled(parent.accessKeySecret) && !credentialFilled(value)
+				);
+			},
+		),
+		accessKeySecret: Yup.string().test(
+			"access-key-secret-paired",
+			AWS_ACCESS_KEY_PAIRED_MESSAGE,
+			function (value) {
+				const parent = this.parent as {
+					accessKey?: string;
+					claudePlatformAuthMode?: string;
+				};
+				if (parent.claudePlatformAuthMode !== "iam") {
+					return true;
+				}
+				return !(
+					credentialFilled(parent.accessKey) && !credentialFilled(value)
+				);
+			},
+		),
+		roleArn: Yup.string(),
 		enabled: Yup.boolean(),
 	});
 
@@ -257,50 +355,62 @@ const makeCopilotSchema = (editing: boolean) =>
 		enabled: Yup.boolean(),
 	});
 
-const getProviderFormSchema = (editing: boolean) =>
-	Yup.lazy((value: { type?: AIProviderType } | undefined) => {
-		switch (value?.type) {
-			case "openai":
-			case "anthropic":
-			case "azure":
-			case "google":
-			case "openai-compat":
-			case "openrouter":
-			case "vercel":
-				return makeOpenAiAnthropicSchema(editing);
-			case "bedrock":
-				return makeBedrockSchema(editing);
-			case "copilot":
-				return makeCopilotSchema(editing);
-			default:
-				return Yup.object({
-					type: Yup.string()
-						.oneOf([
-							"openai",
-							"anthropic",
-							"bedrock",
-							"azure",
-							"copilot",
-							"google",
-							"openai-compat",
-							"openrouter",
-							"vercel",
-						])
-						.required(),
-				});
-		}
-	});
+const getProviderFormSchema = (editing: boolean, hasSavedApiKey: boolean) =>
+	Yup.lazy(
+		(
+			value:
+				| { type?: AIProviderType; authMethod?: AnthropicAuthMethod }
+				| undefined,
+		) => {
+			if (
+				value?.type === "anthropic" &&
+				value.authMethod === "claude_platform_aws"
+			) {
+				return makeClaudePlatformSchema(editing, hasSavedApiKey);
+			}
+			switch (value?.type) {
+				case "openai":
+				case "anthropic":
+				case "azure":
+				case "google":
+				case "openai-compat":
+				case "openrouter":
+				case "vercel":
+					return makeOpenAiAnthropicSchema(editing);
+				case "bedrock":
+					return makeBedrockSchema(editing);
+				case "copilot":
+					return makeCopilotSchema(editing);
+				default:
+					return Yup.object({
+						type: Yup.string()
+							.oneOf([
+								"openai",
+								"anthropic",
+								"bedrock",
+								"azure",
+								"copilot",
+								"google",
+								"openai-compat",
+								"openrouter",
+								"vercel",
+							])
+							.required(),
+					});
+			}
+		},
+	);
 
 type ProviderFormProps = {
 	editing?: boolean;
-	/** When editing Bedrock and the API already has keys, show masked placeholders until cleared. */
-	bedrockSavedAccessCredentials?: boolean;
+	/** When editing an AWS-signed provider whose secrets are on file, show masked placeholders until cleared. */
+	awsSavedAccessCredentials?: boolean;
 	/** Server-generated STS external ID, shown read-only when a role is assumed. */
-	bedrockExternalId?: string;
-	/** When editing openai/anthropic and a key is on file, show a masked placeholder until cleared. */
-	openAiAnthropicSavedApiKey?: boolean;
-	/** Masked rendering of the saved openai/anthropic key (e.g. `sk-***...ABCD`). Falls back to a generic mask when omitted. */
-	openAiAnthropicMaskedApiKey?: string;
+	awsExternalId?: string;
+	/** A provider API key is on file: show a masked placeholder until cleared, and treat the key input as optional. */
+	hasSavedApiKey?: boolean;
+	/** Masked rendering of the saved key (e.g. `sk-***...ABCD`). Falls back to a generic mask when omitted. */
+	savedApiKeyMask?: string;
 	initialValues?: Partial<ProviderFormValues>;
 	/** Fires whenever the icon field changes, so page headers can preview it. */
 	onIconChange?: (icon: string) => void;
@@ -327,10 +437,10 @@ const baseUrlPlaceholder = (provider: string) =>
 
 export const ProviderForm: FC<ProviderFormProps> = ({
 	editing = false,
-	bedrockSavedAccessCredentials = false,
-	bedrockExternalId,
-	openAiAnthropicSavedApiKey = false,
-	openAiAnthropicMaskedApiKey,
+	awsSavedAccessCredentials = false,
+	awsExternalId,
+	hasSavedApiKey = false,
+	savedApiKeyMask,
 	initialValues,
 	onIconChange,
 	onSubmit,
@@ -341,18 +451,18 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const typeDefaults =
 		providerDefaults[resolvedType as keyof typeof providerDefaults];
 
-	// Seed Bedrock credentials with the mask when on file; focus clears it,
+	// Seed AWS credentials with the mask when on file; focus clears it,
 	// and a re-submitted "" tells the API mapping to keep the value.
-	const maskedAccessKey = bedrockSavedAccessCredentials
+	const maskedAccessKey = awsSavedAccessCredentials
 		? SAVED_CREDENTIAL_MASK
 		: "";
-	const maskedAccessKeySecret = bedrockSavedAccessCredentials
+	const maskedAccessKeySecret = awsSavedAccessCredentials
 		? SAVED_CREDENTIAL_MASK
 		: "";
-	// Same pattern for openai/anthropic. Prefer the API-supplied masked
+	// Same pattern for the provider API key. Prefer the API-supplied masked
 	// rendering so the user sees the key's identifying suffix.
-	const maskedApiKey = openAiAnthropicSavedApiKey
-		? (openAiAnthropicMaskedApiKey ?? SAVED_CREDENTIAL_MASK)
+	const maskedApiKey = hasSavedApiKey
+		? (savedApiKeyMask ?? SAVED_CREDENTIAL_MASK)
 		: "";
 
 	const didSubmit = useRef(false);
@@ -367,7 +477,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			accessKeySecret: maskedAccessKeySecret,
 			apiKey: maskedApiKey,
 		},
-		validationSchema: getProviderFormSchema(editing),
+		validationSchema: getProviderFormSchema(editing, hasSavedApiKey),
 		validateOnMount: true,
 		onSubmit: (values) => {
 			didSubmit.current = true;
@@ -436,6 +546,66 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 	const isMantle = form.values.protocol === "mantle";
 
+	const isClaudePlatform =
+		form.values.type === "anthropic" &&
+		form.values.authMethod === "claude_platform_aws";
+
+	// Switching the authentication method swaps the endpoint to the other
+	// method's default and drops credentials typed for the previous one. An
+	// operator-supplied endpoint is left alone: only a value still equal to the
+	// outgoing default is replaced.
+	const handleAnthropicAuthMethodChange = (method: AnthropicAuthMethod) => {
+		const region =
+			form.values.claudePlatformRegion.trim() || CLAUDE_PLATFORM_DEFAULT_REGION;
+		const toClaudePlatform = method === "claude_platform_aws";
+		const replaceable = toClaudePlatform
+			? form.values.baseUrl.trim() === "" ||
+				form.values.baseUrl.trim() === ANTHROPIC_DEFAULT_BASE_URL
+			: isCanonicalClaudePlatformUrl(form.values.baseUrl);
+		void form.setValues({
+			...form.values,
+			authMethod: method,
+			claudePlatformRegion: region,
+			...(replaceable
+				? {
+						baseUrl: toClaudePlatform
+							? claudePlatformBaseUrl(region)
+							: ANTHROPIC_DEFAULT_BASE_URL,
+					}
+				: {}),
+			accessKey: "",
+			accessKeySecret: "",
+			roleArn: "",
+			apiKey: "",
+		});
+	};
+
+	// The unused inputs keep their values: the API mapping only emits the
+	// credential the active mode uses, and the schema skips the AWS pairing
+	// check outside iam mode, so nothing hidden can leak or block the save.
+	const handleClaudePlatformAuthModeChange = (
+		mode: AIProviderClaudePlatformAWSAuthMode,
+	) => {
+		void form.setFieldValue("claudePlatformAuthMode", mode);
+	};
+
+	// The region sets the SigV4 signing scope, so it stays explicit. The
+	// endpoint follows the region only while it is the canonical regional host;
+	// an operator-supplied proxy URL is left untouched. A region that is not yet
+	// a valid host label is not interpolated, so the endpoint stays canonical
+	// and resumes tracking once the region is valid again.
+	const handleClaudePlatformRegionChange = (region: string) => {
+		const trimmed = region.trim();
+		const tracksRegion =
+			CLAUDE_PLATFORM_REGION_REGEX.test(trimmed) &&
+			isCanonicalClaudePlatformUrl(form.values.baseUrl);
+		void form.setValues({
+			...form.values,
+			claudePlatformRegion: region,
+			...(tracksRegion ? { baseUrl: claudePlatformBaseUrl(trimmed) } : {}),
+		});
+	};
+
 	// When the parent's mutation finishes without an error, treat the just-
 	// submitted values as the new baseline so the unsaved-changes prompt does
 	// not fire on subsequent navigations. React Query reports a missing error
@@ -494,44 +664,66 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							/>
 						</div>
 						{iconField}
-						<FormField
-							required
-							field={getFieldHelpers("baseUrl", {
-								backendFieldName: "base_url",
-							})}
-							label="Endpoint"
-							description={
-								typeSelectValue === "copilot" ? (
-									<>
-										The base URL for your Copilot tier:{" "}
-										<code>https://api.individual.githubcopilot.com</code>,{" "}
-										<code>https://api.business.githubcopilot.com</code>, or{" "}
-										<code>https://api.enterprise.githubcopilot.com</code>.
-									</>
-								) : (
-									"The base URL where the provider's API is hosted."
-								)
-							}
-							className="w-full"
-							placeholder={baseUrlPlaceholder(form.values.type)}
-						/>
-						{typeSelectValue === "copilot" ? (
-							<p className="text-sm text-content-secondary m-0">
-								Copilot authenticates with each user's GitHub OAuth token at
-								request time, so there is no API key to configure here. This
-								requires a GitHub external authentication provider to be
-								configured.
-							</p>
-						) : (
-							<CredentialField
-								required
-								label="API key"
-								helpers={getFieldHelpers("apiKey")}
-								onBlur={() => handleCredentialBlur("apiKey")}
-								onFocus={() => handleCredentialFocus("apiKey")}
-								autoComplete="new-password"
-								placeholder={apiKeyPlaceholder(form.values.type)}
+						{typeSelectValue === "anthropic" && (
+							<AnthropicAuthMethodField
+								value={form.values.authMethod}
+								disabled={editing}
+								onChange={handleAnthropicAuthMethodChange}
 							/>
+						)}
+						{isClaudePlatform ? (
+							<ClaudePlatformFields
+								editing={editing}
+								authMode={form.values.claudePlatformAuthMode}
+								awsExternalId={awsExternalId}
+								getFieldHelpers={getFieldHelpers}
+								onAuthModeChange={handleClaudePlatformAuthModeChange}
+								onRegionChange={handleClaudePlatformRegionChange}
+								onCredentialBlur={handleCredentialBlur}
+								onCredentialFocus={handleCredentialFocus}
+							/>
+						) : (
+							<>
+								<FormField
+									required
+									field={getFieldHelpers("baseUrl", {
+										backendFieldName: "base_url",
+									})}
+									label="Endpoint"
+									description={
+										typeSelectValue === "copilot" ? (
+											<>
+												The base URL for your Copilot tier:{" "}
+												<code>https://api.individual.githubcopilot.com</code>,{" "}
+												<code>https://api.business.githubcopilot.com</code>, or{" "}
+												<code>https://api.enterprise.githubcopilot.com</code>.
+											</>
+										) : (
+											"The base URL where the provider's API is hosted."
+										)
+									}
+									className="w-full"
+									placeholder={baseUrlPlaceholder(form.values.type)}
+								/>
+								{typeSelectValue === "copilot" ? (
+									<p className="text-sm text-content-secondary m-0">
+										Copilot authenticates with each user's GitHub OAuth token at
+										request time, so there is no API key to configure here. This
+										requires a GitHub external authentication provider to be
+										configured.
+									</p>
+								) : (
+									<CredentialField
+										required
+										label="API key"
+										helpers={getFieldHelpers("apiKey")}
+										onBlur={() => handleCredentialBlur("apiKey")}
+										onFocus={() => handleCredentialFocus("apiKey")}
+										autoComplete="new-password"
+										placeholder={apiKeyPlaceholder(form.values.type)}
+									/>
+								)}
+							</>
 						)}
 					</>
 				)}
@@ -673,10 +865,10 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							Optional. When a role ARN is set, the gateway assumes that role
 							(using the base identity) before calling Bedrock.
 						</p>
-						{editing && bedrockExternalId && (
+						{editing && awsExternalId && (
 							<div className="flex flex-col gap-2">
 								<Label>External ID</Label>
-								<CodeExample secret={false} code={bedrockExternalId} />
+								<CodeExample secret={false} code={awsExternalId} />
 								<p className="text-xs text-content-secondary m-0">
 									Server-generated. Add it to the assumed role's trust policy as
 									an <code>sts:ExternalId</code> condition so only this

@@ -2,12 +2,19 @@ import type {
 	AIProvider,
 	AIProviderBedrockProtocol,
 	AIProviderBedrockSettings,
+	AIProviderClaudePlatformAWSAuthMode,
+	AIProviderClaudePlatformAWSSettings,
 	AIProviderKeyMutation,
 	AIProviderSettings,
 	AIProviderType,
 	CreateAIProviderRequest,
 	UpdateAIProviderRequest,
 } from "#/api/typesGenerated";
+import {
+	AIProviderClaudePlatformAWSSettingsVersion,
+	AIProviderSettingsTypeClaudePlatformAWS,
+} from "#/api/typesGenerated";
+import { CLAUDE_PLATFORM_DISPLAY_TYPE } from "./claudePlatform";
 import {
 	type ProviderFormValues,
 	parseBedrockRegionFromBaseUrl,
@@ -35,13 +42,21 @@ const sanitizeCredential = (
 const BEDROCK_SETTINGS_TYPE = "bedrock";
 const BEDROCK_SETTINGS_VERSION = 1;
 
+type ProviderDisplayType = AIProviderType | typeof CLAUDE_PLATFORM_DISPLAY_TYPE;
+
 type BedrockSettingsWire = AIProviderBedrockSettings & {
 	_type: typeof BEDROCK_SETTINGS_TYPE;
 	_version: typeof BEDROCK_SETTINGS_VERSION;
 };
 
+type ClaudePlatformSettingsWire = AIProviderClaudePlatformAWSSettings & {
+	_type: typeof AIProviderSettingsTypeClaudePlatformAWS;
+	_version: typeof AIProviderClaudePlatformAWSSettingsVersion;
+};
+
 type SettingsWire = AIProviderSettings &
-	Partial<AIProviderBedrockSettings> & {
+	Partial<AIProviderBedrockSettings> &
+	Partial<AIProviderClaudePlatformAWSSettings> & {
 		_type?: string;
 		_version?: number;
 	};
@@ -57,23 +72,46 @@ export const isBedrockProvider = (provider: AIProvider): boolean => {
 	return s !== null && s._type === BEDROCK_SETTINGS_TYPE;
 };
 
-// Server-generated STS external ID; read-only.
-export const bedrockExternalId = (provider: AIProvider): string | undefined => {
-	if (!isBedrockProvider(provider)) {
+// Claude Platform is only valid on `anthropic`; the server rejects the
+// settings on any other type.
+export const isClaudePlatformProvider = (provider: AIProvider): boolean => {
+	if (provider.type !== "anthropic") {
+		return false;
+	}
+	const s = provider.settings as SettingsWire | null;
+	return s !== null && s._type === AIProviderSettingsTypeClaudePlatformAWS;
+};
+
+// The stored authentication mode, or undefined for providers that are not
+// Claude Platform. An unset mode is invalid server-side, so it is reported as
+// missing rather than defaulted.
+export const claudePlatformAuthMode = (
+	provider: AIProvider,
+): AIProviderClaudePlatformAWSAuthMode | undefined => {
+	if (!isClaudePlatformProvider(provider)) {
+		return undefined;
+	}
+	const s = provider.settings as SettingsWire | null;
+	return s?.auth_mode || undefined;
+};
+
+// Server-generated STS external ID; read-only. Shared by the two AWS-signed
+// authentication methods, which both assume a role the same way.
+export const awsExternalId = (provider: AIProvider): string | undefined => {
+	if (!isBedrockProvider(provider) && !isClaudePlatformProvider(provider)) {
 		return undefined;
 	}
 	const s = provider.settings as SettingsWire | null;
 	return s?.external_id || undefined;
 };
 
-export const hasBedrockStoredCredentials = (provider: AIProvider): boolean => {
-	if (!isBedrockProvider(provider)) {
-		return false;
-	}
-	// Bedrock secrets are write-only. The server only persists Bedrock
-	// settings if credentials were supplied, so presence implies "on file".
-	return true;
-};
+// Whether to seed the AWS credential inputs with a saved-value mask. The
+// secrets are write-only, so their presence cannot be observed and an
+// AWS-signed provider is assumed to have them on file. A provider relying on
+// the ambient credential chain therefore also shows the mask, which is
+// harmless: an unedited masked field submits as "keep unchanged".
+export const hasAwsStoredCredentials = (provider: AIProvider): boolean =>
+	isBedrockProvider(provider) || claudePlatformAuthMode(provider) === "iam";
 
 const parseProviderHost = (url: string): string => {
 	try {
@@ -96,15 +134,18 @@ const displayTypeHosts: ReadonlyArray<[string, AIProviderType]> = [
 const matchesHost = (host: string, suffix: string): boolean =>
 	host === suffix || host.endsWith(`.${suffix}`);
 
-// Determines which UI provider type to show for a saved provider. Bedrock is
-// detected via settings. Explicit stored types are authoritative. Generic
-// `openai` rows fall back to host inference from known preset endpoints;
-// unrecognized hosts stay as `openai`.
+// Determines which UI provider type to show for a saved provider. Bedrock and
+// Claude Platform are detected via settings. Explicit stored types are
+// authoritative. Generic `openai` rows fall back to host inference from known
+// preset endpoints; unrecognized hosts stay as `openai`.
 export const getProviderDisplayType = (
 	provider: AIProvider,
-): AIProviderType => {
+): ProviderDisplayType => {
 	if (isBedrockProvider(provider)) {
 		return "bedrock";
+	}
+	if (isClaudePlatformProvider(provider)) {
+		return CLAUDE_PLATFORM_DISPLAY_TYPE;
 	}
 	if (provider.type !== "openai") {
 		return provider.type;
@@ -140,6 +181,58 @@ const buildBedrockSettings = (
 	};
 };
 
+// Claude Platform for AWS routing and authentication. Region is always sent,
+// even when the endpoint is overridden for a proxy, because the SigV4
+// signature is region-scoped. In api_key mode the workspace key lives in
+// `api_keys`, so no credential is emitted here.
+//
+// `clearUnusedCredentials` writes explicit empty strings for the write-only
+// AWS secrets. The server keeps omitted secrets, so moving an existing
+// provider to api_key mode has to state the clear or stale signing keys stay
+// on the row.
+const buildClaudePlatformSettings = (
+	authMode: AIProviderClaudePlatformAWSAuthMode,
+	region: string,
+	workspaceId: string,
+	accessKey: string,
+	accessKeySecret: string,
+	roleArn: string,
+	clearUnusedCredentials = false,
+): ClaudePlatformSettingsWire => {
+	const isIam = authMode === "iam";
+	const clearAws = !isIam && clearUnusedCredentials;
+	return {
+		_type: AIProviderSettingsTypeClaudePlatformAWS,
+		_version: AIProviderClaudePlatformAWSSettingsVersion,
+		auth_mode: authMode,
+		region,
+		workspace_id: workspaceId,
+		...(clearAws ? { access_key: "", access_key_secret: "" } : {}),
+		...(isIam && accessKey ? { access_key: accessKey } : {}),
+		...(isIam && accessKeySecret ? { access_key_secret: accessKeySecret } : {}),
+		...(isIam && roleArn ? { role_arn: roleArn } : {}),
+	};
+};
+
+const isClaudePlatformValues = (values: ProviderFormValues): boolean =>
+	values.type === "anthropic" && values.authMethod === "claude_platform_aws";
+
+const claudePlatformSettingsFromValues = (
+	values: ProviderFormValues,
+	accessKey: string,
+	accessKeySecret: string,
+	clearUnusedCredentials = false,
+): ClaudePlatformSettingsWire =>
+	buildClaudePlatformSettings(
+		values.claudePlatformAuthMode,
+		values.claudePlatformRegion.trim(),
+		values.claudePlatformWorkspaceId.trim(),
+		accessKey,
+		accessKeySecret,
+		values.roleArn.trim(),
+		clearUnusedCredentials,
+	);
+
 // Bedrock credentials live in `settings`; openai/anthropic keys go in
 // `api_keys`. `display_name` is omitted when blank so the server stores
 // NULL and the UI falls back to `name`.
@@ -170,6 +263,26 @@ export const providerFormValuesToCreate = (
 		return {
 			type: "bedrock",
 			...base,
+			settings: settings as AIProviderSettings,
+		};
+	}
+
+	if (isClaudePlatformValues(values)) {
+		const settings = claudePlatformSettingsFromValues(
+			values,
+			sanitizeCredential(values.accessKey),
+			sanitizeCredential(values.accessKeySecret),
+		);
+		// The server requires at least one key in api_key mode and rejects keys
+		// in iam mode, where requests are signed instead.
+		const workspaceKey =
+			values.claudePlatformAuthMode === "api_key"
+				? sanitizeCredential(values.apiKey)
+				: "";
+		return {
+			type: "anthropic",
+			...base,
+			...(workspaceKey ? { api_keys: [workspaceKey] } : {}),
 			settings: settings as AIProviderSettings,
 		};
 	}
@@ -208,6 +321,39 @@ export const providerFormValuesToUpdate = (
 
 	if (values.type === "copilot") {
 		return base;
+	}
+
+	if (isClaudePlatformValues(values)) {
+		const newAccessKey = sanitizeCredential(values.accessKey);
+		const newAccessKeySecret = sanitizeCredential(values.accessKeySecret);
+		// Yup enforces "both keys together"; if both survived the mask filter,
+		// the user is rotating credentials.
+		const credentialsChanged = newAccessKey !== "" && newAccessKeySecret !== "";
+		const settings = claudePlatformSettingsFromValues(
+			values,
+			credentialsChanged ? newAccessKey : "",
+			credentialsChanged ? newAccessKeySecret : "",
+			true,
+		);
+
+		// The auth mode and the key set have to agree after the patch, so the
+		// key list is always sent: iam mode clears the keys, and api_key mode
+		// keeps or rotates the workspace key. Sending only the settings would
+		// make switching modes a guaranteed 400.
+		const savedMasked = existingProvider.api_keys[0]?.masked;
+		const newWorkspaceKey = sanitizeCredential(values.apiKey, savedMasked);
+		let apiKeys: AIProviderKeyMutation[] = [];
+		if (values.claudePlatformAuthMode === "api_key") {
+			apiKeys =
+				newWorkspaceKey === ""
+					? existingProvider.api_keys.map((k) => ({ id: k.id }))
+					: [{ api_key: newWorkspaceKey }];
+		}
+		return {
+			...base,
+			api_keys: apiKeys,
+			settings: settings as AIProviderSettings,
+		};
 	}
 
 	if (values.type !== "bedrock") {
@@ -289,9 +435,37 @@ export const aiProviderToFormValues = (
 		};
 	}
 
+	if (isClaudePlatformProvider(provider)) {
+		const s = (provider.settings as SettingsWire | null) ?? {};
+		// The server requires auth_mode, so the fallback only guards a
+		// hand-edited or malformed settings blob.
+		const authMode = s.auth_mode ?? "iam";
+		return {
+			type: "anthropic",
+			authMethod: "claude_platform_aws",
+			name: provider.name,
+			displayName,
+			icon:
+				provider.icon || (getProviderIcon(CLAUDE_PLATFORM_DISPLAY_TYPE) ?? ""),
+			baseUrl: provider.base_url,
+			claudePlatformAuthMode: authMode,
+			claudePlatformRegion: s.region ?? "",
+			claudePlatformWorkspaceId: s.workspace_id ?? "",
+			accessKey: "",
+			accessKeySecret: "",
+			roleArn: s.role_arn ?? "",
+			apiKey: "",
+			enabled: provider.enabled,
+		};
+	}
+
 	const displayType = getProviderDisplayType(provider);
+	// The synthetic Claude Platform display type maps back to the provider type
+	// it is an authentication method on.
+	const type: AIProviderType =
+		displayType === CLAUDE_PLATFORM_DISPLAY_TYPE ? "anthropic" : displayType;
 	return {
-		type: displayType,
+		type,
 		name: provider.name,
 		displayName,
 		icon: provider.icon || (getProviderIcon(displayType) ?? ""),

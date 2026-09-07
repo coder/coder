@@ -3,9 +3,12 @@ import type { AIProvider } from "#/api/typesGenerated";
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderClaudePlatformAWS,
+	MockAIProviderClaudePlatformAWSAPIKey,
 	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
+import { CLAUDE_PLATFORM_DISPLAY_TYPE } from "./claudePlatform";
 import {
 	type ProviderFormValues,
 	parseBedrockRegionFromBaseUrl,
@@ -13,16 +16,19 @@ import {
 } from "./ProviderForm";
 import {
 	aiProviderToFormValues,
-	bedrockExternalId,
+	awsExternalId,
+	claudePlatformAuthMode,
 	getProviderDisplayType,
-	hasBedrockStoredCredentials,
+	hasAwsStoredCredentials,
 	isBedrockProvider,
+	isClaudePlatformProvider,
 	providerFormValuesToCreate,
 	providerFormValuesToUpdate,
 } from "./providerFormApiMap";
 
 const baseOpenAIFormValues: ProviderFormValues = {
 	type: "openai",
+	authMethod: "api_key",
 	name: "primary-openai",
 	displayName: "Primary OpenAI",
 	icon: "",
@@ -30,6 +36,9 @@ const baseOpenAIFormValues: ProviderFormValues = {
 	protocol: "invoke-model",
 	model: "",
 	smallFastModel: "",
+	claudePlatformAuthMode: "iam",
+	claudePlatformRegion: "us-east-1",
+	claudePlatformWorkspaceId: "",
 	accessKey: "",
 	accessKeySecret: "",
 	roleArn: "",
@@ -39,6 +48,7 @@ const baseOpenAIFormValues: ProviderFormValues = {
 
 const baseBedrockFormValues: ProviderFormValues = {
 	type: "bedrock",
+	authMethod: "api_key",
 	name: "primary-bedrock",
 	displayName: "Primary Bedrock",
 	icon: "",
@@ -46,6 +56,9 @@ const baseBedrockFormValues: ProviderFormValues = {
 	protocol: "invoke-model",
 	model: "anthropic.claude-sonnet-4-5",
 	smallFastModel: "anthropic.claude-haiku-4-5",
+	claudePlatformAuthMode: "iam",
+	claudePlatformRegion: "us-east-1",
+	claudePlatformWorkspaceId: "",
 	accessKey: "AKIA-test",
 	accessKeySecret: "secret",
 	roleArn: "",
@@ -55,6 +68,7 @@ const baseBedrockFormValues: ProviderFormValues = {
 
 const baseCopilotFormValues: ProviderFormValues = {
 	type: "copilot",
+	authMethod: "api_key",
 	name: "copilot",
 	displayName: "GitHub Copilot",
 	icon: "",
@@ -62,6 +76,29 @@ const baseCopilotFormValues: ProviderFormValues = {
 	protocol: "invoke-model",
 	model: "",
 	smallFastModel: "",
+	claudePlatformAuthMode: "iam",
+	claudePlatformRegion: "us-east-1",
+	claudePlatformWorkspaceId: "",
+	accessKey: "",
+	accessKeySecret: "",
+	roleArn: "",
+	apiKey: "",
+	enabled: true,
+};
+
+const baseClaudePlatformFormValues: ProviderFormValues = {
+	type: "anthropic",
+	authMethod: "claude_platform_aws",
+	name: "claude-platform",
+	displayName: "Claude Platform",
+	icon: "",
+	baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+	protocol: "invoke-model",
+	model: "",
+	smallFastModel: "",
+	claudePlatformAuthMode: "iam",
+	claudePlatformRegion: "us-east-1",
+	claudePlatformWorkspaceId: "wrkspc_123",
 	accessKey: "",
 	accessKeySecret: "",
 	roleArn: "",
@@ -198,21 +235,31 @@ describe("isBedrockProvider", () => {
 	});
 });
 
-describe("hasBedrockStoredCredentials", () => {
+describe("hasAwsStoredCredentials", () => {
 	it("is true whenever the provider is Bedrock", () => {
 		// Bedrock secrets are write-only, so we cannot inspect their
 		// presence; the helper assumes any persisted Bedrock config
 		// implies credentials are on file.
-		expect(hasBedrockStoredCredentials(MockAIProviderBedrock)).toBe(true);
+		expect(hasAwsStoredCredentials(MockAIProviderBedrock)).toBe(true);
 	});
 
-	it("is false for non-Bedrock providers", () => {
-		expect(hasBedrockStoredCredentials(MockAIProviderOpenAI)).toBe(false);
-		expect(hasBedrockStoredCredentials(MockAIProviderAnthropic)).toBe(false);
+	it("is true for a Claude Platform provider signing with IAM", () => {
+		expect(hasAwsStoredCredentials(MockAIProviderClaudePlatformAWS)).toBe(true);
+	});
+
+	it("is false for a Claude Platform provider using a workspace key", () => {
+		expect(hasAwsStoredCredentials(MockAIProviderClaudePlatformAWSAPIKey)).toBe(
+			false,
+		);
+	});
+
+	it("is false for non-AWS providers", () => {
+		expect(hasAwsStoredCredentials(MockAIProviderOpenAI)).toBe(false);
+		expect(hasAwsStoredCredentials(MockAIProviderAnthropic)).toBe(false);
 	});
 });
 
-describe("bedrockExternalId", () => {
+describe("awsExternalId", () => {
 	it("returns the external ID from a role-based Bedrock provider", () => {
 		const provider: AIProvider = {
 			...MockAIProviderBedrock,
@@ -222,11 +269,27 @@ describe("bedrockExternalId", () => {
 				external_id: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
 			}),
 		};
-		expect(bedrockExternalId(provider)).toBe("7QF3ZK2MLP4RS6TUVWXY2ABCDE");
+		expect(awsExternalId(provider)).toBe("7QF3ZK2MLP4RS6TUVWXY2ABCDE");
+	});
+
+	it("returns the external ID from a role-based Claude Platform provider", () => {
+		const provider: AIProvider = {
+			...MockAIProviderClaudePlatformAWS,
+			settings: settings({
+				_type: "claude_platform_aws",
+				_version: 1,
+				auth_mode: "iam",
+				region: "us-east-1",
+				workspace_id: "wrkspc_123",
+				role_arn: "arn:aws:iam::123456789012:role/ClaudePlatformRole",
+				external_id: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
+			}),
+		};
+		expect(awsExternalId(provider)).toBe("7QF3ZK2MLP4RS6TUVWXY2ABCDE");
 	});
 
 	it("returns undefined when the provider has no external ID", () => {
-		expect(bedrockExternalId(MockAIProviderBedrock)).toBeUndefined();
+		expect(awsExternalId(MockAIProviderBedrock)).toBeUndefined();
 	});
 
 	it("returns undefined when the external ID is an empty string", () => {
@@ -234,11 +297,52 @@ describe("bedrockExternalId", () => {
 			...MockAIProviderBedrock,
 			settings: settings({ _type: "bedrock", external_id: "" }),
 		};
-		expect(bedrockExternalId(provider)).toBeUndefined();
+		expect(awsExternalId(provider)).toBeUndefined();
 	});
 
-	it("returns undefined for a non-Bedrock provider", () => {
-		expect(bedrockExternalId(MockAIProviderOpenAI)).toBeUndefined();
+	it("returns undefined for a provider that never signs with AWS", () => {
+		expect(awsExternalId(MockAIProviderOpenAI)).toBeUndefined();
+	});
+});
+
+describe("isClaudePlatformProvider", () => {
+	it("recognises the settings discriminator", () => {
+		expect(isClaudePlatformProvider(MockAIProviderClaudePlatformAWS)).toBe(
+			true,
+		);
+	});
+
+	it("rejects a plain Anthropic provider", () => {
+		expect(isClaudePlatformProvider(MockAIProviderAnthropic)).toBe(false);
+	});
+
+	it("rejects a Bedrock provider", () => {
+		expect(isClaudePlatformProvider(MockAIProviderBedrock)).toBe(false);
+		expect(isBedrockProvider(MockAIProviderClaudePlatformAWS)).toBe(false);
+	});
+
+	it("rejects the settings on a non-Anthropic type", () => {
+		// The server only accepts Claude Platform settings on `anthropic`, so a
+		// hand-crafted row on another type must not be treated as configured.
+		const provider: AIProvider = {
+			...MockAIProviderClaudePlatformAWS,
+			type: "openai",
+		};
+		expect(isClaudePlatformProvider(provider)).toBe(false);
+	});
+});
+
+describe("claudePlatformAuthMode", () => {
+	it("returns the stored mode", () => {
+		expect(claudePlatformAuthMode(MockAIProviderClaudePlatformAWS)).toBe("iam");
+		expect(claudePlatformAuthMode(MockAIProviderClaudePlatformAWSAPIKey)).toBe(
+			"api_key",
+		);
+	});
+
+	it("returns undefined for other providers", () => {
+		expect(claudePlatformAuthMode(MockAIProviderAnthropic)).toBeUndefined();
+		expect(claudePlatformAuthMode(MockAIProviderBedrock)).toBeUndefined();
 	});
 });
 
@@ -249,6 +353,14 @@ describe("getProviderDisplayType", () => {
 
 	it("returns anthropic for a non-Bedrock Anthropic provider", () => {
 		expect(getProviderDisplayType(MockAIProviderAnthropic)).toBe("anthropic");
+	});
+
+	it("returns the synthetic Claude Platform type", () => {
+		// Claude Platform is not an AIProviderType, so list rows key off a
+		// synthetic value to pick the AWS glyph.
+		expect(getProviderDisplayType(MockAIProviderClaudePlatformAWS)).toBe(
+			CLAUDE_PLATFORM_DISPLAY_TYPE,
+		);
 	});
 
 	it("returns openai for the canonical OpenAI host", () => {
@@ -881,5 +993,203 @@ describe("aiProviderToFormValues", () => {
 		};
 		const values = aiProviderToFormValues(provider);
 		expect(values.type).toBe("bedrock");
+	});
+});
+
+describe("Claude Platform for AWS mapping", () => {
+	const readSettings = (
+		raw: AIProvider["settings"] | undefined,
+	): Record<string, unknown> => raw as unknown as Record<string, unknown>;
+
+	describe("providerFormValuesToCreate", () => {
+		it("creates an anthropic provider carrying the settings discriminator", () => {
+			const req = providerFormValuesToCreate(baseClaudePlatformFormValues);
+			expect(req.type).toBe("anthropic");
+			const s = readSettings(req.settings);
+			expect(s._type).toBe("claude_platform_aws");
+			expect(s._version).toBe(1);
+			expect(s.auth_mode).toBe("iam");
+			expect(s.region).toBe("us-east-1");
+			expect(s.workspace_id).toBe("wrkspc_123");
+		});
+
+		it("sends no API key in iam mode", () => {
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				apiKey: "sk-ant-should-be-ignored",
+			});
+			expect(req.api_keys).toBeUndefined();
+		});
+
+		it("sends the AWS credential pair and role in iam mode", () => {
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				accessKey: "AKIA-test",
+				accessKeySecret: "secret",
+				roleArn: "arn:aws:iam::123456789012:role/ClaudePlatformRole",
+			});
+			const s = readSettings(req.settings);
+			expect(s.access_key).toBe("AKIA-test");
+			expect(s.access_key_secret).toBe("secret");
+			expect(s.role_arn).toBe(
+				"arn:aws:iam::123456789012:role/ClaudePlatformRole",
+			);
+		});
+
+		it("omits AWS credentials when the ambient credential chain is used", () => {
+			const req = providerFormValuesToCreate(baseClaudePlatformFormValues);
+			const s = readSettings(req.settings);
+			expect(s.access_key).toBeUndefined();
+			expect(s.access_key_secret).toBeUndefined();
+			expect(s.role_arn).toBeUndefined();
+		});
+
+		it("sends the workspace key and no AWS credentials in api_key mode", () => {
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				claudePlatformAuthMode: "api_key",
+				apiKey: "sk-ant-workspace",
+				accessKey: "AKIA-stale",
+				accessKeySecret: "stale",
+				roleArn: "arn:aws:iam::123456789012:role/Stale",
+			});
+			expect(req.api_keys).toEqual(["sk-ant-workspace"]);
+			const s = readSettings(req.settings);
+			expect(s.auth_mode).toBe("api_key");
+			expect(s.access_key).toBeUndefined();
+			expect(s.access_key_secret).toBeUndefined();
+			expect(s.role_arn).toBeUndefined();
+		});
+
+		it("does not clear AWS credentials on create in api_key mode", () => {
+			// Create has nothing stored to clear, so the empty markers would only
+			// be noise on the wire.
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				claudePlatformAuthMode: "api_key",
+				apiKey: "sk-ant-workspace",
+			});
+			const s = readSettings(req.settings);
+			expect(s).not.toHaveProperty("access_key");
+			expect(s).not.toHaveProperty("access_key_secret");
+		});
+
+		it("keeps a proxy endpoint while still sending the region", () => {
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				baseUrl: "https://anthropic-proxy.internal.example.com",
+				claudePlatformRegion: "eu-west-1",
+			});
+			expect(req.base_url).toBe("https://anthropic-proxy.internal.example.com");
+			expect(readSettings(req.settings).region).toBe("eu-west-1");
+		});
+	});
+
+	describe("providerFormValuesToUpdate", () => {
+		it("clears the key list in iam mode so the modes stay consistent", () => {
+			const req = providerFormValuesToUpdate(
+				baseClaudePlatformFormValues,
+				MockAIProviderClaudePlatformAWSAPIKey,
+			);
+			expect(req.api_keys).toEqual([]);
+			expect(readSettings(req.settings).auth_mode).toBe("iam");
+		});
+
+		it("retains the saved workspace key when the input was untouched", () => {
+			const req = providerFormValuesToUpdate(
+				{
+					...baseClaudePlatformFormValues,
+					claudePlatformAuthMode: "api_key",
+					apiKey: MockAIProviderClaudePlatformAWSAPIKey.api_keys[0].masked,
+				},
+				MockAIProviderClaudePlatformAWSAPIKey,
+			);
+			expect(req.api_keys).toEqual([
+				{ id: MockAIProviderClaudePlatformAWSAPIKey.api_keys[0].id },
+			]);
+		});
+
+		it("rotates the workspace key when a new plaintext is entered", () => {
+			const req = providerFormValuesToUpdate(
+				{
+					...baseClaudePlatformFormValues,
+					claudePlatformAuthMode: "api_key",
+					apiKey: "sk-ant-rotated",
+				},
+				MockAIProviderClaudePlatformAWSAPIKey,
+			);
+			expect(req.api_keys).toEqual([{ api_key: "sk-ant-rotated" }]);
+		});
+
+		it("sends the key list when switching from iam to api_key", () => {
+			const req = providerFormValuesToUpdate(
+				{
+					...baseClaudePlatformFormValues,
+					claudePlatformAuthMode: "api_key",
+					apiKey: "sk-ant-new",
+				},
+				MockAIProviderClaudePlatformAWS,
+			);
+			expect(req.api_keys).toEqual([{ api_key: "sk-ant-new" }]);
+			expect(readSettings(req.settings).auth_mode).toBe("api_key");
+		});
+
+		it("clears the stored AWS credentials when switching to api_key mode", () => {
+			// The server keeps write-only secrets that a patch omits, so the
+			// clear has to be explicit or stale signing keys stay on the row.
+			const req = providerFormValuesToUpdate(
+				{
+					...baseClaudePlatformFormValues,
+					claudePlatformAuthMode: "api_key",
+					apiKey: "sk-ant-new",
+				},
+				MockAIProviderClaudePlatformAWS,
+			);
+			const s = readSettings(req.settings);
+			expect(s.access_key).toBe("");
+			expect(s.access_key_secret).toBe("");
+			expect(s.role_arn).toBeUndefined();
+		});
+
+		it("omits AWS credentials when only one half of the pair changed", () => {
+			// Half a rotation would leave the stored pair mismatched, so the
+			// mapping treats it as "keep unchanged".
+			const req = providerFormValuesToUpdate(
+				{
+					...baseClaudePlatformFormValues,
+					accessKey: "AKIA-new",
+					accessKeySecret: SAVED_CREDENTIAL_MASK,
+				},
+				MockAIProviderClaudePlatformAWS,
+			);
+			const s = readSettings(req.settings);
+			expect(s.access_key).toBeUndefined();
+			expect(s.access_key_secret).toBeUndefined();
+		});
+	});
+
+	describe("aiProviderToFormValues", () => {
+		it("seeds the Anthropic type with the Claude Platform auth method", () => {
+			const values = aiProviderToFormValues(MockAIProviderClaudePlatformAWS);
+			expect(values.type).toBe("anthropic");
+			expect(values.authMethod).toBe("claude_platform_aws");
+			expect(values.claudePlatformAuthMode).toBe("iam");
+			expect(values.claudePlatformRegion).toBe("us-east-1");
+			expect(values.claudePlatformWorkspaceId).toBe("wrkspc_123");
+		});
+
+		it("never round-trips secrets back to the form", () => {
+			const values = aiProviderToFormValues(MockAIProviderClaudePlatformAWS);
+			expect(values.accessKey).toBe("");
+			expect(values.accessKeySecret).toBe("");
+			expect(values.apiKey).toBe("");
+		});
+
+		it("seeds the api_key mode from the stored settings", () => {
+			const values = aiProviderToFormValues(
+				MockAIProviderClaudePlatformAWSAPIKey,
+			);
+			expect(values.claudePlatformAuthMode).toBe("api_key");
+		});
 	});
 });
