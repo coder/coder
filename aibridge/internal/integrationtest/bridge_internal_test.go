@@ -1523,6 +1523,60 @@ func TestAnthropicInjectedTools(t *testing.T) {
 	}
 }
 
+// TestAnthropicStreamRenumbering pins the content_block_* index mapping the
+// client observes when an injected tool splices two upstream streams into
+// one client-facing message. Upstream indices restart at zero on the
+// continuation and the swallowed tool_use block claims no client index, so
+// the continuation's block 0 must be relayed as block 1. The strict SDK
+// accumulator in TestAnthropicInjectedTools only covers this implicitly;
+// a regression here should fail with a readable index diff.
+func TestAnthropicStreamRenumbering(t *testing.T) {
+	t.Parallel()
+
+	_, _, resp := setupInjectedToolTest(t, fixtures.AntSingleInjectedTool, true, defaultTracer, pathAnthropicMessages, anthropicToolResultValidator(t))
+	defer resp.Body.Close()
+
+	type indexedEvent struct {
+		Type  string
+		Index int64
+	}
+	var got []indexedEvent
+	decoder := ssestream.NewDecoder(resp)
+	stream := ssestream.NewStream[anthropic.MessageStreamEventUnion](decoder, nil)
+	for stream.Next() {
+		event := stream.Current()
+		if !strings.HasPrefix(event.Type, "content_block_") {
+			continue
+		}
+		got = append(got, indexedEvent{Type: event.Type, Index: event.Index})
+	}
+	require.NoError(t, stream.Err(), "stream error")
+
+	want := []indexedEvent{
+		// Iteration 1: upstream text block 0 relayed verbatim. Its
+		// tool_use block 1 is swallowed and claims no client index.
+		{Type: "content_block_start", Index: 0},
+		{Type: "content_block_delta", Index: 0},
+		{Type: "content_block_delta", Index: 0},
+		{Type: "content_block_delta", Index: 0},
+		{Type: "content_block_stop", Index: 0},
+		// Continuation: upstream indices restart at 0 but the client
+		// has already seen one block, so they are renumbered to 1.
+		{Type: "content_block_start", Index: 1},
+		{Type: "content_block_delta", Index: 1},
+		{Type: "content_block_delta", Index: 1},
+		{Type: "content_block_delta", Index: 1},
+		{Type: "content_block_delta", Index: 1},
+		{Type: "content_block_delta", Index: 1},
+		{Type: "content_block_delta", Index: 1},
+		{Type: "content_block_delta", Index: 1},
+		{Type: "content_block_delta", Index: 1},
+		{Type: "content_block_delta", Index: 1},
+		{Type: "content_block_stop", Index: 1},
+	}
+	require.Equal(t, want, got)
+}
+
 func TestOpenAIInjectedTools(t *testing.T) {
 	t.Parallel()
 
