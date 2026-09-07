@@ -206,7 +206,7 @@ func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 	require.Equal(t, "assumed-token", got.SessionToken)
 
 	require.Equal(t, "arn:aws:iam::123456789012:role/target", gotRoleARN)
-	require.Equal(t, bedrockSessionName, gotSessionName)
+	require.Equal(t, awsSessionName, gotSessionName)
 	// The STS client disables keep-alive so each AssumeRole opens a fresh
 	// connection; Go signals this with a Connection: close request header.
 	require.Equal(t, "close", gotConnection,

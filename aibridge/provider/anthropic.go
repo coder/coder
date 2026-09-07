@@ -184,7 +184,7 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 	}
 	if p.bedrock != nil {
-		return intercept.Bedrock{AccessKey: p.bedrock.Cfg.AccessKey}, nil
+		return intercept.AWSSigV4{AccessKey: p.bedrock.Cfg.AccessKey}, nil
 	}
 	return nil, ErrNoCredential
 }
