@@ -36,7 +36,7 @@ var (
 
 // Trigger-side advisory lock key prefixes, registered here for
 // discoverability only. The per-user cap triggers on user_secrets and
-// user_skills (migration 000590) serialize on transaction-scoped advisory
+// user_skills (migration 000591) serialize on transaction-scoped advisory
 // locks derived in SQL, never from Go code:
 //
 //	pg_advisory_xact_lock(hashtextextended('user_secrets_cap:' || NEW.user_id::text, 0))

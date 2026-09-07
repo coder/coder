@@ -2,7 +2,7 @@ package database
 
 // Constraint names raised by the per-user cap trigger functions on
 // user_secrets (migration 000509) and user_skills (migration 000502),
-// serialized per user by advisory locks since migration 000590.
+// serialized per user by advisory locks since migration 000591.
 // RAISE ... USING CONSTRAINT names never appear in pg_constraint, so the
 // generated check_constraint.go cannot own them; they are declared once
 // here and matched by the API handlers and by the cap tests, which pin
