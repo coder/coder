@@ -168,9 +168,6 @@ export const settlePromotedQueueHead = async (
 	chatID: string,
 	promotedHeadID: number,
 	fetchMessages: (chatID: string) => Promise<TypesGen.ChatMessagesResponse>,
-	writeQueuedMessages?: (
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
-	) => void,
 ): Promise<readonly TypesGen.ChatQueuedMessage[] | undefined> => {
 	const baselineFence = store.getQueueConvergenceFence();
 	let response: TypesGen.ChatMessagesResponse;
@@ -180,18 +177,12 @@ export const settlePromotedQueueHead = async (
 		// Convergence is best effort; a later authoritative update can correct it.
 		return undefined;
 	}
-	const settled = store.applyPromoteRefetchQueuedMessages(
+	return store.applyPromoteRefetchQueuedMessages(
 		chatID,
 		promotedHeadID,
 		response.queued_messages ?? [],
 		baselineFence,
 	);
-	// Write in this turn so a later queue_update cannot be stomped by a
-	// deferred cache write after this function has already returned.
-	if (settled) {
-		writeQueuedMessages?.(settled);
-	}
-	return settled;
 };
 
 export async function submitEdit({

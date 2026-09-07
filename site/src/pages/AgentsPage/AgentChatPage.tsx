@@ -1468,8 +1468,11 @@ const AgentChatPage: FC = () => {
 							agentId,
 							queueHeadIDBeforeSend,
 							(chatID) => queryClient.fetchQuery(chatQueueConvergence(chatID)),
-							setCacheQueuedMessages,
-						);
+						).then((settled) => {
+							if (settled) {
+								setCacheQueuedMessages(settled);
+							}
+						});
 					}
 				}
 			}
