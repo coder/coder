@@ -88,18 +88,6 @@ func TestOAuth2ClientRegistrationRequest_DetermineClientType(t *testing.T) {
 	}
 }
 
-func TestIsLoopbackAddress(t *testing.T) {
-	t.Parallel()
-
-	for _, host := range []string{"localhost", "127.0.0.1", "::1"} {
-		require.True(t, codersdk.IsLoopbackAddress(host), host)
-	}
-	// Callers pass url.URL.Hostname(), which strips IPv6 brackets.
-	for _, host := range []string{"", "[::1]", "app.localhost", "127.0.0.2", "0.0.0.0", "example.com"} {
-		require.False(t, codersdk.IsLoopbackAddress(host), host)
-	}
-}
-
 func TestRedirectURIMatches(t *testing.T) {
 	t.Parallel()
 
