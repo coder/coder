@@ -324,8 +324,8 @@ func isLocalhost(hostname string) bool {
 		strings.HasSuffix(hostname, ".localhost")
 }
 
-// IsLoopbackAddress reports whether hostname is one of the loopback hosts
-// RFC 8252 §7.3 names: localhost, 127.0.0.1, or ::1.
+// IsLoopbackAddress reports whether hostname is a loopback host. RFC 8252 §7.3
+// names 127.0.0.1 and ::1. Coder also accepts localhost as its own policy.
 func IsLoopbackAddress(hostname string) bool {
 	return hostname == "localhost" ||
 		hostname == "127.0.0.1" ||
