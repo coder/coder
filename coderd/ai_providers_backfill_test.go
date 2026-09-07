@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -33,7 +35,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		logger := testLogger(t)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		t.Run("NoLegacyRows", func(t *testing.T) {
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
@@ -204,7 +206,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			GetAIProviders(gomock.Any(), gomock.Any()).
 			Return(nil, sql.ErrConnDone)
 
-		coderd.BackfillBedrockProviderType(ctx, db, testLogger(t))
+		coderd.BackfillBedrockProviderType(ctx, db, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}))
 	})
 
 	t.Run("UpdateFailure", func(t *testing.T) {
@@ -223,7 +225,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			UpdateAIProvider(gomock.Any(), gomock.Any()).
 			Return(database.AIProvider{}, sql.ErrConnDone)
 
-		coderd.BackfillBedrockProviderType(ctx, db, testLogger(t))
+		coderd.BackfillBedrockProviderType(ctx, db, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}))
 	})
 
 	t.Run("ProviderDeletedDuringBackfill", func(t *testing.T) {
@@ -243,6 +245,6 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			Return(database.AIProvider{}, sql.ErrNoRows)
 
 		// ErrNoRows is benign: provider was deleted between list and update.
-		coderd.BackfillBedrockProviderType(ctx, db, testLogger(t))
+		coderd.BackfillBedrockProviderType(ctx, db, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}))
 	})
 }

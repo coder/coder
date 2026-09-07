@@ -17,31 +17,13 @@ handling, and how to monitor providers.
 
 ## Database management of providers
 
-> [!NOTE]
-> Since v2.34, provider environment variables and flags, including
-> `CODER_AI_GATEWAY_PROVIDER_<N>_*`, `CODER_AI_GATEWAY_OPENAI_*`,
-> `CODER_AI_GATEWAY_ANTHROPIC_*`, and their `--aibridge/ai-gateway-*`
-> equivalents, are deprecated. Provider configuration is now stored in
-> the database, and any environment variables set on startup are used to
-> seed it.
->
-> This is a once-off operation. The environment variables have no effect
-> once seeding has completed.
->
-> **Any changes to the provider environment variables after seeding will
-> cause the server to fail to start, to prevent operators from updating a
-> configuration that is ineffectual.**
->
-> The environment variables can be safely removed once seeding has
-> completed. Visit `https://<your-coder-host>/ai/settings/providers` to see
-> which providers have been seeded.
+Manage provider records through the dashboard at `https://<your-coder-host>/ai/settings/providers` or [AI Providers API](../../reference/api/aiproviders.md).
 
-After seeding, manage providers through the dashboard or API. A provider
-that has been edited or removed there is not recreated or overwritten
-from the environment on the next restart.
+The indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` variables, single-provider `CODER_AI_GATEWAY_OPENAI_*`, `CODER_AI_GATEWAY_ANTHROPIC_*`, and `CODER_AI_GATEWAY_BEDROCK_*` options, and their AI Bridge aliases are no longer supported.
+Remove these environment variables and their CLI or YAML equivalents from your deployment configuration.
+Providers already stored in the database remain available without them.
 
-Seeding is a `coderd` operation.
-A [standalone gateway](./standalone.md) ignores the deprecated provider variables and fetches provider configuration from `coderd`.
+Both the embedded gateway and a [standalone gateway](./standalone.md) fetch provider configuration from Coder.
 
 ## Provider types
 
@@ -379,8 +361,7 @@ and how to enable or disable it.
 
 ## Failure modes
 
-| Symptom                                        | Likely cause                                               | Corrective action                        |
-|------------------------------------------------|------------------------------------------------------------|------------------------------------------|
-| Startup fails referencing an existing provider | Env config drifted from a provider already in the database | Remove the provider env vars and restart |
-| Provider returns errors with no upstream call  | The provider is `disabled` or in `error` status            | Consult the server logs for details      |
-| Configuration changes not taking effect        | Reloads are firing but failing to apply                    | Consult the server logs for details      |
+| Symptom                                       | Likely cause                                    | Corrective action                   |
+|-----------------------------------------------|-------------------------------------------------|-------------------------------------|
+| Provider returns errors with no upstream call | The provider is `disabled` or in `error` status | Consult the server logs for details |
+| Configuration changes not taking effect       | Reloads are firing but failing to apply         | Consult the server logs for details |
