@@ -114,6 +114,12 @@ func redactAIProviderSettings(s codersdk.AIProviderSettings) codersdk.AIProvider
 		b.AccessKeySecret = nil
 		out.Bedrock = &b
 	}
+	if out.ClaudePlatformAWS != nil {
+		c := *out.ClaudePlatformAWS
+		c.AccessKey = nil
+		c.AccessKeySecret = nil
+		out.ClaudePlatformAWS = &c
+	}
 	return out
 }
 

@@ -97,7 +97,10 @@ func SeedAIProvidersFromEnv(
 		}
 
 		for _, dp := range desired {
-			settings, err := encodeAIProviderSettings(codersdk.AIProviderSettings{Bedrock: dp.Bedrock})
+			settings, err := encodeAIProviderSettings(codersdk.AIProviderSettings{
+				Bedrock:           dp.Bedrock,
+				ClaudePlatformAWS: dp.ClaudePlatformAWS,
+			})
 			if err != nil {
 				return xerrors.Errorf("encode settings for %q: %w", dp.Name, err)
 			}
@@ -134,10 +137,11 @@ func SeedAIProvidersFromEnv(
 					existingType = database.AIProviderTypeBedrock
 				}
 				existingDP := desiredAIProvider{
-					Type:    existingType,
-					BaseURL: existing.BaseUrl,
-					Bedrock: existingSettings.Bedrock,
-					Keys:    existingKeys,
+					Type:              existingType,
+					BaseURL:           existing.BaseUrl,
+					Bedrock:           existingSettings.Bedrock,
+					ClaudePlatformAWS: existingSettings.ClaudePlatformAWS,
+					Keys:              existingKeys,
 				}
 				existingHash := computeProviderHash(existingDP.canonical())
 				if existingHash == dp.Hash {
@@ -223,7 +227,15 @@ type canonicalAIProvider struct {
 	Type          string `json:"type"`
 	BaseURL       string `json:"base_url"`
 	BedrockRegion string `json:"bedrock_region"`
-	KeysHash      string `json:"keys_hash"`
+	// Claude Platform for AWS fields. Every operator-controllable field is
+	// hashed, including the role ARN, so that changing any of them in the
+	// environment is detected as drift on restart; the credentials themselves
+	// are folded into KeysHash.
+	ClaudePlatformAuthMode    string `json:"claude_platform_auth_mode"`
+	ClaudePlatformRegion      string `json:"claude_platform_region"`
+	ClaudePlatformWorkspaceID string `json:"claude_platform_workspace_id"`
+	ClaudePlatformRoleARN     string `json:"claude_platform_role_arn"`
+	KeysHash                  string `json:"keys_hash"`
 }
 
 // desiredAIProvider is a normalized provider description sourced from
@@ -240,7 +252,11 @@ type desiredAIProvider struct {
 	// Bedrock holds the Bedrock-specific settings when the provider
 	// targets AWS Bedrock; nil otherwise.
 	Bedrock *codersdk.AIProviderBedrockSettings
-	Hash    string
+	// ClaudePlatformAWS holds the Claude Platform for AWS settings when the
+	// provider targets Anthropic's AWS-hosted Messages API; nil otherwise.
+	// Mutually exclusive with Bedrock.
+	ClaudePlatformAWS *codersdk.AIProviderClaudePlatformAWSSettings
+	Hash              string
 }
 
 func (d desiredAIProvider) canonical() canonicalAIProvider {
@@ -251,13 +267,19 @@ func (d desiredAIProvider) canonical() canonicalAIProvider {
 	if d.Bedrock != nil {
 		c.BedrockRegion = d.Bedrock.Region
 	}
-	c.KeysHash = computeKeysHash(d.Keys, d.Bedrock)
+	if cp := d.ClaudePlatformAWS; cp != nil {
+		c.ClaudePlatformAuthMode = string(cp.AuthMode)
+		c.ClaudePlatformRegion = cp.Region
+		c.ClaudePlatformWorkspaceID = cp.WorkspaceID
+		c.ClaudePlatformRoleARN = cp.RoleARN
+	}
+	c.KeysHash = computeKeysHash(d.Keys, d.Bedrock, d.ClaudePlatformAWS)
 	return c
 }
 
 // computeKeysHash produces a deterministic hash over the bearer API
-// keys and, for Bedrock providers, the access key and secret.
-func computeKeysHash(bearerKeys []string, bedrock *codersdk.AIProviderBedrockSettings) string {
+// keys and, for AWS-authenticated providers, the access key and secret.
+func computeKeysHash(bearerKeys []string, bedrock *codersdk.AIProviderBedrockSettings, claudePlatform *codersdk.AIProviderClaudePlatformAWSSettings) string {
 	// Collect all credential material in a deterministic order.
 	// Bearer keys are sorted so reordering in env vars does not
 	// trigger a false-positive drift.
@@ -278,6 +300,16 @@ func computeKeysHash(bearerKeys []string, bedrock *codersdk.AIProviderBedrockSet
 		_, _ = h.Write([]byte{0})
 		if bedrock.AccessKeySecret != nil {
 			_, _ = h.Write([]byte(*bedrock.AccessKeySecret))
+		}
+		_, _ = h.Write([]byte{0})
+	}
+	if claudePlatform != nil {
+		if claudePlatform.AccessKey != nil {
+			_, _ = h.Write([]byte(*claudePlatform.AccessKey))
+		}
+		_, _ = h.Write([]byte{0})
+		if claudePlatform.AccessKeySecret != nil {
+			_, _ = h.Write([]byte(*claudePlatform.AccessKeySecret))
 		}
 		_, _ = h.Write([]byte{0})
 	}
@@ -414,6 +446,14 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 				dp.BaseURL = p.BedrockBaseURL
 			}
 		}
+		// Claude Platform for AWS is an authentication method on Anthropic and
+		// is mutually exclusive with Bedrock; cli/server.go rejects the
+		// combination before we get here.
+		if dp.Type == database.AIProviderTypeAnthropic && !isBedrock {
+			if cp := claudePlatformSettingsFromEnv(p); cp != nil {
+				dp.ClaudePlatformAWS = cp
+			}
+		}
 		// Non-Bedrock, non-Copilot providers carry their bearer keys in
 		// ai_provider_keys. Bedrock providers authenticate via the
 		// settings blob; Copilot providers use request-time GitHub
@@ -458,4 +498,31 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 		res = append(res, out[name])
 	}
 	return res, nil
+}
+
+// claudePlatformSettingsFromEnv builds the Claude Platform for AWS settings
+// from an indexed provider's env config, or returns nil when the operator
+// configured none of the fields. cli/server.go has already rejected incomplete
+// and conflicting combinations, so a non-nil result is always routable.
+func claudePlatformSettingsFromEnv(p codersdk.AIProviderConfig) *codersdk.AIProviderClaudePlatformAWSSettings {
+	cp := codersdk.AIProviderClaudePlatformAWSSettings{
+		AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthMode(p.ClaudePlatformAuthMode),
+		Region:      p.ClaudePlatformRegion,
+		WorkspaceID: p.ClaudePlatformWorkspaceID,
+		RoleARN:     p.ClaudePlatformRoleARN,
+	}
+	// Leave the credentials nil when unset so the ambient AWS credential chain
+	// applies, matching the "omitted" PATCH semantics of the pointer fields.
+	if p.ClaudePlatformAccessKey != "" {
+		key := p.ClaudePlatformAccessKey
+		cp.AccessKey = &key
+	}
+	if p.ClaudePlatformAccessKeySecret != "" {
+		secret := p.ClaudePlatformAccessKeySecret
+		cp.AccessKeySecret = &secret
+	}
+	if !cp.IsConfigured() {
+		return nil
+	}
+	return &cp
 }

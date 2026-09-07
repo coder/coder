@@ -184,7 +184,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate the server-owned external ID when the provider assumes a role.
-	ensureBedrockExternalID(&req.Settings)
+	ensureAIProviderExternalID(&req.Settings)
 
 	settings, err := encodeAIProviderSettings(req.Settings)
 	if err != nil {
@@ -328,7 +328,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("decode existing settings: %w", err)
 		}
 		if req.Settings != nil {
-			if err := validateBedrockExternalIDUnchanged(existing, *req.Settings); err != nil {
+			if err := validateAIProviderExternalIDUnchanged(existing, *req.Settings); err != nil {
 				return err
 			}
 			existing = mergeAIProviderSettings(existing, *req.Settings)
@@ -342,9 +342,14 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
+		// Claude Platform is an authentication method on Anthropic, so it never
+		// belongs on another provider type.
+		if existing.ClaudePlatformAWS != nil && old.Type != database.AIProviderTypeAnthropic {
+			return errAIProviderClaudePlatformTypeMismatch
+		}
 		// Generate the server-owned external ID when the provider assumes a role
 		// and lacks one.
-		ensureBedrockExternalID(&existing)
+		ensureAIProviderExternalID(&existing)
 		settings, err := encodeAIProviderSettings(existing)
 		if err != nil {
 			return xerrors.Errorf("encode settings: %w", err)
@@ -354,6 +359,34 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		// row is Bedrock or the patch would make it so).
 		if req.APIKeys != nil && existing.Bedrock != nil && len(*req.APIKeys) > 0 {
 			return errBedrockRejectsAPIKeys
+		}
+
+		// The Claude Platform workspace key lives in api_keys, so the post-patch
+		// key set has to agree with the post-patch auth mode. The gateway prefers
+		// the key pool over signing, so an IAM provider that kept its keys would
+		// silently authenticate with them instead of the role.
+		if cp := existing.ClaudePlatformAWS; cp != nil {
+			keyCount := 0
+			if req.APIKeys != nil {
+				keyCount = len(*req.APIKeys)
+			} else {
+				// The patch leaves the key set alone, so the stored set decides.
+				storedKeys, err := tx.GetAIProviderKeysByProviderID(ctx, old.ID)
+				if err != nil {
+					return xerrors.Errorf("load ai provider keys: %w", err)
+				}
+				keyCount = len(storedKeys)
+			}
+			switch cp.ResolvedAuthMode() {
+			case codersdk.AIProviderClaudePlatformAWSAuthModeIAM:
+				if keyCount > 0 {
+					return errClaudePlatformIAMRejectsAPIKeys
+				}
+			case codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey:
+				if keyCount == 0 {
+					return errClaudePlatformAPIKeyRequiresAPIKeys
+				}
+			}
 		}
 
 		if req.APIKeys != nil && old.Type == database.AIProviderTypeCopilot && len(*req.APIKeys) > 0 {
@@ -417,9 +450,27 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if errors.Is(err, errAIProviderClaudePlatformTypeMismatch) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Claude Platform settings are only valid for type=anthropic.",
+		})
+		return
+	}
+	if errors.Is(err, errClaudePlatformIAMRejectsAPIKeys) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Claude Platform providers using auth_mode=iam do not accept api_keys; clear the keys or switch to auth_mode=api_key.",
+		})
+		return
+	}
+	if errors.Is(err, errClaudePlatformAPIKeyRequiresAPIKeys) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Claude Platform providers using auth_mode=api_key require at least one api_key.",
+		})
+		return
+	}
 	if errors.Is(err, errAIProviderExternalIDReadOnly) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The Bedrock external ID is server-generated and cannot be changed.",
+			Message: "The STS external ID is server-generated and cannot be changed.",
 		})
 		return
 	}
@@ -518,6 +569,25 @@ func (api *API) publishAIProvidersChanged(ctx context.Context) {
 // Bedrock-typed provider; the outer handler translates it into a 400.
 var errBedrockRejectsAPIKeys = xerrors.New("bedrock providers do not accept api_keys")
 
+// errClaudePlatformIAMRejectsAPIKeys is the sentinel returned from inside the
+// update transaction when a Claude Platform provider would end up in IAM mode
+// while still holding api_keys; the outer handler translates it into a 400.
+// The gateway prefers the key pool over signing, so the keys would silently
+// win over the configured role.
+var errClaudePlatformIAMRejectsAPIKeys = xerrors.New("claude platform providers using auth_mode=iam do not accept api_keys")
+
+// errClaudePlatformAPIKeyRequiresAPIKeys is the sentinel returned from inside
+// the update transaction when a Claude Platform provider would end up in
+// api_key mode with no keys, leaving it unable to authenticate; the outer
+// handler translates it into a 400.
+var errClaudePlatformAPIKeyRequiresAPIKeys = xerrors.New("claude platform providers using auth_mode=api_key require at least one api_key")
+
+// errAIProviderClaudePlatformTypeMismatch is the sentinel returned from inside
+// the update transaction when the post-patch settings carry a Claude Platform
+// block but the provider is not anthropic-typed; the outer handler translates
+// it into a 400.
+var errAIProviderClaudePlatformTypeMismatch = xerrors.New("claude platform settings are only valid for type=anthropic")
+
 // errCopilotRejectsAPIKeys is the sentinel returned from inside the
 // update transaction when a caller attempts to attach api_keys to a
 // Copilot-typed provider; the outer handler translates it into a 400.
@@ -532,7 +602,7 @@ var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only va
 
 // errAIProviderExternalIDReadOnly is the sentinel returned from inside
 // the update transaction when a patch tries to change the server-owned
-// Bedrock external ID; the outer handler translates it into a 400. A
+// STS external ID; the outer handler translates it into a 400. A
 // patch may echo the stored value but not set a different one.
 var errAIProviderExternalIDReadOnly = xerrors.New("external_id is server-generated and cannot be changed")
 
@@ -843,46 +913,71 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings
-// value. Write-only fields (Bedrock AccessKey and AccessKeySecret) use
+// value. Write-only fields (the AWS AccessKey and AccessKeySecret) use
 // pointers so the patch can distinguish "omitted, keep existing" (nil)
 // from "explicitly clear" (pointer to empty string) - e.g. when an
 // admin migrates from static AWS credentials to IAM role-based auth
 // in a single PATCH.
+//
+// A patch replaces the variant wholesale rather than merging across
+// variants: switching authentication method is a full reconfiguration, and
+// carrying one variant's credentials into another would be meaningless.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {
-	if patch.Bedrock == nil {
+	switch {
+	case patch.Bedrock != nil:
+		merged := *patch.Bedrock
+		if existing.Bedrock != nil {
+			if merged.AccessKey == nil {
+				merged.AccessKey = existing.Bedrock.AccessKey
+			}
+			if merged.AccessKeySecret == nil {
+				merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
+			}
+			// The external ID is server-owned and stable: carry the stored value
+			// forward so a patch can't change it. A patch that sets a different
+			// value is rejected upstream.
+			merged.ExternalID = existing.Bedrock.ExternalID
+		}
+		return codersdk.AIProviderSettings{Bedrock: &merged}
+	case patch.ClaudePlatformAWS != nil:
+		merged := *patch.ClaudePlatformAWS
+		if existing.ClaudePlatformAWS != nil {
+			if merged.AccessKey == nil {
+				merged.AccessKey = existing.ClaudePlatformAWS.AccessKey
+			}
+			if merged.AccessKeySecret == nil {
+				merged.AccessKeySecret = existing.ClaudePlatformAWS.AccessKeySecret
+			}
+			merged.ExternalID = existing.ClaudePlatformAWS.ExternalID
+		}
+		return codersdk.AIProviderSettings{ClaudePlatformAWS: &merged}
+	default:
 		// Patch carries no type-specific data; treat as a clear.
 		return codersdk.AIProviderSettings{}
 	}
-	merged := *patch.Bedrock
-	if existing.Bedrock != nil {
-		if merged.AccessKey == nil {
-			merged.AccessKey = existing.Bedrock.AccessKey
-		}
-		if merged.AccessKeySecret == nil {
-			merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
-		}
-		// The external ID is server-owned and stable: carry the stored value
-		// forward so a patch can't change it. A patch that sets a different
-		// value is rejected upstream.
-		merged.ExternalID = existing.Bedrock.ExternalID
-	}
-	return codersdk.AIProviderSettings{Bedrock: &merged}
 }
 
-// validateBedrockExternalIDUnchanged rejects a patch that sets a Bedrock
+// settingsRoleAndExternalID returns the assumed role ARN and the server-owned
+// external ID of whichever settings variant is populated. It lets the external
+// ID helpers stay variant-agnostic.
+func settingsRoleAndExternalID(s codersdk.AIProviderSettings) (roleARN, externalID string) {
+	switch {
+	case s.Bedrock != nil:
+		return s.Bedrock.RoleARN, s.Bedrock.ExternalID
+	case s.ClaudePlatformAWS != nil:
+		return s.ClaudePlatformAWS.RoleARN, s.ClaudePlatformAWS.ExternalID
+	default:
+		return "", ""
+	}
+}
+
+// validateAIProviderExternalIDUnchanged rejects a patch that sets an STS
 // external ID different from the stored one. A patch may echo the stored
 // value (read-modify-write resends it) but not change it; the value is
 // server-owned.
-func validateBedrockExternalIDUnchanged(existing, patch codersdk.AIProviderSettings) error {
-	stored := ""
-	if existing.Bedrock != nil {
-		stored = existing.Bedrock.ExternalID
-	}
-
-	provided := ""
-	if patch.Bedrock != nil {
-		provided = patch.Bedrock.ExternalID
-	}
+func validateAIProviderExternalIDUnchanged(existing, patch codersdk.AIProviderSettings) error {
+	_, stored := settingsRoleAndExternalID(existing)
+	_, provided := settingsRoleAndExternalID(patch)
 
 	if provided != "" && provided != stored {
 		return errAIProviderExternalIDReadOnly
@@ -890,10 +985,18 @@ func validateBedrockExternalIDUnchanged(existing, patch codersdk.AIProviderSetti
 	return nil
 }
 
-// ensureBedrockExternalID assigns a server-owned STS external ID when the
-// Bedrock provider assumes a role and none is set yet.
-func ensureBedrockExternalID(s *codersdk.AIProviderSettings) {
-	if s.Bedrock != nil && s.Bedrock.RoleARN != "" && s.Bedrock.ExternalID == "" {
-		s.Bedrock.ExternalID = rand.Text()
+// ensureAIProviderExternalID assigns a server-owned STS external ID when the
+// provider assumes a role and none is set yet.
+func ensureAIProviderExternalID(s *codersdk.AIProviderSettings) {
+	roleARN, externalID := settingsRoleAndExternalID(*s)
+	if roleARN == "" || externalID != "" {
+		return
+	}
+	generated := rand.Text()
+	switch {
+	case s.Bedrock != nil:
+		s.Bedrock.ExternalID = generated
+	case s.ClaudePlatformAWS != nil:
+		s.ClaudePlatformAWS.ExternalID = generated
 	}
 }

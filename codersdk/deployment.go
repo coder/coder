@@ -5113,6 +5113,19 @@ type AIProviderConfig struct {
 	BedrockAccessKeySecrets []string `json:"-"`
 	BedrockModel            string   `json:"bedrock_model,omitempty"`
 	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
+
+	// Claude Platform for AWS fields (only applicable when Type ==
+	// "anthropic", and mutually exclusive with the Bedrock fields).
+	// ClaudePlatformAuthMode is "iam" or "api_key".
+	ClaudePlatformAuthMode    string `json:"claude_platform_auth_mode,omitempty"`
+	ClaudePlatformRegion      string `json:"claude_platform_region,omitempty"`
+	ClaudePlatformWorkspaceID string `json:"claude_platform_workspace_id,omitempty"`
+	// ClaudePlatformAccessKey and ClaudePlatformAccessKeySecret are AWS
+	// credentials for IAM mode. When unset, the ambient AWS credential chain
+	// resolves the identity. Secrets, so they are never serialized.
+	ClaudePlatformAccessKey       string `json:"-"`
+	ClaudePlatformAccessKeySecret string `json:"-"`
+	ClaudePlatformRoleARN         string `json:"claude_platform_role_arn,omitempty"`
 }
 
 type AIBridgeProxyConfig struct {

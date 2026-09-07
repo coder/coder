@@ -442,6 +442,10 @@ title: Schemas
       "bedrock_model": "string",
       "bedrock_region": "string",
       "bedrock_small_fast_model": "string",
+      "claude_platform_auth_mode": "string",
+      "claude_platform_region": "string",
+      "claude_platform_role_arn": "string",
+      "claude_platform_workspace_id": "string",
       "name": "string",
       "type": "string"
     }
@@ -1090,6 +1094,10 @@ title: Schemas
         "bedrock_model": "string",
         "bedrock_region": "string",
         "bedrock_small_fast_model": "string",
+        "claude_platform_auth_mode": "string",
+        "claude_platform_region": "string",
+        "claude_platform_role_arn": "string",
+        "claude_platform_workspace_id": "string",
         "name": "string",
         "type": "string"
       }
@@ -1275,6 +1283,10 @@ title: Schemas
   "bedrock_model": "string",
   "bedrock_region": "string",
   "bedrock_small_fast_model": "string",
+  "claude_platform_auth_mode": "string",
+  "claude_platform_region": "string",
+  "claude_platform_role_arn": "string",
+  "claude_platform_workspace_id": "string",
   "name": "string",
   "type": "string"
 }
@@ -1282,14 +1294,18 @@ title: Schemas
 
 ### Properties
 
-| Name                       | Type   | Required | Restrictions | Description                                                                                                                                           |
-|----------------------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                                                                                |
-| `bedrock_model`            | string | false    |              |                                                                                                                                                       |
-| `bedrock_region`           | string | false    |              |                                                                                                                                                       |
-| `bedrock_small_fast_model` | string | false    |              |                                                                                                                                                       |
-| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided.                                                            |
-| `type`                     | string | false    |              | Type is the provider type. Valid values are: "openai", "anthropic", "azure", "bedrock", "google", "openai-compat", "openrouter", "vercel", "copilot". |
+| Name                           | Type   | Required | Restrictions | Description                                                                                                                                                              |
+|--------------------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `base_url`                     | string | false    |              | Base URL is the base URL of the upstream provider API.                                                                                                                   |
+| `bedrock_model`                | string | false    |              |                                                                                                                                                                          |
+| `bedrock_region`               | string | false    |              |                                                                                                                                                                          |
+| `bedrock_small_fast_model`     | string | false    |              |                                                                                                                                                                          |
+| `claude_platform_auth_mode`    | string | false    |              | Claude Platform for AWS fields (only applicable when Type == "anthropic", and mutually exclusive with the Bedrock fields). ClaudePlatformAuthMode is "iam" or "api_key". |
+| `claude_platform_region`       | string | false    |              |                                                                                                                                                                          |
+| `claude_platform_role_arn`     | string | false    |              |                                                                                                                                                                          |
+| `claude_platform_workspace_id` | string | false    |              |                                                                                                                                                                          |
+| `name`                         | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided.                                                                               |
+| `type`                         | string | false    |              | Type is the provider type. Valid values are: "openai", "anthropic", "azure", "bedrock", "google", "openai-compat", "openrouter", "vercel", "copilot".                    |
 
 ## codersdk.AIProviderKey
 
@@ -7418,6 +7434,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "bedrock_model": "string",
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
+            "claude_platform_auth_mode": "string",
+            "claude_platform_region": "string",
+            "claude_platform_role_arn": "string",
+            "claude_platform_workspace_id": "string",
             "name": "string",
             "type": "string"
           }
@@ -8051,6 +8071,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "bedrock_model": "string",
           "bedrock_region": "string",
           "bedrock_small_fast_model": "string",
+          "claude_platform_auth_mode": "string",
+          "claude_platform_region": "string",
+          "claude_platform_role_arn": "string",
+          "claude_platform_workspace_id": "string",
           "name": "string",
           "type": "string"
         }

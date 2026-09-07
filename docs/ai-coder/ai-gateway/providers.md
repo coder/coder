@@ -87,6 +87,61 @@ for Anthropic-compatible brokers.
 Anthropic does not allow [API keys](https://console.anthropic.com/settings/keys)
 to have restricted permissions at the time of writing (June 2026).
 
+#### Claude Platform for AWS
+
+Claude Platform for AWS is Anthropic's own Messages API hosted on AWS. It
+is an authentication method on the `anthropic` provider type, not a
+separate provider type: requests and responses are the standard Anthropic
+format with standard Anthropic model IDs, and only routing and
+authentication differ. It is distinct from
+[Amazon Bedrock](#amazon-bedrock), which is a separate provider type.
+
+Every Claude Platform provider requires:
+
+- A **region**, for example `us-east-1`. It selects the default endpoint
+  `https://aws-external-anthropic.<region>.api.aws` and, for IAM
+  authentication, the signing scope. Set it explicitly even when you
+  override the endpoint, so requests routed through a proxy are still
+  signed for the correct region.
+- A **workspace ID**, sent as the `anthropic-workspace-id` header on
+  every request. AI Gateway sets the header from provider configuration
+  and strips any value a client sends, so a client cannot choose which
+  workspace its traffic is attributed to.
+
+Then choose one of two authentication modes.
+
+**IAM.** AI Gateway signs each request with AWS SigV4 for the
+`aws-external-anthropic` service. Credentials resolve exactly as they do
+for Bedrock: static access keys, the ambient AWS environment (EC2
+instance profile, `AWS_PROFILE`, IRSA, EKS Pod Identity), and an
+optional **Role ARN** assumed via STS with a server-generated
+[external ID](#external-id). Do not attach API keys to a provider in this
+mode; the gateway prefers a configured key over signing, so the keys
+would take effect instead of the AWS identity, and the API rejects the
+combination.
+
+**Workspace API key.** AI Gateway sends a workspace API key in the
+`x-api-key` header. The key lives in the provider's API keys, exactly
+like a standard Anthropic provider, so key pooling, rotation, masking,
+and [key failover](#key-failover) all apply. This mode requires at least
+one API key and rejects AWS credentials and a Role ARN.
+
+When [Bring Your Own Key](#bring-your-own-key) is enabled, a client key
+takes precedence over IAM signing in both modes: the request is forwarded
+with the client's `x-api-key` and is not signed. A client sending an
+ordinary Anthropic key to a Claude Platform provider receives an upstream
+authentication error.
+
+Environment seeding uses the `CLAUDE_PLATFORM_*` fields on an indexed
+`anthropic` provider, which are mutually exclusive with `BEDROCK_*`:
+
+```shell
+CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic
+CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam
+CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1
+CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=wrkspc_example
+```
+
 ### Amazon Bedrock
 
 Bedrock providers serve Anthropic models hosted on AWS and authenticate

@@ -6931,6 +6931,12 @@ func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvide
 			break
 		}
 	}
+	ambient := false
+	// A corrupt settings blob only costs the ambient-credential hint here; the
+	// gateway is authoritative for whether the provider can authenticate.
+	if settings, err := db2sdk.AIProviderSettings(provider.Settings); err == nil {
+		ambient = aiProviderUsesAmbientCredentials(settings)
+	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
 		Provider:                   string(provider.Type),
@@ -6939,6 +6945,7 @@ func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvide
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 		AllowCentralAPIKeyFallback: true,
+		AmbientCredentials:         ambient,
 	}
 }
 
@@ -7108,6 +7115,16 @@ func (api *API) chatModelProviderDescriptors(
 			}
 		}
 		hasUserKey := userKeyStatus[provider.ID]
+		// Some providers authenticate from the server's own AWS identity rather
+		// than a stored key, so they are usable with no key at all.
+		ambient := provider.Type == database.AIProviderTypeBedrock
+		if !ambient {
+			settings, err := db2sdk.AIProviderSettings(provider.Settings)
+			if err != nil {
+				return nil, xerrors.Errorf("decode AI provider settings: %w", err)
+			}
+			ambient = aiProviderUsesAmbientCredentials(settings)
+		}
 		out = append(out, codersdk.ChatModelProviderDescriptor{
 			ID:                 provider.ID,
 			Type:               string(provider.Type),
@@ -7116,11 +7133,24 @@ func (api *API) chatModelProviderDescriptors(
 			Enabled:            provider.Enabled,
 			HasAPIKey:          hasKey,
 			HasUserAPIKey:      hasUserKey,
-			HasEffectiveAPIKey: hasKey || hasUserKey || provider.Type == database.AIProviderTypeBedrock,
+			HasEffectiveAPIKey: hasKey || hasUserKey || ambient,
 			AllowUserAPIKey:    api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 		})
 	}
 	return out, nil
+}
+
+// aiProviderUsesAmbientCredentials reports whether the provider's settings
+// select an authentication method that signs with the Coder server's own AWS
+// identity instead of a stored key.
+func aiProviderUsesAmbientCredentials(settings codersdk.AIProviderSettings) bool {
+	if settings.Bedrock != nil {
+		return true
+	}
+	if cp := settings.ClaudePlatformAWS; cp != nil {
+		return cp.ResolvedAuthMode() == codersdk.AIProviderClaudePlatformAWSAuthModeIAM
+	}
+	return false
 }
 
 func chatModelConfigRBACObject(config database.ChatModelConfig) rbac.Object {

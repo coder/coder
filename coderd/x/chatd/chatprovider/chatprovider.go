@@ -191,6 +191,11 @@ type ConfiguredProvider struct {
 	CentralAPIKeyEnabled       bool
 	AllowUserAPIKey            bool
 	AllowCentralAPIKeyFallback bool
+	// AmbientCredentials reports that the provider authenticates from the Coder
+	// server's environment (an AWS credential chain or role) rather than from a
+	// stored key, so it is usable with no key configured. Bedrock and Claude
+	// Platform for AWS in IAM mode both qualify.
+	AmbientCredentials bool
 }
 
 // APIKey returns the effective API key for a provider.
@@ -359,8 +364,8 @@ func ResolveUserProviderKeys(
 			} else {
 				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 			}
-		case normalizedProvider == fantasybedrock.Name && provider.CentralAPIKeyEnabled:
-			// Bedrock can use ambient AWS credentials from the Coder server
+		case (normalizedProvider == fantasybedrock.Name || provider.AmbientCredentials) && provider.CentralAPIKeyEnabled:
+			// These providers authenticate from the server's own AWS identity
 			// without an explicit key, but only when the credential policy
 			// allows central credentials to satisfy the request.
 			if !provider.AllowUserAPIKey || provider.AllowCentralAPIKeyFallback {
