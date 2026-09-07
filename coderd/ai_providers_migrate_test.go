@@ -602,6 +602,86 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Contains(t, err.Error(), "conflicting fields")
 	})
 
+	t.Run("ClaudePlatformIndexedProviderPersistsSettings", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:                          "anthropic",
+					Name:                          "claude-platform-seeded",
+					ClaudePlatformAuthMode:        string(codersdk.AIProviderClaudePlatformAWSAuthModeIAM),
+					ClaudePlatformRegion:          "us-east-1",
+					ClaudePlatformWorkspaceID:     "ws-seeded",
+					ClaudePlatformAccessKey:       "AKID-seeded",
+					ClaudePlatformAccessKeySecret: "seeded-secret",
+					ClaudePlatformRoleARN:         "arn:aws:iam::123456789012:role/ClaudePlatform",
+				},
+			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		row, err := db.GetAIProviderByName(ctx, "claude-platform-seeded")
+		require.NoError(t, err)
+		// Claude Platform is an authentication variant of anthropic, not a
+		// provider type of its own; the settings blob carries the variant.
+		require.Equal(t, database.AIProviderTypeAnthropic, row.Type)
+		require.True(t, row.Settings.Valid)
+		require.Contains(t, row.Settings.String, `"_type":"`+codersdk.AIProviderSettingsTypeClaudePlatformAWS+`"`)
+		require.Contains(t, row.Settings.String, "us-east-1")
+		require.Contains(t, row.Settings.String, "ws-seeded")
+		require.Contains(t, row.Settings.String, "AKID-seeded")
+		require.Contains(t, row.Settings.String, "seeded-secret")
+		require.Contains(t, row.Settings.String, "arn:aws:iam::123456789012:role/ClaudePlatform")
+
+		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
+		require.NoError(t, err)
+		require.Empty(t, keys, "IAM-mode Claude Platform providers authenticate by signing, not with bearer keys")
+	})
+
+	t.Run("ClaudePlatformSeedIsIdempotent", func(t *testing.T) {
+		t.Parallel()
+		// Regression: the write-only access key pointers must round-trip
+		// through the settings blob, otherwise the stored row rehashes
+		// differently from the env config and every restart after the first
+		// fails with a spurious drift error.
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:                          "anthropic",
+					Name:                          "claude-platform-idempotent",
+					ClaudePlatformAuthMode:        string(codersdk.AIProviderClaudePlatformAWSAuthModeIAM),
+					ClaudePlatformRegion:          "us-east-1",
+					ClaudePlatformWorkspaceID:     "ws-idempotent",
+					ClaudePlatformAccessKey:       "AKID-idempotent",
+					ClaudePlatformAccessKeySecret: "idempotent-secret",
+					ClaudePlatformRoleARN:         "arn:aws:iam::123456789012:role/ClaudePlatform",
+				},
+			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		var rerunLogs bytes.Buffer
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, capturedLogger(&rerunLogs)))
+		require.NotContains(t, rerunLogs.String(), "env-seeded ai provider")
+
+		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
+		require.NoError(t, err)
+		require.Len(t, all, 1)
+
+		// Complementary direction: a real env change must still be drift.
+		cfg.Providers[0].ClaudePlatformWorkspaceID = "ws-idempotent-rotated"
+		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
+		require.Contains(t, err.Error(), `"claude-platform-idempotent"`)
+	})
+
 	t.Run("SeedIsIdempotentAfterBedrockBackfill", func(t *testing.T) {
 		t.Parallel()
 		// Regression: seed must not treat a type=anthropic row promoted to

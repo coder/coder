@@ -16182,6 +16182,19 @@
 				"bedrock_small_fast_model": {
 					"type": "string"
 				},
+				"claude_platform_auth_mode": {
+					"description": "Claude Platform for AWS fields (only applicable when Type ==\n\"anthropic\", and mutually exclusive with the Bedrock fields).\nClaudePlatformAuthMode is \"iam\" or \"api_key\".",
+					"type": "string"
+				},
+				"claude_platform_region": {
+					"type": "string"
+				},
+				"claude_platform_role_arn": {
+					"type": "string"
+				},
+				"claude_platform_workspace_id": {
+					"type": "string"
+				},
 				"name": {
 					"description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
 					"type": "string"

@@ -405,3 +405,324 @@ func TestAIProviderRequest_ValidationInSync(t *testing.T) {
 		})
 	}
 }
+
+func TestAIProviderSettings_ClaudePlatformAWS(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MarshalEmitsDiscriminator", func(t *testing.T) {
+		t.Parallel()
+		got, err := json.Marshal(codersdk.AIProviderSettings{
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				AuthMode:        codersdk.AIProviderClaudePlatformAWSAuthModeIAM,
+				Region:          "us-east-1",
+				WorkspaceID:     "wrkspc_123",
+				AccessKey:       new("AKIA-test"), //nolint:gosec // fixture
+				AccessKeySecret: new("secret"),
+				RoleARN:         "arn:aws:iam::123456789012:role/ClaudeRole",
+				ExternalID:      "external-id",
+			},
+		})
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+			"_type": "claude_platform_aws",
+			"_version": 1,
+			"auth_mode": "iam",
+			"region": "us-east-1",
+			"workspace_id": "wrkspc_123",
+			"access_key": "AKIA-test",
+			"access_key_secret": "secret",
+			"role_arn": "arn:aws:iam::123456789012:role/ClaudeRole",
+			"external_id": "external-id"
+		}`, string(got))
+	})
+
+	t.Run("Roundtrip", func(t *testing.T) {
+		t.Parallel()
+		in := codersdk.AIProviderSettings{
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey,
+				Region:      "eu-central-1",
+				WorkspaceID: "wrkspc_roundtrip",
+			},
+		}
+		encoded, err := json.Marshal(in)
+		require.NoError(t, err)
+		var out codersdk.AIProviderSettings
+		require.NoError(t, json.Unmarshal(encoded, &out))
+		require.Nil(t, out.Bedrock)
+		require.Equal(t, in.ClaudePlatformAWS, out.ClaudePlatformAWS)
+	})
+
+	t.Run("UnmarshalRejectsUnsupportedVersion", func(t *testing.T) {
+		t.Parallel()
+		var out codersdk.AIProviderSettings
+		err := json.Unmarshal([]byte(`{"_type":"claude_platform_aws","_version":2}`), &out)
+		require.ErrorContains(t, err, "unsupported")
+	})
+
+	// A settings blob encodes one authentication method. Silently marshaling
+	// only the first populated variant would persist a provider that
+	// authenticates differently from what the caller asked for.
+	t.Run("MarshalRejectsMultipleVariants", func(t *testing.T) {
+		t.Parallel()
+		_, err := json.Marshal(codersdk.AIProviderSettings{
+			Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthModeIAM,
+				Region:      "us-east-1",
+				WorkspaceID: "wrkspc_123",
+			},
+		})
+		require.ErrorContains(t, err, "exactly one authentication method")
+	})
+
+	t.Run("IsZero", func(t *testing.T) {
+		t.Parallel()
+		require.True(t, codersdk.AIProviderSettings{}.IsZero())
+		require.False(t, codersdk.AIProviderSettings{
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{},
+		}.IsZero())
+	})
+}
+
+func TestAIProviderRequest_ValidateClaudePlatformAWS(t *testing.T) {
+	t.Parallel()
+
+	iamSettings := func() *codersdk.AIProviderClaudePlatformAWSSettings {
+		return &codersdk.AIProviderClaudePlatformAWSSettings{
+			AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthModeIAM,
+			Region:      "us-east-1",
+			WorkspaceID: "wrkspc_123",
+		}
+	}
+
+	cases := []struct {
+		name        string
+		providerTyp codersdk.AIProviderType
+		apiKeys     []string
+		mutate      func(*codersdk.AIProviderClaudePlatformAWSSettings)
+		errField    string
+	}{
+		{
+			name:        "IAMValid",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+		},
+		{
+			name:        "APIKeyValid",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			apiKeys:     []string{"sk-workspace-key"},
+			mutate: func(s *codersdk.AIProviderClaudePlatformAWSSettings) {
+				s.AuthMode = codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey
+			},
+		},
+		{
+			// Claude Platform is an authentication method on Anthropic, never
+			// a provider type of its own.
+			name:        "RejectedOnBedrockType",
+			providerTyp: codersdk.AIProviderTypeBedrock,
+			errField:    "settings",
+		},
+		{
+			name:        "AuthModeRequired",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			mutate:      func(s *codersdk.AIProviderClaudePlatformAWSSettings) { s.AuthMode = "" },
+			errField:    "settings.auth_mode",
+		},
+		{
+			name:        "AuthModeUnknown",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			mutate:      func(s *codersdk.AIProviderClaudePlatformAWSSettings) { s.AuthMode = "sigv2" },
+			errField:    "settings.auth_mode",
+		},
+		{
+			name:        "RegionRequired",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			mutate:      func(s *codersdk.AIProviderClaudePlatformAWSSettings) { s.Region = "" },
+			errField:    "settings.region",
+		},
+		{
+			name:        "WorkspaceIDRequired",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			mutate:      func(s *codersdk.AIProviderClaudePlatformAWSSettings) { s.WorkspaceID = "" },
+			errField:    "settings.workspace_id",
+		},
+		{
+			name:        "AccessKeyPairMustBeSetTogether",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			mutate: func(s *codersdk.AIProviderClaudePlatformAWSSettings) {
+				s.AccessKey = new("AKIA-test") //nolint:gosec // fixture
+			},
+			errField: "settings.access_key",
+		},
+		{
+			name:        "ExternalIDIsServerOwned",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			mutate:      func(s *codersdk.AIProviderClaudePlatformAWSSettings) { s.ExternalID = "client-supplied" },
+			errField:    "settings.external_id",
+		},
+		{
+			name:        "InvalidRoleARN",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			mutate:      func(s *codersdk.AIProviderClaudePlatformAWSSettings) { s.RoleARN = "not-an-arn" },
+			errField:    "settings.role_arn",
+		},
+		{
+			name:        "APIKeyModeRejectsAWSCredentials",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			apiKeys:     []string{"sk-workspace-key"},
+			mutate: func(s *codersdk.AIProviderClaudePlatformAWSSettings) {
+				s.AuthMode = codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey
+				s.AccessKey = new("AKIA-test") //nolint:gosec // fixture
+				s.AccessKeySecret = new("secret")
+			},
+			errField: "settings.access_key",
+		},
+		{
+			name:        "APIKeyModeRejectsRoleARN",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			apiKeys:     []string{"sk-workspace-key"},
+			mutate: func(s *codersdk.AIProviderClaudePlatformAWSSettings) {
+				s.AuthMode = codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey
+				s.RoleARN = "arn:aws:iam::123456789012:role/ClaudeRole"
+			},
+			errField: "settings.role_arn",
+		},
+		{
+			// The key pool is checked before signing, so keys on an IAM
+			// provider would silently win over the configured AWS identity.
+			name:        "IAMModeRejectsAPIKeys",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			apiKeys:     []string{"sk-workspace-key"},
+			errField:    "api_keys",
+		},
+		{
+			name:        "APIKeyModeRequiresAPIKeys",
+			providerTyp: codersdk.AIProviderTypeAnthropic,
+			mutate: func(s *codersdk.AIProviderClaudePlatformAWSSettings) {
+				s.AuthMode = codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey
+			},
+			errField: "api_keys",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings := iamSettings()
+			if tc.mutate != nil {
+				tc.mutate(settings)
+			}
+			create := codersdk.CreateAIProviderRequest{
+				Type:     tc.providerTyp,
+				Name:     "anthropic-claude-platform",
+				BaseURL:  "https://aws-external-anthropic.us-east-1.api.aws",
+				APIKeys:  tc.apiKeys,
+				Settings: codersdk.AIProviderSettings{ClaudePlatformAWS: settings},
+			}
+			validations := create.Validate()
+			if tc.errField == "" {
+				require.Empty(t, validations)
+				return
+			}
+			require.True(t, hasAIProviderFieldError(validations, tc.errField),
+				"expected an error on %q, got %v", tc.errField, validations)
+		})
+	}
+}
+
+// TestAIProviderRequest_ClaudePlatformValidationInSync keeps API-level
+// validation (CreateAIProviderRequest.Validate) and runtime-level validation
+// (config.AWSClaudePlatform.Validate) in agreement, so a provider the API
+// accepts is one the gateway can actually build.
+func TestAIProviderRequest_ClaudePlatformValidationInSync(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		settings codersdk.AIProviderClaudePlatformAWSSettings
+		apiKeys  []string
+		isValid  bool
+	}{
+		{
+			name: "IAMAmbientCredentials",
+			settings: codersdk.AIProviderClaudePlatformAWSSettings{
+				AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthModeIAM,
+				Region:      "us-east-1",
+				WorkspaceID: "wrkspc_123",
+			},
+			isValid: true,
+		},
+		{
+			name: "APIKeyMode",
+			settings: codersdk.AIProviderClaudePlatformAWSSettings{
+				AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey,
+				Region:      "us-east-1",
+				WorkspaceID: "wrkspc_123",
+			},
+			apiKeys: []string{"sk-workspace-key"},
+			isValid: true,
+		},
+		{
+			name: "MissingWorkspaceID",
+			settings: codersdk.AIProviderClaudePlatformAWSSettings{
+				AuthMode: codersdk.AIProviderClaudePlatformAWSAuthModeIAM,
+				Region:   "us-east-1",
+			},
+			isValid: false,
+		},
+		{
+			name: "MissingRegion",
+			settings: codersdk.AIProviderClaudePlatformAWSSettings{
+				AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthModeIAM,
+				WorkspaceID: "wrkspc_123",
+			},
+			isValid: false,
+		},
+		{
+			name: "MissingAuthMode",
+			settings: codersdk.AIProviderClaudePlatformAWSSettings{
+				Region:      "us-east-1",
+				WorkspaceID: "wrkspc_123",
+			},
+			isValid: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Mirror the settings-to-runtime conversion cli/aibridged.go
+			// performs when it builds providers from the database.
+			runtimeCfg := config.AWSClaudePlatform{
+				AuthMode:    config.ClaudePlatformAuthMode(tc.settings.AuthMode),
+				Region:      tc.settings.Region,
+				WorkspaceID: tc.settings.WorkspaceID,
+			}
+			require.Equal(t, tc.isValid, runtimeCfg.Validate() == nil,
+				"config.AWSClaudePlatform.Validate disagrees with the expected verdict")
+
+			create := codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeAnthropic,
+				Name:     "anthropic",
+				BaseURL:  "https://aws-external-anthropic.us-east-1.api.aws",
+				APIKeys:  tc.apiKeys,
+				Settings: codersdk.AIProviderSettings{ClaudePlatformAWS: &tc.settings},
+			}
+			require.Equal(t, tc.isValid, len(create.Validate()) == 0,
+				"the API disagrees with the expected verdict")
+		})
+	}
+}
+
+// hasAIProviderFieldError reports whether any validation error targets the
+// named field.
+func hasAIProviderFieldError(vs []codersdk.ValidationError, field string) bool {
+	for _, v := range vs {
+		if v.Field == field {
+			return true
+		}
+	}
+	return false
+}

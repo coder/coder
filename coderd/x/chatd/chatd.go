@@ -3966,8 +3966,15 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 		}
 	}
 	region := ""
+	ambient := false
 	if settings.Bedrock != nil {
 		region = strings.TrimSpace(settings.Bedrock.Region)
+	}
+	if cp := settings.ClaudePlatformAWS; cp != nil {
+		region = strings.TrimSpace(cp.Region)
+		// IAM mode signs with the server's AWS identity, so it is usable with
+		// no key in the pool. api_key mode is key-driven like plain Anthropic.
+		ambient = cp.ResolvedAuthMode() == codersdk.AIProviderClaudePlatformAWSAuthModeIAM
 	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
@@ -3978,6 +3985,7 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
+		AmbientCredentials:         ambient,
 	}, nil
 }
 

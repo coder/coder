@@ -505,6 +505,252 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 	})
 }
 
+func TestReadAIProvidersFromEnvClaudePlatform(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		env         []string
+		expected    []codersdk.AIProviderConfig
+		errContains string
+	}{
+		{
+			name: "AllFieldsIAM",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_NAME=claude-platform-iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=https://claude.us-east-1.example.com/",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_ACCESS_KEY=AKID-cp",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_ACCESS_KEY_SECRET=cp-secret",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_ROLE_ARN=arn:aws:iam::123456789012:role/ClaudePlatform",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:                          aibridge.ProviderAnthropic,
+					Name:                          "claude-platform-iam",
+					BaseURL:                       "https://claude.us-east-1.example.com/",
+					ClaudePlatformAuthMode:        string(codersdk.AIProviderClaudePlatformAWSAuthModeIAM),
+					ClaudePlatformRegion:          "us-east-1",
+					ClaudePlatformWorkspaceID:     "ws-iam",
+					ClaudePlatformAccessKey:       "AKID-cp",
+					ClaudePlatformAccessKeySecret: "cp-secret",
+					ClaudePlatformRoleARN:         "arn:aws:iam::123456789012:role/ClaudePlatform",
+				},
+			},
+		},
+		{
+			// IAM mode without an access key pair is valid: the ambient AWS
+			// credential chain resolves the identity.
+			name: "IAMWithoutCredentials",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=eu-central-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-ambient",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:                      aibridge.ProviderAnthropic,
+					Name:                      aibridge.ProviderAnthropic,
+					ClaudePlatformAuthMode:    string(codersdk.AIProviderClaudePlatformAWSAuthModeIAM),
+					ClaudePlatformRegion:      "eu-central-1",
+					ClaudePlatformWorkspaceID: "ws-ambient",
+				},
+			},
+		},
+		{
+			// The deprecated CODER_AIBRIDGE_PROVIDER_<N>_ prefix parses the
+			// same fields.
+			name: "APIKeyModeDeprecatedPrefix",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=claude-platform-key",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-ant-cp-1,sk-ant-cp-2",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=api_key",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-west-2",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-key",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:                      aibridge.ProviderAnthropic,
+					Name:                      "claude-platform-key",
+					Keys:                      []string{"sk-ant-cp-1", "sk-ant-cp-2"},
+					ClaudePlatformAuthMode:    string(codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey),
+					ClaudePlatformRegion:      "us-west-2",
+					ClaudePlatformWorkspaceID: "ws-key",
+				},
+			},
+		},
+		{
+			name: "FieldsOnNonAnthropicType",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-openai",
+			},
+			errContains: `CLAUDE_PLATFORM_* fields are only supported with TYPE "anthropic"`,
+		},
+		{
+			name: "FieldsOnBedrockType",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=bedrock",
+				"CODER_AI_GATEWAY_PROVIDER_0_BEDROCK_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-bedrock-type",
+			},
+			errContains: `CLAUDE_PLATFORM_* fields are only supported with TYPE "anthropic"`,
+		},
+		{
+			name: "CombinedWithBedrockFields",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_BEDROCK_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-both",
+			},
+			errContains: "CLAUDE_PLATFORM_* and BEDROCK_* fields are mutually exclusive",
+		},
+		{
+			name: "MissingAuthMode",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-no-mode",
+			},
+			errContains: "CLAUDE_PLATFORM_AUTH_MODE is required when any CLAUDE_PLATFORM_* field is set",
+		},
+		{
+			name: "UnknownAuthMode",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=sigv2",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-bad-mode",
+			},
+			errContains: `unknown CLAUDE_PLATFORM_AUTH_MODE "sigv2"`,
+		},
+		{
+			// A workspace API key takes precedence over SigV4 signing, so keys
+			// in IAM mode would silently bypass the AWS identity.
+			name: "IAMModeWithKey",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_KEY=sk-ant-iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-iam-key",
+			},
+			errContains: `KEY/KEYS are not supported with CLAUDE_PLATFORM_AUTH_MODE "iam"`,
+		},
+		{
+			name: "IAMModeWithKeys",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_KEYS=sk-ant-a,sk-ant-b",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-iam-keys",
+			},
+			errContains: `KEY/KEYS are not supported with CLAUDE_PLATFORM_AUTH_MODE "iam"`,
+		},
+		{
+			name: "APIKeyModeWithoutKeys",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=api_key",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-no-keys",
+			},
+			errContains: `CLAUDE_PLATFORM_AUTH_MODE "api_key" requires KEY/KEYS`,
+		},
+		{
+			name: "APIKeyModeWithAWSCredentials",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_KEY=sk-ant-cp",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=api_key",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-key-creds",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_ACCESS_KEY=AKID-cp",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_ACCESS_KEY_SECRET=cp-secret",
+			},
+			errContains: `are only supported with CLAUDE_PLATFORM_AUTH_MODE "iam"`,
+		},
+		{
+			name: "APIKeyModeWithRoleARN",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_KEY=sk-ant-cp",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=api_key",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-key-role",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_ROLE_ARN=arn:aws:iam::123456789012:role/ClaudePlatform",
+			},
+			errContains: `are only supported with CLAUDE_PLATFORM_AUTH_MODE "iam"`,
+		},
+		{
+			name: "AccessKeyWithoutSecret",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-half-key",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_ACCESS_KEY=AKID-cp",
+			},
+			errContains: "CLAUDE_PLATFORM_ACCESS_KEY and CLAUDE_PLATFORM_ACCESS_KEY_SECRET must be set together",
+		},
+		{
+			name: "AccessKeySecretWithoutKey",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-half-secret",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_ACCESS_KEY_SECRET=cp-secret",
+			},
+			errContains: "CLAUDE_PLATFORM_ACCESS_KEY and CLAUDE_PLATFORM_ACCESS_KEY_SECRET must be set together",
+		},
+		{
+			name: "MissingRegion",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=ws-no-region",
+			},
+			errContains: "CLAUDE_PLATFORM_REGION is required",
+		},
+		{
+			name: "MissingWorkspaceID",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_AUTH_MODE=iam",
+				"CODER_AI_GATEWAY_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+			},
+			errContains: "CLAUDE_PLATFORM_WORKSPACE_ID is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			providers, err := ReadAIProvidersFromEnv(slogtest.Make(t, nil), tt.env)
+			if tt.errContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, providers)
+		})
+	}
+}
+
 func TestValidateLegacyAIBridgeConfig(t *testing.T) {
 	t.Parallel()
 

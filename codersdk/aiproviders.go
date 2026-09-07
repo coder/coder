@@ -85,27 +85,61 @@ func IsAgentsUnsupportedProviderType(t AIProviderType) bool {
 // fields. The custom (Un)MarshalJSON implementations on this type
 // handle the routing automatically; callers should never marshal the
 // concrete settings struct directly.
+//
+// AIProviderTypeBedrock is a distinct provider type for historical reasons.
+// New Anthropic *authentication methods* do not get provider types: they are
+// settings variants on AIProviderTypeAnthropic, which is why
+// ClaudePlatformAWS has no matching AIProviderType.
 type AIProviderSettings struct {
 	// Bedrock, when set, indicates this provider authenticates against
 	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
 	// AIProviderTypeAnthropic.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
+	// ClaudePlatformAWS, when set, indicates this provider targets
+	// Anthropic's AWS-hosted Messages API. Only valid for
+	// AIProviderTypeAnthropic.
+	ClaudePlatformAWS *AIProviderClaudePlatformAWSSettings `json:"-"`
 }
 
 // IsZero reports whether the settings carry no type-specific data.
 func (s AIProviderSettings) IsZero() bool {
-	return s.Bedrock == nil
+	return s.Bedrock == nil && s.ClaudePlatformAWS == nil
 }
 
 // MarshalJSON emits the discriminated wire form. Empty settings encode
 // as JSON null so the column round-trips cleanly through SQL NULL.
+//
+// Exactly one variant may be set: a settings blob encodes a single
+// authentication method, and silently dropping the others would persist a
+// provider that authenticates differently from what the caller asked for.
 func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
+	if err := s.validateSingleVariant(); err != nil {
+		return nil, err
+	}
 	switch {
 	case s.Bedrock != nil:
 		return marshalSettings(*s.Bedrock)
+	case s.ClaudePlatformAWS != nil:
+		return marshalSettings(*s.ClaudePlatformAWS)
 	default:
 		return []byte("null"), nil
 	}
+}
+
+// validateSingleVariant reports an error when more than one settings variant
+// is populated.
+func (s AIProviderSettings) validateSingleVariant() error {
+	var set []string
+	if s.Bedrock != nil {
+		set = append(set, AIProviderSettingsTypeBedrock)
+	}
+	if s.ClaudePlatformAWS != nil {
+		set = append(set, AIProviderSettingsTypeClaudePlatformAWS)
+	}
+	if len(set) > 1 {
+		return xerrors.Errorf("settings must carry exactly one authentication method, got %s", strings.Join(set, ", "))
+	}
+	return nil
 }
 
 // UnmarshalJSON inspects the _type discriminator and routes to the
@@ -136,6 +170,17 @@ func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 			return xerrors.Errorf("decode bedrock settings: %w", err)
 		}
 		s.Bedrock = &b
+		return nil
+	case AIProviderSettingsTypeClaudePlatformAWS:
+		if header.Version != AIProviderClaudePlatformAWSSettingsVersion {
+			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
+				header.Type, header.Version, AIProviderClaudePlatformAWSSettingsVersion)
+		}
+		var c AIProviderClaudePlatformAWSSettings
+		if err := json.Unmarshal(data, &c); err != nil {
+			return xerrors.Errorf("decode claude platform settings: %w", err)
+		}
+		s.ClaudePlatformAWS = &c
 		return nil
 	default:
 		return xerrors.Errorf("unknown settings type %q", header.Type)
@@ -302,6 +347,42 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			Detail: "type=copilot does not accept api_keys",
 		})
 	}
+	validations = append(validations, validateAIProviderSettingsVariants(req.Settings)...)
+	if cp := req.Settings.ClaudePlatformAWS; cp != nil {
+		if req.Type != AIProviderTypeAnthropic {
+			validations = append(validations, ValidationError{
+				Field:  "settings",
+				Detail: "claude platform settings are only valid for type=anthropic",
+			})
+		}
+		validations = append(validations, validateAIProviderClaudePlatformAWS(*cp)...)
+		if cp.ExternalID != "" {
+			validations = append(validations, ValidationError{
+				Field:  "settings.external_id",
+				Detail: "external_id is server-generated and cannot be set",
+			})
+		}
+		// The workspace API key lives in api_keys, so the key set and the auth
+		// mode must agree. Otherwise an IAM provider with keys would silently
+		// authenticate with the keys: the gateway prefers the key pool over
+		// signing.
+		switch cp.ResolvedAuthMode() {
+		case AIProviderClaudePlatformAWSAuthModeAPIKey:
+			if len(req.APIKeys) == 0 {
+				validations = append(validations, ValidationError{
+					Field:  "api_keys",
+					Detail: "auth_mode=api_key requires at least one api_key",
+				})
+			}
+		case AIProviderClaudePlatformAWSAuthModeIAM:
+			if len(req.APIKeys) > 0 {
+				validations = append(validations, ValidationError{
+					Field:  "api_keys",
+					Detail: "auth_mode=iam does not accept api_keys",
+				})
+			}
+		}
+	}
 	return validations
 }
 
@@ -356,6 +437,84 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
+	}
+	if req.Settings != nil {
+		validations = append(validations, validateAIProviderSettingsVariants(*req.Settings)...)
+		if cp := req.Settings.ClaudePlatformAWS; cp != nil {
+			validations = append(validations, validateAIProviderClaudePlatformAWS(*cp)...)
+			// api_keys consistency is checked server-side, where the stored key
+			// set is known: a patch that changes only the auth mode still has to
+			// agree with the keys already on the row.
+		}
+	}
+	return validations
+}
+
+// validateAIProviderSettingsVariants rejects a settings blob carrying more than
+// one authentication method. MarshalJSON would otherwise pick the first arm and
+// silently drop the rest.
+func validateAIProviderSettingsVariants(settings AIProviderSettings) []ValidationError {
+	if err := settings.validateSingleVariant(); err != nil {
+		return []ValidationError{{Field: "settings", Detail: err.Error()}}
+	}
+	return nil
+}
+
+// validateAIProviderClaudePlatformAWS checks the shape of a Claude Platform for
+// AWS settings blob. Checks that depend on stored state (api_keys on a patch,
+// the server-owned external ID) live in coderd.
+func validateAIProviderClaudePlatformAWS(cp AIProviderClaudePlatformAWSSettings) []ValidationError {
+	var validations []ValidationError
+	switch cp.ResolvedAuthMode() {
+	case AIProviderClaudePlatformAWSAuthModeIAM:
+		validations = append(validations, validateAIProviderRoleARN(cp.RoleARN)...)
+		// A lone half of the pair is always a mistake: with neither, the ambient
+		// AWS credential chain resolves the identity.
+		hasKey := cp.AccessKey != nil && *cp.AccessKey != ""
+		hasSecret := cp.AccessKeySecret != nil && *cp.AccessKeySecret != ""
+		if hasKey != hasSecret {
+			validations = append(validations, ValidationError{
+				Field:  "settings.access_key",
+				Detail: "access_key and access_key_secret must be set together",
+			})
+		}
+	case AIProviderClaudePlatformAWSAuthModeAPIKey:
+		// AWS identity fields would silently do nothing in this mode.
+		if (cp.AccessKey != nil && *cp.AccessKey != "") || (cp.AccessKeySecret != nil && *cp.AccessKeySecret != "") {
+			validations = append(validations, ValidationError{
+				Field:  "settings.access_key",
+				Detail: "access_key and access_key_secret are only valid for auth_mode=iam",
+			})
+		}
+		if cp.RoleARN != "" {
+			validations = append(validations, ValidationError{
+				Field:  "settings.role_arn",
+				Detail: "role_arn is only valid for auth_mode=iam",
+			})
+		}
+	case "":
+		validations = append(validations, ValidationError{
+			Field:  "settings.auth_mode",
+			Detail: "auth_mode is required",
+		})
+	default:
+		validations = append(validations, ValidationError{
+			Field: "settings.auth_mode",
+			Detail: fmt.Sprintf("unsupported auth_mode %q, must be one of %q or %q",
+				cp.AuthMode, AIProviderClaudePlatformAWSAuthModeIAM, AIProviderClaudePlatformAWSAuthModeAPIKey),
+		})
+	}
+	if cp.Region == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.region",
+			Detail: "region is required",
+		})
+	}
+	if cp.WorkspaceID == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.workspace_id",
+			Detail: "workspace_id is required",
+		})
 	}
 	return validations
 }

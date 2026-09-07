@@ -3283,6 +3283,17 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 			return nil, err
 		}
 
+		if err := validateClaudePlatformProvider(i, *p); err != nil {
+			return nil, err
+		}
+
+		// Claude Platform for AWS and Bedrock are distinct authentication
+		// methods, so a provider configured for both is ambiguous.
+		if isBedrock && claudePlatformConfiguredFromEnv(*p) {
+			return nil, xerrors.Errorf("provider %d (%s): CLAUDE_PLATFORM_* and BEDROCK_* fields are mutually exclusive",
+				i, p.Type)
+		}
+
 		if p.Name == "" {
 			p.Name = p.Type
 		}
@@ -3401,6 +3412,18 @@ func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix strin
 			provider.BedrockModel = v.Value
 		case "BEDROCK_SMALL_FAST_MODEL":
 			provider.BedrockSmallFastModel = v.Value
+		case "CLAUDE_PLATFORM_AUTH_MODE":
+			provider.ClaudePlatformAuthMode = v.Value
+		case "CLAUDE_PLATFORM_REGION":
+			provider.ClaudePlatformRegion = v.Value
+		case "CLAUDE_PLATFORM_WORKSPACE_ID":
+			provider.ClaudePlatformWorkspaceID = v.Value
+		case "CLAUDE_PLATFORM_ACCESS_KEY":
+			provider.ClaudePlatformAccessKey = v.Value
+		case "CLAUDE_PLATFORM_ACCESS_KEY_SECRET":
+			provider.ClaudePlatformAccessKeySecret = v.Value
+		case "CLAUDE_PLATFORM_ROLE_ARN":
+			provider.ClaudePlatformRoleARN = v.Value
 		default:
 			logger.Warn(context.Background(), "ignoring unknown AI provider field (check for typos)",
 				slog.F("env", fullName),
@@ -3483,6 +3506,72 @@ func validateBedrockCredentials(providerIndex int, providerType string, accessKe
 	}
 
 	return validateProviderCredentialList(providerIndex, providerType, secrets)
+}
+
+// claudePlatformConfiguredFromEnv reports whether the operator set any
+// CLAUDE_PLATFORM_* field on an indexed provider.
+func claudePlatformConfiguredFromEnv(p codersdk.AIProviderConfig) bool {
+	return p.ClaudePlatformAuthMode != "" ||
+		p.ClaudePlatformRegion != "" ||
+		p.ClaudePlatformWorkspaceID != "" ||
+		p.ClaudePlatformAccessKey != "" ||
+		p.ClaudePlatformAccessKeySecret != "" ||
+		p.ClaudePlatformRoleARN != ""
+}
+
+// validateClaudePlatformProvider enforces the invariants on the
+// CLAUDE_PLATFORM_* env fields. Claude Platform for AWS is an authentication
+// method on the Anthropic provider, so the fields are only valid with
+// TYPE=anthropic. Mutual exclusion with BEDROCK_* is checked by the caller,
+// which already knows whether the provider resolved as Bedrock.
+func validateClaudePlatformProvider(providerIndex int, p codersdk.AIProviderConfig) error {
+	if !claudePlatformConfiguredFromEnv(p) {
+		return nil
+	}
+
+	if database.AIProviderType(p.Type) != database.AIProviderTypeAnthropic {
+		return xerrors.Errorf("provider %d (%s): CLAUDE_PLATFORM_* fields are only supported with TYPE %q",
+			providerIndex, p.Type, database.AIProviderTypeAnthropic)
+	}
+
+	authMode := codersdk.AIProviderClaudePlatformAWSAuthMode(p.ClaudePlatformAuthMode)
+	switch authMode {
+	case codersdk.AIProviderClaudePlatformAWSAuthModeIAM:
+		// A workspace key takes precedence over signing, so a key here would
+		// mean the provider silently never uses its AWS identity.
+		if len(p.Keys) > 0 {
+			return xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported with CLAUDE_PLATFORM_AUTH_MODE %q",
+				providerIndex, p.Type, authMode)
+		}
+		if (p.ClaudePlatformAccessKey == "") != (p.ClaudePlatformAccessKeySecret == "") {
+			return xerrors.Errorf("provider %d (%s): CLAUDE_PLATFORM_ACCESS_KEY and CLAUDE_PLATFORM_ACCESS_KEY_SECRET must be set together",
+				providerIndex, p.Type)
+		}
+	case codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey:
+		if len(p.Keys) == 0 {
+			return xerrors.Errorf("provider %d (%s): CLAUDE_PLATFORM_AUTH_MODE %q requires KEY/KEYS",
+				providerIndex, p.Type, authMode)
+		}
+		if p.ClaudePlatformAccessKey != "" || p.ClaudePlatformAccessKeySecret != "" || p.ClaudePlatformRoleARN != "" {
+			return xerrors.Errorf("provider %d (%s): CLAUDE_PLATFORM_ACCESS_KEY, CLAUDE_PLATFORM_ACCESS_KEY_SECRET and CLAUDE_PLATFORM_ROLE_ARN are only supported with CLAUDE_PLATFORM_AUTH_MODE %q",
+				providerIndex, p.Type, codersdk.AIProviderClaudePlatformAWSAuthModeIAM)
+		}
+	case "":
+		return xerrors.Errorf("provider %d (%s): CLAUDE_PLATFORM_AUTH_MODE is required when any CLAUDE_PLATFORM_* field is set",
+			providerIndex, p.Type)
+	default:
+		return xerrors.Errorf("provider %d (%s): unknown CLAUDE_PLATFORM_AUTH_MODE %q (must be %q or %q)",
+			providerIndex, p.Type, p.ClaudePlatformAuthMode,
+			codersdk.AIProviderClaudePlatformAWSAuthModeIAM, codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey)
+	}
+
+	if p.ClaudePlatformRegion == "" {
+		return xerrors.Errorf("provider %d (%s): CLAUDE_PLATFORM_REGION is required", providerIndex, p.Type)
+	}
+	if p.ClaudePlatformWorkspaceID == "" {
+		return xerrors.Errorf("provider %d (%s): CLAUDE_PLATFORM_WORKSPACE_ID is required", providerIndex, p.Type)
+	}
+	return nil
 }
 
 var reInvalidPortAfterHost = regexp.MustCompile(`invalid port ".+" after host`)
