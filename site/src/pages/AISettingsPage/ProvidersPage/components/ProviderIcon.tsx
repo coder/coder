@@ -1,5 +1,6 @@
 import { Building2Icon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { CLAUDE_PLATFORM_DISPLAY_TYPE } from "./claudePlatform";
 
 type ProviderIconProps = {
 	provider: string;
@@ -14,6 +15,8 @@ export const getProviderIcon = (provider: string): string | undefined => {
 		case "anthropic":
 			return "/icon/anthropic.svg";
 		case "bedrock":
+			return "/icon/aws.svg";
+		case CLAUDE_PLATFORM_DISPLAY_TYPE:
 			return "/icon/aws.svg";
 		case "azure":
 			return "/icon/azure.svg";

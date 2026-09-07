@@ -23,9 +23,10 @@ import { ProviderForm } from "../components/ProviderForm";
 import { getProviderIcon } from "../components/ProviderIcon";
 import {
 	aiProviderToFormValues,
-	bedrockExternalId,
+	awsExternalId,
+	claudePlatformAuthMode,
 	getProviderDisplayType,
-	hasBedrockStoredCredentials,
+	hasAwsStoredCredentials,
 	isBedrockProvider,
 	providerFormValuesToUpdate,
 } from "../components/providerFormApiMap";
@@ -45,11 +46,14 @@ const UpdateProviderPageView: React.FC = () => {
 	});
 
 	const provider = providerQuery.data;
-	// Copilot has no stored credential, and Bedrock keeps its secrets in
-	// settings, so only the remaining types surface the api_keys UI.
+	// Copilot has no stored credential, and the AWS-signed providers keep their
+	// secrets in settings, so only the remaining ones surface the api_keys UI.
+	// Claude Platform is the exception that depends on its mode: api_key mode
+	// stores a workspace key, iam mode signs instead.
 	const providerUsesApiKeys =
 		provider !== undefined &&
 		!isBedrockProvider(provider) &&
+		claudePlatformAuthMode(provider) !== "iam" &&
 		provider.type !== "copilot";
 
 	const updateMutation = useMutation(
@@ -114,9 +118,8 @@ const UpdateProviderPageView: React.FC = () => {
 		return <Navigate to={BACK_HREF} replace />;
 	}
 
-	const openAiAnthropicSavedApiKey =
-		providerUsesApiKeys && provider.api_keys.length > 0;
-	const openAiAnthropicMaskedApiKey = providerUsesApiKeys
+	const hasSavedApiKey = providerUsesApiKeys && provider.api_keys.length > 0;
+	const savedApiKeyMask = providerUsesApiKeys
 		? provider.api_keys[0]?.masked
 		: undefined;
 
@@ -196,12 +199,10 @@ const UpdateProviderPageView: React.FC = () => {
 					<ProviderForm
 						editing
 						key={provider.id}
-						bedrockSavedAccessCredentials={hasBedrockStoredCredentials(
-							provider,
-						)}
-						bedrockExternalId={bedrockExternalId(provider)}
-						openAiAnthropicSavedApiKey={openAiAnthropicSavedApiKey}
-						openAiAnthropicMaskedApiKey={openAiAnthropicMaskedApiKey}
+						awsSavedAccessCredentials={hasAwsStoredCredentials(provider)}
+						awsExternalId={awsExternalId(provider)}
+						hasSavedApiKey={hasSavedApiKey}
+						savedApiKeyMask={savedApiKeyMask}
 						initialValues={aiProviderToFormValues(provider)}
 						isLoading={updateMutation.isPending}
 						submitError={updateMutation.error}
