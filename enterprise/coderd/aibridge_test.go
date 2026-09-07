@@ -2861,6 +2861,73 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.EqualValues(t, 1_000_000_000, currentOverride.SpendLimitMicros)
 	})
 
+	t.Run("Upsert/DeletedUserRace", func(t *testing.T) {
+		t.Parallel()
+
+		// The membership trigger fires before the soft-delete guard
+		// (alphabetical trigger order) and a committed soft-delete removes
+		// the memberships it checks, so the guard's check violation
+		// surfaces only in the true race: a soft-delete that commits while
+		// the upsert's insert is parked on the locked users row. Hold that
+		// deletion uncommitted, let the upsert block on it, commit, and
+		// require the handler to map the guard violation to a 409.
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "deleted-user-race-group",
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		deleteTx, err := sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		committed := false
+		defer func() {
+			if !committed {
+				_ = deleteTx.Rollback()
+			}
+		}()
+		_, err = deleteTx.ExecContext(ctx,
+			`UPDATE users SET deleted = true WHERE id = $1`, targetUser.ID)
+		require.NoError(t, err)
+
+		upsertDone := make(chan error, 1)
+		go func() {
+			_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+				GroupID:          group.ID,
+				SpendLimitMicros: 500_000_000,
+			})
+			upsertDone <- err
+		}()
+
+		// Wait until the upsert's insert is provably parked on the users
+		// row held by the deletion; sqlc embeds the query name in the SQL.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			var blockedPID int
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT pid FROM pg_stat_activity
+				WHERE datname = current_database()
+				  AND wait_event_type = 'Lock'
+				  AND query LIKE '%UpsertUserAIBudgetOverride%'
+			`).Scan(&blockedPID)
+			return err == nil && blockedPID != 0
+		}, testutil.IntervalFast, "the upsert must block on the users row inside the soft-delete guard")
+
+		require.NoError(t, deleteTx.Commit())
+		committed = true
+
+		select {
+		case err := <-upsertDone:
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+			require.Equal(t, "Cannot set an AI budget override for a deleted user.", apiErr.Message)
+			require.Contains(t, apiErr.Detail, "has been deleted")
+		case <-ctx.Done():
+			t.Fatalf("upsert did not finish: %v", ctx.Err())
+		}
+	})
+
 	t.Run("Upsert/ReassignsGroup", func(t *testing.T) {
 		t.Parallel()
 

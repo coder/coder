@@ -27,12 +27,6 @@ const (
 	// maxPersonalSkillRequestBytes allows worst-case JSON string escaping for
 	// otherwise valid raw skill content.
 	maxPersonalSkillRequestBytes = skills.MaxPersonalSkillSizeBytes*personalSkillJSONEscapeExpansion + personalSkillRequestEnvelopeBytes
-
-	// Raised by the insert_user_skill_fail_if_user_deleted trigger with
-	// USING CONSTRAINT. Not a table CHECK constraint, so dbgen does not
-	// emit it in check_constraint.go. The cap constraint lives in
-	// database.CheckUserSkillsPerUserLimit.
-	userSkillUserDeletedConstraint database.CheckConstraint = "user_skill_user_deleted"
 )
 
 // @Summary Create a user skill
@@ -84,7 +78,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Forbidden(rw)
 			return
 		}
-		if database.IsCheckViolation(err, userSkillUserDeletedConstraint) {
+		if database.IsCheckViolation(err, database.CheckUserSkillUserDeleted) {
 			writeCannotCreateUserSkillForDeletedUser(ctx, rw)
 			return
 		}
@@ -246,7 +240,7 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Forbidden(rw)
 			return
 		}
-		if database.IsCheckViolation(err, userSkillUserDeletedConstraint) {
+		if database.IsCheckViolation(err, database.CheckUserSkillUserDeleted) {
 			writeCannotModifyUserSkillForDeletedUser(ctx, rw)
 			return
 		}

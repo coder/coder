@@ -82,6 +82,7 @@ func TestUserSecretsCapConcurrentUpdates(t *testing.T) {
 	err := runLockRace(ctx, t, sqlDB,
 		[]stmt{{`UPDATE user_secrets SET value = $1 WHERE id = $2`, []any{bigValue, secretA}}},
 		stmt{`UPDATE user_secrets SET value = $1 WHERE id = $2`, []any{bigValue, secretB}},
+		nil,
 	)
 	require.Error(t, err, "the second update must not bypass the byte cap")
 	require.True(t, database.IsCheckViolation(err, database.CheckUserSecretsPerUserTotalBytesLimit),
@@ -178,6 +179,7 @@ func TestUserSkillsCapConcurrentInserts(t *testing.T) {
 	err = runLockRace(ctx, t, sqlDB,
 		[]stmt{insert("winner-skill")},
 		insert("loser-skill"),
+		nil,
 	)
 	require.Error(t, err, "the racing insert must recount and fail the cap")
 	require.True(t, database.IsCheckViolation(err, database.CheckUserSkillsPerUserLimit),
@@ -229,6 +231,7 @@ func TestUserSkillsCapConcurrentReassignment(t *testing.T) {
 			VALUES ($1, $2, 'winner-skill', '', 'content')
 		`, []any{uuid.New(), target.ID}}},
 		stmt{`UPDATE user_skills SET user_id = $1 WHERE id = $2`, []any{target.ID, movingSkill}},
+		nil,
 	)
 	require.Error(t, err, "the racing reassignment must recount and fail the cap")
 	require.True(t, database.IsCheckViolation(err, database.CheckUserSkillsPerUserLimit),

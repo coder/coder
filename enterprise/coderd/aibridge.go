@@ -876,6 +876,16 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+	// The soft-delete guard rejects overrides for a user deleted after the
+	// middleware fetched them. 409: the request is well-formed and fails on
+	// the target's state, matching coderd/members.go.
+	if database.IsCheckViolation(err, database.CheckUserAIBudgetOverrideUserDeleted) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Cannot set an AI budget override for a deleted user.",
+			Detail:  fmt.Sprintf("%s has been deleted.", user.Username),
+		})
+		return
+	}
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return

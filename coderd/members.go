@@ -70,6 +70,15 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
+	// 409: the request is well-formed and fails on the target's state, and
+	// the sibling deleted-user guard in userskills.go already uses Conflict.
+	if database.IsCheckViolation(err, database.CheckOrganizationMemberUserDeleted) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Cannot add a deleted user to an organization",
+			Detail:  fmt.Sprintf("%s has been deleted.", user.Username),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
@@ -47,6 +48,26 @@ func TestAddMember(t *testing.T) {
 		member, err := owner.OrganizationMember(ctx, first.OrganizationID.String(), codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, member.UserID, first.UserID)
+	})
+
+	t.Run("DeletedUser", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		// The soft-delete removes the user's memberships; re-adding by ID
+		// reaches the insert (the {user} param resolves deleted users) and
+		// the guard trigger rejects it, which the handler maps to a 409.
+		_, deletedUser := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+		// nolint:gocritic // deleting a user requires owner permission.
+		err := owner.DeleteUser(ctx, deletedUser.ID)
+		require.NoError(t, err)
+
+		// nolint:gocritic // adding an organization member requires owner permission.
+		_, err = owner.PostOrganizationMember(ctx, first.OrganizationID, deletedUser.ID.String())
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+		require.Equal(t, "Cannot add a deleted user to an organization", apiErr.Message)
+		require.Contains(t, apiErr.Detail, "has been deleted")
 	})
 }
 
