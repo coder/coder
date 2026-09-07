@@ -34,14 +34,10 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import {
-	getReasoningEffortForModel,
-	saveReasoningEffortForModel,
-} from "../utils/reasoningEffort";
-import {
-	AgentCreateForm,
-	emptyInputStorageKey,
-	selectedOrganizationIdStorageKey,
-} from "./AgentCreateForm";
+	emptyInputDraftStorage,
+	modelConfigReasoningEffortStorage,
+} from "../storage";
+import { AgentCreateForm } from "./AgentCreateForm";
 
 const persistedAttachmentsKey = "agents.persisted-attachments";
 
@@ -609,8 +605,8 @@ export const RemembersReasoningEffortByModel: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelID, "high");
-		saveReasoningEffortForModel(claudeModelConfigID, "medium");
+		modelConfigReasoningEffortStorage.forId(modelID).set("high");
+		modelConfigReasoningEffortStorage.forId(claudeModelConfigID).set("medium");
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -652,7 +648,9 @@ export const RemembersReasoningEffortByModel: Story = {
 		restoredSlider.focus();
 		await userEvent.keyboard("{ArrowRight}");
 		await waitFor(() => {
-			expect(getReasoningEffortForModel(modelID)).toBe("xhigh");
+			expect(modelConfigReasoningEffortStorage.forId(modelID).get()).toBe(
+				"xhigh",
+			);
 		});
 		await userEvent.keyboard("{Escape}");
 	},
@@ -688,7 +686,7 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelID, "low");
+		modelConfigReasoningEffortStorage.forId(modelID).set("low");
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -790,7 +788,7 @@ export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelID, "max");
+		modelConfigReasoningEffortStorage.forId(modelID).set("max");
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -1711,7 +1709,7 @@ export const OrganizationAuthorizationFailure: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem(emptyInputStorageKey, "draft message");
+		localStorage.setItem(emptyInputDraftStorage.key, "draft message");
 		spyOn(API, "getOrganizations").mockResolvedValue([
 			MockDefaultOrganization,
 			MockOrganization2,
@@ -1746,7 +1744,7 @@ export const LoadingWorkspacesBlocksSendUntilValidated: Story = {
 		isWorkspacesLoading: true,
 	},
 	beforeEach: () => {
-		localStorage.setItem(emptyInputStorageKey, "draft message");
+		localStorage.setItem(emptyInputDraftStorage.key, "draft message");
 		localStorage.setItem("agents.selected-workspace-id", "ws-default-org");
 		mockPermittedOrganizations({
 			[MockDefaultOrganization.id]: true,
@@ -1770,7 +1768,7 @@ export const DelayedOrganizationAuthorization: Story = {
 		queries: [],
 	},
 	beforeEach: () => {
-		localStorage.setItem(emptyInputStorageKey, "draft message");
+		localStorage.setItem(emptyInputDraftStorage.key, "draft message");
 		pendingOrganizationAuthorization = createDeferred();
 		spyOn(API, "getOrganizations").mockResolvedValue([
 			MockDefaultOrganization,
@@ -1894,7 +1892,7 @@ export const SelectedOrganizationSurvivesRemount: Story = {
 			}),
 		);
 		await waitFor(() => {
-			expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
+			expect(localStorage.getItem("agents.selected-organization-id")).toBe(
 				MockOrganization2.id,
 			);
 		});

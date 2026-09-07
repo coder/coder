@@ -12,7 +12,9 @@ const maxStoredDraftAgeMs = 30 * 24 * 60 * 60 * 1000;
  * ID (`forId(organizationId, chatId)`). Records carry their own
  * timestamps and expire on read after 30 days.
  */
-const chatDraftAttachmentsStorage = defineEntityStorageKey<string | null>({
+export const chatDraftAttachmentsStorage = defineEntityStorageKey<
+	string | null
+>({
 	prefix: "agents.chat-draft-attachments.",
 	codec: stringCodec,
 	defaultValue: null,

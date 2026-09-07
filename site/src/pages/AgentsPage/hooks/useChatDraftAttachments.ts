@@ -3,6 +3,7 @@ import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import { generateUUID } from "#/utils/random";
 import type { UploadState } from "../components/AgentChatInput";
+import { registerChatStorageCleanup } from "../storage";
 import {
 	getChatFileURL,
 	renameChatFileForUpload,
@@ -82,6 +83,19 @@ type UploadRegistryEntry = {
 // upload. Async completions must check generation so removed drafts cannot
 // write storage or notify UI again.
 const activeDraftUploads = new Map<string, UploadRegistryEntry>();
+
+// Resize jobs enter activeDraftUploads only after the resize completes,
+// so chat cleanup tracks them here; an abandoned job must not register
+// an upload for a chat whose storage was just cleared.
+const activeResizeJobs = new Map<
+	string,
+	{ chatId: string; abandoned: boolean }
+>();
+
+// Mounted hooks register here so chat cleanup can also drop in-memory
+// views (such as mid-resize "processing" chips) that never reached the
+// registry and would otherwise block sending after an unarchive.
+const chatCleanupListeners = new Set<(chatId: string) => void>();
 
 const isTerminalRegistryStatus = (entry: UploadRegistryEntry) =>
 	entry.status === "uploaded" || entry.status === "error";
@@ -393,6 +407,31 @@ const removeRegistryEntriesForScope = (
 	}
 };
 
+/**
+ * Invalidate a chat's in-flight uploads and resize jobs so their late
+ * async completions cannot rewrite draft records after archive or
+ * delete cleanup removed the chat's storage. Registered with the
+ * storage module below instead of exported, so the eager bundle never
+ * imports this module.
+ */
+const invalidateChatDraftUploads = (chatId: string): void => {
+	for (const entry of Array.from(activeDraftUploads.values())) {
+		if (entry.chatId === chatId) {
+			removeRegistryEntry(entry.clientId);
+		}
+	}
+	for (const job of activeResizeJobs.values()) {
+		if (job.chatId === chatId) {
+			job.abandoned = true;
+		}
+	}
+	for (const listener of chatCleanupListeners) {
+		listener(chatId);
+	}
+};
+
+registerChatStorageCleanup(invalidateChatDraftUploads);
+
 const hydrateViews = (
 	organizationId: string | undefined,
 	chatId: string | undefined,
@@ -523,6 +562,26 @@ export function useChatDraftAttachments(
 	}, []);
 
 	useEffect(() => {
+		if (!chatId) {
+			return;
+		}
+		const handleChatCleanup = (cleanedChatId: string) => {
+			if (cleanedChatId !== chatId) {
+				return;
+			}
+			for (const view of viewsRef.current) {
+				abandonedResizesRef.current.add(view.clientId);
+				revokeBlobPreview(view);
+			}
+			setViews([]);
+		};
+		chatCleanupListeners.add(handleChatCleanup);
+		return () => {
+			chatCleanupListeners.delete(handleChatCleanup);
+		};
+	}, [chatId]);
+
+	useEffect(() => {
 		const scopeKey = getDraftScopeKey(organizationId, chatId);
 		scopeRef.current = scopeKey;
 		unsubscribeAllEntries(subscriptionsRef);
@@ -591,7 +650,9 @@ export function useChatDraftAttachments(
 			resized = null;
 		}
 
-		if (abandonedResizesRef.current.has(clientId)) {
+		const resizeJob = activeResizeJobs.get(clientId);
+		activeResizeJobs.delete(clientId);
+		if (resizeJob?.abandoned || abandonedResizesRef.current.has(clientId)) {
 			return;
 		}
 		if (!organizationId || !chatId) {
@@ -755,6 +816,7 @@ export function useChatDraftAttachments(
 				};
 				nextViews.push(view);
 				resizeJobs.push({ clientId, file });
+				activeResizeJobs.set(clientId, { chatId, abandoned: false });
 				continue;
 			}
 			const view = { ...baseView, ...computePreview(file, "pending") };
@@ -870,4 +932,5 @@ export const resetChatDraftAttachmentRegistryForTest = () => {
 		notifySubscribers(entry);
 	}
 	activeDraftUploads.clear();
+	activeResizeJobs.clear();
 };

@@ -7,7 +7,9 @@ import { ArrowDownIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useStorage } from "#/hooks/useStorage";
+import { chatFullWidthStorage } from "../storage";
+import { chatWidthClass } from "../utils/chatWidth";
 
 interface EarlierMessagesProps {
 	hasMoreMessages: boolean;
@@ -111,7 +113,7 @@ export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
 	children,
 	...earlierMessages
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useStorage(chatFullWidthStorage);
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

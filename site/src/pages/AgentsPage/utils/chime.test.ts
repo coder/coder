@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	_resetForTesting,
-	getChimeEnabled,
+	chimeOnCompletionStorage,
 	LOCK_HOLD_MS,
 	maybePlayChime,
-	setChimeEnabled,
 } from "./chime";
 
 // ---------------------------------------------------------------------------
@@ -37,40 +36,6 @@ class MockLockManager {
 }
 
 // ---------------------------------------------------------------------------
-// Preference helpers
-// ---------------------------------------------------------------------------
-
-describe("getChimeEnabled / setChimeEnabled", () => {
-	beforeEach(() => {
-		localStorage.clear();
-	});
-
-	it("defaults to false when nothing is stored", () => {
-		expect(getChimeEnabled()).toBe(false);
-	});
-
-	it("returns true when stored as 'true'", () => {
-		localStorage.setItem("agents.chime-on-completion", "true");
-		expect(getChimeEnabled()).toBe(true);
-	});
-
-	it("returns false when stored as 'false'", () => {
-		localStorage.setItem("agents.chime-on-completion", "false");
-		expect(getChimeEnabled()).toBe(false);
-	});
-
-	it("setChimeEnabled persists the value", () => {
-		setChimeEnabled(false);
-		expect(localStorage.getItem("agents.chime-on-completion")).toBe("false");
-		expect(getChimeEnabled()).toBe(false);
-
-		setChimeEnabled(true);
-		expect(localStorage.getItem("agents.chime-on-completion")).toBe("true");
-		expect(getChimeEnabled()).toBe(true);
-	});
-});
-
-// ---------------------------------------------------------------------------
 // maybePlayChime
 // ---------------------------------------------------------------------------
 
@@ -83,7 +48,7 @@ describe("maybePlayChime", () => {
 		localStorage.clear();
 		_resetForTesting();
 		// Explicitly enable the chime — the default is now disabled.
-		setChimeEnabled(true);
+		chimeOnCompletionStorage.set(true);
 
 		mockLocks = new MockLockManager();
 		Object.defineProperty(navigator, "locks", {
@@ -145,7 +110,7 @@ describe("maybePlayChime", () => {
 	});
 
 	it("does NOT chime when preference is disabled", async () => {
-		setChimeEnabled(false);
+		chimeOnCompletionStorage.set(false);
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
 		await triggerAndSettle("running", "waiting", "chat-1", "chat-2");
 		expect(playSpy).not.toHaveBeenCalled();

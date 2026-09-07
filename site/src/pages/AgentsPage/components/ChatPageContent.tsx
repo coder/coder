@@ -6,10 +6,12 @@ import type { UrlTransform } from "streamdown";
 import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import { useStorage } from "#/hooks/useStorage";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import { chatFullWidthStorage } from "../storage";
 import { getChatFileURL } from "../utils/chatAttachments";
+import { chatWidthClass } from "../utils/chatWidth";
 import { getProviderForModelOption } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
@@ -127,7 +129,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	mcpServers,
 	footer,
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useStorage(chatFullWidthStorage);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);

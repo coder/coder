@@ -1,23 +1,10 @@
-const CHIME_PREFERENCE_KEY = "agents.chime-on-completion";
+import { booleanCodec, defineStorageKey } from "#/storage";
 
-export function getChimeEnabled(): boolean {
-	try {
-		const stored = localStorage.getItem(CHIME_PREFERENCE_KEY);
-		// Default to disabled when no preference has been saved.
-		return stored === null ? false : stored === "true";
-	} catch {
-		return false;
-	}
-}
-
-export function setChimeEnabled(enabled: boolean): void {
-	try {
-		localStorage.setItem(CHIME_PREFERENCE_KEY, String(enabled));
-	} catch {
-		// Silently ignore storage errors (e.g. private browsing
-		// quota exceeded).
-	}
-}
+export const chimeOnCompletionStorage = defineStorageKey<boolean>({
+	key: "agents.chime-on-completion",
+	codec: booleanCodec,
+	defaultValue: false,
+});
 
 /**
  * Play the completion chime audio file. The file is a short,
@@ -140,7 +127,7 @@ export function maybePlayChime(
 		return;
 	}
 
-	if (!getChimeEnabled()) {
+	if (!chimeOnCompletionStorage.get()) {
 		return;
 	}
 

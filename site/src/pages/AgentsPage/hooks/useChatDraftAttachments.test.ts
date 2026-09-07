@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { createDeferred } from "#/testHelpers/deferred";
+import { clearChatStorage } from "../storage";
 import { chatDraftAttachmentStorageKey } from "../utils/chatDraftAttachmentStorage";
 import {
 	resetChatDraftAttachmentRegistryForTest,
@@ -201,6 +202,36 @@ describe("useChatDraftAttachments", () => {
 		expect(result.current.attachments).toHaveLength(0);
 		expect(localStorage.getItem(storageKey)).toBeNull();
 		unmount();
+	});
+
+	it("clearChatStorage invalidates in-flight uploads so late completions cannot recreate records", async () => {
+		const upload = createDeferred<{ id: string }>();
+		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
+			upload.promise,
+		);
+		const { result, unmount } = renderHook(() =>
+			useChatDraftAttachments(orgID, chatID),
+		);
+		const file = new File(["hello"], "photo.png", {
+			type: "image/png",
+			lastModified: 2,
+		});
+
+		act(() => {
+			result.current.handleAttach([file]);
+		});
+		await vi.waitFor(() => {
+			expect(result.current.attachments).toHaveLength(1);
+		});
+		unmount();
+
+		clearChatStorage(chatID);
+		expect(localStorage.getItem(storageKey)).toBeNull();
+
+		await act(async () => {
+			upload.resolve({ id: "file-late" });
+		});
+		expect(localStorage.getItem(storageKey)).toBeNull();
 	});
 
 	it("keeps failed uploads attached with an error state", async () => {
@@ -538,6 +569,50 @@ describe("useChatDraftAttachments", () => {
 				status: "processing",
 			});
 			// Registry entry is created post-resize.
+			expect(uploadSpy).not.toHaveBeenCalled();
+			expect(localStorage.getItem(storageKey)).toBeNull();
+			unmount();
+		});
+
+		it("does not recreate storage when chat cleanup happens mid-resize", async () => {
+			const resize = await import("../utils/resizeImage");
+			let releaseResize: (value: File | null) => void = () => undefined;
+			vi.spyOn(resize, "resizeImageToMaxBytes").mockImplementation(
+				() =>
+					new Promise<File | null>((resolveFn) => {
+						releaseResize = resolveFn;
+					}),
+			);
+			const uploadSpy = vi.spyOn(API.experimental, "uploadChatFile");
+
+			const { result, unmount } = renderHook(() =>
+				useChatDraftAttachments(orgID, chatID, { provider: "anthropic" }),
+			);
+			const original = makeOversizeImage();
+			act(() => {
+				result.current.handleAttach([original]);
+			});
+			expect(result.current.uploadStates.get(original)).toMatchObject({
+				status: "processing",
+			});
+
+			// Archive cleanup fires while the chat route stays mounted with
+			// the same scope, so scope checks alone cannot stop the job.
+			act(() => {
+				clearChatStorage(chatID);
+			});
+			// The processing chip must not linger and block sending.
+			expect(result.current.attachments).toHaveLength(0);
+			expect(result.current.uploadStates.size).toBe(0);
+
+			const replacement = new File([new Uint8Array(1024)], "photo.webp", {
+				type: "image/webp",
+				lastModified: 200,
+			});
+			await act(async () => {
+				releaseResize(replacement);
+			});
+
 			expect(uploadSpy).not.toHaveBeenCalled();
 			expect(localStorage.getItem(storageKey)).toBeNull();
 			unmount();
