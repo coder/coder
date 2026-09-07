@@ -20,21 +20,11 @@ const (
 	subagentTypeExplore     = "explore"
 	subagentTypeComputerUse = "computer_use"
 
-	defaultSystemPromptPlanningGuidance = "1. Use " + spawnAgentToolName +
-		" and wait_agent when delegation helps gather context. Prefer type=\"" +
-		subagentTypeGeneral +
-		"\" for substantial delegated research, analysis, reasoning, review, " +
-		"planning support, or implementation. Use type=\"" + subagentTypeGeneral +
-		"\" even for read-only work when the task is open-ended, multi-step, " +
-		"parallel, requires synthesis, or may later need edits. When planning, " +
-		"type=\"" + subagentTypeGeneral +
-		"\" remains non-mutating until implementation is approved. Use type=\"" +
-		subagentTypeExplore +
-		"\" only for narrow repository-local read-only code discovery or code " +
-		"tracing, such as locating files, callsites, or a bounded existing flow. " +
-		"Do not use type=\"" + subagentTypeExplore +
-		"\" for generic research, broad architecture analysis, planning synthesis, " +
-		"external or web research, parallel research, or tasks that may need edits."
+	defaultSystemPromptPlanningGuidance = "1. Delegate only after defining the " +
+		"question or deliverable, scope, available inputs, and completion criteria. " +
+		"Resolve shared implementation contracts before assigning dependent work. " +
+		"Follow the spawn_agent description for agent selection and ownership. " +
+		"Planning delegates must not modify project files."
 )
 
 type spawnAgentArgs struct {
@@ -279,8 +269,9 @@ func buildSpawnAgentDescription(
 	currentChat database.Chat,
 ) string {
 	availableDefs := availableSubagentDefinitions(ctx, p, currentChat)
-	description := "Spawn a delegated child subagent to work on a clearly scoped, " +
-		"independent task in parallel. Use the type field to choose " +
+	description := "Assign a clearly scoped, independent task to a child agent. " +
+		"Include its inputs, expected result, and completion criteria. " +
+		"Use the type field to choose " +
 		"the right specialist. Available type values: " +
 		formatSubagentDefinitions(availableDefs) + ". Do not use this for " +
 		"simple or quick operations you can handle directly with execute, " +
@@ -295,11 +286,13 @@ func buildSpawnAgentDescription(
 		"Do not use type=\"" + subagentTypeExplore +
 		"\" for generic research, broad architecture analysis, planning " +
 		"synthesis, external or web research, parallel research, or tasks that " +
-		"may need edits. Be careful when running parallel subagents: if two " +
-		"subagents modify the same files they will conflict with each other, " +
-		"so ensure parallel subagent tasks are independent. The child agent " +
-		"receives the same workspace tools but cannot spawn its own subagents. " +
-		"After spawning, use wait_agent to collect the result."
+		"may need edits. Each delegated task has one owner until its result " +
+		"is returned or a handoff is acknowledged. Do not investigate, implement, " +
+		"or edit that task alongside its owner. Separate files do not make tasks " +
+		"independent when they depend on unresolved shared contracts. After " +
+		"dispatching defined assignments, use wait_agent to wait for their results before continuing research or implementation. " +
+		"Validate returned evidence rather than repeating the entire investigation. " +
+		"The child agent receives the same workspace tools but cannot spawn its own subagents."
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 		description += " During plan mode, type=\"" + subagentTypeGeneral +
 			"\" is for non-mutating substantial investigation and planning support, " +

@@ -608,10 +608,9 @@ func (p *Server) subagentTools(
 		),
 		fantasy.NewAgentTool(
 			"wait_agent",
-			"Wait until a spawned child agent finishes its task. "+
-				"Returns the agent's final response and status. "+
-				"Call this after "+spawnAgentToolName+" to collect the "+
-				"result before continuing your own work.",
+			"Wait for a child agent to finish and return its response and status. "+
+				"A timeout does not stop the child or release its task. "+
+				"If it is still working, wait again; do not take over its work without an acknowledged handoff.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -724,11 +723,11 @@ func (p *Server) subagentTools(
 		),
 		fantasy.NewAgentTool(
 			"message_agent",
-			"Send a follow-up message to a previously spawned child "+
-				"agent. Use this to provide additional instructions, "+
-				"corrections, or context to a running or completed "+
-				"agent. After sending, use wait_agent to collect the "+
-				"updated response.",
+			"Send a follow-up to an existing child agent. Set interrupt=true for corrections, changed scope, or stop/takeover instructions. "+
+				"Otherwise a busy child continues its current assignment and receives the message later. "+
+				"Interruption requests cancellation; it does not clear earlier queued messages or confirm the child has stopped. "+
+				"Use wait_agent to collect its response. Before taking over, require an explicit acknowledgment of your handoff instruction; "+
+				"a returned response or interrupting status alone is not an acknowledgment.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil

@@ -2135,15 +2135,55 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
-func TestDefaultSystemPromptPlanningGuidance_SteersSubagentSelection(t *testing.T) {
+func TestDefaultSystemPromptPlanningGuidance_DefinesDelegationPrerequisites(t *testing.T) {
 	t.Parallel()
 
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Prefer type="general" for substantial delegated research, analysis, reasoning, review, planning support, or implementation`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="general" even for read-only work when the task is open-ended, multi-step, parallel, requires synthesis, or may later need edits`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)
-	require.NotContains(t, defaultSystemPromptPlanningGuidance, "research the codebase")
-	require.NotContains(t, defaultSystemPromptPlanningGuidance, "Reserve type=\"general\" for writable delegated work")
+	for _, requirement := range []string{
+		"question or deliverable, scope, available inputs, and completion criteria",
+		"Resolve shared implementation contracts before assigning dependent work",
+		"Follow the spawn_agent description for agent selection and ownership",
+		"Planning delegates must not modify project files",
+	} {
+		t.Run(requirement, func(t *testing.T) {
+			t.Parallel()
+			require.Contains(t, defaultSystemPromptPlanningGuidance, requirement)
+		})
+	}
+}
+
+func TestSubagentToolDescriptions_DefineOwnershipAndDelivery(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, model.ID, "parent-delegation-contract")
+	tools := server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID)
+
+	for _, tc := range []struct {
+		name string
+		tool string
+		text string
+	}{
+		{"ownership", "spawn_agent", "Each delegated task has one owner"},
+		{"parent_overlap", "spawn_agent", "Do not investigate, implement, or edit that task alongside its owner"},
+		{"dependencies", "spawn_agent", "Separate files do not make tasks independent"},
+		{"wait", "spawn_agent", "wait for their results before continuing research or implementation"},
+		{"timeout", "wait_agent", "A timeout does not stop the child or release its task"},
+		{"handoff", "wait_agent", "do not take over its work without an acknowledged handoff"},
+		{"corrections", "message_agent", "Set interrupt=true for corrections, changed scope, or stop/takeover instructions"},
+		{"queue", "message_agent", "a busy child continues its current assignment and receives the message later"},
+		{"cancellation", "message_agent", "does not clear earlier queued messages or confirm the child has stopped"},
+		{"acknowledgment", "message_agent", "a returned response or interrupting status alone is not an acknowledgment"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tool := findToolByName(tools, tc.tool)
+			require.NotNil(t, tool)
+			require.Contains(t, tool.Info().Description, tc.text)
+		})
+	}
 }
 
 func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
