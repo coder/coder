@@ -221,6 +221,33 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 	const [isScheduleDialogOpen, setIsScheduleDialogOpen] =
 		useState<boolean>(false);
 
+	// Set autostop_requirement weeks to 1 when days_of_week is set to "off" or
+	// "daily". Technically you can set weeks to a different value in the backend
+	// and it will work, but this is a UX decision so users don't set days=daily
+	// and weeks=2 and get confused when workspaces only restart daily during
+	// every second week.
+	//
+	// We want to set the value to 1 when the user selects "off" or "daily"
+	// because the input gets disabled so they can't change it to 1 themselves.
+	const { values: currentValues, setValues } = form;
+	useEffect(() => {
+		if (
+			!["saturday", "sunday"].includes(
+				currentValues.autostop_requirement_days_of_week,
+			) &&
+			currentValues.autostop_requirement_weeks !== 1
+		) {
+			// This is async but we don't really need to await the value.
+			setValues({
+				...currentValues,
+				autostop_requirement_weeks: 1,
+			});
+		}
+	}, [currentValues, setValues]);
+
+	// The handlers below are declared after every hook call so the compiler
+	// can memoize their scopes; a scope spanning a hook gets pruned, which
+	// would defeat the JSX memoization that consumes them.
 	const submitValues = () => {
 		const autostop_requirement_weeks = ["saturday", "sunday"].includes(
 			form.values.autostop_requirement_days_of_week,
@@ -265,30 +292,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			disable_everyone_group_access: false,
 		});
 	};
-
-	// Set autostop_requirement weeks to 1 when days_of_week is set to "off" or
-	// "daily". Technically you can set weeks to a different value in the backend
-	// and it will work, but this is a UX decision so users don't set days=daily
-	// and weeks=2 and get confused when workspaces only restart daily during
-	// every second week.
-	//
-	// We want to set the value to 1 when the user selects "off" or "daily"
-	// because the input gets disabled so they can't change it to 1 themselves.
-	const { values: currentValues, setValues } = form;
-	useEffect(() => {
-		if (
-			!["saturday", "sunday"].includes(
-				currentValues.autostop_requirement_days_of_week,
-			) &&
-			currentValues.autostop_requirement_weeks !== 1
-		) {
-			// This is async but we don't really need to await the value.
-			setValues({
-				...currentValues,
-				autostop_requirement_weeks: 1,
-			});
-		}
-	}, [currentValues, setValues]);
 
 	const handleToggleFailureCleanup = async (checked: boolean) => {
 		await form.setValues({

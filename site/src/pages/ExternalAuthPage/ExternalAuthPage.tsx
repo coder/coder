@@ -74,6 +74,23 @@ const ExternalAuthPage: FC = () => {
 		queryClient,
 	]);
 
+	const redirectedParam = searchParams?.get("redirected");
+	const alreadyRedirected =
+		redirectedParam !== null && redirectedParam.toLowerCase() === "true";
+	const needsReauth =
+		!externalAuthProviderQuery.data?.authenticated &&
+		!externalAuthProviderQuery.data?.device;
+
+	// Kick the user back into the auth flow. When they come back with
+	// redirected=true, showing the flow again would loop forever, so instead
+	// the error below renders.
+	useEffect(() => {
+		if (!needsReauth || alreadyRedirected) {
+			return;
+		}
+		location.href = `/external-auth/${provider}/callback`;
+	}, [needsReauth, alreadyRedirected, provider]);
+
 	if (externalAuthProviderQuery.isLoading || !externalAuthProviderQuery.data) {
 		return null;
 	}
@@ -86,12 +103,8 @@ const ExternalAuthPage: FC = () => {
 		deviceExchangeError = externalAuthDeviceQuery.failureReason.response?.data;
 	}
 
-	if (
-		!externalAuthProviderQuery.data.authenticated &&
-		!externalAuthProviderQuery.data.device
-	) {
-		const redirectedParam = searchParams?.get("redirected");
-		if (redirectedParam && redirectedParam.toLowerCase() === "true") {
+	if (needsReauth) {
+		if (alreadyRedirected) {
 			// The auth flow redirected the user here. If we redirect back to the
 			// callback, that resets the flow and we'll end up in an infinite loop.
 			// So instead, show an error, as the user expects to be authenticated at
@@ -121,7 +134,7 @@ const ExternalAuthPage: FC = () => {
 				</SignInLayout>
 			);
 		}
-		location.href = `/external-auth/${provider}/callback`;
+		// The effect above triggers the redirect; render nothing meanwhile.
 		return null;
 	}
 

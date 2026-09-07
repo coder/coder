@@ -1,4 +1,4 @@
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { Navigate, useLocation } from "react-router";
 import { buildInfo } from "#/api/queries/buildInfo";
@@ -26,11 +26,28 @@ const LoginPage: FC = () => {
 	const applicationName = getApplicationName();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	let redirectError: Error | null = null;
+	const [redirectFailed, setRedirectFailed] = useState(false);
+	const redirectError: Error | null = redirectFailed
+		? new Error("unable to redirect")
+		: null;
 
 	const isApiRouteRedirect =
 		redirectTo.startsWith("/api/v2") ||
 		redirectTo.startsWith("/oauth2/authorize");
+
+	// The reason we need `location.href` for api redirects is that
+	// we need the page to reload and make a request to the backend. If we
+	// use `<Navigate>`, react would handle the redirect itself and never
+	// request the page from the backend.
+	useEffect(() => {
+		if (!isSignedIn || !isApiRouteRedirect) {
+			return;
+		}
+		location.href = sanitizeRedirect(redirectTo);
+		// Setting the href should immediately request a new page. Show an
+		// error state if it doesn't.
+		setRedirectFailed(true);
+	}, [isSignedIn, isApiRouteRedirect, redirectTo]);
 
 	useEffect(() => {
 		if (!buildInfoQuery.data || isSignedIn) {
@@ -45,15 +62,18 @@ const LoginPage: FC = () => {
 	}, [isSignedIn, buildInfoQuery.data, user?.id]);
 
 	if (isSignedIn) {
-		// The reason we need `location.href` for api redirects is that
-		// we need the page to reload and make a request to the backend. If we
-		// use `<Navigate>`, react would handle the redirect itself and never
-		// request the page from the backend.
 		if (isApiRouteRedirect) {
-			location.href = sanitizeRedirect(redirectTo);
-			// Setting the href should immediately request a new page. Show an
-			// error state if it doesn't.
-			redirectError = new Error("unable to redirect");
+			// The reason we need `location.href` for api redirects is that
+			// we need the page to reload and make a request to the backend. If we
+			// use `<Navigate>`, react would handle the redirect itself and never
+			// request the page from the backend.
+			//
+			// Render nothing while the browser follows the redirect; if the
+			// navigation does not happen, redirectFailed flips and the error
+			// view below renders.
+			if (!redirectFailed) {
+				return null;
+			}
 		} else {
 			return <Navigate to={sanitizeRedirect(redirectTo)} replace />;
 		}

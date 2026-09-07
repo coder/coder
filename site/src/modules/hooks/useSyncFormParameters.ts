@@ -21,13 +21,16 @@ export function useSyncFormParameters({
 	touched,
 	setFieldValue,
 }: UseSyncFormParametersProps) {
-	// Form values only needs to be updated when parameters change
-	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
+	// The effect must not depend on `formValues`: formik commits values and
+	// touched separately, so a values-only commit would re-run the effect
+	// before `touched` marks the edit, clobbering it with the server value.
+	// The ref carries the latest committed values into the next run instead.
 	const formValuesRef = useRef(formValues);
 
-	formValuesRef.current = formValues;
-
 	useEffect(() => {
+		// Mirror post-commit so the next run sees the latest values without
+		// adding them to the dependency list.
+		formValuesRef.current = formValues;
 		if (!parameters) return;
 		const currentFormValues = formValuesRef.current;
 		const currentFormValuesMap = new Map(

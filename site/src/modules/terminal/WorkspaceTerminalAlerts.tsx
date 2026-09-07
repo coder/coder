@@ -24,10 +24,16 @@ export const WorkspaceTerminalAlerts = ({
 	onAlertChange,
 }: WorkspaceTerminalAlertsProps) => {
 	const lifecycleState = agent?.lifecycle_state;
-	const prevLifecycleState = useRef(lifecycleState);
-	useEffect(() => {
-		prevLifecycleState.current = lifecycleState;
-	}, [lifecycleState]);
+	// Track the previous lifecycle state as state (not a ref) so the
+	// "finished starting" alert can be derived during render without reading
+	// a ref. Adjusting state during render is the React-sanctioned pattern for
+	// derived state from props.
+	const [prevLifecycleState, setPrevLifecycleState] = useState(lifecycleState);
+	if (prevLifecycleState !== lifecycleState) {
+		setPrevLifecycleState(lifecycleState);
+	}
+	const finishedStarting =
+		lifecycleState === "ready" && prevLifecycleState === "starting";
 
 	// MutationObserver triggers onAlertChange after DOM updates so
 	// the terminal can refit once alert height changes.
@@ -52,8 +58,7 @@ export const WorkspaceTerminalAlerts = ({
 				<ErrorScriptAlert />
 			) : lifecycleState === "starting" ? (
 				<LoadingScriptsAlert />
-			) : lifecycleState === "ready" &&
-				prevLifecycleState.current === "starting" ? (
+			) : finishedStarting ? (
 				<LoadedScriptsAlert />
 			) : null}
 		</div>

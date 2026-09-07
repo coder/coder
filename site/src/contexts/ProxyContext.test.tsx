@@ -120,7 +120,10 @@ describe("ProxyContextGetURLs", () => {
 	);
 });
 
-const TestingComponent = () => {
+// Not a component: invoked as a plain function in the tests below. The
+// lowercase name also keeps the React Compiler from memoizing it, which
+// would break because it is never rendered as a component.
+const renderProxyTestingScreen = () => {
 	return renderWithAuth(
 		<ProxyProvider>
 			<TestingScreen />
@@ -365,7 +368,7 @@ describe("ProxyContextSelection", () => {
 				),
 			);
 
-			TestingComponent();
+			renderProxyTestingScreen();
 			await waitForLoaderToBeRemoved();
 
 			await screen.findByTestId("latenciesLoaded").then((x) => {

@@ -91,18 +91,27 @@ test("update password when submit returns an unknown error", async () => {
 
 test("change login type to OIDC", async () => {
 	const user = userEvent.setup();
-	const { user: userData } = await renderPage();
+	// Spy before render: the compiler memoizes the mutation options, so a
+	// spy installed after render would never be observed.
 	const convertToOAUTHSpy = vi.spyOn(API, "convertToOAUTH").mockResolvedValue({
 		state_string: "some-state-string",
 		expires_at: "2021-01-01T00:00:00Z",
 		to_type: "oidc",
-		user_id: userData.id,
+		user_id: "",
 	} as OAuthConversionResponse);
 
 	vi.spyOn(SSO, "redirectToOIDCAuth").mockImplementation(() => {
 		// Does a noop
 		return "";
 	});
+
+	const { user: userData } = await renderPage();
+	convertToOAUTHSpy.mockResolvedValue({
+		state_string: "some-state-string",
+		expires_at: "2021-01-01T00:00:00Z",
+		to_type: "oidc",
+		user_id: userData.id,
+	} as OAuthConversionResponse);
 
 	const ssoSection = screen.getByTestId("sso-section");
 	const githubButton = within(ssoSection).getByText("GitHub", { exact: false });

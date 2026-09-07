@@ -4,7 +4,7 @@ import type {
 	AIBridgeListSessionsResponse,
 	AIBridgeSessionThreadsResponse,
 } from "#/api/typesGenerated";
-import { useFilterParamsKey } from "#/components/Filter/Filter";
+import { filterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 
 const SESSION_THREADS_INFINITE_PAGE_SIZE = 20;
@@ -14,7 +14,7 @@ export const paginatedSessions = (
 ): UsePaginatedQueryOptions<AIBridgeListSessionsResponse, string> => {
 	return {
 		searchParams,
-		queryPayload: () => searchParams.get(useFilterParamsKey) ?? "",
+		queryPayload: () => searchParams.get(filterParamsKey) ?? "",
 		queryKey: ({ limit, offset, payload }) => {
 			return ["aiBridgeSessions", limit, offset, payload] as const;
 		},

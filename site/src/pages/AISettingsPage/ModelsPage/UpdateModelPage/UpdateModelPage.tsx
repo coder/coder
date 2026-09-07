@@ -47,12 +47,6 @@ const UpdateModelPage: FC = () => {
 	const [providerKeyOverride, setProviderKeyOverride] = useState<string | null>(
 		null,
 	);
-	const selectedProviderState =
-		(providerKeyOverride
-			? providerStates.find((ps) => ps.key === providerKeyOverride)
-			: undefined) ??
-		providerStates.find((ps) => ps.models.some((m) => m.id === modelId)) ??
-		null;
 
 	if (!modelId) {
 		return <Navigate to={modelsPath} replace />;
@@ -83,6 +77,15 @@ const UpdateModelPage: FC = () => {
 	if (!model) {
 		return <UpdateModelPageView state="notFound" />;
 	}
+
+	// Derived below the early returns so the compiler can memoize the scope;
+	// spanning a conditional return makes it recompute every render.
+	const selectedProviderState =
+		(providerKeyOverride
+			? providerStates.find((ps) => ps.key === providerKeyOverride)
+			: undefined) ??
+		providerStates.find((ps) => ps.models.some((m) => m.id === modelId)) ??
+		null;
 
 	return (
 		<UpdateModelPageView

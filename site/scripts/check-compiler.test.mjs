@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	deduplicateDiagnostics,
 	findUnmemoizedClosureDeps,
+	lineFromCodeframe,
+	offsetToLine,
 	shortPath,
 	shortenMessage,
 } from "./check-compiler.mjs";
@@ -73,6 +75,54 @@ describe("deduplicateDiagnostics", () => {
 
 	it("returns empty array for empty input", () => {
 		expect(deduplicateDiagnostics([])).toEqual([]);
+	});
+});
+
+describe("lineFromCodeframe", () => {
+	const frame = [
+		"",
+		"  x react-compiler(Immutability): This value cannot be modified",
+		"   ,-[Bad.tsx:10:2]",
+		" 9 |     const [state, setState] = useState({ a: 0 });",
+		"10 |     state.a = 1;",
+		"   `----",
+	].join("\n");
+
+	it("extracts the line from the location header", () => {
+		expect(lineFromCodeframe(frame)).toBe(10);
+	});
+
+	it("returns 0 for missing codeframes", () => {
+		expect(lineFromCodeframe(undefined)).toBe(0);
+		expect(lineFromCodeframe(null)).toBe(0);
+	});
+
+	it("returns 0 when no location header is present", () => {
+		expect(lineFromCodeframe("plain text without a header")).toBe(0);
+	});
+});
+
+describe("offsetToLine", () => {
+	it("counts newlines before the offset", () => {
+		const code = "a\nb\nc";
+		expect(offsetToLine(code, 0)).toBe(1);
+		expect(offsetToLine(code, 1)).toBe(1);
+		expect(offsetToLine(code, 2)).toBe(2);
+		expect(offsetToLine(code, 4)).toBe(3);
+	});
+
+	it("treats offsets as UTF-8 bytes, not UTF-16 code units", () => {
+		// Each emoji is 4 UTF-8 bytes but 2 UTF-16 code units. If offsets
+		// were UTF-16 based, the reported line would drift upward here.
+		const code = `const x = "${"😀".repeat(50)}";\nstate.a = 1;`;
+		const offset = Buffer.byteLength(code, "utf-8") - 1;
+		expect(offsetToLine(code, offset)).toBe(2);
+	});
+
+	it("handles non-positive and oversized offsets", () => {
+		expect(offsetToLine("a\nb", 0)).toBe(1);
+		expect(offsetToLine("a\nb", -5)).toBe(1);
+		expect(offsetToLine("a\nb", 1000)).toBe(2);
 	});
 });
 
