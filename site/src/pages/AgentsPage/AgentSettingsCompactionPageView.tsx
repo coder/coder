@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { OrganizationCompactionTrigger } from "./compactionTriggers";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
 
@@ -7,7 +8,12 @@ export interface AgentSettingsCompactionPageViewProps {
 	models: readonly TypesGen.ChatModel[] | undefined;
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
+	compactionTriggersByOrganizationID: ReadonlyMap<
+		string,
+		OrganizationCompactionTrigger
+	>;
 	modelsError: unknown;
+	compactionTriggersError?: unknown;
 	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
@@ -25,7 +31,9 @@ export const AgentSettingsCompactionPageView: FC<
 	models,
 	providerTypeByID,
 	organizations,
+	compactionTriggersByOrganizationID,
 	modelsError,
+	compactionTriggersError,
 	isLoadingModels,
 	thresholds,
 	isThresholdsLoading,
@@ -43,7 +51,9 @@ export const AgentSettingsCompactionPageView: FC<
 				models={models ?? []}
 				providerTypeByID={providerTypeByID}
 				organizations={organizations}
+				compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
 				modelsError={modelsError}
+				compactionTriggersError={compactionTriggersError}
 				isLoadingModels={isLoadingModels}
 				thresholds={thresholds}
 				isThresholdsLoading={isThresholdsLoading}

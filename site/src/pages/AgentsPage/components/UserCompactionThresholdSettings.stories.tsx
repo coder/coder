@@ -11,6 +11,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import type { OrganizationCompactionTrigger } from "../compactionTriggers";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const modelsOrganization = {
@@ -23,6 +24,23 @@ const organizationWithEmptyDisplayName = {
 	id: MockChatModel.organization_id,
 	display_name: "",
 };
+
+const compactionModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "compaction-model",
+	model: "compact-mini",
+	display_name: "Compact Mini",
+	context_limit: 32_000,
+	compression_threshold: 50,
+};
+const compactionTrigger: OrganizationCompactionTrigger = {
+	model: compactionModel,
+	trigger: { thresholdPercent: 50, contextLimit: 32_000 },
+	point: 16_000,
+};
+const compactionTriggersByOrganizationID = new Map([
+	[MockChatModel.organization_id, compactionTrigger],
+]);
 
 const mockModels: TypesGen.ChatModel[] = [
 	{
@@ -69,6 +87,7 @@ const meta = {
 			["provider-anthropic", "anthropic"],
 		]),
 		organizations: [modelsOrganization],
+		compactionTriggersByOrganizationID: new Map(),
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -263,10 +282,116 @@ export const DisableCompactionWarning: Story = {
 		await waitFor(() => {
 			expect(
 				canvas.getByText(
-					"Setting 100% will disable auto-compaction for this model.",
+					"Setting 100% disables this model's compaction trigger.",
 				),
 			).toBeInTheDocument();
 		});
+		// With no organization trigger, the row's compaction is fully off.
+		expect(
+			within(canvas.getByRole("row", { name: /GPT-4o/i })).getByText("Off"),
+		).toBeVisible();
+	},
+};
+
+export const OrganizationCompactionTriggerWarning: Story = {
+	args: {
+		compactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const gpt4oRow = canvas.getByRole("row", { name: /GPT-4o/i });
+		const row = within(gpt4oRow);
+
+		// The Effective column shows the earlier organization trigger point.
+		expect(row.getByText("12.5%")).toBeVisible();
+		await userEvent.click(
+			row.getByRole("button", { name: /Organization override for GPT-4o/i }),
+		);
+		await waitFor(() => {
+			expect(
+				body.getByText(
+					/Compact Mini compacts at 50% of its 32,000-token window, about 12.5% of this model's window/i,
+				),
+			).toBeVisible();
+		});
+		await userEvent.keyboard("{Escape}");
+
+		// A user threshold below the organization point binds directly.
+		await userEvent.type(
+			row.getByRole("textbox", { name: /GPT-4o compaction threshold/i }),
+			"10",
+		);
+		await waitFor(() => {
+			expect(
+				row.queryByRole("button", { name: /Organization override/i }),
+			).not.toBeInTheDocument();
+		});
+		expect(row.getByText("10%")).toBeVisible();
+	},
+};
+
+export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
+	args: {
+		// 50% of a 256K summarizer window is exactly 100% of GPT-4o's
+		// 128K window; the effective column must survive a draft of 100
+		// because the backend still binds to the organization trigger.
+		compactionTriggersByOrganizationID: new Map([
+			[
+				MockChatModel.organization_id,
+				{
+					model: { ...compactionModel, context_limit: 256_000 },
+					trigger: { thresholdPercent: 50, contextLimit: 256_000 },
+					point: 128_000,
+				},
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oRow = canvas.getByRole("row", { name: /GPT-4o/i });
+		const row = within(gpt4oRow);
+
+		await userEvent.type(
+			row.getByRole("textbox", { name: /GPT-4o compaction threshold/i }),
+			"100",
+		);
+		await waitFor(() => {
+			expect(row.getByText("100%")).toBeVisible();
+		});
+		expect(
+			row.getByRole("button", { name: /Organization override for GPT-4o/i }),
+		).toBeInTheDocument();
+	},
+};
+
+export const NoOrganizationCompactionOverride: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oRow = await canvas.findByRole("row", { name: /GPT-4o/i });
+		// Effective mirrors the default (both cells show 80%) with no
+		// override explanation.
+		expect(within(gpt4oRow).getAllByText("80%")).toHaveLength(2);
+		expect(
+			canvas.queryByRole("button", { name: /Organization override/i }),
+		).not.toBeInTheDocument();
+	},
+};
+export const CompactionTriggersLoadError: Story = {
+	args: {
+		// A realistic transport failure: the explanatory copy must render
+		// instead of the raw error message.
+		compactionTriggersError: new Error("Network Error"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/Failed to load organization compaction settings/i),
+		).toBeVisible();
+		expect(canvas.queryByText(/Network Error/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: /Organization override/i }),
+		).not.toBeInTheDocument();
 	},
 };
 

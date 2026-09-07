@@ -581,6 +581,13 @@ func hasUncompressedMessageAfter(messages []database.ChatMessage, index int) boo
 }
 
 func postCompactionAssistantOverLimit(msg database.ChatMessage, thresholdPercent int32, contextLimit int64) bool {
+	// A threshold of zero means "always compact": any positive usage
+	// would count as over the limit and the still-over-limit terminal
+	// error would strand every turn after its first compaction. Treat
+	// it as never over and let the next decision compact again instead.
+	if thresholdPercent <= 0 {
+		return false
+	}
 	return shouldCompactPromptUsage(usageFromMessage(msg), contextLimit, thresholdPercent)
 }
 

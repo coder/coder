@@ -1546,7 +1546,7 @@ const baseContextUsage: AgentContextUsage = {
 	outputTokens: 10_000,
 	cacheReadTokens: 3_000,
 	cacheCreationTokens: 2_000,
-	compressionThreshold: 90,
+	compactionThreshold: { percent: 90, source: "model" },
 };
 
 /** Shows the context-usage ring and token summary tooltip. */
@@ -1575,7 +1575,7 @@ export const ContextNearLimit: Story = {
 			inputTokens: 100_000,
 			outputTokens: 20_000,
 			cacheReadTokens: 4_000,
-			compressionThreshold: 90,
+			compactionThreshold: { percent: 90, source: "model" },
 		},
 	},
 };

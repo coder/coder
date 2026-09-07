@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { hashKey } from "react-query";
+import { hashKey, type QueryClient, useQueryClient } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -17,6 +17,7 @@ import {
 	chatMessagesKey,
 	chatPromptsKey,
 	mcpServerConfigsKey,
+	organizationChatModelOverrides,
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
@@ -946,6 +947,84 @@ type Story = StoryObj<typeof AgentChatPageLayout>;
 // ---------------------------------------------------------------------------
 // Stories
 // ---------------------------------------------------------------------------
+
+const contextUsageMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	role: "assistant",
+	usage: { input_tokens: 50_000, context_limit: 200_000 },
+};
+
+let compactionQueryClient: QueryClient | undefined;
+
+export const CompactionHintSurvivesOverrideRefetchError: Story = {
+	decorators: [
+		(Story) => {
+			compactionQueryClient = useQueryClient();
+			return <Story />;
+		},
+	],
+	parameters: {
+		queries: buildQueries(MockChat, {
+			messages: [contextUsageMessage],
+			queued_messages: [],
+			has_more: false,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockRejectedValue(new Error("Failed to load model overrides"));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const queryClient = compactionQueryClient;
+		if (!queryClient) {
+			throw new Error("Query client was not captured by the story decorator");
+		}
+		const { queryKey } = organizationChatModelOverrides(
+			MockChat.organization_id,
+		);
+		await waitFor(() => {
+			expect(queryClient.getQueryState(queryKey)?.status).toBe("error");
+		});
+		expect(queryClient.getQueryData(queryKey)).toBeUndefined();
+		const gauge = await canvas.findByRole("button", {
+			name: /Context usage 25%/,
+		});
+		await userEvent.hover(gauge);
+		await waitFor(() => {
+			expect(body.getByText("25% - 50K / 200K context used")).toBeVisible();
+		});
+		expect(body.queryByText(/Compacts at/)).not.toBeInTheDocument();
+		await userEvent.unhover(gauge);
+
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockResolvedValue({ overrides: [] });
+		await queryClient.refetchQueries({ queryKey, exact: true });
+		await userEvent.hover(gauge);
+		await waitFor(() => {
+			expect(body.getByText("Compacts at 70%")).toBeVisible();
+		});
+		await userEvent.unhover(gauge);
+
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockRejectedValue(new Error("Failed to refresh model overrides"));
+		await queryClient.refetchQueries({ queryKey, exact: true });
+		expect(queryClient.getQueryState(queryKey)?.status).toBe("error");
+		expect(queryClient.getQueryData(queryKey)).toEqual({ overrides: [] });
+		await userEvent.hover(gauge);
+		await waitFor(() => {
+			expect(body.getByText("Compacts at 70%")).toBeVisible();
+		});
+		expect(gauge).toHaveAccessibleName(/Context usage 25%/);
+	},
+};
 
 /** Multi-turn conversation with rich markdown rendering: headings, tables,
  *  ordered/unordered lists, nested lists, code blocks, blockquotes,

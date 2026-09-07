@@ -6,6 +6,7 @@ import type { UrlTransform } from "streamdown";
 import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import type { ResolvedCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -241,7 +242,7 @@ interface ChatPageInputProps {
 	// Organization that owns this chat. Used to scope file uploads.
 	organizationId: string | undefined;
 	store: ChatStoreHandle;
-	compressionThreshold: number | undefined;
+	compactionThreshold: ResolvedCompactionThreshold | undefined;
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -312,7 +313,7 @@ interface ChatPageInputProps {
 export const ChatPageInput: FC<ChatPageInputProps> = ({
 	organizationId,
 	store,
-	compressionThreshold,
+	compactionThreshold,
 	onSend,
 	sendShortcut,
 	onDeleteQueuedMessage,
@@ -392,7 +393,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		rawUsage || chatContext
 			? {
 					...(rawUsage ?? {}),
-					compressionThreshold,
+					compactionThreshold,
 					context: chatContext,
 				}
 			: rawUsage;

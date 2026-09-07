@@ -279,11 +279,9 @@ func generationCompactionThreshold(compaction *generationCompaction) int32 {
 	return compaction.Options.ThresholdPercent
 }
 
-// generationCompactionContextLimit returns the context limit the compaction
-// trigger was evaluated against at prepare time (the stricter of the chat and
-// override models' limits). The still-over-limit check must compare against
-// the same limit, otherwise a stricter override loops through repeated
-// compactions instead of surfacing errCompactionStillOverLimit.
+// generationCompactionContextLimit returns the limit used to select the
+// compaction trigger. The still-over-limit check must use the same limit to
+// avoid repeated compactions instead of surfacing errCompactionStillOverLimit.
 func generationCompactionContextLimit(compaction *generationCompaction) int64 {
 	if compaction == nil {
 		return 0

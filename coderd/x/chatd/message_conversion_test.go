@@ -740,6 +740,20 @@ func TestCompactionStatusFromHistory(t *testing.T) {
 		require.Equal(t, compactionStatusStillOverLimit, got)
 	})
 
+	t.Run("zero threshold compacts again instead of reporting still over limit", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))), 80, 100),
+		}
+
+		got := compactionStatusFromHistory(messages, compactionRequirementNeeded, 0, 100)
+		require.Equal(t, compactionStatusNeeded, got)
+	})
+
 	t.Run("still over limit includes prompt cache tokens", func(t *testing.T) {
 		t.Parallel()
 
