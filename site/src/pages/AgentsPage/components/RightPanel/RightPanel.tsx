@@ -8,7 +8,9 @@ import {
 } from "react";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
-const STORAGE_KEY = "agents.right-panel-width";
+export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
+export const RIGHT_PANEL_WIDTH_KEY = "agents.right-panel-width";
+
 const MIN_WIDTH = 360;
 const MAX_WIDTH_RATIO = 0.7;
 const DEFAULT_WIDTH = 480;
@@ -43,7 +45,7 @@ function getSideBySideMaxWidth(panel: HTMLElement | null): number {
 }
 
 function loadPersistedWidth(): number {
-	const stored = localStorage.getItem(STORAGE_KEY);
+	const stored = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
 	if (!stored) {
 		return DEFAULT_WIDTH;
 	}
@@ -261,7 +263,7 @@ export const RightPanel = ({
 	});
 
 	useEffect(() => {
-		localStorage.setItem(STORAGE_KEY, String(width));
+		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
 	}, [width]);
 
 	useEffect(() => {

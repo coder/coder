@@ -38,7 +38,7 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
@@ -56,6 +56,7 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 const defaultModelID = "model-config-1";
 
