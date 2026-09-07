@@ -50,9 +50,10 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
