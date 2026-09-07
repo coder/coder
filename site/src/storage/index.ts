@@ -1,18 +1,6 @@
 /**
- * Browser storage core.
- *
- * Every persisted UI preference goes through this module. It provides
- * never-throwing primitives around localStorage/sessionStorage, typed
- * key handles with parse-validation, and change notification for
- * same-tab and cross-tab reactivity (the native "storage" event only
- * fires in other tabs).
- *
- * Key handles are defined next to the feature that reads them; this
- * module only provides the building blocks.
- *
- * Reach for browser storage only for device-local UI state. Anything
- * that should follow the user across devices or browsers belongs in a
- * server-persisted setting instead.
+ * Browser storage is for device-local state; cross-device preferences belong
+ * in server settings. Define key handles next to their consumers.
  */
 
 import type { Schema } from "yup";
@@ -115,11 +103,7 @@ export const jsonCodec = <T>(
 	encode: (value) => JSON.stringify(value),
 });
 
-/**
- * JSON codec whose shape is declared as a Yup schema. Validation is
- * strict (no type coercion); the decoded value is rebuilt via cast so
- * unknown properties from older builds never leak through.
- */
+/** JSON codec with strict Yup validation and unknown-field stripping. */
 export const yupCodec = <T>(schema: Schema<T>): StorageCodec<T> => ({
 	decode: (raw) => {
 		try {
@@ -137,8 +121,7 @@ export const yupCodec = <T>(schema: Schema<T>): StorageCodec<T> => ({
 // -- Safe primitives --------------------------------------------------------
 
 const getAreaStorage = (area: StorageArea): Storage | null => {
-	// Accessing localStorage itself can throw (sandboxed iframes,
-	// disabled cookies), so even the lookup is guarded.
+	// The storage getter can throw when the browser blocks site data.
 	try {
 		return area === "local" ? localStorage : sessionStorage;
 	} catch {
@@ -199,13 +182,13 @@ const removeRaw = (area: StorageArea, key: string): PersistResult => {
 
 // -- Change notification and snapshot cache ---------------------------------
 
-const cacheKeyFor = (area: StorageArea, key: string): string =>
+const listenerKeyFor = (area: StorageArea, key: string): string =>
 	`${area}:${key}`;
 
 const keyListeners = new Map<string, Set<() => void>>();
 
-const notifyKey = (cacheKey: string): void => {
-	const listeners = keyListeners.get(cacheKey);
+const notifyKey = (listenerKey: string): void => {
+	const listeners = keyListeners.get(listenerKey);
 	if (!listeners) {
 		return;
 	}
@@ -215,14 +198,12 @@ const notifyKey = (cacheKey: string): void => {
 };
 
 const notifyKeyChanged = (area: StorageArea, key: string): void => {
-	notifyKey(cacheKeyFor(area, key));
+	notifyKey(listenerKeyFor(area, key));
 };
 
 addEventListener("storage", (event: StorageEvent) => {
-	// localStorage events arrive from other tabs; sessionStorage
-	// events arrive from same-origin frames in this tab, which share
-	// the session area with this document.
 	let area: StorageArea;
+
 	try {
 		if (event.storageArea === localStorage) {
 			area = "local";
@@ -234,11 +215,13 @@ addEventListener("storage", (event: StorageEvent) => {
 	} catch {
 		return;
 	}
+
 	if (event.key === null) {
 		// clear() of the whole area elsewhere in this origin.
 		const prefix = `${area}:`;
-		for (const [cacheKey, listeners] of keyListeners) {
-			if (cacheKey.startsWith(prefix)) {
+
+		for (const [listenerKey, listeners] of keyListeners) {
+			if (listenerKey.startsWith(prefix)) {
 				for (const listener of listeners) {
 					listener();
 				}
@@ -246,6 +229,7 @@ addEventListener("storage", (event: StorageEvent) => {
 		}
 		return;
 	}
+
 	notifyKeyChanged(area, event.key);
 });
 
@@ -257,7 +241,7 @@ const createHandle = <T>(
 	codec: StorageCodec<NonNullable<T>>,
 	defaultValue: T,
 ): StorageKeyHandle<T> => {
-	const cacheKey = cacheKeyFor(area, key);
+	const listenerKey = listenerKeyFor(area, key);
 
 	// Last decode, scoped to this handle so another handle on the same
 	// key never sees values produced by a foreign codec or default.
@@ -299,7 +283,7 @@ const createHandle = <T>(
 				reason: isQuotaError(error) ? "quota" : "unavailable",
 			};
 		}
-		notifyKey(cacheKey);
+		notifyKey(listenerKey);
 		return { ok: true };
 	};
 
@@ -333,21 +317,21 @@ const createHandle = <T>(
 		// properties) and so mutating a retained caller reference cannot
 		// desync snapshots from the stored bytes.
 		cached = { raw, value: decoded };
-		notifyKey(cacheKey);
+		notifyKey(listenerKey);
 		return result;
 	};
 
 	const subscribe = (listener: () => void): (() => void) => {
-		let listeners = keyListeners.get(cacheKey);
+		let listeners = keyListeners.get(listenerKey);
 		if (!listeners) {
 			listeners = new Set();
-			keyListeners.set(cacheKey, listeners);
+			keyListeners.set(listenerKey, listeners);
 		}
 		listeners.add(listener);
 		return () => {
 			listeners.delete(listener);
 			if (listeners.size === 0) {
-				keyListeners.delete(cacheKey);
+				keyListeners.delete(listenerKey);
 			}
 		};
 	};

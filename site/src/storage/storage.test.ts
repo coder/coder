@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { array, string } from "yup";
 import { useStorage } from "#/hooks/useStorage";
 import {
 	booleanCodec,
@@ -9,13 +10,10 @@ import {
 	jsonCodec,
 	stringCodec,
 	stringLiteralCodec,
+	yupCodec,
 } from "./index";
 
-const parseStringArray = (parsed: unknown): string[] | undefined =>
-	Array.isArray(parsed) &&
-	parsed.every((item): item is string => typeof item === "string")
-		? parsed
-		: undefined;
+const stringArraySchema = array(string().defined()).defined();
 
 const boolKey = defineStorageKey<boolean>({
 	key: "test.bool",
@@ -29,7 +27,7 @@ const numberKey = defineStorageKey<number | null>({
 });
 const listKey = defineStorageKey<string[] | null>({
 	key: "test.list",
-	codec: jsonCodec(parseStringArray),
+	codec: yupCodec(stringArraySchema),
 	defaultValue: null,
 });
 const literalKey = defineStorageKey<"a" | "b">({
@@ -51,7 +49,7 @@ const chatNote = defineEntityStorageKey<string | null>({
 });
 const chatTabs = defineEntityStorageKey<readonly string[]>({
 	prefix: "test.chat-tabs.",
-	codec: jsonCodec<readonly string[]>(parseStringArray),
+	codec: yupCodec<readonly string[]>(stringArraySchema),
 	defaultValue: [],
 });
 const chatComposite = defineEntityStorageKey<string | null>({
