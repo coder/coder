@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	stdslog "log/slog"
 	"net/http"
 
@@ -97,7 +98,7 @@ func (s *Server) RegisterTools(client *codersdk.Client, opts ...func(*toolsdk.De
 			continue
 		}
 
-		RegisterSDKTool(s.mcpServer, tool, toolDeps)
+		RegisterSDKTool(s.mcpServer, tool, toolDeps, s.Logger)
 	}
 	return nil
 }
@@ -129,13 +130,13 @@ func (s *Server) RegisterChatGPTTools(client *codersdk.Client, opts ...func(*too
 			continue
 		}
 
-		RegisterSDKTool(s.mcpServer, tool, toolDeps)
+		RegisterSDKTool(s.mcpServer, tool, toolDeps, s.Logger)
 	}
 	return nil
 }
 
 // RegisterSDKTool registers a [toolsdk.GenericTool] with an MCP server.
-func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.Deps) {
+func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.Deps, logger slog.Logger) {
 	if sdkTool.Schema.Properties == nil {
 		panic("developer error: schema properties cannot be nil")
 	}
@@ -164,9 +165,10 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		result, err := sdkTool.Handler(ctx, tb, req.Params.Arguments)
 		if err != nil {
+			logger.Warn(ctx, "mcp tool execution failed", slog.F("tool", sdkTool.Name), slog.Error(err))
 			var validationErr *toolsdk.ArgumentValidationError
 			if !errors.As(err, &validationErr) {
-				return nil, err
+				return toolErrorResult(toolErrorMessage(err)), nil
 			}
 			content, marshalErr := json.Marshal(struct {
 				Error          string         `json:"error"`
@@ -176,12 +178,10 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 				ExpectedSchema: inputSchema,
 			})
 			if marshalErr != nil {
-				return nil, xerrors.Errorf("marshal MCP tool argument validation response: %w", marshalErr)
+				logger.Error(ctx, "marshal MCP tool argument validation response", slog.F("tool", sdkTool.Name), slog.Error(marshalErr))
+				return toolErrorResult(internalToolErrorMessage), nil
 			}
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{&mcp.TextContent{Text: string(content)}},
-				IsError: true,
-			}, nil
+			return toolErrorResult(string(content)), nil
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -189,6 +189,41 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 			},
 		}, nil
 	})
+}
+
+const internalToolErrorMessage = "An internal error occurred while running this tool. Check the Coder server logs for details."
+
+func toolErrorResult(message string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: message}},
+		IsError: true,
+	}
+}
+
+func toolErrorMessage(err error) string {
+	if publicErr, ok := errors.AsType[*toolsdk.PublicError](err); ok {
+		if publicErr.Message == "" {
+			return internalToolErrorMessage
+		}
+		return publicErr.Message
+	}
+	if apiErr, ok := errors.AsType[*codersdk.Error](err); ok {
+		// API Detail and Error() include diagnostic information such as
+		// request URLs. Only expose fields intended for the caller.
+		message := fmt.Sprintf("Coder API error (HTTP %d): %s", apiErr.StatusCode(), apiErr.Message)
+		for _, validation := range apiErr.Validations {
+			message += fmt.Sprintf("\n- %s: %s", validation.Field, validation.Detail)
+		}
+		return message
+	}
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "Tool execution was canceled."
+	case errors.Is(err, context.DeadlineExceeded):
+		return "Tool execution timed out."
+	default:
+		return internalToolErrorMessage
+	}
 }
 
 // RegisterSDKPrompt registers a [toolsdk.Prompt] with an MCP server.

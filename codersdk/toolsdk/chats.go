@@ -18,11 +18,11 @@ const chatIDDescription = "UUID of the chat."
 
 func parseChatID(chatID string) (uuid.UUID, error) {
 	if chatID == "" {
-		return uuid.Nil, xerrors.New("chat_id is required")
+		return uuid.Nil, &PublicError{Message: "chat_id is required"}
 	}
 	id, err := uuid.Parse(chatID)
 	if err != nil {
-		return uuid.Nil, xerrors.New("chat_id must be a valid UUID")
+		return uuid.Nil, &PublicError{Message: "chat_id must be a valid UUID"}
 	}
 	return id, nil
 }
@@ -115,14 +115,14 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 	MCPAnnotations: mcpMutationAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args CreateChatArgs) (ChatToolStatus, error) {
 		if args.Prompt == "" {
-			return ChatToolStatus{}, xerrors.New("prompt is required")
+			return ChatToolStatus{}, &PublicError{Message: "prompt is required"}
 		}
 		var orgID uuid.UUID
 		if args.OrganizationID != "" {
 			var err error
 			orgID, err = uuid.Parse(args.OrganizationID)
 			if err != nil {
-				return ChatToolStatus{}, xerrors.New("organization_id must be a valid UUID")
+				return ChatToolStatus{}, &PublicError{Message: "organization_id must be a valid UUID"}
 			}
 		} else {
 			var err error
@@ -135,7 +135,7 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 		if args.ModelConfigID != "" {
 			id, err := uuid.Parse(args.ModelConfigID)
 			if err != nil {
-				return ChatToolStatus{}, xerrors.New("model_config_id must be a valid UUID")
+				return ChatToolStatus{}, &PublicError{Message: "model_config_id must be a valid UUID"}
 			}
 			modelConfigID = &id
 		}
@@ -165,7 +165,7 @@ func defaultChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, error) 
 	}
 	// Admins can remove a user's only organization membership.
 	if len(me.OrganizationIDs) == 0 {
-		return uuid.Nil, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
+		return uuid.Nil, &PublicError{Message: "authenticated user belongs to no organization; pass organization_id explicitly"}
 	}
 	if len(me.OrganizationIDs) == 1 {
 		return me.OrganizationIDs[0], nil
@@ -215,7 +215,7 @@ func defaultChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, error) 
 	if latest != nil {
 		return latest.OrganizationID, nil
 	}
-	return uuid.Nil, xerrors.New("organization_id is required because the authenticated user belongs to multiple organizations and has not created a chat yet")
+	return uuid.Nil, &PublicError{Message: "organization_id is required because the authenticated user belongs to multiple organizations and has not created a chat yet"}
 }
 
 type GetChatArgs struct {
@@ -303,7 +303,7 @@ Address the file with file_id alone, or with chat_id and an exact file_name. The
 		fileIDMode := args.FileID != "" && args.ChatID == "" && args.FileName == ""
 		chatFileMode := args.FileID == "" && args.ChatID != "" && args.FileName != ""
 		if !fileIDMode && !chatFileMode {
-			return DownloadChatFileResponse{}, xerrors.New("provide exactly one addressing mode: file_id alone, or chat_id with file_name")
+			return DownloadChatFileResponse{}, &PublicError{Message: "provide exactly one addressing mode: file_id alone, or chat_id with file_name"}
 		}
 
 		var fileID uuid.UUID
@@ -311,7 +311,7 @@ Address the file with file_id alone, or with chat_id and an exact file_name. The
 			var err error
 			fileID, err = uuid.Parse(args.FileID)
 			if err != nil {
-				return DownloadChatFileResponse{}, xerrors.New("file_id must be a valid UUID")
+				return DownloadChatFileResponse{}, &PublicError{Message: "file_id must be a valid UUID"}
 			}
 		} else {
 			chatID, err := parseChatID(args.ChatID)
@@ -328,13 +328,13 @@ Address the file with file_id alone, or with chat_id and an exact file_name. The
 					continue
 				}
 				if found {
-					return DownloadChatFileResponse{}, xerrors.Errorf("multiple chat files named %q; available files: %s", args.FileName, chatFilesDescription(chat.Files))
+					return DownloadChatFileResponse{}, &PublicError{Message: fmt.Sprintf("multiple chat files named %q; available files: %s", args.FileName, chatFilesDescription(chat.Files))}
 				}
 				fileID = file.ID
 				found = true
 			}
 			if !found {
-				return DownloadChatFileResponse{}, xerrors.Errorf("no chat file named %q; available files: %s", args.FileName, chatFilesDescription(chat.Files))
+				return DownloadChatFileResponse{}, &PublicError{Message: fmt.Sprintf("no chat file named %q; available files: %s", args.FileName, chatFilesDescription(chat.Files))}
 			}
 		}
 
@@ -393,7 +393,7 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 			return AwaitChatResponse{}, err
 		}
 		if args.WaitSecs < 0 || args.WaitSecs > 120 {
-			return AwaitChatResponse{}, xerrors.New("wait_secs must be between 1 and 120")
+			return AwaitChatResponse{}, &PublicError{Message: "wait_secs must be between 1 and 120"}
 		}
 		waitSecs := args.WaitSecs
 		if waitSecs == 0 {
@@ -554,7 +554,7 @@ var ListChats = Tool[ListChatsArgs, ListChatsResponse]{
 	MCPAnnotations: mcpReadOnlyAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args ListChatsArgs) (ListChatsResponse, error) {
 		if args.Limit < 0 || args.Limit > 100 {
-			return ListChatsResponse{}, xerrors.New("limit must be between 1 and 100")
+			return ListChatsResponse{}, &PublicError{Message: "limit must be between 1 and 100"}
 		}
 		limit := args.Limit
 		if limit == 0 {
@@ -679,16 +679,16 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 			return GetChatMessagesResponse{}, err
 		}
 		if args.Limit < 0 || args.Limit > 200 {
-			return GetChatMessagesResponse{}, xerrors.New("limit must be between 1 and 200")
+			return GetChatMessagesResponse{}, &PublicError{Message: "limit must be between 1 and 200"}
 		}
 		if args.BeforeID < 0 {
-			return GetChatMessagesResponse{}, xerrors.New("before_id must be a positive message id")
+			return GetChatMessagesResponse{}, &PublicError{Message: "before_id must be a positive message id"}
 		}
 		if args.AfterID < 0 {
-			return GetChatMessagesResponse{}, xerrors.New("after_id must be a positive message id")
+			return GetChatMessagesResponse{}, &PublicError{Message: "after_id must be a positive message id"}
 		}
 		if args.BeforeID > 0 && args.AfterID > 0 {
-			return GetChatMessagesResponse{}, xerrors.New("before_id and after_id cannot be used together")
+			return GetChatMessagesResponse{}, &PublicError{Message: "before_id and after_id cannot be used together"}
 		}
 		var opts *codersdk.ChatMessagesPaginationOptions
 		if args.Limit > 0 || args.BeforeID > 0 || args.AfterID > 0 {
@@ -815,7 +815,7 @@ var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
 			return SendChatMessageResponse{}, err
 		}
 		if args.Text == "" {
-			return SendChatMessageResponse{}, xerrors.New("text is required")
+			return SendChatMessageResponse{}, &PublicError{Message: "text is required"}
 		}
 		busyBehavior := args.BusyBehavior
 		switch busyBehavior {
@@ -823,7 +823,7 @@ var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
 			busyBehavior = codersdk.ChatBusyBehaviorQueue
 		case codersdk.ChatBusyBehaviorQueue, codersdk.ChatBusyBehaviorInterrupt:
 		default:
-			return SendChatMessageResponse{}, xerrors.New(`busy_behavior must be "queue" or "interrupt"`)
+			return SendChatMessageResponse{}, &PublicError{Message: `busy_behavior must be "queue" or "interrupt"`}
 		}
 		resp, err := codersdk.NewExperimentalClient(deps.coderClient).CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
@@ -952,7 +952,7 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 			var err error
 			organizationID, err = uuid.Parse(args.OrganizationID)
 			if err != nil {
-				return ListChatModelConfigsResponse{}, xerrors.New("organization_id must be a valid UUID")
+				return ListChatModelConfigsResponse{}, &PublicError{Message: "organization_id must be a valid UUID"}
 			}
 		} else {
 			var err error

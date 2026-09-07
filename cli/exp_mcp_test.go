@@ -1324,3 +1324,51 @@ func (f *fakeCoderdAgentAPI) UpdateAppStatus(ctx context.Context, req *agentprot
 	}
 	return &agentproto.UpdateAppStatusResponse{}, nil
 }
+
+func TestExpMcpServerToolError(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools=coder_get_chat")
+	inv = inv.WithContext(ctx)
+	stdout, stdoutWriter := expecter.NewPiped(t)
+	inv.Stdout = stdoutWriter
+	stderr := testutil.NewWaitBuffer()
+	inv.Stderr = stderr
+	stdin := testutil.NewWriterAttachedToInvocation(t, testutil.Logger(t), inv)
+	clitest.SetupConfig(t, client, root)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		assert.NoError(t, inv.Run())
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+
+	stdin.WriteLine(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`)
+	_ = stdout.ReadLine(ctx)
+	stdin.WriteLine(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	stdin.WriteLine(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"coder_get_chat","arguments":{"chat_id":"private-invalid-id"}}}`)
+	var response struct {
+		Error  json.RawMessage `json:"error"`
+		Result struct {
+			IsError bool `json:"isError"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(stdout.ReadLine(ctx)), &response))
+	require.Empty(t, response.Error)
+	require.True(t, response.Result.IsError)
+	require.Len(t, response.Result.Content, 1)
+	require.Equal(t, "text", response.Result.Content[0].Type)
+	require.Equal(t, "chat_id must be a valid UUID", response.Result.Content[0].Text)
+	require.Contains(t, stderr.String(), "mcp tool execution failed")
+	require.Contains(t, stderr.String(), "coder_get_chat")
+	require.Contains(t, stderr.String(), "chat_id must be a valid UUID")
+	require.NotContains(t, stderr.String(), "private-invalid-id")
+}

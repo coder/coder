@@ -32,7 +32,7 @@ func (o ObjectID) String() string {
 func parseObjectID(id string) (ObjectID, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) != 2 || (parts[0] != "template" && parts[0] != "workspace") {
-		return ObjectID{}, xerrors.Errorf("invalid ID: %s", id)
+		return ObjectID{}, &PublicError{Message: fmt.Sprintf("invalid ID: %s", id)}
 	}
 	return ObjectID{
 		Type: ObjectType(parts[0]),
@@ -103,7 +103,7 @@ func parseSearchQuery(query string) (SearchQuery, error) {
 	parts := strings.Split(query, "/")
 	queryType := SearchQueryType(parts[0])
 	if queryType != SearchQueryTypeTemplates && queryType != SearchQueryTypeWorkspaces {
-		return SearchQuery{}, xerrors.Errorf("invalid query: %s", query)
+		return SearchQuery{}, &PublicError{Message: fmt.Sprintf("invalid query: %s", query)}
 	}
 	queryString := ""
 	if len(parts) > 1 {
@@ -330,7 +330,7 @@ List workspaces with multiple filters - running workspaces owned by "alice".
 func fetchWorkspace(ctx context.Context, deps Deps, workspaceID string) (FetchResult, error) {
 	parsedID, err := uuid.Parse(workspaceID)
 	if err != nil {
-		return FetchResult{}, xerrors.Errorf("invalid workspace ID, must be a valid UUID: %w", err)
+		return FetchResult{}, &PublicError{Message: "invalid workspace ID, must be a valid UUID", Cause: err}
 	}
 	workspace, err := deps.coderClient.Workspace(ctx, parsedID)
 	if err != nil {
@@ -351,7 +351,7 @@ func fetchWorkspace(ctx context.Context, deps Deps, workspaceID string) (FetchRe
 func fetchTemplate(ctx context.Context, deps Deps, templateID string) (FetchResult, error) {
 	parsedID, err := uuid.Parse(templateID)
 	if err != nil {
-		return FetchResult{}, xerrors.Errorf("invalid template ID, must be a valid UUID: %w", err)
+		return FetchResult{}, &PublicError{Message: "invalid template ID, must be a valid UUID", Cause: err}
 	}
 	template, err := deps.coderClient.Template(ctx, parsedID)
 	if err != nil {

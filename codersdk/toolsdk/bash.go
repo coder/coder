@@ -92,10 +92,10 @@ Examples:
 	MCPAnnotations: mcpDestructiveAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceBashArgs) (res WorkspaceBashResult, err error) {
 		if args.Workspace == "" {
-			return WorkspaceBashResult{}, xerrors.New("workspace name cannot be empty")
+			return WorkspaceBashResult{}, &PublicError{Message: "workspace name cannot be empty"}
 		}
 		if args.Command == "" {
-			return WorkspaceBashResult{}, xerrors.New("command cannot be empty")
+			return WorkspaceBashResult{}, &PublicError{Message: "command cannot be empty"}
 		}
 
 		ctx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, xerrors.New("MCP handler timeout after 5 min"))
@@ -198,14 +198,14 @@ func findWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, workspa
 	// Auto-start workspace if needed
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 		if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is deleted", workspace.Name)
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, &PublicError{Message: fmt.Sprintf("workspace %q is deleted", workspace.Name)}
 		}
 		if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobFailed {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is in failed state", workspace.Name)
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, &PublicError{Message: fmt.Sprintf("workspace %q is in failed state", workspace.Name)}
 		}
 		if workspace.LatestBuild.Status != codersdk.WorkspaceStatusStopped {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace must be started; was unable to autostart as the last build job is %q, expected %q",
-				workspace.LatestBuild.Status, codersdk.WorkspaceStatusStopped)
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, &PublicError{Message: fmt.Sprintf("workspace must be started; was unable to autostart as the last build job is %q, expected %q",
+				workspace.LatestBuild.Status, codersdk.WorkspaceStatusStopped)}
 		}
 
 		// Start workspace
@@ -255,7 +255,7 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (codersdk
 	}
 
 	if len(agents) == 0 {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
+		return codersdk.WorkspaceAgent{}, &PublicError{Message: fmt.Sprintf("workspace %q has no agents", workspace.Name)}
 	}
 
 	if agentName != "" {
@@ -264,14 +264,14 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (codersdk
 				return agent, nil
 			}
 		}
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q, available agents: %v", agentName, availableNames)
+		return codersdk.WorkspaceAgent{}, &PublicError{Message: fmt.Sprintf("agent not found by name %q, available agents: %v", agentName, availableNames)}
 	}
 
 	if len(agents) == 1 {
 		return agents[0], nil
 	}
 
-	return codersdk.WorkspaceAgent{}, xerrors.Errorf("multiple agents found, please specify the agent name, available agents: %v", availableNames)
+	return codersdk.WorkspaceAgent{}, &PublicError{Message: fmt.Sprintf("multiple agents found, please specify the agent name, available agents: %v", availableNames)}
 }
 
 // executeCommandWithTimeout executes a command with timeout support

@@ -1260,17 +1260,12 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 			"path":      "/tmp/secret.txt",
 		},
 	})
-	// The MCP library may return the error in the tool result itself
-	// (isError=true) rather than as a Go error. Check both.
-	if err != nil {
-		require.ErrorContains(t, err, "unauthorized")
-		return
-	}
-	// If no Go error, the tool result must report failure.
+	require.NoError(t, err)
 	require.True(t, toolResult.IsError, "expected tool call to fail for user without SSH access")
+	require.Len(t, toolResult.Content, 1)
 	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
-	assert.Contains(t, textContent.Text, "unauthorized")
+	assert.Equal(t, "unauthorized: you do not have SSH access to this workspace", textContent.Text)
 }
 
 func mustParseURL(t *testing.T, rawURL string) *url.URL {

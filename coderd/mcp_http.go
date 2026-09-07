@@ -49,7 +49,7 @@ func (api *API) mcpHTTPHandler() http.Handler {
 		// commands through MCP tools.
 		toolOpt := toolsdk.WithAgentConnFunc(func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			if api.Entitlements.Enabled(codersdk.FeatureBrowserOnly) {
-				return nil, nil, xerrors.New("non-browser connections are disabled")
+				return nil, nil, &toolsdk.PublicError{Message: "non-browser connections are disabled"}
 			}
 			// Use system context for the lookup because the tool
 			// handler context does not carry a dbauthz actor. The
@@ -64,7 +64,7 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			// Enforce the same ActionSSH check that the coordinate
 			// endpoint uses (workspaceagents.go:1317).
 			if !api.Authorize(r, policy.ActionSSH, workspace) {
-				return nil, nil, xerrors.New("unauthorized: you do not have SSH access to this workspace")
+				return nil, nil, &toolsdk.PublicError{Message: "unauthorized: you do not have SSH access to this workspace"}
 			}
 			return api.agentProvider.AgentConn(ctx, agentID)
 		})
