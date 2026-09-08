@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import { type FC, type PropsWithChildren, useState } from "react";
 import type {
@@ -6,6 +7,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { SearchField } from "#/components/SearchField/SearchField";
 import {
 	Tooltip,
 	TooltipContent,
@@ -14,7 +16,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
-import { cn } from "#/utils/cn";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
