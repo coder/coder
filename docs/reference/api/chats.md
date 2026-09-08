@@ -110,16 +110,43 @@ curl -X GET http://coder-server:8080/api/v2/chats \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "commits": 0,
       "deletions": 0,
+      "git_branch": "string",
       "head_branch": "string",
       "pr_number": 0,
       "pull_request_draft": true,
       "pull_request_state": "string",
       "pull_request_title": "string",
       "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
       "reviewer_count": 0,
       "stale_at": "2019-08-24T14:15:22Z",
       "url": "string"
     },
+    "diff_statuses": [
+      {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "git_branch": "string",
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "files": [
       {
         "created_at": "2019-08-24T14:15:22Z",
@@ -229,7 +256,7 @@ Status Code **200**
 | `»»»» description`             | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
 | `»»»» name`                    | string                                                                             | false    |              | Name is the tool name with the `<server>__` prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                          |
 | `» created_at`                 | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `» diff_status`                | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» diff_status`                | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                       | false    |              | Diff status is the primary pull request, picked by the server. Deprecated: use DiffStatuses, which lists every pull request the chat tracks.                                                                                                                               |
 | `»» additions`                 | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» approved`                  | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» author_avatar_url`         | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
@@ -240,12 +267,36 @@ Status Code **200**
 | `»» chat_id`                   | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» commits`                   | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» deletions`                 | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» git_branch`                | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» head_branch`               | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» pr_number`                 | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» pull_request_draft`        | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» pull_request_state`        | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» pull_request_title`        | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» refreshed_at`              | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» remote_origin`             | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» reviewer_count`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» stale_at`                  | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» url`                       | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» diff_statuses`              | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» additions`                 | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» approved`                  | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» author_avatar_url`         | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» author_login`              | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» base_branch`               | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» changed_files`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» changes_requested`         | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» chat_id`                   | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» commits`                   | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» deletions`                 | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» git_branch`                | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» head_branch`               | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pr_number`                 | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_draft`        | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_state`        | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_title`        | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» refreshed_at`              | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» remote_origin`             | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» reviewer_count`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» stale_at`                  | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» url`                       | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
@@ -454,16 +505,43 @@ curl -X POST http://coder-server:8080/api/v2/chats \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -572,16 +650,43 @@ curl -X POST http://coder-server:8080/api/v2/chats \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -1403,6 +1508,35 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
 
 ```json
 {
+  "changed_diff_status": {
+    "ref": {
+      "git_branch": "string",
+      "remote_origin": "string"
+    },
+    "status": {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  },
   "chat": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
@@ -1445,16 +1579,43 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "commits": 0,
       "deletions": 0,
+      "git_branch": "string",
       "head_branch": "string",
       "pr_number": 0,
       "pull_request_draft": true,
       "pull_request_state": "string",
       "pull_request_title": "string",
       "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
       "reviewer_count": 0,
       "stale_at": "2019-08-24T14:15:22Z",
       "url": "string"
     },
+    "diff_statuses": [
+      {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "git_branch": "string",
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "files": [
       {
         "created_at": "2019-08-24T14:15:22Z",
@@ -1615,16 +1776,43 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -1733,16 +1921,43 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -1946,16 +2161,43 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -2064,16 +2306,43 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -2221,9 +2490,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/diff \
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description |
-|--------|------|--------------|----------|-------------|
-| `chat` | path | string(uuid) | true     | Chat ID     |
+| Name     | In    | Type         | Required | Description                             |
+|----------|-------|--------------|----------|-----------------------------------------|
+| `chat`   | path  | string(uuid) | true     | Chat ID                                 |
+| `origin` | query | string       | false    | Remote origin selecting the ref to diff |
+| `branch` | query | string       | false    | Git branch selecting the ref to diff    |
 
 ### Example responses
 
@@ -2317,16 +2588,43 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -2435,16 +2733,43 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -3471,16 +3796,43 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -3589,16 +3941,43 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
