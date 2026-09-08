@@ -15,10 +15,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// XvncPath is the path of the Xvnc executable relative to an unpacked
-// runtime root.
-const XvncPath = "bin/Xvnc"
-
 // ErrNotAvailable is returned by Unpack when no runtime archive is compiled
 // into this binary.
 var ErrNotAvailable = xerrors.New("desktop runtime is not embedded in this binary")
@@ -65,7 +61,7 @@ func Unpack(ctx context.Context, cacheDir string) (string, error) {
 	}
 	defer os.RemoveAll(tmp)
 
-	if err := extract(ctx, archive, tmp); err != nil {
+	if err := extract(ctx, Archive(), tmp); err != nil {
 		return "", xerrors.Errorf("extract runtime: %w", err)
 	}
 	if err := Validate(tmp); err != nil {

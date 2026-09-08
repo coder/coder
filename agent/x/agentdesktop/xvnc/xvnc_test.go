@@ -21,12 +21,12 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestStart exercises the real embedded Xvnc. It is skipped unless the binary
-// was built with the desktop_runtime tag, which CI does for linux.
+// TestStart exercises the real embedded Xvnc. The runtime module only ships
+// archives for linux amd64 and arm64.
 func TestStart(t *testing.T) {
 	t.Parallel()
 	if !desktopruntime.Available() {
-		t.Skip("desktop runtime not embedded; build with -tags desktop_runtime")
+		t.Skip("desktop runtime not available on this platform")
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -85,7 +85,7 @@ func TestStartInvalidRuntime(t *testing.T) {
 func TestStartExitsWithParent(t *testing.T) {
 	t.Parallel()
 	if !desktopruntime.Available() {
-		t.Skip("desktop runtime not embedded; build with -tags desktop_runtime")
+		t.Skip("desktop runtime not available on this platform")
 	}
 	if os.Getenv("CODER_TEST_XVNC_CHILD") == "1" {
 		// Child mode: start Xvnc, report its pid and block forever.

@@ -77,7 +77,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 		"-geometry", fmt.Sprintf("%dx%d", opts.Width, opts.Height),
 		"-depth", strconv.Itoa(opts.Depth),
 		"-desktop", opts.DesktopName,
-		"-xkbdir", filepath.Join(opts.RuntimeDir, "share", "xkb"),
+		"-xkbdir", filepath.Join(opts.RuntimeDir, desktopruntime.XKBDir),
 		"-nolisten", "tcp",
 	}
 	args = append(args, opts.ExtraArgs...)

@@ -1,4 +1,0 @@
-# Built desktop runtime archives are placed here by
-# scripts/desktopruntime/build.sh and embedded via the desktop_runtime build
-# tag. They are build artifacts and must not be committed.
-*.tar.zst

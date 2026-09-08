@@ -314,42 +314,6 @@ clean:
 build-slim: $(CODER_SLIM_BINARIES)
 .PHONY: build-slim
 
-# The desktop runtime is a static Xvnc server embedded into linux agent
-# binaries. The archives are cross-compiled by the desktop-runtime workflow
-# (see scripts/desktopruntime/README.md) and published to releases.coder.com;
-# the binary build only downloads the pinned archive and verifies its sha256,
-# so it never needs a container toolchain. The workspace agent unpacks the
-# archive and execs Xvnc directly, it never runs a container either.
-#
-# The archives are only required once scripts/desktopruntime/runtime.lock is
-# pinned. Set CODER_DESKTOP_RUNTIME=0 to build without the runtime.
-DESKTOP_RUNTIME_ARCHES    := amd64 arm64
-DESKTOP_RUNTIME_DIR       := agent/x/agentdesktop/desktopruntime/embed
-DESKTOP_RUNTIME_ARCHIVES  := $(foreach arch,$(DESKTOP_RUNTIME_ARCHES),$(DESKTOP_RUNTIME_DIR)/desktop-runtime-linux-$(arch).tar.zst)
-DESKTOP_RUNTIME_LOCK      := scripts/desktopruntime/runtime.lock
-DESKTOP_RUNTIME_PINNED    := $(shell grep -Eq '^version=.+' $(DESKTOP_RUNTIME_LOCK) && echo 1)
-# Keep in sync with the inputs list in scripts/desktopruntime/version.sh.
-DESKTOP_RUNTIME_SRC_FILES := scripts/desktopruntime/Dockerfile scripts/desktopruntime/pam_stub.c scripts/desktopruntime/build.sh
-
-$(DESKTOP_RUNTIME_DIR)/desktop-runtime-linux-%.tar.zst: $(DESKTOP_RUNTIME_LOCK) scripts/desktopruntime/fetch.sh scripts/desktopruntime/version.sh $(DESKTOP_RUNTIME_SRC_FILES)
-	./scripts/desktopruntime/fetch.sh --arch "$*" --output "$@"
-
-# Cross-compile the archives locally with Docker instead of downloading them.
-# Used by the desktop-runtime workflow and when iterating on the Dockerfile.
-build-desktop-runtime:
-	for arch in $(DESKTOP_RUNTIME_ARCHES); do \
-		./scripts/desktopruntime/build.sh --arch "$$arch" --output "$(DESKTOP_RUNTIME_DIR)/desktop-runtime-linux-$$arch.tar.zst"; \
-		./scripts/desktopruntime/check_size.sh "$(DESKTOP_RUNTIME_DIR)/desktop-runtime-linux-$$arch.tar.zst"; \
-	done
-.PHONY: build-desktop-runtime
-
-ifeq ($(DESKTOP_RUNTIME_PINNED),1)
-ifneq ($(CODER_DESKTOP_RUNTIME),0)
-build/coder-slim_$(VERSION)_linux_amd64 build/coder_$(VERSION)_linux_amd64: $(DESKTOP_RUNTIME_DIR)/desktop-runtime-linux-amd64.tar.zst
-build/coder-slim_$(VERSION)_linux_arm64 build/coder_$(VERSION)_linux_arm64: $(DESKTOP_RUNTIME_DIR)/desktop-runtime-linux-arm64.tar.zst
-endif
-endif
-
 build-fat build-full build: $(CODER_FAT_BINARIES)
 .PHONY: build-fat build-full build
 
@@ -772,7 +736,7 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/desktop-runtime $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -811,19 +775,6 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 lint/bootstrap:
 	bash scripts/check_bootstrap_quotes.sh
 .PHONY: lint/bootstrap
-
-# Fails when runtime.lock pins a version that no longer matches the desktop
-# runtime build inputs, which would embed a stale archive.
-lint/desktop-runtime:
-	if grep -Eq '^version=.+' $(DESKTOP_RUNTIME_LOCK); then \
-		pinned="$$(sed -nE 's/^version=(.*)$$/\1/p' $(DESKTOP_RUNTIME_LOCK))"; \
-		current="$$(./scripts/desktopruntime/version.sh)"; \
-		if [[ "$$pinned" != "$$current" ]]; then \
-			echo "ERROR: $(DESKTOP_RUNTIME_LOCK) pins $$pinned but inputs hash to $$current" 1>&2; \
-			exit 1; \
-		fi; \
-	fi
-.PHONY: lint/desktop-runtime
 
 lint/emdash:
 	bash scripts/check_emdash.sh

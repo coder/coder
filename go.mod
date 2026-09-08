@@ -558,6 +558,8 @@ require (
 	mvdan.cc/sh/v3 v3.14.0
 )
 
+require github.com/coder/portabledesktop/runtime v0.0.0-20260908155435-7f03b98fb60c
+
 require (
 	cel.dev/expr v0.25.2 // indirect
 	cloud.google.com/go v0.123.0 // indirect
