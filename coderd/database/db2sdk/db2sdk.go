@@ -1851,6 +1851,17 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 // When files is non-empty the response includes file metadata;
 // pass nil to omit the files field (e.g. list endpoints).
 func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
+	return ChatWithDiffStatuses(c, diffStatus, nil, files)
+}
+
+// ChatWithDiffStatuses converts a chat with its per-ref diff status
+// list. diffStatus is the primary shown in the legacy diff_status field.
+func ChatWithDiffStatuses(
+	c database.Chat,
+	diffStatus *database.ChatDiffStatus,
+	diffStatuses []database.ChatDiffStatus,
+	files []database.GetChatFileMetadataByChatIDRow,
+) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
@@ -1924,6 +1935,12 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if diffStatus != nil {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
+	}
+	if len(diffStatuses) > 0 {
+		chat.DiffStatuses = make([]codersdk.ChatDiffStatus, 0, len(diffStatuses))
+		for i := range diffStatuses {
+			chat.DiffStatuses = append(chat.DiffStatuses, ChatDiffStatus(c.ID, &diffStatuses[i]))
+		}
 	}
 	if len(files) > 0 {
 		chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
@@ -2083,13 +2100,13 @@ func ChatDebugRunDetail(r database.ChatDebugRun, steps []database.ChatDebugStep)
 // is non-nil, children without an entry receive an empty DiffStatus.
 func ChildChatRows(
 	children []database.GetChildChatsByParentIDsRow,
-	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+	diffStatuses map[uuid.UUID][]database.ChatDiffStatus,
 ) []codersdk.Chat {
 	result := make([]codersdk.Chat, len(children))
 	for i, row := range children {
-		diffStatus, ok := diffStatuses[row.Chat.ID]
+		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, firstChatDiffStatus(statuses), statuses, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2108,7 +2125,7 @@ func ChildChatRows(
 func ChatRowsWithChildren(
 	roots []database.GetChatsRow,
 	children []database.GetChildChatsByParentIDsRow,
-	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+	diffStatuses map[uuid.UUID][]database.ChatDiffStatus,
 ) []codersdk.Chat {
 	// Group children by parent ID.
 	childrenByParent := make(map[uuid.UUID][]database.GetChildChatsByParentIDsRow, len(children))
@@ -2119,9 +2136,9 @@ func ChatRowsWithChildren(
 
 	result := make([]codersdk.Chat, len(roots))
 	for i, row := range roots {
-		diffStatus, ok := diffStatuses[row.Chat.ID]
+		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, firstChatDiffStatus(statuses), statuses, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2151,6 +2168,14 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	}
 
 	result.ChatID = status.ChatID
+	if status.GitRemoteOrigin != "" {
+		remoteOrigin := status.GitRemoteOrigin
+		result.RemoteOrigin = &remoteOrigin
+	}
+	if status.GitBranch != "" {
+		gitBranch := status.GitBranch
+		result.GitBranch = &gitBranch
+	}
 	if status.Url.Valid {
 		u := strings.TrimSpace(status.Url.String)
 		if u != "" {
@@ -2220,6 +2245,15 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	result.StaleAt = &staleAt
 
 	return result
+}
+
+// firstChatDiffStatus returns the primary status row of a chat. The
+// status list is ordered newest first, so the first row is the primary.
+func firstChatDiffStatus(statuses []database.ChatDiffStatus) *database.ChatDiffStatus {
+	if len(statuses) == 0 {
+		return nil
+	}
+	return &statuses[0]
 }
 
 // UserSecret converts a database ListUserSecretsRow (metadata only,
