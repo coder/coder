@@ -700,7 +700,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						onRefresh={handleRefresh}
 						onCommit={handleCommit}
 						isExpanded={visualExpanded}
-						remoteDiffStats={chat.diff_status}
+						remoteDiffStats={chat.diff_statuses}
 						chatInputRef={editing.chatInputRef}
 					/>
 				);
