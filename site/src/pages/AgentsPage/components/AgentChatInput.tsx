@@ -22,16 +22,14 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import type {
-	AgentChatSendShortcut,
-	ChatQueuedMessage,
-} from "#/api/typesGenerated";
+import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -65,7 +63,7 @@ import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
-	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	getAgentChatSendShortcut,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../utils/agentChatSendShortcut";
 import {
@@ -105,7 +103,6 @@ export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
-	sendShortcut?: AgentChatSendShortcut;
 	placeholder?: string;
 	isDisabled: boolean;
 	isLoading: boolean;
@@ -363,7 +360,6 @@ const ToolBadge: FC<{
 
 export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onSend,
-	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	placeholder = "Type a message...",
 	isDisabled,
 	isLoading,
@@ -424,6 +420,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
+	const preferencesQuery = useQuery(preferenceSettings());
+	const sendShortcut = getAgentChatSendShortcut(
+		preferencesQuery.data?.agent_chat_send_shortcut,
+		preferencesQuery.isLoading,
+	);
 	const [chatFullWidth] = useChatFullWidth();
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||

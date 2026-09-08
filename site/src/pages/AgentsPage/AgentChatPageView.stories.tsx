@@ -13,6 +13,7 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
@@ -23,6 +24,7 @@ import {
 	MockOrganizationMember,
 	MockOrganizationMember2,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
@@ -159,7 +161,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 
 	const props = {
 		chat: buildChat(chat),
-		sendShortcut: "enter" as const,
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		effectiveSelectedModel: defaultModelID,
@@ -228,6 +229,12 @@ const meta: Meta<typeof AgentChatPageView> = {
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
+		queries: [
+			{
+				key: preferenceSettings().queryKey,
+				data: MockUserPreferenceSettings,
+			},
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/${AGENT_ID}`,
@@ -939,7 +946,6 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -960,7 +966,6 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -980,7 +985,6 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -1002,7 +1006,6 @@ export const LoadingSidebarCollapsed: Story = {
 	parameters: { reactRouter: collapsedSidebarRouter },
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
