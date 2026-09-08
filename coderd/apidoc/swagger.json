@@ -527,6 +527,103 @@
 				]
 			}
 		},
+		"/api/v2/agent-time": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Agent time"],
+				"summary": "Get deployment agent time",
+				"operationId": "get-deployment-agent-time",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "date",
+						"description": "Inclusive UTC calendar date; omit for all available history",
+						"name": "start_date",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "date",
+						"description": "Exclusive UTC calendar date; defaults to tomorrow",
+						"name": "end_date",
+						"in": "query"
+					},
+					{
+						"enum": ["day", "week", "month"],
+						"type": "string",
+						"default": "day",
+						"description": "Chart interval",
+						"name": "interval",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization_id",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "User ID",
+						"name": "user_id",
+						"in": "query"
+					},
+					{
+						"enum": ["organization", "user"],
+						"type": "string",
+						"default": "organization",
+						"description": "Breakdown dimension",
+						"name": "group_by",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"default": 25,
+						"description": "Page size, 1 to 100",
+						"name": "limit",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"default": 0,
+						"description": "Page offset",
+						"name": "offset",
+						"in": "query"
+					},
+					{
+						"enum": ["agent_time", "name"],
+						"type": "string",
+						"default": "agent_time",
+						"description": "Breakdown sort",
+						"name": "sort_by",
+						"in": "query"
+					},
+					{
+						"enum": ["asc", "desc"],
+						"type": "string",
+						"default": "desc",
+						"description": "Sort direction",
+						"name": "sort_order",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AgentTimeReport"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/ai-gateway/clients": {
 			"get": {
 				"description": "Alias: also available at /api/v2/aibridge/clients for backward compatibility.",
@@ -5370,6 +5467,104 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/codersdk.Organization"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/organizations/{organization}/agent-time": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Agent time"],
+				"summary": "Get organization agent time",
+				"operationId": "get-organization-agent-time",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID, including deleted organizations",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "date",
+						"description": "Inclusive UTC calendar date; omit for all available history",
+						"name": "start_date",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "date",
+						"description": "Exclusive UTC calendar date; defaults to tomorrow",
+						"name": "end_date",
+						"in": "query"
+					},
+					{
+						"enum": ["day", "week", "month"],
+						"type": "string",
+						"default": "day",
+						"description": "Chart interval",
+						"name": "interval",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "User ID",
+						"name": "user_id",
+						"in": "query"
+					},
+					{
+						"enum": ["organization", "user"],
+						"type": "string",
+						"default": "organization",
+						"description": "Breakdown dimension",
+						"name": "group_by",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"default": 25,
+						"description": "Page size, 1 to 100",
+						"name": "limit",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"default": 0,
+						"description": "Page offset",
+						"name": "offset",
+						"in": "query"
+					},
+					{
+						"enum": ["agent_time", "name"],
+						"type": "string",
+						"default": "agent_time",
+						"description": "Breakdown sort",
+						"name": "sort_by",
+						"in": "query"
+					},
+					{
+						"enum": ["asc", "desc"],
+						"type": "string",
+						"default": "desc",
+						"description": "Sort direction",
+						"name": "sort_order",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AgentTimeReport"
 						}
 					}
 				},
@@ -17039,6 +17234,117 @@
 				"AgentSubsystemEnvbuilder",
 				"AgentSubsystemExectrace"
 			]
+		},
+		"codersdk.AgentTimeBreakdown": {
+			"type": "object",
+			"properties": {
+				"agent_time_ms": {
+					"type": "string"
+				},
+				"deleted": {
+					"type": "boolean"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AgentTimeBucket": {
+			"type": "object",
+			"properties": {
+				"agent_time_ms": {
+					"type": "string"
+				},
+				"complete": {
+					"type": "boolean"
+				},
+				"end_date": {
+					"type": "string",
+					"format": "date"
+				},
+				"partial": {
+					"type": "boolean"
+				},
+				"start_date": {
+					"type": "string",
+					"format": "date"
+				}
+			}
+		},
+		"codersdk.AgentTimeInterval": {
+			"type": "string",
+			"enum": ["day", "week", "month"],
+			"x-enum-varnames": [
+				"AgentTimeIntervalDay",
+				"AgentTimeIntervalWeek",
+				"AgentTimeIntervalMonth"
+			]
+		},
+		"codersdk.AgentTimeReport": {
+			"type": "object",
+			"properties": {
+				"buckets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AgentTimeBucket"
+					}
+				},
+				"count": {
+					"type": "integer"
+				},
+				"end_date": {
+					"type": "string",
+					"format": "date"
+				},
+				"historical_notice": {
+					"type": "string"
+				},
+				"interval": {
+					"$ref": "#/definitions/codersdk.AgentTimeInterval"
+				},
+				"rows": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AgentTimeBreakdown"
+					}
+				},
+				"start_date": {
+					"type": "string",
+					"format": "date"
+				},
+				"status": {
+					"$ref": "#/definitions/codersdk.AgentTimeStatus"
+				},
+				"total_agent_time_ms": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AgentTimeStatus": {
+			"type": "object",
+			"properties": {
+				"backfill_complete": {
+					"type": "boolean"
+				},
+				"backfill_error": {
+					"type": "string"
+				},
+				"capture_started_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"earliest_date": {
+					"type": "string",
+					"format": "date"
+				},
+				"processed_messages": {
+					"type": "string"
+				}
+			}
 		},
 		"codersdk.AppHostResponse": {
 			"type": "object",

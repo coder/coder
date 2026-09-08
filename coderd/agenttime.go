@@ -2,20 +2,98 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"math"
+	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 const agentTimeHistoricalNotice = "Agent time includes recorded message contributions only, attributed to their UTC creation date. Previously deleted messages and time that was never recorded cannot be recovered. Historical totals may be incomplete even after backfill finishes. Null recorded time does not mean no work occurred."
+
+// @Summary Get deployment agent time
+// @ID get-deployment-agent-time
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agent time
+// @Param start_date query string false "Inclusive UTC calendar date; omit for all available history" format(date)
+// @Param end_date query string false "Exclusive UTC calendar date; defaults to tomorrow" format(date)
+// @Param interval query string false "Chart interval" Enums(day,week,month) default(day)
+// @Param organization_id query string false "Organization ID" format(uuid)
+// @Param user_id query string false "User ID" format(uuid)
+// @Param group_by query string false "Breakdown dimension" Enums(organization,user) default(organization)
+// @Param limit query int false "Page size, 1 to 100" default(25)
+// @Param offset query int false "Page offset" default(0)
+// @Param sort_by query string false "Breakdown sort" Enums(agent_time,name) default(agent_time)
+// @Param sort_order query string false "Sort direction" Enums(asc,desc) default(desc)
+// @Success 200 {object} codersdk.AgentTimeReport
+// @Router /api/v2/agent-time [get]
+func (api *API) agentTime(rw http.ResponseWriter, r *http.Request) {
+	api.serveAgentTime(rw, r)
+}
+
+// @Summary Get organization agent time
+// @ID get-organization-agent-time
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agent time
+// @Param organization path string true "Organization ID, including deleted organizations" format(uuid)
+// @Param start_date query string false "Inclusive UTC calendar date; omit for all available history" format(date)
+// @Param end_date query string false "Exclusive UTC calendar date; defaults to tomorrow" format(date)
+// @Param interval query string false "Chart interval" Enums(day,week,month) default(day)
+// @Param user_id query string false "User ID" format(uuid)
+// @Param group_by query string false "Breakdown dimension" Enums(organization,user) default(organization)
+// @Param limit query int false "Page size, 1 to 100" default(25)
+// @Param offset query int false "Page offset" default(0)
+// @Param sort_by query string false "Breakdown sort" Enums(agent_time,name) default(agent_time)
+// @Param sort_order query string false "Sort direction" Enums(asc,desc) default(desc)
+// @Success 200 {object} codersdk.AgentTimeReport
+// @Router /api/v2/organizations/{organization}/agent-time [get]
+func (api *API) organizationAgentTime(rw http.ResponseWriter, r *http.Request) {
+	api.serveAgentTime(rw, r)
+}
+
+func (api *API) serveAgentTime(rw http.ResponseWriter, r *http.Request) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	now := time.Now().UTC()
+	q, validations := parseAgentTimeQuery(r.URL.Query(), chi.URLParam(r, "organization"), now)
+	if len(validations) > 0 {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid agent time query.", Validations: validations})
+		return
+	}
+	var report codersdk.AgentTimeReport
+	// All sections observe the same committed accounting snapshot, independent
+	// of pagination or a backfill committing between queries.
+	err := api.Database.InTx(func(tx database.Store) error {
+		var err error
+		report, err = readAgentTimeReport(r.Context(), tx, q, now)
+		return err
+	}, &database.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true, TxIdentifier: "agent_time_report"})
+	if err != nil {
+		var invalid *agentTimeRangeError
+		if xerrors.As(err, &invalid) {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{Message: invalid.Error()})
+			return
+		}
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to read agent time.", Detail: err.Error()})
+		return
+	}
+	httpapi.Write(r.Context(), rw, http.StatusOK, report)
+}
 
 type agentTimeQuery struct {
 	start, end                 time.Time
