@@ -341,10 +341,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
+	const primaryStatus = chat.diff_statuses?.[0];
 	const parsedPrNumber = Number(
-		parsePullRequestUrl(chat.diff_status?.url)?.number,
+		parsePullRequestUrl(primaryStatus?.url)?.number,
 	);
-	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
+	const prNumber = primaryStatus?.pr_number ?? (parsedPrNumber || undefined);
 
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
@@ -700,7 +701,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						onRefresh={handleRefresh}
 						onCommit={handleCommit}
 						isExpanded={visualExpanded}
-						remoteDiffStats={chat.diff_status}
+						remoteDiffStats={chat.diff_statuses}
 						chatInputRef={editing.chatInputRef}
 					/>
 				);

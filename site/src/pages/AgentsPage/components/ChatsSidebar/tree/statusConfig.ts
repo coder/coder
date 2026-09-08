@@ -85,7 +85,7 @@ const getPRIconConfig = (
 };
 
 const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
-	return chat.diff_status;
+	return chat.diff_statuses?.[0];
 };
 
 /**
