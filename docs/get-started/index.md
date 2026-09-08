@@ -1,4 +1,6 @@
-# Quickstart
+---
+title: Quickstart
+---
 
 Follow this guide to get your first Coder development environment
 running in under 10 minutes. This guide covers the essential concepts and shows

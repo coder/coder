@@ -20,7 +20,9 @@ import {
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
+	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -37,7 +39,9 @@ import {
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	mockApiError,
@@ -76,6 +80,7 @@ const AgentChatPageLayout: FC = () => {
 							requestUnarchiveAgent: () => {},
 							requestPinAgent: () => {},
 							requestUnpinAgent: () => {},
+							onOpenRenameDialog: () => {},
 							isArchiving: false,
 							archivingChatId: undefined,
 							activeChatChildren: undefined,
@@ -379,6 +384,14 @@ const buildQueries = (
 				allowed: chat.owner_id === MockUserOwner.id && !chat.parent_chat_id,
 			},
 		}),
+		{
+			key: preferenceSettingsKey,
+			data: MockUserPreferenceSettings,
+		},
+		{
+			key: userCompactionThresholdsKey,
+			data: MockUserChatCompactionThresholds,
+		},
 	];
 };
 

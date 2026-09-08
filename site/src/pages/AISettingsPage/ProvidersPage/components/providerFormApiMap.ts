@@ -8,12 +8,12 @@ import type {
 	CreateAIProviderRequest,
 	UpdateAIProviderRequest,
 } from "#/api/typesGenerated";
+import { getProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import {
 	type ProviderFormValues,
 	parseBedrockRegionFromBaseUrl,
 	SAVED_CREDENTIAL_MASK,
 } from "./ProviderForm";
-import { getProviderIcon } from "./ProviderIcon";
 
 /** Drop placeholder masks so they don't round-trip back to the API. */
 const sanitizeCredential = (

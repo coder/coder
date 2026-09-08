@@ -1,4 +1,6 @@
-# Security Policy
+---
+title: Security policy
+---
 
 Coder welcomes feedback from security researchers and the general public to help improve our security.
 If you believe you have discovered a vulnerability, privacy issue, exposed data, or other security issues
