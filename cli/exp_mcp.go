@@ -17,7 +17,6 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/sloghuman"
 	agentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/buildinfo"
@@ -686,7 +685,6 @@ func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
 }
 
 func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, instructions string, allowedTools []string) error {
-	logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr))
 	cliui.Infof(inv.Stderr, "Starting MCP server")
 
 	cliui.Infof(inv.Stderr, "Instructions   : %q", instructions)
@@ -755,7 +753,7 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 			continue
 		}
 
-		coderdmcp.RegisterSDKTool(mcpSrv, tool, toolDeps, logger)
+		coderdmcp.RegisterSDKTool(mcpSrv, tool, toolDeps)
 		registeredTools[tool.Name] = true
 	}
 

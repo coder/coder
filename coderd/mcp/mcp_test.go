@@ -271,7 +271,7 @@ func TestRegisterSDKTool(t *testing.T) {
 	}.Generic()
 
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
-	mcpserver.RegisterSDKTool(server, tool, toolsdk.Deps{}, testutil.Logger(t))
+	mcpserver.RegisterSDKTool(server, tool, toolsdk.Deps{})
 	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
@@ -306,7 +306,7 @@ func TestRegisterSDKTool(t *testing.T) {
 	require.Len(t, result.Content, 1)
 	content, ok = result.Content[0].(*sdkmcp.TextContent)
 	require.True(t, ok)
-	require.Equal(t, "An internal error occurred while running this tool. Check the Coder server logs for details.", content.Text)
+	require.Equal(t, assert.AnError.Error(), content.Text)
 }
 
 func TestMCPHTTP_UnsupportedProtocolVersion(t *testing.T) {

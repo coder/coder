@@ -1265,7 +1265,7 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 	require.Len(t, toolResult.Content, 1)
 	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
-	assert.Equal(t, "unauthorized: you do not have SSH access to this workspace", textContent.Text)
+	assert.Equal(t, "failed to dial agent: unauthorized: you do not have SSH access to this workspace", textContent.Text)
 }
 
 func mustParseURL(t *testing.T, rawURL string) *url.URL {

@@ -122,7 +122,7 @@ func WithAgentConnFunc(agentConnFn workspacesdk.AgentConnFunc) func(*Deps) {
 // [owner/]workspace[.agent] format.
 func openAgentConn(ctx context.Context, deps Deps, workspace string) (workspacesdk.AgentConn, error) {
 	if deps.coderClient == nil {
-		return nil, &PublicError{Message: "workspace tools require an authenticated client"}
+		return nil, xerrors.New("workspace tools require an authenticated client")
 	}
 
 	workspaceName := NormalizeWorkspaceInput(workspace)
@@ -492,11 +492,11 @@ ONLY report a "complete", "idle", or "failure" state if you have FULLY completed
 	UserClientOptional: true,
 	Handler: func(_ context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
 		if len(args.Summary) > 160 {
-			return codersdk.Response{}, &PublicError{Message: "summary must be less than 160 characters"}
+			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
 		}
 		// Check if task reporting is available to prevent nil pointer dereference
 		if deps.report == nil {
-			return codersdk.Response{}, &PublicError{Message: "task reporting not available. Please ensure a task reporter is configured."}
+			return codersdk.Response{}, xerrors.New("task reporting not available. Please ensure a task reporter is configured.")
 		}
 		err := deps.report(args)
 		if err != nil {
@@ -616,7 +616,7 @@ be ready before trying to use or connect to the workspace.
 		// clear, actionable error instead of an opaque server-side
 		// validation failure.
 		if (args.TemplateID == "") == (args.TemplateVersionID == "") {
-			return codersdk.Workspace{}, &PublicError{Message: "exactly one of template_id or template_version_id must be provided"}
+			return codersdk.Workspace{}, xerrors.New("exactly one of template_id or template_version_id must be provided")
 		}
 		var (
 			tID  uuid.UUID
@@ -626,13 +626,13 @@ be ready before trying to use or connect to the workspace.
 		if args.TemplateID != "" {
 			tID, err = uuid.Parse(args.TemplateID)
 			if err != nil {
-				return codersdk.Workspace{}, &PublicError{Message: "template_id must be a valid UUID"}
+				return codersdk.Workspace{}, xerrors.New("template_id must be a valid UUID")
 			}
 		}
 		if args.TemplateVersionID != "" {
 			tvID, err = uuid.Parse(args.TemplateVersionID)
 			if err != nil {
-				return codersdk.Workspace{}, &PublicError{Message: "template_version_id must be a valid UUID"}
+				return codersdk.Workspace{}, xerrors.New("template_version_id must be a valid UUID")
 			}
 		}
 
@@ -640,7 +640,7 @@ be ready before trying to use or connect to the workspace.
 		if args.TemplateVersionPresetID != "" {
 			tvPresetID, err = uuid.Parse(args.TemplateVersionPresetID)
 			if err != nil {
-				return codersdk.Workspace{}, &PublicError{Message: "template_version_preset_id must be a valid UUID"}
+				return codersdk.Workspace{}, xerrors.New("template_version_preset_id must be a valid UUID")
 			}
 		}
 		if args.User == "" {
@@ -770,7 +770,7 @@ var ListTemplateVersionParameters = Tool[ListTemplateVersionParametersArgs, []co
 	Handler: func(ctx context.Context, deps Deps, args ListTemplateVersionParametersArgs) ([]codersdk.TemplateVersionParameter, error) {
 		templateVersionID, err := uuid.Parse(args.TemplateVersionID)
 		if err != nil {
-			return nil, &PublicError{Message: "template_version_id must be a valid UUID", Cause: err}
+			return nil, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 		}
 		parameters, err := deps.coderClient.TemplateVersionRichParameters(ctx, templateVersionID)
 		if err != nil {
@@ -852,7 +852,7 @@ When selecting a preset: if a preset is marked default and the user has not spec
 	Handler: func(ctx context.Context, deps Deps, args GetTemplateArgs) (TemplateDetail, error) {
 		templateID, err := uuid.Parse(args.TemplateID)
 		if err != nil {
-			return TemplateDetail{}, &PublicError{Message: "template_id must be a valid UUID", Cause: err}
+			return TemplateDetail{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
 		}
 		template, err := deps.coderClient.Template(ctx, templateID)
 		if err != nil {
@@ -862,7 +862,7 @@ When selecting a preset: if a preset is marked default and the user has not spec
 		// follow-up calls to issue confusing "not found" errors
 		// against a zero UUID. Fail clearly instead.
 		if template.ActiveVersionID == uuid.Nil {
-			return TemplateDetail{}, &PublicError{Message: "template has no active version"}
+			return TemplateDetail{}, xerrors.New("template has no active version")
 		}
 		parameters, err := deps.coderClient.TemplateVersionRichParameters(ctx, template.ActiveVersionID)
 		if err != nil {
@@ -951,7 +951,7 @@ connect to the workspace.
 	Handler: func(ctx context.Context, deps Deps, args CreateWorkspaceBuildArgs) (codersdk.WorkspaceBuild, error) {
 		workspaceID, err := uuid.Parse(args.WorkspaceID)
 		if err != nil {
-			return codersdk.WorkspaceBuild{}, &PublicError{Message: "workspace_id must be a valid UUID", Cause: err}
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("workspace_id must be a valid UUID: %w", err)
 		}
 		transition := codersdk.WorkspaceTransition(args.Transition)
 		// Presets and rich_parameters are scoped to a starting build;
@@ -961,10 +961,10 @@ connect to the workspace.
 		if transition != codersdk.WorkspaceTransitionStart {
 			var errs []error
 			if args.TemplateVersionPresetID != "" {
-				errs = append(errs, &PublicError{Message: "template_version_preset_id is only valid for start transitions"})
+				errs = append(errs, xerrors.New("template_version_preset_id is only valid for start transitions"))
 			}
 			if len(args.RichParameters) > 0 {
-				errs = append(errs, &PublicError{Message: "rich_parameters is only valid for start transitions"})
+				errs = append(errs, xerrors.New("rich_parameters is only valid for start transitions"))
 			}
 			if len(errs) > 0 {
 				return codersdk.WorkspaceBuild{}, errors.Join(errs...)
@@ -977,13 +977,13 @@ connect to the workspace.
 		if args.TemplateVersionID != "" {
 			cbr.TemplateVersionID, err = uuid.Parse(args.TemplateVersionID)
 			if err != nil {
-				return codersdk.WorkspaceBuild{}, &PublicError{Message: "template_version_id must be a valid UUID", Cause: err}
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 			}
 		}
 		if args.TemplateVersionPresetID != "" {
 			cbr.TemplateVersionPresetID, err = uuid.Parse(args.TemplateVersionPresetID)
 			if err != nil {
-				return codersdk.WorkspaceBuild{}, &PublicError{Message: "template_version_preset_id must be a valid UUID", Cause: err}
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("template_version_preset_id must be a valid UUID: %w", err)
 			}
 		}
 		return deps.coderClient.CreateWorkspaceBuild(ctx, workspaceID, cbr)
@@ -1468,13 +1468,13 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 		}
 		fileID, err := uuid.Parse(args.FileID)
 		if err != nil {
-			return codersdk.TemplateVersion{}, &PublicError{Message: "file_id must be a valid UUID", Cause: err}
+			return codersdk.TemplateVersion{}, xerrors.Errorf("file_id must be a valid UUID: %w", err)
 		}
 		var templateID uuid.UUID
 		if args.TemplateID != "" {
 			tid, err := uuid.Parse(args.TemplateID)
 			if err != nil {
-				return codersdk.TemplateVersion{}, &PublicError{Message: "template_id must be a valid UUID", Cause: err}
+				return codersdk.TemplateVersion{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
 			}
 			templateID = tid
 		}
@@ -1515,7 +1515,7 @@ var GetWorkspaceAgentLogs = Tool[GetWorkspaceAgentLogsArgs, []string]{
 	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceAgentLogsArgs) ([]string, error) {
 		workspaceAgentID, err := uuid.Parse(args.WorkspaceAgentID)
 		if err != nil {
-			return nil, &PublicError{Message: "workspace_agent_id must be a valid UUID", Cause: err}
+			return nil, xerrors.Errorf("workspace_agent_id must be a valid UUID: %w", err)
 		}
 		logs, closer, err := deps.coderClient.WorkspaceAgentLogsAfter(ctx, workspaceAgentID, 0, false)
 		if err != nil {
@@ -1555,7 +1555,7 @@ var GetWorkspaceBuildLogs = Tool[GetWorkspaceBuildLogsArgs, []string]{
 	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceBuildLogsArgs) ([]string, error) {
 		workspaceBuildID, err := uuid.Parse(args.WorkspaceBuildID)
 		if err != nil {
-			return nil, &PublicError{Message: "workspace_build_id must be a valid UUID", Cause: err}
+			return nil, xerrors.Errorf("workspace_build_id must be a valid UUID: %w", err)
 		}
 		logs, closer, err := deps.coderClient.WorkspaceBuildLogsAfter(ctx, workspaceBuildID, 0)
 		if err != nil {
@@ -1591,7 +1591,7 @@ var GetTemplateVersionLogs = Tool[GetTemplateVersionLogsArgs, []string]{
 	Handler: func(ctx context.Context, deps Deps, args GetTemplateVersionLogsArgs) ([]string, error) {
 		templateVersionID, err := uuid.Parse(args.TemplateVersionID)
 		if err != nil {
-			return nil, &PublicError{Message: "template_version_id must be a valid UUID", Cause: err}
+			return nil, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 		}
 
 		logs, closer, err := deps.coderClient.TemplateVersionLogsAfter(ctx, templateVersionID, 0)
@@ -1632,11 +1632,11 @@ var UpdateTemplateActiveVersion = Tool[UpdateTemplateActiveVersionArgs, string]{
 	Handler: func(ctx context.Context, deps Deps, args UpdateTemplateActiveVersionArgs) (string, error) {
 		templateID, err := uuid.Parse(args.TemplateID)
 		if err != nil {
-			return "", &PublicError{Message: "template_id must be a valid UUID", Cause: err}
+			return "", xerrors.Errorf("template_id must be a valid UUID: %w", err)
 		}
 		templateVersionID, err := uuid.Parse(args.TemplateVersionID)
 		if err != nil {
-			return "", &PublicError{Message: "template_version_id must be a valid UUID", Cause: err}
+			return "", xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 		}
 		err = deps.coderClient.UpdateActiveTemplateVersion(ctx, templateID, codersdk.UpdateActiveTemplateVersion{
 			ID: templateVersionID,
@@ -1751,7 +1751,7 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 		}
 		versionID, err := uuid.Parse(args.VersionID)
 		if err != nil {
-			return codersdk.Template{}, &PublicError{Message: "version_id must be a valid UUID", Cause: err}
+			return codersdk.Template{}, xerrors.Errorf("version_id must be a valid UUID: %w", err)
 		}
 		template, err := deps.coderClient.CreateTemplate(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateRequest{
 			Name:        args.Name,
@@ -1787,7 +1787,7 @@ var DeleteTemplate = Tool[DeleteTemplateArgs, codersdk.Response]{
 	Handler: func(ctx context.Context, deps Deps, args DeleteTemplateArgs) (codersdk.Response, error) {
 		templateID, err := uuid.Parse(args.TemplateID)
 		if err != nil {
-			return codersdk.Response{}, &PublicError{Message: "template_id must be a valid UUID", Cause: err}
+			return codersdk.Response{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
 		}
 		err = deps.coderClient.DeleteTemplate(ctx, templateID)
 		if err != nil {
@@ -1934,7 +1934,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 		if limit == 0 {
 			limit = maxFileLimit
 		} else if limit > maxFileLimit {
-			return WorkspaceReadFileResponse{}, &PublicError{Message: fmt.Sprintf("limit must be %d or less, got %d", maxFileLimit, limit)}
+			return WorkspaceReadFileResponse{}, xerrors.Errorf("limit must be %d or less, got %d", maxFileLimit, limit)
 		}
 
 		reader, mimeType, err := conn.ReadFile(ctx, args.Path, args.Offset, limit)
@@ -2219,7 +2219,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 			return WorkspacePortForwardResponse{}, xerrors.Errorf("failed to get app host: %w", err)
 		}
 		if res.Host == "" {
-			return WorkspacePortForwardResponse{}, &PublicError{Message: "no app host for forwarding has been configured"}
+			return WorkspacePortForwardResponse{}, xerrors.New("no app host for forwarding has been configured")
 		}
 		url := appurl.ApplicationURL{
 			AppSlugOrPort: strconv.Itoa(args.Port),

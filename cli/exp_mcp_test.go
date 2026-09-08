@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -1327,12 +1328,27 @@ func (f *fakeCoderdAgentAPI) UpdateAppStatus(ctx context.Context, req *agentprot
 
 func TestExpMcpServerToolError(t *testing.T) {
 	t.Parallel()
+
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ctx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-	inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools=coder_get_chat")
+	const sentinelMessage = "sentinel tool API failure"
+	var failRequests atomic.Bool
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/v2/users/me", r.URL.Path)
+		if failRequests.Load() {
+			httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
+				Message: sentinelMessage,
+			})
+			return
+		}
+		user := codersdk.User{}
+		user.Username = "test-user"
+		httpapi.Write(r.Context(), w, http.StatusOK, user)
+	}))
+	t.Cleanup(api.Close)
+	client := codersdk.New(testutil.MustURL(t, api.URL), codersdk.WithSessionToken("test-session"))
+	inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools="+toolsdk.ToolNameGetAuthenticatedUser)
 	inv = inv.WithContext(ctx)
 	stdout, stdoutWriter := expecter.NewPiped(t)
 	inv.Stdout = stdoutWriter
@@ -1349,8 +1365,15 @@ func TestExpMcpServerToolError(t *testing.T) {
 
 	stdin.WriteLine(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`)
 	_ = stdout.ReadLine(ctx)
+	// Let startup authentication succeed before injecting the tool's API failure.
+	failRequests.Store(true)
 	stdin.WriteLine(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
-	stdin.WriteLine(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"coder_get_chat","arguments":{"chat_id":"private-invalid-id"}}}`)
+	request, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+		"params": map[string]any{"name": toolsdk.ToolNameGetAuthenticatedUser, "arguments": map[string]any{}},
+	})
+	require.NoError(t, err)
+	stdin.WriteLine(string(request))
 	var response struct {
 		Error  json.RawMessage `json:"error"`
 		Result struct {
@@ -1366,9 +1389,5 @@ func TestExpMcpServerToolError(t *testing.T) {
 	require.True(t, response.Result.IsError)
 	require.Len(t, response.Result.Content, 1)
 	require.Equal(t, "text", response.Result.Content[0].Type)
-	require.Equal(t, "chat_id must be a valid UUID", response.Result.Content[0].Text)
-	require.Contains(t, stderr.String(), "mcp tool execution failed")
-	require.Contains(t, stderr.String(), "coder_get_chat")
-	require.Contains(t, stderr.String(), "chat_id must be a valid UUID")
-	require.NotContains(t, stderr.String(), "private-invalid-id")
+	require.Contains(t, response.Result.Content[0].Text, sentinelMessage)
 }
