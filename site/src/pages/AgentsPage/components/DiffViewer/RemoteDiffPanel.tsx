@@ -63,6 +63,7 @@ interface RemoteDiffPanelProps {
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: TypesGen.ChatDiffStatus;
+	remoteRef?: TypesGen.DiffStatusRef;
 }
 
 export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
@@ -71,12 +72,13 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	chatInputRef,
 	diffStyle,
 	diffStatus,
+	remoteRef,
 }) => {
 	// ---------------------------------------------------------------
 	// Data fetching
 	// ---------------------------------------------------------------
 	const diffContentsQuery = useQuery({
-		...chatDiffContents(chatId),
+		...chatDiffContents(chatId, remoteRef),
 		enabled: Boolean(diffStatus?.url),
 	});
 

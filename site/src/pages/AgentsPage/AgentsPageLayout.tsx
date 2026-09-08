@@ -566,17 +566,16 @@ const AgentsPageLayout: FC = () => {
 						return;
 					}
 					const chatEvent = event.parsedMessage;
-					const updatedChat = chatEvent.chat;
 					// The old membership is only available before the cache write below.
 					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === updatedChat.id,
+						(chat) => chat.id === chatEvent.chat.id,
 					)?.status;
 					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
+					if (!chatEvent.chat.parent_chat_id) {
 						maybePlayChime(
 							prevStatus,
-							updatedChat.status,
-							updatedChat.id,
+							chatEvent.chat.status,
+							chatEvent.chat.id,
 							activeChatIDRef.current,
 						);
 					}
@@ -587,14 +586,14 @@ const AgentsPageLayout: FC = () => {
 						// no hard-delete wire event. Patch archive state in
 						// place so an open route stays mounted and flips to
 						// its read-only state.
-						applyWatchedChatArchived(queryClient, updatedChat);
+						applyWatchedChatArchived(queryClient, chatEvent.chat);
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
 						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
 						// chatKey and infinite-list caches below.
-						void invalidateChatDiffContents(queryClient, updatedChat.id);
+						void invalidateChatDiffContents(queryClient, chatEvent.chat.id);
 					}
 					// Merge watch payloads by event kind so stale field
 					// snapshots do not clobber fresher cached metadata.
@@ -608,42 +607,49 @@ const AgentsPageLayout: FC = () => {
 					// title generation finished, so its response carries
 					// the fallback title.
 					void cancelChatListRefetches(queryClient);
-					void cancelLoadedChatEntityRefetch(queryClient, updatedChat.id);
+					void cancelLoadedChatEntityRefetch(queryClient, chatEvent.chat.id);
 
 					if (chatEvent.kind === "created") {
-						if (updatedChat.parent_chat_id) {
+						if (chatEvent.chat.parent_chat_id) {
 							// Child chat: add to its parent's children
 							// array. If the parent is not in any loaded
 							// page, the child is silently dropped.
 							addChildToParentInCache(
 								queryClient,
-								updatedChat,
-								updatedChat.parent_chat_id,
+								chatEvent.chat,
+								chatEvent.chat.parent_chat_id,
 							);
 							// A family unarchive and a new sub-agent with a
 							// mounted initial fetch both need entity recovery.
 							const cachedChat = queryClient.getQueryData<TypesGen.Chat>(
-								chatEntityKey(updatedChat.id),
+								chatEntityKey(chatEvent.chat.id),
 							);
 							if (
 								cachedChat?.archived ||
 								(cachedChat === undefined &&
-									queryClient.getQueryState(chatEntityKey(updatedChat.id)) !==
-										undefined)
+									queryClient.getQueryState(
+										chatEntityKey(chatEvent.chat.id),
+									) !== undefined)
 							) {
-								applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
+								applyWatchedChatCreatedOrUnarchived(
+									queryClient,
+									chatEvent.chat,
+								);
 							}
 						} else {
 							// `created` also fires for unarchive transitions.
-							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
-							prependToInfiniteChatsCache(queryClient, updatedChat);
+							applyWatchedChatCreatedOrUnarchived(queryClient, chatEvent.chat);
+							prependToInfiniteChatsCache(queryClient, chatEvent.chat);
 						}
 					} else {
-						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
+						mergeWatchedChatIntoCaches(queryClient, chatEvent.chat, {
 							eventKind: chatEvent.kind,
 							activeChatId: activeChatIDRef.current,
+							changedDiffStatus: chatEvent.changed_diff_status,
 						});
-						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
+						if (
+							shouldInvalidateFilteredChatList(chatEvent.chat, chatEvent.kind)
+						) {
 							void invalidateChatListQueries(queryClient);
 						}
 						if (shouldInvalidateChatSearches(chatEvent.kind)) {
@@ -653,7 +659,7 @@ const AgentsPageLayout: FC = () => {
 							void invalidateChatsByWorkspace(queryClient);
 						}
 						const costChatId = chatCostIdToInvalidate(
-							updatedChat,
+							chatEvent.chat,
 							chatEvent.kind,
 						);
 						if (costChatId) {
@@ -666,7 +672,7 @@ const AgentsPageLayout: FC = () => {
 							// resources the single-chat GET computes. Only the
 							// active chat has an observer, so other chats are
 							// merely marked stale.
-							void invalidateChatEntity(queryClient, updatedChat.id);
+							void invalidateChatEntity(queryClient, chatEvent.chat.id);
 						}
 					}
 				});
