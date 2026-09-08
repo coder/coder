@@ -2,7 +2,10 @@ import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { chatPromptsKey, userCompactionThresholds } from "#/api/queries/chats";
+import {
+	chatPromptsKey,
+	userCompactionThresholdsKey,
+} from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
@@ -43,7 +46,7 @@ const meta = {
 				data: MockUserPreferenceSettings,
 			},
 			{
-				key: userCompactionThresholds().queryKey,
+				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
 			},
 		],
@@ -55,7 +58,7 @@ type Story = StoryObj<typeof meta>;
 
 const CHAT_ID = "chat-page-content-stories";
 
-const MockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionThresholds =
+const mockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionThresholds =
 	{
 		...MockUserChatCompactionThresholds,
 		thresholds: [
@@ -66,7 +69,7 @@ const MockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionT
 		],
 	};
 
-const compactionModels: readonly TypesGen.ChatModel[] = [
+const mockCompactionModels: readonly TypesGen.ChatModel[] = [
 	{
 		...MockChatModel,
 		id: MockChat.last_model_config_id,
@@ -391,7 +394,7 @@ const CompactionChatPageInput: FC = () => {
 			<ChatPageInput
 				chat={MockChat}
 				store={store}
-				models={compactionModels}
+				models={mockCompactionModels}
 				onSend={fn()}
 				onDeleteQueuedMessage={fn()}
 				onPromoteQueuedMessage={fn()}
@@ -429,8 +432,8 @@ export const CompactsAtUserOverride: Story = {
 				data: MockUserPreferenceSettings,
 			},
 			{
-				key: userCompactionThresholds().queryKey,
-				data: MockUserChatCompactionThresholdsWithOverride,
+				key: userCompactionThresholdsKey,
+				data: mockUserChatCompactionThresholdsWithOverride,
 			},
 			{
 				key: chatPromptsKey(MockChat.id),
@@ -456,7 +459,7 @@ export const CompactsAtHistoricalModelDefault: Story = {
 				data: MockUserPreferenceSettings,
 			},
 			{
-				key: userCompactionThresholds().queryKey,
+				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
 			},
 			{

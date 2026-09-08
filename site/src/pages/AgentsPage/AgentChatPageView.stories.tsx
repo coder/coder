@@ -13,7 +13,7 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { userCompactionThresholds } from "#/api/queries/chats";
+import { userCompactionThresholdsKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
@@ -237,7 +237,7 @@ const meta: Meta<typeof AgentChatPageView> = {
 				data: MockUserPreferenceSettings,
 			},
 			{
-				key: userCompactionThresholds().queryKey,
+				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
 			},
 		],
