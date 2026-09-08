@@ -104,7 +104,7 @@ which accepts the same `--platform` and `--output` flags:
 
 ```console
 $ CODER_DESKTOP_RUNTIME_BUILDX="depot build --project wl5hnrrkns" \
-	./scripts/desktopruntime/build.sh --arch arm64 --output /tmp/desktop-runtime-linux-arm64.tar.zst
+    ./scripts/desktopruntime/build.sh --arch arm64 --output /tmp/desktop-runtime-linux-arm64.tar.zst
 ```
 
 When the command is overridden, no builder is injected and the capability probe
