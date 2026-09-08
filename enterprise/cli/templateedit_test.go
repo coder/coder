@@ -12,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -218,20 +217,20 @@ func TestTemplateEdit(t *testing.T) {
 		}
 
 		template, err := ownerClient.UpdateTemplateMeta(ctx, dbtemplate.ID, codersdk.UpdateTemplateMeta{
-			Name:                           ptr.Ref(expectedName),
+			Name:                           new(expectedName),
 			DisplayName:                    &expectedDisplayName,
 			Description:                    &expectedDescription,
 			Icon:                           &expectedIcon,
-			DefaultTTLMillis:               ptr.Ref(expectedDefaultTTLMillis),
-			AllowUserAutostop:              ptr.Ref(expectedAllowAutostop),
-			AllowUserAutostart:             ptr.Ref(expectedAllowAutostart),
-			FailureTTLMillis:               ptr.Ref(expectedFailureTTLMillis),
-			TimeTilDormantMillis:           ptr.Ref(expectedDormancyMillis),
-			TimeTilDormantAutoDeleteMillis: ptr.Ref(expectedAutoDeleteMillis),
-			RequireActiveVersion:           ptr.Ref(expectedRequireActiveVersion),
-			DeprecationMessage:             ptr.Ref(deprecationMessage),
-			DisableEveryoneGroupAccess:     ptr.Ref(expectedDisableEveryone),
-			AllowUserCancelWorkspaceJobs:   ptr.Ref(expectedAllowCancelJobs),
+			DefaultTTLMillis:               new(expectedDefaultTTLMillis),
+			AllowUserAutostop:              new(expectedAllowAutostop),
+			AllowUserAutostart:             new(expectedAllowAutostart),
+			FailureTTLMillis:               new(expectedFailureTTLMillis),
+			TimeTilDormantMillis:           new(expectedDormancyMillis),
+			TimeTilDormantAutoDeleteMillis: new(expectedAutoDeleteMillis),
+			RequireActiveVersion:           new(expectedRequireActiveVersion),
+			DeprecationMessage:             new(deprecationMessage),
+			DisableEveryoneGroupAccess:     new(expectedDisableEveryone),
+			AllowUserCancelWorkspaceJobs:   new(expectedAllowCancelJobs),
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: expectedAutostartDaysOfWeek,
 			},
@@ -266,20 +265,20 @@ func TestTemplateEdit(t *testing.T) {
 		expectedAutoStopWeeks = 2
 
 		template, err = ownerClient.UpdateTemplateMeta(ctx, dbtemplate.ID, codersdk.UpdateTemplateMeta{
-			Name:                           ptr.Ref(expectedName),
+			Name:                           new(expectedName),
 			DisplayName:                    &expectedDisplayName,
 			Description:                    &expectedDescription,
 			Icon:                           &expectedIcon,
-			DefaultTTLMillis:               ptr.Ref(expectedDefaultTTLMillis),
-			AllowUserAutostop:              ptr.Ref(expectedAllowAutostop),
-			AllowUserAutostart:             ptr.Ref(expectedAllowAutostart),
-			FailureTTLMillis:               ptr.Ref(expectedFailureTTLMillis),
-			TimeTilDormantMillis:           ptr.Ref(expectedDormancyMillis),
-			TimeTilDormantAutoDeleteMillis: ptr.Ref(expectedAutoDeleteMillis),
-			RequireActiveVersion:           ptr.Ref(expectedRequireActiveVersion),
-			DeprecationMessage:             ptr.Ref(deprecationMessage),
-			DisableEveryoneGroupAccess:     ptr.Ref(expectedDisableEveryone),
-			AllowUserCancelWorkspaceJobs:   ptr.Ref(expectedAllowCancelJobs),
+			DefaultTTLMillis:               new(expectedDefaultTTLMillis),
+			AllowUserAutostop:              new(expectedAllowAutostop),
+			AllowUserAutostart:             new(expectedAllowAutostart),
+			FailureTTLMillis:               new(expectedFailureTTLMillis),
+			TimeTilDormantMillis:           new(expectedDormancyMillis),
+			TimeTilDormantAutoDeleteMillis: new(expectedAutoDeleteMillis),
+			RequireActiveVersion:           new(expectedRequireActiveVersion),
+			DeprecationMessage:             new(deprecationMessage),
+			DisableEveryoneGroupAccess:     new(expectedDisableEveryone),
+			AllowUserCancelWorkspaceJobs:   new(expectedAllowCancelJobs),
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: expectedAutostartDaysOfWeek,
 			},

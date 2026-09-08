@@ -63,7 +63,7 @@ jobs:
       issues: write # open/update/close the tracked issue via GITHUB_TOKEN
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -99,6 +99,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          # audit-docs-paths.mjs treats a missing scan root as a warning, not an error, so fail the step here.
+          for root in "${WORKSPACE}/site/src" "${WORKSPACE}/coder.com/src"; do
+            [ -d "${root}" ] || { echo "::error::audit scan root not found: ${root}"; exit 1; }
+          done
+
           # Absolute --roots are required: the audit classifies findings by
           # matching the "/coder/site/" and "/coder.com/src/" segments in
           # each file's absolute path. Relative roots would leave every
@@ -109,7 +114,8 @@ jobs:
             --out="${WORKSPACE}/audit-report.md" \
             2>&1 | tee "${WORKSPACE}/audit-output.txt"
 
-          count=$(grep -oP 'Total findings: \K\d+' "${WORKSPACE}/audit-output.txt" || echo "0")
+          # No fallback: a missing "Total findings:" line must fail, not read as zero.
+          count=$(grep -oP 'Total findings: \K\d+' "${WORKSPACE}/audit-output.txt")
           echo "count=${count}" >> "$GITHUB_OUTPUT"
           echo "Total findings: ${count}"
 
@@ -120,6 +126,30 @@ jobs:
             echo
             cat "${WORKSPACE}/audit-report.md"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Send Slack notification on drift
+        id: slack_drift
+        # Reuses weekly-docs.yaml's docs Slack webhook (same channel, no new secret).
+        # Runs before the report/issue/fail steps so their failure can't drop the ping.
+        if: steps.audit.outputs.count != '' && steps.audit.outputs.count != '0'
+        env:
+          COUNT: ${{ steps.audit.outputs.count }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_WEBHOOK: ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          [ -n "${SLACK_WEBHOOK}" ] || { echo "::error::DOCS_LINK_SLACK_WEBHOOK is not set"; exit 1; }
+          # -f: a revoked or misconfigured webhook must fail the step, not log success.
+          curl \
+            -fsS \
+            --max-time 10 \
+            --retry 3 \
+            --retry-all-errors \
+            -X POST \
+            -H 'Content-type: application/json' \
+            -d '{"text":":warning: *Docs URL drift detected by audit-docs-paths.*\n'"${COUNT}"' stale docs path reference(s) resolve to a redirect source. See the run: '"${RUN_URL}"'"}' \
+            "${SLACK_WEBHOOK}"
+          echo "Sent Slack drift notification"
 
       - name: Upload audit report
         if: always()
@@ -192,3 +222,24 @@ jobs:
         run: |
           echo "::error::audit-docs-paths found ${COUNT} stale docs path reference(s). See the tracked issue and the audit-docs-paths-report artifact."
           exit 1
+
+      - name: Send Slack notification on failure
+        # A failed scheduled run notifies nobody, so ping on any job failure the
+        # drift step above didn't already announce.
+        if: failure() && steps.slack_drift.outcome != 'success'
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_WEBHOOK: ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          [ -n "${SLACK_WEBHOOK}" ] || { echo "::error::DOCS_LINK_SLACK_WEBHOOK is not set"; exit 1; }
+          curl \
+            -fsS \
+            --max-time 10 \
+            --retry 3 \
+            --retry-all-errors \
+            -X POST \
+            -H 'Content-type: application/json' \
+            -d '{"text":":rotating_light: *audit-docs-paths failed; docs URL drift monitoring needs attention.* See the run: '"${RUN_URL}"'"}' \
+            "${SLACK_WEBHOOK}"
+          echo "Sent Slack failure notification"

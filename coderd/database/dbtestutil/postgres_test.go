@@ -58,12 +58,12 @@ func TestOpen_ValidDBFrom(t *testing.T) {
 	require.NoError(t, err)
 
 	templateDBName := "tpl_" + migrations.GetMigrationsHash()[:32]
-	tplDbExistsRes, err := db.Query("SELECT 1 FROM pg_database WHERE datname = $1", templateDBName)
+	tplDBExistsRes, err := db.Query("SELECT 1 FROM pg_database WHERE datname = $1", templateDBName)
 	if err != nil {
 		require.NoError(t, err)
 	}
-	require.True(t, tplDbExistsRes.Next())
-	require.NoError(t, tplDbExistsRes.Close())
+	require.True(t, tplDBExistsRes.Next())
+	require.NoError(t, tplDBExistsRes.Close())
 
 	// now populate the db with some data and use it as a new template db
 	// to verify that dbtestutil.Open respects WithDBFrom
@@ -91,13 +91,13 @@ func TestOpen_ValidDBFrom(t *testing.T) {
 	newDsn, err := dbtestutil.Open(t, dbtestutil.WithDBFrom(freshTemplateDBName))
 	require.NoError(t, err)
 
-	newDb, err := sql.Open("postgres", newDsn)
+	newDB, err := sql.Open("postgres", newDsn)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, newDb.Close())
+		require.NoError(t, newDB.Close())
 	})
 
-	rows, err = newDb.Query("SELECT 1 FROM my_wonderful_table WHERE name = 'test'")
+	rows, err = newDB.Query("SELECT 1 FROM my_wonderful_table WHERE name = 'test'")
 	require.NoError(t, err)
 	require.True(t, rows.Next())
 	require.NoError(t, rows.Close())

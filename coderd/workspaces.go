@@ -122,7 +122,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -339,7 +339,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -851,7 +851,7 @@ func createWorkspace(
 		workspace,
 		apiBuild,
 		template,
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		codersdk.WorkspaceAppStatus{},
 	)
 	if err != nil {
@@ -1154,9 +1154,17 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// patched in the future, it's enough if one changes.
 	name := workspace.Name
 	if req.Name != "" || req.Name != workspace.Name {
-		if !api.Options.AllowWorkspaceRenames {
+		template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching workspace template.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !api.AllowWorkspaceRenames && !template.AllowWorkspaceRenames {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Workspace renames are not allowed.",
+				Message: "Workspace renames are not enabled for this template.",
 			})
 			return
 		}
@@ -1593,7 +1601,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -2172,7 +2180,7 @@ func (api *API) watchWorkspace(
 			workspace,
 			data.builds[0],
 			data.templates[0],
-			api.Options.AllowWorkspaceRenames,
+			api.AllowWorkspaceRenames,
 			appStatus,
 		)
 		if err != nil {
@@ -2596,10 +2604,11 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 }
 
 type workspaceData struct {
-	templates    []database.Template
-	builds       []codersdk.WorkspaceBuild
-	appStatuses  []codersdk.WorkspaceAppStatus
-	allowRenames bool
+	templates   []database.Template
+	builds      []codersdk.WorkspaceBuild
+	appStatuses []codersdk.WorkspaceAppStatus
+	// deploymentAllowsRenames is the deprecated deployment-wide rename flag.
+	deploymentAllowsRenames bool
 }
 
 // @Summary Completely clears the workspace's user and group ACLs.
@@ -2757,10 +2766,10 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}
 
 	return workspaceData{
-		templates:    templates,
-		appStatuses:  db2sdk.WorkspaceAppStatuses(appStatuses),
-		builds:       apiBuilds,
-		allowRenames: api.Options.AllowWorkspaceRenames,
+		templates:               templates,
+		appStatuses:             db2sdk.WorkspaceAppStatuses(appStatuses),
+		builds:                  apiBuilds,
+		deploymentAllowsRenames: api.AllowWorkspaceRenames,
 	}, nil
 }
 
@@ -2846,7 +2855,7 @@ func convertWorkspaces(
 			workspace,
 			build,
 			template,
-			data.allowRenames,
+			data.deploymentAllowsRenames,
 			appStatus,
 		)
 		if err != nil {
@@ -2865,7 +2874,7 @@ func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
-	allowRenames bool,
+	deploymentAllowsRenames bool,
 	latestAppStatus codersdk.WorkspaceAppStatus,
 ) (codersdk.Workspace, error) {
 	if requesterID == uuid.Nil {
@@ -2953,7 +2962,7 @@ func convertWorkspace(
 			FailingAgents: failingAgents,
 		},
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
-		AllowRenames:     allowRenames,
+		AllowRenames:     deploymentAllowsRenames || template.AllowWorkspaceRenames,
 		Favorite:         requesterFavorite,
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),

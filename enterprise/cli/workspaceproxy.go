@@ -243,8 +243,8 @@ func (r *RootCmd) createProxy() *serpent.Command {
 		formatter   = newUpdateProxyResponseFormatter()
 	)
 	validateIcon := func(s *serpent.String) error {
-		if !(strings.HasPrefix(s.Value(), "/emojis/") || strings.HasPrefix(s.Value(), "http")) {
-			return xerrors.New("icon must be a relative path to an emoji or a publicly hosted image URL")
+		if !strings.HasPrefix(s.Value(), "/emojis/") && !strings.HasPrefix(s.Value(), "/icon/") && !strings.HasPrefix(s.Value(), "http") {
+			return xerrors.New("icon must be a relative path to a built-in image or an absolute HTTP/HTTPS URL to an external image")
 		}
 		return nil
 	}

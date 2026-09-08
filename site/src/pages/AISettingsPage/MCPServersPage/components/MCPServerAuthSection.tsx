@@ -10,6 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { passwordManagerIgnoreProps } from "#/utils/formUtils";
 import { Field } from "./MCPServerFormFieldPrimitives";
 import {
 	AUTH_TYPE_OPTIONS,
@@ -198,11 +199,7 @@ const SecretInput: FC<{
 		id={id}
 		className="font-mono shadow-none [-webkit-text-security:disc]"
 		type="text"
-		autoComplete="off"
-		data-1p-ignore
-		data-lpignore="true"
-		data-form-type="other"
-		data-bwignore
+		{...passwordManagerIgnoreProps}
 		value={value}
 		onChange={(event) => {
 			onTouch();

@@ -178,6 +178,19 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		}
 		aiProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 	}
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = defaultOrg.ID
+	}
+	groupACL := seed.GroupACL
+	if groupACL == nil {
+		groupACL = database.ChatACL{
+			organizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		}
+	}
+	userACL := seed.UserACL
 	params := database.InsertChatModelConfigParams{
 		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
 		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
@@ -189,6 +202,9 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		CompressionThreshold: takeFirst(seed.CompressionThreshold, defaultChatModelCompressionThreshold),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
 		AIProviderID:         aiProviderID,
+		OrganizationID:       organizationID,
+		GroupACL:             groupACL,
+		UserACL:              userACL,
 	}
 	for _, fn := range munge {
 		fn(&params)
@@ -580,6 +596,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 		AgentsAllowed:                seed.AgentsAllowed,
+		AllowWorkspaceRenames:        seed.AllowWorkspaceRenames,
 	})
 	require.NoError(t, err, "insert template")
 
@@ -803,7 +820,7 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 		}
 		// Some tests run WorkspaceAgentScriptTiming in a loop and run into
 		// a unique violation - 2 rows get the same started_at value.
-		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt == time.Time{}) {
+		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt.Equal(time.Time{})) {
 			// Wait 1 millisecond so dbtime.Now() changes
 			time.Sleep(time.Millisecond * 1)
 			continue
@@ -1174,7 +1191,7 @@ func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTab
 	require.NotEqual(t, member.UserID, uuid.Nil, "A user id is required to use 'dbgen.GroupMember', use 'dbgen.User'.")
 	require.NotEqual(t, member.GroupID, uuid.Nil, "A group id is required to use 'dbgen.GroupMember', use 'dbgen.Group'.")
 
-	//nolint:gosimple
+	//nolint:staticcheck
 	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams{
 		UserID:  member.UserID,
 		GroupID: member.GroupID,
@@ -1697,55 +1714,74 @@ func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig databa
 	return v
 }
 
+// WorkspaceAgentStat inserts a workspace agent stat row. Seed the
+// session_counts column by setting SessionCounts on orig, for example with
+// the SessionCounts helper:
+//
+//	WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+//		SessionCounts: dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
+//	})
 func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
 	if orig.ConnectionsByProto == nil {
 		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
 	}
 	jsonProto := []byte(fmt.Sprintf("[%s]", orig.ConnectionsByProto))
 
+	// The insert rejects null session count elements.
+	jsonCounts := orig.SessionCounts
+	if jsonCounts == nil {
+		jsonCounts = json.RawMessage("{}")
+	}
+
 	params := database.InsertWorkspaceAgentStatsParams{
-		ID:                          []uuid.UUID{takeFirst(orig.ID, uuid.New())},
-		CreatedAt:                   []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
-		UserID:                      []uuid.UUID{takeFirst(orig.UserID, uuid.New())},
-		TemplateID:                  []uuid.UUID{takeFirst(orig.TemplateID, uuid.New())},
-		WorkspaceID:                 []uuid.UUID{takeFirst(orig.WorkspaceID, uuid.New())},
-		AgentID:                     []uuid.UUID{takeFirst(orig.AgentID, uuid.New())},
-		ConnectionsByProto:          jsonProto,
-		ConnectionCount:             []int64{takeFirst(orig.ConnectionCount, 0)},
-		RxPackets:                   []int64{takeFirst(orig.RxPackets, 0)},
-		RxBytes:                     []int64{takeFirst(orig.RxBytes, 0)},
-		TxPackets:                   []int64{takeFirst(orig.TxPackets, 0)},
-		TxBytes:                     []int64{takeFirst(orig.TxBytes, 0)},
-		SessionCountVSCode:          []int64{takeFirst(orig.SessionCountVSCode, 0)},
-		SessionCountJetBrains:       []int64{takeFirst(orig.SessionCountJetBrains, 0)},
-		SessionCountReconnectingPTY: []int64{takeFirst(orig.SessionCountReconnectingPTY, 0)},
-		SessionCountSSH:             []int64{takeFirst(orig.SessionCountSSH, 0)},
-		ConnectionMedianLatencyMS:   []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
-		Usage:                       []bool{takeFirst(orig.Usage, false)},
+		ID:                        []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		CreatedAt:                 []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
+		UserID:                    []uuid.UUID{takeFirst(orig.UserID, uuid.New())},
+		TemplateID:                []uuid.UUID{takeFirst(orig.TemplateID, uuid.New())},
+		WorkspaceID:               []uuid.UUID{takeFirst(orig.WorkspaceID, uuid.New())},
+		AgentID:                   []uuid.UUID{takeFirst(orig.AgentID, uuid.New())},
+		ConnectionsByProto:        jsonProto,
+		ConnectionCount:           []int64{takeFirst(orig.ConnectionCount, 0)},
+		RxPackets:                 []int64{takeFirst(orig.RxPackets, 0)},
+		RxBytes:                   []int64{takeFirst(orig.RxBytes, 0)},
+		TxPackets:                 []int64{takeFirst(orig.TxPackets, 0)},
+		TxBytes:                   []int64{takeFirst(orig.TxBytes, 0)},
+		SessionCounts:             json.RawMessage(fmt.Sprintf("[%s]", jsonCounts)),
+		ConnectionMedianLatencyMS: []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
+		Usage:                     []bool{takeFirst(orig.Usage, false)},
 	}
 	err := db.InsertWorkspaceAgentStats(genCtx, params)
 	require.NoError(t, err, "insert workspace agent stat")
 
 	return database.WorkspaceAgentStat{
-		ID:                          params.ID[0],
-		CreatedAt:                   params.CreatedAt[0],
-		UserID:                      params.UserID[0],
-		AgentID:                     params.AgentID[0],
-		WorkspaceID:                 params.WorkspaceID[0],
-		TemplateID:                  params.TemplateID[0],
-		ConnectionsByProto:          orig.ConnectionsByProto,
-		ConnectionCount:             params.ConnectionCount[0],
-		RxPackets:                   params.RxPackets[0],
-		RxBytes:                     params.RxBytes[0],
-		TxPackets:                   params.TxPackets[0],
-		TxBytes:                     params.TxBytes[0],
-		ConnectionMedianLatencyMS:   params.ConnectionMedianLatencyMS[0],
-		SessionCountVSCode:          params.SessionCountVSCode[0],
-		SessionCountJetBrains:       params.SessionCountJetBrains[0],
-		SessionCountReconnectingPTY: params.SessionCountReconnectingPTY[0],
-		SessionCountSSH:             params.SessionCountSSH[0],
-		Usage:                       params.Usage[0],
+		ID:                        params.ID[0],
+		CreatedAt:                 params.CreatedAt[0],
+		UserID:                    params.UserID[0],
+		AgentID:                   params.AgentID[0],
+		WorkspaceID:               params.WorkspaceID[0],
+		TemplateID:                params.TemplateID[0],
+		ConnectionsByProto:        orig.ConnectionsByProto,
+		ConnectionCount:           params.ConnectionCount[0],
+		RxPackets:                 params.RxPackets[0],
+		RxBytes:                   params.RxBytes[0],
+		TxPackets:                 params.TxPackets[0],
+		TxBytes:                   params.TxBytes[0],
+		ConnectionMedianLatencyMS: params.ConnectionMedianLatencyMS[0],
+		Usage:                     params.Usage[0],
+		SessionCounts:             jsonCounts,
 	}
+}
+
+// SessionCounts marshals counts for the SessionCounts seed field of
+// WorkspaceAgentStat.
+func SessionCounts(t testing.TB, counts map[string]int64) json.RawMessage {
+	t.Helper()
+	if counts == nil {
+		counts = map[string]int64{}
+	}
+	raw, err := json.Marshal(counts)
+	require.NoError(t, err, "marshal session counts")
+	return raw
 }
 
 func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2ProviderApp) database.OAuth2ProviderApp {

@@ -1,6 +1,7 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, type FC, useRef, useState } from "react";
+import { Outlet } from "react-router";
 import {
 	expect,
 	fireEvent,
@@ -12,8 +13,11 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { userCompactionThresholdsKey } from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
@@ -21,7 +25,9 @@ import {
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
@@ -42,7 +48,6 @@ import {
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
-import type { ModelSelectorOption } from "./components/ChatElements";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
 // ---------------------------------------------------------------------------
@@ -50,11 +55,11 @@ import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage"
 // ---------------------------------------------------------------------------
 const AGENT_ID = "agent-detail-view-1";
 
-const defaultModelConfigID = "model-config-1";
+const defaultModelID = "model-config-1";
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: defaultModelConfigID,
+		id: defaultModelID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -66,11 +71,8 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	...MockChat,
 	id: AGENT_ID,
-	owner_id: "owner-1",
-	owner_username: "owner",
-	owner_name: "Owner",
 	title: "Help me refactor",
-	last_model_config_id: defaultModelConfigID,
+	last_model_config_id: defaultModelID,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -109,6 +111,31 @@ const agentsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
+const collapsedSidebarRouter = reactRouterParameters({
+	location: {
+		path: `/agents/${AGENT_ID}`,
+		pathParams: { agentId: AGENT_ID },
+	},
+	routing: [
+		{
+			path: "/",
+			element: (
+				<Outlet
+					context={{
+						isSidebarCollapsed: true,
+						onToggleSidebarCollapsed: () => {},
+						onExpandSidebar: () => {},
+					}}
+				/>
+			),
+			children: [
+				{ path: "agents/:agentId", useStoryElement: true },
+				{ path: "agents", useStoryElement: true },
+			],
+		},
+	],
+});
+
 // ---------------------------------------------------------------------------
 // Wrapper component.
 //
@@ -120,44 +147,35 @@ const agentsRouting = [
 // ---------------------------------------------------------------------------
 type StoryProps = Omit<
 	Partial<ComponentProps<typeof AgentChatPageView>>,
-	"editing"
+	"editing" | "chat"
 > & {
 	editing?: Partial<ComponentProps<typeof AgentChatPageView>["editing"]>;
+	chat?: Partial<TypesGen.Chat>;
 };
 
-const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
+const StoryAgentChatPageView: FC<StoryProps> = ({
+	editing,
+	chat,
+	...overrides
+}) => {
 	const defaultStoreRef = useRef(createChatStore());
 	const store = overrides.store ?? defaultStoreRef.current;
 
 	const props = {
-		agentId: AGENT_ID,
-		sendShortcut: "enter" as const,
-		organizationId: "test-org-id",
-		chatTitle: "Help me refactor",
+		chat: buildChat(chat),
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
-		isArchived: false,
-		isSharedChat: false,
-		chatOwner: undefined as ComponentProps<
-			typeof AgentChatPageView
-		>["chatOwner"],
-		effectiveSelectedModel: defaultModelConfigID,
+		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
+		models: [],
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
-		compressionThreshold: undefined as number | undefined,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
-		isSidebarCollapsed: false,
-		onToggleSidebarCollapsed: fn(),
 		showSidebarPanel: false,
 		onSetShowSidebarPanel: fn(),
-		prNumber: undefined as number | undefined,
-		diffStatusData: undefined as ComponentProps<
-			typeof AgentChatPageView
-		>["diffStatusData"],
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
 		sshCommand: undefined as string | undefined,
@@ -165,9 +183,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
-		handleArchiveAgentAction: fn(),
-		handleUnarchiveAgentAction: fn(),
-		handleArchiveAndDeleteWorkspaceAction: fn(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -183,7 +198,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
-		initialChatStatus: "waiting" as const,
 		initialMessages: [],
 		...overrides,
 		store,
@@ -217,6 +231,16 @@ const meta: Meta<typeof AgentChatPageView> = {
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/${AGENT_ID}`,
@@ -245,15 +269,40 @@ export const Default: Story = {
 	},
 };
 
+export const CachedModelsWithRefetchError: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			modelCatalogError={new Error("Failed to refresh available models.")}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Failed to refresh available models."),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("combobox", {
+				name: defaultModelOptions[0].displayName,
+			}),
+		).toBeVisible();
+	},
+};
+
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
-	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
+	render: () => (
+		<StoryAgentChatPageView chat={{ archived: true }} isInputDisabled />
+	),
 };
 
 export const OtherUserChatReadOnly: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+			}}
 			isInputDisabled
 		/>
 	),
@@ -274,7 +323,11 @@ export const OtherUserChatReadOnly: Story = {
 export const OtherUserChatUsernameFallback: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: undefined,
+			}}
 			isInputDisabled
 		/>
 	),
@@ -293,7 +346,16 @@ export const OtherUserChatUsernameFallback: Story = {
 };
 
 export const OtherUserChatOwnerFallback: Story = {
-	render: () => <StoryAgentChatPageView chatOwner={{}} isInputDisabled />,
+	render: () => (
+		<StoryAgentChatPageView
+			chat={{
+				owner_id: "other-user",
+				owner_username: undefined,
+				owner_name: undefined,
+			}}
+			isInputDisabled
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByText(
@@ -312,9 +374,13 @@ export const OtherUserChatOwnerFallback: Story = {
 export const ArchivedOtherUserChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			isArchived
+			chat={{
+				archived: true,
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: undefined,
+			}}
 			isInputDisabled
-			chatOwner={{ username: "OtherUser" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -332,7 +398,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 	parameters: {
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const callout = within(canvas.getByRole("alert"));
@@ -346,7 +412,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 		const trialLink = canvas.getByRole("link", {
 			name: /start an unlimited trial/i,
 		});
-		expect(trialLink).toHaveAttribute("href", "https://coder.com/trial");
+		expect(trialLink).toHaveAttribute("href", "/deployment/premium");
 		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
 		expect(learnMoreLink).toHaveAttribute(
 			"href",
@@ -356,7 +422,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 };
 
 export const QueuedForCapacityCommunityMember: Story = {
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -379,7 +445,7 @@ export const QueuedForCapacityPremiumAdmin: Story = {
 		features: ["multiple_organizations"],
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -401,7 +467,7 @@ export const QueuedForCapacityPremiumMember: Story = {
 	parameters: {
 		features: ["multiple_organizations"],
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -432,7 +498,7 @@ export const QueuedForCapacityPremiumHardLimit: Story = {
 		],
 		permissions: { viewAllLicenses: true },
 	},
-	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
@@ -508,19 +574,19 @@ export const WithSidebarPanel: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			prNumber={123}
-			diffStatusData={
-				{
+			chat={{
+				diff_status: {
 					chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
+					pr_number: 123,
 					pull_request_title: "fix: resolve race condition in workspace builds",
 					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
 					changed_files: 5,
-				} satisfies ChatDiffStatus
-			}
+				} satisfies ChatDiffStatus,
+			}}
 		/>
 	),
 	beforeEach: () => {
@@ -592,19 +658,19 @@ export const RefreshInvalidatesPRDiff: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			prNumber={123}
-			diffStatusData={
-				{
+			chat={{
+				diff_status: {
 					chat_id: AGENT_ID,
 					url: "https://github.com/coder/coder/pull/123",
+					pr_number: 123,
 					pull_request_title: "fix: resolve race condition in workspace builds",
 					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
 					changed_files: 5,
-				} satisfies ChatDiffStatus
-			}
+				} satisfies ChatDiffStatus,
+			}}
 		/>
 	),
 	beforeEach: () => {
@@ -652,7 +718,8 @@ index abc1234..def5678 100644
 
 /** Left sidebar is collapsed. */
 export const SidebarCollapsed: Story = {
-	render: () => <StoryAgentChatPageView isSidebarCollapsed />,
+	parameters: { reactRouter: collapsedSidebarRouter },
+	render: () => <StoryAgentChatPageView />,
 };
 
 /** No model options available — shows a disabled status message. */
@@ -863,7 +930,7 @@ export const WorkspaceNoAgent: Story = {
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
 			workspaceOptions={[MockWorkspace]}
-			selectedWorkspaceId={MockWorkspace.id}
+			chat={{ workspace_id: MockWorkspace.id }}
 			onWorkspaceChange={fn()}
 		/>
 	),
@@ -885,21 +952,17 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -909,21 +972,17 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled={false}
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -932,21 +991,17 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel
 		/>
 	),
@@ -954,23 +1009,20 @@ export const LoadingWithRightPanel: Story = {
 
 /** Loading state with the left sidebar collapsed. */
 export const LoadingSidebarCollapsed: Story = {
+	parameters: { reactRouter: collapsedSidebarRouter },
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			isSidebarCollapsed
-			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -1034,7 +1086,11 @@ const otherUserActionMessages: TypesGen.ChatMessage[] = [
 export const OtherUserChatHidesInlineActions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+			}}
 			isInputDisabled
 			onImplementPlan={fn()}
 			store={buildStoreWithMessages(otherUserActionMessages)}
@@ -1092,24 +1148,13 @@ export const EditingMessage: Story = {
 
 /** Shows the "Chat not found" message. */
 export const NotFound: Story = {
-	render: () => (
-		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
-			isSidebarCollapsed={false}
-			onToggleSidebarCollapsed={fn()}
-		/>
-	),
+	render: () => <AgentChatPageNotFoundView />,
 };
 
 /** "Chat not found" with the left sidebar collapsed. */
 export const NotFoundSidebarCollapsed: Story = {
-	render: () => (
-		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
-			isSidebarCollapsed
-			onToggleSidebarCollapsed={fn()}
-		/>
-	),
+	parameters: { reactRouter: collapsedSidebarRouter },
+	render: () => <AgentChatPageNotFoundView />,
 };
 
 // ---------------------------------------------------------------------------
@@ -1569,7 +1614,7 @@ export const FailedHistoryPageOffersKeyboardRetry: Story = {
 export const TerminalFocusOnTabSwitch: Story = {
 	parameters: {
 		pixel: { exclude: true },
-		webSocket: { "/api/v2/workspaceagents/": [{ event: "message", data: "" }] },
+		webSocket: [],
 	},
 	decorators: [withWebSocket],
 	render: () => (
@@ -1595,12 +1640,12 @@ export const TerminalFocusOnTabSwitch: Story = {
 			return el;
 		});
 
-		// The xterm focus target is a textarea inside the terminal container.
+		const terminal = within(terminalContainer);
 		await waitFor(
 			() => {
-				const textarea = terminalContainer.querySelector("textarea");
-				expect(textarea).not.toBeNull();
-				expect(document.activeElement).toBe(textarea);
+				expect(
+					terminal.getByRole("textbox", { name: "Terminal input" }),
+				).toHaveFocus();
 			},
 			{ timeout: 3000 },
 		);
@@ -1610,12 +1655,12 @@ export const TerminalFocusOnTabSwitch: Story = {
 		await userEvent.click(gitTab);
 		await userEvent.click(terminalTab);
 
-		// Focus should return to the terminal textarea.
+		// Focus should return to the terminal input.
 		await waitFor(
 			() => {
-				const textarea = terminalContainer.querySelector("textarea");
-				expect(textarea).not.toBeNull();
-				expect(document.activeElement).toBe(textarea);
+				expect(
+					terminal.getByRole("textbox", { name: "Terminal input" }),
+				).toHaveFocus();
 			},
 			{ timeout: 3000 },
 		);
@@ -1895,7 +1940,7 @@ export const DoesNotPersistForArchivedChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			isArchived
+			chat={{ archived: true }}
 			isInputDisabled
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
@@ -1924,10 +1969,12 @@ export const DoesNotPersistForArchivedChat: Story = {
 export const ArchivedWithSharing: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			isArchived
+			chat={{
+				archived: true,
+				organization_id: MockDefaultOrganization.id,
+			}}
 			isInputDisabled
 			canShareChat
-			organizationId={MockDefaultOrganization.id}
 		/>
 	),
 	beforeEach: () => {
@@ -1963,7 +2010,7 @@ export const ShareChatPopoverFromTopBar: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			canShareChat
-			organizationId={MockDefaultOrganization.id}
+			chat={{ organization_id: MockDefaultOrganization.id }}
 		/>
 	),
 	beforeEach: () => {

@@ -386,7 +386,7 @@ func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 	inv, cfg := clitest.NewWithCommand(t, cmd,
 		"server",
 		"--postgres-url="+dbURL,
-		"--http-address", ":0",
+		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 		"--external-token-encryption-keys", b64Key,
 		"--aibridge-enabled",

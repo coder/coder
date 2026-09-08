@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
+	"storj.io/drpc/drpcerr"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
@@ -92,7 +93,7 @@ func NewClientService(options ClientServiceOptions) (
 	if err != nil {
 		return nil, xerrors.Errorf("register DRPC service: %w", err)
 	}
-	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+	server := drpcsdk.NewServer(options.Logger, mux, drpcserver.Options{
 		Manager: drpcsdk.DefaultDRPCOptions(nil),
 		Log: func(err error) {
 			if xerrors.Is(err, io.EOF) ||
@@ -185,6 +186,13 @@ func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream prot
 }
 
 func (s *DRPCService) RefreshResumeToken(ctx context.Context, _ *proto.RefreshResumeTokenRequest) (*proto.RefreshResumeTokenResponse, error) {
+	if s.ResumeTokenProvider == nil {
+		return nil, drpcerr.WithCode(
+			xerrors.New("resume tokens not supported on this connection"),
+			drpcerr.Unimplemented,
+		)
+	}
+
 	streamID, ok := ctx.Value(streamIDContextKey{}).(StreamID)
 	if !ok {
 		return nil, xerrors.New("no Stream ID")
@@ -219,6 +227,13 @@ func (s *DRPCService) Coordinate(stream proto.DRPCTailnet_CoordinateStream) erro
 }
 
 func (s *DRPCService) WorkspaceUpdates(req *proto.WorkspaceUpdatesRequest, stream proto.DRPCTailnet_WorkspaceUpdatesStream) error {
+	if s.WorkspaceUpdatesProvider == nil {
+		return drpcerr.WithCode(
+			xerrors.New("workspace updates not supported on this connection"),
+			drpcerr.Unimplemented,
+		)
+	}
+
 	defer stream.Close()
 
 	ctx := stream.Context()

@@ -7,15 +7,9 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 type runnerActionKind string
-
-type runnerActionMessage struct {
-	ID   int64
-	Role codersdk.ChatMessageRole
-}
 
 const (
 	runnerActionKindEnterRequiresAction runnerActionKind = "enter_requires_action"
@@ -30,6 +24,12 @@ type stepData struct {
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
 	Runtime      time.Duration
+
+	// BatchRuntime is the local-tool batch window. Model steps use Runtime.
+	BatchRuntime time.Duration
+	// BatchBilledCalls counts the calls whose intervals produced
+	// BatchRuntime. Audit metadata for the batch usage record.
+	BatchBilledCalls int
 
 	ToolCallCreatedAt    map[string]time.Time
 	ToolResultCreatedAt  map[string]time.Time

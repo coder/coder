@@ -1,4 +1,4 @@
-import { PlusIcon, SquareArrowOutUpRightIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import type {
 	CreateUserSecretRequest,
@@ -11,6 +11,7 @@ import { Button } from "#/components/Button/Button";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { docs } from "#/utils/docs";
@@ -86,29 +87,18 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 		<div className="flex flex-col gap-6">
 			<SettingsHeader
 				actions={
-					<div className="flex flex-wrap gap-2">
-						<Button variant="outline" asChild>
-							<a
-								href={docs("/user-guides/user-secrets")}
-								target="_blank"
-								rel="noreferrer"
-							>
-								<SquareArrowOutUpRightIcon />
-								Read the docs
-							</a>
-						</Button>
-						<Button onClick={(event) => openAddSecret(event.currentTarget)}>
-							<PlusIcon />
-							Add secret
-						</Button>
-					</div>
+					<Button onClick={(event) => openAddSecret(event.currentTarget)}>
+						<PlusIcon />
+						Add secret
+					</Button>
 				}
 			>
 				<SettingsHeaderTitle>Secrets</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Secrets with an environment variable or file path are injected into
 					workspaces you own when they start. Each environment variable and file
-					path must be unique.
+					path must be unique.{" "}
+					<SettingsHeaderDocsLink href={docs("/user-guides/user-secrets")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

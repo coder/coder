@@ -22,11 +22,12 @@ protoc-gen-go = "1.30.0"
 # Go development tools.
 "go:github.com/coder/paralleltestctx/cmd/paralleltestctx" = "v0.0.2"
 "go:github.com/coder/whichtests" = "377b8dbf1cccae3b04b48bc8cfc2410813491414"
-# Keep golangci-lint on the Go backend while pinned to v1. The upstream
-# precompiled v1 binary is built with an older Go toolchain and cannot lint
-# this module's Go version. Upgrading to v2 should let us use the native
-# golangci-lint mise/aqua backend and GitHub release binaries.
-"go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "v1.64.8"
+# Keep golangci-lint on the Go backend until we upgrade to a more recent
+# version. The upstream precompiled binaries may be built with older Go versions
+# (and older included versions of packages like go/ast) that can result in them
+# being unable to lint code for our Go version. Upgrading to a new enough
+# version should let us use the native mise backend and GitHub release binaries.
+"go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint" = "v2.0.2"
 "go:github.com/golang-migrate/migrate/v4/cmd/migrate" = "v4.19.0"
 "go:github.com/goreleaser/nfpm/v2/cmd/nfpm" = "v2.35.1"
 "go:github.com/slsyy/mtimehash/cmd/mtimehash" = "v1.0.0"

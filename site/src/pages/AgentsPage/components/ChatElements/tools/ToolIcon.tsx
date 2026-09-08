@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ActivityIcon,
 	BadgeQuestionMarkIcon,
@@ -23,7 +24,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	execute: TerminalIcon,
@@ -38,6 +38,7 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	read_template: ServerIcon,
 	create_workspace: ServerIcon,
 	start_workspace: PowerIcon,
+	chat_cleared: BotIcon,
 	chat_summarized: BotIcon,
 	list_agents: BotIcon,
 	list_subagent_models: BotIcon,

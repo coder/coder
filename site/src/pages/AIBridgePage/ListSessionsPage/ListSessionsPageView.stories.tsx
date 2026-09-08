@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
-import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -15,9 +15,10 @@ import { ListSessionsPageView } from "./ListSessionsPageView";
 
 type FilterProps = ComponentProps<typeof ListSessionsPageView>["filterProps"];
 
-const timeRange: TimeRange = {
-	startedAfter: new Date("2026-08-12T15:00:00Z"),
-	startedBefore: new Date("2026-08-13T15:00:00Z"),
+const timeRange: DateTimeRangeValue = {
+	start: new Date("2026-08-12T15:00:00Z"),
+	end: new Date("2026-08-13T15:00:00Z"),
+	preset: "last_24h",
 };
 
 const defaultFilterProps: FilterProps = {
@@ -35,7 +36,6 @@ const defaultFilterProps: FilterProps = {
 		},
 	}),
 	timeRange,
-	defaultTimeRange: timeRange,
 	onTimeRangeChange: fn(),
 };
 

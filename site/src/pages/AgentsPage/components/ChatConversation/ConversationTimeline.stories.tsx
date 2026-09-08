@@ -430,6 +430,7 @@ const defaultArgs: Omit<
 	React.ComponentProps<typeof ConversationTimeline>,
 	"parsedMessages"
 > = {
+	organizationId: "organization-id",
 	subagentTitles: new Map(),
 };
 
@@ -1228,7 +1229,7 @@ export const UserMessageWithDownloadableFile: Story = {
 		});
 		expect(downloadLink).toHaveAttribute(
 			"href",
-			"/api/experimental/chats/files/storybook-user-deployment-report",
+			"/api/v2/chats/files/storybook-user-deployment-report",
 		);
 		expect(canvas.getByText("deployment-report.pdf")).toBeInTheDocument();
 		expect(

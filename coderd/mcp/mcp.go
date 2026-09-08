@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	stdslog "log/slog"
 	"net/http"
 
@@ -10,7 +12,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 )
@@ -140,8 +141,9 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 	}
 
 	inputSchema := map[string]any{
-		"type":       "object",
-		"properties": sdkTool.Schema.Properties,
+		"type":                 "object",
+		"properties":           sdkTool.Schema.Properties,
+		"additionalProperties": false,
 	}
 	if len(sdkTool.Schema.Required) > 0 {
 		inputSchema["required"] = sdkTool.Schema.Required
@@ -155,14 +157,31 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 		// remains explicit on the wire.
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:    sdkTool.MCPAnnotations.ReadOnlyHint,
-			DestructiveHint: ptr.Ref(sdkTool.MCPAnnotations.DestructiveHint),
+			DestructiveHint: new(sdkTool.MCPAnnotations.DestructiveHint),
 			IdempotentHint:  sdkTool.MCPAnnotations.IdempotentHint,
-			OpenWorldHint:   ptr.Ref(sdkTool.MCPAnnotations.OpenWorldHint),
+			OpenWorldHint:   new(sdkTool.MCPAnnotations.OpenWorldHint),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		result, err := sdkTool.Handler(ctx, tb, req.Params.Arguments)
 		if err != nil {
-			return nil, err
+			var validationErr *toolsdk.ArgumentValidationError
+			if !errors.As(err, &validationErr) {
+				return nil, err
+			}
+			content, marshalErr := json.Marshal(struct {
+				Error          string         `json:"error"`
+				ExpectedSchema map[string]any `json:"expectedSchema"`
+			}{
+				Error:          validationErr.Error(),
+				ExpectedSchema: inputSchema,
+			})
+			if marshalErr != nil {
+				return nil, xerrors.Errorf("marshal MCP tool argument validation response: %w", marshalErr)
+			}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: string(content)}},
+				IsError: true,
+			}, nil
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{

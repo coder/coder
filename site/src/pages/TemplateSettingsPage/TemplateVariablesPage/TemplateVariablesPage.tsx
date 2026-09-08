@@ -5,7 +5,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import {
 	createAndBuildTemplateVersion,
@@ -27,10 +27,6 @@ import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
 const TemplateVariablesPage: FC = () => {
 	const getLink = useLinks();
-	const { organization = "default", template: templateName } = useParams() as {
-		organization?: string;
-		template: string;
-	};
 	const { template } = useTemplateSettings();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -57,7 +53,7 @@ const TemplateVariablesPage: FC = () => {
 		mutateAsync: sendCreateAndBuildTemplateVersion,
 		error: buildError,
 		isPending: isBuilding,
-	} = useMutation(createAndBuildTemplateVersion(organization));
+	} = useMutation(createAndBuildTemplateVersion(template.organization_id));
 	const {
 		mutateAsync: sendUpdateActiveTemplateVersion,
 		error: publishError,
@@ -106,7 +102,9 @@ const TemplateVariablesPage: FC = () => {
 					publishError,
 				}}
 				onCancel={() => {
-					navigate(getLink(linkToTemplate(organization, templateName)));
+					navigate(
+						getLink(linkToTemplate(template.organization_name, template.name)),
+					);
 				}}
 				onSubmit={async (formData) => {
 					const request = filterEmptySensitiveVariables(formData, variables);

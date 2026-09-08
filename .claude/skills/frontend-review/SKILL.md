@@ -38,14 +38,18 @@ before they see the PR.
   user-visible behavior? Then a changed or added `.stories.tsx` must exist,
   and its `play` function must perform the new interaction (open the menu,
   submit the form), not merely render. Interaction tests added to `.test.tsx`
-  files are a FAIL unless they cover pure logic.
+  files are a FAIL unless they cover pure logic; `renderHook` suites for
+  stateful UI hooks count as interaction tests and belong in the consuming
+  component's story.
 - **FE2 (types)**: Search the diff for `any`, `as unknown as`, non-null
   assertions in any form (`x!.y`, `items[0]!`, `fn()!`, `value! as T`), and
   new `as` casts. Check that API data uses types from `api/typesGenerated.ts`.
 - **FE3 (reuse/scope)**: For each new component, hook, or helper, search
   `site/src/components/` and sibling folders for an existing equivalent.
   Flag near-duplicates, hand-assembled versions of wrapped primitives, dead
-  branches, and unrelated changes bundled into the diff.
+  branches, and unrelated changes bundled into the diff. Flag new React hooks
+  that an existing hook, a plain function, or component state could replace;
+  several new single-use hooks in one diff is a FAIL.
 - **FE4 (comments)**: Read every comment line the diff adds or edits. Flag
   any comment that restates the identifier, assertion, or control flow.
   Verify surviving comments are factually correct.
@@ -68,7 +72,10 @@ before they see the PR.
   reads.
 - **FE9 (fixtures)**: Flag inline entity literals that duplicate or deviate
   from `Mock*` fixtures in `site/src/testHelpers/`, and shared pre-wired
-  query objects instead of per-story inline `{ key, data }` wiring.
+  query objects instead of per-story inline `{ key, data }` wiring. Flag any
+  `Object.defineProperty` replacement of a browser global in tests or
+  stories: unit tests stub with `vi.stubGlobal`, stories mock existing
+  globals with `spyOn` from `storybook/test`.
 - **FE10 (test queries)**: Flag `querySelector`, class-name substring
   matches, geometry assertions, `behavior: "smooth"` dependence, and
   locale-less `toLocaleString()` in changed tests and stories.

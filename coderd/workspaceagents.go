@@ -1267,7 +1267,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 		}
 	}(ctx)
 
-	ticker := time.NewTicker(api.Options.DERPMapUpdateFrequency)
+	ticker := time.NewTicker(api.DERPMapUpdateFrequency)
 	defer ticker.Stop()
 
 	var lastDERPMap *tailcfg.DERPMap
@@ -1281,7 +1281,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 			lastDERPMap = derpMap
 		}
 
-		ticker.Reset(api.Options.DERPMapUpdateFrequency)
+		ticker.Reset(api.DERPMapUpdateFrequency)
 		select {
 		case <-ctx.Done():
 			return
@@ -1456,7 +1456,7 @@ func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID 
 		return
 	}
 
-	staleInterval := api.Options.WorkspaceAppAuditSessionTimeout
+	staleInterval := api.WorkspaceAppAuditSessionTimeout
 	if staleInterval == 0 {
 		staleInterval = time.Hour
 	}
@@ -1527,7 +1527,7 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 	peerID = uuid.New()
 	resumeToken := r.URL.Query().Get("resume_token")
 	if resumeToken != "" {
-		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
+		peerID, err = api.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
 		// If the token is missing the key ID, it's probably an old token in which
 		// case we just want to generate a new peer ID.
 		switch {

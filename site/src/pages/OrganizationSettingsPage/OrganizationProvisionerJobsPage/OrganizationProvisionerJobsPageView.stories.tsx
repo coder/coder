@@ -3,6 +3,7 @@ import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { ProvisionerJob } from "#/api/typesGenerated";
 import { MockOrganization, MockProvisionerJob } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { daysAgo } from "#/utils/time";
 import OrganizationProvisionerJobsPageView from "./OrganizationProvisionerJobsPageView";
 
@@ -29,7 +30,17 @@ const meta: Meta<typeof OrganizationProvisionerJobsPageView> = {
 export default meta;
 type Story = StoryObj<typeof OrganizationProvisionerJobsPageView>;
 
-export const Default: Story = {};
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute(
+			"href",
+			docs("/admin/provisioners/manage-provisioner-jobs"),
+		);
+	},
+};
 
 export const OrganizationNotFound: Story = {
 	args: {

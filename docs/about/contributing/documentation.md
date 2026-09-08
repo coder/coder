@@ -1,4 +1,6 @@
-# Documentation
+---
+title: Documentation
+---
 
 This style guide is primarily for use with authoring documentation.
 
@@ -113,19 +115,19 @@ You can use the symbol `~` in place of the word _approximately_.
 When referring to UI elements, including the names for buttons, menus, dialogs,
 and anything that has a name visible to the user, use bold font.
 
-**Example:** On the **Environment Overview** page, click **Configure SSH**.
+**Example:** On the **Environment Overview** page, select **Configure SSH**.
 
 Don't use code font for UI elements unless it is rendered based on previously
 entered text. For example, if you tell the user to provide the environment name
 as `myEnvironment`, then use both bold and cold font when referring to the name.
 
-**Example**: Click **`myEnvironment`**.
+**Example**: Select **`myEnvironment`**.
 
 When writing out instructions that involve UI elements, both of the following
 options are acceptable:
 
 - Go to **Manage** > **Users**.
-- In the **Manage** menu, click **Users**.
+- In the **Manage** menu, select **Users**.
 
 ## Product-specific references
 

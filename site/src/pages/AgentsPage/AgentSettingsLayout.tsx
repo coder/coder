@@ -12,7 +12,7 @@ const AgentSettingsLayout: FC = () => {
 		: undefined;
 
 	return (
-		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:!block">
+		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
 			<AgentPageHeader mobileBack={mobileBack} />
 			<div className="p-4 pt-8">
 				<div className="mx-auto w-full max-w-3xl">

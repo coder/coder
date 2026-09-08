@@ -12,7 +12,6 @@ import (
 
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 
@@ -293,8 +292,7 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 				if err != nil {
 					return err
 				}
-				exp := codersdk.NewExperimentalClient(client)
-				chat, err := exp.RefreshChatContext(ctx, chatID)
+				chat, err := client.RefreshChatContext(ctx, chatID)
 				if err != nil {
 					return xerrors.Errorf("refresh chat context: %w", err)
 				}

@@ -81,6 +81,68 @@ func TestRewriteThoughtResponse_StreamWithoutThoughts(t *testing.T) {
 	require.Equal(t, body, string(rewritten))
 }
 
+func TestRewriteThoughtResponse_StreamFunctionCallFilter(t *testing.T) {
+	t.Parallel()
+
+	lines := []string{
+		`data: {"choices":[{"delta":{"role":"assistant","content":"<thought>**Planning**\n\nStep one.","extra_content":{"google":{"thought":true}}},"index":0}],"object":"chat.completion.chunk"}`,
+		``,
+		`data: {"choices":[{"delta":{"content":"</thought>","extra_content":null},"index":0}],"object":"chat.completion.chunk"}`,
+		``,
+		`data: {"choices":[{"delta":{"content":null},"finish_reason":"function_call_filter: MALFORMED_FUNCTION_CALL","index":0}],"usage":{"completion_tokens":3392,"prompt_tokens":100,"total_tokens":3492}}`,
+		``,
+		`data: [DONE]`,
+		``,
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(strings.Join(lines, "\n"))),
+	}
+
+	googleopenai.RewriteThoughtResponse(resp)
+	rewritten, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	out := strings.Split(string(rewritten), "\n")
+	require.Len(t, out, len(lines))
+
+	first := gjson.Get(strings.TrimPrefix(out[0], "data: "), "choices.0.delta")
+	require.Equal(t, "**Planning**\n\nStep one.", first.Get("reasoning_content").String())
+
+	require.True(t, strings.HasPrefix(out[4], "data: "))
+	errPayload := gjson.Get(strings.TrimPrefix(out[4], "data: "), "error")
+	require.True(t, errPayload.Exists())
+	require.Contains(t, errPayload.Get("message").String(), `"function_call_filter: MALFORMED_FUNCTION_CALL"`)
+	require.Equal(t, "invalid_response_error", errPayload.Get("type").String())
+	require.Equal(t, "malformed_function_call", errPayload.Get("code").String())
+
+	require.Equal(t, `data: [DONE]`, out[6])
+}
+
+func TestRewriteThoughtResponse_StreamStandardFinishReasonsPassThrough(t *testing.T) {
+	t.Parallel()
+
+	for _, reason := range []string{"stop", "tool_calls", "length", "content_filter"} {
+		t.Run(reason, func(t *testing.T) {
+			t.Parallel()
+
+			line := `data: {"choices":[{"delta":{"content":null},"finish_reason":"` + reason + `","index":0}]}` + "\n"
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+				Body:       io.NopCloser(strings.NewReader(line)),
+			}
+
+			googleopenai.RewriteThoughtResponse(resp)
+			rewritten, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+			require.Equal(t, line, string(rewritten))
+		})
+	}
+}
+
 func TestRewriteThoughtResponse_StreamToolCallsEndThought(t *testing.T) {
 	t.Parallel()
 

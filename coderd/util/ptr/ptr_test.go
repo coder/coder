@@ -1,6 +1,7 @@
 package ptr_test
 
 import (
+	"database/sql"
 	"testing"
 	"time"
 
@@ -100,4 +101,19 @@ func Test_NilOrZero(t *testing.T) {
 	assert.False(t, ptr.NilOrZero(&nonZeroInt64))
 	assert.False(t, ptr.NilOrZero(&nonZeroFloat64))
 	assert.False(t, ptr.NilOrZero(&nonZeroDuration))
+}
+
+func Test_FromNullString(t *testing.T) {
+	t.Parallel()
+
+	assert.Nil(t, ptr.FromNullString(sql.NullString{}))
+	assert.Nil(t, ptr.FromNullString(sql.NullString{String: "ignored"}))
+
+	valid := ptr.FromNullString(sql.NullString{String: "value", Valid: true})
+	assert.NotNil(t, valid)
+	assert.Equal(t, "value", *valid)
+
+	empty := ptr.FromNullString(sql.NullString{Valid: true})
+	assert.NotNil(t, empty)
+	assert.Equal(t, "", *empty)
 }

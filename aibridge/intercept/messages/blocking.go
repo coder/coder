@@ -41,13 +41,14 @@ func NewBlockingInterceptor(
 	tracer trace.Tracer,
 ) *BlockingInterception {
 	return &BlockingInterception{interceptionBase: interceptionBase{
-		id:            id,
-		reqPayload:    reqPayload,
-		cfg:           cfg,
-		cred:          cred,
-		bedrock:       bedrock,
-		clientHeaders: clientHeaders,
-		tracer:        tracer,
+		id:               id,
+		reqPayload:       reqPayload,
+		cfg:              cfg,
+		cred:             cred,
+		bedrock:          bedrock,
+		clientHeaders:    clientHeaders,
+		tracer:           tracer,
+		isSmallFastModel: isSmallFastModel(reqPayload.model()),
 	}}
 }
 
@@ -56,7 +57,7 @@ func (i *BlockingInterception) Setup(logger slog.Logger, rec recorder.Recorder, 
 }
 
 func (i *BlockingInterception) TraceAttributes(r *http.Request) []attribute.KeyValue {
-	return i.interceptionBase.baseTraceAttributes(r, false)
+	return i.baseTraceAttributes(r, false)
 }
 
 func (*BlockingInterception) Streaming() bool {
@@ -153,19 +154,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			prompt = nil
 		}
 
-		_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
-			InterceptionID:        i.ID().String(),
-			MsgID:                 resp.ID,
-			Input:                 resp.Usage.InputTokens,
-			Output:                resp.Usage.OutputTokens,
-			CacheReadInputTokens:  resp.Usage.CacheReadInputTokens,
-			CacheWriteInputTokens: resp.Usage.CacheCreationInputTokens,
-			ExtraTokenTypes: map[string]int64{
-				"web_search_requests":      resp.Usage.ServerToolUse.WebSearchRequests,
-				"cache_ephemeral_1h_input": resp.Usage.CacheCreation.Ephemeral1hInputTokens,
-				"cache_ephemeral_5m_input": resp.Usage.CacheCreation.Ephemeral5mInputTokens,
-			},
-		})
+		i.recordTokenUsage(ctx, resp.ID, resp.Usage)
 
 		accumulateUsage(&cumulativeUsage, resp.Usage)
 

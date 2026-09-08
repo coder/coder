@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
 import type React from "react";
 import { createContext, useContext, useState } from "react";
@@ -16,7 +17,6 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 type ComboboxContextProps = {
 	open: boolean;
@@ -89,7 +89,7 @@ export const ComboboxButton = ({
 			{...props}
 		>
 			{selectedOption?.startIcon}
-			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
+			<span className="text-left block overflow-hidden text-ellipsis grow">
 				{selectedOption?.label ?? placeholder}
 			</span>
 			<ChevronDownIcon className="size-icon-sm" />
@@ -114,12 +114,12 @@ export const ComboboxContent = ({
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"w-auto bg-surface-secondary border-surface-quaternary overflow-y-auto text-sm",
+				"flex w-auto flex-col overflow-y-hidden border-border-default text-sm",
 				className,
 			)}
 			{...props}
 		>
-			<Command className="bg-surface-secondary" shouldFilter={shouldFilter}>
+			<Command shouldFilter={shouldFilter} className="min-h-0 flex-1">
 				{children}
 			</Command>
 		</PopoverContent>
@@ -128,7 +128,16 @@ export const ComboboxContent = ({
 
 export const ComboboxInput = CommandInput;
 
-export const ComboboxList = CommandList;
+export const ComboboxList: React.FC<
+	React.ComponentPropsWithRef<typeof CommandList>
+> = ({ className, ...props }) => {
+	return (
+		<CommandList
+			className={cn("max-h-none min-h-0 flex-1 p-2", className)}
+			{...props}
+		/>
+	);
+};
 
 export const ComboboxItem = ({
 	children,
@@ -143,7 +152,7 @@ export const ComboboxItem = ({
 	return (
 		<CommandItem
 			value={value}
-			className={cn(className, "rounded-none")}
+			className={className}
 			onSelect={(itemValue) => {
 				setOpen(false);
 				// Toggle behavior: selecting the same value deselects it.
@@ -156,7 +165,7 @@ export const ComboboxItem = ({
 			{children}
 			<CheckIcon
 				className={cn(
-					"ml-2 size-4 min-w-0 flex-shrink-0",
+					"ml-2 size-4 min-w-0 shrink-0",
 					isSelected ? "opacity-100" : "opacity-0",
 				)}
 			/>

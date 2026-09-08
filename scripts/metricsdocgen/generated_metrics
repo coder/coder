@@ -526,6 +526,21 @@ coderd_proxyhealth_health_check_results{proxy_id=""} 0
 # HELP coderd_template_workspace_build_duration_seconds Duration from workspace build creation to agent ready, by template.
 # TYPE coderd_template_workspace_build_duration_seconds histogram
 coderd_template_workspace_build_duration_seconds{template_name="",organization_name="",transition="",status="",is_prebuild=""} 0
+# HELP coderd_usage_events_expired Number of unpublished usage events aged 30 to 60 days. Events older than 60 days are not counted.
+# TYPE coderd_usage_events_expired gauge
+coderd_usage_events_expired 0
+# HELP coderd_usage_events_pending Number of unpublished usage events within the 30-day publishing window.
+# TYPE coderd_usage_events_pending gauge
+coderd_usage_events_pending 0
+# HELP coderd_usage_events_pending_oldest_age_seconds Age in seconds of the oldest unpublished usage event within the 30-day publishing window. Zero when no events are pending.
+# TYPE coderd_usage_events_pending_oldest_age_seconds gauge
+coderd_usage_events_pending_oldest_age_seconds 0
+# HELP coderd_usage_events_publish_results_total Total usage events accepted or rejected after a valid Tallyman response, by result and event type.
+# TYPE coderd_usage_events_publish_results_total counter
+coderd_usage_events_publish_results_total{result="",event_type=""} 0
+# HELP coderd_usage_events_publish_send_errors_total Total usage event publish attempts that did not receive a valid Tallyman response. Does not reset after a valid response.
+# TYPE coderd_usage_events_publish_send_errors_total counter
+coderd_usage_events_publish_send_errors_total 0
 # HELP coderd_workspace_builds_enqueued_total Total number of workspace build enqueue attempts.
 # TYPE coderd_workspace_builds_enqueued_total counter
 coderd_workspace_builds_enqueued_total{provisioner_type="",build_reason="",transition="",status=""} 0

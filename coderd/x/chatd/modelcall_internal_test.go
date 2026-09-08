@@ -75,7 +75,7 @@ func TestResolveModelCallDerivesProviderOptions(t *testing.T) {
 	config.Options = modelCallSentinelOptions(t, "summary-options-sentinel")
 	chat.LastModelConfigID = config.ID
 
-	db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil)
+	db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
 		ProviderID: providerID,

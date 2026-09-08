@@ -441,12 +441,12 @@ func TestDERPMetrics(t *testing.T) {
 
 	_, _, api := coderdtest.NewWithAPI(t, nil)
 
-	require.NotNil(t, api.Options.DERPServer, "DERP server should be configured")
-	require.NotNil(t, api.Options.PrometheusRegistry, "Prometheus registry should be configured")
+	require.NotNil(t, api.DERPServer, "DERP server should be configured")
+	require.NotNil(t, api.PrometheusRegistry, "Prometheus registry should be configured")
 
 	// The registry is created internally by coderd. Gather from it
 	// to verify DERP metrics were registered during startup.
-	metrics, err := api.Options.PrometheusRegistry.Gather()
+	metrics, err := api.PrometheusRegistry.Gather()
 	require.NoError(t, err)
 
 	names := make(map[string]struct{})
@@ -518,7 +518,7 @@ func TestWebSocketProbeMetrics(t *testing.T) {
 
 	// Assert the probe metric was recorded.
 	testutil.Eventually(ctx, t, func(context.Context) bool {
-		metrics, err := api.Options.PrometheusRegistry.Gather()
+		metrics, err := api.PrometheusRegistry.Gather()
 		assert.NoError(t, err)
 		return testutil.PromCounterHasValue(t, metrics, 1,
 			"coderd_api_websocket_probes_total", "/api/v2/notifications/inbox/watch", "ok")

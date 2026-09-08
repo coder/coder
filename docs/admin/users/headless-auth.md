@@ -1,4 +1,6 @@
-# Headless Authentication
+---
+title: Headless Authentication
+---
 
 > [!NOTE]
 > Creating service accounts requires a [Premium license](https://coder.com/pricing).

@@ -17,7 +17,15 @@ import {
 	MockGPT5BelowThresholdModelPrice,
 	MockGPT5ModelPrice,
 } from "#/testHelpers/chatModels";
+import {
+	MockDefaultOrganization,
+	MockOrganizationPermissions,
+} from "#/testHelpers/entities";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
+import {
+	modelOrganizationSearchParam,
+	OrganizationModelsContext,
+} from "../organizationModels";
 import {
 	MockAnthropicProviderState,
 	MockAzureProviderState,
@@ -32,8 +40,8 @@ import { ModelForm } from "./ModelForm";
 
 const onUpdateModel = fn(
 	async (
-		_modelConfigId: string,
-		_req: TypesGen.UpdateChatModelConfigRequest,
+		_modelId: string,
+		_req: TypesGen.UpdateChatModelRequest,
 	): Promise<unknown> => undefined,
 );
 
@@ -46,10 +54,23 @@ const waitForPriceLoading = async (canvas: ReturnType<typeof within>) => {
 	);
 };
 
+const withOrganizationModels = (Story: React.FC) => (
+	<OrganizationModelsContext.Provider
+		value={{
+			organization: MockDefaultOrganization,
+			accessibleOrganizations: [MockDefaultOrganization],
+			permissions: MockOrganizationPermissions,
+			requestedOrganizationDenied: false,
+		}}
+	>
+		<Story />
+	</OrganizationModelsContext.Provider>
+);
+
 const meta: Meta<typeof ModelForm> = {
 	title: "pages/AISettingsPage/ModelsPage/ModelForm",
 	component: ModelForm,
-	decorators: [withToaster, withDashboardProvider],
+	decorators: [withToaster, withDashboardProvider, withOrganizationModels],
 	args: {
 		providerStates: [MockOpenAIProviderState, MockAnthropicProviderState],
 		selectedProviderState: MockOpenAIProviderState,
@@ -62,10 +83,21 @@ const meta: Meta<typeof ModelForm> = {
 	parameters: {
 		features: ["aibridge"],
 		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/models/add" },
+			location: {
+				path: "/ai/settings/models/add",
+				searchParams: {
+					[modelOrganizationSearchParam]: MockDefaultOrganization.name,
+				},
+			},
 			routing: [
-				{ path: "/ai/settings/models/add", useStoryElement: true },
-				{ path: "/ai/settings/models", element: <div>Models</div> },
+				{
+					path: "/ai/settings/models/add",
+					useStoryElement: true,
+				},
+				{
+					path: "/ai/settings/models",
+					element: <div>Models</div>,
+				},
 			],
 		}),
 	},
@@ -125,7 +157,10 @@ export const AddSetAsDefault: Story = {
 export const LeaveWithUnsavedChanges: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
+		// Dirty the form through a plain input. The model identifier
+		// autocomplete only commits to Formik on blur, which races the
+		// leaving click and would skip the unsaved-changes blocker.
+		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
 		await userEvent.click(
 			canvas.getByRole("link", { name: /back to models/i }),
 		);
@@ -256,6 +291,83 @@ export const Edit: Story = {
 		await expect(
 			screen.getByRole("menuitem", { name: /delete/i }),
 		).toBeInTheDocument();
+	},
+};
+
+export const ShareOnlyAccess: Story = {
+	args: {
+		editingModel: mockGPT5,
+		canUpdateModel: false,
+		canShareModel: true,
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModelACL").mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+		spyOn(API.experimental, "updateChatModelACL").mockResolvedValue();
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [],
+			count: 0,
+		});
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", { name: /^update model$/i }),
+		).toBeNull();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /model actions/i }),
+		);
+		expect(
+			screen.getByRole("menuitem", { name: /manage permissions/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("menuitem", { name: /duplicate model/i }),
+		).toBeNull();
+		expect(screen.queryByRole("menuitem", { name: /delete/i })).toBeNull();
+	},
+};
+
+export const FullAccessActions: Story = {
+	args: {
+		editingModel: mockGPT5,
+		canShareModel: true,
+		onDeleteModel: fn(async () => undefined),
+		onDuplicate: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /model actions/i }),
+		);
+		expect(
+			screen.getByRole("menuitem", { name: /manage permissions/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("menuitem", { name: /duplicate model/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("menuitem", { name: /delete/i }),
+		).toBeInTheDocument();
+	},
+};
+
+export const NoShareReadOnlyAccess: Story = {
+	args: {
+		editingModel: mockGPT5,
+		canUpdateModel: false,
+		canShareModel: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByRole("button", { name: /model actions/i })).toBeNull();
+		expect(
+			canvas.queryByRole("button", { name: /^update model$/i }),
+		).toBeNull();
+		expect(canvas.getByLabelText(/model identifier/i)).toBeDisabled();
+		expect(canvas.getByRole("combobox", { name: /provider/i })).toBeDisabled();
 	},
 };
 
@@ -405,9 +517,15 @@ export const ReasoningEffortInProviderConfiguration: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Medium" }),
 		);
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Medium" })).toBeNull();
+		});
 
 		await userEvent.click(maxSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "Max" }));
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Max" })).toBeNull();
+		});
 
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		await expect(args.onCreateModel).toHaveBeenCalledWith(
@@ -435,6 +553,9 @@ export const ReasoningEffortValidationError: Story = {
 
 		await userEvent.click(defaultSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "High" }));
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "High" })).toBeNull();
+		});
 		await userEvent.click(maxSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
 
@@ -468,11 +589,17 @@ export const GoogleThinkingLevelBudgetMutualExclusion: Story = {
 		await userEvent.click(level);
 		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
 		await expect(budget).toBeDisabled();
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Low" })).toBeNull();
+		});
 
 		await userEvent.click(level);
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Default" }),
 		);
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Default" })).toBeNull();
+		});
 		await expect(budget).toBeEnabled();
 
 		await userEvent.type(budget, "2048");
@@ -636,9 +763,11 @@ export const CostEstimateDebouncesLivePriceLookup: Story = {
 	},
 };
 
-// On an entitled form the live lookup may override the catalog, so typing
-// into an empty identifier shows the loading placeholder immediately rather
-// than briefly flashing catalog prices before the lookup fires.
+// On an entitled form the live lookup may override the catalog, so
+// committing a catalog model shows the loading placeholder immediately
+// rather than briefly flashing catalog prices before the lookup fires. In
+// add mode the identifier autocomplete only commits the model when an
+// option is selected, so select one instead of typing free text.
 export const CostEstimateShowsLoadingWhileDebouncePending: Story = {
 	args: {
 		selectedProviderState: MockAnthropicProviderState,
@@ -653,7 +782,10 @@ export const CostEstimateShowsLoadingWhileDebouncePending: Story = {
 		);
 		await userEvent.type(
 			canvas.getByLabelText(/model identifier/i),
-			"claude-haiku-4-5",
+			"claude-haiku",
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /claude haiku 4\.5/i }),
 		);
 		await waitForPriceLoading(canvas);
 		// The catalog price must not render while the lookup is pending.

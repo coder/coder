@@ -228,6 +228,52 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.ChatConverter(),
 		},
 		{
+			Name: "UserChatModelConfigACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+				`"*" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+			},
+			ExpectedSQL: "((cmc.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? 'read')" +
+				" OR (cmc.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? '*'))",
+			VariableConverter: regosql.ChatModelConfigConverter(),
+		},
+		{
+			Name: "GroupChatModelConfigACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_group_list["96c55a0e-73b4-44fc-abac-70d53c35c04c"]`,
+				`"*" in input.object.acl_group_list["96c55a0e-73b4-44fc-abac-70d53c35c04c"]`,
+			},
+			ExpectedSQL: "((cmc.group_acl#>array['96c55a0e-73b4-44fc-abac-70d53c35c04c', 'permissions'] ? 'read')" +
+				" OR (cmc.group_acl#>array['96c55a0e-73b4-44fc-abac-70d53c35c04c', 'permissions'] ? '*'))",
+			VariableConverter: regosql.ChatModelConfigConverter(),
+		},
+		{
+			Name: "ChatModelConfigOrgScopedMatches",
+			Queries: []string{
+				`input.object.org_owner = "org-id"`,
+			},
+			ExpectedSQL:       p("cmc.organization_id :: text = 'org-id'"),
+			VariableConverter: regosql.ChatModelConfigConverter(),
+		},
+		{
+			Name: "ChatModelConfigNoOwner",
+			Queries: []string{
+				`input.object.owner != ""`,
+			},
+			ExpectedSQL:       p("false"),
+			VariableConverter: regosql.ChatModelConfigConverter(),
+		},
+		{
+			Name: "ChatModelConfigAllowList",
+			Queries: []string{
+				`input.object.id != ""`,
+				`input.object.id in ["9046b041-58ed-47a3-9c3a-de302577875a"]`,
+			},
+			ExpectedSQL: p(`(cmc.id :: text != '') OR ` +
+				`(cmc.id :: text = ANY(ARRAY ['9046b041-58ed-47a3-9c3a-de302577875a']))`),
+			VariableConverter: regosql.ChatModelConfigConverter(),
+		},
+		{
 			Name: "ChatAllowList",
 			Queries: []string{
 				`input.object.id != ""`,

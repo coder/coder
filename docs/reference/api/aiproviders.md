@@ -40,6 +40,11 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers \
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "settings": {},
+    "status": {
+      "warnings": [
+        "string"
+      ]
+    },
     "type": "openai",
     "updated_at": "2019-08-24T14:15:22Z"
   }
@@ -56,23 +61,25 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers \
 
 Status Code **200**
 
-| Name             | Type                                                                 | Required | Restrictions | Description |
-|------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`   | array                                                                | false    |              |             |
-| `» api_keys`     | array                                                                | false    |              |             |
-| `»» created_at`  | string(date-time)                                                    | false    |              |             |
-| `»» id`          | string(uuid)                                                         | false    |              |             |
-| `»» masked`      | string                                                               | false    |              |             |
-| `» base_url`     | string                                                               | false    |              |             |
-| `» created_at`   | string(date-time)                                                    | false    |              |             |
-| `» display_name` | string                                                               | false    |              |             |
-| `» enabled`      | boolean                                                              | false    |              |             |
-| `» icon`         | string                                                               | false    |              |             |
-| `» id`           | string(uuid)                                                         | false    |              |             |
-| `» name`         | string                                                               | false    |              |             |
-| `» settings`     | [codersdk.AIProviderSettings](schemas.md#codersdkaiprovidersettings) | false    |              |             |
-| `» type`         | [codersdk.AIProviderType](schemas.md#codersdkaiprovidertype)         | false    |              |             |
-| `» updated_at`   | string(date-time)                                                    | false    |              |             |
+| Name             | Type                                                                 | Required | Restrictions | Description                                            |
+|------------------|----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------|
+| `[array item]`   | array                                                                | false    |              |                                                        |
+| `» api_keys`     | array                                                                | false    |              |                                                        |
+| `»» created_at`  | string(date-time)                                                    | false    |              |                                                        |
+| `»» id`          | string(uuid)                                                         | false    |              |                                                        |
+| `»» masked`      | string                                                               | false    |              |                                                        |
+| `» base_url`     | string                                                               | false    |              |                                                        |
+| `» created_at`   | string(date-time)                                                    | false    |              |                                                        |
+| `» display_name` | string                                                               | false    |              |                                                        |
+| `» enabled`      | boolean                                                              | false    |              |                                                        |
+| `» icon`         | string                                                               | false    |              |                                                        |
+| `» id`           | string(uuid)                                                         | false    |              |                                                        |
+| `» name`         | string                                                               | false    |              |                                                        |
+| `» settings`     | [codersdk.AIProviderSettings](schemas.md#codersdkaiprovidersettings) | false    |              |                                                        |
+| `» status`       | [codersdk.AIProviderStatus](schemas.md#codersdkaiproviderstatus)     | false    |              | Status carries runtime routing status; nil when empty. |
+| `»» warnings`    | array                                                                | false    |              |                                                        |
+| `» type`         | [codersdk.AIProviderType](schemas.md#codersdkaiprovidertype)         | false    |              |                                                        |
+| `» updated_at`   | string(date-time)                                                    | false    |              |                                                        |
 
 #### Enumerated Values
 
@@ -140,6 +147,11 @@ curl -X POST http://coder-server:8080/api/v2/ai/providers \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "settings": {},
+  "status": {
+    "warnings": [
+      "string"
+    ]
+  },
   "type": "openai",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -193,6 +205,11 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers/{idOrName} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "settings": {},
+  "status": {
+    "warnings": [
+      "string"
+    ]
+  },
   "type": "openai",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -292,6 +309,11 @@ curl -X PATCH http://coder-server:8080/api/v2/ai/providers/{idOrName} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "settings": {},
+  "status": {
+    "warnings": [
+      "string"
+    ]
+  },
   "type": "openai",
   "updated_at": "2019-08-24T14:15:22Z"
 }

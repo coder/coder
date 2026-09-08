@@ -76,6 +76,15 @@ func (server *Server) prepareGeneration(
 		slog.F("owner_id", chat.OwnerID),
 	)
 
+	prepStart := server.clock.Now()
+	defer func() {
+		if prepDuration := server.clock.Since(prepStart); prepDuration >= slowPrepareThreshold {
+			logger.Warn(ctx, "slow generation preparation",
+				slog.F("duration", prepDuration),
+			)
+		}
+	}()
+
 	var (
 		promptRows []database.ChatMessage
 		mcpConfigs []database.MCPServerConfig
@@ -263,6 +272,7 @@ func (server *Server) prepareGeneration(
 		prompt             []fantasy.Message
 		instruction        string
 		mcpTools           []fantasy.AgentTool
+		mcpSummaries       []mcpclient.ConnectSummary
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
 		workspaceSkills    []chattool.SkillMeta
@@ -276,7 +286,21 @@ func (server *Server) prepareGeneration(
 	// (e.g. Bedrock and Anthropic) can still reject the other's
 	// provider-executed blocks, so a mid-chat provider switch must not replay
 	// them.
-	promptRows = server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows, modelConfig.ID)
+	//
+	// The pending-user segment (trailing user rows the assistant has not
+	// answered yet) is handled separately from here through prompt
+	// assembly: it is excluded from the compaction summarizer input and
+	// replayed verbatim after the compaction boundary. It must be located
+	// on the unsanitized rows because sanitization can drop an assistant
+	// row that separates an already-answered user message from the
+	// pending tail; locating it afterwards would pull that answered
+	// message into the tail. Sanitizing only the head is equivalent to
+	// sanitizing everything, since the tail is user-only and the
+	// sanitizer only rewrites assistant rows.
+	pendingRowsStart := pendingUserSegmentStart(promptRows)
+	sanitizedHead := server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, modelConfig.ID)
+	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
+	pendingRowsStart = len(sanitizedHead)
 
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
@@ -304,6 +328,30 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
+	// Build the debug context before the connect phase so its
+	// outcomes can be recorded with run-creation context even when a
+	// later preparation step fails.
+	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
+	debugSvc := server.existingDebugService()
+	var debug *generationDebug
+	if resolved.debugEnabled {
+		if debugSvc == nil {
+			cleanup()
+			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
+		}
+		debug = &generationDebug{
+			Enabled:             true,
+			Service:             debugSvc,
+			Provider:            resolved.resolvedProvider,
+			Model:               resolved.resolvedModel,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			TriggerLabel:        triggerLabel,
+			ModelConfig:         modelConfig,
+		}
+	}
+
+	var pendingPrompt []fantasy.Message
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
@@ -314,9 +362,15 @@ func (server *Server) prepareGeneration(
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(providerType), logger, acceptsFilePart)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], server.chatFileResolver(providerType), logger, acceptsFilePart)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
+		}
+		if pendingRowsStart < len(promptRows) {
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], server.chatFileResolver(providerType), logger, acceptsFilePart)
+			if err != nil {
+				return xerrors.Errorf("build pending chat prompt tail: %w", err)
+			}
 		}
 		return nil
 	})
@@ -336,7 +390,7 @@ func (server *Server) prepareGeneration(
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
-			mcpTools, mcpCleanup = mcpclient.ConnectAll(
+			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
 				logger,
 				mcpConnectConfigs,
@@ -344,6 +398,7 @@ func (server *Server) prepareGeneration(
 				chat.OwnerID,
 				server.oidcTokenSource,
 				chatprovider.CoderHeaders(chat),
+				server.mcpHTTPClient,
 			)
 			return nil
 		})
@@ -365,9 +420,16 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
-	if err := g2.Wait(); err != nil {
+	g2Err := g2.Wait()
+	// Record connect outcomes before acting on any preparation error:
+	// ConnectAll has already run, so a failure below (or in g2 itself)
+	// would otherwise discard this attempt's outcomes.
+	if debug != nil && input.RecordMCPConnectSummaries != nil && len(mcpSummaries) > 0 {
+		input.RecordMCPConnectSummaries(ctx, chat, debug, mcpSummaries)
+	}
+	if g2Err != nil {
 		cleanup()
-		return generationPrepared{}, err
+		return generationPrepared{}, g2Err
 	}
 
 	if mcpCleanup != nil {
@@ -417,6 +479,17 @@ func (server *Server) prepareGeneration(
 		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
 	}
 	prompt = renderPlanPathPrompt(prompt, planPathBlock)
+	compactionPromptMessages := prompt
+	pendingUserRows := promptRows[pendingRowsStart:]
+	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
+		pendingUserRows = nil
+	}
+	// Full slice expression: appending the tail must not share the
+	// head's backing array with the summarizer input.
+	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
+	if pendingUserRows == nil {
+		compactionPromptMessages = prompt
+	}
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
@@ -635,26 +708,6 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
-	debugSvc := server.existingDebugService()
-	var debug *generationDebug
-	if resolved.debugEnabled {
-		if debugSvc == nil {
-			cleanup()
-			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
-		}
-		debug = &generationDebug{
-			Enabled:             true,
-			Service:             debugSvc,
-			Provider:            resolved.resolvedProvider,
-			Model:               resolved.resolvedModel,
-			TriggerMessageID:    triggerMessageID,
-			HistoryTipMessageID: historyTipMessageID,
-			TriggerLabel:        triggerLabel,
-			ModelConfig:         modelConfig,
-		}
-	}
-
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
 	effectiveThreshold := modelConfig.CompressionThreshold
 	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
@@ -681,7 +734,7 @@ func (server *Server) prepareGeneration(
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
 		Model:                model.LanguageModel(),
-		Messages:             prompt,
+		Messages:             compactionPromptMessages,
 		ThresholdPercent:     effectiveThreshold,
 		ContextLimit:         compactionContextLimit,
 		ContextLimitFallback: compactionContextLimit,
@@ -732,6 +785,7 @@ func (server *Server) prepareGeneration(
 			ChatModelConfig: modelConfig,
 			Required:        compactionNeeded,
 			Options:         compactionOptions,
+			PendingUserRows: pendingUserRows,
 		},
 		Cleanup: cleanup,
 		Debug:   debug,

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { Navigate, useOutletContext } from "react-router";
+import { Navigate } from "react-router";
 import {
 	expect,
 	fireEvent,
@@ -38,14 +38,12 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsLayout from "./AgentSettingsLayout";
-import AgentsPageLayout, {
-	type AgentsPageOutletContext,
-} from "./AgentsPageLayout";
+import AgentsPageLayout from "./AgentsPageLayout";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -56,12 +54,14 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
-const defaultModelConfigID = "model-config-1";
+const defaultModelID = "model-config-1";
 
-const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
+const defaultModels: TypesGen.ChatModel[] = [
 	{
-		id: defaultModelConfigID,
+		id: defaultModelID,
+		organization_id: "my-organization-id",
 		ai_provider_id: "provider-openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -97,7 +97,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	owner_id: "owner-1",
 	owner_username: "owner",
 	owner_name: undefined,
-	last_model_config_id: defaultModelConfigs[0].id,
+	last_model_config_id: defaultModels[0].id,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -105,34 +105,16 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 
 const AgentsRouteElement = () => (
 	<CoderAgentsPageView
+		organization={undefined}
+		organizations={[]}
+		onSelectOrganization={fn()}
+		requestedOrganizationDenied={false}
+		isOrganizationAccessLoading={false}
+		canEditDeploymentConfig
 		adminOverridesData={{ allow_users: false }}
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
 		isSaveAdminOverridesError={false}
-		exploreModelOverrideData={{
-			context: "explore",
-			model_config_id: "",
-			is_malformed: false,
-		}}
-		titleGenerationModelOverrideData={{
-			context: "title_generation",
-			model_config_id: "",
-			is_malformed: false,
-		}}
-		modelConfigsData={[]}
-		providerInfoByID={new Map()}
-		modelConfigsError={undefined}
-		isLoadingModelConfigs={false}
-		isFetchingModelConfigs={false}
-		onSaveTitleGenerationModel={fn()}
-		isSavingTitleGenerationModel={false}
-		isSaveTitleGenerationModelError={false}
-		onSaveCompactionModel={fn()}
-		isSavingCompactionModel={false}
-		isSaveCompactionModelError={false}
-		onSaveExploreModelOverride={fn()}
-		isSavingExploreModelOverride={false}
-		isSaveExploreModelOverrideError={false}
 		showAdvisorSettings={false}
 		advisorConfigData={undefined}
 		isAdvisorConfigLoading={false}
@@ -212,17 +194,10 @@ const setInnerWidthForStory = (width: number) => {
 };
 
 const AgentTopBarRouteElement = () => {
-	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
-		useOutletContext<AgentsPageOutletContext>();
 	return (
 		<ChatTopBar
-			chatTitle="Collapsed sidebar agent"
+			chat={{ ...MockChat, title: "Collapsed sidebar agent" }}
 			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
-			onArchiveAgent={fn()}
-			onArchiveAndDeleteWorkspace={fn()}
-			onUnarchiveAgent={fn()}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 		/>
 	);
 };
@@ -301,32 +276,27 @@ const meta: Meta<typeof AgentsPageLayout> = {
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			general: {
 				context: "general",
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			explore: {
 				context: "explore",
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			deployment_defaults: {
 				general: {
 					context: "general",
 					model_config_id: "",
-					is_malformed: false,
 				},
 				explore: {
 					context: "explore",
 					model_config_id: "",
-					is_malformed: false,
 				},
 			},
 		});
@@ -347,37 +317,35 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			custom_prompt: "",
 		});
 		// Mocks for child route pages that fetch their own data.
-		spyOn(API.experimental, "getChatModels").mockResolvedValue({
-			providers: [
-				{
-					provider: "openai",
-					available: true,
-					models: [
-						{
-							id: "openai:gpt-4o",
-							provider: "openai",
-							model: "gpt-4o",
-							display_name: "GPT-4o",
-						},
-					],
-				},
-			],
-			unsupported_providers: [],
-		});
-		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
-			{
-				id: defaultModelConfigID,
-				ai_provider_id: "provider-openai",
-				model: "gpt-4o",
-				display_name: "GPT-4o",
-				enabled: true,
-				is_default: false,
-				context_limit: 200000,
-				compression_threshold: 70,
-				created_at: "2026-02-18T00:00:00.000Z",
-				updated_at: "2026-02-18T00:00:00.000Z",
-			},
-		]);
+		spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) => ({
+				models: [
+					{
+						...defaultModels[0],
+						id:
+							organizationId === MockDefaultOrganization.id
+								? defaultModelID
+								: `${defaultModelID}-${organizationId}`,
+						organization_id: organizationId,
+					},
+				],
+				providers: [
+					{
+						id: defaultModels[0].ai_provider_id,
+						type: "openai",
+						display_name: "OpenAI",
+						icon: "",
+						enabled: true,
+						has_api_key: true,
+						has_user_api_key: false,
+						has_effective_api_key: true,
+						allow_user_api_key: false,
+						available: true,
+					},
+				],
+				unsupported_providers: [],
+			}),
+		);
 		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
 			{
 				provider: {
@@ -423,7 +391,7 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			API.experimental,
 			"updateUserChatCompactionThreshold",
 		).mockResolvedValue({
-			model_config_id: defaultModelConfigID,
+			model_config_id: defaultModelID,
 			threshold_percent: 70,
 		});
 		spyOn(
@@ -1047,7 +1015,7 @@ const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: WATCHED_CHAT_ID,
 	title: "Watched agent",
-	last_model_config_id: defaultModelConfigID,
+	last_model_config_id: defaultModelID,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -1230,6 +1198,26 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
+export const OpensSettingsForOrgModelAdmins: Story = {
+	parameters: {
+		permissions: {
+			...MockNoPermissions,
+			editAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await openSettingsView(canvasElement);
+
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
+	},
+};
+
 export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -1278,7 +1266,7 @@ export const SettingsViewCoderAgentsLink: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Configure deployment-wide defaults for Coder Agents and agent-specific capabilities.",
+					/organization model choices and deployment-wide Coder Agents capabilities/,
 				),
 			).toBeInTheDocument();
 		});

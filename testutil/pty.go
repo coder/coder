@@ -62,7 +62,7 @@ func (tr *TerminalReader) ReadUntil(ctx context.Context, matcher func(line strin
 		gotTrimmed := strings.Join(lines, "\n")
 		tr.t.Logf("Terminal contents:\n%s", gotTrimmed)
 		// EOF is expected when matcher == nil
-		if retErr != nil && !(xerrors.Is(retErr, io.EOF) && matcher == nil) {
+		if retErr != nil && (!xerrors.Is(retErr, io.EOF) || matcher != nil) {
 			tr.t.Logf("Bytes Read: %q", string(readBytes))
 		}
 	}()

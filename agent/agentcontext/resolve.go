@@ -159,6 +159,7 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 	if err := ctx.Err(); err != nil {
 		return Snapshot{SnapshotError: err.Error()}
 	}
+	resources = deduplicateSkills(resources)
 	resources, totalBytes := res.applyCaps(resources)
 
 	// Append MCP server resources after the filesystem caps
@@ -249,7 +250,7 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 	// resolve to the same file (e.g. overlapping ancestors, or a
 	// built-in root nested under a project root) do not
 	// double-count it.
-	seenID := make(map[string]struct{})
+	seenID := make(map[string]int)
 
 	for _, root := range dedup {
 		if err := ctx.Err(); err != nil {
@@ -257,14 +258,35 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 		}
 		r.discoverIn(root, &resources, seenID)
 	}
+	resources = slices.DeleteFunc(resources, func(resource Resource) bool {
+		return resource.ID == ""
+	})
 	return resources, snapErrs
+}
+
+// deduplicateSkills keeps the first valid skill with each name. walk returns
+// resources in scan-root order, so this selects the winner before deterministic
+// sorting and persistence discard root ordering.
+func deduplicateSkills(resources []Resource) []Resource {
+	seen := make(map[string]struct{})
+	out := resources[:0]
+	for _, resource := range resources {
+		if resource.Kind == KindSkill && resource.Status == StatusOK {
+			if _, ok := seen[resource.Name]; ok {
+				continue
+			}
+			seen[resource.Name] = struct{}{}
+		}
+		out = append(out, resource)
+	}
+	return out
 }
 
 // discoverIn inspects a single scan root. A root that points at a
 // file is classified directly. A directory root contributes its
 // top-level instruction files and .mcp.json plus skills from the
 // fixed container locations under it. The walk goes no deeper.
-func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]struct{}) {
+func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]int) {
 	info, err := os.Stat(root.Path)
 	if err != nil {
 		// Missing roots silently fall through. The user either
@@ -288,7 +310,7 @@ func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]
 // .mcp.json that sit directly in root.Path. Nested files are
 // ignored: instruction files and MCP configs are recognized only
 // at a scan root's top level.
-func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenID map[string]struct{}) {
+func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenID map[string]int) {
 	entries, err := os.ReadDir(root.Path)
 	if err != nil {
 		return
@@ -320,13 +342,22 @@ func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenID 
 	}
 }
 
-// appendResource adds res to out unless an earlier resource
-// already claimed its ID.
-func appendResource(out *[]Resource, seenID map[string]struct{}, res Resource) {
-	if _, dup := seenID[res.ID]; dup {
+// appendResource adds res to out unless an earlier resource already claimed
+// its ID. A valid occurrence replaces an earlier invalid one because the same
+// path can be outside a narrow scan root but valid inside a later broader root.
+// Replacements tombstone the earlier occurrence so valid discovery order is
+// preserved without repeatedly shifting the resource slice.
+func appendResource(out *[]Resource, seenID map[string]int, res Resource) {
+	if previous, dup := seenID[res.ID]; dup {
+		if (*out)[previous].Status == StatusOK || res.Status != StatusOK {
+			return
+		}
+		(*out)[previous] = Resource{}
+		seenID[res.ID] = len(*out)
+		*out = append(*out, res)
 		return
 	}
-	seenID[res.ID] = struct{}{}
+	seenID[res.ID] = len(*out)
 	*out = append(*out, res)
 }
 
@@ -614,7 +645,7 @@ func (r *Resolver) readSkillMeta(scanRoot, path string, info fs.FileInfo, userSo
 // emitSkillsFromContainer scans the immediate children of a
 // recognized skills-container directory and emits one Skill
 // resource per subdirectory whose SKILL.md parses cleanly.
-func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out *[]Resource, seenID map[string]struct{}) {
+func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out *[]Resource, seenID map[string]int) {
 	entries, err := os.ReadDir(container)
 	if err != nil {
 		return
@@ -958,14 +989,9 @@ type Snapshot struct {
 	// placeholder (the first real resolve is version 1), which the push
 	// loop withholds.
 	Version uint64
-	// AggregateHash is sha256 over a canonical encoding of
-	// (ID, Kind, Source, ContentHash, Status) for every
-	// drift-relevant resource. MCP resources (KindMCPConfig and
-	// KindMCPServer) are excluded because they describe live,
-	// agent-global runtime capabilities discovered at turn time,
-	// not pinned prompt content; see driftResources. Identical
-	// inputs always produce identical hashes; see
-	// ComputeAggregateHash.
+	// AggregateHash is SHA-256 over canonical (ID, Kind, Source, ContentHash,
+	// Status) tuples for drift-relevant resources. MCP resources are excluded
+	// because coderd live-syncs them onto bound chats; see driftResources.
 	AggregateHash [32]byte
 	// Resources is sorted by ID for deterministic encoding.
 	Resources []Resource
@@ -978,15 +1004,9 @@ type Snapshot struct {
 	SnapshotError string
 }
 
-// driftResources returns the subset of resources that participate in
-// chat-context drift detection. MCP resources (the .mcp.json config and
-// connected MCP servers) are deliberately excluded: an agent connects to
-// its MCP servers asynchronously after startup, and the chat model
-// discovers their tools live at turn time, not from pinned prompt
-// content. Hashing them would dirty an already-hydrated chat the moment
-// a server finished connecting, even though nothing the user pinned
-// changed. Instruction files and skills, whose content is pinned into
-// the chat, stay drift-relevant.
+// driftResources excludes MCP resources because agents discover them
+// asynchronously and coderd live-syncs them onto bound chats. Instructions
+// and skills remain drift-relevant because their content is pinned.
 func driftResources(resources []Resource) []Resource {
 	out := make([]Resource, 0, len(resources))
 	for _, r := range resources {

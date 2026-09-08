@@ -1,4 +1,6 @@
-# Administration
+---
+title: Administration
+---
 
 ![Admin settings general page](../images/admin/admin-settings-general.png)
 

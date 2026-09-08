@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
+import type { TimeRange } from "./timeRange";
 import {
 	defaultTimeRange,
 	parseTimeRange,
@@ -21,17 +21,15 @@ describe("toRFC3339", () => {
 describe("defaultTimeRange", () => {
 	it("spans the 24 hours ending at now", () => {
 		const range = defaultTimeRange(now);
-		expect(range.startedBefore).toEqual(now);
-		expect(range.startedAfter).toEqual(
-			new Date(now.getTime() - 24 * 60 * 60 * 1000),
-		);
+		expect(range.end).toEqual(now);
+		expect(range.start).toEqual(new Date(now.getTime() - 24 * 60 * 60 * 1000));
 	});
 });
 
 describe("withDefaultTimeRange", () => {
 	const range: TimeRange = {
-		startedAfter: new Date(Date.UTC(2026, 7, 12, 15, 0, 0)),
-		startedBefore: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
+		start: new Date(Date.UTC(2026, 7, 12, 15, 0, 0)),
+		end: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
 	};
 
 	it("appends the default range to an empty query", () => {
@@ -65,8 +63,8 @@ describe("withDefaultTimeRange", () => {
 
 describe("queryWithTimeRange", () => {
 	const range: TimeRange = {
-		startedAfter: new Date(Date.UTC(2026, 7, 12, 15, 0, 0)),
-		startedBefore: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
+		start: new Date(Date.UTC(2026, 7, 12, 15, 0, 0)),
+		end: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
 	};
 
 	it("preserves other filters and replaces the time range", () => {
@@ -93,8 +91,8 @@ describe("parseTimeRange", () => {
 				started_before: "2026-08-13T15:00:00Z",
 			}),
 		).toEqual({
-			startedAfter: new Date(Date.UTC(2026, 7, 12, 15, 0, 0)),
-			startedBefore: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
+			start: new Date(Date.UTC(2026, 7, 12, 15, 0, 0)),
+			end: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
 		});
 	});
 

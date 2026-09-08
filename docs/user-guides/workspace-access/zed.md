@@ -1,4 +1,6 @@
-# Zed
+---
+title: Zed
+---
 
 [Zed](https://zed.dev/) is an [open-source](https://github.com/zed-industries/zed)
 multiplayer code editor from the creators of Atom and Tree-sitter.

@@ -349,6 +349,30 @@ func TestManager_InitialSourcesSeeded(t *testing.T) {
 	require.Equal(t, src, snap.Resources[0].SourcePath)
 }
 
+func TestManager_InitialSkillSourcesPreservePrecedence(t *testing.T) {
+	t.Parallel()
+	wd := t.TempDir()
+	firstRoot := filepath.Join(t.TempDir(), "b", "skills")
+	secondRoot := filepath.Join(t.TempDir(), "a", "skills")
+	mustWriteSkill(t, firstRoot, "make-coffee", "first root")
+	mustWriteSkill(t, secondRoot, "make-coffee", "second root")
+	mustWriteSkill(t, filepath.Join(wd, ".agents", "skills"), "make-coffee", "working directory")
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:   func() string { return wd },
+		AllowedRoots: []string{wd, firstRoot, secondRoot},
+		InitialSources: []agentcontext.Source{
+			{Path: firstRoot},
+			{Path: secondRoot},
+		},
+	})
+
+	snap := m.Snapshot()
+	require.Len(t, snap.Resources, 1)
+	require.Equal(t, filepath.Join(firstRoot, "make-coffee"), snap.Resources[0].Source)
+	require.Equal(t, "first root", snap.Resources[0].Description)
+}
+
 // TestManager_SeedSourcesLateBindsAfterManifest models the
 // agent's behavior when CODER_AGENT_EXP_*_DIRS contains a
 // relative path that cannot resolve until the manifest's

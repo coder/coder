@@ -38,6 +38,18 @@ const (
 		"external or web research, parallel research, or tasks that may need edits."
 )
 
+// unbilledSubagentToolNames excludes parent-side orchestration because
+// child chats bill their own runtime. Include deprecated aliases.
+var unbilledSubagentToolNames = map[string]bool{
+	spawnAgentToolName:         true,
+	"wait_agent":               true,
+	"message_agent":            true,
+	"interrupt_agent":          true,
+	"close_agent":              true,
+	"list_agents":              true,
+	listSubagentModelsToolName: true,
+}
+
 type spawnAgentArgs struct {
 	Type            string `json:"type"`
 	Prompt          string `json:"prompt"`
@@ -65,6 +77,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
 					ctx,
 					parent.OwnerID,
+					parent.OrganizationID,
 					codersdk.ChatModelOverrideContextGeneral,
 				)
 				if err != nil {
@@ -90,6 +103,7 @@ func allSubagentDefinitions() []subagentDefinition {
 					resolvedModelConfigID, resolvedReasoningEffort, err := p.resolveSubagentModelConfigID(
 						ctx,
 						turnParent.OwnerID,
+						turnParent.OrganizationID,
 						codersdk.ChatModelOverrideContextExplore,
 					)
 					if err != nil {
@@ -297,7 +311,7 @@ func buildSpawnAgentDescription(
 	description := "Spawn a delegated child subagent to work on a clearly scoped, " +
 		"independent task in parallel. Use the type field to choose " +
 		"the right specialist. Available type values: " +
-		formatSubagentDefinitions(availableDefs) + ". Do not use this for " +
+		formatSubagentDefinitionsWithDescriptionOverrides(availableDefs, nil) + ". Do not use this for " +
 		"simple or quick operations you can handle directly with execute, " +
 		"read_file, or write_file. Prefer type=\"" + subagentTypeGeneral +
 		"\" for substantial delegated research, analysis, reasoning, review, " +
@@ -336,10 +350,6 @@ func buildSpawnAgentDescription(
 			"They must not implement changes or intentionally modify workspace files."
 	}
 	return description
-}
-
-func formatSubagentDefinitions(defs []subagentDefinition) string {
-	return formatSubagentDefinitionsWithDescriptionOverrides(defs, nil)
 }
 
 func formatSubagentDefinitionsWithDescriptionOverrides(

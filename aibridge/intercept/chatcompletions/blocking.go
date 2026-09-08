@@ -58,7 +58,7 @@ func (*BlockingInterception) Streaming() bool {
 }
 
 func (i *BlockingInterception) TraceAttributes(r *http.Request) []attribute.KeyValue {
-	return i.interceptionBase.baseTraceAttributes(r, false)
+	return i.baseTraceAttributes(r, false)
 }
 
 func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Request) (outErr error) {
@@ -125,7 +125,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		lastUsage := completion.Usage
 		cumulativeUsage = sumUsage(cumulativeUsage, completion.Usage)
 
-		i.recordTokenUsage(ctx, completion.ID, lastUsage)
+		i.recordTokenUsage(ctx, completion.ID, lastUsage, string(completion.ServiceTier))
 
 		// Check if we have tool calls to process.
 		var pendingToolCalls []openai.ChatCompletionMessageToolCallUnion

@@ -23,7 +23,7 @@ test("create and delete organization", async ({ page }) => {
 	await page.getByLabel("Display name").fill(`Org ${name}`);
 	await page.getByLabel("Description").fill(`Org description ${name}`);
 	await page.getByLabel("Icon", { exact: true }).fill("/emojis/1f957.png");
-	await page.getByRole("button", { name: /save/i }).click();
+	await page.getByRole("button", { name: /create organization/i }).click();
 
 	// Expect to be redirected to the new organization
 	await expectUrl(page).toHavePathName(`/organizations/${name}`);

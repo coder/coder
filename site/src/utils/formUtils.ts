@@ -120,3 +120,11 @@ export const displayNameValidator = (displayName: string): Yup.StringSchema =>
 		.optional();
 
 export const iconValidator = Yup.string().label("Icon").max(256);
+
+export const passwordManagerIgnoreProps = {
+	autoComplete: "off",
+	"data-1p-ignore": true,
+	"data-lpignore": "true",
+	"data-form-type": "other",
+	"data-bwignore": true,
+} as const;

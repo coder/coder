@@ -343,35 +343,35 @@ func (r *Responses) Valid() error {
 
 	for _, parse := range r.Parse {
 		ty := parse.Type
-		if !(isParse(ty) || isLog(ty)) {
+		if !isParse(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid parse response type: %T", ty)
 		}
 	}
 
 	for _, init := range r.ProvisionInit {
 		ty := init.Type
-		if !(isInit(ty) || isLog(ty) || isChunkPiece(ty) || isDataUpload(ty)) {
+		if !isInit(ty) && !isLog(ty) && !isChunkPiece(ty) && !isDataUpload(ty) {
 			return xerrors.Errorf("invalid init response type: %T", ty)
 		}
 	}
 
 	for _, plan := range r.ProvisionPlan {
 		ty := plan.Type
-		if !(isPlan(ty) || isLog(ty)) {
+		if !isPlan(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid plan response type: %T", ty)
 		}
 	}
 
 	for _, apply := range r.ProvisionApply {
 		ty := apply.Type
-		if !(isApply(ty) || isLog(ty)) {
+		if !isApply(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid apply response type: %T", ty)
 		}
 	}
 
 	for _, graph := range r.ProvisionGraph {
 		ty := graph.Type
-		if !(isGraph(ty) || isLog(ty)) {
+		if !isGraph(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid graph response type: %T", ty)
 		}
 	}

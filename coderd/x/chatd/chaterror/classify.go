@@ -9,6 +9,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -169,6 +170,15 @@ func Classify(err error) ClassifiedError {
 	}
 
 	if classified, ok := streamIncompleteClassification(
+		lower,
+		provider,
+		statusCode,
+		structured,
+	); ok {
+		return classified
+	}
+
+	if classified, ok := functionCallFilterClassification(
 		lower,
 		provider,
 		statusCode,
@@ -373,6 +383,31 @@ func streamIncompleteClassification(
 
 func streamIncompleteMessage(provider string) string {
 	return providerSubject(provider) + " stream closed unexpectedly before the response completed."
+}
+
+// Match only the adapter's exact error prefix so unrelated provider errors
+// mentioning function_call_filter retain their normal classification.
+func functionCallFilterClassification(
+	lowerMessage string,
+	provider string,
+	statusCode int,
+	structured providerErrorDetails,
+) (ClassifiedError, bool) {
+	if !strings.Contains(lowerMessage, googleopenai.MalformedFunctionCallMessagePrefix) {
+		return ClassifiedError{}, false
+	}
+	if provider == "" {
+		provider = "google"
+	}
+	return normalizeClassification(ClassifiedError{
+		Message:    "Gemini rejected the model's generated function call as malformed.",
+		Detail:     structured.detail,
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   provider,
+		Retryable:  true,
+		StatusCode: statusCode,
+		RetryAfter: structured.retryAfter,
+	}), true
 }
 
 func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {

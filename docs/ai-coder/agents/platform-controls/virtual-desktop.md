@@ -1,4 +1,6 @@
-# Virtual desktop
+---
+title: Virtual desktop
+---
 
 > [!NOTE]
 > This feature is experimental. Pin a release before broad rollout and review
@@ -24,14 +26,15 @@ Lets agents drive a graphical desktop inside the workspace through
 ## Configuration
 
 Once the experiment is enabled, configure the computer-use provider under
-**AI Settings** > **Coder Agents** > **Virtual desktop**.
+**Admin settings** > **AI** > **Coder Agents** > **Deployment settings**.
+Use the **Virtual desktop** card.
 
 Choose a **Computer use provider** (Anthropic or OpenAI). Virtual desktop also requires:
 
 - The [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop)
   module installed in the workspace template.
 - An API key for the selected provider configured under the **Providers**
-  tab.
+  sidebar item.
 
 The Anthropic and OpenAI computer-use models are fixed by Coder per provider
 and are not selectable from this UI. Anthropic is the default when no

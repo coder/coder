@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
-import { PREMIUM_PRICING_LINK } from "#/components/Paywall/Paywall";
 import { PaywallPremium } from "./PaywallPremium";
 
 const meta: Meta<typeof PaywallPremium> = {
@@ -21,21 +20,20 @@ export const CanViewLicenses: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.getByRole("heading", { name: /Coder Premium/ }),
+			canvas.getByRole("heading", { name: /Get access with a Coder trial/ }),
 		).toBeVisible();
-		await expect(canvas.getByText("Start a 30-day trial today.")).toBeVisible();
+		await expect(
+			canvas.getByText("Start an unlimited 30-day trial today"),
+		).toBeVisible();
 
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toBeVisible();
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
 		await expect(cta).not.toHaveAttribute("target", "_blank");
 
-		const pricing = canvas.getByRole("link", {
-			name: "Learn more about premium",
-		});
-		await expect(pricing).toBeVisible();
-		await expect(pricing).toHaveAttribute("href", PREMIUM_PRICING_LINK);
-		await expect(pricing).toHaveAttribute("target", "_blank");
+		await expect(
+			canvas.queryByRole("link", { name: "Learn more about premium" }),
+		).not.toBeInTheDocument();
 
 		await expect(
 			canvas.getByRole("heading", {
@@ -65,8 +63,8 @@ export const CannotViewLicenses: Story = {
 			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: "Learn more about premium" }),
-		).toBeVisible();
+			canvas.queryByRole("link", { name: "Learn more about premium" }),
+		).not.toBeInTheDocument();
 	},
 };
 

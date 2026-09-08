@@ -167,7 +167,7 @@ export const AddApplicationIsScopedToApplicationsTab: Story = {
 
 		// The docs link is tab-agnostic and stays put, which is what makes the
 		// other one's disappearance a scoping decision rather than a quirk.
-		const docsLink = canvas.getByRole("link", { name: /read the docs/i });
+		const docsLink = canvas.getByRole("link", { name: /view docs/i });
 		await expect(docsLink).toBeVisible();
 
 		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
@@ -175,7 +175,7 @@ export const AddApplicationIsScopedToApplicationsTab: Story = {
 			canvas.queryByRole("link", { name: "Add application" }),
 		).not.toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: /read the docs/i }),
+			canvas.getByRole("link", { name: /view docs/i }),
 		).toBeVisible();
 
 		await userEvent.click(canvas.getByRole("tab", { name: "Applications" }));

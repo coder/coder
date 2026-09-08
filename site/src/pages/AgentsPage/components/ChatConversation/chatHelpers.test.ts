@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
-import type { ModelSelectorOption } from "../ChatElements";
 import {
 	extractContextUsageFromMessage,
 	getLatestContextUsage,
@@ -113,6 +113,19 @@ describe("getLatestContextUsage", () => {
 		const messages = [
 			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
 			compactionSummaryMessage,
+		];
+		expect(getLatestContextUsage(messages)).toBeNull();
+	});
+
+	it("returns null when a context clear is newer than usage", () => {
+		const messages = [
+			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
+			{
+				...MockChatMessage,
+				id: 2,
+				role: "tool" as const,
+				content: [{ type: "tool-result" as const, tool_name: "chat_cleared" }],
+			},
 		];
 		expect(getLatestContextUsage(messages)).toBeNull();
 	});

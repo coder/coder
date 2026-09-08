@@ -1,4 +1,6 @@
-# Provider Authentication
+---
+title: Provider Authentication
+---
 
 > [!CAUTION]
 > Do not store secrets in templates. Assume every user has cleartext access to every template.

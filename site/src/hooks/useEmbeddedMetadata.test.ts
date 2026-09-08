@@ -2,7 +2,6 @@ import { act, renderHook } from "@testing-library/react";
 import type { Region, User } from "#/api/typesGenerated";
 import {
 	MockAIGatewayEnabled,
-	MockAITasksEnabled,
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockEntitlements,
@@ -45,7 +44,6 @@ const mockDataForTags = {
 	user: MockUserOwner,
 	userAppearance: MockUserAppearanceSettings,
 	regions: MockRegions,
-	"ai-tasks-enabled": MockAITasksEnabled,
 	"ai-gateway-enabled": MockAIGatewayEnabled,
 	permissions: MockPermissions,
 	organizations: [MockOrganization],
@@ -77,10 +75,6 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	userAppearance: {
-		available: false,
-		value: undefined,
-	},
-	"ai-tasks-enabled": {
 		available: false,
 		value: undefined,
 	},
@@ -126,10 +120,6 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	userAppearance: {
 		available: true,
 		value: MockUserAppearanceSettings,
-	},
-	"ai-tasks-enabled": {
-		available: true,
-		value: MockAITasksEnabled,
 	},
 	"ai-gateway-enabled": {
 		available: true,

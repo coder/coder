@@ -1,3 +1,4 @@
+import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UserSkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -12,7 +13,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -23,6 +30,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { formatDate } from "#/utils/time";
 import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
 import { PersonalSkillEditor } from "./components/PersonalSkillEditor";
@@ -221,14 +230,18 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 }) => {
 	const isAtLimit = skills.length >= PERSONAL_SKILLS_MAX_PER_USER;
 	const addSkillAction = (
-		<Button size="sm" onClick={onCreate} disabled={isLoading || isAtLimit}>
+		<Button
+			variant="outline"
+			onClick={onCreate}
+			disabled={isLoading || isAtLimit}
+		>
+			<PlusIcon />
 			Add skill
 		</Button>
 	);
 	const headerActions = (
 		<div className="flex items-center gap-2">
 			<Button
-				size="sm"
 				variant="outline"
 				onClick={onExportAll}
 				disabled={isLoading || isExportingAll || skills.length === 0}
@@ -257,85 +270,94 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 				</Alert>
 			)}
 
-			{error ? (
-				<div className="flex flex-col items-start gap-3">
-					<ErrorAlert error={error} />
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={onRetry}
-						disabled={isRetrying}
-					>
-						{isRetrying && <Spinner className="size-4" loading />}
-						Retry
-					</Button>
-				</div>
-			) : isLoading ? (
-				<Loader />
-			) : skills.length === 0 ? (
-				<EmptyState
-					message="No personal skills yet"
-					description="Create a personal skill to save reusable agent guidance for your workflows."
-					cta={addSkillAction}
-				/>
-			) : (
-				<Table aria-label="Personal skills">
-					<TableHeader>
-						<TableRow>
-							<TableHead>Name</TableHead>
-							<TableHead>Description</TableHead>
-							<TableHead>Updated</TableHead>
-							<TableHead className="text-right">Actions</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{skills.map((skill) => (
+			{Boolean(error) && <ErrorAlert error={error} />}
+
+			<Table aria-label="Personal skills">
+				<TableHeader>
+					<TableRow>
+						<TableHead>Name</TableHead>
+						<TableHead>Description</TableHead>
+						<TableHead>Updated</TableHead>
+						<TableHead className="w-14">
+							<span className="sr-only">Actions</span>
+						</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody size="lg">
+					{isLoading ? (
+						<TableLoader />
+					) : skills.length === 0 && error ? (
+						<TableEmpty
+							message="Failed to load personal skills"
+							cta={
+								<Button
+									variant="outline"
+									onClick={onRetry}
+									disabled={isRetrying}
+								>
+									{isRetrying && <Spinner className="size-4" loading />}
+									Retry
+								</Button>
+							}
+						/>
+					) : skills.length === 0 ? (
+						<TableEmpty
+							message="No personal skills yet"
+							description="Create a personal skill to save reusable agent guidance for your workflows."
+							cta={addSkillAction}
+						/>
+					) : (
+						skills.map((skill) => (
 							<TableRow key={skill.id}>
-								<TableCell className="font-mono text-content-primary">
-									{skill.name}
-								</TableCell>
+								<TableCell>{skill.name}</TableCell>
 								<TableCell>
 									{skill.description || (
-										<span className="text-content-secondary">
+										<span className="text-content-disabled">
 											No description
 										</span>
 									)}
 								</TableCell>
 								<TableCell>{formatUpdatedAt(skill.updated_at)}</TableCell>
-								<TableCell>
-									<div className="flex justify-end gap-2">
-										<Button
-											size="xs"
-											variant="outline"
-											onClick={() => onDownload(skill)}
-											disabled={downloadingSkillName === skill.name}
-										>
-											{downloadingSkillName === skill.name && (
-												<Spinner className="size-4" loading />
-											)}
-											Download
-										</Button>
-										<Button
-											size="xs"
-											variant="outline"
-											onClick={() => onEdit(skill.name)}
-										>
-											Edit
-										</Button>
-										<Button
-											size="xs"
-											variant="destructive"
-											onClick={() => onDelete(skill)}
-										>
-											Delete
-										</Button>
-									</div>
+								<TableCell className="text-right">
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												aria-label="Open menu"
+											>
+												{downloadingSkillName === skill.name ? (
+													<Spinner className="size-4" loading />
+												) : (
+													<EllipsisVerticalIcon aria-hidden="true" />
+												)}
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem
+												onClick={() => onDownload(skill)}
+												disabled={downloadingSkillName === skill.name}
+											>
+												Download
+											</DropdownMenuItem>
+											<DropdownMenuItem onClick={() => onEdit(skill.name)}>
+												Edit
+											</DropdownMenuItem>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												className="text-content-destructive focus:text-content-destructive"
+												onClick={() => onDelete(skill)}
+											>
+												Delete&hellip;
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
 								</TableCell>
 							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-			)}
+						))
+					)}
+				</TableBody>
+			</Table>
 
 			{editorState?.mode === "create" && (
 				<PersonalSkillEditor

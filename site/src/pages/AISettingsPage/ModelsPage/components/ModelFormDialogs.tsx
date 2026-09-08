@@ -11,11 +11,11 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import type { ModelFormValues } from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
+import type { ModelFormValues } from "#/modules/aiModels/modelConfigFormLogic";
 
 export const ModelFormDialogs: FC<{
-	editingModel?: TypesGen.ChatModelConfig;
-	onDeleteModel?: (modelConfigId: string) => Promise<void>;
+	editingModel?: TypesGen.ChatModel;
+	onDeleteModel?: (modelId: string) => Promise<void>;
 	isDeleting: boolean;
 	confirmingDelete: boolean;
 	setConfirmingDelete: (open: boolean) => void;
@@ -28,7 +28,7 @@ export const ModelFormDialogs: FC<{
 	};
 	confirmingReplaceDefault: boolean;
 	setConfirmingReplaceDefault: (open: boolean) => void;
-	currentDefaultModel?: TypesGen.ChatModelConfig;
+	currentDefaultModel?: TypesGen.ChatModel;
 	onConfirmReplaceDefault: () => void;
 }> = ({
 	editingModel,

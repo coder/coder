@@ -1325,15 +1325,18 @@ func (s *sentinelTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 //nolint:paralleltest // Mutates http.DefaultTransport.
 func TestMCPHTTP_E2E_TransportIsolation(t *testing.T) {
+	// Construct the API before swapping DefaultTransport: coderd's guarded
+	// MCP client clones http.DefaultTransport at construction, and safedial
+	// panics on a non-*http.Transport rather than guessing.
+	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	t.Cleanup(func() { closer.Close() })
+	_ = coderdtest.CreateFirstUser(t, coderClient)
+
 	// Replace DefaultTransport with a counting sentinel.
 	original := http.DefaultTransport
 	sentinel := &sentinelTransport{inner: original}
 	http.DefaultTransport = sentinel
 	t.Cleanup(func() { http.DefaultTransport = original })
-
-	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
-	t.Cleanup(func() { closer.Close() })
-	_ = coderdtest.CreateFirstUser(t, coderClient)
 
 	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 	authHeaders := map[string]string{

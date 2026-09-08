@@ -10,6 +10,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -21,7 +22,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
-	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/quartz"
 )
 
@@ -56,12 +57,12 @@ func TestScanForCorrelatingToolCallID(t *testing.T) {
 		{
 			name:        "single tool result block",
 			requestBody: `{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_abc","content":"result"}]}]}`,
-			expected:    utils.PtrTo("toolu_abc"),
+			expected:    new("toolu_abc"),
 		},
 		{
 			name:        "multiple tool result blocks returns last",
 			requestBody: `{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_first","content":"first"},{"type":"text","text":"ignored"},{"type":"tool_result","tool_use_id":"toolu_second","content":"second"}]}]}`,
-			expected:    utils.PtrTo("toolu_second"),
+			expected:    new("toolu_second"),
 		},
 		{
 			name:        "last message is not a tool result",
@@ -178,10 +179,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 			t.Parallel()
 
 			base := &interceptionBase{
-				bedrock: &BedrockRuntime{
-					Cfg:   tt.cfg,
-					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
-				},
+				bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""), "", ""),
 			}
 			opts, err := base.withBedrockInvokeModelOptions(context.Background())
 
@@ -206,6 +204,143 @@ func TestAWSBedrockOptionsRequireRuntime(t *testing.T) {
 	_, err := base.withBedrockInvokeModelOptions(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nil bedrock runtime")
+}
+
+// TestModelForBedrockInvokeModel covers the split between the invocation target
+// and the model identity used for capabilities, usage records, and metrics.
+func TestModelForBedrockInvokeModel(t *testing.T) {
+	t.Parallel()
+
+	const (
+		profileARN          = "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/46u2vhiyo6z5"
+		smallFastProfileARN = "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/8x1qk20fzp3r"
+	)
+
+	runtime := NewBedrockRuntime(config.AWSBedrock{
+		Model:          profileARN,
+		SmallFastModel: smallFastProfileARN,
+	}, nil, "anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5")
+
+	tests := []struct {
+		name             string
+		smallFast        bool
+		expectModel      string
+		expectConfigured string
+	}{
+		{
+			name:             "primary model",
+			expectModel:      "anthropic.claude-opus-4-8",
+			expectConfigured: profileARN,
+		},
+		{
+			name:             "small fast model",
+			smallFast:        true,
+			expectModel:      "anthropic.claude-haiku-4-5",
+			expectConfigured: smallFastProfileARN,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			i := &interceptionBase{
+				reqPayload:       mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
+				bedrock:          runtime,
+				isSmallFastModel: tt.smallFast,
+				logger:           slog.Make(),
+			}
+
+			require.Equal(t, tt.expectModel, i.Model())
+
+			i.augmentRequestForBedrockInvokeModel()
+			require.Equal(t, tt.expectConfigured, gjson.GetBytes(i.reqPayload, "model").String())
+			// The remap must not change how the interception identifies itself.
+			require.Equal(t, tt.expectModel, i.Model())
+		})
+	}
+}
+
+// TestSmallFastModelCapturedAtConstruction covers the classification captured
+// by the interceptor constructors. The configured identifiers are opaque
+// profile ARNs, so the classification must come from the client payload as it
+// arrives.
+func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
+	t.Parallel()
+
+	const (
+		profileARN          = "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/46u2vhiyo6z5"
+		smallFastProfileARN = "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/8x1qk20fzp3r"
+	)
+
+	runtime := NewBedrockRuntime(config.AWSBedrock{
+		Model:          profileARN,
+		SmallFastModel: smallFastProfileARN,
+	}, nil, "anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5")
+
+	const haikuPayload = `{"model":"claude-haiku-4-5","max_tokens":10000}`
+	const opusPayload = `{"model":"claude-opus-4-8","max_tokens":10000}`
+
+	constructors := []struct {
+		name            string
+		newInterception func(payload RequestPayload) *interceptionBase
+	}{
+		{name: "blocking", newInterception: func(payload RequestPayload) *interceptionBase {
+			return &NewBlockingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, http.Header{}, nil).interceptionBase
+		}},
+		{name: "streaming", newInterception: func(payload RequestPayload) *interceptionBase {
+			return &NewStreamingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, http.Header{}, nil).interceptionBase
+		}},
+	}
+
+	tests := []struct {
+		name             string
+		payload          string
+		expectModel      string
+		expectConfigured string
+	}{
+		{
+			name:             "small fast model",
+			payload:          haikuPayload,
+			expectModel:      "anthropic.claude-haiku-4-5",
+			expectConfigured: smallFastProfileARN,
+		},
+		{
+			name:             "primary model",
+			payload:          opusPayload,
+			expectModel:      "anthropic.claude-opus-4-8",
+			expectConfigured: profileARN,
+		},
+	}
+
+	for _, c := range constructors {
+		for _, tt := range tests {
+			t.Run(c.name+" "+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				i := c.newInterception(mustMessagesPayload(t, tt.payload))
+				require.Equal(t, tt.expectModel, i.Model())
+				require.Equal(t, tt.expectConfigured, i.upstreamModel())
+			})
+		}
+	}
+}
+
+// TestModelForPlainBedrockModelID covers Bedrock providers configured with
+// plain model IDs, which resolve to themselves.
+func TestModelForPlainBedrockModelID(t *testing.T) {
+	t.Parallel()
+
+	i := &interceptionBase{
+		reqPayload: mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
+		bedrock: NewBedrockRuntime(config.AWSBedrock{
+			Model:          "eu.anthropic.claude-opus-4-8",
+			SmallFastModel: "anthropic.claude-haiku-4-5",
+		}, nil, "eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"),
+		logger: slog.Make(),
+	}
+
+	require.Equal(t, "eu.anthropic.claude-opus-4-8", i.Model())
 }
 
 func TestAccumulateUsage(t *testing.T) {
@@ -607,6 +742,7 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 		name string
 
 		bedrockModel    string
+		resolvedModel   string // underlying model ID when bedrockModel is an application inference profile ARN
 		requestBody     string
 		clientBetaFlags string
 
@@ -760,6 +896,24 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectThinkingType: "adaptive",
 		},
 		{
+			// Application inference profile ARNs are opaque, so capability
+			// detection runs against the model resolved through AWS.
+			name:               "opaque_application_inference_profile_uses_resolved_model_for_enabled_thinking",
+			bedrockModel:       "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/46u2vhiyo6z5",
+			resolvedModel:      "anthropic.claude-opus-4-8",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":8000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "opaque_application_inference_profile_keeps_adaptive_thinking_and_output_config",
+			bedrockModel:       "arn:aws:bedrock:eu-west-2:123456789012:application-inference-profile/46u2vhiyo6z5",
+			resolvedModel:      "anthropic.claude-opus-4-8",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "high",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
 			name:               "opus_4_8_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
 			bedrockModel:       "eu.anthropic.claude-opus-4-8",
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
@@ -803,14 +957,19 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 				}
 			}
 
+			// Plain model IDs resolve to themselves; an application inference
+			// profile ARN resolves to the model behind it.
+			resolvedModel := tc.resolvedModel
+			if resolvedModel == "" {
+				resolvedModel = tc.bedrockModel
+			}
+
 			i := &interceptionBase{
 				reqPayload: mustMessagesPayload(t, tc.requestBody),
-				bedrock: &BedrockRuntime{
-					Cfg: config.AWSBedrock{
-						Model:          tc.bedrockModel,
-						SmallFastModel: "anthropic.claude-haiku-3-5",
-					},
-				},
+				bedrock: NewBedrockRuntime(config.AWSBedrock{
+					Model:          tc.bedrockModel,
+					SmallFastModel: "anthropic.claude-haiku-3-5",
+				}, nil, resolvedModel, "anthropic.claude-haiku-3-5"),
 				clientHeaders: clientHeaders,
 				logger:        slog.Make(),
 			}
@@ -831,7 +990,8 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 				require.Equal(t, tc.expectBudgetTokens, budgetTokens.Int())
 			}
 
-			// Model should always be set to the bedrock model.
+			// The request always targets the configured identifier, which may be
+			// an application inference profile ARN.
 			require.Equal(t, tc.bedrockModel, gjson.GetBytes(i.reqPayload, "model").String())
 
 			// Verify expected fields are removed.
@@ -1158,14 +1318,11 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 	i := &interceptionBase{
 		reqPayload: mustMessagesPayload(t,
 			`{"model":"anthropic.claude-opus-4-8","max_tokens":10000,"thinking":{"type":"adaptive"},"metadata":{"user_id":"u123"},"context_management":{"type":"auto"}}`),
-		bedrock: &BedrockRuntime{
-			Cfg: config.AWSBedrock{
-				Region:   "us-east-1",
-				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
-				Protocol: config.BedrockProtocolMantle,
-			},
-			Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
-		},
+		bedrock: NewBedrockRuntime(config.AWSBedrock{
+			Region:   "us-east-1",
+			BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+			Protocol: config.BedrockProtocolMantle,
+		}, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""), "", ""),
 		logger: slog.Make(),
 	}
 
@@ -1216,10 +1373,7 @@ func TestAWSMantleOptionsValidation(t *testing.T) {
 			t.Parallel()
 
 			base := &interceptionBase{
-				bedrock: &BedrockRuntime{
-					Cfg:   tt.cfg,
-					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
-				},
+				bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""), "", ""),
 			}
 			opts, err := base.withBedrockMantleOptions(t.Context())
 			if tt.errorMsg != "" {
@@ -1229,6 +1383,106 @@ func TestAWSMantleOptionsValidation(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEmpty(t, opts)
 			}
+		})
+	}
+}
+
+func TestRecordTokenUsage(t *testing.T) {
+	t.Parallel()
+
+	id := uuid.New()
+	tests := []struct {
+		name     string
+		msgID    string
+		usage    anthropic.Usage
+		expected *recorder.TokenUsageRecord
+	}{
+		{
+			name:  "without service tier or extra tokens",
+			msgID: "msg_basic",
+			usage: anthropic.Usage{
+				InputTokens:              10,
+				OutputTokens:             20,
+				CacheReadInputTokens:     3,
+				CacheCreationInputTokens: 4,
+				ServiceTier:              anthropic.UsageServiceTierStandard,
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID:        id.String(),
+				MsgID:                 "msg_basic",
+				Input:                 10,
+				Output:                20,
+				CacheReadInputTokens:  3,
+				CacheWriteInputTokens: 4,
+				Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+			},
+		},
+		{
+			name:  "with service tier and all extra tokens",
+			msgID: "msg_full",
+			usage: anthropic.Usage{
+				InputTokens:              100,
+				OutputTokens:             200,
+				CacheReadInputTokens:     30,
+				CacheCreationInputTokens: 40,
+				ServiceTier:              anthropic.UsageServiceTierPriority,
+				ServerToolUse: anthropic.ServerToolUsage{
+					WebSearchRequests: 5,
+				},
+				CacheCreation: anthropic.CacheCreation{
+					Ephemeral1hInputTokens: 6,
+					Ephemeral5mInputTokens: 7,
+				},
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID:        id.String(),
+				MsgID:                 "msg_full",
+				Input:                 100,
+				Output:                200,
+				CacheReadInputTokens:  30,
+				CacheWriteInputTokens: 40,
+				ExtraTokenTypes: map[string]int64{
+					"web_search_requests":      5,
+					"cache_ephemeral_1h_input": 6,
+					"cache_ephemeral_5m_input": 7,
+				},
+				Metadata: recorder.Metadata{
+					recorder.MetadataKeyServiceTier: "priority",
+				},
+			},
+		},
+		{
+			name:  "omits zero extra tokens and service tier",
+			msgID: "msg_partial_extra",
+			usage: anthropic.Usage{
+				ServerToolUse: anthropic.ServerToolUsage{
+					WebSearchRequests: 8,
+				},
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID: id.String(),
+				MsgID:          "msg_partial_extra",
+				ExtraTokenTypes: map[string]int64{
+					"web_search_requests": 8,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := &testutil.MockRecorder{}
+			base := &interceptionBase{
+				id:       id,
+				recorder: rec,
+			}
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage)
+
+			usages := rec.RecordedTokenUsages()
+			require.Len(t, usages, 1)
+			require.Equal(t, tc.expected, usages[0])
 		})
 	}
 }

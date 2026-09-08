@@ -1,4 +1,6 @@
-# OpenShift
+---
+title: OpenShift
+---
 
 ## Requirements
 

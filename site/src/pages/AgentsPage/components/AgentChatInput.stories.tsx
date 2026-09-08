@@ -3,12 +3,17 @@ import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
-import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	MockUserPreferenceSettings,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
 import {
@@ -18,11 +23,11 @@ import {
 } from "./AgentChatInput";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 
-const defaultModelConfigID = "model-config-1";
+const defaultModelID = "model-config-1";
 
 const defaultModelOptions = [
 	{
-		id: defaultModelConfigID,
+		id: defaultModelID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -33,9 +38,16 @@ const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
 	component: AgentChatInput,
 	decorators: [withProxyProvider()],
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+		],
+	},
 	args: {
 		onSend: fn(),
-		sendShortcut: "enter",
 		onContentChange: fn(),
 		onModelChange: fn(),
 		initialValue: "",
@@ -239,9 +251,19 @@ export const EnterSendsByDefault: Story = {
 };
 
 export const ModifierEnterSendsWhenRequired: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: {
+					...MockUserPreferenceSettings,
+					agent_chat_send_shortcut: "modifier_enter",
+				},
+			},
+		],
+	},
 	args: {
 		onSend: fn(),
-		sendShortcut: "modifier_enter",
 		initialValue: "Run focused tests",
 	},
 	play: async ({ canvasElement, args }) => {
@@ -510,7 +532,7 @@ export const WithAttachmentError: Story = {
 
 /** File reference chip rendered inline with text in the editor. */
 export const WithFileReference: Story = {
-	render: (args) => {
+	render: function WithFileReferenceRender(args) {
 		const ref = useRef<ChatMessageInputRef>(null);
 
 		useEffect(() => {
@@ -539,7 +561,7 @@ export const WithFileReference: Story = {
 
 /** Multiple file reference chips rendered inline with text. */
 export const WithMultipleFileReferences: Story = {
-	render: (args) => {
+	render: function WithMultipleFileReferencesRender(args) {
 		const ref = useRef<ChatMessageInputRef>(null);
 
 		useEffect(() => {
@@ -756,6 +778,28 @@ const mcpDefaults = {
 	onMCPAuthComplete: fn(),
 };
 
+const dispatchMCPOAuthComplete = (
+	serverID: string,
+	source: MessageEventSource | null = null,
+) => {
+	window.dispatchEvent(
+		new MessageEvent("message", {
+			data: { type: "mcp-oauth2-complete", serverID },
+			origin: location.origin,
+			source,
+		}),
+	);
+};
+
+// Requires window.open mocked to return a Window; the completion
+// message's source must be that same mocked popup to correlate.
+const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	await userEvent.click(await body.findByRole("button", { name: "Auth" }));
+};
+
 // ── MCP stories ────────────────────────────────────────────────
 
 /** Input with multiple MCP servers selected — shows icon stack in toolbar. */
@@ -783,10 +827,137 @@ export const WithMCPNeedingAuth: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(body.getByRole("button", { name: "Auth" }));
 		expect(window.open).toHaveBeenCalledWith(
-			"/api/experimental/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
+			"/api/v2/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
 			"_blank",
 			"width=900,height=600",
 		);
+		// The popup was blocked (window.open returned null), so the flow
+		// must not enter the connecting state that disables Auth buttons.
+		expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
+	},
+};
+
+export const MCPAutoEnablesAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		expect(window.open).toHaveBeenCalledWith(
+			`/api/v2/organizations/org-1/mcp-servers/${githubMCP.id}/oauth2/connect`,
+			"_blank",
+			"width=900,height=600",
+		);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([
+				linearMCP.id,
+				githubMCP.id,
+			]);
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+	},
+};
+
+// The coderd callback page posts the completion message and then closes
+// the popup, so the close poll can observe the closed popup before the
+// queued message is dispatched. An iframe contentWindow stands in for
+// the popup: it is a real Window whose closed becomes true on removal.
+export const MCPAutoEnablesWhenPopupClosesBeforeMessage: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCP],
+		selectedMCPServerIds: [],
+	},
+	play: async ({ args, canvasElement }) => {
+		const doc = canvasElement.ownerDocument;
+		const iframe = doc.createElement("iframe");
+		doc.body.appendChild(iframe);
+		const popup = iframe.contentWindow;
+		if (!popup) {
+			throw new Error("iframe contentWindow unavailable");
+		}
+		spyOn(window, "open").mockReturnValue(popup);
+
+		await startMCPOAuthFlow(canvasElement);
+		iframe.remove();
+		expect(popup.closed).toBe(true);
+		// Wait for the close poll to clear the connecting state before
+		// delivering the completion message.
+		const body = within(doc.body);
+		await waitFor(
+			() => {
+				expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
+			},
+			{ timeout: 2_000 },
+		);
+		dispatchMCPOAuthComplete(githubMCP.id, popup);
+
+		await waitFor(() => {
+			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([githubMCP.id]);
+		});
+	},
+};
+
+export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCP],
+		selectedMCPServerIds: [githubMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresUnsolicitedOAuthComplete: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	play: async ({ args }) => {
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		dispatchMCPOAuthComplete(linearMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(linearMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
 };
 
@@ -1300,6 +1471,25 @@ const pagerdutyMCP = buildMCPServer({
 	enabled: true,
 });
 
+// Wide badges that cannot fit force into +N overflow.
+const confluenceWideMCP = buildMCPServer({
+	id: "mcp-confluence-wide",
+	display_name: "Confluence Cloud Enterprise Wiki",
+	slug: "confluence-wide",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const datadogWideMCP = buildMCPServer({
+	id: "mcp-datadog-wide",
+	display_name: "Datadog Infrastructure Monitoring",
+	slug: "datadog-wide",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
 /** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
 export const OverflowBadges: Story = {
 	args: {
@@ -1330,6 +1520,21 @@ export const OverflowBadges: Story = {
 		],
 		selectedWorkspaceId: "ws-1",
 		onWorkspaceChange: fn(),
+		attachedWorkspace: {
+			id: "ws-1",
+			name: "my-long-workspace-name",
+			route: "/@admin/my-long-workspace-name",
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
+		workspace: {
+			...MockWorkspace,
+			id: "ws-1",
+			name: "my-long-workspace-name",
+			owner_name: "admin",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "overflow-chat-id",
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
@@ -1397,12 +1602,19 @@ export const ContextNearLimit: Story = {
 	},
 };
 
-/** Long workspace name at iPhone SE width — verifies truncation. */
+/** Long workspace name at iPhone SE width collapses into +N overflow. */
 export const LongWorkspaceNameMobile: Story = {
 	args: {
 		...mcpDefaults,
 		mcpServers: [githubMCPConnected],
 		selectedMCPServerIds: [githubMCPConnected.id],
+		attachedWorkspace: {
+			id: MockWorkspace.id,
+			name: "my-super-extremely-long-workspace-name-that-overflows",
+			route: `/@${MockWorkspace.owner_name}/my-super-extremely-long-workspace-name-that-overflows`,
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
 		workspace: {
 			...MockWorkspace,
 			name: "my-super-extremely-long-workspace-name-that-overflows",
@@ -1416,21 +1628,245 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The workspace pill button should be present.
-		const pill = await canvas.findByRole("button", {
-			name: /workspace menu/,
+		// Too narrow minimum width: collapse into overflow popover.
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
 		});
 		await waitFor(() => {
-			expect(pill).toBeVisible();
+			expect(overflowPill).toBeVisible();
+		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText(
+				"my-super-extremely-long-workspace-name-that-overflows",
+			),
+		).toBeInTheDocument();
+		// The workspace stays an interactive pill inside the popover.
+		const pillTrigger = within(popover).getByRole("button", {
+			name: /workspace menu/,
+		});
+		// Focus (touch tap) must not surface status tooltip on mobile.
+		pillTrigger.focus();
+		for (const el of within(document.body).queryAllByText(
+			"Workspace running",
+		)) {
+			expect(el).not.toBeVisible();
+		}
+		await userEvent.click(pillTrigger);
+		// The menu fades in from opacity 0; retry instead of racing the
+		// entrance animation.
+		const menuItem = await within(document.body).findByRole("menuitem", {
+			name: /View Workspace/,
+		});
+		await waitFor(() => {
+			expect(menuItem).toBeVisible();
+		});
+		// One outside click must dismiss both the menu and the popover.
+		await userEvent.click(getEditor(canvasElement));
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).toBeNull();
+			expect(within(document.body).queryByRole("dialog")).toBeNull();
 		});
 		// The toolbar row should not cause horizontal overflow.
-		const toolbar = pill.closest(
+		const toolbar = overflowPill.closest(
 			".flex.items-center.justify-between",
 		) as HTMLElement;
 		if (toolbar?.parentElement) {
 			expect(toolbar.scrollWidth).toBeLessThanOrEqual(
 				toolbar.parentElement.clientWidth,
 			);
+		}
+	},
+};
+
+// Pill floor (8ch + fixed chrome) resolved against the pills' font so
+// width assertions do not hardcode metrics.
+const measurePillFloor = (canvasElement: HTMLElement): number => {
+	const probe = document.createElement("span");
+	probe.className = "text-xs font-medium";
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	probe.style.width = "calc(8ch + 3.125rem)";
+	canvasElement.appendChild(probe);
+	const width = probe.getBoundingClientRect().width;
+	probe.remove();
+	return width;
+};
+
+// +1 tolerance: scrollWidth is ceiled while clientWidth is rounded,
+// so an untruncated fractional-width label can differ by one.
+const expectNotTruncated = (el: HTMLElement) => {
+	expect(el.scrollWidth).toBeLessThanOrEqual(el.clientWidth + 1);
+};
+
+/**
+ * A short model name sizes the trigger to its content.
+ */
+export const ShortModelNameHasNoDeadSpace: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-short",
+		modelOptions: [
+			{
+				id: "model-short",
+				provider: "openai",
+				model: "fable-5",
+				displayName: "Fable 5",
+			},
+		],
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "short-model-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByRole("combobox", {
+			name: /Fable 5/,
+		});
+		await waitFor(() => {
+			// Re-measure the floor inside the retry so font loads cannot
+			// skew the comparison.
+			const floor = measurePillFloor(canvasElement);
+			expect(trigger.getBoundingClientRect().width).toBeLessThan(floor);
+		});
+		expectNotTruncated(canvas.getByText("Fable 5"));
+	},
+};
+
+/**
+ * With no MCP badges competing for space, long model and workspace
+ * names expand to their full width: no truncation and no fixed cap.
+ */
+export const LongLabelsExpandWithoutMCPs: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-long",
+		modelOptions: [
+			{
+				id: "model-long",
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+				displayName: "Claude Sonnet 4.5",
+			},
+		],
+		workspace: {
+			...MockWorkspace,
+			name: "my-workspace-name-that-should-not-clamp",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "long-labels-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const modelLabel = await canvas.findByText("Claude Sonnet 4.5");
+		const workspaceLabel = await canvas.findByText(
+			"my-workspace-name-that-should-not-clamp",
+		);
+		await waitFor(() => {
+			expectNotTruncated(modelLabel);
+			expectNotTruncated(workspaceLabel);
+		});
+		// The pill can exceed 200px: no fixed cap.
+		const pillButton = canvas.getByRole("button", {
+			name: /workspace menu/,
+		});
+		expect(pillButton.getBoundingClientRect().width).toBeGreaterThan(200);
+		expect(canvas.queryByRole("button", { name: /more item/ })).toBeNull();
+	},
+};
+
+/**
+ * When badges overflow into +N, they release their layout space so
+ * the model label expands to full width.
+ */
+export const ModelExpandsWhileBadgesOverflow: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-long",
+		modelOptions: [
+			{
+				id: "model-long",
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+				displayName: "Claude Sonnet 4.5",
+			},
+		],
+		mcpServers: [confluenceWideMCP, datadogWideMCP],
+		selectedMCPServerIds: [confluenceWideMCP.id, datadogWideMCP.id],
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await waitFor(() => {
+			expect(overflowPill).toBeVisible();
+		});
+		const modelLabel = canvas.getByText("Claude Sonnet 4.5");
+		await waitFor(() => {
+			expectNotTruncated(modelLabel);
+		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText("Datadog Infrastructure Monitoring"),
+		).toBeInTheDocument();
+	},
+};
+
+/**
+ * Opening the +N popover auto-focuses its first badge; the status
+ * tooltip stays suppressed (md and up).
+ */
+export const OverflowPopoverSuppressesStatusTooltip: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+		attachedWorkspace: {
+			id: MockWorkspace.id,
+			// Wide enough to collapse into the +N popover at tablet width.
+			name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline-at-tablet-width",
+			route: `/@${MockWorkspace.owner_name}/attached`,
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace stopped",
+		},
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await waitFor(() => {
+			expect(overflowPill).toBeVisible();
+		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText(/an-extremely-long-attached-workspace/),
+		).toBeInTheDocument();
+		// Auto-focus lands on the badge; the status tooltip stays hidden.
+		for (const el of within(document.body).queryAllByText(
+			"Workspace stopped",
+		)) {
+			expect(el).not.toBeVisible();
 		}
 	},
 };

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
@@ -5,10 +6,13 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cn } from "#/utils/cn";
+import { useOutletContext } from "react-router";
+import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
-const STORAGE_KEY = "agents.right-panel-width";
+export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
+export const RIGHT_PANEL_WIDTH_KEY = "agents.right-panel-width";
+
 const MIN_WIDTH = 360;
 const MAX_WIDTH_RATIO = 0.7;
 const DEFAULT_WIDTH = 480;
@@ -43,7 +47,7 @@ function getSideBySideMaxWidth(panel: HTMLElement | null): number {
 }
 
 function loadPersistedWidth(): number {
-	const stored = localStorage.getItem(STORAGE_KEY);
+	const stored = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
 	if (!stored) {
 		return DEFAULT_WIDTH;
 	}
@@ -63,8 +67,6 @@ interface RightPanelProps {
 	 * null when the drag ends so the parent falls back to the
 	 * committed isExpanded prop. */
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
-	isSidebarCollapsed?: boolean;
-	onToggleSidebarCollapsed?: () => void;
 	children: ReactNode;
 }
 
@@ -200,10 +202,10 @@ export const RightPanel = ({
 	onToggleExpanded,
 	onClose,
 	onVisualExpandedChange,
-	isSidebarCollapsed,
-	onToggleSidebarCollapsed,
 	children,
 }: RightPanelProps) => {
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 	const [width, setWidth] = useState(loadPersistedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
 
@@ -261,7 +263,7 @@ export const RightPanel = ({
 	});
 
 	useEffect(() => {
-		localStorage.setItem(STORAGE_KEY, String(width));
+		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
 	}, [width]);
 
 	useEffect(() => {
@@ -332,7 +334,7 @@ export const RightPanel = ({
 				visualExpanded
 					? "absolute inset-0 z-30 flex flex-col"
 					: visualOpen
-						? "fixed inset-0 z-30 flex flex-col bg-surface-primary lg:relative lg:inset-auto lg:z-auto lg:h-full lg:min-h-0 lg:min-w-0 lg:overflow-hidden lg:border-0 lg:border-l lg:border-solid lg:border-border-default lg:w-[min(var(--panel-width),max(0px,calc(100%_-_var(--agents-chat-panel-min-width,0px))))] lg:max-w-[70vw]"
+						? "fixed inset-0 z-30 flex flex-col bg-surface-primary lg:relative lg:inset-auto lg:z-auto lg:h-full lg:min-h-0 lg:min-w-0 lg:overflow-hidden lg:border-0 lg:border-l lg:border-solid lg:border-border-default lg:w-[min(var(--panel-width),max(0px,calc(100%-var(--agents-chat-panel-min-width,0px))))] lg:max-w-[70vw]"
 						: "relative min-h-0 min-w-0 hidden",
 			)}
 		>

@@ -10,3 +10,9 @@ export default meta;
 type Story = StoryObj<typeof PaywallAIGovernance>;
 
 export const Default: Story = {};
+
+export const Sessions: Story = {
+	args: {
+		variant: "sessions",
+	},
+};

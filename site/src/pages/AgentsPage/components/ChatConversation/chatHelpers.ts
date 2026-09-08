@@ -1,7 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import type { AgentContextUsage } from "../AgentChatInput";
-import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { asNonEmptyString } from "./blockUtils";
 
@@ -47,12 +47,13 @@ export const getLatestContextUsage = (
 	messages: readonly TypesGen.ChatMessage[],
 ): AgentContextUsage | null => {
 	for (const message of messages.toReversed()) {
-		const isCompactionSummary = message.content?.some(
+		const isContextBoundary = message.content?.some(
 			(part) =>
 				(part.type === "tool-call" || part.type === "tool-result") &&
-				part.tool_name === "chat_summarized",
+				(part.tool_name === "chat_summarized" ||
+					part.tool_name === "chat_cleared"),
 		);
-		if (isCompactionSummary) {
+		if (isContextBoundary) {
 			return null;
 		}
 

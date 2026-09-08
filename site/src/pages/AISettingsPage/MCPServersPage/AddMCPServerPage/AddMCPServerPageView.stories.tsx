@@ -38,9 +38,9 @@ export const Default: Story = {
 		const addButton = canvas.getByRole("button", { name: "Add server" });
 
 		await expect(
-			canvas.getByRole("button", {
-				name: `Organization ${MockDefaultOrganization.display_name}`,
-			}),
+			canvas.getByLabelText(
+				`Organization ${MockDefaultOrganization.display_name}`,
+			),
 		).toBeVisible();
 		await expect(addButton).toBeDisabled();
 		await userEvent.type(canvas.getByLabelText(/display name/i), "GitHub");
@@ -60,6 +60,9 @@ export const Default: Story = {
 		);
 		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
 		await expect(canvas.getByLabelText(/client id/i)).toBeInTheDocument();
+		await waitFor(() => {
+			expect(body.queryByRole("option", { name: "OAuth2" })).toBeNull();
+		});
 
 		await userEvent.click(addButton);
 		await waitFor(() => {

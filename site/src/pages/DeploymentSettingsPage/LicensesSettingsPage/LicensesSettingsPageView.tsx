@@ -19,6 +19,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useWindowSize } from "#/hooks/useWindowSize";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { useTheme } from "#/theme/context";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
@@ -146,20 +147,19 @@ const LicensesSettingsPageView: FC<Props> = ({
 									You&apos;re missing out on high availability, RBAC, quotas,
 									and much more. Contact{" "}
 									<Link
-										href="mailto:sales@coder.com"
+										href={CONTACT_SALES_LINK}
 										className="m-0 p-0 text-base"
 										showExternalIcon={false}
 									>
 										sales
 									</Link>{" "}
 									or{" "}
-									<Link
-										href="https://coder.com/trial"
-										className="m-0 p-0 text-base"
-										showExternalIcon={false}
+									<RouterLink
+										to="/deployment/premium"
+										className="m-0 p-0 text-content-link"
 									>
 										request a trial license
-									</Link>{" "}
+									</RouterLink>{" "}
 									to get started.
 								</span>
 							</div>

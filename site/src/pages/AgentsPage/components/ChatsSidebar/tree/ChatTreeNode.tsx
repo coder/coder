@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -23,10 +24,10 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import {
 	ChatActionsMenuItems,
+	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
@@ -38,17 +39,12 @@ import { getChatDisplayConfig } from "./statusConfig";
 
 interface ChatTreeNodeProps {
 	readonly chat: Chat;
-	readonly isChildNode: boolean;
 	readonly depth?: number;
 }
 
 const CHILD_INDENT_PX = 26;
 
-export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
-	chat,
-	isChildNode,
-	depth = 0,
-}) => {
+export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const {
@@ -57,8 +53,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 		visibleChatIDs,
 		normalizedSearch,
 		expandedById,
-		modelOptions,
 		modelConfigs,
+		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
 		isArchiving,
@@ -82,7 +78,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 	const modelName = getModelDisplayName(
 		chat.last_model_config_id,
 		modelConfigs,
-		modelOptions,
+		isLoadingModelConfigs,
 	);
 	const errorReason =
 		chat.status === "error"
@@ -90,7 +86,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
 	const isStreaming = chat.status === "running";
-	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
+	const streamingSubtitle =
+		isStreaming && modelName ? `${modelName} streaming…` : undefined;
 	const staleTurnSummaryReleaseMs = 10_000;
 	const [streamingSummary, setStreamingSummary] = useState<string | undefined>(
 		isStreaming ? lastTurnSummary : undefined,
@@ -150,21 +147,17 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
-	const hasMenuActions = chatHasMenuActions({
-		isArchived: chat.archived,
-		isChildChat: isChildNode,
-	});
+	const hasMenuActions = chatHasMenuActions(chat);
 
 	const hoverLayout =
 		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
 	const activeLayout =
 		"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
 	const sharedMenuItemProps = {
-		isArchived: chat.archived,
-		isPinned: chat.pin_order > 0,
-		isChildChat: isChildNode,
+		chat,
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving,
+		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),
@@ -189,8 +182,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
-							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-data-[state=open]:bg-surface-tertiary",
 							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 							hoverLayout,
 							activeLayout,
@@ -288,7 +281,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 											className={cn(
 												"min-w-0 overflow-hidden text-[13px] leading-4",
 												errorReason
-													? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+													? "line-clamp-1 whitespace-normal text-content-destructive wrap-anywhere"
 													: "truncate text-content-secondary",
 											)}
 											title={subtitle}
@@ -314,7 +307,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 											// hover; without menu actions there is no trigger, so
 											// keep the timestamp visible.
 											hasMenuActions &&
-												"[@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden",
+												"[@media(hover:hover)]:group-hover:hidden group-has-data-[state=open]:hidden",
 											hasMenuActions && isActiveChat && "hidden",
 										)}
 									>
@@ -418,7 +411,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 							<ChatTreeNode
 								key={childChat.id}
 								chat={childChat}
-								isChildNode
 								depth={depth + 1}
 							/>
 						);

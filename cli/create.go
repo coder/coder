@@ -232,7 +232,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			// If the user specified an organization via a flag or env var, the template **must**
 			// be in that organization. Otherwise, we should throw an error.
 			orgValue, orgValueSource := orgContext.ValueSource(inv)
-			if orgValue != "" && !(orgValueSource == serpent.ValueSourceDefault || orgValueSource == serpent.ValueSourceNone) {
+			if orgValue != "" && orgValueSource != serpent.ValueSourceDefault && orgValueSource != serpent.ValueSourceNone {
 				selectedOrg, err := orgContext.Selected(inv, client)
 				if err != nil {
 					return err
@@ -356,7 +356,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			var ttlMillis *int64
 			if stopAfter > 0 {
-				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
+				ttlMillis = new(stopAfter.Milliseconds())
 			}
 
 			req := codersdk.CreateWorkspaceRequest{
