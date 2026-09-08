@@ -9,8 +9,7 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: ${{ github.workflow }} # no per-branch concurrency
@@ -21,6 +20,8 @@ jobs:
   should-deploy:
     name: should-deploy
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       verdict: ${{ steps.check.outputs.verdict }} # DEPLOY or NOOP
     steps:
@@ -74,7 +75,8 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
-          role-to-assume: ${{ vars.AWS_DOGFOOD_DEPLOY_ROLE }}
+          # dogfood.cdr.dev uses a separate AWS account from dev.coder.com.
+          role-to-assume: arn:aws:iam::153844979634:role/dogfood-coder-repo-ci
           aws-region: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
 
       - name: Get Cluster Credentials
