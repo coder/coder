@@ -11,10 +11,7 @@ import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import type {
-	AgentChatSendShortcut,
-	ChatMessagePart,
-} from "#/api/typesGenerated";
+import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -37,10 +34,14 @@ import {
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
-import type { useChatStore } from "./components/ChatConversation/chatStore";
+import {
+	selectChatStatus,
+	useChatSelector,
+	type useChatStore,
+} from "./components/ChatConversation/chatStore";
+
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
-import type { SkillMetadata } from "./components/ChatMessageInput/SkillsTriggerMenu";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
@@ -104,7 +105,6 @@ interface EditingState {
 
 interface AgentChatPageViewProps {
 	chat: TypesGen.Chat;
-	sendShortcut: AgentChatSendShortcut;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	canShareChat: boolean;
@@ -123,6 +123,7 @@ interface AgentChatPageViewProps {
 	effectiveSelectedModel: string;
 	setSelectedModel: (model: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
+	models: readonly TypesGen.ChatModel[] | undefined;
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
 	modelCatalogError?: unknown;
@@ -137,7 +138,6 @@ interface AgentChatPageViewProps {
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
-	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
@@ -172,16 +172,6 @@ interface AgentChatPageViewProps {
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 
-	// Chat actions.
-	handleArchiveAgentAction: () => void;
-	handleUnarchiveAgentAction: () => void;
-	handleArchiveAndDeleteWorkspaceAction: () => void;
-	handlePinAgentAction?: () => void;
-	handleUnpinAgentAction?: () => void;
-	handleOpenRenameDialogAction?: () => void;
-	isArchivingThisChat?: boolean;
-	isArchiveBlocked?: boolean;
-
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
@@ -199,8 +189,6 @@ interface AgentChatPageViewProps {
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
-
-	workspaceSkills?: readonly SkillMetadata[];
 }
 
 const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
@@ -290,7 +278,6 @@ const UserTabContent: FC<UserTabContentProps> = ({
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	chat,
-	sendShortcut,
 	parentChat,
 	persistedError,
 	canShareChat,
@@ -302,6 +289,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
+	models,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
 	modelCatalogError,
@@ -316,7 +304,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	onPlanModeToggle,
-	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
@@ -334,14 +321,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handlePromoteQueuedMessage,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
-	handleArchiveAgentAction,
-	handleUnarchiveAgentAction,
-	handleArchiveAndDeleteWorkspaceAction,
-	handlePinAgentAction,
-	handleUnpinAgentAction,
-	handleOpenRenameDialogAction,
-	isArchivingThisChat,
-	isArchiveBlocked,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -353,7 +332,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	desktopChatId,
-	workspaceSkills,
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
@@ -363,6 +341,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const agentId = chat.id;
 	const organizationId = chat.organization_id;
 	const isArchived = chat.archived;
+	const liveChatStatus =
+		useChatSelector(store, selectChatStatus) ?? chat.status;
 	const parsedPrNumber = Number(
 		parsePullRequestUrl(chat.diff_status?.url)?.number,
 	);
@@ -839,23 +819,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								{" "}
 								<ChatTopBar
 									chat={chat}
+									liveChatStatus={liveChatStatus}
 									parentChat={parentChat}
 									panel={{
 										showSidebarPanel,
 										onToggleSidebar: () =>
 											onSetShowSidebarPanel(!showSidebarPanel),
 									}}
-									onArchiveAgent={handleArchiveAgentAction}
-									onUnarchiveAgent={handleUnarchiveAgentAction}
-									onArchiveAndDeleteWorkspace={
-										handleArchiveAndDeleteWorkspaceAction
-									}
-									onPinAgent={handlePinAgentAction}
-									onUnpinAgent={handleUnpinAgentAction}
-									onOpenRenameDialog={handleOpenRenameDialogAction}
-									isArchiving={isArchivingThisChat}
-									isArchiveBlocked={isArchiveBlocked}
-									hasWorkspace={Boolean(workspace)}
 									renderChatSharingContent={
 										canShareChat
 											? (open) => (
@@ -949,9 +919,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 								<ChatPageInput
 									chat={chat}
-									sendShortcut={sendShortcut}
 									store={store}
-									compressionThreshold={compressionThreshold}
+									models={models}
 									onSend={editing.handleSendFromInput}
 									onDeleteQueuedMessage={handleDeleteQueuedMessage}
 									onPromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -989,7 +958,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									selectedMCPServerIds={selectedMCPServerIds}
 									onMCPSelectionChange={onMCPSelectionChange}
 									onMCPAuthComplete={onMCPAuthComplete}
-									workspaceSkills={workspaceSkills}
 									workspace={workspace}
 									workspaceAgent={workspaceAgent}
 									sshCommand={sshCommand}
@@ -1037,7 +1005,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 };
 
 interface AgentChatPageLoadingViewProps {
-	sendShortcut: AgentChatSendShortcut;
 	inputRef: RefObject<ChatMessageInputRef | null>;
 	initialValue: string;
 	initialEditorState: string | undefined;
@@ -1060,7 +1027,6 @@ interface AgentChatPageLoadingViewProps {
 }
 
 export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
-	sendShortcut,
 	inputRef,
 	initialValue,
 	initialEditorState,
@@ -1091,10 +1057,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
 					}}
-					onArchiveAgent={() => {}}
-					onUnarchiveAgent={() => {}}
-					onArchiveAndDeleteWorkspace={() => {}}
-					hasWorkspace={false}
 				/>
 				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 					<div className="px-4">
@@ -1111,7 +1073,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 					<AgentChatInput
 						onSend={() => {}}
-						sendShortcut={sendShortcut}
 						inputRef={inputRef}
 						initialValue={initialValue}
 						initialEditorState={initialEditorState}
@@ -1153,10 +1114,6 @@ export const AgentChatPageNotFoundView: FC = () => {
 					showSidebarPanel: false,
 					onToggleSidebar: () => {},
 				}}
-				onArchiveAgent={() => {}}
-				onUnarchiveAgent={() => {}}
-				onArchiveAndDeleteWorkspace={() => {}}
-				hasWorkspace={false}
 			/>
 			<div className="flex flex-1 items-center justify-center text-content-secondary">
 				Chat not found

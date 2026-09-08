@@ -3,15 +3,21 @@ import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
+import {
+	chatPromptsQuery,
+	refreshChatContext,
+	userCompactionThresholds,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
-import { getProviderForModelOption } from "../utils/modelOptions";
+import {
+	getProviderForModelOption,
+	resolveCompactionThreshold,
+} from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
@@ -240,12 +246,11 @@ export type PendingAttachment = {
 interface ChatPageInputProps {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	compressionThreshold: number | undefined;
+	models: readonly TypesGen.ChatModel[] | undefined;
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => Promise<void> | void;
-	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -288,9 +293,6 @@ interface ChatPageInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	// Workspace skill menu data derived from the resolved chat detail;
-	// undefined while the chat is still loading.
-	workspaceSkills?: readonly SkillMetadata[];
 	workspaceOptions: readonly TypesGen.Workspace[];
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
@@ -304,9 +306,8 @@ interface ChatPageInputProps {
 export const ChatPageInput: FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	compressionThreshold,
+	models,
 	onSend,
-	sendShortcut,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onInterrupt,
@@ -340,7 +341,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	workspaceSkills,
 	workspaceOptions,
 	onWorkspaceChange,
 	isWorkspaceLoading,
@@ -355,6 +355,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const chatContext = chat.context;
 	const planModeEnabled = chat.plan_mode === "plan";
 	const selectedWorkspaceId = chat.workspace_id ?? null;
+	const workspaceSkills = workspaceSkillsFromChat(chat);
+	const thresholdsQuery = useQuery(userCompactionThresholds());
+	const compressionThreshold = resolveCompactionThreshold(
+		chat.last_model_config_id,
+		thresholdsQuery.data?.thresholds,
+		models,
+	);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
@@ -544,7 +551,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					}
 				})();
 			}}
-			sendShortcut={sendShortcut}
 			attachments={attachments}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}

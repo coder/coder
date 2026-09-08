@@ -96,8 +96,9 @@ type generationCompaction struct {
 	// changes when sanitizing the compaction prompt.
 	ChatModelConfig database.ChatModelConfig
 
-	Required bool
-	Options  chatloop.GenerateCompactionOptions
+	Required        bool
+	Options         chatloop.GenerateCompactionOptions
+	PendingUserRows []database.ChatMessage
 }
 
 type generationDebug struct {
@@ -1062,11 +1063,12 @@ func (s *taskStarter) generateCompaction(
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	messages, err := buildCompactionMessages(buildCompactionMessagesInput{
-		modelConfigID:  prepared.ModelConfigID,
-		toolCallID:     compactionOpts.ToolCallID,
-		toolName:       compactionOpts.ToolName,
-		compaction:     compactionOutcome(outcome),
-		contentVersion: chatprompt.CurrentContentVersion,
+		modelConfigID:       prepared.ModelConfigID,
+		toolCallID:          compactionOpts.ToolCallID,
+		toolName:            compactionOpts.ToolName,
+		compaction:          compactionOutcome(outcome),
+		contentVersion:      chatprompt.CurrentContentVersion,
+		pendingUserMessages: prepared.Compaction.PendingUserRows,
 	})
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)

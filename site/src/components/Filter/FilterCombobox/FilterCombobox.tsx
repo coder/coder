@@ -98,7 +98,7 @@ export function FilterCombobox({
 				label={placeholder}
 			>
 				<FilterComboboxInputGroup className={className}>
-					<InputGroupAddon className="min-h-10">
+					<InputGroupAddon className="min-h-10 self-start pt-1">
 						<SearchIcon aria-hidden className="size-icon-sm" />
 					</InputGroupAddon>
 					<FilterComboboxChips>
@@ -150,7 +150,7 @@ export function FilterCombobox({
 					</FilterComboboxChips>
 					<InputGroupAddon
 						align="inline-end"
-						className="w-10 items-center self-stretch border-0 border-l border-solid border-border p-0"
+						className="w-10 items-start self-stretch border-0 border-l border-solid border-border p-0"
 					>
 						<InputGroupButton
 							type="button"
@@ -158,7 +158,7 @@ export function FilterCombobox({
 							aria-label="Toggle filters"
 							aria-expanded={open}
 							aria-haspopup="listbox"
-							className="min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 [&>svg]:p-0"
+							className="min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 pt-2.5 [&>svg]:p-0"
 							onMouseDown={(event) => {
 								// Prevent the button from taking focus on pointer open.
 								// toggleFilterMenu focuses the combobox input next so
@@ -299,12 +299,12 @@ function TypeaheadList({
 						{category.icon && (
 							<span
 								aria-hidden
-								className="flex size-icon-sm shrink-0 items-center justify-center text-content-secondary [&>svg]:size-icon-sm"
+								className="flex size-icon-sm shrink-0 items-center justify-center [&>svg]:size-icon-sm"
 							>
 								{category.icon}
 							</span>
 						)}
-						<span className="text-content-primary">{category.label}</span>
+						{category.label}
 					</FilterComboboxItem>
 				))}
 				{[...valueSuggestionsByCategory.entries()].map(
@@ -321,9 +321,7 @@ function TypeaheadList({
 									{suggestion.option.startIcon ? (
 										<span aria-hidden>{suggestion.option.startIcon}</span>
 									) : null}
-									<span className="text-content-primary">
-										{suggestion.option.label}
-									</span>
+									{suggestion.option.label}
 								</FilterComboboxItem>
 							))}
 						</FilterComboboxGroup>
@@ -341,9 +339,7 @@ function TypeaheadList({
 							>
 								<ResultIcon result={result} />
 								<span className="flex min-w-0 flex-col">
-									<span className="truncate text-content-primary">
-										{result.label}
-									</span>
+									<span className="truncate">{result.label}</span>
 									{result.subtitle && (
 										<span className="truncate text-xs text-content-secondary">
 											{result.subtitle}
@@ -448,7 +444,7 @@ function CategoryOptionsList({
 									{option.startIcon ? (
 										<span aria-hidden>{option.startIcon}</span>
 									) : null}
-									<span className="text-content-primary">{option.label}</span>
+									{option.label}
 								</FilterComboboxItem>
 							);
 						})}

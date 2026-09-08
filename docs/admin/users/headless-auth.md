@@ -27,8 +27,7 @@ coder users create \
 
 ## UI
 
-Navigate to **Deployment** > **Users** > **Create user**, then select
-**Service account** as the login type.
+Navigate to **Deployment** > **Users** > **New user**, then select **Service account** as the login type.
 
 ![Create a user via the UI](../../images/admin/users/headless-user.png)
 
