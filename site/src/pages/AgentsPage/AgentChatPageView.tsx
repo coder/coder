@@ -18,6 +18,7 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	getAgentBrowserApp,
 	isWorkspaceAppEmbeddable,
@@ -41,8 +42,8 @@ import {
 	useChatSelector,
 	type useChatStore,
 } from "./components/ChatConversation/chatStore";
+
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
-import type { ModelSelectorOption } from "./components/ChatElements/ModelSelector";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { SkillMetadata } from "./components/ChatMessageInput/SkillsTriggerMenu";
 import type { PendingAttachment } from "./components/ChatPageContent";

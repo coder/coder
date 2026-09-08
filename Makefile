@@ -1063,13 +1063,13 @@ coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen _gen/models-
 # snapshot joined with the editorial curation in
 # scripts/aibridgepricesgen/curation.json. Kept out of `make gen` for the
 # same live-upstream-data reason as prices.json.
-site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
+site/src/modules/aiModels/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
 	$(call atomic_write,_gen/bin/aibridgepricesgen -format=catalog -upstream _gen/models-dev.json,./scripts/biome_format.sh)
-.PHONY: site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
+.PHONY: site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 
 gen/aibridge-prices: \
 	coderd/aibridge/prices/data/prices.json \
-	site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
+	site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 .PHONY: gen/aibridge-prices
 
 gen/golden-files: \

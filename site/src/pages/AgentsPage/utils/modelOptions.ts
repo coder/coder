@@ -1,6 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
-import type { ModelSelectorOption } from "../components/ChatElements/ModelSelector";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	asNumber,
 	asString,
