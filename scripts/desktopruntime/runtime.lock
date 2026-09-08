@@ -1,0 +1,12 @@
+# Pinned desktop runtime archives embedded into linux agent binaries.
+#
+# version is the output of scripts/desktopruntime/version.sh at the time the
+# archives were published by the desktop-runtime workflow. The sha256 values
+# are verified by scripts/desktopruntime/fetch.sh after download.
+#
+# While version is empty, binaries are built without the embedded runtime.
+# Populate it after the workflow has published the archives for the current
+# inputs; the workflow prints the values to paste here.
+version=
+sha256_amd64=
+sha256_arm64=

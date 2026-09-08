@@ -158,19 +158,20 @@ else
 	tags="embed,$TS_EXTRA_SMALL"
 fi
 
-# Embed the desktop runtime (static Xvnc) into linux binaries. Every release
-# ships the archive for its architecture, so slim binaries (the ones workspace
-# agents run) fail to build without it. Non-slim development builds continue
-# without the runtime. CODER_DESKTOP_RUNTIME=0 skips the check entirely for
-# local builds without Docker.
+# Embed the desktop runtime (static Xvnc) into linux binaries. Once
+# scripts/desktopruntime/runtime.lock pins a version, every release ships the
+# archive, so slim binaries (the ones workspace agents run) fail to build
+# without it; `make` downloads it via scripts/desktopruntime/fetch.sh. Non-slim
+# development builds continue without the runtime. CODER_DESKTOP_RUNTIME=0
+# skips the check entirely.
 # The arch may still carry a GOARM style suffix (e.g. arm64v8) at this point.
 desktop_runtime_arch="${arch%%v*}"
 if [[ "$os" == "linux" ]] && [[ "$desktop_runtime_arch" == "amd64" || "$desktop_runtime_arch" == "arm64" ]] && [[ "${CODER_DESKTOP_RUNTIME:-1}" != 0 ]]; then
 	desktop_runtime_archive="agent/x/agentdesktop/desktopruntime/embed/desktop-runtime-linux-${desktop_runtime_arch}.tar.zst"
 	if [[ -f "$desktop_runtime_archive" ]]; then
 		tags+=",desktop_runtime"
-	elif [[ "$slim" == 1 ]]; then
-		error "$desktop_runtime_archive is missing, run 'make build-desktop-runtime' or set CODER_DESKTOP_RUNTIME=0"
+	elif [[ "$slim" == 1 ]] && grep -Eq '^version=.+' scripts/desktopruntime/runtime.lock; then
+		error "$desktop_runtime_archive is missing, run 'make $desktop_runtime_archive' or set CODER_DESKTOP_RUNTIME=0"
 	else
 		log "INFO : $desktop_runtime_archive not found, building without the embedded desktop runtime"
 	fi

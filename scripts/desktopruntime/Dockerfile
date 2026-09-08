@@ -161,7 +161,7 @@ RUN set -eux; \
 	meson setup build --prefix=/usr/local --buildtype=minsize >/dev/null; \
 	ninja -C build install >/dev/null; \
 	rm -f /usr/local/lib/libxcvt.so*; \
-	gcc $CFLAGS -Iinclude -c lib/libxcvt.c -o /tmp/libxcvt.o; \
+	gcc $CFLAGS -I include -c lib/libxcvt.c -o /tmp/libxcvt.o; \
 	ar rcs /usr/local/lib/libxcvt.a /tmp/libxcvt.o; \
 	sed -i 's|^Libs:.*|Libs: -L${libdir} -lxcvt|' /usr/local/lib/pkgconfig/libxcvt.pc
 

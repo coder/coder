@@ -1228,11 +1228,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.go == 'true' && github.ref != 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    permissions:
-      contents: read
-      # Necessary for depot.dev OIDC authentication when building the desktop
-      # runtime.
-      id-token: write
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
@@ -1259,24 +1254,12 @@ jobs:
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
-      # Forks have no Depot access and fall back to QEMU for arm64, which is
-      # slow but only happens when scripts/desktopruntime changes.
-      - name: Build desktop runtime
-        uses: ./.github/actions/desktop-runtime
-        with:
-          depot-project: ${{ github.repository_owner == 'coder' && 'wl5hnrrkns' || '' }}
-
       - name: Build
         run: |
           set -euxo pipefail
           ./.github/scripts/retry.sh -- go mod download
           make gen/mark-fresh
           make build
-
-      # These tests launch the embedded Xvnc and only run when the runtime is
-      # compiled in, which regular test jobs do not do.
-      - name: Test desktop runtime
-        run: go test -count=1 -race -tags desktop_runtime ./agent/x/agentdesktop/...
 
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit
@@ -1380,11 +1363,6 @@ jobs:
 
       - name: Setup GCloud SDK
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-
-      - name: Build desktop runtime
-        uses: ./.github/actions/desktop-runtime
-        with:
-          depot-project: wl5hnrrkns
 
       - name: Build
         run: |

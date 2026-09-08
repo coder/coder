@@ -1,0 +1,162 @@
+# Builds the desktop runtime archives (static Xvnc) that are embedded into
+# linux agent binaries, tests them against the real Go launcher, and publishes
+# them to releases.coder.com when the build inputs change on main.
+#
+# This is the only place a container toolchain is used for the runtime. The
+# binary build downloads the published archive pinned in
+# scripts/desktopruntime/runtime.lock instead; see
+# scripts/desktopruntime/README.md.
+name: desktop-runtime
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/desktopruntime/**
+      - .github/workflows/desktop-runtime.yaml
+  pull_request:
+    paths:
+      - scripts/desktopruntime/**
+      - agent/x/agentdesktop/**
+      - .github/workflows/desktop-runtime.yaml
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      # Necessary for depot.dev OIDC authentication.
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
+
+      # Depot builds arm64 on native hardware. Forks have no Depot access and
+      # fall back to QEMU emulation, which is roughly ten times slower.
+      - name: Install depot.dev CLI
+        if: github.repository_owner == 'coder'
+        uses: depot/setup-action@91bc8495a33ebfc504ffc89e5674379ccf23c29c # v1.7.2
+
+      - name: Set up QEMU
+        if: github.repository_owner != 'coder'
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+        with:
+          platforms: arm64
+
+      - name: Build desktop runtime
+        env:
+          ARCH: ${{ matrix.arch }}
+          USE_DEPOT: ${{ github.repository_owner == 'coder' }}
+        run: |
+          set -euo pipefail
+          if [[ "$USE_DEPOT" == "true" ]]; then
+            export CODER_DESKTOP_RUNTIME_BUILDX="depot build --project wl5hnrrkns"
+          fi
+          out="agent/x/agentdesktop/desktopruntime/embed/desktop-runtime-linux-${ARCH}.tar.zst"
+          ./scripts/desktopruntime/build.sh --arch "$ARCH" --output "$out"
+          ./scripts/desktopruntime/check_size.sh "$out"
+          sha256sum "$out" | tee "${out}.sha256"
+
+      - name: Set up mise tools
+        if: matrix.arch == 'amd64'
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
+
+      # Exercise the real Xvnc through the Go launcher. Only the native
+      # architecture can run the binary.
+      - name: Test desktop runtime
+        if: matrix.arch == 'amd64'
+        run: go test -count=1 -race -tags desktop_runtime ./agent/x/agentdesktop/...
+
+      - name: Upload desktop runtime
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-runtime-linux-${{ matrix.arch }}
+          path: |
+            agent/x/agentdesktop/desktopruntime/embed/desktop-runtime-linux-${{ matrix.arch }}.tar.zst
+            agent/x/agentdesktop/desktopruntime/embed/desktop-runtime-linux-${{ matrix.arch }}.tar.zst.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    # Only trusted refs publish. The destination is keyed by the inputs
+    # digest and never overwritten, so a republish of the same inputs is a
+    # no-op and a changed Dockerfile always lands in a new location.
+    needs: build
+    if: github.event_name != 'pull_request' && github.repository_owner == 'coder'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Necessary for GCP OIDC authentication.
+      id-token: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download desktop runtime
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: desktop-runtime-linux-*
+          merge-multiple: true
+          path: dist
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+
+      - name: Setup GCloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Publish desktop runtime
+        run: |
+          set -euo pipefail
+          version="$(./scripts/desktopruntime/version.sh)"
+          dest="gs://releases.coder.com/desktop-runtime/${version}"
+          for arch in amd64 arm64; do
+            name="desktop-runtime-linux-${arch}.tar.zst"
+            # --no-clobber keeps published archives immutable.
+            gcloud storage cp --no-clobber "dist/${name}" "${dest}/${name}"
+          done
+          {
+            echo "## Desktop runtime ${version}"
+            echo
+            echo "Published to \`${dest}\`. Pin it in \`scripts/desktopruntime/runtime.lock\`:"
+            echo
+            echo '```'
+            echo "version=${version}"
+            echo "sha256_amd64=$(cut -d' ' -f1 dist/desktop-runtime-linux-amd64.tar.zst.sha256)"
+            echo "sha256_arm64=$(cut -d' ' -f1 dist/desktop-runtime-linux-arm64.tar.zst.sha256)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

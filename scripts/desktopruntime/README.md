@@ -18,13 +18,19 @@ image having X libraries, a matching libc, or anything else installed.
 
 ## Where Docker fits (and where it does not)
 
-Docker is used **only when Coder itself is built or released**, as a
-cross-compilation environment that produces the archive. It is not part of the
-workspace runtime path in any way:
+Docker is used **only by the `desktop-runtime` GitHub workflow** (and by
+developers iterating on the `Dockerfile`), as a cross-compilation environment
+that produces the archive. It is not part of the Coder binary build and not part
+of the workspace runtime path:
 
-1. At release time, `build.sh` runs the Alpine build inside Docker and writes
-   `desktop-runtime-linux-<arch>.tar.zst`.
-2. The archive is embedded into the `coder` binary.
+1. When a file in this directory changes on `main`, the workflow runs `build.sh`
+   for both architectures and publishes the archives to
+   `https://releases.coder.com/desktop-runtime/<version>/`, where `<version>`
+   is the digest of the build inputs printed by `version.sh`.
+2. `runtime.lock` pins that version and the sha256 of each archive. `make`
+   runs `fetch.sh`, which downloads the pinned archive and verifies it, and the
+   Go build embeds it. The binary build therefore stays pure Go plus one
+   checksummed download; `ci.yaml` and `release.yaml` never run a container.
 3. In a workspace, the agent unpacks the embedded archive to a directory it owns
    and execs `bin/Xvnc` directly.
 
@@ -45,6 +51,19 @@ to survive: unpack the archive on a non-Alpine machine and confirm that
 Alpine build image.
 
 ## Usage
+
+Normal builds never call these scripts directly: `make build` (or any linux
+binary target) runs `fetch.sh` for the pinned archive when `runtime.lock` is
+populated. Set `CODER_DESKTOP_RUNTIME=0` to build without the runtime, or
+`CODER_DESKTOP_RUNTIME_URL` to download from a mirror.
+
+To rebuild the archives locally, for example while changing the `Dockerfile`:
+
+```console
+$ make build-desktop-runtime
+```
+
+or for a single architecture:
 
 ```console
 $ ./scripts/desktopruntime/build.sh --arch amd64 --output /tmp/desktop-runtime-linux-amd64.tar.zst
@@ -80,8 +99,8 @@ the fallback normally does not trigger.
 ### Using Depot in CI
 
 `CODER_DESKTOP_RUNTIME_BUILDX` replaces the build command, which defaults to
-`docker buildx build`. The Depot CLI accepts the same `--platform` and
-`--output` flags:
+`docker buildx build`. The `desktop-runtime` workflow sets it to the Depot CLI,
+which accepts the same `--platform` and `--output` flags:
 
 ```console
 $ CODER_DESKTOP_RUNTIME_BUILDX="depot build --project wl5hnrrkns" \
@@ -96,8 +115,8 @@ arm64 nodes, so CI needs no emulation at all.
 
 Without Depot, building `linux/arm64` on an x86 host needs QEMU:
 
-```console
-$ docker run --rm --privileged tonistiigi/binfmt --install arm64
+```shell
+docker run --rm --privileged tonistiigi/binfmt --install arm64
 ```
 
 This is the fallback path for local development and fork builds. It works, but
@@ -116,9 +135,10 @@ The emulation cost sits in the compile steps: the xorg-server configure, build
 and relink goes from 22 s to 295 s, and the static helper libraries go from 13 s
 to 252 s. Downloads and `apk add` are barely affected.
 
-Smaller CI runners scale both numbers up, so the runtime is worth building only
-when its inputs change rather than on every pull request. Depot for arm64 or a
-native arm64 runner removes the emulation penalty entirely.
+Smaller CI runners scale both numbers up, which is why the runtime is built and
+published only when its inputs change and the binary build downloads the pinned
+result. Depot for arm64 or a native arm64 runner removes the emulation penalty
+entirely.
 
 ## Output layout
 
@@ -152,15 +172,15 @@ verified on a glibc host:
 
 ```console
 $ PATH="$runtime/bin:$PATH" "$runtime/bin/Xvnc" :77 \
-	-rfbport 5977 \
-	-localhost \
-	-SecurityTypes None \
-	-AlwaysShared \
-	-AcceptSetDesktopSize \
-	-geometry 1280x800 \
-	-depth 24 \
-	-xkbdir "$runtime/share/xkb" \
-	-desktop Coder
+    -rfbport 5977 \
+    -localhost \
+    -SecurityTypes None \
+    -AlwaysShared \
+    -AcceptSetDesktopSize \
+    -geometry 1280x800 \
+    -depth 24 \
+    -xkbdir "$runtime/share/xkb" \
+    -desktop Coder
 ```
 
 No `-fp` flag is needed; passing `-fp built-ins` explicitly is equivalent. Both
@@ -251,6 +271,26 @@ statically, the fallback is a dynamic musl binary shipped with
 repeat the glibc host test above before shipping it, since a wrapper that only
 works inside the Alpine build image is worthless in a workspace.
 
+## Publishing and pinning
+
+The `desktop-runtime` workflow (`.github/workflows/desktop-runtime.yaml`) runs
+when anything in this directory changes:
+
+- On pull requests it builds both architectures, enforces `check_size.sh`, and
+  runs `go test -tags desktop_runtime ./agent/x/agentdesktop/...` against the
+  freshly built amd64 archive, which starts the real `Xvnc`.
+- On `main` it additionally publishes the archives to
+  `gs://releases.coder.com/desktop-runtime/<version>/` with `--no-clobber`, so
+  published archives are immutable, and prints the `runtime.lock` values in the
+  job summary.
+
+Pinning is a separate, reviewable step: copy the printed `version` and sha256
+values into `runtime.lock`. `make lint/desktop-runtime` fails when the pinned
+version no longer matches `version.sh`, so a `Dockerfile` change cannot silently
+ship an old archive. While `version` is empty (as it is before the first
+publish), binaries build without the runtime and `desktopruntime.Available()`
+reports false.
+
 ## Bumping TigerVNC
 
 1. Update `TIGERVNC_VERSION` and `TIGERVNC_SHA256` in the `Dockerfile`.
@@ -260,7 +300,9 @@ works inside the Alpine build image is worthless in a workspace.
    [tigervnc APKBUILD](https://gitlab.alpinelinux.org/alpine/aports/-/blob/master/community/tigervnc/APKBUILD)
    is a good reference for the exact xorg-server version and configure flags.
    Update `XORG_SERVER_VERSION` and `XORG_SERVER_SHA256` accordingly.
-3. Rebuild for both architectures and run `check_size.sh`.
+3. Open a PR; the workflow builds, size-checks and tests the result.
+4. After merge, the workflow publishes the new version. Open a follow-up PR
+   that updates `runtime.lock` with the values from the job summary.
 
 The Alpine package versions used for the statically linked libraries are pinned
 in `ARG APK_*_VERSION` and verified during the build. When a base image update
