@@ -189,7 +189,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	// Resolve application inference profile ARNs before storing them. Doing it
 	// here means the operator learns immediately that a profile is wrong or
 	// unreachable, and the gateway never calls AWS to find out.
-	if err := api.resolveBedrockModels(ctx, &req.Settings); err != nil {
+	if err := resolveBedrockModels(ctx, &req.Settings); err != nil {
 		api.writeAIProviderResolutionError(ctx, rw, err)
 		return
 	}

@@ -176,11 +176,7 @@ type Options struct {
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
 
-	Auditor audit.Auditor
-	// AIProviderBedrockResolver resolves Bedrock application inference profile
-	// ARNs when an AI provider is written. Defaults to resolving through the AWS
-	// Bedrock control plane; tests substitute their own.
-	AIProviderBedrockResolver      BedrockModelResolver
+	Auditor                        audit.Auditor
 	ConnectionLogger               connectionlog.ConnectionLogger
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration

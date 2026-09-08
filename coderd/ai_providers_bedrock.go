@@ -19,54 +19,28 @@ import (
 // rather than an internal error.
 var errAIProviderProfileUnresolvable = xerrors.New("resolve bedrock inference profile")
 
-// BedrockModelResolver resolves the configured Bedrock model identifiers of a
-// provider to the model IDs the gateway records for capability detection,
-// usage, and pricing. Identifiers that are not application inference profile
-// ARNs resolve to themselves without calling AWS.
+// resolveBedrockModels fills in the server-owned resolved identifiers on
+// settings. Only application inference profile ARNs are opaque, so only they
+// cost an AWS call; every other identifier resolves to itself and is stored
+// unresolved.
 //
 // Resolution runs here, where the provider is written, so the gateway never
 // calls the Bedrock control plane: not at startup, not on reload, and not on a
-// request. It is an interface so tests can supply results without AWS.
-type BedrockModelResolver interface {
-	ResolveModels(ctx context.Context, settings codersdk.AIProviderBedrockSettings) (model, smallFastModel string, err error)
-}
-
-// awsBedrockModelResolver resolves through the AWS Bedrock control plane using
-// the provider's own credentials, including any assumed role.
-type awsBedrockModelResolver struct{}
-
-// ResolveModels resolves the configured identifiers to the model IDs the
-// gateway records for capability detection, usage, and pricing. Only
-// application inference profile ARNs are opaque, so only they cost an AWS call;
-// every other identifier resolves to itself.
-func (awsBedrockModelResolver) ResolveModels(ctx context.Context, settings codersdk.AIProviderBedrockSettings) (model, smallFastModel string, err error) {
-	cfg := agplaibridge.BedrockConfig("", &settings)
-	if cfg == nil {
-		return settings.Model, settings.SmallFastModel, nil
-	}
-	return provider.ResolveBedrockModels(ctx, *cfg)
-}
-
-func (api *API) bedrockModelResolver() BedrockModelResolver {
-	if api.AIProviderBedrockResolver != nil {
-		return api.AIProviderBedrockResolver
-	}
-	return awsBedrockModelResolver{}
-}
-
-// resolveBedrockModels fills in the server-owned resolved identifiers on
-// settings. A resolved value is stored only when it differs from the configured
-// one, so plain model IDs stay unresolved and keep serving themselves.
+// request.
 //
 // A failure is returned to the caller: an unresolvable profile must not be
 // stored, because the gateway cannot tell what an opaque ARN refers to and
 // would misshape every request made through it.
-func (api *API) resolveBedrockModels(ctx context.Context, settings *codersdk.AIProviderSettings) error {
+func resolveBedrockModels(ctx context.Context, settings *codersdk.AIProviderSettings) error {
 	if settings.Bedrock == nil {
 		return nil
 	}
+	cfg := agplaibridge.BedrockConfig("", settings.Bedrock)
+	if cfg == nil {
+		return nil
+	}
 
-	model, smallFastModel, err := api.bedrockModelResolver().ResolveModels(ctx, *settings.Bedrock)
+	model, smallFastModel, err := provider.ResolveBedrockModels(ctx, *cfg)
 	if err != nil {
 		return xerrors.Errorf("%w: %w", errAIProviderProfileUnresolvable, err)
 	}
@@ -114,7 +88,7 @@ func (api *API) previewResolvedBedrockSettings(ctx context.Context, idOrName str
 
 	preview := mergeAIProviderSettings(existing, *patch)
 	ensureBedrockExternalID(&preview)
-	if err := api.resolveBedrockModels(ctx, &preview); err != nil {
+	if err := resolveBedrockModels(ctx, &preview); err != nil {
 		return codersdk.AIProviderSettings{}, false, err
 	}
 	return preview, true, nil
