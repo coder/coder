@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -241,7 +242,7 @@ func TestStoreChatAttachment_StrictCapError(t *testing.T) {
 	}).Return(int32(1), nil)
 
 	attachment, err := server.storeChatAttachment(context.Background(), chatSnapshot, "build.log", "build.log", []byte("build output"))
-	require.ErrorContains(t, err, fmt.Sprintf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs))
+	require.ErrorIs(t, err, chatstate.ErrChatFileCapExceeded)
 	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
 }
 
@@ -372,26 +373,21 @@ WHERE datname = current_database()
 	barrierReleased = true
 	require.NoError(t, err)
 
-	var successes, capRejections int
 	for range 2 {
 		select {
 		case err := <-attachmentResults:
-			if err == nil {
-				successes++
-				continue
-			}
-			require.ErrorContains(t, err, fmt.Sprintf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs))
-			capRejections++
+			require.NoError(t, err)
 		case <-ctx.Done():
 			require.Failf(t, "attachment store did not finish", "context ended: %v", ctx.Err())
 		}
 	}
-	require.Equal(t, 1, successes)
-	require.Equal(t, 1, capRejections)
 
+	// The second attachment sees the first one under the chat lock and
+	// evicts the oldest file instead of exceeding the cap.
 	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, files, codersdk.MaxChatFileIDs)
+	require.NotEqual(t, "existing-00.txt", files[0].Name)
 
 	var fileCount int
 	require.NoError(t, rawDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_files").Scan(&fileCount))

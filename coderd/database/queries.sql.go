@@ -11106,45 +11106,67 @@ func (q *sqlQuerier) IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbe
 }
 
 const linkChatFilesAfterLock = `-- name: LinkChatFilesAfterLock :one
-WITH current AS (
-    SELECT COUNT(*) AS cnt
-    FROM chat_file_links
-    WHERE chat_id = $1::uuid
-),
-new_links AS (
-    SELECT DISTINCT $1::uuid AS chat_id, unnest($2::uuid[]) AS file_id
+WITH new_links AS (
+    SELECT DISTINCT unnest($1::uuid[]) AS file_id
 ),
 genuinely_new AS (
-    SELECT nl.chat_id, nl.file_id
-    FROM new_links nl
+    SELECT nl.file_id FROM new_links nl
     WHERE NOT EXISTS (
         SELECT 1 FROM chat_file_links cfl
-        WHERE cfl.chat_id = nl.chat_id AND cfl.file_id = nl.file_id
+        WHERE cfl.chat_id = $2::uuid AND cfl.file_id = nl.file_id
     )
+),
+needed AS (
+    SELECT GREATEST(
+        (SELECT COUNT(*) FROM chat_file_links WHERE chat_id = $2::uuid)
+        + (SELECT COUNT(*) FROM genuinely_new)
+        - $3::int, 0)::int AS n
+),
+candidates AS (
+    SELECT cf.id
+    FROM chat_file_links cfl
+    JOIN chat_files cf ON cf.id = cfl.file_id
+    WHERE cfl.chat_id = $2::uuid
+      AND NOT EXISTS (SELECT 1 FROM new_links nl WHERE nl.file_id = cf.id)
+      AND NOT EXISTS (
+          SELECT 1 FROM chat_file_links o
+          WHERE o.file_id = cf.id AND o.chat_id <> $2::uuid
+      )
+    ORDER BY cf.created_at ASC, cf.id ASC
+    LIMIT (SELECT n FROM needed)
+),
+fits AS (
+    SELECT (SELECT COUNT(*) FROM candidates) >= (SELECT n FROM needed) AS ok
+),
+evicted AS (
+    DELETE FROM chat_files cf
+    USING candidates c
+    WHERE cf.id = c.id AND (SELECT ok FROM fits)
+    RETURNING cf.id
 ),
 inserted AS (
     INSERT INTO chat_file_links (chat_id, file_id)
-    SELECT gn.chat_id, gn.file_id
-    FROM genuinely_new gn, current c
-    WHERE c.cnt + (SELECT COUNT(*) FROM genuinely_new) <= $3::int
+    SELECT $2::uuid, gn.file_id FROM genuinely_new gn
+    WHERE (SELECT ok FROM fits)
     ON CONFLICT (chat_id, file_id) DO NOTHING
     RETURNING file_id
 )
-SELECT
-    (SELECT COUNT(*)::int FROM genuinely_new) -
-    (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files
+SELECT (SELECT COUNT(*)::int FROM genuinely_new)
+     - (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files
 `
 
 type LinkChatFilesAfterLockParams struct {
-	ChatID       uuid.UUID   `db:"chat_id" json:"chat_id"`
 	FileIds      []uuid.UUID `db:"file_ids" json:"file_ids"`
+	ChatID       uuid.UUID   `db:"chat_id" json:"chat_id"`
 	MaxFileLinks int32       `db:"max_file_links" json:"max_file_links"`
 }
 
-// LinkChatFilesAfterLock requires the chat row lock.
-// The lock serializes cap checks. The result counts rejected new links.
+// LinkChatFilesAfterLock requires the chat row lock. When the batch would
+// exceed the cap, the oldest files on the chat are deleted to make room; the
+// cascade removes their links. The batch is rejected only when the batch
+// itself exceeds the cap.
 func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error) {
-	row := q.db.QueryRowContext(ctx, linkChatFilesAfterLock, arg.ChatID, pq.Array(arg.FileIds), arg.MaxFileLinks)
+	row := q.db.QueryRowContext(ctx, linkChatFilesAfterLock, pq.Array(arg.FileIds), arg.ChatID, arg.MaxFileLinks)
 	var rejected_new_files int32
 	err := row.Scan(&rejected_new_files)
 	return rejected_new_files, err
