@@ -9,6 +9,12 @@
 #
 # The download base URL can be overridden with CODER_PORTABLEDESKTOP_URL, for
 # example to point at a mirror in an offline build environment.
+#
+# For local development against an unreleased portabledesktop build, set
+# CODER_PORTABLEDESKTOP_LOCAL_DIR to a directory containing
+# portabledesktop-slim-linux-<amd64|arm64> (or portabledesktop-linux-<arch>);
+# the binary is copied from there and the checksum in release.lock is not
+# checked.
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -62,8 +68,26 @@ lock_value() {
 	sed -nE "s/^$1=(.*)$/\1/p" "$lock_file" | head -n1
 }
 
+# Local override: copy a binary built from source (e.g. `make build-slim` in
+# the portabledesktop repo) instead of fetching a release.
+if [[ -n "${CODER_PORTABLEDESKTOP_LOCAL_DIR:-}" ]]; then
+	for candidate in "portabledesktop-slim-linux-${arch}" "portabledesktop-linux-${arch}"; do
+		local_bin="${CODER_PORTABLEDESKTOP_LOCAL_DIR}/${candidate}"
+		if [[ -f "$local_bin" ]]; then
+			log "WARN : embedding unverified local portabledesktop build $local_bin"
+			install -m 0755 "$local_bin" "$output_path"
+			exit 0
+		fi
+	done
+	error "no portabledesktop-slim-linux-${arch} or portabledesktop-linux-${arch} in $CODER_PORTABLEDESKTOP_LOCAL_DIR"
+fi
+
 version="$(lock_value version)"
+asset_prefix="$(lock_value asset)"
 expected_sha="$(lock_value "sha256_${arch}")"
+if [[ ! "$asset_prefix" =~ ^portabledesktop(-slim)?$ ]]; then
+	error "asset in $lock_file is missing or malformed"
+fi
 if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	error "version in $lock_file is missing or malformed"
 fi
@@ -76,7 +100,7 @@ asset_arch="$arch"
 if [[ "$arch" == "amd64" ]]; then
 	asset_arch="x64"
 fi
-name="portabledesktop-linux-${asset_arch}"
+name="${asset_prefix}-linux-${asset_arch}"
 base_url="${CODER_PORTABLEDESKTOP_URL:-https://github.com/coder/portabledesktop/releases/download}"
 url="${base_url}/${version}/${name}"
 
