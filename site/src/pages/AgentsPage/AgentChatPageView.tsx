@@ -36,7 +36,11 @@ import {
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
-import type { useChatStore } from "./components/ChatConversation/chatStore";
+import {
+	selectChatStatus,
+	useChatSelector,
+	type useChatStore,
+} from "./components/ChatConversation/chatStore";
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import type { ModelSelectorOption } from "./components/ChatElements/ModelSelector";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
@@ -345,6 +349,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const agentId = chat.id;
 	const organizationId = chat.organization_id;
 	const isArchived = chat.archived;
+	const liveChatStatus =
+		useChatSelector(store, selectChatStatus) ?? chat.status;
 	const parsedPrNumber = Number(
 		parsePullRequestUrl(chat.diff_status?.url)?.number,
 	);
@@ -821,6 +827,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								{" "}
 								<ChatTopBar
 									chat={chat}
+									liveChatStatus={liveChatStatus}
 									parentChat={parentChat}
 									panel={{
 										showSidebarPanel,

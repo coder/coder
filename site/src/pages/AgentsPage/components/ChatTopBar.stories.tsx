@@ -15,9 +15,8 @@ const AgentsSearchProbe = () => {
 	return <div data-testid="agents-search">{location.search}</div>;
 };
 
-const defaultChat: TypesGen.Chat = {
+const defaultChat = {
 	...MockChat,
-	id: "chat-1",
 	title: "Build authentication feature",
 };
 
@@ -59,6 +58,14 @@ const defaultProps = {
 const meta: Meta<typeof ChatTopBar> = {
 	title: "pages/AgentsPage/ChatTopBar",
 	component: ChatTopBar,
+	beforeEach: () => {
+		requestArchiveAgent.mockClear();
+		requestArchiveAndDeleteWorkspace.mockClear();
+		requestUnarchiveAgent.mockClear();
+		requestPinAgent.mockClear();
+		requestUnpinAgent.mockClear();
+		onOpenRenameDialog.mockClear();
+	},
 	parameters: {
 		layout: "fullscreen",
 		reactRouter: reactRouterParameters({
@@ -338,7 +345,9 @@ export const RenameChatItem: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Pin agent")).toBeInTheDocument();
-			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(
+				body.getByRole("menuitem", { name: "Rename chat" }),
+			).toBeInTheDocument();
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
 		});
 		const body = within(document.body);
@@ -346,8 +355,7 @@ export const RenameChatItem: Story = {
 		expect(
 			body.queryByText("Archive & delete workspace"),
 		).not.toBeInTheDocument();
-		onOpenRenameDialog.mockClear();
-		await userEvent.click(body.getByText("Rename chat"));
+		await userEvent.click(body.getByRole("menuitem", { name: "Rename chat" }));
 		expect(onOpenRenameDialog).toHaveBeenCalledWith(defaultChat);
 	},
 };
@@ -360,12 +368,15 @@ export const PinAgentItem: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Pin agent")).toBeInTheDocument();
-			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(
+				body.getByRole("menuitem", { name: "Rename chat" }),
+			).toBeInTheDocument();
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
 			expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
 		});
-		requestPinAgent.mockClear();
-		await userEvent.click(within(document.body).getByText("Pin agent"));
+		await userEvent.click(
+			within(document.body).getByRole("menuitem", { name: "Pin agent" }),
+		);
 		expect(requestPinAgent).toHaveBeenCalledWith(defaultChat.id);
 	},
 };
@@ -384,10 +395,16 @@ export const UnpinAgentItem: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Unpin agent")).toBeInTheDocument();
-			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(
+				body.getByRole("menuitem", { name: "Rename chat" }),
+			).toBeInTheDocument();
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
 			expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
 		});
+		await userEvent.click(
+			within(document.body).getByRole("menuitem", { name: "Unpin agent" }),
+		);
+		expect(requestUnpinAgent).toHaveBeenCalledWith(defaultChat.id);
 	},
 };
 
@@ -405,7 +422,9 @@ export const ChildChatHidesPinAndArchiveActions: Story = {
 		await userEvent.click(trigger);
 		await waitFor(() => {
 			const body = within(document.body);
-			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(
+				body.getByRole("menuitem", { name: "Rename chat" }),
+			).toBeInTheDocument();
 		});
 		const body = within(document.body);
 		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
@@ -456,6 +475,15 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
 			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
 		});
+		await userEvent.click(
+			within(document.body).getByRole("menuitem", {
+				name: "Archive & delete workspace",
+			}),
+		);
+		expect(requestArchiveAndDeleteWorkspace).toHaveBeenCalledWith(
+			defaultChat.id,
+			"workspace-1",
+		);
 	},
 };
 
@@ -481,7 +509,6 @@ export const IdleChatArchiveActionsEnabled: Story = {
 		expect(
 			body.queryByText("Interrupt or wait for the agent to finish first."),
 		).not.toBeInTheDocument();
-		requestArchiveAgent.mockClear();
 		await userEvent.click(archiveItem);
 		expect(requestArchiveAgent).toHaveBeenCalledWith(defaultChat.id);
 	},
@@ -491,9 +518,9 @@ export const ActiveChatArchiveActionsDisabled: Story = {
 	args: {
 		chat: {
 			...defaultChat,
-			status: "running",
 			workspace_id: "workspace-1",
 		},
+		liveChatStatus: "running",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -514,6 +541,7 @@ export const ActiveChatArchiveActionsDisabled: Story = {
 		});
 		expect(archiveItem).toHaveAccessibleDescription(hint);
 		expect(archiveAndDeleteItem).toHaveAccessibleDescription(hint);
+		expect(requestArchiveAgent).not.toHaveBeenCalled();
 	},
 };
 
@@ -603,7 +631,9 @@ export const ArchivedWithUnarchive: Story = {
 		await userEvent.click(trigger);
 		await waitFor(() => {
 			const body = within(document.body);
-			expect(body.getByText("Unarchive agent")).toBeInTheDocument();
+			expect(
+				body.getByRole("menuitem", { name: "Unarchive agent" }),
+			).toBeInTheDocument();
 		});
 		const body = within(document.body);
 		expect(body.queryByText("Rename chat")).not.toBeInTheDocument();
@@ -612,5 +642,9 @@ export const ArchivedWithUnarchive: Story = {
 		expect(
 			body.queryByText("Archive & delete workspace"),
 		).not.toBeInTheDocument();
+		await userEvent.click(
+			body.getByRole("menuitem", { name: "Unarchive agent" }),
+		);
+		expect(requestUnarchiveAgent).toHaveBeenCalledWith(defaultChat.id);
 	},
 };

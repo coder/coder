@@ -42,6 +42,7 @@ type ChatSharingTopBarButtonProps = {
 
 type ChatTopBarProps = {
 	chat?: TypesGen.Chat;
+	liveChatStatus?: TypesGen.ChatStatus | null;
 	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
 	renderChatSharingContent?: (open: boolean) => ReactNode;
@@ -82,6 +83,7 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chat,
+	liveChatStatus,
 	parentChat,
 	panel,
 	renderChatSharingContent,
@@ -111,8 +113,12 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			chat &&
 			(archivingChatId === undefined || archivingChatId === chat.id),
 	);
+	// The per-chat stream updates this before the global chat record catches up.
 	const isArchiveBlocked = chat
-		? !chatFamilyAllowsArchive(chat.status, activeChatChildren)
+		? !chatFamilyAllowsArchive(
+				liveChatStatus ?? chat.status,
+				activeChatChildren,
+			)
 		: false;
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
 	const diffStatus = chat?.diff_status;
