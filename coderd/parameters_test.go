@@ -452,6 +452,19 @@ func TestDynamicParametersModuleCachePurged(t *testing.T) {
 	stopParams, err := templateAdmin.WorkspaceBuildParameters(ctx, stop.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expected, stopParams, "stop build must not drop the module parameter")
+
+	// Starting again on the same purged version renders an incomplete parameter
+	// set. The stored value is what the provisioner needs to keep the resource
+	// it sizes, so the build must not fall back to the module default.
+	start, err := templateAdmin.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, start.ID)
+
+	restartParams, err := templateAdmin.WorkspaceBuildParameters(ctx, start.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, expected, restartParams, "start build must not drop the module parameter")
 }
 
 type setupDynamicParamsTestParams struct {
