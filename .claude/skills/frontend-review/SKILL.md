@@ -35,15 +35,18 @@ before they see the PR.
 ## Per-rule diff checklist
 
 - **FE1 (behavior and visual coverage)**: Does any changed component or page
-  alter frontend behavior? Then a changed or added `.test.tsx` must cover
-  the behavior, and a changed or added `.stories.tsx` must cover the new
-  visual states. A `play` function may only drive state setup the screenshot
-  needs (open the menu, type the text); assertions in a `play` function are a
-  FAIL, as is behavior covered only by a story. In the test, queries locate
-  the element to interact with; the assertion must be the non-visual outcome
-  (callback, request, attribute, state). An outcome assertion on what the
-  DOM renders (`toBeVisible`, `toBeInTheDocument`, geometry) is a FAIL: the
-  story's screenshot already covers it. Flag stories marked
+  alter frontend behavior? The behavior should be covered by an existing or
+  new Vitest test, and the new visual states by Storybook stories. Behavior
+  tests should use Vitest, React Testing Library and `userEvent`. A `play`
+  function may only drive state setup the screenshot needs (open the menu,
+  type the text); assertions in a `play` function are a FAIL, as is behavior
+  covered only by a story; if the assertion is valuable it belongs in a
+  Vitest test. In the test, queries locate the element to interact with; the
+  assertion must be the non-visual outcome (callback, request, state). An
+  outcome assertion on what the DOM renders (`toBeVisible`,
+  `toBeInTheDocument`, geometry, attribute presence) is a FAIL, hard stop:
+  the story's screenshot already covers it. Flag tests written only to
+  expand coverage when equivalent coverage already exists. Flag stories marked
   `parameters.pixel.exclude: true` that have no equivalent test, since an
   excluded story is never screenshotted.
 - **FE2 (types)**: Search the diff for `any`, `as unknown as`, non-null

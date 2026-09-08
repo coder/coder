@@ -16,26 +16,29 @@ workflow guidance. This file is the authoritative version with examples.
 
 ## FE1: Vitest covers behavior, Storybook covers visual states
 
-Every frontend change needs a Vitest/RTL test for the behavior, and/or
-a Storybook story for every visual state the change can render. CI runs
-Pixel, our internal visual regression tool for Storybook, over the build:
-it loads each story, runs its `play` function, waits for the DOM to
-settle, and screenshots it. The screenshot is the visual regression
-check: what the DOM renders, shows, or hides. The test is the behavior
-check: what the component did.
+Frontend changes should have behavior coverage in Vitest and/or visual
+state coverage in Storybook. This does not mean every change needs a new
+test: when coverage already exists, extend it only if the change alters
+what it covers. CI runs Pixel for visual regression testing using
+Storybook: it loads each story, runs its `play` function, waits for the
+DOM to settle, and screenshots it. The screenshot is the visual
+regression check: what the DOM renders, shows, or hides. The test is
+the behavior check: what the component did.
 
-- Write the behavior test in a `.test.tsx` file using RTL and `userEvent`.
+- Behavior tests should use Vitest, React Testing Library and `userEvent`.
   Drive the real interaction, then assert the non-visual outcome: the
-  callback payload, the API request, the attribute value, the state change.
-  This includes stateful UI hooks consumed by a component: cover them
-  through that component's test.
+  callback payload, the API request, the state change. This includes
+  stateful UI hooks consumed by a component: cover them through that
+  component's test.
 - Use semantic queries (`getByRole`, `getByLabelText`) to locate the elements
-  you interact with, not as the assertion. An outcome assertion such as
-  `expect(el).toBeVisible()` or `toBeInTheDocument()` reports what the DOM
-  renders, which is exactly what the story's screenshot already captures.
+  you interact with, not as the assertion. Do not assert `.toBeInTheDocument()`,
+  `.toBeVisible()`, DOM geometry, or attribute presence. Hard stop: they
+  report what the DOM renders, which is exactly what the story's screenshot
+  already captures.
 - A story's `play` function exists only for state setup the screenshot needs:
   open the menu, toggle the switch, type the text, focus the trigger. Do not
-  put assertions in a play function. Pixel fails the capture only if the
+  put assertions in a play function; if an assertion there seems valuable,
+  it belongs in a Vitest test instead. Pixel fails the capture only if the
   setup throws.
 - Cover the meaningful visual branches: error, empty, disabled, and mobile
   states, not only the happy path.

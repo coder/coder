@@ -67,7 +67,7 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.
 - **Transactions:** keep `InTx` work on the transaction handle. Prefer explicit database-to-SDK converters.
 - **Concurrent tests:** call `t.Parallel()`, use unique identifiers, and do not use `time.Sleep` to mask timing problems.
-- **Frontend:** reuse shared UI primitives. Cover visual states with Storybook stories; Pixel screenshots them in CI. Cover component behavior with Vitest/RTL tests that assert the non-visual outcome of the interaction (callback, request, attribute, state).
+- **Frontend:** reuse shared UI primitives. Cover visual states with Storybook stories; Pixel screenshots them in CI. Cover component behavior with Vitest, React Testing Library and `userEvent` tests that assert the non-visual outcome of the interaction (callback, request, state); extend existing coverage instead of adding a new test when equivalent coverage already exists.
 - **GitHub Actions:** set top-level `permissions: {}` and grant only required permissions per job.
 
 ## Code and writing style
