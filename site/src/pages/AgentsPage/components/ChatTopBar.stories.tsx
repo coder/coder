@@ -13,13 +13,8 @@ const AgentsSearchProbe = () => {
 	return <div data-testid="agents-search">{location.search}</div>;
 };
 
-const defaultChat = {
-	...MockChat,
-	title: "Build authentication feature",
-};
-
 const defaultProps = {
-	chat: defaultChat,
+	chat: MockChat,
 	panel: {
 		showSidebarPanel: false,
 		onToggleSidebar: fn(),
@@ -48,7 +43,7 @@ export const Default: Story = {};
 export const SharedChat: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			shared: true,
 		},
 	},
@@ -110,7 +105,7 @@ export const SidebarCollapsed: Story = {
 export const Archived: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			archived: true,
 		},
 	},
@@ -131,7 +126,7 @@ export const NoTitle: Story = {
 export const WithOpenPR: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/123",
@@ -149,7 +144,7 @@ export const WithOpenPR: Story = {
 export const WithDraftPR: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/456",
@@ -167,7 +162,7 @@ export const WithDraftPR: Story = {
 export const WithMergedPR: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/789",
@@ -186,7 +181,7 @@ export const WithMergedPR: Story = {
 export const WithClosedPR: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/101",
@@ -220,7 +215,7 @@ export const MobileWithOpenPR: Story = {
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/123",
@@ -240,7 +235,7 @@ export const MobileWithDraftPR: Story = {
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/456",
@@ -260,7 +255,7 @@ export const MobileWithMergedPR: Story = {
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/789",
@@ -281,7 +276,7 @@ export const MobileWithClosedPR: Story = {
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/101",
@@ -334,7 +329,7 @@ export const PinAgentItem: Story = {
 export const UnpinAgentItem: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			pin_order: 1,
 		},
 	},
@@ -355,7 +350,7 @@ export const UnpinAgentItem: Story = {
 export const ChildChatHidesPinAndArchiveActions: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			parent_chat_id: "parent-chat-1",
 		},
 		hasWorkspace: true,
@@ -381,7 +376,7 @@ export const ChildChatHidesPinAndArchiveActions: Story = {
 export const ArchivedChildChatHasNoActionsMenu: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			parent_chat_id: "parent-chat-1",
 			archived: true,
 		},
@@ -389,9 +384,7 @@ export const ArchivedChildChatHasNoActionsMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(
-				canvas.getByText("Build authentication feature"),
-			).toBeInTheDocument();
+			expect(canvas.getByText(MockChat.title)).toBeInTheDocument();
 		});
 		// Archive state is root-only, so an archived child chat has no menu
 		// actions at all and the actions trigger is hidden entirely.
@@ -542,7 +535,7 @@ export const ShareChatButtonHiddenWithoutPermission: Story = {
 export const ArchivedWithUnarchive: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			archived: true,
 		},
 		onUnarchiveAgent: fn(),
