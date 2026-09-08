@@ -51,8 +51,10 @@ type SeparatorComponent =
  * therefore has no menu actions at all; call sites use this to hide the menu
  * trigger instead of rendering an empty menu.
  */
-export const chatHasMenuActions = (chat: TypesGen.Chat): boolean =>
-	!(chat.archived && getParentChatID(chat) !== undefined);
+export const chatHasMenuActions = (chat: TypesGen.Chat): boolean => {
+	const isArchivedChild = chat.archived && getParentChatID(chat) !== undefined;
+	return !isArchivedChild;
+};
 
 interface ChatActionsMenuItemsProps {
 	readonly chat: TypesGen.Chat;
