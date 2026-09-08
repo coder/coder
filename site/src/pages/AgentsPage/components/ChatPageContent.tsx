@@ -3,14 +3,22 @@ import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
+import {
+	chatModels,
+	chatPromptsQuery,
+	refreshChatContext,
+	userCompactionThresholds,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
-import { getProviderForModelOption } from "../utils/modelOptions";
+import {
+	getProviderForModelOption,
+	resolveCompactionThreshold,
+} from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
@@ -239,7 +247,6 @@ export type PendingAttachment = {
 interface ChatPageInputProps {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	compressionThreshold: number | undefined;
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -302,7 +309,6 @@ interface ChatPageInputProps {
 export const ChatPageInput: FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	compressionThreshold,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -352,6 +358,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const chatContext = chat.context;
 	const planModeEnabled = chat.plan_mode === "plan";
 	const selectedWorkspaceId = chat.workspace_id ?? null;
+	const modelsQuery = useQuery(chatModels(organizationId));
+	const thresholdsQuery = useQuery(userCompactionThresholds());
+	const compressionThreshold = resolveCompactionThreshold(
+		chat.last_model_config_id,
+		thresholdsQuery.data?.thresholds,
+		modelsQuery.data?.models ?? [],
+	);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);

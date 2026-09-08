@@ -20,6 +20,7 @@ import {
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
+	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
@@ -38,6 +39,7 @@ import {
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
 	MockUserPreferenceSettings,
 	MockWorkspace,
@@ -385,6 +387,10 @@ const buildQueries = (
 		{
 			key: preferenceSettingsKey,
 			data: MockUserPreferenceSettings,
+		},
+		{
+			key: userCompactionThresholds().queryKey,
+			data: MockUserChatCompactionThresholds,
 		},
 	];
 };

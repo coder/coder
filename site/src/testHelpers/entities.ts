@@ -513,6 +513,11 @@ export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
 	agent_chat_send_shortcut: "enter",
 };
 
+export const MockUserChatCompactionThresholds: TypesGen.UserChatCompactionThresholds =
+	{
+		thresholds: [],
+	};
+
 export const MockUserOwner: TypesGen.User = {
 	id: "test-user",
 	username: "TestUser",

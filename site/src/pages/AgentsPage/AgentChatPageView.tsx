@@ -138,7 +138,6 @@ interface AgentChatPageViewProps {
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
-	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
@@ -306,7 +305,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	onPlanModeToggle,
-	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
@@ -924,7 +922,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								<ChatPageInput
 									chat={chat}
 									store={store}
-									compressionThreshold={compressionThreshold}
 									onSend={editing.handleSendFromInput}
 									onDeleteQueuedMessage={handleDeleteQueuedMessage}
 									onPromoteQueuedMessage={handlePromoteQueuedMessage}
