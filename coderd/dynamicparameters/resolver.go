@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	previewtypes "github.com/coder/preview/types"
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
@@ -216,10 +217,20 @@ func ResolveParameters(
 	// the reduced set and the following start build reads it as the previous state,
 	// which loses the value even when that build renders the parameter correctly.
 	if transition == database.WorkspaceTransitionStart {
+		// An incomplete render does not report every parameter the template
+		// declares, so absence from the output says nothing about whether the
+		// parameter still exists. Keeping the values is safe: provisionerd
+		// resolves modules itself, so the build still applies them correctly.
+		// Dropping them destroys user data, which is not recoverable.
+		incomplete := incompleteRender(diags)
 		for k := range values {
-			if _, ok := parameterNames[k]; !ok {
-				delete(values, k)
+			if _, ok := parameterNames[k]; ok {
+				continue
 			}
+			if incomplete {
+				continue
+			}
+			delete(values, k)
 		}
 	}
 
@@ -240,4 +251,19 @@ func (p parameterValueMap) ValuesMap() map[string]string {
 		values[name] = paramValue.Value
 	}
 	return values
+}
+
+// incompleteRender reports whether the render could not see the whole template.
+// Parameters missing from such a render are missing because the renderer could
+// not reach their source, not because the template stopped declaring them.
+func incompleteRender(diags hcl.Diagnostics) bool {
+	for _, diag := range diags {
+		// A module that fails to load takes every parameter it declares with it.
+		// This happens when the template version has no cached module files.
+		if previewtypes.ExtractDiagnosticExtra(diag).Code == previewtypes.DiagnosticModuleNotLoaded {
+			return true
+		}
+	}
+
+	return false
 }
