@@ -50,7 +50,6 @@ type chatWorkerTaskStarter interface {
 	StartGeneration(context.Context, chatWorkerTaskStartInput) error
 	StartInterrupt(context.Context, chatWorkerTaskStartInput) error
 	StartRequiresActionTimeout(context.Context, chatWorkerTaskStartInput) error
-	StartAbandon(context.Context, chatWorkerTaskStartInput) error
 }
 
 // chatWorkerTaskStartInput describes one runner task invocation.

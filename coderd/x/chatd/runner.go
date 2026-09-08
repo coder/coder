@@ -7,18 +7,11 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
-
-// taskHandoff keeps the producer responsible until the runner accepts the
-// state or cancels it. A nil chat means the row no longer exists.
-type taskHandoff struct {
-	chat     *database.Chat
-	accepted chan bool
-}
 
 type taskKind string
 
@@ -26,20 +19,11 @@ const (
 	taskKindGeneration            taskKind = "generation"
 	taskKindInterrupt             taskKind = "interrupt"
 	taskKindRequiresActionTimeout taskKind = "requires_action_timeout"
-	taskKindAbandon               taskKind = "abandon"
 )
-
-type taskInstanceID uuid.UUID
 
 type localWorkKey struct {
 	historyVersion int64
 	status         database.ChatStatus
-}
-
-type taskRecord struct {
-	cancel  context.CancelFunc
-	done    <-chan struct{}
-	handoff chan taskHandoff
 }
 
 type runner struct {
@@ -48,15 +32,6 @@ type runner struct {
 	rec  *runnerRecord
 	opts chatWorkerOptions
 
-	lastSnapshotVersion int64
-	hasAcceptedState    bool
-	latestState         runnerStateUpdate
-
-	// The current task only exits after replacement or runner shutdown
-	// cancels it. Superseded tasks remain tracked until they drain.
-	currentTask  *taskRecord
-	tasks        map[taskInstanceID]*taskRecord
-	localLocks   *localLockSet
 	debugTurn    *runnerDebugTurn
 	sessionStart sessionStartTracker
 	stopNudges   stopNudgeTracker
@@ -64,59 +39,197 @@ type runner struct {
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
 	return &runner{
-		ctx:        ctx,
-		mgr:        mgr,
-		rec:        rec,
-		opts:       opts,
-		tasks:      make(map[taskInstanceID]*taskRecord),
-		localLocks: newLocalLockSet(),
-		debugTurn:  newRunnerDebugTurn(ctx, opts.Logger),
+		ctx:       ctx,
+		mgr:       mgr,
+		rec:       rec,
+		opts:      opts,
+		debugTurn: newRunnerDebugTurn(ctx, opts.Logger),
 	}
 }
 
+type runnerActivity string
+
+const (
+	runnerRead      runnerActivity = "read"
+	runnerOperation runnerActivity = "operation"
+	runnerRetry     runnerActivity = "retry"
+	runnerRelease   runnerActivity = "release"
+)
+
 func (r *runner) run() {
-	defer func() {
-		r.cancelActiveTask()
-		r.waitForTasks()
-		r.closeDebugTurn()
-	}()
-	if !r.bootstrap() {
+	executor := runnerExecutor{ctx: r.ctx, locked: make(map[localWorkKey]chan struct{})}
+	defer r.closeDebugTurn()
+	defer executor.close()
+	// Stop heartbeats before joining operations that may still be draining.
+	defer r.mgr.requestCleanup(context.WithoutCancel(r.ctx), r.rec.key)
+	if !r.subscribe() {
 		return
 	}
 
-	for {
-		if r.ctx.Err() != nil {
-			return
+	activity := runnerRead
+	var state runnerStateUpdate
+	var snapshotVersion, historyVersion int64
+	var hasState, checkProgress bool
+	var kind taskKind
+	delay := r.opts.TaskRetryInitialBackoff
+	for r.ctx.Err() == nil {
+		var resultCh <-chan runnerActivityResult
+		switch activity {
+		case runnerRead:
+			resultCh = executor.start(nil, func(ctx context.Context) runnerActivityResult {
+				chat, err := r.opts.Store.GetChatByID(ctx, r.rec.key.ChatID)
+				return runnerActivityResult{chat: chat, err: err}
+			})
+		case runnerOperation:
+			input := chatWorkerTaskStartInput{
+				TaskID:                   uuid.New(),
+				ChatID:                   r.rec.key.ChatID,
+				WorkerID:                 r.rec.workerID,
+				RunnerID:                 r.rec.key.RunnerID,
+				HistoryVersion:           state.HistoryVersion,
+				GenerationAttempt:        state.GenerationAttempt,
+				Status:                   state.Status,
+				RequiresActionDeadlineAt: state.RequiresActionDeadlineAt,
+				DebugTurn:                r.debugTurn,
+				SessionStart:             &r.sessionStart,
+				StopNudges:               &r.stopNudges,
+			}
+			operationKind := kind
+			key := localWorkKey{historyVersion: state.HistoryVersion, status: state.Status}
+			resultCh = executor.start(&key, func(ctx context.Context) runnerActivityResult {
+				ctx, cancel := taskAttemptContext(ctx, r.opts.Clock, operationKind)
+				defer cancel()
+				err := executeTaskSafely(ctx, func(ctx context.Context) error {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
+					switch operationKind {
+					case taskKindGeneration:
+						return r.opts.TaskStarter.StartGeneration(ctx, input)
+					case taskKindInterrupt:
+						return r.opts.TaskStarter.StartInterrupt(ctx, input)
+					default:
+						return r.opts.TaskStarter.StartRequiresActionTimeout(ctx, input)
+					}
+				})
+				if err != nil && errors.Is(context.Cause(ctx), errTaskTimeout) &&
+					(!errors.Is(err, errTaskExpectedExit) || errors.Is(err, context.Canceled) ||
+						errors.Is(err, context.DeadlineExceeded) || errors.Is(err, errTaskTimeout)) {
+					err = errors.Join(errTaskTimeout, errTaskRetryable, err)
+				}
+				return runnerActivityResult{err: err}
+			})
+		case runnerRetry:
+			retryDelay, retryKind := delay, kind
+			resultCh = executor.start(nil, func(ctx context.Context) runnerActivityResult {
+				timer := r.opts.Clock.NewTimer(retryDelay, "chatworker", "task-retry-"+string(retryKind))
+				defer timer.Stop()
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+				}
+				return runnerActivityResult{}
+			})
+			delay = min(delay*2, r.opts.TaskRetryMaxBackoff)
+		case runnerRelease:
+			releaseState := state
+			resultCh = executor.start(nil, func(ctx context.Context) runnerActivityResult {
+				released, err := r.mgr.release(ctx, r.rec, releaseState)
+				return runnerActivityResult{released: released, err: err}
+			})
 		}
-		r.removeFinishedTasks()
-		select {
-		case state := <-r.rec.stateCh:
-			if !r.processState(state) {
+
+	wait:
+		for {
+			select {
+			case <-r.ctx.Done():
 				return
+			case hint := <-r.rec.stateCh:
+				if !hasState || hint.SnapshotVersion <= snapshotVersion || hint.HistoryVersion < historyVersion {
+					continue
+				}
+				snapshotVersion = hint.SnapshotVersion
+				historyVersion = hint.HistoryVersion
+				// Attempts and queue changes do not obsolete healthy work.
+				// Hints invalidate work; only a read selects its replacement.
+				if activity != runnerRead && (!r.owns(hint) || !sameRunnerWork(state, hint)) {
+					activity = runnerRead
+					checkProgress = false
+					break wait
+				}
+			case result := <-resultCh:
+				if activity == runnerRead && errors.Is(result.err, sql.ErrNoRows) {
+					return
+				}
+				if result.err != nil && (activity != runnerOperation || !errors.Is(result.err, errTaskExpectedExit) || errors.Is(result.err, errTaskRetryable)) {
+					r.opts.Logger.Warn(r.ctx, "chatworker runner retrying",
+						slog.F("activity", activity), slog.F("task_kind", kind),
+						slog.F("chat_id", r.rec.key.ChatID), slog.F("delay", delay), slogError(result.err))
+					activity = runnerRetry
+					checkProgress = false
+					break wait
+				}
+				switch activity {
+				case runnerRead:
+					next := stateUpdateFromChat(result.chat)
+					// A read may advance history at an equal snapshot, but
+					// cannot regress behind state already observed locally.
+					if next.SnapshotVersion < snapshotVersion || next.HistoryVersion < historyVersion {
+						activity = runnerRetry
+						checkProgress = false
+						break
+					}
+					if !r.owns(next) {
+						return
+					}
+					unchanged := hasState && sameRunnerWork(state, next)
+					state, hasState = next, true
+					snapshotVersion, historyVersion = next.SnapshotVersion, next.HistoryVersion
+					if !unchanged {
+						delay = r.opts.TaskRetryInitialBackoff
+					}
+					if checkProgress && unchanged {
+						activity = runnerRetry
+					} else {
+						activity = runnerOperation
+						switch {
+						case state.Archived:
+							activity = runnerRelease
+						case state.Status == database.ChatStatusRunning:
+							kind = taskKindGeneration
+						case state.Status == database.ChatStatusInterrupting:
+							kind = taskKindInterrupt
+						case state.Status == database.ChatStatusRequiresAction:
+							kind = taskKindRequiresActionTimeout
+						default:
+							activity = runnerRelease
+						}
+					}
+					checkProgress = false
+				case runnerOperation, runnerRelease:
+					if result.released {
+						return
+					}
+					checkProgress = true
+					activity = runnerRead
+				case runnerRetry:
+					activity = runnerRead
+				}
+				break wait
 			}
-		case handoff := <-r.currentTask.handoff:
-			if handoff.chat == nil {
-				r.mgr.requestCleanup(r.ctx, r.rec.key)
-				return
-			}
-			state := stateUpdateFromChat(*handoff.chat)
-			if state.SnapshotVersion < r.lastSnapshotVersion || state.HistoryVersion < r.latestState.HistoryVersion {
-				handoff.accepted <- false
-				continue
-			}
-			// A direct read may change work at an equal snapshot. Only
-			// hints use the strict duplicate guard in processState.
-			if !r.applyState(state) {
-				return
-			}
-			handoff.accepted <- true
-		case <-r.ctx.Done():
-			return
 		}
 	}
 }
 
-func (r *runner) bootstrap() bool {
+func (r *runner) owns(state runnerStateUpdate) bool {
+	return uuidPtrEqual(state.WorkerID, r.rec.workerID) && uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID)
+}
+
+func sameRunnerWork(a, b runnerStateUpdate) bool {
+	return a.HistoryVersion == b.HistoryVersion && a.Status == b.Status && a.Archived == b.Archived
+}
+
+func (r *runner) subscribe() bool {
 	channel := coderdpubsub.ChatStateUpdateChannel(r.rec.key.ChatID)
 	unsubscribe, err := r.opts.Pubsub.SubscribeWithErr(channel, coderdpubsub.HandleChatStateUpdate(
 		func(ctx context.Context, payload coderdpubsub.ChatStateUpdateMessage, err error) {
@@ -128,29 +241,10 @@ func (r *runner) bootstrap() bool {
 		},
 	))
 	if err != nil {
-		r.mgr.requestCleanup(r.ctx, r.rec.key)
+		r.opts.Logger.Warn(r.ctx, "chatworker runner subscribe failed", slogError(err))
 		return false
 	}
-	if !r.rec.setUnsubscribe(unsubscribe) {
-		return false
-	}
-	chat, err := r.opts.Store.GetChatByID(r.ctx, r.rec.key.ChatID)
-	if err != nil {
-		r.opts.Logger.Warn(r.ctx, "chatworker runner bootstrap failed", slogError(err))
-		r.mgr.requestCleanup(r.ctx, r.rec.key)
-		return false
-	}
-	// Apply the database snapshot directly instead of routing it through
-	// the manager. Routing fans out through stateCh, where a stale hint
-	// (for example the pre-acquisition chat:update relayed by another
-	// runner's subscription) could be processed first while
-	// lastSnapshotVersion is still zero. A stale unowned hint would make
-	// the runner clean itself up without abandoning the chat, leaving the
-	// chat owned by a dead runner until its heartbeat goes stale.
-	// Processing the snapshot here seeds lastSnapshotVersion before the
-	// run loop drains stateCh, so the dedup in processState drops every
-	// hint at or below this version regardless of delivery path.
-	return r.applyState(stateUpdateFromChat(chat))
+	return r.rec.setUnsubscribe(unsubscribe)
 }
 
 func stateUpdateFromPubsub(chatID uuid.UUID, payload coderdpubsub.ChatStateUpdateMessage) runnerStateUpdate {
@@ -167,177 +261,6 @@ func stateUpdateFromPubsub(chatID uuid.UUID, payload coderdpubsub.ChatStateUpdat
 	}
 }
 
-// processState applies an ordered notification and reports whether to continue.
-func (r *runner) processState(state runnerStateUpdate) bool {
-	if r.ctx.Err() != nil {
-		return false
-	}
-	if state.SnapshotVersion <= r.lastSnapshotVersion {
-		return true
-	}
-
-	return r.applyState(state)
-}
-
-// applyState assigns responsibility for a state that has passed ordering checks.
-func (r *runner) applyState(state runnerStateUpdate) bool {
-	if r.ctx.Err() != nil {
-		return false
-	}
-	if !uuidPtrEqual(state.WorkerID, r.rec.workerID) || !uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID) {
-		r.acceptState(state)
-		r.mgr.requestCleanup(r.ctx, r.rec.key)
-		return false
-	}
-
-	if r.requiredWorkChanged(state) {
-		r.spawnForState(state)
-	}
-	r.acceptState(state)
-	return true
-}
-
-func (r *runner) requiredWorkChanged(state runnerStateUpdate) bool {
-	return !r.hasAcceptedState || r.latestState.HistoryVersion != state.HistoryVersion ||
-		r.latestState.Status != state.Status || r.latestState.Archived != state.Archived
-}
-
-func (r *runner) acceptState(state runnerStateUpdate) {
-	r.hasAcceptedState = true
-	r.latestState = state
-	r.lastSnapshotVersion = state.SnapshotVersion
-}
-
-func (r *runner) spawnForState(state runnerStateUpdate) {
-	if state.Archived {
-		r.replaceTask(taskKindAbandon, state)
-		return
-	}
-	switch state.Status {
-	case database.ChatStatusRunning:
-		r.replaceTask(taskKindGeneration, state)
-	case database.ChatStatusInterrupting:
-		r.replaceTask(taskKindInterrupt, state)
-	case database.ChatStatusRequiresAction:
-		r.replaceTask(taskKindRequiresActionTimeout, state)
-	case database.ChatStatusWaiting, database.ChatStatusError:
-		r.replaceTask(taskKindAbandon, state)
-	default:
-		r.replaceTask(taskKindAbandon, state)
-	}
-}
-
-func (r *runner) replaceTask(kind taskKind, state runnerStateUpdate) {
-	if r.ctx.Err() != nil {
-		return
-	}
-	key := localWorkKey{historyVersion: state.HistoryVersion, status: state.Status}
-	id := taskInstanceID(uuid.New())
-	taskCtx, cancel := context.WithCancel(r.ctx)
-	done := make(chan struct{})
-	record := &taskRecord{
-		cancel:  cancel,
-		done:    done,
-		handoff: make(chan taskHandoff),
-	}
-	r.tasks[id] = record
-	previous := r.currentTask
-	r.currentTask = record
-
-	input := chatWorkerTaskStartInput{
-		TaskID:                   uuid.UUID(id),
-		ChatID:                   r.rec.key.ChatID,
-		WorkerID:                 r.rec.workerID,
-		RunnerID:                 r.rec.key.RunnerID,
-		HistoryVersion:           state.HistoryVersion,
-		GenerationAttempt:        state.GenerationAttempt,
-		Status:                   state.Status,
-		RequiresActionDeadlineAt: state.RequiresActionDeadlineAt,
-		DebugTurn:                r.debugTurn,
-		SessionStart:             &r.sessionStart,
-		StopNudges:               &r.stopNudges,
-	}
-	go r.runTask(taskCtx, kind, key, input, done, record.handoff)
-	if previous != nil {
-		previous.cancel()
-	}
-}
-
-func (r *runner) runTask(
-	ctx context.Context,
-	kind taskKind,
-	key localWorkKey,
-	input chatWorkerTaskStartInput,
-	done chan<- struct{},
-	handoffs chan<- taskHandoff,
-) {
-	defer close(done)
-	taskInfo := retryWrapperTaskInfo{
-		ChatID:   input.ChatID,
-		WorkerID: input.WorkerID,
-		RunnerID: input.RunnerID,
-	}
-	runTaskWithRetry(ctx, r.opts.retryOptions(), kind, taskInfo, func(ctx context.Context) error {
-		unlock, ok := r.localLocks.acquire(ctx, key)
-		if !ok {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("runTask acquire local lock: %w", ctx.Err()))
-		}
-		defer unlock()
-		if ctx.Err() != nil {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("runTask context canceled: %w", ctx.Err()))
-		}
-
-		switch kind {
-		case taskKindGeneration:
-			return r.opts.TaskStarter.StartGeneration(ctx, input)
-		case taskKindInterrupt:
-			return r.opts.TaskStarter.StartInterrupt(ctx, input)
-		case taskKindRequiresActionTimeout:
-			return r.opts.TaskStarter.StartRequiresActionTimeout(ctx, input)
-		case taskKindAbandon:
-			return r.opts.TaskStarter.StartAbandon(ctx, input)
-		default:
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("unknown task kind %q", kind))
-		}
-	}, func(ctx context.Context) error {
-		chat, err := r.opts.Store.GetChatByID(ctx, input.ChatID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("read chat for task handoff: %w", err)
-		}
-		handoff := taskHandoff{accepted: make(chan bool, 1)}
-		if err == nil {
-			handoff.chat = &chat
-		}
-		select {
-		case handoffs <- handoff:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-		select {
-		case accepted := <-handoff.accepted:
-			if !accepted {
-				return xerrors.New("task handoff is older than accepted chat state; reread chat")
-			}
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	})
-}
-
-func (r *runner) cancelActiveTask() {
-	if r.currentTask != nil {
-		r.currentTask.cancel()
-		r.currentTask = nil
-	}
-}
-
-func (r *runner) waitForTasks() {
-	for _, record := range r.tasks {
-		<-record.done
-	}
-}
-
 func (r *runner) closeDebugTurn() {
 	if r.debugTurn == nil {
 		return
@@ -347,51 +270,80 @@ func (r *runner) closeDebugTurn() {
 	r.debugTurn.Finalize(ctx)
 }
 
-func (r *runner) removeFinishedTasks() {
-	for id, record := range r.tasks {
-		if record == r.currentTask {
-			continue
-		}
-		select {
-		case <-record.done:
-			delete(r.tasks, id)
-		default:
-		}
-	}
-}
-
 func uuidPtrEqual(got *uuid.UUID, want uuid.UUID) bool {
 	return got != nil && *got == want
 }
 
-type localLockSet struct {
+type runnerActivityResult struct {
+	chat     database.Chat
+	released bool
+	err      error
+}
+
+// runnerExecutor owns cancellation and draining, not scheduling. Each result
+// channel belongs to one invocation, so obsolete completions cannot advance
+// the runner. Operations with the same history and status drain serially.
+type runnerExecutor struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 	mu     sync.Mutex
 	locked map[localWorkKey]chan struct{}
 }
 
-func newLocalLockSet() *localLockSet {
-	return &localLockSet{locked: make(map[localWorkKey]chan struct{})}
+func (e *runnerExecutor) start(key *localWorkKey, fn func(context.Context) runnerActivityResult) <-chan runnerActivityResult {
+	if e.cancel != nil {
+		e.cancel()
+	}
+	ctx, cancel := context.WithCancel(e.ctx)
+	e.cancel = cancel
+	resultCh := make(chan runnerActivityResult, 1)
+	e.wg.Go(func() {
+		defer cancel()
+		if key != nil {
+			unlock, ok := e.acquire(ctx, *key)
+			if !ok {
+				resultCh <- runnerActivityResult{err: ctx.Err()}
+				return
+			}
+			defer unlock()
+		}
+		var result runnerActivityResult
+		result.err = executeTaskSafely(ctx, func(ctx context.Context) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			result = fn(ctx)
+			return result.err
+		})
+		resultCh <- result
+	})
+	return resultCh
 }
 
-func (l *localLockSet) acquire(ctx context.Context, key localWorkKey) (func(), bool) {
+func (e *runnerExecutor) close() {
+	if e.cancel != nil {
+		e.cancel()
+	}
+	e.wg.Wait()
+}
+
+func (e *runnerExecutor) acquire(ctx context.Context, key localWorkKey) (func(), bool) {
 	for {
-		l.mu.Lock()
-		wait, ok := l.locked[key]
+		e.mu.Lock()
+		wait, ok := e.locked[key]
 		if !ok {
 			released := make(chan struct{})
-			l.locked[key] = released
-			l.mu.Unlock()
+			e.locked[key] = released
+			e.mu.Unlock()
 			return func() {
-				l.mu.Lock()
-				if l.locked[key] == released {
-					delete(l.locked, key)
-					close(released)
-				}
-				l.mu.Unlock()
+				e.mu.Lock()
+				delete(e.locked, key)
+				close(released)
+				e.mu.Unlock()
 			}, true
 		}
-		l.mu.Unlock()
-
+		e.mu.Unlock()
 		select {
 		case <-wait:
 		case <-ctx.Done():

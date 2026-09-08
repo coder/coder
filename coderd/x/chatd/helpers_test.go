@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -311,14 +310,18 @@ type taskCall struct {
 	ctx   context.Context
 }
 
-// generationResultTaskStarter records real operation results without changing
-// the worker's scheduling or the generation implementation.
+// generationResultTaskStarter can pause entry to real generation and records
+// its result while leaving scheduling to the worker.
 type generationResultTaskStarter struct {
 	chatWorkerTaskStarter
-	results chan error
+	results          chan error
+	beforeGeneration func(context.Context, chatWorkerTaskStartInput)
 }
 
 func (s *generationResultTaskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskStartInput) error {
+	if s.beforeGeneration != nil {
+		s.beforeGeneration(ctx, input)
+	}
 	err := s.chatWorkerTaskStarter.StartGeneration(ctx, input)
 	select {
 	case s.results <- err:
@@ -340,6 +343,7 @@ type recordingTaskStarter struct {
 	block        bool
 	ignoreCancel bool
 	exitErr      error
+	panicOnExit  bool
 }
 
 func newRecordingTaskStarter() *recordingTaskStarter {
@@ -366,11 +370,10 @@ func (s *recordingTaskStarter) StartRequiresActionTimeout(ctx context.Context, i
 	return s.start(ctx, taskKindRequiresActionTimeout, input)
 }
 
-func (s *recordingTaskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
-	return s.start(ctx, taskKindAbandon, input)
-}
-
 func (s *recordingTaskStarter) start(ctx context.Context, kind taskKind, input chatWorkerTaskStartInput) error {
+	if s.panicOnExit {
+		defer func() { panic("operation panic") }()
+	}
 	call := taskCall{kind: kind, input: input, ctx: ctx}
 	var gate *releaseGate
 	s.mu.Lock()
@@ -578,67 +581,4 @@ func makeHeartbeatStale(t *testing.T, f *workerTestFixture, chatID uuid.UUID, ru
 	})
 	require.NoError(t, err)
 	return heartbeat.HeartbeatAt
-}
-
-// gatedChatStore delays root chat reads after taking a real database snapshot.
-// Embedded InTx passes the underlying transaction store through unchanged.
-type gatedChatStore struct {
-	database.Store
-	chatID       uuid.UUID
-	enabled      atomic.Bool
-	ignoreCancel bool
-	reads        chan *gatedChatRead
-	active       atomic.Int32
-	maxActive    atomic.Int32
-	releaseAll   chan struct{}
-}
-
-type gatedChatRead struct {
-	ctx     context.Context
-	chat    database.Chat
-	err     error
-	release chan error
-	done    chan struct{}
-}
-
-func newGatedChatStore(db database.Store, chatID uuid.UUID) *gatedChatStore {
-	return &gatedChatStore{Store: db, chatID: chatID, reads: make(chan *gatedChatRead, 16), releaseAll: make(chan struct{})}
-}
-
-func (s *gatedChatStore) GetChatByID(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
-	if chatID != s.chatID || !s.enabled.Load() {
-		return s.Store.GetChatByID(ctx, chatID)
-	}
-	active := s.active.Add(1)
-	defer s.active.Add(-1)
-	for previous := s.maxActive.Load(); active > previous; previous = s.maxActive.Load() {
-		if s.maxActive.CompareAndSwap(previous, active) {
-			break
-		}
-	}
-	chat, err := s.Store.GetChatByID(ctx, chatID)
-	read := &gatedChatRead{ctx: ctx, chat: chat, err: err, release: make(chan error, 1), done: make(chan struct{})}
-	defer close(read.done)
-	select {
-	case s.reads <- read:
-	case <-ctx.Done():
-		return database.Chat{}, ctx.Err()
-	}
-	if s.ignoreCancel {
-		select {
-		case err = <-read.release:
-		case <-s.releaseAll:
-			return database.Chat{}, ctx.Err()
-		}
-	} else {
-		select {
-		case err = <-read.release:
-		case <-ctx.Done():
-			return database.Chat{}, ctx.Err()
-		}
-	}
-	if err != nil {
-		return database.Chat{}, err
-	}
-	return read.chat, read.err
 }

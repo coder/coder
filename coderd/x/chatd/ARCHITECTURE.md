@@ -810,7 +810,7 @@ The runner maintains the following local state:
 
 ### Event processing
 
-TODO: Describe cancellation-only task retirement, mandatory authoritative state handoff, and read-only retries after an operation finishes. Distinguish task handoff from unchanged hint ordering and periodic manager sync.
+TODO: Describe the runner-owned read/execute/retry/release loop, normally returning operations, and manager-owned conditional release. Explain cancellation and draining separately from scheduling and ownership.
 
 The main idea behind the event processing logic is that a chat's status and its history version determine the work that the runner should be performing at any given time. Let's go through an example:
 

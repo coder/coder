@@ -287,6 +287,75 @@ func TestWorker_CloseDeletesOwnedHeartbeatsAndPublishesOwnershipHints(t *testing
 	require.True(t, seen[second.ID], "expected ownership hint for second runner")
 }
 
+func TestWorker_ShutdownRetainsCompletedRunnerCleanup(t *testing.T) {
+	t.Parallel()
+	for _, completion := range []string{"CanceledWaiter", "QueuedCompletion", "CompletionBeforeCancellation"} {
+		t.Run(completion, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			starter := newBlockingTaskStarter(true)
+			pubsub := newRecordingPubsub(f.pubsub)
+			opts := testOptions(t, f, starter)
+			opts.Pubsub = pubsub
+			opts.Clock = quartz.NewMock(t)
+			worker, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), opts)
+			require.NoError(t, err)
+			managerCtx, cancel := context.WithCancel(ctx)
+			manager := newRunnerManager(managerCtx, worker.server, worker.opts)
+			t.Cleanup(func() {
+				cancel()
+				starter.releaseAll()
+				manager.cancelAll()
+				manager.wait()
+			})
+
+			// Drive the existing manager handlers explicitly to choose shutdown's
+			// ordering without changing the store or constructing runner records.
+			acquired, err := worker.acquireCandidate(ctx, opts.WorkerID, manager, chat.ID)
+			require.NoError(t, err)
+			require.True(t, acquired)
+			manager.handleSpawn(testutil.RequireReceive(ctx, t, manager.spawnCh))
+			call := starter.waitCall(t, taskKindGeneration, chat.ID)
+			key := runnerKey{ChatID: chat.ID, RunnerID: call.input.RunnerID}
+			manager.handleCleanupRequest(key)
+			requireTaskCanceled(t, call)
+
+			if completion == "CanceledWaiter" {
+				cancel()
+				starter.releaseAll()
+				manager.wg.Wait()
+			} else {
+				starter.releaseAll()
+				done := testutil.RequireReceive(ctx, t, manager.cleanupDoneCh)
+				require.Equal(t, key, done)
+				manager.wg.Wait()
+				if completion == "QueuedCompletion" {
+					manager.cleanupDoneCh <- done
+				} else {
+					manager.handleCleanupDone(done)
+				}
+				cancel()
+			}
+			queued := manager.closeAndDrainQueues()
+			manager.cancelAll()
+			manager.releaseOwnershipHints(queued)
+			manager.wait()
+
+			_, err = f.db.GetChatHeartbeat(ctx, database.GetChatHeartbeatParams{
+				ChatID: chat.ID, RunnerID: key.RunnerID,
+			})
+			require.ErrorIs(t, err, sql.ErrNoRows)
+			messages := pubsub.ownershipMessages(t)
+			require.Len(t, messages, 1)
+			require.Equal(t, chat.ID, messages[0].ChatID)
+			require.NotZero(t, messages[0].SnapshotVersion)
+			require.True(t, manager.idle())
+		})
+	}
+}
+
 func TestWorker_CloseIsIdempotentAndDoesNotBlock(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
