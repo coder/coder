@@ -2,10 +2,22 @@ import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+	chatPromptsKey,
+	organizationChatModelsKey,
+	userCompactionThresholds,
+} from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
+import {
+	MockUserChatCompactionThresholds,
+	MockUserPreferenceSettings,
+} from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -37,6 +49,10 @@ const meta = {
 				key: preferenceSettings().queryKey,
 				data: MockUserPreferenceSettings,
 			},
+			{
+				key: userCompactionThresholds().queryKey,
+				data: MockUserChatCompactionThresholds,
+			},
 		],
 	},
 } satisfies Meta;
@@ -56,7 +72,6 @@ const StoryChatPageInput: FC<{
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
-			compressionThreshold={undefined}
 			onSend={fn()}
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
@@ -340,5 +355,104 @@ export const RunningShowsBusyComposer: Story = {
 		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
 		expect(canvas.getByRole("button", { name: "Stop" })).toBeEnabled();
 		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
+	},
+};
+
+export const CompactsAtUserOverride: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettings().queryKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholds().queryKey,
+				data: {
+					thresholds: [
+						{
+							model_config_id: MockChat.last_model_config_id,
+							threshold_percent: 60,
+						},
+					],
+				} satisfies TypesGen.UserChatCompactionThresholds,
+			},
+			{
+				key: organizationChatModelsKey(MockChat.organization_id),
+				data: {
+					models: [
+						{
+							...MockChatModel,
+							id: MockChat.last_model_config_id,
+							compression_threshold: 70,
+						},
+					],
+					providers: [MockChatModelProviderDescriptor],
+					unsupported_providers: [],
+				} satisfies TypesGen.OrganizationChatModelsResponse,
+			},
+			{
+				key: chatPromptsKey(MockChat.id),
+				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
+			},
+		],
+	},
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Summarize the diff" }]),
+			{
+				...buildMessage(2, "assistant", [
+					{ type: "text", text: "The diff is a rename." },
+				]),
+				usage: {
+					input_tokens: 30_000,
+					output_tokens: 10_000,
+					context_limit: 128_000,
+				},
+			},
+		]);
+
+		return (
+			<div className="mx-auto w-full max-w-3xl p-4">
+				<ChatPageInput
+					chat={MockChat}
+					store={store}
+					onSend={fn()}
+					onDeleteQueuedMessage={fn()}
+					onPromoteQueuedMessage={fn()}
+					onInterrupt={fn()}
+					isInputDisabled={false}
+					isSendPending={false}
+					isInterruptPending={false}
+					hasModelOptions
+					selectedModel={MockChat.last_model_config_id}
+					onModelChange={fn()}
+					modelOptions={[
+						{
+							id: MockChat.last_model_config_id,
+							provider: "openai",
+							model: "gpt-4o",
+							displayName: "GPT-4o",
+						},
+					]}
+					modelSelectorPlaceholder="Select model"
+					canConfigureAgentSetup={false}
+					isEditing={false}
+					onCancelHistoryEdit={fn()}
+					workspaceOptions={[]}
+					isWorkspaceLoading={false}
+				/>
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /Context usage/ }),
+		);
+		await waitFor(() => {
+			expect(within(document.body).getByText("Compacts at 60%")).toBeVisible();
+		});
+		expect(within(document.body).queryByText("Compacts at 70%")).toBeNull();
 	},
 };

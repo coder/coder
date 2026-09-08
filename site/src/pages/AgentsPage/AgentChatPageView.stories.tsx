@@ -13,6 +13,10 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import {
+	organizationChatModelsKey,
+	userCompactionThresholds,
+} from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
@@ -23,6 +27,7 @@ import {
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
 	MockUserPreferenceSettings,
 	MockWorkspace,
@@ -168,7 +173,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		modelOptions: defaultModelOptions,
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
-		compressionThreshold: undefined as number | undefined,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
@@ -233,6 +237,18 @@ const meta: Meta<typeof AgentChatPageView> = {
 			{
 				key: preferenceSettings().queryKey,
 				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholds().queryKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: organizationChatModelsKey(MockChat.organization_id),
+				data: {
+					models: [],
+					providers: [],
+					unsupported_providers: [],
+				},
 			},
 		],
 		reactRouter: reactRouterParameters({
