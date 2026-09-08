@@ -3,6 +3,7 @@ import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { type ChatGoalAction, currentChatGoal } from "#/api/queries/chatGoal";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
@@ -36,6 +37,7 @@ import {
 
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
+import { ChatGoalBanner } from "./components/ChatGoalBanner";
 import type { SendChatMessageOptions } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
@@ -89,7 +91,7 @@ type EditingState = {
 		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
 	handleCancelHistoryEdit: () => void;
-	handleSendFromInput: (options: SendChatMessageOptions) => void;
+	handleSendFromInput: (options: SendChatMessageOptions) => Promise<void>;
 	handleContentChange: (
 		content: string,
 		serializedEditorState: string,
@@ -129,7 +131,7 @@ type AgentChatPageViewProps = {
 	aiGatewayDisabled?: boolean;
 	hasModelOptions: boolean;
 	isModelCatalogLoading: boolean;
-	onPlanModeToggle: (enabled: boolean) => void;
+	onPlanModeToggle: (enabled: boolean) => unknown;
 	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
@@ -154,6 +156,16 @@ type AgentChatPageViewProps = {
 
 	// Workspace action handlers.
 	sshCommand: string | undefined;
+
+	goal?: TypesGen.ChatGoal;
+	showPursueGoal?: boolean;
+	canMutateGoal?: boolean;
+	isGoalActionPending?: boolean;
+	isGoalActionDisabled?: boolean;
+	isChatWorking?: boolean;
+	canSetGoalNow?: boolean;
+	goalActionUnavailableReasons?: Partial<Record<ChatGoalAction, string>>;
+	onGoalAction?: (action: ChatGoalAction) => Promise<void> | void;
 
 	// Chat action handlers.
 	handleInterrupt: () => void;
@@ -304,6 +316,15 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	debugLoggingEnabled,
 	gitWatcher,
 	sshCommand,
+	goal,
+	showPursueGoal = false,
+	canMutateGoal = false,
+	isGoalActionPending = false,
+	isGoalActionDisabled = false,
+	isChatWorking = false,
+	canSetGoalNow = true,
+	goalActionUnavailableReasons,
+	onGoalAction = () => {},
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
@@ -806,6 +827,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const chatOwnerWarning = isOtherUserReadOnly
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
+	const topGoal = currentChatGoal(goal);
+	// The backend refuses edits that would rewrite or truncate away the
+	// goal's source message while the goal can still run; hide the
+	// affordance instead of surfacing a 409.
+	const goalSourceMessageId =
+		topGoal && topGoal.status !== "complete"
+			? topGoal.created_from_message_id
+			: undefined;
 
 	const hasLicense = entitlements.has_license;
 	const canManageLicenses = permissions.viewAllLicenses;
@@ -883,6 +912,19 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										This agent has been archived and is read-only.
 									</div>
 								)}
+								{topGoal && (
+									<div className="shrink-0 px-4 pt-3">
+										<ChatGoalBanner
+											goal={topGoal}
+											canMutateGoal={canMutateGoal}
+											isActionPending={isGoalActionPending}
+											isActionDisabled={isGoalActionDisabled}
+											isChatWorking={isChatWorking}
+											actionUnavailableReasons={goalActionUnavailableReasons}
+											onAction={onGoalAction}
+										/>
+									</div>
+								)}
 								<div
 									aria-hidden
 									className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
@@ -912,6 +954,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										: editing.handleEditUserMessage
 								}
 								editingMessageId={editing.editingMessageId}
+								goalSourceMessageId={goalSourceMessageId}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 								onImplementPlan={
@@ -963,6 +1006,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										onReasoningEffortChange={onReasoningEffortChange}
 										onPlanModeToggle={onPlanModeToggle}
 										onManageAutomationsToggle={onManageAutomationsToggle}
+										showPursueGoal={showPursueGoal}
+										canPursueGoal={
+											canMutateGoal && !isGoalActionDisabled && canSetGoalNow
+										}
 										isModelCatalogLoading={isModelCatalogLoading}
 										onWorkspaceChange={onWorkspaceChange}
 										isWorkspaceLoading={isWorkspaceLoading}
@@ -1046,7 +1093,7 @@ type AgentChatPageLoadingViewProps = {
 	hasModelOptions: boolean;
 	isModelCatalogLoading: boolean;
 	planModeEnabled: boolean;
-	onPlanModeToggle: (enabled: boolean) => void;
+	onPlanModeToggle: (enabled: boolean) => unknown;
 	showRightPanel: boolean;
 };
 
@@ -1113,6 +1160,7 @@ export const AgentChatPageLoadingView: React.FC<
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={onPlanModeToggle}
 						isModelCatalogLoading={isModelCatalogLoading}
+						canPursueGoal={false}
 						hasModelOptions={hasModelOptions}
 						canConfigureAgentSetup={false}
 					/>

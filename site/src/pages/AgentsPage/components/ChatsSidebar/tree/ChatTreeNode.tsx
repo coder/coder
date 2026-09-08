@@ -3,6 +3,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
+	TargetIcon,
 	UsersIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -36,7 +37,7 @@ import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { ChatDiffStats } from "../../ChatDiffStats";
 import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
-import { getParentChatID } from "./chatTree";
+import { activeGoalObjective, getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
 import { getChatDisplayConfig } from "./statusConfig";
 
@@ -87,6 +88,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
+	const goalObjective = activeGoalObjective(chat);
+	const displayTitle = goalObjective ?? chat.title;
 	const isStreaming = chat.status === "running";
 	const streamingSubtitle =
 		isStreaming && modelName ? `${modelName} streaming…` : undefined;
@@ -307,6 +310,13 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						{({ isActive }) => (
 							<div className="min-w-0 flex-1 overflow-hidden text-left">
 								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+									{goalObjective && (
+										<TargetIcon
+											className="size-3.5 shrink-0 text-content-secondary"
+											aria-label="Active goal"
+											data-testid={`agents-tree-active-goal-${chat.id}`}
+										/>
+									)}
 									<span
 										className={cn(
 											"block flex-1 truncate text-[13px] text-content-primary",
@@ -314,7 +324,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
 										)}
 									>
-										{chat.title}
+										{displayTitle}
 									</span>
 									{chat.has_unread && !isActiveChat && (
 										<span className="sr-only">(unread)</span>

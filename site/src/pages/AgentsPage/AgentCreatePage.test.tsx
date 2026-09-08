@@ -948,6 +948,29 @@ describe("AgentCreatePage workspace uploads", () => {
 		expect(onRequest).toMatchObject({ manage_automations_enabled: true });
 	});
 
+	// A goal needs a message, so it rides on the first send instead of
+	// the content-less create.
+	it("sets the goal with the first message when files upload first", async () => {
+		await renderUploadPage();
+		const goalMutation: TypesGen.ChatGoalSetRequest = {
+			action: "set",
+			objective: "inspect this archive",
+		};
+
+		await submit({
+			goalMutation,
+			uploadWorkspaceFiles: vi.fn().mockResolvedValue([mockUploadedFile]),
+		});
+
+		const [createRequest] = vi.mocked(API.experimental.createChat).mock
+			.calls[0];
+		expect(createRequest.goal_mutation).toBeUndefined();
+		expect(API.experimental.createChatMessage).toHaveBeenCalledWith(
+			MockChat.id,
+			expect.objectContaining({ goal_mutation: goalMutation }),
+		);
+	});
+
 	it("archives the chat when the upload fails", async () => {
 		const router = await renderUploadPage();
 		const uploadWorkspaceFiles = vi

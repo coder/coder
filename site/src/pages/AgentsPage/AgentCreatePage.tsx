@@ -267,6 +267,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		mcpServerIds,
 		organizationId,
 		projectId: formProjectId,
+		goalMutation,
 		planMode,
 		manageAutomationsEnabled,
 		uploadWorkspaceFiles,
@@ -289,6 +290,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			workspace_id: workspaceId,
 			mcp_server_ids:
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
+			goal_mutation: uploadWorkspaceFiles ? undefined : goalMutation,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
 			manage_automations_enabled: manageAutomationsEnabled,
@@ -346,6 +348,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 					content,
 					mcp_server_ids:
 						mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
+					goal_mutation: goalMutation,
 					plan_mode: planMode === "plan" ? "plan" : undefined,
 					...(model ? { model_config_id: model } : {}),
 					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
@@ -416,6 +419,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			canCreateChat={permissions.createChat}
 			canConfigureAgentSetup={permissions.editDeploymentConfig}
 			aiGatewayDisabled={aiGatewayDisabled}
+			showPursueGoal={experiments.includes("chat-goals")}
 			workspaceCount={workspacesQuery.data?.count}
 			workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 			workspacesError={workspacesQuery.error}

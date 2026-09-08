@@ -39,6 +39,7 @@ export type SubmitChatTurnParams = {
 	editedMessageID?: number;
 	composerParts?: readonly ChatComposerContentPart[];
 	clearPlanMode?: boolean;
+	goalMutation?: TypesGen.ChatGoalSetRequest;
 	isSubmissionPending: boolean;
 	hasModelOptions: boolean;
 	isEditReasoningEffortDirtyRef: { current: boolean };
@@ -80,6 +81,10 @@ export type SubmitChatTurnParams = {
 		chatId: string,
 		planMode?: TypesGen.ChatPlanMode,
 	) => void;
+	setCachedChatGoal: (
+		chatId: string,
+		goal: TypesGen.ChatGoal | undefined,
+	) => void;
 };
 
 /** @internal Exported for testing. */
@@ -117,10 +122,13 @@ export const resolveEditModelConfigID = ({
 const findBuiltInChatCommand = (
 	content: readonly TypesGen.ChatInputPart[],
 	editedMessageID: number | undefined,
+	isGoal: boolean,
 ): (typeof CHAT_SLASH_COMMANDS)[number] | undefined => {
-	// Built-ins only intercept new, text-only sends. A personal or workspace
-	// skill with the same name takes precedence at availability resolution.
-	if (editedMessageID !== undefined || content.length !== 1) {
+	// Built-ins only intercept new, text-only sends without a goal mutation;
+	// a goal objective that matches a command name is still a goal. A
+	// personal or workspace skill with the same name takes precedence at
+	// availability resolution.
+	if (isGoal || editedMessageID !== undefined || content.length !== 1) {
 		return undefined;
 	}
 	const [part] = content;
@@ -252,6 +260,7 @@ export async function submitChatTurn(
 		editedMessageID,
 		composerParts,
 		clearPlanMode = false,
+		goalMutation,
 		isSubmissionPending,
 		hasModelOptions,
 		personalSkills,
@@ -278,6 +287,7 @@ export async function submitChatTurn(
 		setCacheQueuedMessages,
 		fetchQueueConvergence,
 		setCachedChatPlanMode,
+		setCachedChatGoal,
 	} = params;
 
 	const { content, hasContent } = buildChatInputContent({
@@ -290,7 +300,11 @@ export async function submitChatTurn(
 		return;
 	}
 
-	const builtInCommand = findBuiltInChatCommand(content, editedMessageID);
+	const builtInCommand = findBuiltInChatCommand(
+		content,
+		editedMessageID,
+		goalMutation !== undefined,
+	);
 	const builtInCommandResolution = builtInCommand
 		? resolveChatSlashCommandAvailability(
 				builtInCommand,
@@ -375,6 +389,7 @@ export async function submitChatTurn(
 		content,
 		model_config_id: selectedModelConfigID,
 		reasoning_effort: effectiveReasoningEffort,
+		goal_mutation: goalMutation,
 		mcp_server_ids: [...mcpServerIds],
 		...planModeFieldsForCreateMessage(clearPlanMode),
 	};
@@ -434,6 +449,9 @@ export async function submitChatTurn(
 				fetchQueueConvergence,
 			});
 		}
+	}
+	if ("goal" in response) {
+		setCachedChatGoal(agentId, response.goal);
 	}
 	if (clearPlanMode) {
 		setCachedChatPlanMode(agentId, undefined);
