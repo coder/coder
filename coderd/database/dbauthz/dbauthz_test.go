@@ -5770,6 +5770,52 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().AccountAgentTimeMessages(gomock.Any(), messageIDs).Return(int64(2), nil).AnyTimes()
 		check.Args(messageIDs).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(int64(2))
 	}))
+	s.Run("BackfillAgentTimeBatch", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.BackfillAgentTimeBatchParams{OrganizationID: uuid.New(), LimitCount: 100}
+		row := database.BackfillAgentTimeBatchRow{SelectedMessages: 1, ProcessedMessages: 1}
+		dbm.EXPECT().BackfillAgentTimeBatch(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("HasUnaccountedAgentTimeMessages", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		organizationID := uuid.New()
+		dbm.EXPECT().HasUnaccountedAgentTimeMessages(gomock.Any(), organizationID).Return(true, nil).AnyTimes()
+		check.Args(organizationID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(true)
+	}))
+	s.Run("EnsureAgentTimeBackfillStatuses", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().EnsureAgentTimeBackfillStatuses(gomock.Any()).Return(int64(1), nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("AcquireAgentTimeBackfillOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		status := testutil.Fake(s.T(), faker, database.AgentTimeBackfillStatus{})
+		dbm.EXPECT().AcquireAgentTimeBackfillOrganization(gomock.Any()).Return(status, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(status)
+	}))
+	s.Run("UpdateAgentTimeBackfillProgress", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateAgentTimeBackfillProgressParams{OrganizationID: uuid.New(), CursorMessageID: 10, ProcessedMessages: 2}
+		dbm.EXPECT().UpdateAgentTimeBackfillProgress(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("ResetAgentTimeBackfillCursor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		organizationID := uuid.New()
+		dbm.EXPECT().ResetAgentTimeBackfillCursor(gomock.Any(), organizationID).Return(nil).AnyTimes()
+		check.Args(organizationID).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("CompleteAgentTimeBackfillOrganization", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		organizationID := uuid.New()
+		dbm.EXPECT().CompleteAgentTimeBackfillOrganization(gomock.Any(), organizationID).Return(nil).AnyTimes()
+		check.Args(organizationID).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("MarkAgentTimeBackfillFailed", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.MarkAgentTimeBackfillFailedParams{OrganizationID: uuid.New(), LastError: "failed"}
+		dbm.EXPECT().MarkAgentTimeBackfillFailed(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("GetAgentTimeStatus", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		organizationID := uuid.New()
+		row := database.GetAgentTimeStatusRow{CaptureStartedAt: dbtime.Now(), EarliestDate: dbtime.Now()}
+		dbm.EXPECT().GetAgentTimeStatus(gomock.Any(), organizationID).Return(row, nil).AnyTimes()
+		check.Args(organizationID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(row)
+	}))
 	s.Run("GetWebpushVAPIDKeys", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetWebpushVAPIDKeys(gomock.Any()).Return(database.GetWebpushVAPIDKeysRow{VapidPublicKey: "test", VapidPrivateKey: "test"}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(database.GetWebpushVAPIDKeysRow{VapidPublicKey: "test", VapidPrivateKey: "test"})
