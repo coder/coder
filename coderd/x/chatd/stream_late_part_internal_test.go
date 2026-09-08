@@ -29,7 +29,7 @@ func TestStreamLoopLatePartAfterRetry(t *testing.T) {
 
 		chatID := uuid.New()
 		worker := uuid.NullUUID{UUID: uuid.New(), Valid: true}
-		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, false)
 
 		// Attempt 1 of history version 1 is running on the worker.
 		events := loop.applyDBSnapshot(streamDBSnapshot{chat: database.Chat{
@@ -125,7 +125,7 @@ func TestStreamLoopLatePartAfterClearedRetry(t *testing.T) {
 
 	chatID := uuid.New()
 	worker := uuid.NullUUID{UUID: uuid.New(), Valid: true}
-	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, false)
 	chat := database.Chat{
 		ID:                chatID,
 		Status:            database.ChatStatusRunning,
@@ -175,7 +175,7 @@ func TestStreamLoopLatePartAfterError(t *testing.T) {
 
 		chatID := uuid.New()
 		worker := uuid.NullUUID{UUID: uuid.New(), Valid: true}
-		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, false)
 		chat := database.Chat{
 			ID:                chatID,
 			Status:            database.ChatStatusRunning,
