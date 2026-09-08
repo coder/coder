@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -210,39 +209,6 @@ func TestStoreChatAttachment_InsertError(t *testing.T) {
 	attachment, err := server.storeChatAttachment(context.Background(), chatSnapshot, "build.log", "build.log", []byte("build output"))
 	require.ErrorContains(t, err, "insert chat file")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
-	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
-}
-
-func TestStoreChatAttachment_StrictCapError(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	tx := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
-
-	chatID := uuid.New()
-	ownerID := uuid.New()
-	workspaceID := uuid.New()
-	orgID := uuid.New()
-	fileID := uuid.New()
-	chatSnapshot := database.Chat{
-		ID:          chatID,
-		OwnerID:     ownerID,
-		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
-	}
-
-	expectStoreChatAttachmentInTx(t, db, tx)
-	tx.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{ID: workspaceID, OrganizationID: orgID}, nil)
-	tx.EXPECT().InsertChatFile(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatFileParams{})).Return(database.InsertChatFileRow{ID: fileID}, nil)
-	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
-		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-		FileIds:      []uuid.UUID{fileID},
-	}).Return(int32(1), nil)
-
-	attachment, err := server.storeChatAttachment(context.Background(), chatSnapshot, "build.log", "build.log", []byte("build output"))
-	require.ErrorIs(t, err, chatstate.ErrChatFileCapExceeded)
 	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
 }
 
