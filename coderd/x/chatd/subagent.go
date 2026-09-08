@@ -1090,6 +1090,11 @@ func (p *Server) createChildSubagentChatWithOptions(
 			// The overridden prompt also feeds the fallback title below.
 			prompt = override
 		}
+		// Subagent chats cannot have goals, so an objective override is a
+		// consumer bug.
+		if _, err := applyGoalObjectiveOverride(nil, promptResult); err != nil {
+			return database.Chat{}, err
+		}
 	}
 	if title == "" {
 		title = subagentFallbackChatTitle(prompt)

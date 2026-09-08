@@ -49,6 +49,10 @@ type CreateChatInput struct {
 	// MaxFileLinks is the maximum number of files linked to the chat. It
 	// must be positive when FileIDs is not empty.
 	MaxFileLinks int
+	// AfterInsert runs inside the create transaction after the chat and
+	// initial messages are inserted, but before the chat snapshot is
+	// reloaded and publish events are buffered.
+	AfterInsert func(context.Context, database.Store, database.Chat, []database.ChatMessage) error
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -159,6 +163,11 @@ func insertChat(
 		}
 		if len(input.InlineMCPServers) > 0 {
 			if err := ReplaceInlineMCPServers(ctx, store, chat.ID, input.InlineMCPServers); err != nil {
+				return err
+			}
+		}
+		if input.AfterInsert != nil {
+			if err := input.AfterInsert(ctx, store, chat, fromInsertedRows(inserted)); err != nil {
 				return err
 			}
 		}
