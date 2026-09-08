@@ -108,6 +108,14 @@ type GetUsersResponse struct {
 	Count int    `json:"count"`
 }
 
+// Trial request source origination reported to the licensor.
+const (
+	// LicensorTrialSourceNewUser is the first user setup flow.
+	LicensorTrialSourceNewUser = "NewUser"
+	// LicensorTrialSourceProduct is a request from within the product in-app trial request
+	LicensorTrialSourceProduct = "Product"
+)
+
 // @typescript-ignore LicensorTrialRequest
 type LicensorTrialRequest struct {
 	DeploymentID string `json:"deployment_id"`

@@ -9,23 +9,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/scaletest/createusers"
 )
 
 type Config struct {
-	// User is the configuration for the user to create.
-	User createusers.Config `json:"user"`
-
-	// Roles are the roles to assign to the user.
-	Roles []string `json:"roles"`
-
-	// SessionToken, when set, makes the runner reuse PreCreatedUser instead of
-	// creating one. User and Roles are then ignored.
+	// SessionToken authenticates the runner as PreCreatedUser.
 	SessionToken string `json:"-"`
 
-	// PreCreatedUser is the user to run as when SessionToken is set. It must
-	// already hold any role needed to receive the notifications under test. Only
-	// ID and Email are used.
+	// PreCreatedUser is the existing user to run as. It must already hold any
+	// role needed to receive the notifications under test. Only ID, Username and
+	// Email are used.
 	PreCreatedUser codersdk.User `json:"-"`
 
 	// NotificationTimeout is how long to wait for notifications after triggering.
@@ -56,20 +48,12 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
-	if c.SessionToken != "" {
-		// Reuse mode does not create a user, so only the existing user's ID is required.
-		if c.PreCreatedUser.ID == uuid.Nil {
-			return xerrors.New("pre_created_user must be set when session_token is set")
-		}
-	} else {
-		// The runner always needs an org; ensure we propagate it into the user config.
-		if c.User.OrganizationID == uuid.Nil {
-			return xerrors.New("user organization_id must be set")
-		}
-
-		if err := c.User.Validate(); err != nil {
-			return xerrors.Errorf("user config: %w", err)
-		}
+	// The runner always reuses an existing user; it never creates one.
+	if c.SessionToken == "" {
+		return xerrors.New("session_token must be set")
+	}
+	if c.PreCreatedUser.ID == uuid.Nil {
+		return xerrors.New("pre_created_user must be set")
 	}
 
 	if c.DialBarrier == nil {

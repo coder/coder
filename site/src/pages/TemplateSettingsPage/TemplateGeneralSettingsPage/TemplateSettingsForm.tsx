@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
@@ -7,7 +8,7 @@ import {
 	type UpdateTemplateMeta,
 	WorkspaceAppSharingLevels,
 } from "#/api/typesGenerated";
-import { PremiumBadge } from "#/components/Badges/Badges";
+import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
@@ -33,7 +34,6 @@ import {
 	StackLabelHelperText,
 } from "#/components/StackLabel/StackLabel";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,

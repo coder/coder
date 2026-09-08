@@ -93,6 +93,7 @@ type sqlcQuerier interface {
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
+	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
 	ClearChatSummaryGeneration(ctx context.Context, arg ClearChatSummaryGenerationParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
@@ -133,6 +134,12 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	// Deletes cached Terraform module archives ingested in the given time range and
+	// clears the template version references to them. created_by and mimetype
+	// identify a provisionerd-written module archive, matching the checks in
+	// provisionerdserver, so user-uploaded template tarballs are never removed.
+	// Only archives referenced by a template version are considered.
+	DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg DeleteCachedModuleFilesCreatedBetweenParams) (int64, error)
 	// Clears a chat's pinned context resources. Used as the first half of a
 	// clear-then-copy re-pin, and on its own when the chat's current agent
 	// has no snapshot.
@@ -556,6 +563,7 @@ type sqlcQuerier interface {
 	// invariant (parent archived implies child archived) is enforced
 	// at write time, not here.
 	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
+	GetCodernautsEnabled(ctx context.Context) (bool, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
@@ -968,6 +976,7 @@ type sqlcQuerier interface {
 	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserSecret, error)
 	GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error)
+	GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg GetUserSecretByUserIDAndNameForUpdateParams) (UserSecret, error)
 	// Returns deployment-wide aggregates for the telemetry snapshot.
 	//
 	// The denominator for both user-level counts and the per-user
@@ -1024,7 +1033,6 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceAgentScriptsByAgentIDsRow, error)
 	GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error)
 	GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error)
-	// `minute_buckets` could return 0 rows if there are no usage stats since `created_at`.
 	GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsRow, error)
 	GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsAndLabelsRow, error)
 	GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]WorkspaceAgent, error)
@@ -1409,6 +1417,10 @@ type sqlcQuerier interface {
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	// Clients order generation identities at millisecond precision.
 	StartChatSummaryGeneration(ctx context.Context, arg StartChatSummaryGenerationParams) (time.Time, error)
+	// MCP resources bypass context drift and are live-synced on each push.
+	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
+	// cannot interleave with the replacement.
+	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has
@@ -1695,6 +1707,7 @@ type sqlcQuerier interface {
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error
 	UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error
+	UpsertCodernautsEnabled(ctx context.Context, enabled bool) error
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.
 	// The functional values are immutable and controlled implicitly.

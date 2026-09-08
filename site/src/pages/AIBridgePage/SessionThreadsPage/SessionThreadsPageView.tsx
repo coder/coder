@@ -22,7 +22,7 @@ const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<div className="flex-shrink-0 flex items-center">{children}</div>
+				<div className="shrink-0 flex items-center">{children}</div>
 			</TooltipTrigger>
 			<TooltipContent
 				side="top"

@@ -24,8 +24,8 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { addableProviders } from "#/pages/AISettingsPage/ProvidersPage/components/addableProviderTypes";
-import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { ProviderRow } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderRow";
 import { docs } from "#/utils/docs";
 
@@ -103,7 +103,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					<TableRow>
 						<TableHead className="w-1/3">Name</TableHead>
 						<TableHead className="w-1/3">Base URL</TableHead>
-						<TableHead className="w-22">
+						<TableHead>
 							<span className="sr-only">Status</span>
 						</TableHead>
 					</TableRow>

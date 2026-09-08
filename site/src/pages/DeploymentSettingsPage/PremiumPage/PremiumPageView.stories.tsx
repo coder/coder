@@ -31,10 +31,10 @@ export const NoLicense: Story = {
 			}),
 		).toBeInTheDocument();
 		await expect(canvas.getByLabelText(/^Business email/)).toBeVisible();
-		// The acknowledgement gates submission.
+		// The button stays enabled and surfaces validation errors on submit.
 		await expect(
 			canvas.getByRole("button", { name: "Start a trial" }),
-		).toBeDisabled();
+		).toBeEnabled();
 		// Requesting a trial replaces the old contact-sales upsell.
 		await expect(
 			canvas.queryByRole("link", { name: /contact sales/i }),

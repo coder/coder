@@ -2,9 +2,10 @@
  * Copied from shadc/ui on 04/04/2025
  * @see {@link https://ui.shadcn.com/docs/components/radio-group}
  */
+
+import { cn } from "cn";
 import { CircleIcon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 export const RadioGroup: React.FC<
 	React.ComponentPropsWithRef<typeof RadioGroupPrimitive.Root>
@@ -24,7 +25,7 @@ export const RadioGroupItem: React.FC<
 		<RadioGroupPrimitive.Item
 			className={cn(
 				`relative aspect-square size-4 rounded-full border border-solid border-border text-content-primary bg-surface-primary
-				focus:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+				focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 				focus-visible:ring-offset-4 focus-visible:ring-offset-surface-primary
 				disabled:cursor-not-allowed disabled:opacity-25 disabled:border-surface-invert-primary
 				hover:border-border-secondary data-[state=checked]:border-border-secondary`,

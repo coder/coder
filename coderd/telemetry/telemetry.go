@@ -2649,7 +2649,9 @@ type ChatDiffStatusSummary struct {
 // UsersWithSecrets is the count of active non-system users that have
 // at least one secret. TotalSecrets is the count of secrets owned by
 // those users. EnvNameOnly, FilePathOnly, Both, and Neither break
-// TotalSecrets down by which injection fields are populated.
+// TotalSecrets down by which target fields are stored. They do not
+// describe effective delivery because deployment policy can block a
+// stored target.
 //
 // The SecretsPerUser* fields describe the distribution of secrets per
 // user across the entire active non-system user base, including users

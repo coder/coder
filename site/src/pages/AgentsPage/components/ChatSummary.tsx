@@ -4,7 +4,7 @@ import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
-import { Shimmer } from "./ChatElements";
+import { Shimmer } from "./ChatElements/Shimmer";
 
 const EMPTY_VALUE = "-";
 const EMPTY_SUMMARY_TITLE = "Not enough details to summarize.";
@@ -175,7 +175,7 @@ const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => (
 				li: ({ children }) => <li className="m-0 text-pretty">{children}</li>,
 				// A summary describes the chat rather than linking out of it, so
 				// model-authored URLs render as plain text.
-				a: ({ children }) => <>{children}</>,
+				a: ({ children }) => children,
 			}}
 		>
 			{summary}

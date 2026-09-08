@@ -20,6 +20,7 @@ import {
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -30,6 +31,7 @@ import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
@@ -262,7 +264,6 @@ const meta: Meta<typeof AgentCreateForm> = {
 	decorators: [withDashboardProvider],
 	args: {
 		onCreateChat: fn(),
-		sendShortcut: "enter",
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,
@@ -286,6 +287,10 @@ const meta: Meta<typeof AgentCreateForm> = {
 					.queryKey,
 				data: buildPersonalModelOverridesResponse(),
 			},
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
 		],
 	},
 	beforeEach: () => {
@@ -298,6 +303,9 @@ const meta: Meta<typeof AgentCreateForm> = {
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
 		).mockResolvedValue(buildPersonalModelOverridesResponse());
+		spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+			MockUserPreferenceSettings,
+		);
 	},
 };
 
@@ -625,6 +633,13 @@ export const RemembersReasoningEffortByModel: Story = {
 			await body.findByRole("option", { name: /Claude Sonnet 4/i }),
 		);
 
+		// Selecting a model with efforts keeps the popover open. Close it
+		// and wait for the unmount so the next trigger click is a real
+		// reopen rather than a toggle-close racing the exit animation.
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 		await userEvent.click(
 			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
 		);
@@ -634,6 +649,10 @@ export const RemembersReasoningEffortByModel: Story = {
 		);
 		await userEvent.click(await body.findByRole("option", { name: /GPT-4o/i }));
 
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
 		const restoredSlider = await body.findByRole("slider");
 		expect(restoredSlider).toHaveAttribute("aria-valuenow", "4");
@@ -732,6 +751,13 @@ export const ManualReselectKeepsRootOverrideEffort: Story = {
 		// Re-selecting the override's own model keeps the override effort.
 		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
 		await userEvent.click(await body.findByRole("option", { name: /GPT-4o/i }));
+		// Selecting a model with efforts keeps the popover open. Close it
+		// and wait for the unmount so the next trigger click is a real
+		// reopen rather than a toggle-close racing the exit animation.
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
 		expect(await body.findByRole("slider")).toHaveAttribute(
 			"aria-valuenow",
@@ -1856,7 +1882,9 @@ export const SelectedOrganizationSurvivesRemount: Story = {
 const revocablePermissions: Record<string, boolean> = {};
 let revocableQueryClient: QueryClient | undefined;
 
-const withRevocableQueryClient: Decorator = (Story) => {
+const withRevocableQueryClient: Decorator = function WithRevocableQueryClient(
+	Story,
+) {
 	const [queryClient] = useState(
 		() =>
 			new QueryClient({

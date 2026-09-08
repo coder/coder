@@ -484,8 +484,8 @@ type MergeWatchedChatOptions = {
 	readonly activeChatId?: string;
 };
 
-// Shallow-compare two ChatDiffStatus objects by their meaningful
-// fields, ignoring refreshed_at/stale_at which change on every poll.
+// Do not compare refreshed_at and stale_at: they change on every
+// poll. If they were compared, the cache would update every time.
 const diffStatusEqual = (
 	a: TypesGen.ChatDiffStatus | undefined,
 	b: TypesGen.ChatDiffStatus | undefined,
@@ -505,9 +505,12 @@ const diffStatusEqual = (
 		a.additions === b.additions &&
 		a.deletions === b.deletions &&
 		a.changed_files === b.changed_files &&
+		a.base_branch === b.base_branch &&
+		a.head_branch === b.head_branch &&
 		a.pr_number === b.pr_number &&
 		a.approved === b.approved &&
-		a.commits === b.commits
+		a.commits === b.commits &&
+		a.reviewer_count === b.reviewer_count
 	);
 };
 

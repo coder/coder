@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import { rolesQueryKey } from "#/api/queries/roles";
 import { authMethodsQueryKey } from "#/api/queries/users";
@@ -116,6 +116,11 @@ async function fillForm(
 	await user.click(canvas.getByTestId("login-type-input"));
 	await user.click(
 		await body.findByRole("option", { name: new RegExp(loginType, "i") }),
+	);
+	// Wait for the select to finish closing; while it is open or exit-animating
+	// Radix locks body pointer-events, which would fail the next interaction.
+	await waitFor(() =>
+		expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
 	);
 
 	if (isPasswordLogin) {

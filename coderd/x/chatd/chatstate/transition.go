@@ -20,7 +20,6 @@ const (
 	TransitionPromoteQueuedMessage    Transition = "PromoteQueuedMessage"
 	TransitionInterrupt               Transition = "Interrupt"
 	TransitionCompleteRequiresAction  Transition = "CompleteRequiresAction"
-	TransitionAcquire                 Transition = "Acquire"
 	TransitionAbandon                 Transition = "Abandon"
 	TransitionRecordGenerationAttempt Transition = "RecordGenerationAttempt"
 	TransitionRecordRetryState        Transition = "RecordRetryState"

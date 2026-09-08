@@ -63,7 +63,6 @@ const GroupSettingsPage: FC = () => {
 
 	return (
 		<GroupSettingsPageView
-			onCancel={() => navigate("..")}
 			onSubmit={async (data) => {
 				const { monthly_budget_per_member, ...groupFields } = data;
 				try {

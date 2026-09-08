@@ -2932,7 +2932,7 @@ func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {
 		ChatProviderAPIKeys: &providerKeys,
 		// Allow only the attacker's address so the initial fetch
 		// succeeds; the canary's address stays blocked.
-		MCPOAuth2DiscoveryAllowedIPRanges: []netip.Prefix{
+		MCPAllowedPrivateCIDRs: []netip.Prefix{
 			netip.MustParsePrefix("127.0.0.1/32"),
 		},
 	})

@@ -1,7 +1,7 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Switch } from "#/components/Switch/Switch";
-import { cn } from "#/utils/cn";
 
 interface AdminChatDebugLoggingSettingsProps {
 	adminSettings: TypesGen.ChatDebugLoggingAdminSettings | undefined;

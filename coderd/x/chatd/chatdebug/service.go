@@ -714,7 +714,7 @@ func (s *Service) FinalizeRun(ctx context.Context, p FinalizeRunParams) error {
 // ClassifyError maps a run error to the appropriate debug status.
 // nil → StatusCompleted, context.Canceled → StatusInterrupted,
 // everything else → StatusError. Callers with additional
-// classification rules (e.g. ErrInterrupted, ErrDynamicToolCall)
+// classification rules (e.g. ErrInterrupted)
 // should handle those before falling back to this helper.
 func ClassifyError(err error) Status {
 	switch {

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	ArrowUpIcon,
@@ -21,16 +22,14 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import type {
-	AgentChatSendShortcut,
-	ChatQueuedMessage,
-} from "#/api/typesGenerated";
+import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -57,7 +56,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "#/modules/aiModels/ModelSelector";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -65,7 +67,7 @@ import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
-	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	getAgentChatSendShortcut,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../utils/agentChatSendShortcut";
 import {
@@ -79,7 +81,6 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
-import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -102,7 +103,6 @@ export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
-	sendShortcut?: AgentChatSendShortcut;
 	placeholder?: string;
 	isDisabled: boolean;
 	isLoading: boolean;
@@ -239,7 +239,7 @@ const BadgeDismissButton: FC<{
 		aria-label={ariaLabel}
 	>
 		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
-			<XIcon className="!size-2.5" />
+			<XIcon className="size-2.5!" />
 		</span>
 	</button>
 );
@@ -360,7 +360,6 @@ const ToolBadge: FC<{
 
 export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onSend,
-	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	placeholder = "Type a message...",
 	isDisabled,
 	isLoading,
@@ -421,6 +420,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
+	const preferencesQuery = useQuery(preferenceSettings());
+	const sendShortcut = getAgentChatSendShortcut(
+		preferencesQuery.data?.agent_chat_send_shortcut,
+		preferencesQuery.isLoading,
+	);
 	const [chatFullWidth] = useChatFullWidth();
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
@@ -1086,7 +1090,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			{showAgentSetupNotice && (
-				<div className="relative z-0 mb-[-2.5rem]">
+				<div className="relative z-0 -mb-10">
 					{(aiGatewayDisabled ||
 						(providerCount !== undefined && modelCount !== undefined)) &&
 					canConfigureAgentSetup ? (
@@ -1112,7 +1116,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
@@ -1225,7 +1229,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
 									disabled={
 										isDisabled &&
 										!showAgentSetupNotice &&
@@ -1605,7 +1609,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
 									onClick={
 										speech.isRecording
 											? handleCancelRecording
@@ -1657,7 +1661,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<Button
 										size="icon"
 										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
+										className="size-7 rounded-full transition-colors [&>svg]:size-3! [&>svg]:p-0"
 										onClick={onInterrupt}
 										disabled={isInterruptPending}
 									>
@@ -1684,7 +1688,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<Button
 										size="icon"
 										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
+										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
 										onClick={
 											speech.isRecording ? handleAcceptRecording : handleSubmit
 										}

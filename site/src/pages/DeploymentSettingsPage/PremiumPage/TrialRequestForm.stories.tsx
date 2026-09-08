@@ -40,18 +40,28 @@ const selectOption = async (
 		await canvas.findByRole("combobox", { name: comboboxName }),
 	);
 	await userEvent.click(await body.findByRole("option", { name: optionName }));
+	await waitFor(() => {
+		expect(body.queryByRole("option", { name: optionName })).toBeNull();
+	});
 };
 
 export const Default: Story = {
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const submit = canvas.getByRole("button", { name: "Start a trial" });
 
-		await expect(submit).toBeDisabled();
+		// The button stays enabled so submitting surfaces validation errors
+		// instead of silently blocking the user.
+		await expect(submit).toBeEnabled();
 
-		await userEvent.click(canvas.getByRole("checkbox"));
+		await userEvent.click(submit);
 
-		await waitFor(() => expect(submit).toBeEnabled());
+		await waitFor(() =>
+			expect(
+				canvas.getByText("Please acknowledge the database requirements."),
+			).toBeInTheDocument(),
+		);
+		await expect(args.onSubmit).not.toHaveBeenCalled();
 	},
 };
 
@@ -247,7 +257,10 @@ export const KeyboardNavigation: Story = {
 			canvas.getByRole("combobox", { name: /^Number of developers/ }),
 			canvas.getByRole("combobox", { name: /^Country/ }),
 			canvas.getByRole("checkbox"),
-			canvas.getByRole("link", { name: "Learn more" }),
+			// The link's accessible name is its aria-label, not its text.
+			canvas.getByRole("link", {
+				name: "Learn more about external PostgreSQL databases",
+			}),
 		];
 
 		for (const element of tabOrder) {

@@ -7,16 +7,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"storj.io/drpc/drpcerr"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -109,6 +115,47 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 	}
 }
 
+func TestWorkspaceAgentRPC_TailnetMethods(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
+	conn, err := agentClient.ConnectRPC(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	tailnetClient := tailnetproto.NewDRPCTailnetClient(conn)
+	_, err = tailnetClient.RefreshResumeToken(ctx, &tailnetproto.RefreshResumeTokenRequest{})
+	require.Error(t, err)
+	require.EqualValues(t, drpcerr.Unimplemented, drpcerr.Code(err))
+
+	updates, err := tailnetClient.WorkspaceUpdates(ctx, &tailnetproto.WorkspaceUpdatesRequest{
+		WorkspaceOwnerId: tailnet.UUIDToByteSlice(user.UserID),
+	})
+	if err == nil {
+		_, err = updates.Recv()
+	}
+	require.Error(t, err)
+	require.EqualValues(t, drpcerr.Unimplemented, drpcerr.Code(err))
+
+	telemetry, err := tailnetClient.PostTelemetry(ctx, &tailnetproto.TelemetryRequest{})
+	require.NoError(t, err)
+	require.NotNil(t, telemetry)
+
+	agentAPI := agentproto.NewDRPCAgentClient(conn)
+	_, err = agentAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
+	require.NoError(t, err)
+}
+
 func TestAgentAPI_LargeManifest(t *testing.T) {
 	t.Parallel()
 
@@ -168,6 +215,59 @@ func TestAgentAPI_LargeManifest(t *testing.T) {
 			require.Len(t, manifest.Scripts[0].Script, n)
 		})
 	}
+}
+
+// End-to-end wiring: the deployment option must reach the manifest the
+// agent actually receives over RPC.
+func TestWorkspaceAgentRPCUserSecretFilePathDisabled(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+		dv.DisableUserSecretFilePath = true
+	})
+	db, ps := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db, Pubsub: ps, DeploymentValues: dv,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	// Seed rows the way a deployment that allowed file paths would have
+	// stored them; the API rejects new paths while the policy is on.
+	for _, seed := range []database.UserSecret{
+		{Name: "env-only", Value: "env-value", EnvName: "ENV_ONLY"},
+		{Name: "file-only", Value: "file-value", FilePath: "~/.file-only"},
+		{Name: "dual-target", Value: "dual-value", EnvName: "DUAL_TARGET", FilePath: "~/.dual-target"},
+	} {
+		dbgen.UserSecret(t, db, database.UserSecret{UserID: owner.UserID, Name: seed.Name},
+			func(p *database.CreateUserSecretParams) {
+				p.Value, p.EnvName, p.FilePath, p.Enabled = seed.Value, seed.EnvName, seed.FilePath, true
+			})
+	}
+
+	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: owner.OrganizationID,
+		OwnerID:        owner.UserID,
+	}).WithAgent().Do()
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
+	conn, err := agentClient.ConnectRPC(ctx)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	manifest, err := agentproto.NewDRPCAgentClient(conn).GetManifest(ctx, &agentproto.GetManifestRequest{})
+	require.NoError(t, err)
+
+	require.Len(t, manifest.Secrets, 2)
+	byEnv := make(map[string][]byte, len(manifest.Secrets))
+	for _, secret := range manifest.Secrets {
+		require.Empty(t, secret.FilePath)
+		byEnv[secret.EnvName] = secret.Value
+	}
+	require.Equal(t, map[string][]byte{
+		"ENV_ONLY":    []byte("env-value"),
+		"DUAL_TARGET": []byte("dual-value"),
+	}, byEnv)
 }
 
 func TestWorkspaceAgentRPCRole(t *testing.T) {
