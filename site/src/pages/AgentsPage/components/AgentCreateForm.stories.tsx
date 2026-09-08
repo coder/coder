@@ -20,6 +20,7 @@ import {
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -30,6 +31,7 @@ import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
@@ -262,7 +264,6 @@ const meta: Meta<typeof AgentCreateForm> = {
 	decorators: [withDashboardProvider],
 	args: {
 		onCreateChat: fn(),
-		sendShortcut: "enter",
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,
@@ -286,6 +287,10 @@ const meta: Meta<typeof AgentCreateForm> = {
 					.queryKey,
 				data: buildPersonalModelOverridesResponse(),
 			},
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
 		],
 	},
 	beforeEach: () => {
@@ -298,6 +303,9 @@ const meta: Meta<typeof AgentCreateForm> = {
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
 		).mockResolvedValue(buildPersonalModelOverridesResponse());
+		spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+			MockUserPreferenceSettings,
+		);
 	},
 };
 

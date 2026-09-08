@@ -28,10 +28,6 @@ export const saveReasoningEffortForModel = (
 	}
 };
 
-/** Display label for an effort value, e.g. "xhigh" renders as "Xhigh". */
-export const formatReasoningEffort = (value: string): string =>
-	value.charAt(0).toUpperCase() + value.slice(1);
-
 /** Chooses requested effort, then default effort, then the last selectable effort. */
 export const pickReasoningEffort = (
 	value: string | undefined,

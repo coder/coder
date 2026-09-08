@@ -17,7 +17,9 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useOutletContext } from "react-router";
 import { Button } from "#/components/Button/Button";
+import type { AgentsPageOutletContext } from "../../../AgentsPageLayout";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {
@@ -39,10 +41,6 @@ interface SidebarTabViewProps {
 	isExpanded: boolean;
 	/** Callback to toggle expanded state. */
 	onToggleExpanded: () => void;
-	/** Whether the left sidebar is collapsed. */
-	isSidebarCollapsed?: boolean;
-	/** Callback to toggle left sidebar. */
-	onToggleSidebarCollapsed?: () => void;
 	/** Shown in center when expanded. */
 	chatTitle?: string;
 	/** Callback to close the panel (used on mobile). */
@@ -152,14 +150,14 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	tabs,
 	isExpanded,
 	onToggleExpanded,
-	isSidebarCollapsed,
-	onToggleSidebarCollapsed,
 	chatTitle,
 	onClose,
 	effectiveTabId,
 	onActiveTabChange,
 	addTabControl,
 }) => {
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 	const tabIdPrefix = useId();
 	const {
 		ref: tabScrollRef,

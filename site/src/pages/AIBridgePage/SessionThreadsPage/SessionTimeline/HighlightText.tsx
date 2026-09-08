@@ -8,7 +8,7 @@ export const HighlightText: FC<{ text: string; query: string }> = ({
 }) => {
 	const segments = splitMatchSegments(text, query);
 	if (segments.length === 1 && !segments[0].match) {
-		return <>{text}</>;
+		return text;
 	}
 	return (
 		<>

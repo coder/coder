@@ -20,7 +20,9 @@ import {
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
+	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -37,7 +39,9 @@ import {
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	mockApiError,
@@ -50,9 +54,10 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -75,6 +80,7 @@ const AgentChatPageLayout: FC = () => {
 							requestUnarchiveAgent: () => {},
 							requestPinAgent: () => {},
 							requestUnpinAgent: () => {},
+							onOpenRenameDialog: () => {},
 							isArchiving: false,
 							archivingChatId: undefined,
 							activeChatChildren: undefined,
@@ -378,6 +384,14 @@ const buildQueries = (
 				allowed: chat.owner_id === MockUserOwner.id && !chat.parent_chat_id,
 			},
 		}),
+		{
+			key: preferenceSettingsKey,
+			data: MockUserPreferenceSettings,
+		},
+		{
+			key: userCompactionThresholdsKey,
+			data: MockUserChatCompactionThresholds,
+		},
 	];
 };
 
