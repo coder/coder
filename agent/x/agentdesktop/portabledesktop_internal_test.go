@@ -3,6 +3,8 @@ package agentdesktop
 import (
 	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -516,11 +518,16 @@ func TestEnsureBinary_ScriptBinDirNotExecutable(t *testing.T) {
 	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\n"), 0o600))
 	_ = binPath
 
+	srv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(srv.Close)
+
 	logger := slogtest.Make(t, nil)
 	pd := &portableDesktop{
-		logger:       logger,
-		execer:       agentexec.DefaultExecer,
-		scriptBinDir: scriptBinDir,
+		logger:          logger,
+		execer:          agentexec.DefaultExecer,
+		scriptBinDir:    scriptBinDir,
+		releaseBaseURL:  srv.URL,
+		pinnedBinaryDir: t.TempDir(),
 	}
 
 	// Clear PATH so LookPath won't find a real binary.
@@ -535,11 +542,18 @@ func TestEnsureBinary_NotFound(t *testing.T) {
 	// Cannot use t.Parallel because t.Setenv modifies the process
 	// environment.
 
+	// The download fallback must fail too, so point it at a server that
+	// returns 404 and at an empty cache directory.
+	srv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(srv.Close)
+
 	logger := slogtest.Make(t, nil)
 	pd := &portableDesktop{
-		logger:       logger,
-		execer:       agentexec.DefaultExecer,
-		scriptBinDir: t.TempDir(), // empty directory
+		logger:          logger,
+		execer:          agentexec.DefaultExecer,
+		scriptBinDir:    t.TempDir(), // empty directory
+		releaseBaseURL:  srv.URL,
+		pinnedBinaryDir: t.TempDir(),
 	}
 
 	// Clear PATH so LookPath won't find a real binary.

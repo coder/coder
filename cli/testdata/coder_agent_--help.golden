@@ -5,9 +5,6 @@ USAGE:
 
   Starts the Coder workspace agent.
 
-SUBCOMMANDS:
-    desktop    Manage the built-in virtual desktop (experimental).
-
 OPTIONS:
       --auth string, $CODER_AGENT_AUTH (default: token)
           Specify the authentication type to use for the agent.

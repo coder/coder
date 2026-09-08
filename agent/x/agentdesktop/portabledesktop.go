@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -81,6 +82,13 @@ type portableDesktop struct {
 	execer       agentexec.Execer
 	scriptBinDir string // coder script bin directory
 	clock        quartz.Clock
+
+	// releaseBaseURL, pinnedBinaryDir and httpClient override where the
+	// pinned release is downloaded from and to. Empty means the defaults;
+	// tests point them at a local server and directory.
+	releaseBaseURL  string
+	pinnedBinaryDir string
+	httpClient      *http.Client
 
 	mu                  sync.Mutex
 	session             *desktopSession // nil until started
@@ -761,8 +769,9 @@ func (p *portableDesktop) runCmd(ctx context.Context, args ...string) (string, e
 	return string(out), nil
 }
 
-// ensureBinary resolves the portabledesktop binary from PATH or the
-// coder script bin directory. It must be called while p.mu is held.
+// ensureBinary resolves the portabledesktop binary from PATH, the coder
+// script bin directory, or by downloading the pinned release into the
+// cache directory. It must be called while p.mu is held.
 func (p *portableDesktop) ensureBinary(ctx context.Context) error {
 	if p.binPath != "" {
 		return nil
@@ -795,7 +804,17 @@ func (p *portableDesktop) ensureBinary(ctx context.Context) error {
 		)
 	}
 
-	return xerrors.New("portabledesktop binary not found in PATH or script bin directory")
+	// 3. Download the pinned release.
+	path, err := p.downloadPinnedBinary(ctx)
+	if err != nil {
+		return xerrors.Errorf("portabledesktop binary not found in PATH or script bin directory, and download failed: %w", err)
+	}
+	p.logger.Info(ctx, "using downloaded portabledesktop release",
+		slog.F("path", path),
+		slog.F("version", pinnedReleaseVersion),
+	)
+	p.binPath = path
+	return nil
 }
 
 // monitorRecordingIdle watches for desktop inactivity and stops the
