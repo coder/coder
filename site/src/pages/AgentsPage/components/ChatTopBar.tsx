@@ -25,6 +25,7 @@ import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
+	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
 import { useEmbedContext } from "./EmbedContext";
@@ -41,17 +42,9 @@ type ChatSharingTopBarButtonProps = {
 
 type ChatTopBarProps = {
 	chat?: TypesGen.Chat;
+	liveChatStatus?: TypesGen.ChatStatus | null;
 	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
-	onArchiveAgent: () => void;
-	onUnarchiveAgent: () => void;
-	onArchiveAndDeleteWorkspace: () => void;
-	onPinAgent?: () => void;
-	onUnpinAgent?: () => void;
-	onOpenRenameDialog?: () => void;
-	hasWorkspace?: boolean;
-	isArchiving?: boolean;
-	isArchiveBlocked?: boolean;
 	renderChatSharingContent?: (open: boolean) => ReactNode;
 };
 
@@ -90,27 +83,46 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chat,
+	liveChatStatus,
 	parentChat,
 	panel,
-	onArchiveAgent,
-	onUnarchiveAgent,
-	onArchiveAndDeleteWorkspace,
-	onPinAgent,
-	onUnpinAgent,
-	onOpenRenameDialog,
-	hasWorkspace = false,
-	isArchiving = false,
-	isArchiveBlocked = false,
 	renderChatSharingContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
-	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
-		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+	const {
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
+		requestArchiveAgent,
+		requestUnarchiveAgent,
+		requestArchiveAndDeleteWorkspace,
+		requestPinAgent,
+		requestUnpinAgent,
+		onOpenRenameDialog,
+		isArchiving = false,
+		archivingChatId,
+		activeChatChildren,
+	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
 	const chatTitle = chat?.title;
+	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
+	const hasWorkspace = Boolean(chat?.workspace_id);
+	const isArchivingThisChat = Boolean(
+		isArchiving &&
+			chat &&
+			(archivingChatId === undefined || archivingChatId === chat.id),
+	);
+	// The per-chat stream updates this before the global chat record catches up.
+	const isArchiveBlocked = chat
+		? !chatFamilyAllowsArchive(
+				liveChatStatus ?? chat.status,
+				activeChatChildren,
+			)
+		: false;
+	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
 	const diffStatus = chat?.diff_status;
+
 	const prUrl = diffStatus?.url;
 	const prState = diffStatus?.pull_request_state;
 	const prDraft = diffStatus?.pull_request_draft;
@@ -210,14 +222,46 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							<ChatActionsMenuItems
 								chat={chat}
 								hasWorkspace={hasWorkspace}
-								isArchiving={isArchiving}
+								isArchiving={isArchivingThisChat}
 								isArchiveBlocked={isArchiveBlocked}
-								onPinAgent={onPinAgent}
-								onUnpinAgent={onUnpinAgent}
-								onArchiveAgent={onArchiveAgent}
-								onUnarchiveAgent={onUnarchiveAgent}
-								onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
-								onOpenRenameDialog={onOpenRenameDialog}
+								onPinAgent={
+									showPinAction && !isArchived
+										? () => {
+												requestPinAgent?.(chat.id);
+											}
+										: undefined
+								}
+								onUnpinAgent={
+									showPinAction && !isArchived
+										? () => {
+												requestUnpinAgent?.(chat.id);
+											}
+										: undefined
+								}
+								onArchiveAgent={() => {
+									if (isArchived) {
+										return;
+									}
+									requestArchiveAgent?.(chat.id);
+								}}
+								onUnarchiveAgent={() => {
+									if (!isArchived) {
+										return;
+									}
+									requestUnarchiveAgent?.(chat.id);
+								}}
+								onArchiveAndDeleteWorkspace={() => {
+									const workspaceId = chat.workspace_id;
+									if (isArchived || !workspaceId) {
+										return;
+									}
+									requestArchiveAndDeleteWorkspace?.(chat.id, workspaceId);
+								}}
+								onOpenRenameDialog={
+									!isArchived && onOpenRenameDialog
+										? () => onOpenRenameDialog(chat)
+										: undefined
+								}
 								Item={DropdownMenuItem}
 								Separator={DropdownMenuSeparator}
 							/>

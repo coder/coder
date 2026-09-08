@@ -70,7 +70,6 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	getPersistedDetailError,
@@ -164,15 +163,6 @@ const AgentChatPage: FC = () => {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
-		requestArchiveAgent,
-		requestArchiveAndDeleteWorkspace,
-		requestUnarchiveAgent,
-		requestPinAgent,
-		requestUnpinAgent,
-		isArchiving,
-		archivingChatId,
-		activeChatChildren,
-		onOpenRenameDialog,
 		onChatReady,
 	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
@@ -728,51 +718,6 @@ const AgentChatPage: FC = () => {
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
 
-	const handleArchiveAgentAction = () => {
-		if (!agentId || isArchived) {
-			return;
-		}
-		requestArchiveAgent(agentId);
-	};
-
-	const handleArchiveAndDeleteWorkspaceAction = () => {
-		if (!agentId || isArchived || !workspaceId) {
-			return;
-		}
-		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
-	};
-
-	const handleUnarchiveAgentAction = () => {
-		if (!agentId || !isArchived) {
-			return;
-		}
-		requestUnarchiveAgent(agentId);
-	};
-
-	const handlePinAgentAction = () => {
-		if (!agentId || isArchived) {
-			return;
-		}
-		requestPinAgent(agentId);
-	};
-
-	const handleUnpinAgentAction = () => {
-		if (!agentId || isArchived) {
-			return;
-		}
-		requestUnpinAgent(agentId);
-	};
-
-	const handleOpenRenameDialogAction =
-		onOpenRenameDialog && chat
-			? () => {
-					if (isArchived) {
-						return;
-					}
-					onOpenRenameDialog(chat);
-				}
-			: undefined;
-
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
@@ -1263,21 +1208,6 @@ const AgentChatPage: FC = () => {
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
-					handleArchiveAgentAction={handleArchiveAgentAction}
-					handleUnarchiveAgentAction={handleUnarchiveAgentAction}
-					handleArchiveAndDeleteWorkspaceAction={
-						handleArchiveAndDeleteWorkspaceAction
-					}
-					handlePinAgentAction={handlePinAgentAction}
-					handleUnpinAgentAction={handleUnpinAgentAction}
-					handleOpenRenameDialogAction={handleOpenRenameDialogAction}
-					isArchivingThisChat={
-						isArchiving &&
-						(archivingChatId === undefined || archivingChatId === agentId)
-					}
-					isArchiveBlocked={
-						!chatFamilyAllowsArchive(liveChatStatus, activeChatChildren)
-					}
 					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
 					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}

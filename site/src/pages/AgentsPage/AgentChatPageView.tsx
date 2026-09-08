@@ -37,7 +37,12 @@ import {
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
-import type { useChatStore } from "./components/ChatConversation/chatStore";
+import {
+	selectChatStatus,
+	useChatSelector,
+	type useChatStore,
+} from "./components/ChatConversation/chatStore";
+
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { SkillMetadata } from "./components/ChatMessageInput/SkillsTriggerMenu";
@@ -171,16 +176,6 @@ interface AgentChatPageViewProps {
 
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-
-	// Chat actions.
-	handleArchiveAgentAction: () => void;
-	handleUnarchiveAgentAction: () => void;
-	handleArchiveAndDeleteWorkspaceAction: () => void;
-	handlePinAgentAction?: () => void;
-	handleUnpinAgentAction?: () => void;
-	handleOpenRenameDialogAction?: () => void;
-	isArchivingThisChat?: boolean;
-	isArchiveBlocked?: boolean;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -334,14 +329,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handlePromoteQueuedMessage,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
-	handleArchiveAgentAction,
-	handleUnarchiveAgentAction,
-	handleArchiveAndDeleteWorkspaceAction,
-	handlePinAgentAction,
-	handleUnpinAgentAction,
-	handleOpenRenameDialogAction,
-	isArchivingThisChat,
-	isArchiveBlocked,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -363,6 +350,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const agentId = chat.id;
 	const organizationId = chat.organization_id;
 	const isArchived = chat.archived;
+	const liveChatStatus =
+		useChatSelector(store, selectChatStatus) ?? chat.status;
 	const parsedPrNumber = Number(
 		parsePullRequestUrl(chat.diff_status?.url)?.number,
 	);
@@ -839,23 +828,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								{" "}
 								<ChatTopBar
 									chat={chat}
+									liveChatStatus={liveChatStatus}
 									parentChat={parentChat}
 									panel={{
 										showSidebarPanel,
 										onToggleSidebar: () =>
 											onSetShowSidebarPanel(!showSidebarPanel),
 									}}
-									onArchiveAgent={handleArchiveAgentAction}
-									onUnarchiveAgent={handleUnarchiveAgentAction}
-									onArchiveAndDeleteWorkspace={
-										handleArchiveAndDeleteWorkspaceAction
-									}
-									onPinAgent={handlePinAgentAction}
-									onUnpinAgent={handleUnpinAgentAction}
-									onOpenRenameDialog={handleOpenRenameDialogAction}
-									isArchiving={isArchivingThisChat}
-									isArchiveBlocked={isArchiveBlocked}
-									hasWorkspace={Boolean(workspace)}
 									renderChatSharingContent={
 										canShareChat
 											? (open) => (
@@ -1091,10 +1070,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
 					}}
-					onArchiveAgent={() => {}}
-					onUnarchiveAgent={() => {}}
-					onArchiveAndDeleteWorkspace={() => {}}
-					hasWorkspace={false}
 				/>
 				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 					<div className="px-4">
@@ -1153,10 +1128,6 @@ export const AgentChatPageNotFoundView: FC = () => {
 					showSidebarPanel: false,
 					onToggleSidebar: () => {},
 				}}
-				onArchiveAgent={() => {}}
-				onUnarchiveAgent={() => {}}
-				onArchiveAndDeleteWorkspace={() => {}}
-				hasWorkspace={false}
 			/>
 			<div className="flex flex-1 items-center justify-center text-content-secondary">
 				Chat not found
