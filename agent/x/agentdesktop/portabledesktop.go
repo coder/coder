@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +19,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/x/agentdesktop/embedded"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
@@ -83,12 +83,9 @@ type portableDesktop struct {
 	scriptBinDir string // coder script bin directory
 	clock        quartz.Clock
 
-	// releaseBaseURL, pinnedBinaryDir and httpClient override where the
-	// pinned release is downloaded from and to. Empty means the defaults;
-	// tests point them at a local server and directory.
-	releaseBaseURL  string
-	pinnedBinaryDir string
-	httpClient      *http.Client
+	// cacheDir is where the embedded portabledesktop release is installed.
+	// Empty means embedded.DefaultCacheDir.
+	cacheDir string
 
 	mu                  sync.Mutex
 	session             *desktopSession // nil until started
@@ -770,8 +767,9 @@ func (p *portableDesktop) runCmd(ctx context.Context, args ...string) (string, e
 }
 
 // ensureBinary resolves the portabledesktop binary from PATH, the coder
-// script bin directory, or by downloading the pinned release into the
-// cache directory. It must be called while p.mu is held.
+// script bin directory, or the release embedded in the agent binary, which
+// is installed into the cache directory. It must be called while p.mu is
+// held.
 func (p *portableDesktop) ensureBinary(ctx context.Context) error {
 	if p.binPath != "" {
 		return nil
@@ -804,14 +802,25 @@ func (p *portableDesktop) ensureBinary(ctx context.Context) error {
 		)
 	}
 
-	// 3. Download the pinned release.
-	path, err := p.downloadPinnedBinary(ctx)
-	if err != nil {
-		return xerrors.Errorf("portabledesktop binary not found in PATH or script bin directory, and download failed: %w", err)
+	// 3. Install the release embedded in this binary.
+	if !embedded.Available() {
+		return xerrors.New("portabledesktop binary not found in PATH or script bin directory, and none is embedded in this build")
 	}
-	p.logger.Info(ctx, "using downloaded portabledesktop release",
+	cacheDir := p.cacheDir
+	if cacheDir == "" {
+		var err error
+		cacheDir, err = embedded.DefaultCacheDir()
+		if err != nil {
+			return xerrors.Errorf("resolve cache dir: %w", err)
+		}
+	}
+	path, err := embedded.Install(cacheDir)
+	if err != nil {
+		return xerrors.Errorf("install embedded portabledesktop: %w", err)
+	}
+	p.logger.Info(ctx, "using embedded portabledesktop release",
 		slog.F("path", path),
-		slog.F("version", pinnedReleaseVersion),
+		slog.F("version", embedded.Version),
 	)
 	p.binPath = path
 	return nil

@@ -1,0 +1,5 @@
+# Pinned portabledesktop release embedded into linux agent binaries.
+# Checksums come from the release's SHA256SUMS.txt. Bump all three together.
+version=v0.0.8
+sha256_amd64=abd71b1a44dcfb896b9aca5759735a7fb385fd9286ea77b82e96683d2be35c68
+sha256_arm64=749494fc13658a10da2201ed3ea58a858d78fe3fb445132f72dfd797d0d2191e

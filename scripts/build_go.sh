@@ -153,10 +153,27 @@ fi
 # github.com/aws/aws-sdk-go-v2/aws, which adds 7 MB to the binary.
 TS_EXTRA_SMALL="ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube"
 if [[ "$slim" == 1 ]]; then
-	build_args+=(-tags "slim,$TS_EXTRA_SMALL")
+	tags="slim,$TS_EXTRA_SMALL"
 else
-	build_args+=(-tags "embed,$TS_EXTRA_SMALL")
+	tags="embed,$TS_EXTRA_SMALL"
 fi
+
+# Embed the pinned portabledesktop release into linux slim binaries (the
+# ones workspace agents run) so the built-in desktop needs no download inside
+# the workspace. `make` fetches the release via scripts/portabledesktop/fetch.sh;
+# slim builds fail without it so releases always ship it. Non-slim development
+# builds continue without it. CODER_PORTABLEDESKTOP_EMBED=0 skips the check.
+# The arch may still carry a GOARM style suffix (e.g. arm64v8) at this point.
+pd_arch="${arch%%v*}"
+if [[ "$slim" == 1 ]] && [[ "$os" == "linux" ]] && [[ "$pd_arch" == "amd64" || "$pd_arch" == "arm64" ]] && [[ "${CODER_PORTABLEDESKTOP_EMBED:-1}" != 0 ]]; then
+	pd_binary="agent/x/agentdesktop/embedded/bin/portabledesktop-linux-${pd_arch}"
+	if [[ -f "$pd_binary" ]]; then
+		tags+=",portabledesktop_embed"
+	else
+		error "$pd_binary is missing, run 'make $pd_binary' or set CODER_PORTABLEDESKTOP_EMBED=0"
+	fi
+fi
+build_args+=(-tags "$tags")
 if [[ "$agpl" == 1 ]]; then
 	# We don't use a tag to control AGPL because we don't want code to depend on
 	# a flag to control AGPL vs. enterprise behavior.

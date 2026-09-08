@@ -314,6 +314,27 @@ clean:
 build-slim: $(CODER_SLIM_BINARIES)
 .PHONY: build-slim
 
+# The pinned portabledesktop release is embedded into linux slim binaries so
+# the built-in desktop works without any download inside the workspace. The
+# release is fetched once at build time and verified against
+# scripts/portabledesktop/release.lock. Set CODER_PORTABLEDESKTOP_EMBED=0 to
+# build without it.
+PORTABLEDESKTOP_ARCHES   := amd64 arm64
+PORTABLEDESKTOP_BIN_DIR  := agent/x/agentdesktop/embedded/bin
+PORTABLEDESKTOP_BINARIES := $(foreach arch,$(PORTABLEDESKTOP_ARCHES),$(PORTABLEDESKTOP_BIN_DIR)/portabledesktop-linux-$(arch))
+PORTABLEDESKTOP_LOCK     := scripts/portabledesktop/release.lock
+
+$(PORTABLEDESKTOP_BIN_DIR)/portabledesktop-linux-%: $(PORTABLEDESKTOP_LOCK) scripts/portabledesktop/fetch.sh
+	./scripts/portabledesktop/fetch.sh --arch "$*" --output "$@"
+
+fetch-portabledesktop: $(PORTABLEDESKTOP_BINARIES)
+.PHONY: fetch-portabledesktop
+
+ifneq ($(CODER_PORTABLEDESKTOP_EMBED),0)
+build/coder-slim_$(VERSION)_linux_amd64: $(PORTABLEDESKTOP_BIN_DIR)/portabledesktop-linux-amd64
+build/coder-slim_$(VERSION)_linux_arm64: $(PORTABLEDESKTOP_BIN_DIR)/portabledesktop-linux-arm64
+endif
+
 build-fat build-full build: $(CODER_FAT_BINARIES)
 .PHONY: build-fat build-full build
 

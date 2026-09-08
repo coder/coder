@@ -1261,6 +1261,12 @@ jobs:
           make gen/mark-fresh
           make build
 
+      # The regular test jobs build without the embedded portabledesktop
+      # release; exercise the embedded install path here where `make build`
+      # has already fetched it.
+      - name: Test embedded portabledesktop
+        run: go test -count=1 -race -tags portabledesktop_embed ./agent/x/agentdesktop/...
+
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit
     # to main branch.

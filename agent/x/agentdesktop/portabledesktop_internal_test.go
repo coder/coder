@@ -3,8 +3,6 @@ package agentdesktop
 import (
 	"context"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +18,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/x/agentdesktop/embedded"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -518,16 +517,15 @@ func TestEnsureBinary_ScriptBinDirNotExecutable(t *testing.T) {
 	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\n"), 0o600))
 	_ = binPath
 
-	srv := httptest.NewServer(http.NotFoundHandler())
-	t.Cleanup(srv.Close)
+	if embedded.Available() {
+		t.Skip("a portabledesktop release is embedded in this build")
+	}
 
 	logger := slogtest.Make(t, nil)
 	pd := &portableDesktop{
-		logger:          logger,
-		execer:          agentexec.DefaultExecer,
-		scriptBinDir:    scriptBinDir,
-		releaseBaseURL:  srv.URL,
-		pinnedBinaryDir: t.TempDir(),
+		logger:       logger,
+		execer:       agentexec.DefaultExecer,
+		scriptBinDir: scriptBinDir,
 	}
 
 	// Clear PATH so LookPath won't find a real binary.
@@ -542,18 +540,15 @@ func TestEnsureBinary_NotFound(t *testing.T) {
 	// Cannot use t.Parallel because t.Setenv modifies the process
 	// environment.
 
-	// The download fallback must fail too, so point it at a server that
-	// returns 404 and at an empty cache directory.
-	srv := httptest.NewServer(http.NotFoundHandler())
-	t.Cleanup(srv.Close)
+	if embedded.Available() {
+		t.Skip("a portabledesktop release is embedded in this build")
+	}
 
 	logger := slogtest.Make(t, nil)
 	pd := &portableDesktop{
-		logger:          logger,
-		execer:          agentexec.DefaultExecer,
-		scriptBinDir:    t.TempDir(), // empty directory
-		releaseBaseURL:  srv.URL,
-		pinnedBinaryDir: t.TempDir(),
+		logger:       logger,
+		execer:       agentexec.DefaultExecer,
+		scriptBinDir: t.TempDir(), // empty directory
 	}
 
 	// Clear PATH so LookPath won't find a real binary.
@@ -1047,4 +1042,30 @@ func TestPortableDesktop_Start_ReturnsErrDesktopClosed(t *testing.T) {
 
 	_, err = pd.Start(ctx)
 	require.ErrorIs(t, err, ErrDesktopClosed)
+}
+
+func TestEnsureBinary_UsesEmbeddedRelease(t *testing.T) {
+	// Cannot use t.Parallel because t.Setenv modifies the process
+	// environment.
+	if !embedded.Available() {
+		t.Skip("build with -tags portabledesktop_embed to exercise the embedded release")
+	}
+
+	cacheDir := t.TempDir()
+	pd := &portableDesktop{
+		logger:       slogtest.Make(t, nil),
+		execer:       agentexec.DefaultExecer,
+		scriptBinDir: t.TempDir(),
+		cacheDir:     cacheDir,
+	}
+	t.Setenv("PATH", "")
+
+	require.NoError(t, pd.ensureBinary(t.Context()))
+	assert.Equal(t, embedded.InstallPath(cacheDir), pd.binPath)
+
+	// The installed binary must be the real release and runnable.
+	//nolint:gosec // binPath is the release this test just installed.
+	out, err := exec.CommandContext(t.Context(), pd.binPath, "--help").CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Contains(t, string(out), "portabledesktop")
 }
