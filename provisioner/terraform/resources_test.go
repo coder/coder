@@ -1299,6 +1299,63 @@ func TestAppSlugValidation(t *testing.T) {
 	}
 }
 
+//nolint:tparallel
+func TestAppExternalURLInvalid(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+
+	// Load the multiple-apps state file and edit it.
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-apps")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	err = json.Unmarshal(tfPlanRaw, &tfPlan)
+	require.NoError(t, err)
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.dot"))
+	require.NoError(t, err)
+
+	cases := []struct {
+		name        string
+		external    bool
+		url         any
+		errContains string
+	}{
+		{name: "MissingScheme", external: true, url: "coder.com/docs", errContains: "must include a scheme"},
+		{name: "SchemeOnly", external: true, url: "https://", errContains: `"https" URLs must include a host`},
+		{name: "PortOnly", external: true, url: "https://:8080", errContains: `"https" URLs must include a host`},
+		{name: "AbsoluteURL", external: true, url: "https://coder.com/docs", errContains: ""},
+		{name: "CustomScheme", external: true, url: "zed://ssh/coder.dev", errContains: ""},
+		// Terraform reports URLs it cannot resolve until apply as empty, and
+		// non-external apps are proxied rather than opened by the browser.
+		{name: "UnresolvedURL", external: true, url: nil, errContains: ""},
+		{name: "NotExternal", external: false, url: "coder.com/docs", errContains: ""},
+	}
+
+	//nolint:paralleltest
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Change the first app to match the current case.
+			for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
+				if resource.Type == "coder_app" {
+					resource.AttributeValues["external"] = c.external
+					resource.AttributeValues["url"] = c.url
+					break
+				}
+			}
+
+			_, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
+			if c.errContains != "" {
+				require.ErrorContains(t, err, c.errContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestAppSlugDuplicate(t *testing.T) {
 	t.Parallel()
 	ctx, logger := ctxAndLogger(t)
