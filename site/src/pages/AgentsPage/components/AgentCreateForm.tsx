@@ -40,7 +40,10 @@ import {
 	pickReasoningEffort,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentChatInput } from "./AgentChatInput";
+import {
+	AgentChatInput,
+	type AgentChatInputSendOptions,
+} from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -72,6 +75,7 @@ export type CreateChatOptions = {
 	reasoningEffort?: string;
 	mcpServerIds?: string[];
 	organizationId: string;
+	goalMutation?: TypesGen.ChatGoalSetRequest;
 	planMode?: TypesGen.ChatPlanMode;
 	// When present, the submit carries files destined for the chat's
 	// workspace. The page creates the chat without content, runs this
@@ -180,6 +184,7 @@ type AgentCreateFormProps = {
 	canCreateChat: boolean;
 	canConfigureAgentSetup: boolean;
 	aiGatewayDisabled?: boolean;
+	showPursueGoal?: boolean;
 	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
@@ -194,6 +199,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	canCreateChat,
 	canConfigureAgentSetup,
 	aiGatewayDisabled,
+	showPursueGoal = false,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -576,6 +582,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		message: string,
 		fileIDs?: string[],
 		uploadWorkspaceFiles?: CreateChatOptions["uploadWorkspaceFiles"],
+		options?: AgentChatInputSendOptions,
 	) => {
 		submitDraft();
 		await onCreateChat({
@@ -585,6 +592,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 			model: submittedModel,
 			reasoningEffort: effectiveReasoningEffort,
 			organizationId,
+			goalMutation: options?.goalMutation,
 			mcpServerIds:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -658,7 +666,10 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		handleAttach(files);
 	};
 
-	const handleSendWithAttachments = async (message: string) => {
+	const handleSendWithAttachments = async (
+		message: string,
+		options?: AgentChatInputSendOptions,
+	) => {
 		if (submitInFlightRef.current) {
 			return;
 		}
@@ -694,12 +705,12 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 				? uploadQueuedWorkspaceFiles
 				: undefined;
 		try {
-			await handleSend(message, fileArg, uploadWorkspaceFiles);
-		} catch {
+			await handleSend(message, fileArg, uploadWorkspaceFiles, options);
+		} catch (error) {
 			// Attachments and queued files preserved for retry.
 			submitInFlightRef.current = false;
 			setIsSubmitSequencePending(false);
-			return;
+			throw error;
 		}
 		resetAttachments();
 		resetWorkspaceUploads();
@@ -844,6 +855,8 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						isModelCatalogLoading={isModelDataPending}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
+						showPursueGoal={showPursueGoal}
+						canPursueGoal={showPursueGoal}
 						onPlanModeToggle={setPlanModeEnabled}
 						attachments={attachments}
 						// Files attached before org adoption cannot upload and would be discarded

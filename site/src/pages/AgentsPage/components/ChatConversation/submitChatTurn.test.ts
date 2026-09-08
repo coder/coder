@@ -72,6 +72,7 @@ const buildParams = (
 			has_more: false,
 		}),
 		setCachedChatPlanMode: vi.fn(),
+		setCachedChatGoal: vi.fn(),
 		...overrides,
 	};
 };

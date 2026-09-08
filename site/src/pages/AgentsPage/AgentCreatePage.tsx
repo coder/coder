@@ -217,6 +217,7 @@ const AgentCreatePage: React.FC = () => {
 		reasoningEffort,
 		mcpServerIds,
 		organizationId,
+		goalMutation,
 		planMode,
 		uploadWorkspaceFiles,
 	}: CreateChatOptions) => {
@@ -238,6 +239,7 @@ const AgentCreatePage: React.FC = () => {
 			workspace_id: workspaceId,
 			mcp_server_ids:
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
+			goal_mutation: goalMutation,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
 			...(model ? { model_config_id: model } : {}),
@@ -375,6 +377,7 @@ const AgentCreatePage: React.FC = () => {
 					canCreateChat={permissions.createChat}
 					canConfigureAgentSetup={permissions.editDeploymentConfig}
 					aiGatewayDisabled={aiGatewayDisabled}
+					showPursueGoal={experiments.includes("chat-goals")}
 					workspaceCount={workspacesQuery.data?.count}
 					workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 					workspacesError={workspacesQuery.error}
