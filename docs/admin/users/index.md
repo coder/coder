@@ -229,11 +229,10 @@ The following filters are supported:
 To edit a user's display name or username with the web UI:
 
 1. Log in as a user admin.
-2. Go to **Users**
-3. Find the user whose details you would like to edit
-4. Select **Edit** from the actions menu
-5. Make any desired changes
-6. Select **Save**
+2. Go to **Users**.
+3. Open the actions menu for the user and select **Edit**.
+4. Make any desired changes.
+5. Select **Save**.
 
 ## Retrieve your list of Coder users
 
