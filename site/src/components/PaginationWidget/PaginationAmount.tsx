@@ -8,7 +8,6 @@ type PaginationHeaderProps = {
 	totalRecords: number | undefined;
 	currentOffsetStart: number | undefined;
 	countIsCapped?: boolean;
-	/** Prefixes the summary with "Filtered:" when a filter narrows the results. */
 	isFiltered?: boolean;
 
 	// Temporary escape hatch until Workspaces can be switched over to using

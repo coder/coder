@@ -175,9 +175,7 @@ export const ATTRIBUTE_CHIP_KEYS: readonly string[] = ATTRIBUTE_DEFINITIONS.map(
 /**
  * Boolean workspace attributes exposed as a single "Attributes" category. Each
  * option commits its own `key:true` chip (e.g. `outdated:true`) rather than a
- * shared `attribute:` key, matching the backend workspace search filters. The
- * combobox presents those chips as `attribute:<key>` so they read like every
- * other chip.
+ * shared `attribute:` key, matching the backend workspace search filters.
  */
 export const getAttributeFilterOptions = async (
 	query: string,

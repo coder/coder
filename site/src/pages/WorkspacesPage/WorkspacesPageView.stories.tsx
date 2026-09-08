@@ -181,8 +181,6 @@ const meta: Meta<typeof WorkspacesPageView> = {
 export default meta;
 type Story = StoryObj<typeof WorkspacesPageView>;
 
-// The pagination summary is prefixed with "Filtered:" whenever the filter
-// query is non-empty, including the default `owner:me`.
 export const FilteredPaginationSummary: Story = {
 	args: {
 		workspaces: allWorkspaces,
@@ -194,8 +192,6 @@ export const FilteredPaginationSummary: Story = {
 	},
 };
 
-// With an active filter and no matches, the toolbar summary mirrors the empty
-// state sentence instead of the generic "No records available".
 export const FilteredEmptySummary: Story = {
 	args: {
 		workspaces: [],

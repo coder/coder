@@ -117,8 +117,7 @@ const categoriesWithAttributes: FilterCategory[] = [
 	},
 ];
 
-// Chips render the key and value in separate spans, so match a committed chip
-// on the chip element's combined text rather than a single text node.
+// Chips split key and value into separate spans, so match on the chip's text.
 const chip = (token: string) => (_: string, element: Element | null) =>
 	element?.getAttribute("data-slot") === "combobox-chip" &&
 	element.textContent === token;
@@ -166,8 +165,6 @@ export const Default: Story = {
 	},
 };
 
-// The filter toggle shows the dotted icon while any chip is applied and
-// reverts to the plain icon once the last chip is removed.
 export const ActiveFilterIcon: Story = {
 	render: () => <FilterComboboxHarness />,
 	play: async ({ canvasElement }) => {
@@ -184,8 +181,6 @@ export const ActiveFilterIcon: Story = {
 	},
 };
 
-// Enough chips to wrap onto a second row. Visual regression coverage for the
-// search and filter icons staying aligned with the first row of chips.
 export const WrappedChipsKeepIconsOnFirstRow: Story = {
 	render: () => (
 		<FilterComboboxHarness

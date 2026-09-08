@@ -91,7 +91,6 @@ interface WorkspacesTableProps {
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
 	isUsingFilter: boolean;
-	/** Resets the filter query when the filtered result set is empty. */
 	onClearFilter: () => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	templates?: Template[];

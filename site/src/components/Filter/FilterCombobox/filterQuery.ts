@@ -11,11 +11,9 @@ export const chipToken = (key: string, value: string) => `${key}:${value}`;
 type ChipDisplaySource = Pick<FilterCategory, "key" | "chipKeys">;
 
 /**
- * Key and value to show on a committed chip. Single-key categories display the
- * token as-is (`owner:me`). A multi-key category such as Attributes commits
- * `outdated:true`, which reads poorly as a chip, so it is presented under the
- * category key instead (`attribute:outdated`), keeping every chip on the same
- * `key:value` pattern. The query string is unaffected.
+ * Key and value to display for a chip token. Tokens owned by a multi-key
+ * category (`outdated:true` under Attributes) display under the category key
+ * (`attribute:outdated`); the query string itself is unchanged.
  */
 export const chipDisplay = (
 	token: string,

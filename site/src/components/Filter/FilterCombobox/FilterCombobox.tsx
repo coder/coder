@@ -138,8 +138,6 @@ export function FilterCombobox({
 								className="font-medium"
 								aria-hidden
 							>
-								{/* Previews the chip prefix (`status:`, `attribute:`) so
-								    the draft matches how the committed chip will read. */}
 								{`${activeCategory.key}:`}
 							</Badge>
 						)}
@@ -174,11 +172,8 @@ export function FilterCombobox({
 							}}
 							onClick={actions.toggleMenu}
 						>
-							{/* Swap to the dotted variant while at least one filter chip is
-							    applied so the toggle doubles as an active indicator. Its
-							    shortened top line carries less visual mass than the plain
-							    icon, so it renders 2px larger to read as the same size (the
-							    important flag beats the button's `[&>svg]:size-*` rule). */}
+							{/* Rendered 2px larger than the plain icon so both read as the
+							    same size; `!` overrides the button's `[&>svg]:size-*` rule. */}
 							{chipValues.length > 0 ? (
 								<ListFilterActiveIcon
 									aria-hidden
@@ -235,12 +230,9 @@ export function FilterCombobox({
 	);
 }
 
-// Row metrics from the design spec: 34px tall rows (24px icon slot plus 5px
-// vertical padding), 8px horizontal padding, 8px gap between icon and label.
 const OPTION_ITEM_CLASS = "min-h-[34px] gap-2 px-2 py-[5px]";
 
-// Fixed 24px leading slot so lucide icons (18px via the item's svg rule),
-// 24px avatars, and status dots all line up regardless of intrinsic size.
+// Fixed 24px slot so icons, avatars, and status dots of different sizes align.
 function OptionIcon({ children }: { children: ReactNode }): ReactNode {
 	return (
 		<span
@@ -252,8 +244,6 @@ function OptionIcon({ children }: { children: ReactNode }): ReactNode {
 	);
 }
 
-// Renders a `prefix:value` chip with the prefix de-emphasized so the value the
-// user chose is what stands out. An empty prefix renders the value alone.
 function ChipLabel({
 	prefix,
 	value,
