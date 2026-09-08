@@ -468,15 +468,15 @@ func hasClearableMessageAfter(messages []database.ChatMessage, index int) bool {
 	return false
 }
 
-// Hook model-context messages use the user role but must not reset
-// per-turn guards.
+// Hook model-context messages use the user role but do not start a new turn.
+// Goal resume messages do.
 func lastUserPromptIndex(messages []database.ChatMessage) int {
 	index := -1
 	for i, msg := range messages {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
-		if msg.Role == database.ChatMessageRoleUser && msg.Visibility != database.ChatMessageVisibilityModel {
+		if msg.Role == database.ChatMessageRoleUser && (msg.Visibility != database.ChatMessageVisibilityModel || isGoalTurnBoundaryMessageBestEffort(msg)) {
 			index = i
 		}
 	}
