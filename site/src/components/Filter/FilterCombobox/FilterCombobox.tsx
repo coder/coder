@@ -175,12 +175,15 @@ export function FilterCombobox({
 							onClick={actions.toggleMenu}
 						>
 							{/* Swap to the dotted variant while at least one filter chip is
-							    applied so the toggle doubles as an active indicator. */}
+							    applied so the toggle doubles as an active indicator. Its
+							    shortened top line carries less visual mass than the plain
+							    icon, so it renders 2px larger to read as the same size (the
+							    important flag beats the button's `[&>svg]:size-*` rule). */}
 							{chipValues.length > 0 ? (
 								<ListFilterActiveIcon
 									aria-hidden
 									data-testid="filter-active-icon"
-									className="size-icon-sm"
+									className="size-5!"
 								/>
 							) : (
 								<ListFilterIcon aria-hidden className="size-icon-sm" />

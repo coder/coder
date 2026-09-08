@@ -1,5 +1,5 @@
 import {
-	BuildingIcon,
+	Building2Icon,
 	CircleDotIcon,
 	LayoutPanelTopIcon,
 	TagIcon,
@@ -98,7 +98,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			next.push({
 				key: "organization",
 				label: "Organization",
-				icon: <BuildingIcon />,
+				icon: <Building2Icon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
 		}
