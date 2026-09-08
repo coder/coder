@@ -71,6 +71,9 @@ func workspaceAgent() *serpent.Command {
 		Short: `Starts the Coder workspace agent.`,
 		// This command isn't useful to manually execute.
 		Hidden: true,
+		Children: []*serpent.Command{
+			agentDesktop(),
+		},
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancelCause(inv.Context())
 			defer func() {

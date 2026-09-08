@@ -242,6 +242,11 @@ jobs:
       - name: Setup GCloud SDK
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
+      - name: Build desktop runtime
+        uses: ./.github/actions/desktop-runtime
+        with:
+          depot-project: wl5hnrrkns
+
       - name: Build binaries
         run: |
           set -euo pipefail

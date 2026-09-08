@@ -314,6 +314,31 @@ clean:
 build-slim: $(CODER_SLIM_BINARIES)
 .PHONY: build-slim
 
+# The desktop runtime is a static Xvnc server embedded into linux agent
+# binaries. It is cross-compiled with Docker at build time only; the workspace
+# agent unpacks the archive and execs Xvnc directly, it never runs a container.
+# See scripts/desktopruntime/README.md.
+#
+# Every release ships the archive for its architecture, so linux binaries
+# depend on it by default. Set CODER_DESKTOP_RUNTIME=0 to build without the
+# runtime on machines without Docker.
+DESKTOP_RUNTIME_ARCHES    := amd64 arm64
+DESKTOP_RUNTIME_DIR       := agent/x/agentdesktop/desktopruntime/embed
+DESKTOP_RUNTIME_ARCHIVES  := $(foreach arch,$(DESKTOP_RUNTIME_ARCHES),$(DESKTOP_RUNTIME_DIR)/desktop-runtime-linux-$(arch).tar.zst)
+DESKTOP_RUNTIME_SRC_FILES := $(shell find ./scripts/desktopruntime -type f -not -name README.md)
+
+$(DESKTOP_RUNTIME_DIR)/desktop-runtime-linux-%.tar.zst: $(DESKTOP_RUNTIME_SRC_FILES)
+	./scripts/desktopruntime/build.sh --arch "$*" --output "$@"
+	./scripts/desktopruntime/check_size.sh "$@"
+
+build-desktop-runtime: $(DESKTOP_RUNTIME_ARCHIVES)
+.PHONY: build-desktop-runtime
+
+ifneq ($(CODER_DESKTOP_RUNTIME),0)
+build/coder-slim_$(VERSION)_linux_amd64 build/coder_$(VERSION)_linux_amd64: $(DESKTOP_RUNTIME_DIR)/desktop-runtime-linux-amd64.tar.zst
+build/coder-slim_$(VERSION)_linux_arm64 build/coder_$(VERSION)_linux_arm64: $(DESKTOP_RUNTIME_DIR)/desktop-runtime-linux-arm64.tar.zst
+endif
+
 build-fat build-full build: $(CODER_FAT_BINARIES)
 .PHONY: build-fat build-full build
 

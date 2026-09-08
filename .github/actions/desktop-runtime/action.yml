@@ -1,0 +1,53 @@
+name: "Build desktop runtime"
+description: |
+  Produces the desktop runtime archives (static Xvnc) that are embedded into
+  linux agent binaries. The archives are restored from the Actions cache when
+  scripts/desktopruntime has not changed, otherwise they are cross-compiled
+  with Docker buildx. Depot builders are used when a project is given so the
+  arm64 build runs on native hardware instead of QEMU.
+inputs:
+  depot-project:
+    description: "Depot project ID. When empty, QEMU emulation is used for arm64."
+    required: false
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    # Only pushes to the default branch may write this cache; PRs and tags
+    # read it. The key hashes every build input so a Dockerfile or script
+    # change always rebuilds.
+    - name: Restore desktop runtime
+      id: desktop-runtime-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: agent/x/agentdesktop/desktopruntime/embed/*.tar.zst
+        key: desktop-runtime-${{ hashFiles('scripts/desktopruntime/**', '!scripts/desktopruntime/README.md') }}
+
+    - name: Install depot.dev CLI
+      if: steps.desktop-runtime-cache.outputs.cache-hit != 'true' && inputs.depot-project != ''
+      uses: depot/setup-action@91bc8495a33ebfc504ffc89e5674379ccf23c29c # v1.7.2
+
+    - name: Set up QEMU
+      if: steps.desktop-runtime-cache.outputs.cache-hit != 'true' && inputs.depot-project == ''
+      uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+      with:
+        platforms: arm64
+
+    - name: Build desktop runtime
+      if: steps.desktop-runtime-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        DEPOT_PROJECT: ${{ inputs.depot-project }}
+      run: |
+        set -euo pipefail
+        if [[ -n "$DEPOT_PROJECT" ]]; then
+          export CODER_DESKTOP_RUNTIME_BUILDX="depot build --project $DEPOT_PROJECT"
+        fi
+        make -j build-desktop-runtime
+
+    - name: Save desktop runtime
+      if: github.ref == 'refs/heads/main' && steps.desktop-runtime-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: agent/x/agentdesktop/desktopruntime/embed/*.tar.zst
+        key: ${{ steps.desktop-runtime-cache.outputs.cache-primary-key }}

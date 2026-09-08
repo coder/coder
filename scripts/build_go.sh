@@ -153,10 +153,29 @@ fi
 # github.com/aws/aws-sdk-go-v2/aws, which adds 7 MB to the binary.
 TS_EXTRA_SMALL="ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube"
 if [[ "$slim" == 1 ]]; then
-	build_args+=(-tags "slim,$TS_EXTRA_SMALL")
+	tags="slim,$TS_EXTRA_SMALL"
 else
-	build_args+=(-tags "embed,$TS_EXTRA_SMALL")
+	tags="embed,$TS_EXTRA_SMALL"
 fi
+
+# Embed the desktop runtime (static Xvnc) into linux binaries. Every release
+# ships the archive for its architecture, so slim binaries (the ones workspace
+# agents run) fail to build without it. Non-slim development builds continue
+# without the runtime. CODER_DESKTOP_RUNTIME=0 skips the check entirely for
+# local builds without Docker.
+# The arch may still carry a GOARM style suffix (e.g. arm64v8) at this point.
+desktop_runtime_arch="${arch%%v*}"
+if [[ "$os" == "linux" ]] && [[ "$desktop_runtime_arch" == "amd64" || "$desktop_runtime_arch" == "arm64" ]] && [[ "${CODER_DESKTOP_RUNTIME:-1}" != 0 ]]; then
+	desktop_runtime_archive="agent/x/agentdesktop/desktopruntime/embed/desktop-runtime-linux-${desktop_runtime_arch}.tar.zst"
+	if [[ -f "$desktop_runtime_archive" ]]; then
+		tags+=",desktop_runtime"
+	elif [[ "$slim" == 1 ]]; then
+		error "$desktop_runtime_archive is missing, run 'make build-desktop-runtime' or set CODER_DESKTOP_RUNTIME=0"
+	else
+		log "INFO : $desktop_runtime_archive not found, building without the embedded desktop runtime"
+	fi
+fi
+build_args+=(-tags "$tags")
 if [[ "$agpl" == 1 ]]; then
 	# We don't use a tag to control AGPL because we don't want code to depend on
 	# a flag to control AGPL vs. enterprise behavior.
