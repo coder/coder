@@ -302,12 +302,23 @@ func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 				Title: "history fence", InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 			})
 			require.NoError(t, err)
+			// Close clears chatWorker.manager under its mutex while tasks may
+			// still be draining, so read it the way Wake and WaitIdle do.
+			manager := func() *runnerManager {
+				server.chatWorker.mu.Lock()
+				defer server.chatWorker.mu.Unlock()
+				return server.chatWorker.manager
+			}
 			starter, err := newTaskStarter(server, server.chatWorker.opts,
 				func(ctx context.Context, state runnerStateUpdate) {
-					server.chatWorker.manager.RouteStateHint(ctx, state)
+					if m := manager(); m != nil {
+						m.RouteStateHint(ctx, state)
+					}
 				},
 				func(ctx context.Context, key runnerKey) {
-					server.chatWorker.manager.requestCleanup(ctx, key)
+					if m := manager(); m != nil {
+						m.requestCleanup(ctx, key)
+					}
 				},
 			)
 			require.NoError(t, err)
