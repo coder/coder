@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"sync"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 )
 
 const shutdownCleanupTimeout = 5 * time.Second
@@ -127,10 +125,6 @@ func (m *runnerManager) start() {
 
 func (m *runnerManager) wait() {
 	m.wg.Wait()
-	// Shutdown has released every remaining key and all runners have joined.
-	m.mu.Lock()
-	clear(m.cleaning)
-	m.mu.Unlock()
 }
 
 func (m *runnerManager) idle() bool {
@@ -162,60 +156,6 @@ func (m *runnerManager) requestCleanup(ctx context.Context, key runnerKey) {
 	case <-ctx.Done():
 	case <-m.ctx.Done():
 	}
-}
-
-// release clears ownership only if the locked chat still needs no runner work.
-// A false result asks the runner to reread rather than leave changed work idle.
-func (m *runnerManager) release(ctx context.Context, rec *runnerRecord, state runnerStateUpdate) (bool, error) {
-	// Buffer separately so publication errors cannot obscure a committed
-	// release and keep a runner alive after its ownership has been cleared.
-	buffer := chatstate.NewPublishBuffer(m.opts.Pubsub)
-	defer buffer.Discard()
-	machine := chatstate.NewChatMachine(m.opts.Store, buffer, rec.key.ChatID)
-	errSkipRelease := xerrors.New("skip runner release")
-	released := false
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(ctx, rec.key.ChatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return chatstate.ErrChatNotFound
-		}
-		if err != nil {
-			return xerrors.Errorf("load chat for runner release: %w", err)
-		}
-		if !chat.WorkerID.Valid || chat.WorkerID.UUID != rec.workerID ||
-			!chat.RunnerID.Valid || chat.RunnerID.UUID != rec.key.RunnerID {
-			released = true
-			return errSkipRelease
-		}
-		// Returning an error also rolls back Update's snapshot bump. Queue
-		// edits must be reread, but an unchanged errored queue stays parked:
-		// queued messages alone do not make an error chat acquirable.
-		if chat.HistoryVersion != state.HistoryVersion ||
-			chat.QueueVersion != state.QueueVersion ||
-			chat.Status != state.Status || chat.Archived != state.Archived {
-			return errSkipRelease
-		}
-		if !chat.Archived && chat.Status != database.ChatStatusWaiting && chat.Status != database.ChatStatusError {
-			return errSkipRelease
-		}
-		if _, err := tx.Abandon(chatstate.AbandonInput{}); err != nil {
-			return xerrors.Errorf("release runner ownership: %w", err)
-		}
-		return nil
-	})
-	if errors.Is(err, chatstate.ErrChatNotFound) {
-		return true, nil
-	}
-	if errors.Is(err, errSkipRelease) {
-		return released, nil
-	}
-	if err != nil {
-		return false, xerrors.Errorf("release chat runner: %w", err)
-	}
-	if err := buffer.Flush(); err != nil {
-		m.opts.Logger.Warn(ctx, "chatworker runner release publication failed", slog.F("chat_id", rec.key.ChatID), slogError(err))
-	}
-	return true, nil
 }
 
 func (m *runnerManager) RouteStateHint(ctx context.Context, state runnerStateUpdate) {
@@ -349,24 +289,23 @@ func (m *runnerManager) handleCleanupRequest(key runnerKey) {
 func (m *runnerManager) registerCleanupWaiter(key runnerKey, rec *runnerRecord) {
 	m.wg.Go(func() {
 		<-rec.done
+		if m.ctx.Err() != nil {
+			m.mu.Lock()
+			delete(m.cleaning, key)
+			m.mu.Unlock()
+			return
+		}
 		select {
 		case m.cleanupDoneCh <- key:
 		case <-m.ctx.Done():
-			// Shutdown must consume this key before the record is forgotten.
+			m.mu.Lock()
+			delete(m.cleaning, key)
+			m.mu.Unlock()
 		}
 	})
 }
 
 func (m *runnerManager) handleCleanupDone(key runnerKey) {
-	m.mu.Lock()
-	_, ok := m.cleaning[key]
-	m.mu.Unlock()
-	if !ok {
-		return
-	}
-	// Release the heartbeat before forgetting the record. Cancellation can
-	// race this handler, leaving shutdown unable to find the key afterward.
-	m.releaseOwnershipHints([]runnerKey{key})
 	m.mu.Lock()
 	delete(m.cleaning, key)
 	m.mu.Unlock()
@@ -424,7 +363,7 @@ func (m *runnerManager) releaseOwnershipHints(keys []runnerKey) {
 		ChatIds:   chatIDs,
 		RunnerIds: runnerIDs,
 	}); err != nil {
-		m.opts.Logger.Warn(ctx, "chatworker runner heartbeat cleanup failed", slogError(err))
+		m.opts.Logger.Warn(ctx, "chatworker shutdown heartbeat cleanup failed", slogError(err))
 	}
 
 	syncIDs := make([]uuid.UUID, 0, len(uniqueChatIDs))
@@ -433,7 +372,7 @@ func (m *runnerManager) releaseOwnershipHints(keys []runnerKey) {
 	}
 	chats, err := m.opts.Store.GetChatsByIDsForRunnerSync(ctx, syncIDs)
 	if err != nil {
-		m.opts.Logger.Warn(ctx, "chatworker runner cleanup ownership lookup failed", slogError(err))
+		m.opts.Logger.Warn(ctx, "chatworker shutdown ownership lookup failed", slogError(err))
 	}
 	snapshotByChat := make(map[uuid.UUID]int64, len(chats))
 	for _, chat := range chats {
@@ -445,11 +384,11 @@ func (m *runnerManager) releaseOwnershipHints(keys []runnerKey) {
 			SnapshotVersion: snapshotByChat[key.ChatID],
 		})
 		if err != nil {
-			m.opts.Logger.Warn(ctx, "chatworker runner cleanup ownership marshal failed", slogError(err))
+			m.opts.Logger.Warn(ctx, "chatworker shutdown ownership marshal failed", slogError(err))
 			continue
 		}
 		if err := m.opts.Pubsub.Publish(coderdpubsub.ChatStateOwnershipChannel, payload); err != nil {
-			m.opts.Logger.Warn(ctx, "chatworker runner cleanup ownership publish failed", slogError(err))
+			m.opts.Logger.Warn(ctx, "chatworker shutdown ownership publish failed", slogError(err))
 		}
 	}
 }

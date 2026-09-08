@@ -262,7 +262,7 @@ func TestWorker_FullPoolSkipsRefusalsAfterFirst(t *testing.T) {
 func TestWorker_AdmissionAdmitsInUpdatedAtOrder(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
-	starter := newBlockingTaskStarter(false)
+	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	admission := newFakeAdmission()
 	opts.AgentCapacityLimiter = admission

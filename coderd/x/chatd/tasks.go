@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -54,6 +55,105 @@ func (e taskRetryableError) Unwrap() error {
 	return errors.Join(errTaskRetryable, e.err)
 }
 
+type retryWrapperOptions struct {
+	clock        quartz.Clock
+	logger       slog.Logger
+	initialDelay time.Duration
+	maxDelay     time.Duration
+}
+
+type retryWrapperTaskInfo struct {
+	ChatID   uuid.UUID
+	WorkerID uuid.UUID
+	RunnerID uuid.UUID
+}
+
+// runTaskWithRetry ensures that a task doesn't exit until it completes
+// successfully or gets canceled. It retries the task in case of any ephemeral errors.
+// It's critical for the correct operation of the chat runner:
+// this function is THE place that ensures task liveness within the runner.
+func runTaskWithRetry(
+	ctx context.Context,
+	opts retryWrapperOptions,
+	kind taskKind,
+	info retryWrapperTaskInfo,
+	fn func(context.Context) error,
+) error {
+	if opts.clock == nil {
+		opts.clock = quartz.NewReal()
+	}
+	if opts.initialDelay <= 0 {
+		opts.initialDelay = defaultTaskRetryInitialBackoff
+	}
+	if opts.maxDelay <= 0 {
+		opts.maxDelay = defaultTaskRetryMaxBackoff
+	}
+	if opts.maxDelay < opts.initialDelay {
+		opts.maxDelay = opts.initialDelay
+	}
+	delay := opts.initialDelay
+	for {
+		attemptCtx, cancelAttempt := taskAttemptContext(ctx, opts.clock, kind)
+		err := executeTaskSafely(attemptCtx, fn)
+		timedOut := errors.Is(context.Cause(attemptCtx), errTaskTimeout)
+		cancelAttempt()
+		if timedOut && err != nil {
+			if !errors.Is(err, errTaskExpectedExit) ||
+				errors.Is(err, context.Canceled) ||
+				errors.Is(err, context.DeadlineExceeded) ||
+				errors.Is(err, errTaskTimeout) {
+				err = taskRetryableError{err: errors.Join(errTaskTimeout, err)}
+			}
+		}
+		if err == nil {
+			// no log on success to avoid noise
+			return nil
+		}
+
+		exitReason := ""
+		switch {
+		case ctx.Err() != nil:
+			exitReason = "context_canceled"
+		case errors.Is(err, errTaskExpectedExit) && !errors.Is(err, errTaskRetryable):
+			exitReason = "expected_non_retryable_exit"
+		}
+		if exitReason != "" {
+			opts.logger.Debug(ctx, "chatworker task exited",
+				slog.F("task_kind", kind),
+				slog.F("reason", exitReason),
+				slog.F("chat_id", info.ChatID),
+				slog.F("worker_id", info.WorkerID),
+				slog.F("runner_id", info.RunnerID),
+				slogError(err),
+			)
+			return nil
+		}
+
+		opts.logger.Warn(ctx, "chatworker task retrying",
+			slog.F("task_kind", kind),
+			slog.F("delay", delay),
+			slog.F("chat_id", info.ChatID),
+			slog.F("worker_id", info.WorkerID),
+			slog.F("runner_id", info.RunnerID),
+			slogError(err),
+		)
+		timer := opts.clock.NewTimer(delay, "chatworker", "task-retry-"+string(kind))
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return nil
+		}
+		timer.Stop()
+		if delay < opts.maxDelay {
+			delay *= 2
+			if delay > opts.maxDelay {
+				delay = opts.maxDelay
+			}
+		}
+	}
+}
+
 func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) (context.Context, func()) {
 	attemptCtx, cancelCause := context.WithCancelCause(ctx)
 	timer := clock.AfterFunc(defaultTaskTimeout, func() {
@@ -83,12 +183,16 @@ type interruptionOutcome struct {
 type taskStarter struct {
 	server                   *Server
 	opts                     chatWorkerOptions
+	routeStateHint           func(context.Context, runnerStateUpdate)
+	requestCleanup           func(context.Context, runnerKey)
 	afterInterruptionOutcome func(context.Context, interruptionOutcome) error
 }
 
 func newTaskStarter(
 	server *Server,
 	opts chatWorkerOptions,
+	routeStateHint func(context.Context, runnerStateUpdate),
+	requestCleanup func(context.Context, runnerKey),
 ) (*taskStarter, error) {
 	if server == nil {
 		return nil, xerrors.New("chatworker: server is required")
@@ -114,10 +218,27 @@ func newTaskStarter(
 	if opts.TaskRetryMaxBackoff < opts.TaskRetryInitialBackoff {
 		opts.TaskRetryMaxBackoff = opts.TaskRetryInitialBackoff
 	}
+	if routeStateHint == nil {
+		return nil, xerrors.New("chatworker: route state hint callback is required")
+	}
+	if requestCleanup == nil {
+		return nil, xerrors.New("chatworker: cleanup callback is required")
+	}
 	return &taskStarter{
-		server: server,
-		opts:   opts,
+		server:         server,
+		opts:           opts,
+		routeStateHint: routeStateHint,
+		requestCleanup: requestCleanup,
 	}, nil
+}
+
+func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
+	return retryWrapperOptions{
+		clock:        o.Clock,
+		logger:       o.Logger,
+		initialDelay: o.TaskRetryInitialBackoff,
+		maxDelay:     o.TaskRetryMaxBackoff,
+	}
 }
 
 func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
@@ -205,13 +326,13 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	})
 	if err != nil {
 		if current, ok := s.committedStateAfterUpdateError(ctx, committed); ok {
-			return s.publishWatch(ctx, current, codersdk.ChatWatchEventKindStatusChange)
+			return s.publishWatchAndRoute(ctx, current, codersdk.ChatWatchEventKindStatusChange)
 		}
 		return normalizeTaskTransitionError(err, "finish interruption")
 	}
 	input.DebugTurn.RecordOutcome(chatdebug.StatusInterrupted)
-	if err := s.publishWatch(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
-		return xerrors.Errorf("publish watch: %w", err)
+	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
+		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.runAfterInterruptionOutcome(ctx, interruptionOutcome{
 		Chat:           committed,
@@ -340,11 +461,46 @@ func (s *taskStarter) cancelRequiresAction(
 	})
 	if err != nil {
 		if current, ok := s.committedStateAfterUpdateError(ctx, committed); ok {
-			return s.publishWatch(ctx, current, codersdk.ChatWatchEventKindStatusChange)
+			return s.publishWatchAndRoute(ctx, current, codersdk.ChatWatchEventKindStatusChange)
 		}
 		return normalizeTaskTransitionError(err, "cancel requires action")
 	}
-	return s.publishWatch(ctx, committed, codersdk.ChatWatchEventKindStatusChange)
+	return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange)
+}
+
+func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
+	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	mismatch := false
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		chat, err := store.GetChatByID(ctx, input.ChatID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				mismatch = true
+				return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
+			}
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if !ownedByTask(chat, input) {
+			mismatch = true
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("chat not owned by task"))
+		}
+		if err := verifyTaskFence(chat, input, input.Status, taskFenceOptions{requireHistory: true, allowArchived: true}); err != nil {
+			return xerrors.Errorf("task fence mismatch: %w", err)
+		}
+		if _, err := tx.Abandon(chatstate.AbandonInput{}); err != nil {
+			return xerrors.Errorf("abandon chat: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, errTaskExpectedExit) && mismatch {
+			s.requestCleanup(ctx, runnerKey{ChatID: input.ChatID, RunnerID: input.RunnerID})
+			return nil
+		}
+		return normalizeTaskTransitionError(err, "abandon chat")
+	}
+	s.requestCleanup(ctx, runnerKey{ChatID: input.ChatID, RunnerID: input.RunnerID})
+	return nil
 }
 
 func (s *taskStarter) committedStateAfterUpdateError(ctx context.Context, committed database.Chat) (database.Chat, bool) {
@@ -368,7 +524,7 @@ func (s *taskStarter) committedStateAfterUpdateError(ctx context.Context, commit
 	return current, true
 }
 
-func (s *taskStarter) publishWatch(
+func (s *taskStarter) publishWatchAndRoute(
 	ctx context.Context,
 	chat database.Chat,
 	kind codersdk.ChatWatchEventKind,
@@ -378,6 +534,7 @@ func (s *taskStarter) publishWatch(
 	if err := s.publishWatchWithRetry(watchCtx, chat, kind); err != nil {
 		return xerrors.Errorf("publish watch with retry: %w", err)
 	}
+	s.routeStateHint(ctx, stateUpdateFromChat(chat))
 	return nil
 }
 

@@ -641,8 +641,6 @@ Queued-message promotion revalidates the stored model with daemon authorization.
 
 ## Acquisition loop
 
-TODO: Reconcile acquisition, lease, and heartbeat timings below with the normal `chatd.New` defaults: 1-second acquisition, 5-minute stale lease, and 30-second heartbeat.
-
 The acquisition loop is a simple component that greedily acquires unowned or lease-expired chats from the database anytime it has a chance. It's driven by two triggers:
 
 - a periodic timer that wakes up every 30 seconds.
@@ -810,7 +808,7 @@ The runner maintains the following local state:
 
 ### Event processing
 
-TODO: Describe the runner-owned read/execute/retry/release loop, normally returning operations, and manager-owned conditional release. Explain cancellation and draining separately from scheduling and ownership.
+TODO: Update the loop iteration steps below. Finished goroutines are removed before the snapshot check; an event with an equal snapshot version but changed history, status, or archived state is processed as new; and after any event, including a duplicate delivered by the manager sync, the required goroutine is spawned when none is active.
 
 The main idea behind the event processing logic is that a chat's status and its history version determine the work that the runner should be performing at any given time. Let's go through an example:
 

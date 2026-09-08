@@ -1276,8 +1276,8 @@ func (s *taskStarter) commitGenerationStep(
 		input.DebugTurn.RecordOutcome(chatdebug.StatusError)
 		postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 		defer cancel()
-		if err := s.publishWatch(postCommitCtx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
-			return xerrors.Errorf("publish watch: %w", err)
+		if err := s.publishWatchAndRoute(postCommitCtx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
+			return xerrors.Errorf("publish watch and route: %w", err)
 		}
 		return s.afterGenerationOutcome(postCommitCtx, generationOutcome{
 			Chat:           committed,
@@ -1286,6 +1286,7 @@ func (s *taskStarter) commitGenerationStep(
 			LastError:      postCommitMessage,
 		})
 	}
+	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return s.afterGenerationOutcome(ctx, generationOutcome{
 		Chat: committed,
 		Kind: runnerActionKind(kind),
@@ -1315,8 +1316,8 @@ func (s *taskStarter) enterRequiresAction(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "enter requires action")
 	}
-	if err := s.publishWatch(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
-		return xerrors.Errorf("publish watch: %w", err)
+	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
+		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.afterGenerationOutcome(ctx, generationOutcome{
 		Chat:           committed,
@@ -1384,7 +1385,7 @@ func (s *taskStarter) completeGenerationTurn(
 	watchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 	defer cancel()
 	if err := s.publishWatchWithRetry(watchCtx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
-		return xerrors.Errorf("publish watch: %w", err)
+		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	if err := s.afterGenerationOutcome(ctx, generationOutcome{
 		Chat:              committed,
@@ -1394,6 +1395,7 @@ func (s *taskStarter) completeGenerationTurn(
 	}); err != nil {
 		return xerrors.Errorf("after generation outcome: %w", err)
 	}
+	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return nil
 }
 
@@ -1508,6 +1510,7 @@ func (s *taskStarter) finishGenerationTurn(
 		return err
 	}
 	if continueTurn {
+		s.routeStateHint(ctx, stateUpdateFromChat(committed))
 		return s.afterGenerationOutcome(ctx, generationOutcome{
 			Chat: committed,
 			Kind: runnerActionKind(generationActionGenerateAssistant),
@@ -1559,8 +1562,8 @@ func (s *taskStarter) finishGenerationError(
 		return err
 	}
 	input.DebugTurn.RecordOutcome(chatdebug.StatusError)
-	if err := s.publishWatch(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
-		return xerrors.Errorf("publish watch: %w", err)
+	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
+		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.afterGenerationOutcome(ctx, generationOutcome{
 		Chat:           committed,

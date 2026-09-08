@@ -54,7 +54,7 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	workerCtx, cancel := context.WithCancel(ctx)
 	manager := newRunnerManager(workerCtx, w.server, w.opts)
 	if manager.opts.TaskStarter == nil {
-		starter, err := newTaskStarter(manager.server, manager.opts)
+		starter, err := newTaskStarter(manager.server, manager.opts, manager.RouteStateHint, manager.requestCleanup)
 		if err != nil {
 			cancel()
 			return err

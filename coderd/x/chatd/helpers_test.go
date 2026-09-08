@@ -330,6 +330,29 @@ func (s *generationResultTaskStarter) StartGeneration(ctx context.Context, input
 	return err
 }
 
+// editUserMessage changes message content outside the state machine. The
+// trigger advances history_version without bumping snapshot_version.
+func editUserMessage(t *testing.T, f *workerTestFixture, chatID uuid.UUID, text string) database.Chat {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	before, err := f.db.GetChatByID(ctx, chatID)
+	require.NoError(t, err)
+	result, err := f.sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages
+		SET content = $2::jsonb
+		WHERE chat_id = $1 AND role = 'user' AND NOT deleted
+	`, chatID, `[{"type":"text","text":"`+text+`"}]`)
+	require.NoError(t, err)
+	affected, err := result.RowsAffected()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), affected)
+	after, err := f.db.GetChatByID(ctx, chatID)
+	require.NoError(t, err)
+	require.Equal(t, before.SnapshotVersion, after.SnapshotVersion)
+	require.Greater(t, after.HistoryVersion, before.HistoryVersion)
+	return after
+}
+
 type releaseGate struct {
 	once sync.Once
 	ch   chan struct{}
@@ -342,8 +365,6 @@ type recordingTaskStarter struct {
 	releases     []*releaseGate
 	block        bool
 	ignoreCancel bool
-	exitErr      error
-	panicOnExit  bool
 }
 
 func newRecordingTaskStarter() *recordingTaskStarter {
@@ -370,10 +391,11 @@ func (s *recordingTaskStarter) StartRequiresActionTimeout(ctx context.Context, i
 	return s.start(ctx, taskKindRequiresActionTimeout, input)
 }
 
+func (s *recordingTaskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
+	return s.start(ctx, taskKindAbandon, input)
+}
+
 func (s *recordingTaskStarter) start(ctx context.Context, kind taskKind, input chatWorkerTaskStartInput) error {
-	if s.panicOnExit {
-		defer func() { panic("operation panic") }()
-	}
 	call := taskCall{kind: kind, input: input, ctx: ctx}
 	var gate *releaseGate
 	s.mu.Lock()
@@ -385,15 +407,15 @@ func (s *recordingTaskStarter) start(ctx context.Context, kind taskKind, input c
 	s.mu.Unlock()
 	s.callCh <- call
 	if gate == nil {
-		return s.exitErr
+		return nil
 	}
 	if s.ignoreCancel {
 		<-gate.ch
-		return s.exitErr
+		return nil
 	}
 	select {
 	case <-gate.ch:
-		return s.exitErr
+		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
