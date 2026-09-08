@@ -1095,7 +1095,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 		{
 			Flag:        "connect-url",
 			Env:         "CODER_SCALETEST_CONNECT_URL",
-			Description: "URL to connect to inside the the workspace over WireGuard. " + "If not specified, no connections will be made over WireGuard.",
+			Description: "URL to connect to inside the workspace over WireGuard. " + "If not specified, no connections will be made over WireGuard.",
 			Value:       serpent.StringOf(&connectURL),
 		},
 		{
