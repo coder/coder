@@ -1,4 +1,6 @@
-# Template
+---
+title: Template
+---
 
 Templates are written in
 [Terraform](https://developer.hashicorp.com/terraform/intro) and define the

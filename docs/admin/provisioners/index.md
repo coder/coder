@@ -1,4 +1,6 @@
-# External provisioners
+---
+title: External provisioners
+---
 
 By default, the Coder server runs
 [built-in provisioner daemons](../../reference/cli/server.md#--provisioner-daemons),

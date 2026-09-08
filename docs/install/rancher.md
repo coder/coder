@@ -1,4 +1,6 @@
-# Deploy Coder on Rancher
+---
+title: Deploy Coder on Rancher
+---
 
 You can deploy Coder on Rancher as a
 [Workload](https://ranchermanager.docs.rancher.com/getting-started/quick-start-guides/deploy-workloads/workload-ingress).
