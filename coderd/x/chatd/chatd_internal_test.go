@@ -911,6 +911,7 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 		t.Parallel()
 		require.Equal(t, map[string]struct{}{
 			chattool.CompleteGoalToolName: {},
+			chattool.BlockGoalToolName:    {},
 		}, stopAfterBehaviorTools(
 			database.NullChatPlanMode{},
 			database.NullChatMode{},
@@ -942,6 +943,7 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 			require.Contains(t, result, tool)
 		}
 		require.Contains(t, result, chattool.CompleteGoalToolName)
+		require.Contains(t, result, chattool.BlockGoalToolName)
 	})
 
 	t.Run("ExploreModeReturnsNil", func(t *testing.T) {
@@ -1899,10 +1901,10 @@ func TestExclusiveGenerationToolNames(t *testing.T) {
 		map[string]bool{chatadvisor.ToolName: true},
 		exclusiveGenerationToolNames(true, false))
 	require.Equal(t,
-		map[string]bool{chattool.CompleteGoalToolName: true},
+		map[string]bool{chattool.CompleteGoalToolName: true, chattool.BlockGoalToolName: true},
 		exclusiveGenerationToolNames(false, true))
 	require.Equal(t,
-		map[string]bool{chatadvisor.ToolName: true, chattool.CompleteGoalToolName: true},
+		map[string]bool{chatadvisor.ToolName: true, chattool.CompleteGoalToolName: true, chattool.BlockGoalToolName: true},
 		exclusiveGenerationToolNames(true, true))
 }
 
@@ -1983,6 +1985,59 @@ func TestInterruptChatPausesActiveGoal(t *testing.T) {
 	require.True(t, sawGoalChange)
 }
 
+func TestReconcileInvalidStateChatPausesActiveGoal(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	goal, err := f.db.InsertActiveChatGoal(dbauthz.AsSystemRestricted(ctx), database.InsertActiveChatGoalParams{
+		RootChatID:      chat.ID,
+		Objective:       "finish the work",
+		CreatedByUserID: f.user.ID,
+	})
+	require.NoError(t, err)
+	// Force the deliberately invalid running + archived combination so
+	// reconciliation is the only permitted transition.
+	_, err = f.db.UpdateChatExecutionState(dbauthz.AsSystemRestricted(ctx), database.UpdateChatExecutionStateParams{
+		ID:                       chat.ID,
+		Status:                   database.ChatStatusRunning,
+		Archived:                 true,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
+		LastError:                chat.LastError,
+		RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
+	})
+	require.NoError(t, err)
+
+	pubsub := newRecordingPubsub(f.pubsub)
+	server := &Server{
+		db:          f.db,
+		pubsub:      pubsub,
+		logger:      testutil.Logger(t),
+		clock:       quartz.NewReal(),
+		experiments: codersdk.Experiments{codersdk.ExperimentChatGoals},
+	}
+	updated, err := server.ReconcileInvalidStateChat(dbauthz.AsSystemRestricted(ctx), chat)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusError, updated.Status)
+
+	paused, err := currentChatGoal(dbauthz.AsSystemRestricted(ctx), f.db, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, paused)
+	require.Equal(t, goal.ID, paused.ID)
+	require.Equal(t, database.ChatGoalStatusPaused, paused.Status)
+	require.Equal(t, string(codersdk.ChatGoalPausedReasonError), paused.PausedReason.String)
+
+	var sawGoalChange bool
+	for _, event := range pubsub.watchEvents(t) {
+		if event.Chat.ID == chat.ID && event.Kind == codersdk.ChatWatchEventKindGoalChange {
+			sawGoalChange = true
+		}
+	}
+	require.True(t, sawGoalChange, "reconciliation must announce the paused goal")
+}
+
 func TestInterruptChatLeavesGoalUntouched(t *testing.T) {
 	t.Parallel()
 
@@ -2021,8 +2076,9 @@ func TestInterruptChatLeavesGoalUntouched(t *testing.T) {
 			require.NoError(t, err)
 			if tc.pauseFirst {
 				_, err := f.db.PauseChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.PauseChatGoalByIDParams{
-					RootChatID: chat.ID,
-					ID:         goal.ID,
+					RootChatID:   chat.ID,
+					ID:           goal.ID,
+					PausedReason: string(codersdk.ChatGoalPausedReasonUser),
 				})
 				require.NoError(t, err)
 			}
@@ -2066,8 +2122,9 @@ func TestApplyGoalMutationResumeStartsTurn(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = f.db.PauseChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.PauseChatGoalByIDParams{
-		RootChatID: chat.ID,
-		ID:         goal.ID,
+		RootChatID:   chat.ID,
+		ID:           goal.ID,
+		PausedReason: string(codersdk.ChatGoalPausedReasonUser),
 	})
 	require.NoError(t, err)
 	_, err = f.db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
@@ -2204,8 +2261,9 @@ func TestApplyGoalMutationResumeRejected(t *testing.T) {
 			})
 			require.NoError(t, err)
 			_, err = f.db.PauseChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.PauseChatGoalByIDParams{
-				RootChatID: chat.ID,
-				ID:         goal.ID,
+				RootChatID:   chat.ID,
+				ID:           goal.ID,
+				PausedReason: string(codersdk.ChatGoalPausedReasonUser),
 			})
 			require.NoError(t, err)
 			tc.setup(t, ctx, f, chat)

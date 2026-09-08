@@ -8,14 +8,15 @@ import (
 // ToSDK converts a database.ChatGoal to a codersdk.ChatGoal.
 func ToSDK(goal database.ChatGoal) codersdk.ChatGoal {
 	converted := codersdk.ChatGoal{
-		ID:               goal.ID,
-		RootChatID:       goal.RootChatID,
-		Objective:        goal.Objective,
-		Status:           codersdk.ChatGoalStatus(goal.Status),
-		CreatedByUserID:  goal.CreatedByUserID,
-		CompletedByAgent: goal.CompletedByAgent,
-		CreatedAt:        goal.CreatedAt,
-		UpdatedAt:        goal.UpdatedAt,
+		ID:                goal.ID,
+		RootChatID:        goal.RootChatID,
+		Objective:         goal.Objective,
+		Status:            codersdk.ChatGoalStatus(goal.Status),
+		ContinuationCount: goal.ContinuationCount,
+		CreatedByUserID:   goal.CreatedByUserID,
+		CompletedByAgent:  goal.CompletedByAgent,
+		CreatedAt:         goal.CreatedAt,
+		UpdatedAt:         goal.UpdatedAt,
 	}
 	if goal.CreatedFromMessageID.Valid {
 		createdFromMessageID := goal.CreatedFromMessageID.Int64
@@ -23,6 +24,13 @@ func ToSDK(goal database.ChatGoal) codersdk.ChatGoal {
 	}
 	if goal.CompletionSummary.Valid {
 		converted.CompletionSummary = &goal.CompletionSummary.String
+	}
+	if goal.PausedReason.Valid {
+		pausedReason := codersdk.ChatGoalPausedReason(goal.PausedReason.String)
+		converted.PausedReason = &pausedReason
+	}
+	if goal.BlockedReason.Valid {
+		converted.BlockedReason = &goal.BlockedReason.String
 	}
 	if goal.CompletedByUserID.Valid {
 		completedByUserID := goal.CompletedByUserID.UUID

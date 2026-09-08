@@ -85,6 +85,7 @@ export const MockChatGoal: ChatGoal = {
 	root_chat_id: MockChat.id,
 	objective: "Fix the flaky tests",
 	status: "active",
+	continuation_count: 0,
 	created_by_user_id: MockUserOwner.id,
 	completed_by_agent: false,
 	created_at: MOCK_TIMESTAMP,
