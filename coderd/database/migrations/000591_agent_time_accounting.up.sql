@@ -111,7 +111,8 @@ candidate_messages AS MATERIALIZED (
     FROM input_messages input
     JOIN chat_messages cm ON cm.id = input.message_id
     LEFT JOIN chats c ON c.id = cm.chat_id AND p_delete_chat_id IS NULL
-    WHERE cm.runtime_ms IS NOT NULL
+    -- Invalid recorded times must not consume an accounting marker.
+    WHERE cm.runtime_ms >= 0
       AND (
           (p_delete_chat_id IS NULL AND c.id IN (SELECT id FROM locked_chats))
           OR (p_delete_chat_id IS NOT NULL AND cm.chat_id = p_delete_chat_id)
@@ -175,7 +176,7 @@ BEGIN
     PERFORM account_agent_time_messages(ARRAY(
         SELECT id
         FROM agent_time_new_messages
-        WHERE runtime_ms IS NOT NULL
+        WHERE runtime_ms >= 0
         ORDER BY id
     ));
     RETURN NULL;
@@ -213,7 +214,7 @@ BEGIN
         FROM chat_messages cm
         LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
         WHERE cm.chat_id = OLD.id
-          AND cm.runtime_ms IS NOT NULL
+          AND cm.runtime_ms >= 0
           AND accounted.message_id IS NULL
         ORDER BY cm.id
         LIMIT fallback_limit + 1

@@ -3,6 +3,7 @@ package agenttime_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -186,6 +187,145 @@ func TestAgentTimeAccountingDoesNotBumpChatState(t *testing.T) {
 	require.Equal(t, revisionBefore, revisionAfter)
 }
 
+// Negative recorded times are invalid input. They must not consume an
+// accounting marker or reduce daily/organization aggregates.
+func TestLiveAgentTimeAccountingExcludesNegativeRuntime(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	fixture := setupAgentTimeFixture(t, db)
+
+	mixedDay := time.Date(2025, 2, 1, 12, 0, 0, 0, time.UTC)
+	negativeDay := time.Date(2025, 2, 2, 12, 0, 0, 0, time.UTC)
+	mixedIDs := []int64{
+		insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, mixedDay, int64Ptr(100), false),
+		insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, mixedDay, int64Ptr(-500), false),
+		insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, mixedDay, int64Ptr(250), false),
+	}
+	negativeID := insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, negativeDay, int64Ptr(-1), false)
+
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 2, 1), 350)
+	requireNoDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 2, 2))
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, mixedIDs, 2)
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, []int64{negativeID}, 0)
+}
+
+// An unclaimed negative message stays claimable so a corrected source value is
+// still accounted, and only once.
+func TestAgentTimeAccountingRetriesNegativeRuntimeUntilCorrected(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	fixture := setupAgentTimeFixture(t, db)
+
+	day := time.Date(2025, 2, 3, 12, 0, 0, 0, time.UTC)
+	positiveID := insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, day, int64Ptr(100), false)
+	negativeID := insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, day, int64Ptr(-300), false)
+	ids := []int64{positiveID, negativeID}
+	clearAgentTimeAccounting(ctx, t, sqlDB, ids)
+
+	claimed, err := db.AccountAgentTimeMessages(ctx, ids)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, claimed)
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 2, 3), 100)
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, []int64{negativeID}, 0)
+
+	// Retrying must neither claim nor subtract the invalid value.
+	claimed, err = db.AccountAgentTimeMessages(ctx, ids)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, claimed)
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 2, 3), 100)
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, []int64{negativeID}, 0)
+
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_messages SET runtime_ms = 250 WHERE id = $1`, negativeID)
+	require.NoError(t, err)
+
+	claimed, err = db.AccountAgentTimeMessages(ctx, ids)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, claimed)
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 2, 3), 350)
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, ids, 2)
+
+	claimed, err = db.AccountAgentTimeMessages(ctx, ids)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, claimed)
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 2, 3), 350)
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, ids, 2)
+}
+
+func TestAgentTimeDeleteFallbackExcludesNegativeRuntime(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		deleteChat func(ctx context.Context, t *testing.T, db database.Store, sqlDB *sql.DB, chatID uuid.UUID)
+	}{
+		{
+			name: "DirectDelete",
+			deleteChat: func(ctx context.Context, t *testing.T, _ database.Store, sqlDB *sql.DB, chatID uuid.UUID) {
+				t.Helper()
+
+				result, err := sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, chatID)
+				require.NoError(t, err)
+				affected, err := result.RowsAffected()
+				require.NoError(t, err)
+				require.EqualValues(t, 1, affected)
+			},
+		},
+		{
+			// Retention counts unaccounted messages itself to decide whether a
+			// chat fits the fallback budget, so it needs its own coverage.
+			name: "DeleteOldChats",
+			deleteChat: func(ctx context.Context, t *testing.T, db database.Store, _ *sql.DB, chatID uuid.UUID) {
+				t.Helper()
+
+				_, err := db.ArchiveChatByID(ctx, chatID)
+				require.NoError(t, err)
+				deleted, err := db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+					BeforeTime: time.Now().Add(time.Hour),
+					LimitCount: 10,
+				})
+				require.NoError(t, err)
+				require.EqualValues(t, 1, deleted)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+			fixture := setupAgentTimeFixture(t, db)
+			// The budget exactly covers the two valid messages, so the deletion
+			// only stays within it if negative times consume nothing.
+			setAgentTimeDeleteFallbackLimit(ctx, t, sqlDB, 2)
+
+			day1 := time.Date(2025, 2, 4, 12, 0, 0, 0, time.UTC)
+			day2 := time.Date(2025, 2, 5, 12, 0, 0, 0, time.UTC)
+			ids := []int64{
+				insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, day1, int64Ptr(100), false),
+				insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, day1, int64Ptr(-100), false),
+				insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, day2, int64Ptr(200), false),
+				insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, day2, int64Ptr(-400), false),
+				insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, day2, nil, false),
+			}
+			// Force every message through the delete fallback instead of the
+			// insert path.
+			clearAgentTimeAccounting(ctx, t, sqlDB, ids)
+
+			tc.deleteChat(ctx, t, db, sqlDB, fixture.chat.ID)
+
+			requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 2, 4), 100)
+			requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 2, 5), 200)
+			// Markers cascade away with the messages; the aggregates are the record.
+			requireAgentTimeMarkerCount(ctx, t, sqlDB, ids, 0)
+			require.EqualValues(t, 0, countChatMessages(ctx, t, sqlDB, fixture.chat.ID))
+		})
+	}
+}
+
 type chatState struct {
 	SnapshotVersion   int64
 	HistoryVersion    int64
@@ -230,6 +370,21 @@ func clearAgentTimeAccounting(ctx context.Context, t testing.TB, db *sql.DB, mes
 	_, err := db.ExecContext(ctx, `DELETE FROM chat_message_agent_time_accounted WHERE message_id = ANY($1)`, pq.Array(messageIDs))
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `DELETE FROM agent_time_daily; DELETE FROM agent_time_organization_daily`)
+	require.NoError(t, err)
+}
+
+func setAgentTimeDeleteFallbackLimit(ctx context.Context, t testing.TB, db *sql.DB, limit int) {
+	t.Helper()
+
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		CREATE OR REPLACE FUNCTION agent_time_delete_fallback_limit()
+		RETURNS integer
+		LANGUAGE sql
+		IMMUTABLE
+		AS $$
+			SELECT %d;
+		$$;
+	`, limit))
 	require.NoError(t, err)
 }
 

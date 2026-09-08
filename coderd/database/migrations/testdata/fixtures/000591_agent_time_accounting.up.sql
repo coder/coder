@@ -1,4 +1,4 @@
--- Covers agent time accounting tables introduced by migration 000590.
+-- Covers agent time accounting tables introduced by migration 000591.
 -- The chat_message insert exercises live trigger capture into
 -- chat_message_agent_time_accounted and agent_time_daily.
 INSERT INTO chat_messages (
