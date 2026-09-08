@@ -1757,10 +1757,14 @@ ORDER BY source ASC;
 -- name: LinkChatFilesAfterLock :one
 -- LinkChatFilesAfterLock requires the chat row lock. When the batch would
 -- exceed the cap, the oldest files on the chat are deleted to make room; the
--- cascade removes their links. The batch is rejected only when the batch
--- itself exceeds the cap.
+-- cascade removes their links. A file links to at most one chat, so no other
+-- chat can lose a file here. The batch is rejected only when the batch itself
+-- exceeds the cap.
 WITH new_links AS (
     SELECT DISTINCT unnest(@file_ids::uuid[]) AS file_id
+),
+fits AS (
+    SELECT (SELECT COUNT(*) FROM new_links) <= @max_file_links::int AS ok
 ),
 genuinely_new AS (
     SELECT nl.file_id FROM new_links nl
@@ -1781,15 +1785,8 @@ candidates AS (
     JOIN chat_files cf ON cf.id = cfl.file_id
     WHERE cfl.chat_id = @chat_id::uuid
       AND NOT EXISTS (SELECT 1 FROM new_links nl WHERE nl.file_id = cf.id)
-      AND NOT EXISTS (
-          SELECT 1 FROM chat_file_links o
-          WHERE o.file_id = cf.id AND o.chat_id <> @chat_id::uuid
-      )
     ORDER BY cf.created_at ASC, cf.id ASC
     LIMIT (SELECT n FROM needed)
-),
-fits AS (
-    SELECT (SELECT COUNT(*) FROM candidates) >= (SELECT n FROM needed) AS ok
 ),
 evicted AS (
     DELETE FROM chat_files cf

@@ -2205,6 +2205,24 @@ func TestLinkChatFilesEvictsOldest(t *testing.T) {
 		_, err = db.GetChatFileByID(ctx, id)
 		require.NoError(t, err)
 	}
+
+	// A file links to one chat only.
+	chat = newChat()
+	files = newFiles(1)
+	rejected, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      files,
+		MaxFileLinks: maxLinks,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+	_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       newChat().ID,
+		FileIds:      files,
+		MaxFileLinks: maxLinks,
+	})
+	require.True(t, database.IsUniqueViolation(err, database.UniqueChatFileLinksFileIDKey))
+	require.Equal(t, files, linkedIDs(chat.ID))
 }
 
 func TestGetChatFileDataPrefixesByIDs(t *testing.T) {

@@ -49,7 +49,7 @@ We call it **metadata**. The core state machine concerns itself with **execution
 
 File links are metadata, but one invariant is enforced at transition time: if a transition persists message content that references uploaded files (chat create, message send, queued send, or message edit), it records the file links in the same transaction. If linking would exceed the per-chat attachment cap, the whole transition is rejected. File retention skips files that are still linked to existing chats, so a persisted message must never reference a file without a link.
 
-TODO: document that `LinkChatFilesAfterLock` now deletes the oldest files on the chat when a link would exceed the cap, so only a single batch over the cap is rejected, and persisted messages can reference evicted files. The UI renders them as unavailable and dispatch replaces them with text placeholders.
+TODO: document that a file links to at most one chat (`chat_file_links.file_id` is unique; linking a file that another chat holds fails with `ErrChatFileUnavailable`), and that `LinkChatFilesAfterLock` now deletes the oldest files on the chat when a link would exceed the cap, so only a single batch over the cap is rejected, and persisted messages can reference evicted files. The UI renders them as unavailable and dispatch replaces them with text placeholders.
 
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
