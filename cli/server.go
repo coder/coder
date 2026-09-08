@@ -1153,7 +1153,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var aibridgeDaemon *aibridged.Server
 
 			// Run after newAPI so provider settings are decrypted by dbcrypt.
-			//nolint:gocritic // Production timeout, not a test wait.
 			backfillCtx, cancelBackfill := context.WithTimeout(ctx, 30*time.Second)
 			coderd.BackfillBedrockProviderType(backfillCtx, options.Database, logger.Named("aibridge.backfill"))
 			cancelBackfill()

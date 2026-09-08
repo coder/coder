@@ -21,9 +21,9 @@ Adopt the `ai_gateway` names for gateway and proxy settings so your configuratio
 
 | Area                  | Old name                                       | New (canonical) name                              | Old name still works?              |
 |-----------------------|------------------------------------------------|---------------------------------------------------|------------------------------------|
-| Environment variables | `CODER_AIBRIDGE_*`                             | `CODER_AI_GATEWAY_*`                              | Yes (deprecated alias)             |
-| CLI flags             | `--aibridge-*`                                 | `--ai-gateway-*`                                  | Yes (deprecated alias)             |
-| YAML config group     | `aibridge:` / `aibridgeproxy:`                 | `ai_gateway:` / `ai_gateway_proxy:`               | Yes (deprecated alias)             |
+| Environment variables | `CODER_AIBRIDGE_*`                             | `CODER_AI_GATEWAY_*`                              | Yes, except provider setup         |
+| CLI flags             | `--aibridge-*`                                 | `--ai-gateway-*`                                  | Yes, except provider setup         |
+| YAML config group     | `aibridge:` / `aibridgeproxy:`                 | `ai_gateway:` / `ai_gateway_proxy:`               | Yes, except provider setup         |
 | HTTP API              | `/api/v2/aibridge`                             | `/api/v2/ai-gateway`                              | Yes (legacy route retained)        |
 | Prometheus metrics    | `coder_aibridged_*` / `coder_aibridgeproxyd_*` | `coder_ai_gateway_*` / `coder_ai_gateway_proxy_*` | Yes (both emitted, old deprecated) |
 | Database              | (no change)                                    | (no change)                                       | n/a                                |
