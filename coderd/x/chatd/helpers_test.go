@@ -311,6 +311,22 @@ type taskCall struct {
 	ctx   context.Context
 }
 
+// generationResultTaskStarter records real operation results without changing
+// the worker's scheduling or the generation implementation.
+type generationResultTaskStarter struct {
+	chatWorkerTaskStarter
+	results chan error
+}
+
+func (s *generationResultTaskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskStartInput) error {
+	err := s.chatWorkerTaskStarter.StartGeneration(ctx, input)
+	select {
+	case s.results <- err:
+	case <-ctx.Done():
+	}
+	return err
+}
+
 type releaseGate struct {
 	once sync.Once
 	ch   chan struct{}
@@ -582,6 +598,7 @@ type gatedChatRead struct {
 	chat    database.Chat
 	err     error
 	release chan error
+	done    chan struct{}
 }
 
 func newGatedChatStore(db database.Store, chatID uuid.UUID) *gatedChatStore {
@@ -600,7 +617,8 @@ func (s *gatedChatStore) GetChatByID(ctx context.Context, chatID uuid.UUID) (dat
 		}
 	}
 	chat, err := s.Store.GetChatByID(ctx, chatID)
-	read := &gatedChatRead{ctx: ctx, chat: chat, err: err, release: make(chan error, 1)}
+	read := &gatedChatRead{ctx: ctx, chat: chat, err: err, release: make(chan error, 1), done: make(chan struct{})}
+	defer close(read.done)
 	select {
 	case s.reads <- read:
 	case <-ctx.Done():

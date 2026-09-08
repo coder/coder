@@ -68,17 +68,17 @@ type retryWrapperTaskInfo struct {
 	RunnerID uuid.UUID
 }
 
-// runTaskWithRetry ensures that a task doesn't exit until it completes
-// successfully or gets canceled. It retries the task in case of any ephemeral errors.
-// It's critical for the correct operation of the chat runner:
-// this function is THE place that ensures task liveness within the runner.
+// runTaskWithRetry retains responsibility until ctx is canceled. After an
+// operation finishes, it retries handoff without repeating the operation.
+// A successful handoff resumes the operation after the existing backoff.
 func runTaskWithRetry(
 	ctx context.Context,
 	opts retryWrapperOptions,
 	kind taskKind,
 	info retryWrapperTaskInfo,
-	fn func(context.Context) error,
-) error {
+	operation func(context.Context) error,
+	handoff func(context.Context) error,
+) {
 	if opts.clock == nil {
 		opts.clock = quartz.NewReal()
 	}
@@ -92,57 +92,60 @@ func runTaskWithRetry(
 		opts.maxDelay = opts.initialDelay
 	}
 	delay := opts.initialDelay
+	inHandoff := false
 	for {
-		attemptCtx, cancelAttempt := taskAttemptContext(ctx, opts.clock, kind)
-		err := executeTaskSafely(attemptCtx, fn)
-		timedOut := errors.Is(context.Cause(attemptCtx), errTaskTimeout)
-		cancelAttempt()
-		if timedOut && err != nil {
-			if !errors.Is(err, errTaskExpectedExit) ||
-				errors.Is(err, context.Canceled) ||
-				errors.Is(err, context.DeadlineExceeded) ||
-				errors.Is(err, errTaskTimeout) {
-				err = taskRetryableError{err: errors.Join(errTaskTimeout, err)}
-			}
-		}
-		if err == nil {
-			// no log on success to avoid noise
-			return nil
+		if ctx.Err() != nil {
+			return
 		}
 
-		exitReason := ""
-		switch {
-		case ctx.Err() != nil:
-			exitReason = "context_canceled"
-		case errors.Is(err, errTaskExpectedExit) && !errors.Is(err, errTaskRetryable):
-			exitReason = "expected_non_retryable_exit"
+		var err error
+		if inHandoff {
+			err = executeTaskSafely(ctx, handoff)
+			if err == nil {
+				inHandoff = false
+			}
+		} else {
+			attemptCtx, cancelAttempt := taskAttemptContext(ctx, opts.clock, kind)
+			if ctx.Err() != nil {
+				cancelAttempt()
+				return
+			}
+			err = executeTaskSafely(attemptCtx, operation)
+			timedOut := errors.Is(context.Cause(attemptCtx), errTaskTimeout)
+			cancelAttempt()
+			if timedOut && err != nil {
+				if !errors.Is(err, errTaskExpectedExit) ||
+					errors.Is(err, context.Canceled) ||
+					errors.Is(err, context.DeadlineExceeded) ||
+					errors.Is(err, errTaskTimeout) {
+					err = taskRetryableError{err: errors.Join(errTaskTimeout, err)}
+				}
+			}
+			if err == nil || (errors.Is(err, errTaskExpectedExit) && !errors.Is(err, errTaskRetryable)) {
+				inHandoff = true
+				continue
+			}
 		}
-		if exitReason != "" {
-			opts.logger.Debug(ctx, "chatworker task exited",
+		if ctx.Err() != nil {
+			return
+		}
+
+		if err != nil {
+			opts.logger.Warn(ctx, "chatworker task retrying",
 				slog.F("task_kind", kind),
-				slog.F("reason", exitReason),
+				slog.F("delay", delay),
 				slog.F("chat_id", info.ChatID),
 				slog.F("worker_id", info.WorkerID),
 				slog.F("runner_id", info.RunnerID),
 				slogError(err),
 			)
-			return nil
 		}
-
-		opts.logger.Warn(ctx, "chatworker task retrying",
-			slog.F("task_kind", kind),
-			slog.F("delay", delay),
-			slog.F("chat_id", info.ChatID),
-			slog.F("worker_id", info.WorkerID),
-			slog.F("runner_id", info.RunnerID),
-			slogError(err),
-		)
 		timer := opts.clock.NewTimer(delay, "chatworker", "task-retry-"+string(kind))
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
 			timer.Stop()
-			return nil
+			return
 		}
 		timer.Stop()
 		if delay < opts.maxDelay {
