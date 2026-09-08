@@ -7,7 +7,7 @@ import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import type { ModelSelectorOption } from "./components/ChatElements";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	PersonalModelOverrideRow,
 	type SavePersonalOverride,

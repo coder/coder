@@ -20,7 +20,9 @@ import {
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
+	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -37,7 +39,9 @@ import {
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	mockApiError,
@@ -50,9 +54,10 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -75,6 +80,7 @@ const AgentChatPageLayout: FC = () => {
 							requestUnarchiveAgent: () => {},
 							requestPinAgent: () => {},
 							requestUnpinAgent: () => {},
+							onOpenRenameDialog: () => {},
 							isArchiving: false,
 							archivingChatId: undefined,
 							activeChatChildren: undefined,
@@ -378,6 +384,14 @@ const buildQueries = (
 				allowed: chat.owner_id === MockUserOwner.id && !chat.parent_chat_id,
 			},
 		}),
+		{
+			key: preferenceSettingsKey,
+			data: MockUserPreferenceSettings,
+		},
+		{
+			key: userCompactionThresholdsKey,
+			data: MockUserChatCompactionThresholds,
+		},
 	];
 };
 
@@ -3699,6 +3713,7 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 export const SendResponseAfterChatSwitch: Story = {
 	render: () => <AgentChatSwitchHarness />,
 	parameters: {
+		pixel: { exclude: true },
 		queries: [
 			...buildQueries(
 				{
@@ -3958,7 +3973,12 @@ export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
 		await userEvent.type(editor, "Durable prompt");
-		await userEvent.keyboard("{Enter}");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		await waitFor(() => {
+			expect(editor).toHaveTextContent("Durable prompt");
+			expect(sendButton).toBeEnabled();
+		});
+		await userEvent.click(sendButton);
 		await waitFor(() => {
 			expect(sendSpy).toHaveBeenCalledTimes(1);
 		});

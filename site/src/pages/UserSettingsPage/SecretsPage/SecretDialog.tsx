@@ -333,13 +333,10 @@ const SecretFields: FC<SecretFieldsProps> = ({
 					)
 				}
 				placeholder="Secret name"
-				autoComplete="off"
 				className="placeholder:text-content-disabled"
 				disabled={disableName}
 				aria-required={showRequiredLabels}
-				data-lpignore="true"
-				data-1p-ignore="true"
-				data-form-type="other"
+				ignorePasswordManagers
 			/>
 			<FormField
 				field={getFieldHelpers("env_name", {
@@ -348,11 +345,8 @@ const SecretFields: FC<SecretFieldsProps> = ({
 				})}
 				label="Environment variable"
 				placeholder="SERVICE_TOKEN"
-				autoComplete="off"
 				className="placeholder:text-content-disabled"
-				data-lpignore="true"
-				data-1p-ignore="true"
-				data-form-type="other"
+				ignorePasswordManagers
 			/>
 			<FormField
 				field={getFieldHelpers("file_path", {
@@ -361,11 +355,8 @@ const SecretFields: FC<SecretFieldsProps> = ({
 				})}
 				label="File path"
 				placeholder="~/api-key.txt"
-				autoComplete="off"
 				className="placeholder:text-content-disabled"
-				data-lpignore="true"
-				data-1p-ignore="true"
-				data-form-type="other"
+				ignorePasswordManagers
 			/>
 			{showValue && (
 				<SecretValueField

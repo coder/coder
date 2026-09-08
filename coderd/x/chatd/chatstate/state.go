@@ -81,27 +81,6 @@ func (s ExecutionState) IsRunnable() bool {
 	}
 }
 
-// IsArchived returns true for the three archived execution states.
-func (s ExecutionState) IsArchived() bool {
-	switch s {
-	case StateXW, StateXE0, StateXE1:
-		return true
-	default:
-		return false
-	}
-}
-
-// QueueNonEmpty returns true for execution states that require a
-// non-empty queue. Useful when seeding test fixtures.
-func (s ExecutionState) QueueNonEmpty() bool {
-	switch s {
-	case StateE1, StateR1, StateI1, StateA1, StateXE1:
-		return true
-	default:
-		return false
-	}
-}
-
 // ClassifyExecutionState turns the chat row, queue cardinality, and
 // whether the chat row exists into an [ExecutionState]. The caller is
 // responsible for loading the chat under the row lock and reading the
@@ -149,18 +128,3 @@ func ClassifyExecutionState(chat database.Chat, queueNonEmpty, exists bool) Exec
 	}
 	return StateInvalid
 }
-
-// OwnershipState identifies whether a chat row is currently owned by a
-// worker. The state machine treats execution and ownership as
-// orthogonal.
-type OwnershipState string
-
-const (
-	// StateU: chat has no owner (worker_id IS NULL).
-	StateU OwnershipState = "U"
-	// StateO: chat has an owner (worker_id IS NOT NULL).
-	StateO OwnershipState = "O"
-)
-
-// AllOwnershipStates is the canonical enumeration of ownership states.
-var AllOwnershipStates = []OwnershipState{StateU, StateO}

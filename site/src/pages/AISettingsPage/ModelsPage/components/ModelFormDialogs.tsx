@@ -11,7 +11,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import type { ModelFormValues } from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
+import type { ModelFormValues } from "#/modules/aiModels/modelConfigFormLogic";
 
 export const ModelFormDialogs: FC<{
 	editingModel?: TypesGen.ChatModel;

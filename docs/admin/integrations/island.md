@@ -1,4 +1,6 @@
-# Island Browser Integration
+---
+title: Island browser integration
+---
 
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
