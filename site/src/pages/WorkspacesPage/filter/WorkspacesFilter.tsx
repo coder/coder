@@ -57,17 +57,23 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 
 	const categories = useMemo(() => {
 		const next: FilterCategory[] = [
+			// Always expose Owner so `owner` stays a recognized chip key and the
+			// page's default `owner:me` renders as a chip rather than free text.
+			// Users who cannot list others only see themselves.
+			{
+				key: "owner",
+				label: "Owner",
+				aliases: ["user"],
+				icon: <UserIcon />,
+				getOptions: canListUsers
+					? (query) => getOwnerFilterOptions(query, me, queryClient)
+					: (query) => getSelfOwnerFilterOptions(query, me),
+			},
 			{
 				key: "status",
 				label: "Status",
 				icon: <CircleDotIcon />,
 				getOptions: getStatusFilterOptions,
-			},
-			{
-				key: "template",
-				label: "Template",
-				icon: <LayoutPanelTopIcon />,
-				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
 			{
 				key: "attribute",
@@ -80,6 +86,12 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
 			},
+			{
+				key: "template",
+				label: "Template",
+				icon: <LayoutPanelTopIcon />,
+				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
+			},
 		];
 
 		if (showOrganizations) {
@@ -90,19 +102,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
 		}
-
-		// Always expose Owner so `owner` stays a recognized chip key and the
-		// page's default `owner:me` renders as a chip rather than free text.
-		// Users who cannot list others only see themselves.
-		next.push({
-			key: "owner",
-			label: "Owner",
-			aliases: ["user"],
-			icon: <UserIcon />,
-			getOptions: canListUsers
-				? (query) => getOwnerFilterOptions(query, me, queryClient)
-				: (query) => getSelfOwnerFilterOptions(query, me),
-		});
 
 		return next;
 	}, [canListUsers, canFilterDormant, me, showOrganizations, queryClient]);
