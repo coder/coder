@@ -1,6 +1,6 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useRef, useState } from "react";
+import { type ComponentProps, type FC, useState } from "react";
 import { Outlet } from "react-router";
 import {
 	expect,
@@ -161,8 +161,8 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 	chat,
 	...overrides
 }) => {
-	const defaultStoreRef = useRef(createChatStore());
-	const store = overrides.store ?? defaultStoreRef.current;
+	const [defaultStore] = useState(() => createChatStore());
+	const store = overrides.store ?? defaultStore;
 
 	const props = {
 		chat: buildChat(chat),
@@ -1470,11 +1470,11 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 const underflowFetchSpy = fn();
 
 const UnderflowPaginationStory: FC = () => {
-	const store = useRef(
+	const [store] = useState(() =>
 		buildStoreWithMessages([
 			buildMessage(9, "assistant", "The newest loaded message. ".repeat(6)),
 		]),
-	).current;
+	);
 	const [loadedPages, setLoadedPages] = useState(0);
 	const [isFetching, setIsFetching] = useState(false);
 
@@ -1555,9 +1555,9 @@ export const ShortTranscriptLoadsUntilHistoryIsExhausted: Story = {
 const retryFetchSpy = fn();
 
 const RetryPaginationStory: FC = () => {
-	const store = useRef(
+	const [store] = useState(() =>
 		buildStoreWithMessages(buildLongConversation(AGENT_ID, 40)),
-	).current;
+	);
 	const [hasError, setHasError] = useState(true);
 	const [isFetching, setIsFetching] = useState(false);
 
