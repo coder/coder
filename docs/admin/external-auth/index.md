@@ -24,7 +24,7 @@ If you have experience with a provider that is not listed here, please
 
 ### Set environment variables
 
-After you create an OAuth application, set environment variables to configure the Coder server to use it:
+After you create an OAuth application, set environment variables to configure the control plane to use it:
 
 ```dotenv
 CODER_EXTERNAL_AUTH_0_ID="<USER_DEFINED_ID>"

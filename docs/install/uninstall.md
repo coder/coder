@@ -3,11 +3,11 @@ title: Uninstall
 ---
 
 <!-- markdownlint-disable MD024 -->
-This article walks you through how to uninstall your Coder server.
+This article walks you through how to uninstall Coder.
 
-To uninstall your Coder server, delete the following directories.
+To uninstall Coder, delete the following directories.
 
-## The Coder server binary and CLI
+## The Coder binary and CLI
 
 <div class="tabs">
 

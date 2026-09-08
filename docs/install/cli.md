@@ -2,7 +2,7 @@
 title: Install the Coder CLI
 ---
 
-A single CLI (`coder`) is used for both the Coder server and the client.
+A single CLI (`coder`) is used for both the control plane and the client.
 
 We support two release channels: mainline and stable - read the
 [Releases](./releases/index.md) page to learn more about which best suits your team.
@@ -43,7 +43,7 @@ winget install Coder.Coder
 
 </div>
 
-To start the Coder server:
+To start the control plane:
 
 ```sh
 coder server
@@ -62,14 +62,14 @@ coder login https://coder.example.com
 > [!NOTE]
 > Available in Coder 2.19 and newer on macOS and Linux clients only.
 
-Every Coder server hosts CLI binaries for all supported platforms. You can run a
+Every control plane hosts CLI binaries for all supported platforms. You can run a
 script to download the appropriate CLI for your machine from your Coder
 deployment.
 
 ![Install Coder binary from your deployment](../images/install/install_from_deployment.png)
 
 This script works within air-gapped deployments and ensures that the version of
-the CLI you have installed on your machine matches the version of the server.
+the CLI you have installed on your machine matches the version of the control plane.
 
 This script can be useful when authoring a template for installing the CLI.
 

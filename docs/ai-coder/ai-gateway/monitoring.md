@@ -189,7 +189,7 @@ Refer to the [`coder ai-gateway start` logging options](../../reference/cli/ai-g
 
 AI Gateway can emit a structured log for every interception record to an external SIEM or observability platform.
 The `CODER_AI_GATEWAY_STRUCTURED_LOGGING` setting belongs to `coderd`, and the standalone gateway does not consume it.
-Standalone replicas send interception records to `coderd`, which writes the structured logs to the Coder server log output.
+Standalone replicas send interception records to `coderd`, which writes the structured logs to the `coderd` log output.
 Refer to [structured logging](./setup.md#structured-logging) for configuration and record types.
 
 ## Export data
@@ -252,7 +252,7 @@ in the AI Gateway setup guide.
 ## Tracing
 
 AI Gateway supports tracing through [OpenTelemetry](https://opentelemetry.io/) for request processing, upstream API calls, and MCP server interactions.
-Embedded gateway spans are emitted by the `coder server` process.
+Embedded gateway spans are emitted by the `coderd` process.
 Standalone spans are emitted independently by every replica with the service name `coder-ai-gateway`.
 
 ### Enable tracing
