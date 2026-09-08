@@ -57,11 +57,6 @@ const (
 	CheckOauth2ProviderAppsClientTypeCheck                   CheckConstraint = "oauth2_provider_apps_client_type_check"                    // oauth2_provider_apps
 	CheckMaxProvisionerLogsLength                            CheckConstraint = "max_provisioner_logs_length"                               // provisioner_jobs
 	CheckNatsPortValidTcp                                    CheckConstraint = "nats_port_valid_tcp"                                       // replicas
-	CheckMaxLogsLength                                       CheckConstraint = "max_logs_length"                                           // workspace_agents
-	CheckSubsystemsNotNone                                   CheckConstraint = "subsystems_not_none"                                       // workspace_agents
-	CheckWorkspaceBuildsDeadlineBelowMaxDeadline             CheckConstraint = "workspace_builds_deadline_below_max_deadline"              // workspace_builds
-	CheckGroupAclIsObject                                    CheckConstraint = "group_acl_is_object"                                       // workspaces
-	CheckUserAclIsObject                                     CheckConstraint = "user_acl_is_object"                                        // workspaces
 	CheckTelemetryLockEventTypeConstraint                    CheckConstraint = "telemetry_lock_event_type_constraint"                      // telemetry_locks
 	CheckValidationMonotonicOrder                            CheckConstraint = "validation_monotonic_order"                                // template_version_parameters
 	CheckUsageEventTypeCheck                                 CheckConstraint = "usage_event_type_check"                                    // usage_events
@@ -73,6 +68,8 @@ const (
 	CheckUserSkillsDescriptionSize                           CheckConstraint = "user_skills_description_size"                              // user_skills
 	CheckUserSkillsNameFormat                                CheckConstraint = "user_skills_name_format"                                   // user_skills
 	CheckUserSkillsNameSize                                  CheckConstraint = "user_skills_name_size"                                     // user_skills
+	CheckMaxLogsLength                                       CheckConstraint = "max_logs_length"                                           // workspace_agents
+	CheckSubsystemsNotNone                                   CheckConstraint = "subsystems_not_none"                                       // workspace_agents
 	CheckWorkspaceBuildOrchestrationsAttemptCountCheck       CheckConstraint = "workspace_build_orchestrations_attempt_count_check"        // workspace_build_orchestrations
 	CheckWorkspaceBuildOrchestrationsChildLogLevelCheck      CheckConstraint = "workspace_build_orchestrations_child_log_level_check"      // workspace_build_orchestrations
 	CheckWorkspaceBuildOrchestrationsChildParametersCheck    CheckConstraint = "workspace_build_orchestrations_child_parameters_check"     // workspace_build_orchestrations
@@ -80,4 +77,7 @@ const (
 	CheckWorkspaceBuildOrchestrationsCompletedChildCheck     CheckConstraint = "workspace_build_orchestrations_completed_child_check"      // workspace_build_orchestrations
 	CheckWorkspaceBuildOrchestrationsNextRetryAfterCheck     CheckConstraint = "workspace_build_orchestrations_next_retry_after_check"     // workspace_build_orchestrations
 	CheckWorkspaceBuildOrchestrationsStatusCheck             CheckConstraint = "workspace_build_orchestrations_status_check"               // workspace_build_orchestrations
+	CheckWorkspaceBuildsDeadlineBelowMaxDeadline             CheckConstraint = "workspace_builds_deadline_below_max_deadline"              // workspace_builds
+	CheckGroupAclIsObject                                    CheckConstraint = "group_acl_is_object"                                       // workspaces
+	CheckUserAclIsObject                                     CheckConstraint = "user_acl_is_object"                                        // workspaces
 )
