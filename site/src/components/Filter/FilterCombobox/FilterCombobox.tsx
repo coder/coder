@@ -98,7 +98,7 @@ export function FilterCombobox({
 				label={placeholder}
 			>
 				<FilterComboboxInputGroup className={className}>
-					<InputGroupAddon className="min-h-10">
+					<InputGroupAddon className="min-h-10 self-start">
 						<SearchIcon aria-hidden className="size-icon-sm" />
 					</InputGroupAddon>
 					<FilterComboboxChips>
@@ -150,7 +150,7 @@ export function FilterCombobox({
 					</FilterComboboxChips>
 					<InputGroupAddon
 						align="inline-end"
-						className="w-10 items-center self-stretch border-0 border-l border-solid border-border p-0"
+						className="w-10 items-start self-stretch border-0 border-l border-solid border-border p-0"
 					>
 						<InputGroupButton
 							type="button"

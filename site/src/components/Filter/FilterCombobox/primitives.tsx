@@ -297,7 +297,7 @@ export const FilterComboboxInputGroup: FC<FilterComboboxInputGroupProps> = ({
 		<PopoverAnchor asChild>
 			<InputGroup
 				ref={anchorRef ?? undefined}
-				className={cn("h-auto min-h-10 w-full items-center", className)}
+				className={cn("h-auto min-h-10 w-full items-start", className)}
 				{...props}
 			/>
 		</PopoverAnchor>
@@ -355,7 +355,10 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 		<Badge
 			data-slot="combobox-chip"
 			svgSize="sm"
-			className={cn("font-medium text-content-secondary hover:text-content-primary", className)}
+			className={cn(
+				"font-medium text-content-secondary hover:text-content-primary",
+				className,
+			)}
 			{...props}
 		>
 			{children}
