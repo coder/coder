@@ -11,17 +11,6 @@ This article describes how to upgrade your Coder server.
 For upgrade recommendations and troubleshooting, see
 [Upgrading Best Practices](./upgrade-best-practices.md).
 
-## Remove obsolete provider configuration
-
-If your deployment configuration still contains deprecated AI provider CLI flags or YAML keys, remove them before upgrading.
-Older `coder server --write-config` output can contain these options even if you don't use AI Gateway.
-Refer to [Provider configuration](../ai-coder/ai-gateway/providers.md#database-management-of-providers) for the removed options and YAML keys.
-No action is needed if those options are absent.
-
-> [!WARNING]
-> Coder will not start if a removed provider CLI flag or YAML key is still set.
-> Startup fails with an `unknown flag` or `unknown option` error until you remove it.
-
 ## Reinstall Coder to upgrade
 
 To upgrade your Coder server, reinstall Coder using your original method
