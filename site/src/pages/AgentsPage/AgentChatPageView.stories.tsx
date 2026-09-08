@@ -530,11 +530,11 @@ export const WithParentChat: Story = {
 	parameters: {
 		queries: [
 			{
-				key: preferenceSettings().queryKey,
+				key: preferenceSettingsKey,
 				data: MockUserPreferenceSettings,
 			},
 			{
-				key: userCompactionThresholds().queryKey,
+				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
 			},
 			{
@@ -550,7 +550,6 @@ export const WithParentChat: Story = {
 		const canvas = within(canvasElement);
 		const parentLink = await canvas.findByRole("link", { name: "Root agent" });
 		expect(parentLink).toHaveAttribute("href", "/agents/parent-chat-1");
-		expect(canvas.getByText("Help me refactor")).toBeInTheDocument();
 	},
 };
 

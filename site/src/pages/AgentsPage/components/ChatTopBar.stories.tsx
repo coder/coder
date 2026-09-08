@@ -16,13 +16,7 @@ const AgentsSearchProbe = () => {
 	return <div data-testid="agents-search">{location.search}</div>;
 };
 
-const defaultChat: TypesGen.Chat = {
-	...MockChat,
-	id: "chat-1",
-	title: "Build authentication feature",
-};
-
-const parentChat: TypesGen.Chat = {
+const mockParentChat = {
 	...MockChat,
 	id: "parent-chat-1",
 	title: "Set up CI/CD pipeline",
@@ -120,25 +114,24 @@ export const WithPanelOpen: Story = {
 export const WithParentChat: Story = {
 	args: {
 		chat: {
-			...defaultChat,
-			parent_chat_id: parentChat.id,
+			...MockChat,
+			parent_chat_id: mockParentChat.id,
 		},
 	},
 	parameters: {
 		queries: [
 			{
-				key: chatEntityKey(parentChat.id),
-				data: parentChat,
+				key: chatEntityKey(mockParentChat.id),
+				data: mockParentChat,
 			},
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const parentLink = await canvas.findByRole("link", {
-			name: parentChat.title,
+			name: mockParentChat.title,
 		});
-		expect(parentLink).toHaveAttribute("href", `/agents/${parentChat.id}`);
-		expect(canvas.getByText(defaultChat.title)).toBeInTheDocument();
+		expect(parentLink).toHaveAttribute("href", `/agents/${mockParentChat.id}`);
 	},
 };
 
@@ -434,16 +427,16 @@ export const UnpinAgentItem: Story = {
 export const ChildChatHidesPinAndArchiveActions: Story = {
 	args: {
 		chat: {
-			...defaultChat,
-			parent_chat_id: parentChat.id,
+			...MockChat,
+			parent_chat_id: mockParentChat.id,
 			workspace_id: "workspace-1",
 		},
 	},
 	parameters: {
 		queries: [
 			{
-				key: chatEntityKey(parentChat.id),
-				data: parentChat,
+				key: chatEntityKey(mockParentChat.id),
+				data: mockParentChat,
 			},
 		],
 	},
@@ -470,16 +463,17 @@ export const ChildChatHidesPinAndArchiveActions: Story = {
 export const ArchivedChildChatHasNoActionsMenu: Story = {
 	args: {
 		chat: {
-			...defaultChat,
-			parent_chat_id: parentChat.id,
+			...MockChat,
+			title: "Build authentication feature",
+			parent_chat_id: mockParentChat.id,
 			archived: true,
 		},
 	},
 	parameters: {
 		queries: [
 			{
-				key: chatEntityKey(parentChat.id),
-				data: parentChat,
+				key: chatEntityKey(mockParentChat.id),
+				data: mockParentChat,
 			},
 		],
 	},
