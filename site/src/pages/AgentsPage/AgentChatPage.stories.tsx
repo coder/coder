@@ -76,6 +76,7 @@ const AgentChatPageLayout: FC = () => {
 							requestUnarchiveAgent: () => {},
 							requestPinAgent: () => {},
 							requestUnpinAgent: () => {},
+							onOpenRenameDialog: () => {},
 							isArchiving: false,
 							archivingChatId: undefined,
 							activeChatChildren: undefined,

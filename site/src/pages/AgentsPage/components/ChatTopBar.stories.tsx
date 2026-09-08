@@ -2,8 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Outlet, useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import type * as TypesGen from "#/api/typesGenerated";
 import { PopoverContent } from "#/components/Popover/Popover";
 import { MockChat } from "#/testHelpers/chatEntities";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { ChatTopBar } from "./ChatTopBar";
 
 // Probe element rendered at /agents to verify search params are preserved
@@ -13,10 +15,38 @@ const AgentsSearchProbe = () => {
 	return <div data-testid="agents-search">{location.search}</div>;
 };
 
-const defaultChat = {
+const defaultChat: TypesGen.Chat = {
 	...MockChat,
+	id: "chat-1",
 	title: "Build authentication feature",
 };
+
+const requestArchiveAgent = fn<(chatId: string) => void>();
+const requestArchiveAndDeleteWorkspace =
+	fn<(chatId: string, workspaceId: string) => void>();
+const requestUnarchiveAgent = fn<(chatId: string) => void>();
+const requestPinAgent = fn<(chatId: string) => void>();
+const requestUnpinAgent = fn<(chatId: string) => void>();
+const onOpenRenameDialog = fn<(chat: TypesGen.Chat) => void>();
+
+const chatTopBarOutletContext = {
+	chatErrorReasons: {},
+	setChatErrorReason: () => {},
+	clearChatErrorReason: () => {},
+	requestArchiveAgent,
+	requestArchiveAndDeleteWorkspace,
+	requestUnarchiveAgent,
+	requestPinAgent,
+	requestUnpinAgent,
+	isArchiving: false,
+	archivingChatId: undefined,
+	activeChatChildren: undefined,
+	onOpenRenameDialog,
+	isSidebarCollapsed: false,
+	onToggleSidebarCollapsed: fn(),
+	onExpandSidebar: () => {},
+	onChatReady: () => {},
+} satisfies AgentsPageOutletContext;
 
 const defaultProps = {
 	chat: defaultChat,
@@ -24,12 +54,6 @@ const defaultProps = {
 		showSidebarPanel: false,
 		onToggleSidebar: fn(),
 	},
-	onArchiveAgent: fn(),
-	onArchiveAndDeleteWorkspace: fn(),
-	onPinAgent: fn(),
-	onUnpinAgent: fn(),
-	onOpenRenameDialog: fn(),
-	onUnarchiveAgent: fn(),
 } satisfies React.ComponentProps<typeof ChatTopBar>;
 
 const meta: Meta<typeof ChatTopBar> = {
@@ -37,6 +61,16 @@ const meta: Meta<typeof ChatTopBar> = {
 	component: ChatTopBar,
 	parameters: {
 		layout: "fullscreen",
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-1" },
+			routing: [
+				{
+					path: "/",
+					element: <Outlet context={chatTopBarOutletContext} />,
+					children: [{ path: "agents/:agentId", useStoryElement: true }],
+				},
+			],
+		}),
 	},
 	args: defaultProps,
 };
@@ -88,9 +122,8 @@ export const SidebarCollapsed: Story = {
 					element: (
 						<Outlet
 							context={{
+								...chatTopBarOutletContext,
 								isSidebarCollapsed: true,
-								onToggleSidebarCollapsed: fn(),
-								onExpandSidebar: () => {},
 							}}
 						/>
 					),
@@ -313,6 +346,9 @@ export const RenameChatItem: Story = {
 		expect(
 			body.queryByText("Archive & delete workspace"),
 		).not.toBeInTheDocument();
+		onOpenRenameDialog.mockClear();
+		await userEvent.click(body.getByText("Rename chat"));
+		expect(onOpenRenameDialog).toHaveBeenCalledWith(defaultChat);
 	},
 };
 
@@ -328,6 +364,9 @@ export const PinAgentItem: Story = {
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
 			expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
 		});
+		requestPinAgent.mockClear();
+		await userEvent.click(within(document.body).getByText("Pin agent"));
+		expect(requestPinAgent).toHaveBeenCalledWith(defaultChat.id);
 	},
 };
 
@@ -357,8 +396,8 @@ export const ChildChatHidesPinAndArchiveActions: Story = {
 		chat: {
 			...defaultChat,
 			parent_chat_id: "parent-chat-1",
+			workspace_id: "workspace-1",
 		},
-		hasWorkspace: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -403,7 +442,10 @@ export const ArchivedChildChatHasNoActionsMenu: Story = {
 
 export const ArchiveAndDeleteWorkspaceItem: Story = {
 	args: {
-		hasWorkspace: true,
+		chat: {
+			...defaultChat,
+			workspace_id: "workspace-1",
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -419,7 +461,10 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 
 export const IdleChatArchiveActionsEnabled: Story = {
 	args: {
-		hasWorkspace: true,
+		chat: {
+			...defaultChat,
+			workspace_id: "workspace-1",
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -436,13 +481,19 @@ export const IdleChatArchiveActionsEnabled: Story = {
 		expect(
 			body.queryByText("Interrupt or wait for the agent to finish first."),
 		).not.toBeInTheDocument();
+		requestArchiveAgent.mockClear();
+		await userEvent.click(archiveItem);
+		expect(requestArchiveAgent).toHaveBeenCalledWith(defaultChat.id);
 	},
 };
 
 export const ActiveChatArchiveActionsDisabled: Story = {
 	args: {
-		hasWorkspace: true,
-		isArchiveBlocked: true,
+		chat: {
+			...defaultChat,
+			status: "running",
+			workspace_id: "workspace-1",
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -545,7 +596,6 @@ export const ArchivedWithUnarchive: Story = {
 			...defaultChat,
 			archived: true,
 		},
-		onUnarchiveAgent: fn(),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

@@ -198,9 +198,6 @@ const AgentTopBarRouteElement = () => {
 		<ChatTopBar
 			chat={{ ...MockChat, title: "Collapsed sidebar agent" }}
 			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
-			onArchiveAgent={fn()}
-			onArchiveAndDeleteWorkspace={fn()}
-			onUnarchiveAgent={fn()}
 		/>
 	);
 };
