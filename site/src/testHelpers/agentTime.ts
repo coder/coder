@@ -118,3 +118,57 @@ export const MockAgentTimeOrganizationReport: AgentTimeReport = {
 	],
 	count: 3,
 };
+
+export const MockAgentTimeEmptyReport: AgentTimeReport = {
+	...MockAgentTimeReport,
+	total_agent_time_ms: "0",
+	buckets: MockAgentTimeReport.buckets.map((bucket) => ({
+		...bucket,
+		agent_time_ms: "0",
+		partial: false,
+		complete: true,
+	})),
+	rows: [],
+	count: 0,
+	historical_notice: "",
+};
+
+export const MockAgentTimeBackfillingReport: AgentTimeReport = {
+	...MockAgentTimeReport,
+	status: {
+		...MockAgentTimeReport.status,
+		backfill_complete: false,
+		processed_messages: "1200",
+	},
+};
+
+export const MockAgentTimeBackfillFailureReport: AgentTimeReport = {
+	...MockAgentTimeReport,
+	status: {
+		...MockAgentTimeReport.status,
+		backfill_complete: false,
+		backfill_error:
+			"Backfill stopped after the aggregate worker lost its lock.",
+	},
+};
+
+export const MockAgentTimePartialHistoryReport: AgentTimeReport = {
+	...MockAgentTimeReport,
+	buckets: [
+		{
+			start_date: "2026-08-01",
+			end_date: "2026-08-02",
+			agent_time_ms: null,
+			partial: false,
+			complete: false,
+		},
+		...MockAgentTimeReport.buckets,
+	],
+};
+
+export function mockAgentTimeReportWithCount(count: number): AgentTimeReport {
+	return {
+		...MockAgentTimeReport,
+		count,
+	};
+}
