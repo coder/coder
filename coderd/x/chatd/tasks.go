@@ -694,8 +694,8 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	return names
 }
 
-// goalReplayEligible reports whether pending complete_goal calls may be
-// classified as built-in replays. The current goal's transition must
+// goalReplayEligible reports whether pending goal-named tool calls may
+// be classified as built-in replays. The current goal's transition must
 // belong to the interrupted turn: a durably transitioned goal stays
 // current across turns, while later turns offer colliding dynamic tools
 // again and can also carry hallucinated goal-named calls, so a matching
@@ -711,14 +711,14 @@ func goalReplayEligible(
 ) (bool, error) {
 	named := false
 	for _, call := range localCalls {
-		if call.ToolName == chattool.CompleteGoalToolName {
+		if call.ToolName == chattool.CompleteGoalToolName || call.ToolName == chattool.BlockGoalToolName {
 			named = true
 			break
 		}
 	}
 	if !named {
 		for _, call := range dynamicCalls {
-			if call.ToolName == chattool.CompleteGoalToolName {
+			if call.ToolName == chattool.CompleteGoalToolName || call.ToolName == chattool.BlockGoalToolName {
 				named = true
 				break
 			}
@@ -763,7 +763,7 @@ func committedPendingLocalToolCancellationMessages(
 	if err != nil {
 		return nil, false, err
 	}
-	// A configured dynamic tool may shadow the goal tool's name, but an
+	// A configured dynamic tool may shadow a goal tool's name, but an
 	// eligible committed transition proves the built-in ran. Reclassify
 	// with the name reserved so the committed call replays here instead
 	// of staying unresolved and reprocessing on a later resume. Goal
@@ -772,12 +772,17 @@ func committedPendingLocalToolCancellationMessages(
 	reserved := false
 	if replayEligible {
 		for _, call := range dynamicCalls {
-			if call.ToolName != chattool.CompleteGoalToolName {
-				continue
-			}
-			if _, ok := chattool.AgentCompletedGoalReplayPayload(ctx, store, chatRootID(chat), call.Args); ok {
-				delete(dynamicToolNames, call.ToolName)
-				reserved = true
+			switch call.ToolName {
+			case chattool.CompleteGoalToolName:
+				if _, ok := chattool.AgentCompletedGoalReplayPayload(ctx, store, chatRootID(chat), call.Args); ok {
+					delete(dynamicToolNames, call.ToolName)
+					reserved = true
+				}
+			case chattool.BlockGoalToolName:
+				if _, ok := chattool.AgentBlockedGoalReplayPayload(ctx, store, chatRootID(chat), call.Args); ok {
+					delete(dynamicToolNames, call.ToolName)
+					reserved = true
+				}
 			}
 		}
 	}
@@ -796,14 +801,23 @@ func committedPendingLocalToolCancellationMessages(
 	for i, call := range localCalls {
 		isError := true
 		var payload json.RawMessage
-		// A built-in complete_goal call whose goal durably completed
-		// during the interrupted turn replays its successful result so
-		// accepted history matches the committed goal state.
-		if replayEligible && call.ToolName == chattool.CompleteGoalToolName {
-			if replay, ok := chattool.AgentCompletedGoalReplayPayload(ctx, store, chatRootID(chat), call.Input); ok {
-				payload = replay
-				isError = false
-				goalReplayed = true
+		// A built-in complete_goal or block_goal call whose goal durably
+		// transitioned during the interrupted turn replays its successful
+		// result so accepted history matches the committed goal state.
+		if replayEligible {
+			switch call.ToolName {
+			case chattool.CompleteGoalToolName:
+				if replay, ok := chattool.AgentCompletedGoalReplayPayload(ctx, store, chatRootID(chat), call.Input); ok {
+					payload = replay
+					isError = false
+					goalReplayed = true
+				}
+			case chattool.BlockGoalToolName:
+				if replay, ok := chattool.AgentBlockedGoalReplayPayload(ctx, store, chatRootID(chat), call.Input); ok {
+					payload = replay
+					isError = false
+					goalReplayed = true
+				}
 			}
 		}
 		if payload == nil {

@@ -139,6 +139,13 @@ const (
 	generationFinishReasonMaxSteps      generationFinishReason = "max_steps"
 )
 
+// maxGoalContinuationTurns bounds the auto-continuation turns a goal may
+// consume between activations. Each continuation turn already has the
+// per-turn maxSteps budget; the product of both bounds the loop. Resume
+// resets the counter. The value lives in codersdk so the UI can display
+// the same budget.
+const maxGoalContinuationTurns = codersdk.ChatGoalMaxContinuationTurns
+
 var errCompactionStillOverLimit = chaterror.WithClassification(
 	xerrors.New("compaction left the chat above the compaction limit"),
 	chaterror.ClassifiedError{
@@ -613,10 +620,10 @@ func (s *taskStarter) loadGenerationState(
 
 // loadDecisionMessages loads the message history that generation
 // decisions operate on: all user-visible messages plus, when goal rows
-// can exist for the chat, model-only goal messages (resume kicks). Goal
-// rows are loaded independently of the compaction prompt window so turn
-// boundaries stay visible when a compaction summary hides earlier rows
-// from the prompt. Skipping the
+// can exist for the chat, model-only goal messages (resume and
+// continuation kicks). Goal rows are loaded independently of the
+// compaction prompt window so turn boundaries stay visible when a
+// compaction summary hides earlier rows from the prompt. Skipping the
 // hidden-row scan for goalless chats keeps every generation step from
 // re-reading full history under the chat machine lock.
 //
@@ -637,6 +644,97 @@ func loadDecisionMessages(ctx context.Context, store database.Store, chatID uuid
 		return nil, xerrors.Errorf("load hidden chat messages: %w", err)
 	}
 	return appendHiddenGoalMessages(loaded, hidden)
+}
+
+// goalContinuationOutcome reports what the goal continuation hook did
+// inside the turn-finish transaction so the caller can publish the
+// matching post-commit events.
+type goalContinuationOutcome struct {
+	// Kicked is true when a hidden continuation message was inserted and
+	// the chat moved back to running.
+	Kicked bool
+	// Goal is the goal row after the hook ran: incremented on kick,
+	// paused on a limit stop. Nil when the hook did nothing.
+	Goal *database.ChatGoal
+}
+
+// maybeContinueGoal drives the idle-driven goal loop at the turn
+// boundary. It runs inside the finish-turn transaction after
+// tx.FinishTurn landed the chat in waiting with no promoted queued
+// message. When the chat's goal is active it either starts the next
+// continuation turn or pauses the goal when a budget is exhausted, so
+// an active goal never commits on an idle chat.
+func (s *taskStarter) maybeContinueGoal(
+	ctx context.Context,
+	tx *chatstate.Tx,
+	store database.Store,
+	chat database.Chat,
+) (goalContinuationOutcome, error) {
+	// Experiments are static per process, so no transactional recheck
+	// is needed.
+	if s.server == nil || !s.server.experiments.Enabled(codersdk.ExperimentChatGoals) {
+		return goalContinuationOutcome{}, nil
+	}
+	if !isRootChat(chat) || isExploreSubagentMode(chat.Mode) {
+		return goalContinuationOutcome{}, nil
+	}
+	if chat.PlanMode.Valid && chat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
+		return goalContinuationOutcome{}, nil
+	}
+	goal, err := currentChatGoal(ctx, store, chat.ID)
+	if err != nil {
+		return goalContinuationOutcome{}, err
+	}
+	if goal == nil || goal.Status != database.ChatGoalStatusActive {
+		return goalContinuationOutcome{}, nil
+	}
+
+	pause := func(reason codersdk.ChatGoalPausedReason) (goalContinuationOutcome, error) {
+		paused, err := store.PauseChatGoalByID(ctx, database.PauseChatGoalByIDParams{
+			RootChatID:   chat.ID,
+			ID:           goal.ID,
+			PausedReason: string(reason),
+		})
+		if err != nil {
+			return goalContinuationOutcome{}, xerrors.Errorf("pause chat goal (%s): %w", reason, err)
+		}
+		return goalContinuationOutcome{Goal: &paused}, nil
+	}
+
+	if goal.ContinuationCount >= maxGoalContinuationTurns {
+		return pause(codersdk.ChatGoalPausedReasonTurnLimit)
+	}
+	incremented, err := store.IncrementChatGoalContinuationCount(ctx, database.IncrementChatGoalContinuationCountParams{
+		RootChatID: chat.ID,
+		ID:         goal.ID,
+	})
+	if err != nil {
+		return goalContinuationOutcome{}, xerrors.Errorf("increment goal continuation count: %w", err)
+	}
+	modelConfigID, err := resolveSendMessageModelConfigID(ctx, store, chat, uuid.Nil)
+	if err != nil {
+		// No resolvable model config is a durable configuration state,
+		// not a transient failure: propagating it would roll back
+		// FinishTurn and retry the same dead end forever with the chat
+		// stuck running. Pause the goal and let the turn finish.
+		if errors.Is(err, ErrNoDefaultChatModelConfig) {
+			return pause(codersdk.ChatGoalPausedReasonError)
+		}
+		return goalContinuationOutcome{}, err
+	}
+	message, err := goalContinuationMessage(goal.ID, modelConfigID)
+	if err != nil {
+		return goalContinuationOutcome{}, err
+	}
+	// The chat is in W after FinishTurn, so SendMessage inserts directly
+	// into history and lands the chat back in running for the runner.
+	if _, err := tx.SendMessage(chatstate.SendMessageInput{
+		Message:      message,
+		BusyBehavior: chatstate.BusyBehaviorQueue,
+	}); err != nil {
+		return goalContinuationOutcome{}, xerrors.Errorf("send goal continuation message: %w", err)
+	}
+	return goalContinuationOutcome{Kicked: true, Goal: &incremented}, nil
 }
 
 func (*taskStarter) recordGenerationRetry(
@@ -1275,8 +1373,10 @@ func (s *taskStarter) commitGenerationStep(
 	failClosed := commitHooks.PostCommitError != nil
 	var postCommitLastError pqtype.NullRawMessage
 	var postCommitMessage string
+	pauseReason := codersdk.ChatGoalPausedReasonError
 	if commitHooks.PostCommitError != nil {
 		classified := chaterror.Classify(commitHooks.PostCommitError)
+		pauseReason = goalPauseReasonForError(classified)
 		s.opts.Logger.Warn(ctx, "chat generation failed",
 			slog.F("chat_id", input.ChatID),
 			slog.F("worker_id", input.WorkerID),
@@ -1290,7 +1390,9 @@ func (s *taskStarter) commitGenerationStep(
 		postCommitLastError, postCommitMessage = generationLastError(commitHooks.PostCommitError)
 	}
 	var committed database.Chat
+	var pausedGoal *database.ChatGoal
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		pausedGoal = nil
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
@@ -1313,6 +1415,14 @@ func (s *taskStarter) commitGenerationStep(
 			return xerrors.Errorf("load committed chat: %w", err)
 		}
 		committed = loadedChat
+		// A fail-closed error must not leave an active goal idle; pause
+		// it in the same transaction, matching finishGenerationError.
+		if failClosed && s.server != nil {
+			pausedGoal, err = s.server.pauseActiveGoalForReason(ctx, store, committed, pauseReason)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -1322,6 +1432,9 @@ func (s *taskStarter) commitGenerationStep(
 		input.DebugTurn.RecordOutcome(chatdebug.StatusError)
 		postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 		defer cancel()
+		if pausedGoal != nil && s.server != nil {
+			s.server.publishChatGoalChange(committed)
+		}
 		if err := s.publishWatchAndRoute(postCommitCtx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 			return xerrors.Errorf("publish watch and route: %w", err)
 		}
@@ -1453,7 +1566,9 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 	fence generationAttemptFence,
 ) error {
 	var committed database.Chat
+	var goalOutcome goalContinuationOutcome
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		goalOutcome = goalContinuationOutcome{}
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
@@ -1465,12 +1580,29 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 			decision.promotedMessageID = finishResult.PromotedMessage.ID
 		}
 		committed = finishResult.Chat
+		// A promoted queued message means user input already started the
+		// next turn; user input always wins over goal continuation.
+		if finishResult.PromotedMessage == nil {
+			goalOutcome, err = s.maybeContinueGoal(ctx, tx, store, finishResult.Chat)
+			if err != nil {
+				return err
+			}
+			if goalOutcome.Kicked {
+				committed, err = store.GetChatByID(ctx, input.ChatID)
+				if err != nil {
+					return xerrors.Errorf("reload chat after goal continuation: %w", err)
+				}
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		err := normalizeTaskTransitionError(err, "finish generation turn")
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
+	}
+	if goalOutcome.Goal != nil && s.server != nil {
+		s.server.publishChatGoalChange(committed)
 	}
 	return s.completeGenerationTurn(ctx, input, committed, decision.promotedMessageID)
 }
@@ -1492,12 +1624,16 @@ func (s *taskStarter) finishGenerationTurn(
 		if err != nil {
 			return xerrors.Errorf("load chat for stop hook: %w", err)
 		}
-		loadedMessages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  input.ChatID,
-			AfterID: 0,
-		})
+		// Key the stop nudge from decision history: goal boundary rows
+		// start turns but are hidden from the user-visible query, so the
+		// claim must match the key the next generation task consumes.
+		includeGoalRows, err := s.goalHistoryEnabled(ctx, store, loadedChat)
 		if err != nil {
-			return xerrors.Errorf("load messages for stop hook: %w", err)
+			return err
+		}
+		loadedMessages, err := loadDecisionMessages(ctx, store, input.ChatID, includeGoalRows)
+		if err != nil {
+			return err
 		}
 		chat = loadedChat
 		messages = loadedMessages
@@ -1520,7 +1656,9 @@ func (s *taskStarter) finishGenerationTurn(
 	continueTurn := strings.TrimSpace(response.GetModelContext()) != "" && input.StopNudges.claim(nudgeKey)
 
 	var committed database.Chat
+	var goalOutcome goalContinuationOutcome
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		goalOutcome = goalContinuationOutcome{}
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
@@ -1538,6 +1676,20 @@ func (s *taskStarter) finishGenerationTurn(
 				decision.promotedMessageID = finishResult.PromotedMessage.ID
 			}
 			committed = finishResult.Chat
+			// A promoted queued message means user input already started the
+			// next turn; user input always wins over goal continuation.
+			if finishResult.PromotedMessage == nil {
+				goalOutcome, err = s.maybeContinueGoal(ctx, tx, store, finishResult.Chat)
+				if err != nil {
+					return err
+				}
+				if goalOutcome.Kicked {
+					committed, err = store.GetChatByID(ctx, input.ChatID)
+					if err != nil {
+						return xerrors.Errorf("reload chat after goal continuation: %w", err)
+					}
+				}
+			}
 			return nil
 		}
 		loadedChat, err := store.GetChatByID(ctx, input.ChatID)
@@ -1561,6 +1713,9 @@ func (s *taskStarter) finishGenerationTurn(
 			Chat: committed,
 			Kind: runnerActionKind(generationActionGenerateAssistant),
 		})
+	}
+	if goalOutcome.Goal != nil && s.server != nil {
+		s.server.publishChatGoalChange(committed)
 	}
 	return s.completeGenerationTurn(ctx, input, committed, decision.promotedMessageID)
 }
@@ -1587,8 +1742,11 @@ func (s *taskStarter) finishGenerationError(
 		slog.Error(cause),
 	)
 	lastError, message := generationLastError(cause)
+	pauseReason := goalPauseReasonForError(classified)
 	var committed database.Chat
+	var pausedGoal *database.ChatGoal
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		pausedGoal = nil
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
@@ -1600,6 +1758,14 @@ func (s *taskStarter) finishGenerationError(
 			return xerrors.Errorf("load committed chat: %w", err)
 		}
 		committed = chat
+		// A terminal error must not leave an active goal idle; pause it
+		// so the banner reflects reality and resume can restart the loop.
+		if s.server != nil {
+			pausedGoal, err = s.server.pauseActiveGoalForReason(ctx, store, committed, pauseReason)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -1608,6 +1774,9 @@ func (s *taskStarter) finishGenerationError(
 		return err
 	}
 	input.DebugTurn.RecordOutcome(chatdebug.StatusError)
+	if pausedGoal != nil && s.server != nil {
+		s.server.publishChatGoalChange(committed)
+	}
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
@@ -1617,6 +1786,15 @@ func (s *taskStarter) finishGenerationError(
 		WatchEventKind: codersdk.ChatWatchEventKindStatusChange,
 		LastError:      message,
 	})
+}
+
+// goalPauseReasonForError distinguishes exhausted budgets from other
+// terminal errors so the paused banner names the actual cause.
+func goalPauseReasonForError(classified chaterror.ClassifiedError) codersdk.ChatGoalPausedReason {
+	if classified.Kind == codersdk.ChatErrorKindUsageLimit {
+		return codersdk.ChatGoalPausedReasonUsageLimit
+	}
+	return codersdk.ChatGoalPausedReasonError
 }
 
 func generationLastError(err error) (pqtype.NullRawMessage, string) {
