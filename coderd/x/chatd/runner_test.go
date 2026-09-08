@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -294,8 +295,11 @@ func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 			var transport atomic.Pointer[aibridge.TransportFactory]
 			var factory aibridge.TransportFactory = chattest.NewMockAIBridgeTransport(t, providerURL)
 			transport.Store(&factory)
+			// Closing the server while a post-turn hook is still scheduling
+			// work logs an error; server tests in this package ignore those.
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			server := New(f.pubsub, Config{
-				Logger: testutil.Logger(t), Database: f.db, ReplicaID: uuid.New(),
+				Logger: logger, Database: f.db, ReplicaID: uuid.New(),
 				Experiments: codersdk.ExperimentsKnown, AIBridgeTransportFactory: &transport,
 			})
 			t.Cleanup(func() { require.NoError(t, server.Close()) })
