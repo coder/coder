@@ -13,7 +13,7 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { preferenceSettings } from "#/api/queries/users";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
@@ -231,7 +231,7 @@ const meta: Meta<typeof AgentChatPageView> = {
 		user: MockUserOwner,
 		queries: [
 			{
-				key: preferenceSettings().queryKey,
+				key: preferenceSettingsKey,
 				data: MockUserPreferenceSettings,
 			},
 		],

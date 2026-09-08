@@ -2,7 +2,7 @@ import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { preferenceSettings } from "#/api/queries/users";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
@@ -34,7 +34,7 @@ const meta = {
 	parameters: {
 		queries: [
 			{
-				key: preferenceSettings().queryKey,
+				key: preferenceSettingsKey,
 				data: MockUserPreferenceSettings,
 			},
 		],

@@ -3,7 +3,7 @@ import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
-import { preferenceSettings } from "#/api/queries/users";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
@@ -41,7 +41,7 @@ const meta: Meta<typeof AgentChatInput> = {
 	parameters: {
 		queries: [
 			{
-				key: preferenceSettings().queryKey,
+				key: preferenceSettingsKey,
 				data: MockUserPreferenceSettings,
 			},
 		],
@@ -254,7 +254,7 @@ export const ModifierEnterSendsWhenRequired: Story = {
 	parameters: {
 		queries: [
 			{
-				key: preferenceSettings().queryKey,
+				key: preferenceSettingsKey,
 				data: {
 					...MockUserPreferenceSettings,
 					agent_chat_send_shortcut: "modifier_enter",

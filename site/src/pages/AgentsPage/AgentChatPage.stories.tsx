@@ -21,7 +21,7 @@ import {
 	toChatListParams,
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
-import { preferenceSettings } from "#/api/queries/users";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -383,7 +383,7 @@ const buildQueries = (
 			},
 		}),
 		{
-			key: preferenceSettings().queryKey,
+			key: preferenceSettingsKey,
 			data: MockUserPreferenceSettings,
 		},
 	];

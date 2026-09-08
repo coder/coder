@@ -20,7 +20,7 @@ import {
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
-import { preferenceSettings } from "#/api/queries/users";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -288,7 +288,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 				data: buildPersonalModelOverridesResponse(),
 			},
 			{
-				key: preferenceSettings().queryKey,
+				key: preferenceSettingsKey,
 				data: MockUserPreferenceSettings,
 			},
 		],
