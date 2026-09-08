@@ -5,14 +5,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -221,6 +224,124 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 	})
 }
 
+// The redemptions race rather than run in sequence: a sequential pair passes
+// whether or not the delete arbitrates single use. barrierStore makes that
+// overlap deterministic instead of probabilistic.
+func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	var reads sync.WaitGroup
+	reads.Add(2)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: barrierStore{Store: db, reads: &reads},
+		Pubsub:   pubsub,
+	})
+	coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	app := seedAppWithSecret(t, db, sql.NullString{})
+	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+	form := tokenExchangeForm(app, code, verifier)
+
+	type exchange struct {
+		status int
+		body   string
+		err    error
+	}
+
+	redeem := func() exchange {
+		status, body, err := tryTokenRequest(ctx, t, client, form)
+		return exchange{status: status, body: body, err: err}
+	}
+
+	other := make(chan exchange, 1)
+	go func() { other <- redeem() }()
+	results := []exchange{redeem(), <-other}
+
+	var winner codersdk.OAuth2TokenResponse
+	var minted, rejected int
+	for _, result := range results {
+		require.NoError(t, result.err)
+		switch result.status {
+		case http.StatusOK:
+			winner = requireTokenResponse(t, result.status, result.body)
+			minted++
+		case http.StatusBadRequest:
+			require.Contains(t, result.body, string(codersdk.OAuth2ErrorCodeInvalidGrant), result.body)
+			rejected++
+		default:
+			t.Fatalf("unexpected status %d: %s", result.status, result.body)
+		}
+	}
+	require.Equal(t, 1, minted, "a code may mint at most one token")
+	require.Equal(t, 1, rejected)
+	requireTokenAuthenticates(ctx, t, client, winner.AccessToken)
+}
+
+// The ordinary replay: a client retries a redemption whose answer it never saw.
+// Here the first read refuses it. The race test cannot cover this path
+// deterministically, since which read or delete arbitrates there depends on
+// scheduling.
+func TestOAuth2TokenExchangeReplay(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	app := seedAppWithSecret(t, db, sql.NullString{})
+	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+	token := exchangeCode(ctx, t, client, app, code, verifier)
+
+	status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
+	requireTokenGrantError(t, status, body)
+	requireTokenAuthenticates(ctx, t, client, token.AccessToken)
+}
+
+// barrierStore holds each redemption at its code read until every redemption
+// has read, so both reach the delete with the same stale view. Starting the
+// requests together is not enough on its own: nothing stops one handler from
+// committing before the other reads, and the read then refuses the second
+// before the delete ever arbitrates.
+//
+// InTx hands its closure a fresh Store, so this intercepts only the read that
+// precedes the transaction, which is the one that fixes the interleaving.
+type barrierStore struct {
+	database.Store
+	reads *sync.WaitGroup
+}
+
+// GetOAuth2ProviderAppCodeByPrefix has one production caller, the code read in
+// authorizationCodeGrant, so every arrival here is a redemption.
+func (s barrierStore) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, prefix []byte) (database.OAuth2ProviderAppCode, error) {
+	code, err := s.Store.GetOAuth2ProviderAppCodeByPrefix(ctx, prefix)
+	s.reads.Done()
+	s.reads.Wait()
+	return code, err
+}
+
+// requireTokenAuthenticates asserts the accepted redemption's own credential
+// still works. Callers grant coder:all so the probed endpoint is in scope.
+//
+// Row counts cannot show this: the grant deletes whatever key already holds
+// the name it is about to write, and oauth2_provider_app_tokens cascades on
+// that delete, so the rows converge on one key and one token however many
+// redemptions succeed. Only the winner's token separates "its key survived"
+// from "a second redemption rotated it out".
+func requireTokenAuthenticates(ctx context.Context, t *testing.T, client *codersdk.Client, accessToken string) {
+	t.Helper()
+
+	asApp := codersdk.New(client.URL)
+	asApp.SetSessionToken(accessToken)
+	_, err := asApp.User(ctx, codersdk.Me)
+	require.NoError(t, err, "a refused redemption must leave the accepted one's token usable")
+}
+
 // appWithSecret is seeded directly because the management API registers no
 // scope allowlist, and the allowlist is what these tests turn.
 type appWithSecret struct {
@@ -401,15 +522,35 @@ func exchangeCode(ctx context.Context, t *testing.T, client *codersdk.Client, ap
 func postTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values) (int, string) {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/tokens", strings.NewReader(form.Encode()))
+	status, body, err := tryTokenRequest(ctx, t, client, form)
 	require.NoError(t, err)
+	return status, body
+}
+
+// tryTokenRequest returns the request error instead of asserting on it, so a
+// caller on a spawned goroutine can carry it back to the test goroutine.
+// require there runs runtime.Goexit, which skips whatever the goroutine still
+// owed its parent.
+func tryTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values) (int, string, error) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/tokens", strings.NewReader(form.Encode()))
+	if err != nil {
+		return 0, "", xerrors.Errorf("build token request: %w", err)
+	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
+	if err != nil {
+		return 0, "", xerrors.Errorf("post token request: %w", err)
+	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode, readBody(t, resp)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, "", xerrors.Errorf("read token response: %w", err)
+	}
+	return resp.StatusCode, string(body), nil
 }
 
 func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2TokenResponse {
