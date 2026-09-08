@@ -27,12 +27,17 @@ type parameterValue struct {
 	Source parameterValueSource
 }
 
+// ResolveParameters determines the parameter values to store for a build. The
+// transition is required because only a start build may narrow the set of
+// stored values.
+//
 //nolint:revive // firstbuild is a control flag to turn on immutable validation
 func ResolveParameters(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	renderer Renderer,
 	firstBuild bool,
+	transition database.WorkspaceTransition,
 	previousValues []database.WorkspaceBuildParameter,
 	buildValues []codersdk.WorkspaceBuildParameter,
 	presetValues []database.TemplateVersionPresetParameter,
@@ -204,9 +209,17 @@ func ResolveParameters(
 	// parameter values that have no effect. These leaky parameter values can cause
 	// problems in the future, as it makes it challenging to remove values from the
 	// database
-	for k := range values {
-		if _, ok := parameterNames[k]; !ok {
-			delete(values, k)
+	//
+	// Only a start build may narrow the stored set. A stop or delete build does not
+	// change which parameters a workspace has, so a parameter missing from this
+	// render is not evidence the user removed it. Dropping the value there persists
+	// the reduced set and the following start build reads it as the previous state,
+	// which loses the value even when that build renders the parameter correctly.
+	if transition == database.WorkspaceTransitionStart {
+		for k := range values {
+			if _, ok := parameterNames[k]; !ok {
+				delete(values, k)
+			}
 		}
 	}
 
