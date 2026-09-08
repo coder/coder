@@ -2130,6 +2130,47 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.ChangedDiffStatus
+
+```json
+{
+  "ref": {
+    "git_branch": "string",
+    "remote_origin": "string"
+  },
+  "status": {
+    "additions": 0,
+    "approved": true,
+    "author_avatar_url": "string",
+    "author_login": "string",
+    "base_branch": "string",
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "commits": 0,
+    "deletions": 0,
+    "git_branch": "string",
+    "head_branch": "string",
+    "pr_number": 0,
+    "pull_request_draft": true,
+    "pull_request_state": "string",
+    "pull_request_title": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
+    "reviewer_count": 0,
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  }
+}
+```
+
+### Properties
+
+| Name     | Type                                               | Required | Restrictions | Description                                 |
+|----------|----------------------------------------------------|----------|--------------|---------------------------------------------|
+| `ref`    | [codersdk.DiffStatusRef](#codersdkdiffstatusref)   | false    |              |                                             |
+| `status` | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus) | false    |              | Status is the ref's state after the change. |
+
 ## codersdk.Chat
 
 ```json
@@ -2178,16 +2219,43 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -2274,16 +2342,43 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -2347,7 +2442,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
 | `context`               | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
 | `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              | Diff status is the primary pull request, picked by the server. Deprecated: use DiffStatuses, which lists every pull request the chat tracks.                                                                                                                               |
+| `diff_statuses`         | array of [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)     | false    |              |                                                                                                                                                                                                                                                                            |
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
 | `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
 | `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2710,12 +2806,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "commits": 0,
   "deletions": 0,
+  "git_branch": "string",
   "head_branch": "string",
   "pr_number": 0,
   "pull_request_draft": true,
   "pull_request_state": "string",
   "pull_request_title": "string",
   "refreshed_at": "2019-08-24T14:15:22Z",
+  "remote_origin": "string",
   "reviewer_count": 0,
   "stale_at": "2019-08-24T14:15:22Z",
   "url": "string"
@@ -2724,27 +2822,29 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `additions`          | integer | false    |              |             |
-| `approved`           | boolean | false    |              |             |
-| `author_avatar_url`  | string  | false    |              |             |
-| `author_login`       | string  | false    |              |             |
-| `base_branch`        | string  | false    |              |             |
-| `changed_files`      | integer | false    |              |             |
-| `changes_requested`  | boolean | false    |              |             |
-| `chat_id`            | string  | false    |              |             |
-| `commits`            | integer | false    |              |             |
-| `deletions`          | integer | false    |              |             |
-| `head_branch`        | string  | false    |              |             |
-| `pr_number`          | integer | false    |              |             |
-| `pull_request_draft` | boolean | false    |              |             |
-| `pull_request_state` | string  | false    |              |             |
-| `pull_request_title` | string  | false    |              |             |
-| `refreshed_at`       | string  | false    |              |             |
-| `reviewer_count`     | integer | false    |              |             |
-| `stale_at`           | string  | false    |              |             |
-| `url`                | string  | false    |              |             |
+| Name                 | Type    | Required | Restrictions | Description                                                                                                                |
+|----------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `additions`          | integer | false    |              |                                                                                                                            |
+| `approved`           | boolean | false    |              |                                                                                                                            |
+| `author_avatar_url`  | string  | false    |              |                                                                                                                            |
+| `author_login`       | string  | false    |              |                                                                                                                            |
+| `base_branch`        | string  | false    |              |                                                                                                                            |
+| `changed_files`      | integer | false    |              |                                                                                                                            |
+| `changes_requested`  | boolean | false    |              |                                                                                                                            |
+| `chat_id`            | string  | false    |              |                                                                                                                            |
+| `commits`            | integer | false    |              |                                                                                                                            |
+| `deletions`          | integer | false    |              |                                                                                                                            |
+| `git_branch`         | string  | false    |              |                                                                                                                            |
+| `head_branch`        | string  | false    |              |                                                                                                                            |
+| `pr_number`          | integer | false    |              |                                                                                                                            |
+| `pull_request_draft` | boolean | false    |              |                                                                                                                            |
+| `pull_request_state` | string  | false    |              |                                                                                                                            |
+| `pull_request_title` | string  | false    |              |                                                                                                                            |
+| `refreshed_at`       | string  | false    |              |                                                                                                                            |
+| `remote_origin`      | string  | false    |              | Remote origin and GitBranch identify the ref this status belongs to. Both are empty when the agent never reported the ref. |
+| `reviewer_count`     | integer | false    |              |                                                                                                                            |
+| `stale_at`           | string  | false    |              |                                                                                                                            |
+| `url`                | string  | false    |              |                                                                                                                            |
 
 ## codersdk.ChatError
 
@@ -5156,6 +5256,35 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "changed_diff_status": {
+    "ref": {
+      "git_branch": "string",
+      "remote_origin": "string"
+    },
+    "status": {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  },
   "chat": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
@@ -5198,16 +5327,43 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "commits": 0,
       "deletions": 0,
+      "git_branch": "string",
       "head_branch": "string",
       "pr_number": 0,
       "pull_request_draft": true,
       "pull_request_state": "string",
       "pull_request_title": "string",
       "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
       "reviewer_count": 0,
       "stale_at": "2019-08-24T14:15:22Z",
       "url": "string"
     },
+    "diff_statuses": [
+      {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "git_branch": "string",
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "files": [
       {
         "created_at": "2019-08-24T14:15:22Z",
@@ -5271,11 +5427,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                                | Required | Restrictions | Description |
-|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
-| `chat`       | [codersdk.Chat](#codersdkchat)                                      | false    |              |             |
-| `kind`       | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |             |
-| `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
+| Name                  | Type                                                                | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------|---------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `changed_diff_status` | [codersdk.ChangedDiffStatus](#codersdkchangeddiffstatus)            | false    |              | Changed diff status is set only on diff_status_change events. It identifies the single ref whose status changed. The embedded chat's diff_status carries the primary. |
+| `chat`                | [codersdk.Chat](#codersdkchat)                                      | false    |              |                                                                                                                                                                       |
+| `kind`                | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |                                                                                                                                                                       |
+| `tool_calls`          | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |                                                                                                                                                                       |
 
 ## codersdk.ChatWatchEventKind
 
@@ -8434,6 +8591,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Value(s)           |
 |--------------------|
 | `error`, `warning` |
+
+## codersdk.DiffStatusRef
+
+```json
+{
+  "git_branch": "string",
+  "remote_origin": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+|-----------------|--------|----------|--------------|-------------|
+| `git_branch`    | string | false    |              |             |
+| `remote_origin` | string | false    |              |             |
 
 ## codersdk.DisplayApp
 
