@@ -783,7 +783,8 @@ candidate_messages AS MATERIALIZED (
     FROM input_messages input
     JOIN chat_messages cm ON cm.id = input.message_id
     LEFT JOIN chats c ON c.id = cm.chat_id AND p_delete_chat_id IS NULL
-    WHERE cm.runtime_ms IS NOT NULL
+    -- Invalid recorded times must not consume an accounting marker.
+    WHERE cm.runtime_ms >= 0
       AND (
           (p_delete_chat_id IS NULL AND c.id IN (SELECT id FROM locked_chats))
           OR (p_delete_chat_id IS NOT NULL AND cm.chat_id = p_delete_chat_id)
@@ -900,7 +901,7 @@ BEGIN
     PERFORM account_agent_time_messages(ARRAY(
         SELECT id
         FROM agent_time_new_messages
-        WHERE runtime_ms IS NOT NULL
+        WHERE runtime_ms >= 0
         ORDER BY id
     ));
     RETURN NULL;
@@ -934,7 +935,7 @@ BEGIN
         FROM chat_messages cm
         LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
         WHERE cm.chat_id = OLD.id
-          AND cm.runtime_ms IS NOT NULL
+          AND cm.runtime_ms >= 0
           AND accounted.message_id IS NULL
         ORDER BY cm.id
         LIMIT fallback_limit + 1
@@ -4147,12 +4148,11 @@ CREATE TABLE workspace_agent_stats (
     tx_packets bigint DEFAULT 0 NOT NULL,
     tx_bytes bigint DEFAULT 0 NOT NULL,
     connection_median_latency_ms double precision DEFAULT '-1'::integer NOT NULL,
-    session_count_vscode bigint DEFAULT 0 NOT NULL,
-    session_count_jetbrains bigint DEFAULT 0 NOT NULL,
-    session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
-    session_count_ssh bigint DEFAULT 0 NOT NULL,
-    usage boolean DEFAULT false NOT NULL
+    usage boolean DEFAULT false NOT NULL,
+    session_counts jsonb DEFAULT '{}'::jsonb NOT NULL
 );
+
+COMMENT ON COLUMN workspace_agent_stats.session_counts IS 'Positive session counts keyed by the canonical app name reported by the agent.';
 
 CREATE TABLE workspace_agent_volume_resource_monitors (
     agent_id uuid NOT NULL,
@@ -5315,7 +5315,7 @@ COMMENT ON INDEX workspace_agent_scripts_workspace_agent_id_idx IS 'Foreign key 
 
 CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_logs USING btree (agent_id, id);
 
-CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at, user_id) INCLUDE (session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, connection_median_latency_ms) WHERE (connection_count > 0);
+CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at, user_id) INCLUDE (connection_median_latency_ms) WHERE (connection_count > 0);
 
 COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Support index for template insights endpoint to build interval reports faster.';
 

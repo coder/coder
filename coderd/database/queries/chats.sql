@@ -2371,7 +2371,7 @@ candidates AS MATERIALIZED (
                 FROM chat_messages cm
                 LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
                 WHERE cm.chat_id = c.id
-                  AND cm.runtime_ms IS NOT NULL
+                  AND cm.runtime_ms >= 0
                   AND accounted.message_id IS NULL
                 LIMIT agent_time_delete_fallback_limit() + 1
             ) unaccounted

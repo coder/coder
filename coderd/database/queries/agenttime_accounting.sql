@@ -11,7 +11,7 @@ WITH candidate_chats AS MATERIALIZED (
           FROM chat_messages cm
           LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
           WHERE cm.chat_id = c.id
-            AND cm.runtime_ms IS NOT NULL
+            AND cm.runtime_ms >= 0
             AND accounted.message_id IS NULL
             AND cm.id > @cursor_message_id::bigint
       )
@@ -24,7 +24,7 @@ candidate_messages AS MATERIALIZED (
     FROM chat_messages cm
     JOIN candidate_chats c ON c.id = cm.chat_id
     LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
-    WHERE cm.runtime_ms IS NOT NULL
+    WHERE cm.runtime_ms >= 0
       AND accounted.message_id IS NULL
       AND cm.id > @cursor_message_id::bigint
     ORDER BY cm.id ASC
@@ -49,7 +49,7 @@ SELECT EXISTS (
     JOIN chats c ON c.id = cm.chat_id
     LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
     WHERE c.organization_id = @organization_id::uuid
-      AND cm.runtime_ms IS NOT NULL
+      AND cm.runtime_ms >= 0
       AND accounted.message_id IS NULL
     LIMIT 1
 )::boolean;
