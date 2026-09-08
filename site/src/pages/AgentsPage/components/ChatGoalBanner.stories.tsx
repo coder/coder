@@ -44,15 +44,42 @@ export const ActiveIdle: Story = {
 	},
 };
 
+export const ActiveAutoContinuing: Story = {
+	args: {
+		goal: goal({ continuation_count: 3 }),
+		isChatWorking: true,
+	},
+};
+
 export const Paused: Story = {
 	args: {
-		goal: goal({ status: "paused" }),
+		goal: goal({ status: "paused", paused_reason: "user" }),
+	},
+};
+
+export const PausedAtTurnLimit: Story = {
+	args: {
+		goal: goal({
+			status: "paused",
+			paused_reason: "turn_limit",
+			continuation_count: 10,
+		}),
+	},
+};
+
+export const Blocked: Story = {
+	args: {
+		goal: goal({
+			status: "blocked",
+			blocked_reason:
+				"The migration requires a decision on whether to keep the legacy theme package. Reply with the direction and resume the goal.",
+		}),
 	},
 };
 
 export const PausedResumeUnavailable: Story = {
 	args: {
-		goal: goal({ status: "paused" }),
+		goal: goal({ status: "paused", paused_reason: "user" }),
 		isChatWorking: true,
 		actionUnavailableReasons: {
 			resume: "The chat is busy. Resume becomes available when it is idle.",
