@@ -30,7 +30,10 @@ import {
 	pickReasoningEffort,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentChatInput } from "./AgentChatInput";
+import {
+	AgentChatInput,
+	type AgentChatInputSendOptions,
+} from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -61,6 +64,7 @@ export type CreateChatOptions = {
 	reasoningEffort?: string;
 	mcpServerIds?: string[];
 	organizationId: string;
+	goalMutation?: TypesGen.ChatGoalSetRequest;
 	planMode?: TypesGen.ChatPlanMode;
 };
 
@@ -136,6 +140,7 @@ interface AgentCreateFormProps {
 	canCreateChat: boolean;
 	canConfigureAgentSetup: boolean;
 	aiGatewayDisabled?: boolean;
+	showPursueGoal?: boolean;
 	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
@@ -149,6 +154,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	canCreateChat,
 	canConfigureAgentSetup,
 	aiGatewayDisabled,
+	showPursueGoal = false,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -514,7 +520,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		saveReasoningEffortForModel(selectedModel, value);
 	};
 
-	const handleSend = async (message: string, fileIDs?: string[]) => {
+	const handleSend = async (
+		message: string,
+		fileIDs?: string[],
+		options?: AgentChatInputSendOptions,
+	) => {
 		submitDraft();
 		await onCreateChat({
 			message,
@@ -523,6 +533,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			model: submittedModel,
 			reasoningEffort: effectiveReasoningEffort,
 			organizationId,
+			goalMutation: options?.goalMutation,
 			mcpServerIds:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -534,7 +545,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		});
 	};
 
-	const handleSendWithAttachments = async (message: string) => {
+	const handleSendWithAttachments = async (
+		message: string,
+		options?: AgentChatInputSendOptions,
+	) => {
 		const fileIds: string[] = [];
 		let skippedErrors = 0;
 		for (const file of attachments) {
@@ -553,12 +567,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			);
 		}
 		const fileArg = fileIds.length > 0 ? fileIds : undefined;
-		try {
-			await handleSend(message, fileArg);
-			resetAttachments();
-		} catch {
-			// Attachments preserved for retry on failure.
-		}
+		await handleSend(message, fileArg, options);
+		resetAttachments();
 	};
 
 	return (
@@ -659,6 +669,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						isModelCatalogLoading={isModelDataPending}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
+						showPursueGoal={showPursueGoal}
+						canPursueGoal={showPursueGoal}
 						onPlanModeToggle={setPlanModeEnabled}
 						attachments={attachments}
 						// Files attached before org adoption cannot upload and would be discarded

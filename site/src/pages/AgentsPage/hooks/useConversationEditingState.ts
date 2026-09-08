@@ -1,7 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { isMobileViewport } from "#/utils/mobile";
-import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import type {
+	AgentChatInputSendOptions,
+	ChatMessageInputRef,
+} from "../components/AgentChatInput";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import {
 	draftInputStorageKeyPrefix,
@@ -18,6 +21,7 @@ export function useConversationEditingState(deps: {
 		message: string,
 		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
+		options?: AgentChatInputSendOptions,
 	) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
@@ -156,10 +160,11 @@ export function useConversationEditingState(deps: {
 	const handleSendFromInput = async (
 		message: string,
 		attachments?: readonly PendingAttachment[],
+		options?: AgentChatInputSendOptions,
 	) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
-		const sendPromise = onSend(message, attachments, editedMessageID);
+		const sendPromise = onSend(message, attachments, editedMessageID, options);
 
 		// For history edits, clear input immediately and prepare
 		// a rollback in case the send fails.
