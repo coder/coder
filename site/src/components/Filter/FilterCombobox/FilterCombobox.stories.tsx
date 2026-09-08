@@ -31,12 +31,12 @@ const ownerOptions: FilterOption[] = [
 	{
 		label: "alice",
 		value: "alice",
-		startIcon: <Avatar fallback="alice" size="md" />,
+		startIcon: <Avatar fallback="alice" size="sm" />,
 	},
 	{
 		label: "bob",
 		value: "bob",
-		startIcon: <Avatar fallback="bob" size="md" />,
+		startIcon: <Avatar fallback="bob" size="sm" />,
 	},
 ];
 
@@ -50,31 +50,19 @@ const attributeOptions: FilterOption[] = [
 		label: "Outdated",
 		value: "outdated",
 		token: "outdated:true",
-		startIcon: (
-			<span className="flex size-(--avatar-default) shrink-0 items-center justify-center">
-				<RefreshCwOffIcon className="size-icon-sm" />
-			</span>
-		),
+		startIcon: <RefreshCwOffIcon />,
 	},
 	{
 		label: "Dormant",
 		value: "dormant",
 		token: "dormant:true",
-		startIcon: (
-			<span className="flex size-(--avatar-default) shrink-0 items-center justify-center">
-				<MoonIcon className="size-icon-sm" />
-			</span>
-		),
+		startIcon: <MoonIcon />,
 	},
 	{
 		label: "Shared",
 		value: "shared",
 		token: "shared:true",
-		startIcon: (
-			<span className="flex size-(--avatar-default) shrink-0 items-center justify-center">
-				<Share2Icon className="size-icon-sm" />
-			</span>
-		),
+		startIcon: <Share2Icon />,
 	},
 ];
 
@@ -120,13 +108,20 @@ const categories: FilterCategory[] = [
 const categoriesWithAttributes: FilterCategory[] = [
 	...categories,
 	{
-		key: "attributes",
+		key: "attribute",
+		aliases: ["attributes"],
 		label: "Attributes",
 		icon: <SlidersHorizontalIcon />,
 		chipKeys: ["outdated", "dormant", "shared"],
 		getOptions: async (query) => filterOptions(attributeOptions, query),
 	},
 ];
+
+// Chips render the key and value in separate spans, so match a committed chip
+// on the chip element's combined text rather than a single text node.
+const chip = (token: string) => (_: string, element: Element | null) =>
+	element?.getAttribute("data-slot") === "combobox-chip" &&
+	element.textContent === token;
 
 const FilterComboboxHarness = ({
 	initialQuery = "owner:me",
@@ -164,10 +159,44 @@ export const Default: Story = {
 		await expect(
 			canvas.getByRole("combobox", { name: "Search and filter…" }),
 		).toBeVisible();
-		await expect(canvas.getByText("owner:me")).toBeVisible();
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 		await expect(
 			canvas.getByRole("button", { name: "Remove owner:me" }),
 		).toBeVisible();
+	},
+};
+
+// The filter toggle shows the dotted icon while any chip is applied and
+// reverts to the plain icon once the last chip is removed.
+export const ActiveFilterIcon: Story = {
+	render: () => <FilterComboboxHarness />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByTestId("filter-active-icon")).toBeVisible();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Remove owner:me" }),
+		);
+		await waitFor(() =>
+			expect(
+				canvas.queryByTestId("filter-active-icon"),
+			).not.toBeInTheDocument(),
+		);
+	},
+};
+
+// Enough chips to wrap onto a second row. Visual regression coverage for the
+// search and filter icons staying aligned with the first row of chips.
+export const WrappedChipsKeepIconsOnFirstRow: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="owner:me status:running template:docker outdated:true dormant:true shared:true"
+			categories={categoriesWithAttributes}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
+		await expect(canvas.getByText(chip("attribute:shared"))).toBeVisible();
 	},
 };
 
@@ -181,14 +210,16 @@ export const BackspaceRemovesLastChip: Story = {
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
-		await expect(canvas.getByText("status:running")).toBeVisible();
-		await expect(canvas.getByText("owner:me")).toBeVisible();
+		await expect(canvas.getByText(chip("status:running"))).toBeVisible();
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 		await userEvent.click(input);
 		await userEvent.keyboard("{Backspace}");
 		await waitFor(() =>
-			expect(canvas.queryByText("status:running")).not.toBeInTheDocument(),
+			expect(
+				canvas.queryByText(chip("status:running")),
+			).not.toBeInTheDocument(),
 		);
-		await expect(canvas.getByText("owner:me")).toBeVisible();
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 	},
 };
 
@@ -362,7 +393,6 @@ export const LiveResourcePreviews: Story = {
 					{
 						value: "ws-1",
 						label: "devbox",
-						subtitle: "alice · docker",
 						href: "/@alice/devbox",
 					},
 				];
@@ -381,7 +411,6 @@ export const LiveResourcePreviews: Story = {
 			expect(body.getByRole("option", { name: /devbox/i })).toBeVisible(),
 		);
 		await expect(body.getByText("Workspaces")).toBeVisible();
-		await expect(body.getByText("alice · docker")).toBeVisible();
 	},
 };
 
@@ -396,7 +425,6 @@ export const HidesStaleResourcePreviews: Story = {
 						{
 							value: "ws-dev",
 							label: "devbox",
-							subtitle: "alice · docker",
 							href: "/@alice/devbox",
 						},
 					];
@@ -406,7 +434,6 @@ export const HidesStaleResourcePreviews: Story = {
 						{
 							value: "ws-prod",
 							label: "prodbox",
-							subtitle: "bob · kubernetes",
 							href: "/@bob/prodbox",
 						},
 					];
@@ -463,7 +490,7 @@ export const PreservesChipInsertionOrder: Story = {
 		await waitFor(() => expect(body.getByText("docker")).toBeVisible());
 		await userEvent.click(body.getByRole("option", { name: /docker/i }));
 		await waitFor(() =>
-			expect(canvas.getByText("template:docker")).toBeVisible(),
+			expect(canvas.getByText(chip("template:docker"))).toBeVisible(),
 		);
 
 		await userEvent.click(input);
@@ -471,7 +498,7 @@ export const PreservesChipInsertionOrder: Story = {
 		await waitFor(() => expect(body.getByText("Running")).toBeVisible());
 		await userEvent.click(body.getByRole("option", { name: /Running/i }));
 		await waitFor(() =>
-			expect(canvas.getByText("status:running")).toBeVisible(),
+			expect(canvas.getByText(chip("status:running"))).toBeVisible(),
 		);
 
 		await waitFor(() =>
@@ -528,7 +555,7 @@ export const CrossCategoryValueSuggestions: Story = {
 			body.queryByRole("option", { name: /^Owner$/i }),
 		).not.toBeInTheDocument();
 		await userEvent.click(body.getByRole("option", { name: /testuser01/i }));
-		await expect(canvas.getByText("owner:testuser01")).toBeVisible();
+		await expect(canvas.getByText(chip("owner:testuser01"))).toBeVisible();
 	},
 };
 
@@ -557,7 +584,7 @@ export const AttributesCommitBooleanChips: Story = {
 		);
 		await userEvent.click(body.getByRole("option", { name: /Outdated/i }));
 		await waitFor(() =>
-			expect(canvas.getByText("outdated:true")).toBeVisible(),
+			expect(canvas.getByText(chip("attribute:outdated"))).toBeVisible(),
 		);
 
 		await userEvent.click(
@@ -568,11 +595,13 @@ export const AttributesCommitBooleanChips: Story = {
 			expect(body.getByRole("option", { name: /Shared/i })).toBeVisible(),
 		);
 		await userEvent.click(body.getByRole("option", { name: /Shared/i }));
-		await waitFor(() => expect(canvas.getByText("shared:true")).toBeVisible());
+		await waitFor(() =>
+			expect(canvas.getByText(chip("attribute:shared"))).toBeVisible(),
+		);
 
 		// Both boolean chips coexist because each attribute owns a distinct key.
-		await expect(canvas.getByText("outdated:true")).toBeVisible();
-		await expect(canvas.getByText("shared:true")).toBeVisible();
+		await expect(canvas.getByText(chip("attribute:outdated"))).toBeVisible();
+		await expect(canvas.getByText(chip("attribute:shared"))).toBeVisible();
 	},
 };
 
@@ -595,7 +624,7 @@ export const DismissOnEscape: Story = {
 				body.queryByRole("option", { name: /Status/i }),
 			).not.toBeInTheDocument(),
 		);
-		await expect(canvas.getByText("owner:me")).toBeVisible();
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 	},
 };
 
@@ -618,7 +647,7 @@ export const DismissOnOutsideClick: Story = {
 				body.queryByRole("option", { name: /Status/i }),
 			).not.toBeInTheDocument(),
 		);
-		await expect(canvas.getByText("owner:me")).toBeVisible();
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 	},
 };
 
@@ -805,11 +834,13 @@ export const TypingChipTokenCommitsChip: Story = {
 		await userEvent.click(input);
 		// A partial value must not commit a chip yet.
 		await userEvent.type(input, "outdated:t");
-		await expect(canvas.queryByText("outdated:t")).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText(chip("outdated:t")),
+		).not.toBeInTheDocument();
 		// Completing the token with a space promotes it and clears the input.
 		await userEvent.type(input, "rue ");
 		await waitFor(() =>
-			expect(canvas.getByText("outdated:true")).toBeVisible(),
+			expect(canvas.getByText(chip("attribute:outdated"))).toBeVisible(),
 		);
 		await expect(input).toHaveValue("");
 	},

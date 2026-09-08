@@ -1,8 +1,8 @@
 import {
-	Building2Icon,
+	BuildingIcon,
 	CircleDotIcon,
 	LayoutPanelTopIcon,
-	TagsIcon,
+	TagIcon,
 	UserIcon,
 } from "lucide-react";
 import { type FC, useCallback, useMemo } from "react";
@@ -70,9 +70,10 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
 			{
-				key: "attributes",
+				key: "attribute",
 				label: "Attributes",
-				icon: <TagsIcon />,
+				aliases: ["attributes"],
+				icon: <TagIcon />,
 				// Boolean workspace filters live under their own keys, so the
 				// category owns them for chip parsing.
 				chipKeys: ATTRIBUTE_CHIP_KEYS,
@@ -85,7 +86,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			next.push({
 				key: "organization",
 				label: "Organization",
-				icon: <Building2Icon />,
+				icon: <BuildingIcon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
 		}
@@ -119,12 +120,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			return response.workspaces.map((workspace) => ({
 				value: workspace.id,
 				label: workspace.name,
-				subtitle: [
-					workspace.owner_name,
-					workspace.template_display_name || workspace.template_name,
-				]
-					.filter(Boolean)
-					.join(" · "),
 				imageUrl: workspace.owner_avatar_url,
 				href: `/@${workspace.owner_name}/${workspace.name}`,
 			}));

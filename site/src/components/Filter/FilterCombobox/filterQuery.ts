@@ -4,9 +4,39 @@ import {
 	needsQuotes,
 	parseFilterTokens,
 } from "#/components/Filter/filterQuery";
-import type { FilterOption } from "./types";
+import type { FilterCategory, FilterOption } from "./types";
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
+
+type ChipDisplaySource = Pick<FilterCategory, "key" | "chipKeys">;
+
+/**
+ * Key and value to show on a committed chip. Single-key categories display the
+ * token as-is (`owner:me`). A multi-key category such as Attributes commits
+ * `outdated:true`, which reads poorly as a chip, so it is presented under the
+ * category key instead (`attribute:outdated`), keeping every chip on the same
+ * `key:value` pattern. The query string is unaffected.
+ */
+export const chipDisplay = (
+	token: string,
+	categories: readonly ChipDisplaySource[],
+): { key: string; value: string } => {
+	const separatorIndex = token.indexOf(":");
+	if (separatorIndex <= 0) {
+		return { key: "", value: token };
+	}
+	const key = token.slice(0, separatorIndex);
+	const value = token.slice(separatorIndex + 1);
+	const owner = categories.find(
+		(category) =>
+			category.key !== key.toLowerCase() &&
+			category.chipKeys?.includes(key.toLowerCase()),
+	);
+	if (owner) {
+		return { key: owner.key, value: key.toLowerCase() };
+	}
+	return { key, value };
+};
 
 // Collapses a stream of key/value pairs to one chip per key, keeping each key's
 // first-seen position and its last-seen value. Shared by `queryToChips` (pairs

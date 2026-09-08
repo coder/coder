@@ -34,12 +34,10 @@ export const getStatusFilterOptions = async (
 			label: display.text,
 			value: status,
 			startIcon: (
-				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
-					<StatusIndicatorDot
-						variant={variantByStatusType[display.type]}
-						size="md"
-					/>
-				</span>
+				<StatusIndicatorDot
+					variant={variantByStatusType[display.type]}
+					size="md"
+				/>
 			),
 		} satisfies FilterOption;
 	});
@@ -77,7 +75,7 @@ export const getTemplateFilterOptions = async (
 		value: template.name,
 		startIcon: (
 			<Avatar
-				size="md"
+				size="sm"
 				variant="icon"
 				src={template.icon}
 				fallback={template.display_name || template.name}
@@ -94,7 +92,7 @@ type OwnerIdentity = Readonly<{ username: string; avatar_url?: string }>;
 const selfOwnerOption = (me: OwnerIdentity): FilterOption => ({
 	label: `${me.username} (you)`,
 	value: "me",
-	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="md" />,
+	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
 });
 
 // Users who cannot list other users still filter by themselves, so the Owner
@@ -130,7 +128,7 @@ export const getOwnerFilterOptions = async (
 			label: user.username,
 			value: user.username,
 			startIcon: (
-				<Avatar fallback={user.username} src={user.avatar_url} size="md" />
+				<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
 			),
 		}));
 
@@ -145,29 +143,23 @@ type AttributeDefinition = {
 	requiresDormantEntitlement: boolean;
 };
 
-const attributeIcon = (icon: ReactNode): ReactNode => (
-	<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
-		{icon}
-	</span>
-);
-
 const ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
 	{
 		label: "Outdated",
 		value: "outdated",
-		icon: <RefreshCwOffIcon className="size-icon-sm" />,
+		icon: <RefreshCwOffIcon />,
 		requiresDormantEntitlement: false,
 	},
 	{
 		label: "Dormant",
 		value: "dormant",
-		icon: <MoonIcon className="size-icon-sm" />,
+		icon: <MoonIcon />,
 		requiresDormantEntitlement: true,
 	},
 	{
 		label: "Shared",
 		value: "shared",
-		icon: <Share2Icon className="size-icon-sm" />,
+		icon: <Share2Icon />,
 		requiresDormantEntitlement: false,
 	},
 ];
@@ -183,7 +175,9 @@ export const ATTRIBUTE_CHIP_KEYS: readonly string[] = ATTRIBUTE_DEFINITIONS.map(
 /**
  * Boolean workspace attributes exposed as a single "Attributes" category. Each
  * option commits its own `key:true` chip (e.g. `outdated:true`) rather than a
- * shared `attributes:` key, matching the backend workspace search filters.
+ * shared `attribute:` key, matching the backend workspace search filters. The
+ * combobox presents those chips as `attribute:<key>` so they read like every
+ * other chip.
  */
 export const getAttributeFilterOptions = async (
 	query: string,
@@ -205,7 +199,7 @@ export const getAttributeFilterOptions = async (
 			label: attribute.label,
 			value: attribute.value,
 			token: `${attribute.value}:true`,
-			startIcon: attributeIcon(attribute.icon),
+			startIcon: attribute.icon,
 		}));
 };
 
@@ -234,7 +228,7 @@ export const getOrganizationFilterOptions = async (
 		startIcon: (
 			<Avatar
 				key={organization.id}
-				size="md"
+				size="sm"
 				fallback={organization.display_name || organization.name}
 				src={organization.icon}
 			/>

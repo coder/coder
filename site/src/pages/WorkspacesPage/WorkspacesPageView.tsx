@@ -184,6 +184,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 							limit={limit}
 							totalRecords={count}
 							currentOffsetStart={(page - 1) * limit + 1}
+							isFiltered={filter.query.trim() !== ""}
 						/>
 					)
 				)}
@@ -210,6 +211,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					canCreateWorkspace={canCreateWorkspace}
 					workspaces={workspaces}
 					isUsingFilter={filter.used}
+					onClearFilter={() => filter.update("")}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
 					templates={templates}

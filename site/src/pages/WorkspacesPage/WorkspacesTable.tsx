@@ -91,6 +91,8 @@ interface WorkspacesTableProps {
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
 	isUsingFilter: boolean;
+	/** Resets the filter query when the filtered result set is empty. */
+	onClearFilter: () => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
@@ -104,6 +106,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	workspaces,
 	checkedWorkspaces,
 	isUsingFilter,
+	onClearFilter,
 	onCheckChange,
 	templates,
 	canCreateTemplate,
@@ -169,6 +172,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							<WorkspacesEmpty
 								templates={templates}
 								isUsingFilter={isUsingFilter}
+								onClearFilter={onClearFilter}
 								canCreateTemplate={canCreateTemplate}
 								canCreateWorkspace={canCreateWorkspace}
 							/>

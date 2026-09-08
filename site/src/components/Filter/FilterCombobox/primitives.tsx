@@ -208,7 +208,7 @@ export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
 			className={cn(
-				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
+				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] font-normal leading-5 text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
 				className,
 			)}
 			{...props}
@@ -227,7 +227,7 @@ export const FilterComboboxGroup: FC<FilterComboboxGroupProps> = ({
 	return (
 		<CommandPrimitive.Group
 			data-slot="combobox-group"
-			className={cn(className)}
+			className={cn("group/combobox-group", className)}
 			{...props}
 		/>
 	);
@@ -242,7 +242,13 @@ export const FilterComboboxLabel: FC<FilterComboboxLabelProps> = ({
 	return (
 		<div
 			data-slot="combobox-label"
-			className={cn("px-2 py-1.5 text-xs text-content-secondary", className)}
+			// 16px above separates a header from the rows before it. The first group
+			// in the list has nothing above it, so the list's own 8px padding is all
+			// the space it gets.
+			className={cn(
+				"px-2 pt-4 pb-2 text-xs text-content-secondary group-first/combobox-group:pt-0",
+				className,
+			)}
 			{...props}
 		/>
 	);
@@ -356,7 +362,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 			data-slot="combobox-chip"
 			svgSize="sm"
 			className={cn(
-				"font-medium text-content-secondary hover:text-content-primary",
+				"group/chip font-medium text-content-secondary hover:text-content-primary",
 				className,
 			)}
 			{...props}
@@ -402,8 +408,16 @@ export const FilterComboboxChipsInput: FC<FilterComboboxChipsInputProps> = ({
 			data-slot="combobox-chip-input"
 			value={inputValue}
 			onValueChange={(next) => onInputValueChange?.(next)}
+			// The input sizes to its text (`field-sizing-content`) and grows into
+			// whatever room is left on the chip row, so an empty input only needs a
+			// caret's width and never forces a wrap onto a new row by itself; typed
+			// text wraps once it genuinely runs out of room. `size={1}` keeps the
+			// intrinsic width small in browsers without field-sizing support. The
+			// 28px height matches a chip so the box does not change height when the
+			// first chip is added or the last one removed.
+			size={1}
 			className={cn(
-				"h-6 min-w-16 flex-1 border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
+				"h-7 min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
 				className,
 			)}
 			{...props}

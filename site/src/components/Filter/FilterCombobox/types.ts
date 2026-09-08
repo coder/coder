@@ -35,7 +35,6 @@ export type SearchResult = {
 	label: string;
 	value: string;
 	startIcon?: ReactNode;
-	subtitle?: string;
 	/** Renders an avatar when `startIcon` is not provided. */
 	imageUrl?: string;
 	/** Opaque payload for `onSearchResultSelect`, e.g. a workspace URL path. */
