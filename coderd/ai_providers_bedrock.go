@@ -7,8 +7,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/provider"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -35,22 +35,16 @@ type BedrockModelResolver interface {
 // the provider's own credentials, including any assumed role.
 type awsBedrockModelResolver struct{}
 
+// ResolveModels resolves the configured identifiers to the model IDs the
+// gateway records for capability detection, usage, and pricing. Only
+// application inference profile ARNs are opaque, so only they cost an AWS call;
+// every other identifier resolves to itself.
 func (awsBedrockModelResolver) ResolveModels(ctx context.Context, settings codersdk.AIProviderBedrockSettings) (model, smallFastModel string, err error) {
-	cfg := config.AWSBedrock{
-		Region:         settings.Region,
-		Model:          settings.Model,
-		SmallFastModel: settings.SmallFastModel,
-		RoleARN:        settings.RoleARN,
-		ExternalID:     settings.ExternalID,
-		Protocol:       config.BedrockProtocol(settings.ResolvedProtocol()),
+	cfg := agplaibridge.BedrockConfig("", &settings)
+	if cfg == nil {
+		return settings.Model, settings.SmallFastModel, nil
 	}
-	if settings.AccessKey != nil {
-		cfg.AccessKey = *settings.AccessKey
-	}
-	if settings.AccessKeySecret != nil {
-		cfg.AccessKeySecret = *settings.AccessKeySecret
-	}
-	return provider.ResolveBedrockModels(ctx, cfg)
+	return provider.ResolveBedrockModels(ctx, *cfg)
 }
 
 func (api *API) bedrockModelResolver() BedrockModelResolver {

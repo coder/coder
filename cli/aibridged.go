@@ -14,11 +14,11 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/coderd"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -336,34 +336,10 @@ func buildAIProviderKeyPool(providerName string, keys []string, metrics *aibridg
 	return keypool.New(providerName, keys, quartz.NewReal(), metrics)
 }
 
-// bedrockConfig returns nil when the settings are absent or when the
-// Bedrock fields are not actually configured. The provider's BaseURL is
-// the generic upstream endpoint and is always non-empty, so it cannot
-// serve as a Bedrock detection signal; gate on the settings alone via
-// [codersdk.AIProviderBedrockSettings.IsConfigured].
+// bedrockConfig is [agplaibridge.BedrockConfig], shared with the provider
+// write path so both map stored settings the same way.
 func bedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) *aibridge.AWSBedrockConfig {
-	if bedrock == nil {
-		return nil
-	}
-	bedrockSettings := *bedrock
-	if !bedrockSettings.IsConfigured() {
-		return nil
-	}
-	accessKey := ptr.NilToEmpty(bedrockSettings.AccessKey)
-	accessKeySecret := ptr.NilToEmpty(bedrockSettings.AccessKeySecret)
-	return &aibridge.AWSBedrockConfig{
-		BaseURL:                baseURL,
-		Region:                 bedrockSettings.Region,
-		AccessKey:              accessKey,
-		AccessKeySecret:        accessKeySecret,
-		Model:                  bedrockSettings.Model,
-		SmallFastModel:         bedrockSettings.SmallFastModel,
-		RoleARN:                bedrockSettings.RoleARN,
-		ExternalID:             bedrockSettings.ExternalID,
-		Protocol:               config.BedrockProtocol(bedrockSettings.ResolvedProtocol()),
-		ResolvedModel:          bedrockSettings.ResolvedModel,
-		ResolvedSmallFastModel: bedrockSettings.ResolvedSmallFastModel,
-	}
+	return agplaibridge.BedrockConfig(baseURL, bedrock)
 }
 
 // circuitBreakerConfig returns nil when the breaker is disabled.
