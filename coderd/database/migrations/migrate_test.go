@@ -1461,6 +1461,137 @@ func TestMigration000593TaskBuildReasonRewriteTiming(t *testing.T) {
 	require.Zero(t, count)
 }
 
+func TestMigration000594RemoveTaskPermissions(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 594
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	orgID, userID, roleID, appID, taskAppID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	const mixedPermissions = `[{"negate": false, "resource_type": "task", "action": "read"}, {"negate": false, "resource_type": "user", "action": "read"}]`
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			"INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', $3, $3, '{}')",
+			[]any{orgID, orgID.String(), now},
+		},
+		{
+			"INSERT INTO users (id, username, email, hashed_password, created_at, updated_at) VALUES ($1, $2, $3, '', $4, $4)",
+			[]any{userID, userID.String(), userID.String() + "@test.com", now},
+		},
+		{
+			`INSERT INTO custom_roles (id, name, display_name, organization_id, site_permissions, org_permissions, user_permissions, member_permissions)
+			VALUES ($1, 'task-role', 'Task Role', $2, $3, '[{"negate": false, "resource_type": "task", "action": "create"}]', $3, $3)`,
+			[]any{roleID, orgID, mixedPermissions},
+		},
+		{
+			"INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url, scope) VALUES ($1, $3, $3, 'mixed-app', '', 'http://localhost/callback', 'task:read template:read'), ($2, $3, $3, 'task-app', '', 'http://localhost/callback', 'task:read')",
+			[]any{appID, taskAppID, now},
+		},
+	}
+	for _, fixture := range fixtures {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoError(t, err)
+	}
+
+	for _, key := range []struct{ id, scopes, allowList, loginType string }{
+		{"mixed-key", "{task:read,template:read}", "{*:*}", "token"},
+		{"task-key", "{task:read}", "{*:*}", "token"},
+		{"mixed-allow-key", "{template:read}", "{task:*,user:*}", "token"},
+		{"task-allow-key", "{template:read}", "{task:*}", "token"},
+		// Non-task key scopes exercise token revocation rather than API key cascades.
+		{"oauth-mixed-key", "{template:read}", "{*:*}", "oauth2_provider_app"},
+		{"oauth-task-key", "{template:read}", "{*:*}", "oauth2_provider_app"},
+	} {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, $5, $6, $7, $1)",
+			key.id, []byte(key.id), userID, now, key.loginType, key.scopes, key.allowList)
+		require.NoError(t, err)
+	}
+	for _, grant := range []struct{ key, scope string }{
+		{"oauth-mixed-key", "task:read template:read"},
+		{"oauth-task-key", "task:read"},
+	} {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_app_codes (id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6)",
+			uuid.New(), now, []byte(grant.key), userID, appID, grant.scope)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, api_key_id, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $7)",
+			uuid.New(), now, []byte(grant.key), grant.key, userID, appID, grant.scope)
+		require.NoError(t, err)
+	}
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	assertPermissions := func() {
+		t.Helper()
+		var site, org, user, member string
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT site_permissions, org_permissions, user_permissions, member_permissions FROM custom_roles WHERE id = $1", roleID).Scan(&site, &org, &user, &member))
+		const userPermission = `[{"negate": false, "resource_type": "user", "action": "read"}]`
+		require.JSONEq(t, userPermission, site)
+		require.JSONEq(t, "[]", org)
+		require.JSONEq(t, userPermission, user)
+		require.JSONEq(t, userPermission, member)
+		var value string
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT scopes::text FROM api_keys WHERE id = 'mixed-key'").Scan(&value))
+		require.Equal(t, "{template:read}", value)
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT allow_list::text FROM api_keys WHERE id = 'mixed-allow-key'").Scan(&value))
+		require.Equal(t, "{user:*}", value)
+		var count int
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM api_keys WHERE id IN ('task-key', 'task-allow-key', 'oauth-task-key')").Scan(&count))
+		require.Zero(t, count)
+		for _, table := range []string{"oauth2_provider_app_codes", "oauth2_provider_app_tokens"} {
+			var scopes pq.StringArray
+			require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT array_agg(scope) FROM "+table+" WHERE app_id = $1", appID).Scan(&scopes))
+			require.Equal(t, pq.StringArray{"template:read"}, scopes)
+		}
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT scope FROM oauth2_provider_apps WHERE id = $1", taskAppID).Scan(&value))
+		require.Equal(t, " ", value)
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT scope FROM oauth2_provider_apps WHERE id = $1", appID).Scan(&value))
+		require.Equal(t, "template:read", value)
+	}
+	assertPermissions()
+	const enumQuery = "SELECT count(*) FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE t.typname = 'api_key_scope' AND e.enumlabel LIKE 'task:%'"
+	var taskScopes int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, enumQuery).Scan(&taskScopes))
+	require.Zero(t, taskScopes)
+
+	downSQL, err := os.ReadFile("000594_remove_task_permissions.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, enumQuery).Scan(&taskScopes))
+	require.Equal(t, 5, taskScopes)
+	// Downgrading cannot restore revoked grants or stripped permissions.
+	assertPermissions()
+
+	upSQL, err := os.ReadFile("000594_remove_task_permissions.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertPermissions()
+	require.NoError(t, sqlDB.QueryRowContext(ctx, enumQuery).Scan(&taskScopes))
+	require.Zero(t, taskScopes)
+}
+
 func TestMigration000587RemoveAgentsAccessRole(t *testing.T) {
 	t.Parallel()
 

@@ -1130,7 +1130,7 @@
 						},
 						{
 							"title": "Tasks to Chats API Migration",
-							"description": "Migrate your integrations from the deprecated Coder Tasks API to the Coder Agents Chats API.",
+							"description": "Migrate your integrations from the removed Coder Tasks API to the Coder Agents Chats API.",
 							"path": "./ai-coder/agents/tasks-to-chats-migration.md"
 						}
 					]
