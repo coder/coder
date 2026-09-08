@@ -490,13 +490,12 @@ func TestConsentScopes(t *testing.T) {
 	}
 }
 
-// TestNewAuthorizeResponse covers the two preconditions the constructor exists
-// to run together, and which of them is the server's fault.
-// appWithCallback builds an app registered with one redirect URI.
 func appWithCallback(callback string) database.OAuth2ProviderApp {
 	return database.OAuth2ProviderApp{CallbackURL: callback}
 }
 
+// TestNewAuthorizeResponse covers the two preconditions the constructor exists
+// to run together, and which of them is the server's fault.
 func TestNewAuthorizeResponse(t *testing.T) {
 	t.Parallel()
 
