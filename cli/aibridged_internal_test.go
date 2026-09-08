@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,6 +68,16 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
+		bedrockSettings, err := json.Marshal(codersdk.AIProviderSettings{
+			Bedrock: &codersdk.AIProviderBedrockSettings{
+				Region:          "us-east-1",
+				AccessKey:       new("AKID"),
+				AccessKeySecret: new("secret"),
+				Model:           "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				SmallFastModel:  "anthropic.claude-3-5-haiku-20241022-v1:0",
+			},
+		})
+		require.NoError(t, err)
 		rows := []database.AIProvider{
 			{Type: database.AIProviderTypeAnthropic, Name: "anthropic-zdr", BaseUrl: "https://api.anthropic.com/"},
 			{Type: database.AIProviderTypeOpenai, Name: "openai-azure", BaseUrl: "https://azure.openai.com"},
@@ -74,11 +85,17 @@ func TestBuildProviders(t *testing.T) {
 			{Type: database.AIProviderTypeCopilot, Name: agplaibridge.ProviderCopilotBusiness, BaseUrl: "https://" + agplaibridge.HostCopilotBusiness},
 			{Type: database.AIProviderTypeCopilot, Name: agplaibridge.ProviderCopilotEnterprise, BaseUrl: "https://" + agplaibridge.HostCopilotEnterprise},
 			{Type: database.AIProviderTypeOpenai, Name: agplaibridge.ProviderChatGPT, BaseUrl: agplaibridge.BaseURLChatGPT},
+			{
+				Type:     database.AIProviderTypeBedrock,
+				Name:     "bedrock",
+				BaseUrl:  "https://bedrock-runtime.us-east-1.amazonaws.com/",
+				Settings: sql.NullString{String: string(bedrockSettings), Valid: true},
+			},
 		}
 		for _, row := range rows {
 			row.Enabled = true
 			key := "sk-" + row.Name
-			if row.Type == database.AIProviderTypeCopilot {
+			if row.Type == database.AIProviderTypeCopilot || row.Type == database.AIProviderTypeBedrock {
 				key = ""
 			}
 			dbgen.AIProviderWithOptionalKey(t, db, row, key)
@@ -98,8 +115,12 @@ func TestBuildProviders(t *testing.T) {
 		for _, row := range rows {
 			require.Contains(t, byName, row.Name)
 			require.Equal(t, row.BaseUrl, byName[row.Name].BaseURL())
-			require.EqualValues(t, row.Type, byName[row.Name].Type())
-			if row.Type != database.AIProviderTypeCopilot {
+			if row.Type == database.AIProviderTypeBedrock {
+				require.Equal(t, aibridge.ProviderAnthropic, byName[row.Name].Type())
+			} else {
+				require.EqualValues(t, row.Type, byName[row.Name].Type())
+			}
+			if row.Type != database.AIProviderTypeCopilot && row.Type != database.AIProviderTypeBedrock {
 				require.Len(t, byName[row.Name].KeyPool().PoolState(), 1)
 			} else {
 				require.Nil(t, byName[row.Name].KeyPool())
@@ -205,6 +226,27 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, providers)
 		assert.Empty(t, outcomes)
+	})
+
+	t.Run("BedrockWithoutSettings", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		dbgen.AIProvider(t, db, database.AIProvider{
+			Type:    database.AIProviderTypeBedrock,
+			Name:    "bedrock-no-settings",
+			Enabled: true,
+			BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+		})
+
+		providers, outcomes, err := buildFromDB(ctx, t, db, logger)
+		require.NoError(t, err)
+		require.Empty(t, providers)
+		require.Len(t, outcomes, 1)
+		require.Equal(t, aibridged.ProviderStatusError, outcomes[0].Status)
+		require.ErrorContains(t, outcomes[0].Err, "bedrock provider has no bedrock credentials configured")
 	})
 
 	t.Run("EnabledButNoKeys", func(t *testing.T) {
