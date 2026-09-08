@@ -41,7 +41,7 @@ func ConnectAllForTest(
 
 // BuildAuthHeadersForTest exposes buildAuthHeaders for external
 // tests.
-var BuildAuthHeadersForTest = buildAuthHeaders
+var BuildAuthHeadersForTest = BuildAuthHeaders
 
 // SummaryErrorForTest exposes summaryError for external tests.
 var SummaryErrorForTest = summaryError
