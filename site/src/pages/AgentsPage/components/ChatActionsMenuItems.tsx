@@ -17,6 +17,7 @@ import type {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { getParentChatID } from "./ChatConversation/chatHelpers";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
 // stays fail-open so the server conflict response remains the backstop.
@@ -50,18 +51,11 @@ type SeparatorComponent =
  * therefore has no menu actions at all; call sites use this to hide the menu
  * trigger instead of rendering an empty menu.
  */
-export const chatHasMenuActions = ({
-	isArchived,
-	isChildChat,
-}: {
-	isArchived: boolean;
-	isChildChat: boolean;
-}): boolean => !(isArchived && isChildChat);
+export const chatHasMenuActions = (chat: TypesGen.Chat): boolean =>
+	!(chat.archived && getParentChatID(chat) !== undefined);
 
 interface ChatActionsMenuItemsProps {
-	readonly isArchived: boolean;
-	readonly isPinned: boolean;
-	readonly isChildChat: boolean;
+	readonly chat: TypesGen.Chat;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
 	readonly isArchiveBlocked?: boolean;
@@ -80,9 +74,7 @@ interface ChatActionsMenuItemsProps {
 }
 
 export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
-	isArchived,
-	isPinned,
-	isChildChat,
+	chat,
 	hasWorkspace,
 	isArchiving = false,
 	isArchiveBlocked = false,
@@ -98,6 +90,9 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	Item,
 	Separator,
 }) => {
+	const isArchived = chat.archived;
+	const isPinned = chat.pin_order > 0;
+	const isChildChat = getParentChatID(chat) !== undefined;
 	const showSubagentsToggle = Boolean(onToggleSubagents) && subagentCount > 0;
 	const showPinAction =
 		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);

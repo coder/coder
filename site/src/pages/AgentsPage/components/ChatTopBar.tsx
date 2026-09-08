@@ -27,7 +27,6 @@ import {
 	ChatActionsMenuItems,
 	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
-import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
@@ -110,9 +109,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
 	const chatTitle = chat?.title;
-	const isArchived = chat?.archived ?? false;
-	const isChildChat = getParentChatID(chat) !== undefined;
-	const isPinned = (chat?.pin_order ?? 0) > 0;
 	const isSharedChat = chat?.shared;
 	const diffStatus = chat?.diff_status;
 	const prUrl = diffStatus?.url;
@@ -195,43 +191,39 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				{/* Actions menu sits inline with the title so it tracks the title's right edge.
 				   Suppressed when there is no chat to act on (loading and not-found views)
 				   and when the chat has no menu actions (archived child chats). */}
-				{!isEmbedded &&
-					chatTitle &&
-					chatHasMenuActions({ isArchived, isChildChat }) && (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									size="icon"
-									variant="subtle"
-									className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
-									aria-label="Open agent actions"
-								>
-									<EllipsisVerticalIcon className="size-4" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent
-								align="start"
-								className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+				{!isEmbedded && chat && chatTitle && chatHasMenuActions(chat) && (
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
+								aria-label="Open agent actions"
 							>
-								<ChatActionsMenuItems
-									isArchived={isArchived}
-									isPinned={isPinned}
-									isChildChat={isChildChat}
-									hasWorkspace={hasWorkspace}
-									isArchiving={isArchiving}
-									isArchiveBlocked={isArchiveBlocked}
-									onPinAgent={onPinAgent}
-									onUnpinAgent={onUnpinAgent}
-									onArchiveAgent={onArchiveAgent}
-									onUnarchiveAgent={onUnarchiveAgent}
-									onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
-									onOpenRenameDialog={onOpenRenameDialog}
-									Item={DropdownMenuItem}
-									Separator={DropdownMenuSeparator}
-								/>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					)}
+								<EllipsisVerticalIcon className="size-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent
+							align="start"
+							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+						>
+							<ChatActionsMenuItems
+								chat={chat}
+								hasWorkspace={hasWorkspace}
+								isArchiving={isArchiving}
+								isArchiveBlocked={isArchiveBlocked}
+								onPinAgent={onPinAgent}
+								onUnpinAgent={onUnpinAgent}
+								onArchiveAgent={onArchiveAgent}
+								onUnarchiveAgent={onUnarchiveAgent}
+								onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
+								onOpenRenameDialog={onOpenRenameDialog}
+								Item={DropdownMenuItem}
+								Separator={DropdownMenuSeparator}
+							/>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				)}
 			</div>
 			{/* PR link. On mobile: icon + number; on desktop: icon + title.
 			   Hidden on desktop when the sidebar panel is open
