@@ -25,12 +25,14 @@ const (
 	CheckChatAutomationsKindShape                            CheckConstraint = "chat_automations_kind_shape"                               // chat_automations
 	CheckChatAutomationsNameLength                           CheckConstraint = "chat_automations_name_length"                              // chat_automations
 	CheckChatAutomationsTargetShape                          CheckConstraint = "chat_automations_target_shape"                             // chat_automations
+	CheckChatGoalsBlockedReasonStatusCheck                   CheckConstraint = "chat_goals_blocked_reason_status_check"                    // chat_goals
 	CheckChatGoalsClearedAtStatusCheck                       CheckConstraint = "chat_goals_cleared_at_status_check"                        // chat_goals
 	CheckChatGoalsCompletedAtStatusCheck                     CheckConstraint = "chat_goals_completed_at_status_check"                      // chat_goals
 	CheckChatGoalsCompletedByAgentStatusCheck                CheckConstraint = "chat_goals_completed_by_agent_status_check"                // chat_goals
 	CheckChatGoalsCompletedByUserStatusCheck                 CheckConstraint = "chat_goals_completed_by_user_status_check"                 // chat_goals
 	CheckChatGoalsCompletionSummaryStatusCheck               CheckConstraint = "chat_goals_completion_summary_status_check"                // chat_goals
 	CheckChatGoalsObjectiveNotEmpty                          CheckConstraint = "chat_goals_objective_not_empty"                            // chat_goals
+	CheckChatGoalsPausedReasonStatusCheck                    CheckConstraint = "chat_goals_paused_reason_status_check"                     // chat_goals
 	CheckChatGoalsReplacedAtStatusCheck                      CheckConstraint = "chat_goals_replaced_at_status_check"                       // chat_goals
 	CheckChatModelConfigsAIProviderRequiredWhenActive        CheckConstraint = "chat_model_configs_ai_provider_required_when_active"       // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck           CheckConstraint = "chat_model_configs_compression_threshold_check"            // chat_model_configs
