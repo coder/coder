@@ -2159,7 +2159,7 @@ export const updateUserChatPersonalModelOverride = (
 	},
 });
 
-const userCompactionThresholdsKey = [
+export const userCompactionThresholdsKey = [
 	...chatConfigKey,
 	"compaction-thresholds",
 	"me",

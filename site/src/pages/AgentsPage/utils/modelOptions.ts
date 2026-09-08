@@ -329,8 +329,8 @@ export function resolveCompactionThreshold(
 	if (!modelID || !Array.isArray(models)) {
 		return undefined;
 	}
-	const config = models.find((c) => c.id === modelID);
-	if (!config) {
+	const model = models.find((model) => model.id === modelID);
+	if (!model) {
 		return undefined;
 	}
 	const userOverride = userThresholds?.find(
@@ -339,7 +339,7 @@ export function resolveCompactionThreshold(
 	if (userOverride) {
 		return userOverride.threshold_percent;
 	}
-	return config.compression_threshold;
+	return model.compression_threshold;
 }
 
 export const getModelSelectorPlaceholder = (

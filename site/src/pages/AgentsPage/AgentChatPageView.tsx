@@ -124,6 +124,7 @@ interface AgentChatPageViewProps {
 	effectiveSelectedModel: string;
 	setSelectedModel: (model: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
+	models: readonly TypesGen.ChatModel[] | undefined;
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
 	modelCatalogError?: unknown;
@@ -138,7 +139,6 @@ interface AgentChatPageViewProps {
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
-	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
@@ -292,6 +292,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
+	models,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
 	modelCatalogError,
@@ -306,7 +307,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	onPlanModeToggle,
-	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
@@ -924,7 +924,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								<ChatPageInput
 									chat={chat}
 									store={store}
-									compressionThreshold={compressionThreshold}
+									models={models}
 									onSend={editing.handleSendFromInput}
 									onDeleteQueuedMessage={handleDeleteQueuedMessage}
 									onPromoteQueuedMessage={handlePromoteQueuedMessage}
