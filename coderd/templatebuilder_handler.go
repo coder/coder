@@ -164,7 +164,8 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 		filterOS    templatebuilder.BaseOS
 		baseModules map[string]bool
 	)
-	if base := r.URL.Query().Get("base"); base != "" {
+	base := r.URL.Query().Get("base")
+	if base != "" {
 		filterOS = templatebuilder.BaseTemplateOS(base)
 		if filterOS == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -179,6 +180,10 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 			baseModules[id] = true
 		}
 	}
+	// The agent_name input is only a real choice when the base has multiple
+	// agents; on a single-agent base every module attaches to that agent, so
+	// exposing the selector would be misleading.
+	multiAgentBase := len(templatebuilder.BaseAgents(base)) > 1
 
 	modules := make([]codersdk.TemplateBuilderModule, 0, len(manifests))
 	for _, m := range manifests {
@@ -189,7 +194,13 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 		if baseModules[m.ID] {
 			continue
 		}
-		modules = append(modules, m.ToSDK())
+		sdk := m.ToSDK()
+		if !multiAgentBase {
+			sdk.Variables = slices.DeleteFunc(sdk.Variables, func(v codersdk.TemplateBuilderModuleVariable) bool {
+				return v.Name == templatebuilder.AgentNameVariable
+			})
+		}
+		modules = append(modules, sdk)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderModulesResponse{
@@ -234,7 +245,6 @@ func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) 
 	for _, m := range req.Modules {
 		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
 			ID:        m.ID,
-			AgentName: m.AgentName,
 			Variables: m.Variables,
 		})
 	}
@@ -345,7 +355,6 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	for _, m := range req.Modules {
 		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
 			ID:        m.ID,
-			AgentName: m.AgentName,
 			Variables: m.Variables,
 		})
 	}

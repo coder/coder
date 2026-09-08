@@ -167,8 +167,10 @@ func TestRenderModulesAgentTargeting(t *testing.T) {
 	agentRefByName := map[string]string{"main": "main", "gpu": "gpu[0]"}
 	modulesTF, err := renderModules(
 		[]ComposeModule{
-			{ID: "code-server", AgentName: "gpu"},
-			{ID: "git-commit-signing"},
+			// zed declares agent_name, so its value routes the module.
+			{ID: "zed", Variables: map[string]string{"agent_name": "gpu"}},
+			// code-server has no agent_name, so it uses the default agent.
+			{ID: "code-server"},
 		},
 		catalog, "registry.coder.com", agentRefByName, "main",
 	)
@@ -177,4 +179,5 @@ func TestRenderModulesAgentTargeting(t *testing.T) {
 	out := string(modulesTF)
 	require.Contains(t, out, "coder_agent.gpu[0].id")
 	require.Contains(t, out, "coder_agent.main.id")
+	require.Contains(t, out, `agent_name = "gpu"`)
 }
