@@ -993,8 +993,10 @@ func TestWorker(t *testing.T) {
 	require.Equal(t, int32(1), publishCount.Load())
 
 	// 9. Read back and verify persisted fields.
-	status, err := db.GetChatDiffStatusByChatID(ctx, chat.ID)
+	statuses, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
+	require.Len(t, statuses, 1)
+	status := statuses[0]
 
 	// The mock resolveBranchPR returns PRRef{Owner: "o", Repo: "r", Number: 1}
 	// and buildPullRequestURL formats it as https://github.com/o/r/pull/1.
@@ -1009,6 +1011,69 @@ func TestWorker(t *testing.T) {
 	// The mock clock's Now() + DiffStatusTTL determines stale_at.
 	expectedStaleAt := mClock.Now().Add(gitsync.DiffStatusTTL)
 	assert.WithinDuration(t, expectedStaleAt, status.StaleAt, time.Second)
+}
+
+func TestWorker_RefreshDoesNotReorderPrimary(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// A real database, because the ordering contract is SQL.
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "test-model",
+		ContextLimit: 100000,
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "primary-order",
+	})
+
+	// An old ref with a PR, and a newer ref reported later. The newer
+	// report must stay primary even after the old ref refreshes.
+	_, err := db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+		ChatID:          chat.ID,
+		GitBranch:       "old",
+		GitRemoteOrigin: "https://github.com/o/r",
+		StaleAt:         time.Now().Add(-2 * time.Minute),
+		Url:             sql.NullString{},
+	})
+	require.NoError(t, err)
+	_, err = db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+		ChatID:          chat.ID,
+		GitBranch:       "new",
+		GitRemoteOrigin: "https://github.com/o/r",
+		StaleAt:         time.Now().Add(-time.Minute),
+		Url:             sql.NullString{},
+	})
+	require.NoError(t, err)
+
+	before, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, before, 2)
+	require.Equal(t, "new", before[0].GitBranch)
+
+	// Refresh the old ref only. Both rows are stale, so acquire the
+	// old one explicitly through the sync path.
+	oldRow := before[1]
+	mClock := quartz.NewMock(t)
+	refresher := newTestRefresher(t, mClock)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	worker := gitsync.NewWorker(db, refresher, nil, mClock, logger)
+	_, err = worker.RefreshChat(ctx, oldRow, user.ID)
+	require.NoError(t, err)
+
+	// The refreshed old ref must not steal the primary position from
+	// the newer report.
+	after, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, after, 2)
+	require.Equal(t, "new", after[0].GitBranch, "refresh must not reorder the primary")
+	require.True(t, after[1].RefreshedAt.Valid, "the old ref was refreshed")
 }
 
 func TestRefreshChat_Success(t *testing.T) {
