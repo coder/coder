@@ -355,7 +355,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 		<Badge
 			data-slot="combobox-chip"
 			svgSize="sm"
-			className={cn("font-medium text-content-primary", className)}
+			className={cn("font-medium text-content-secondary hover:text-content-primary", className)}
 			{...props}
 		>
 			{children}
@@ -365,7 +365,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 					data-slot="combobox-chip-remove"
 					aria-label={resolvedRemoveLabel}
 					className={cn(
-						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-content-secondary hover:text-content-primary",
+						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0",
 					)}
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
