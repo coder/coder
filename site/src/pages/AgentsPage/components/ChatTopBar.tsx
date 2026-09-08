@@ -10,7 +10,9 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { type FC, Fragment, type ReactNode, useState } from "react";
+import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
+import { chat as chatById } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -28,6 +30,7 @@ import {
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
+import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
@@ -43,7 +46,6 @@ type ChatSharingTopBarButtonProps = {
 type ChatTopBarProps = {
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
-	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
 	renderChatSharingContent?: (open: boolean) => ReactNode;
 };
@@ -84,12 +86,17 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
-	parentChat,
 	panel,
 	renderChatSharingContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
+	const parentChatID = getParentChatID(chat);
+	const parentChatQuery = useQuery({
+		...chatById(parentChatID ?? ""),
+		enabled: Boolean(parentChatID),
+	});
+	const parentChat = parentChatQuery.data;
 	const {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,

@@ -105,7 +105,6 @@ interface EditingState {
 
 interface AgentChatPageViewProps {
 	chat: TypesGen.Chat;
-	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -278,7 +277,6 @@ const UserTabContent: FC<UserTabContentProps> = ({
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	chat,
-	parentChat,
 	persistedError,
 	canShareChat,
 	workspaceAgent,
@@ -820,7 +818,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								<ChatTopBar
 									chat={chat}
 									liveChatStatus={liveChatStatus}
-									parentChat={parentChat}
 									panel={{
 										showSidebarPanel,
 										onToggleSidebar: () =>

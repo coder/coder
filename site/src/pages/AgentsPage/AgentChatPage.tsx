@@ -22,7 +22,6 @@ import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
-	chat as chatById,
 	chatMessagesForInfiniteScroll,
 	chatModels,
 	chatQueueConvergence,
@@ -206,12 +205,6 @@ const AgentChatPage: FC = () => {
 	const chatMessagesQuery = useInfiniteQuery(
 		chatMessagesForInfiniteScroll(agentId),
 	);
-	const parentChatID = getParentChatID(chatQuery.data);
-	const parentChatQuery = useQuery({
-		...chatById(parentChatID ?? ""),
-		enabled: Boolean(parentChatID),
-	});
-	const parentChat = parentChatQuery.data;
 	const workspaceId = chatQuery.data?.workspace_id;
 	const chatAgentId = chatQuery.data?.agent_id;
 	const workspaceQuery = useQuery({
@@ -1135,7 +1128,6 @@ const AgentChatPage: FC = () => {
 				<AgentChatPageView
 					key={agentId}
 					chat={chat}
-					parentChat={parentChat}
 					persistedError={persistedError}
 					canShareChat={canShareChat}
 					workspace={workspace}

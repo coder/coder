@@ -13,7 +13,10 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { userCompactionThresholdsKey } from "#/api/queries/chats";
+import {
+	chatEntityKey,
+	userCompactionThresholdsKey,
+} from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
@@ -164,7 +167,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 	const props = {
 		chat: buildChat(chat),
 		persistedError: undefined as ChatDetailError | undefined,
-		parentChat: undefined as TypesGen.Chat | undefined,
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -525,11 +527,30 @@ export const NotQueuedForCapacity: Story = {
 
 /** Shows the parent chat link in the top bar when a parent exists. */
 export const WithParentChat: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: chatEntityKey("parent-chat-1"),
+				data: buildChat({ id: "parent-chat-1", title: "Root agent" }),
+			},
+		],
+	},
 	render: () => (
-		<StoryAgentChatPageView
-			parentChat={buildChat({ id: "parent-chat-1", title: "Root agent" })}
-		/>
+		<StoryAgentChatPageView chat={{ parent_chat_id: "parent-chat-1" }} />
 	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const parentLink = await canvas.findByRole("link", { name: "Root agent" });
+		expect(parentLink).toHaveAttribute("href", "/agents/parent-chat-1");
+	},
 };
 
 /** Persisted error reason shown in the timeline area. */
