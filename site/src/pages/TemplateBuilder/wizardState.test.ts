@@ -152,6 +152,80 @@ describe("wizardReducer", () => {
 			expect(state.baseVariableValues).toEqual({});
 		});
 
+		it("clears selected modules when the base changes", () => {
+			const state = reduce([
+				{
+					type: "SET_BASE",
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: false,
+						hasPrerequisites: false,
+					},
+				},
+				{
+					type: "SET_MODULES",
+					modules: [{ id: "code-server" }],
+					meta: [
+						{
+							id: "code-server",
+							name: "code-server",
+							iconUrl: "/icon.svg",
+							hasConfigurableVars: true,
+						},
+					],
+				},
+				{
+					type: "SET_BASE",
+					base: {
+						id: "aws-linux",
+						name: "AWS Linux",
+						hasParameters: false,
+						hasPrerequisites: false,
+					},
+				},
+			]);
+			expect(state.modules).toEqual([]);
+			expect(state.selectedModules).toEqual([]);
+		});
+
+		it("preserves selected modules when the same base is re-selected", () => {
+			const state = reduce([
+				{
+					type: "SET_BASE",
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: false,
+						hasPrerequisites: false,
+					},
+				},
+				{
+					type: "SET_MODULES",
+					modules: [{ id: "code-server" }],
+					meta: [
+						{
+							id: "code-server",
+							name: "code-server",
+							iconUrl: "/icon.svg",
+							hasConfigurableVars: true,
+						},
+					],
+				},
+				{
+					type: "SET_BASE",
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: false,
+						hasPrerequisites: false,
+					},
+				},
+			]);
+			expect(state.modules).toHaveLength(1);
+			expect(state.selectedModules).toHaveLength(1);
+		});
+
 		it("preserves base variable values when same base is re-selected", () => {
 			const state = reduce([
 				{
