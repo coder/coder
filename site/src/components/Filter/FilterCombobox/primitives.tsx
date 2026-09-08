@@ -314,7 +314,7 @@ export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
 		<div
 			data-slot="combobox-chips"
 			className={cn(
-				"flex min-h-10 min-w-0 flex-1 flex-wrap content-center items-center gap-1 py-1",
+				"flex min-h-10 min-w-0 flex-1 flex-wrap content-center items-center gap-1 py-2 pr-2",
 				className,
 			)}
 			{...props}
