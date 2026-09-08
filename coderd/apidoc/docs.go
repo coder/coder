@@ -2742,6 +2742,56 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/chats/{chat}/goal": {
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat goal",
+                "operationId": "update-chat-goal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Chat goal update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatGoalUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatGoalResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/chats/{chat}/interrupt": {
             "post": {
                 "produces": [
@@ -20022,6 +20072,127 @@ const docTemplate = `{
                 },
                 "size_bytes": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatGoal": {
+            "description": "x-apidocgen:skip experiment-gated (chat-goals) schema.",
+            "type": "object",
+            "properties": {
+                "cleared_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "completed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "completed_by_agent": {
+                    "type": "boolean"
+                },
+                "completed_by_user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "completion_summary": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by_user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_from_message_id": {
+                    "description": "CreatedFromMessageID identifies the user message whose send set\nthis goal, when the goal was set alongside a message.",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "objective": {
+                    "type": "string"
+                },
+                "root_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatGoalStatus"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatGoalResponse": {
+            "description": "x-apidocgen:skip experiment-gated (chat-goals) schema.",
+            "type": "object",
+            "properties": {
+                "goal": {
+                    "$ref": "#/definitions/codersdk.ChatGoal"
+                }
+            }
+        },
+        "codersdk.ChatGoalStatus": {
+            "description": "x-apidocgen:skip experiment-gated (chat-goals) schema.",
+            "type": "string",
+            "enum": [
+                "active",
+                "paused",
+                "complete",
+                "cleared"
+            ],
+            "x-enum-varnames": [
+                "ChatGoalStatusActive",
+                "ChatGoalStatusPaused",
+                "ChatGoalStatusComplete",
+                "ChatGoalStatusCleared"
+            ]
+        },
+        "codersdk.ChatGoalUpdateAction": {
+            "description": "x-apidocgen:skip experiment-gated (chat-goals) schema.",
+            "type": "string",
+            "enum": [
+                "clear",
+                "pause",
+                "resume",
+                "complete"
+            ],
+            "x-enum-varnames": [
+                "ChatGoalUpdateActionClear",
+                "ChatGoalUpdateActionPause",
+                "ChatGoalUpdateActionResume",
+                "ChatGoalUpdateActionComplete"
+            ]
+        },
+        "codersdk.ChatGoalUpdateRequest": {
+            "description": "x-apidocgen:skip experiment-gated (chat-goals) schema.",
+            "type": "object",
+            "properties": {
+                "action": {
+                    "enum": [
+                        "clear",
+                        "pause",
+                        "resume",
+                        "complete"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatGoalUpdateAction"
+                        }
+                    ]
+                },
+                "completion_summary": {
+                    "type": "string"
+                },
+                "goal_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
