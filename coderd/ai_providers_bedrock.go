@@ -3,22 +3,16 @@ package coderd
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-// inferenceProfileResolutionTimeout bounds the Bedrock control-plane calls a
-// single write makes, which also cover the first credential resolution
-// (STS/IRSA).
-const inferenceProfileResolutionTimeout = 30 * time.Second
 
 // errAIProviderProfileUnresolvable wraps a failed Bedrock inference profile
 // lookup so the write path reports it as a client-visible validation failure
@@ -41,46 +35,22 @@ type BedrockModelResolver interface {
 // the provider's own credentials, including any assumed role.
 type awsBedrockModelResolver struct{}
 
-// ResolveModels resolves the configured identifiers to the model IDs the
-// gateway records for capability detection, usage, and pricing. Only
-// application inference profile ARNs are opaque, so only they cost an AWS call;
-// every other identifier resolves to itself.
 func (awsBedrockModelResolver) ResolveModels(ctx context.Context, settings codersdk.AIProviderBedrockSettings) (model, smallFastModel string, err error) {
-	if !provider.IsApplicationInferenceProfileARN(settings.Model) &&
-		!provider.IsApplicationInferenceProfileARN(settings.SmallFastModel) {
-		return settings.Model, settings.SmallFastModel, nil
+	cfg := config.AWSBedrock{
+		Region:         settings.Region,
+		Model:          settings.Model,
+		SmallFastModel: settings.SmallFastModel,
+		RoleARN:        settings.RoleARN,
+		ExternalID:     settings.ExternalID,
+		Protocol:       config.BedrockProtocol(settings.ResolvedProtocol()),
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, inferenceProfileResolutionTimeout)
-	defer cancel()
-
-	awsCfg, err := provider.BuildBedrockCredentials(ctx, provider.BedrockIdentity{
-		Region:          settings.Region,
-		AccessKey:       ptr.NilToEmpty(settings.AccessKey),
-		AccessKeySecret: ptr.NilToEmpty(settings.AccessKeySecret),
-		RoleARN:         settings.RoleARN,
-		ExternalID:      settings.ExternalID,
-	})
-	if err != nil {
-		return "", "", xerrors.Errorf("build bedrock credentials: %w", err)
+	if settings.AccessKey != nil {
+		cfg.AccessKey = *settings.AccessKey
 	}
-
-	resolve := func(configured string) (string, error) {
-		if !provider.IsApplicationInferenceProfileARN(configured) {
-			return configured, nil
-		}
-		return provider.ResolveInferenceProfile(ctx, awsCfg, configured)
+	if settings.AccessKeySecret != nil {
+		cfg.AccessKeySecret = *settings.AccessKeySecret
 	}
-
-	model, err = resolve(settings.Model)
-	if err != nil {
-		return "", "", xerrors.Errorf("resolve model: %w", err)
-	}
-	smallFastModel, err = resolve(settings.SmallFastModel)
-	if err != nil {
-		return "", "", xerrors.Errorf("resolve small fast model: %w", err)
-	}
-	return model, smallFastModel, nil
+	return provider.ResolveBedrockModels(ctx, cfg)
 }
 
 func (api *API) bedrockModelResolver() BedrockModelResolver {

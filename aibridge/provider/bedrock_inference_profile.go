@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -20,12 +21,17 @@ const bedrockService = "bedrock"
 // Bedrock spend to a team or workload via cost allocation tags.
 const applicationInferenceProfileResourceType = "application-inference-profile"
 
-// IsApplicationInferenceProfileARN reports whether model is an application
+// inferenceProfileResolutionTimeout bounds the Bedrock control-plane calls made
+// while writing a provider, which also cover the first credential resolution
+// (STS/IRSA).
+const inferenceProfileResolutionTimeout = 30 * time.Second
+
+// isApplicationInferenceProfileARN reports whether model is an application
 // inference profile ARN, whose identifier is opaque and must be resolved
 // through AWS. Plain model IDs and system-defined inference profile ARNs, which
 // AWS documents as {geoRegion}.{modelId}, embed the model ID and need no
 // lookup.
-func IsApplicationInferenceProfileARN(model string) bool {
+func isApplicationInferenceProfileARN(model string) bool {
 	parsed, err := arn.Parse(model)
 	if err != nil || parsed.Service != bedrockService {
 		return false
@@ -34,7 +40,7 @@ func IsApplicationInferenceProfileARN(model string) bool {
 	return ok && resourceType == applicationInferenceProfileResourceType
 }
 
-// ResolveInferenceProfile returns the Bedrock model ID behind an application
+// resolveInferenceProfile returns the Bedrock model ID behind an application
 // inference profile ARN.
 //
 // awsCfg carries the identity that invokes Bedrock, including any role assumed
@@ -44,7 +50,7 @@ func IsApplicationInferenceProfileARN(model string) bool {
 // A profile that wraps a cross-region system-defined profile lists one model
 // per region. Those entries differ only in the ARN region, which the model ID
 // does not carry, so any entry resolves to the same model.
-func ResolveInferenceProfile(ctx context.Context, awsCfg aws.Config, profileARN string) (string, error) {
+func resolveInferenceProfile(ctx context.Context, awsCfg aws.Config, profileARN string) (string, error) {
 	client := bedrock.NewFromConfig(awsCfg)
 
 	out, err := client.GetInferenceProfile(ctx, &bedrock.GetInferenceProfileInput{
@@ -82,13 +88,53 @@ func modelIDFromARN(modelARN string) (string, error) {
 	return model, nil
 }
 
+// ResolveBedrockModels resolves the configured model identifiers to the model
+// IDs used for capability detection, usage recording, and pricing. Identifiers
+// that are not application inference profile ARNs are returned unchanged and
+// cost no AWS call.
+//
+// It runs where a Bedrock provider is written rather than where it is served,
+// so the gateway never calls the Bedrock control plane. The identity comes from
+// cfg, including any role assumed via config.AWSBedrock.RoleARN, so the
+// required bedrock:GetInferenceProfile permission belongs to that identity.
+func ResolveBedrockModels(ctx context.Context, cfg config.AWSBedrock) (model, smallFastModel string, err error) {
+	if !isApplicationInferenceProfileARN(cfg.Model) && !isApplicationInferenceProfileARN(cfg.SmallFastModel) {
+		return cfg.Model, cfg.SmallFastModel, nil
+	}
+
+	awsCfg, err := buildBedrockCredentials(ctx, cfg)
+	if err != nil {
+		return "", "", xerrors.Errorf("build bedrock credentials: %w", err)
+	}
+
+	resolveCtx, cancel := context.WithTimeout(ctx, inferenceProfileResolutionTimeout)
+	defer cancel()
+
+	resolveOne := func(configured string) (string, error) {
+		if !isApplicationInferenceProfileARN(configured) {
+			return configured, nil
+		}
+		return resolveInferenceProfile(resolveCtx, awsCfg, configured)
+	}
+
+	model, err = resolveOne(cfg.Model)
+	if err != nil {
+		return "", "", xerrors.Errorf("resolve model: %w", err)
+	}
+	smallFastModel, err = resolveOne(cfg.SmallFastModel)
+	if err != nil {
+		return "", "", xerrors.Errorf("resolve small fast model: %w", err)
+	}
+	return model, smallFastModel, nil
+}
+
 // resolvedBedrockModels returns the model identities to serve with. A
 // configured identifier that needs no resolution is its own identity; an
 // application inference profile ARN requires the resolution stored with the
 // provider.
 func resolvedBedrockModels(cfg config.AWSBedrock) (model, smallFastModel string, err error) {
 	identity := func(configured, resolved, field string) (string, error) {
-		if !IsApplicationInferenceProfileARN(configured) {
+		if !isApplicationInferenceProfileARN(configured) {
 			return configured, nil
 		}
 		if resolved == "" {

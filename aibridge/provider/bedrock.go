@@ -19,35 +19,7 @@ import (
 // A stable value keeps them identifiable in CloudTrail.
 const bedrockSessionName = "coder-aigateway"
 
-// BedrockIdentity is the subset of Bedrock provider settings that determines
-// which AWS identity signs a request. It carries no endpoint or protocol
-// choice, so it serves the data plane and the control plane equally.
-type BedrockIdentity struct {
-	// Region resolves the endpoint and signs requests. It may be empty only
-	// when the caller supplies an endpoint of its own, in which case the AWS
-	// environment must supply the region.
-	Region string
-	// AccessKey and AccessKeySecret select static credentials. When either is
-	// empty the AWS SDK default credential chain resolves the base identity.
-	AccessKey       string
-	AccessKeySecret string
-	// RoleARN, when set, is assumed via STS on top of the base identity.
-	RoleARN string
-	// ExternalID is sent as the STS external ID on the AssumeRole call.
-	ExternalID string
-}
-
-func bedrockIdentity(cfg config.AWSBedrock) BedrockIdentity {
-	return BedrockIdentity{
-		Region:          cfg.Region,
-		AccessKey:       cfg.AccessKey,
-		AccessKeySecret: cfg.AccessKeySecret,
-		RoleARN:         cfg.RoleARN,
-		ExternalID:      cfg.ExternalID,
-	}
-}
-
-// BuildBedrockCredentials resolves the base identity and, when a role ARN
+// buildBedrockCredentials resolves the base identity and, when a role ARN
 // is configured, assumes that role via STS. The base identity is either
 // static keys or the AWS SDK default credential chain, which covers IRSA,
 // EKS Pod Identity, EC2 Instance Profile, and more.
@@ -57,33 +29,37 @@ func bedrockIdentity(cfg config.AWSBedrock) BedrockIdentity {
 // and identity rather than assembling their own.
 //
 // The credentials are wrapped in aws.NewCredentialsCache, which caches and
-// rotates the resolved temporary credentials. BuildBedrockCredentials should be
+// rotates the resolved temporary credentials. buildBedrockCredentials should be
 // called once when the Bedrock provider is constructed, and the returned
 // Credential Provider should be shared across all LLM requests to the Bedrock
 // Provider, so per-request credential retrieval is served from this cache
 // rather than re-resolving (and re-assuming) on every request. No network call
 // is made here: the base identity and any AssumeRole are resolved lazily on
 // first retrieval.
-func BuildBedrockCredentials(ctx context.Context, id BedrockIdentity) (aws.Config, error) {
+func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.Config, error) {
+	if cfg.Region == "" && cfg.BaseURL == "" {
+		return aws.Config{}, xerrors.New("region or base url required")
+	}
+
 	var loadOpts []func(*awsconfig.LoadOptions) error
-	if id.Region != "" {
-		loadOpts = append(loadOpts, awsconfig.WithRegion(id.Region))
+	if cfg.Region != "" {
+		loadOpts = append(loadOpts, awsconfig.WithRegion(cfg.Region))
 	}
 
 	// Use static credentials when explicitly provided, otherwise fall back to
 	// the SDK default credential chain.
 	switch {
 	// Both set: use static credentials directly.
-	case id.AccessKey != "" && id.AccessKeySecret != "":
+	case cfg.AccessKey != "" && cfg.AccessKeySecret != "":
 		loadOpts = append(loadOpts, awsconfig.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(
-				id.AccessKey,
-				id.AccessKeySecret,
+				cfg.AccessKey,
+				cfg.AccessKeySecret,
 				"",
 			),
 		))
 	// Only one set: misconfiguration.
-	case id.AccessKey != "" || id.AccessKeySecret != "":
+	case cfg.AccessKey != "" || cfg.AccessKeySecret != "":
 		return aws.Config{}, xerrors.New("both access key and access key secret must be provided together")
 	// Neither set: SDK default credential chain resolves the base identity.
 	default:
@@ -97,7 +73,7 @@ func BuildBedrockCredentials(ctx context.Context, id BedrockIdentity) (aws.Confi
 	// Assuming a role calls STS, which needs a region to resolve its endpoint.
 	// The region may come from the config or the AWS environment; if neither
 	// supplies one, fail here.
-	if id.RoleARN != "" && base.Region == "" {
+	if cfg.RoleARN != "" && base.Region == "" {
 		return aws.Config{}, xerrors.New("region is required to assume a role, but was not specified")
 	}
 
@@ -107,7 +83,7 @@ func BuildBedrockCredentials(ctx context.Context, id BedrockIdentity) (aws.Confi
 	// is already cache-wrapped, so only the AssumeRoleProvider is wrapped with a
 	// cache to avoid re-assuming the role on every request.
 	credsProvider := base.Credentials
-	if id.RoleARN != "" {
+	if cfg.RoleARN != "" {
 		// Disable keep-alive on the STS client so each AssumeRole opens a
 		// fresh connection. Observed: with keep-alive, AssumeRole calls reuse
 		// one connection pinned to a single STS endpoint, and after a
@@ -125,10 +101,10 @@ func BuildBedrockCredentials(ctx context.Context, id BedrockIdentity) (aws.Confi
 				t.DisableKeepAlives = true
 			})
 		})
-		credsProvider = stscreds.NewAssumeRoleProvider(stsClient, id.RoleARN, func(o *stscreds.AssumeRoleOptions) {
+		credsProvider = stscreds.NewAssumeRoleProvider(stsClient, cfg.RoleARN, func(o *stscreds.AssumeRoleOptions) {
 			o.RoleSessionName = bedrockSessionName
-			if id.ExternalID != "" {
-				o.ExternalID = aws.String(id.ExternalID)
+			if cfg.ExternalID != "" {
+				o.ExternalID = aws.String(cfg.ExternalID)
 			}
 		})
 		credsProvider = aws.NewCredentialsCache(credsProvider)
@@ -138,13 +114,4 @@ func BuildBedrockCredentials(ctx context.Context, id BedrockIdentity) (aws.Confi
 	// AWS_DEFAULT_REGION, shared config, or IMDS).
 	base.Credentials = credsProvider
 	return base, nil
-}
-
-// bedrockRuntimeCredentials is [BuildBedrockCredentials] for a full provider
-// configuration, rejecting a config that gives the runtime no endpoint at all.
-func bedrockRuntimeCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.Config, error) {
-	if cfg.Region == "" && cfg.BaseURL == "" {
-		return aws.Config{}, xerrors.New("region or base url required")
-	}
-	return BuildBedrockCredentials(ctx, bedrockIdentity(cfg))
 }
