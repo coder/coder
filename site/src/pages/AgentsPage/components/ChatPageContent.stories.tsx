@@ -2,18 +2,10 @@ import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import {
-	chatPromptsKey,
-	organizationChatModelsKey,
-	userCompactionThresholds,
-} from "#/api/queries/chats";
+import { chatPromptsKey, userCompactionThresholds } from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import {
-	MockChatModel,
-	MockChatModelProviderDescriptor,
-} from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
 	MockUserPreferenceSettings,
@@ -377,20 +369,6 @@ export const CompactsAtUserOverride: Story = {
 				} satisfies TypesGen.UserChatCompactionThresholds,
 			},
 			{
-				key: organizationChatModelsKey(MockChat.organization_id),
-				data: {
-					models: [
-						{
-							...MockChatModel,
-							id: MockChat.last_model_config_id,
-							compression_threshold: 70,
-						},
-					],
-					providers: [MockChatModelProviderDescriptor],
-					unsupported_providers: [],
-				} satisfies TypesGen.OrganizationChatModelsResponse,
-			},
-			{
 				key: chatPromptsKey(MockChat.id),
 				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
 			},
@@ -433,6 +411,7 @@ export const CompactsAtUserOverride: Story = {
 							provider: "openai",
 							model: "gpt-4o",
 							displayName: "GPT-4o",
+							compressionThreshold: 70,
 						},
 					]}
 					modelSelectorPlaceholder="Select model"

@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
-	chatModels,
 	chatPromptsQuery,
 	refreshChatContext,
 	userCompactionThresholds,
@@ -358,12 +357,11 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const chatContext = chat.context;
 	const planModeEnabled = chat.plan_mode === "plan";
 	const selectedWorkspaceId = chat.workspace_id ?? null;
-	const modelsQuery = useQuery(chatModels(organizationId));
 	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const compressionThreshold = resolveCompactionThreshold(
 		chat.last_model_config_id,
 		thresholdsQuery.data?.thresholds,
-		modelsQuery.data?.models ?? [],
+		modelOptions,
 	);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);

@@ -25,6 +25,7 @@ import {
 	NIL_UUID,
 	providerInfoByIDFromUserConfigs,
 	providerTypeByIDFromUserConfigs,
+	resolveCompactionThreshold,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./modelOptions";
@@ -462,6 +463,7 @@ describe("getModelOptionsFromModels", () => {
 				model: "gpt-4o",
 				displayName: "GPT-4o (Fast)",
 				contextLimit: 128_000,
+				compressionThreshold: 0,
 			},
 			expect.objectContaining({ id: "config-2" }),
 		]);
@@ -506,6 +508,7 @@ describe("getModelOptionsFromModels", () => {
 				model: "gpt-4o",
 				displayName: "GPT-4o",
 				contextLimit: 0,
+				compressionThreshold: 0,
 			},
 			{
 				id: "config-effort",
@@ -516,10 +519,33 @@ describe("getModelOptionsFromModels", () => {
 				model: "gpt-5",
 				displayName: "GPT-5",
 				contextLimit: 0,
+				compressionThreshold: 0,
 				reasoningEffortDefault: "medium",
 				reasoningEfforts: ["minimal", "low", "medium", "high", "xhigh"],
 			},
 		]);
+	});
+
+	it("copies compression_threshold onto the selector option", () => {
+		const models = [
+			createConfig({
+				id: "config-1",
+				ai_provider_id: "prov-openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+				compression_threshold: 90,
+			}),
+		];
+		const catalog = createCatalog([{ provider: "openai", available: true }]);
+
+		expect(
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providerInfoByID,
+				testOrganizationID,
+			)[0]?.compressionThreshold,
+		).toBe(90);
 	});
 
 	it("excludes models whose providers are unavailable", () => {
@@ -1168,7 +1194,40 @@ describe("resolveModelSelector", () => {
 				model: "gpt-4o",
 				displayName: "GPT-4o",
 				contextLimit: 128_000,
+				compressionThreshold: 0,
 			},
 		]);
+	});
+});
+
+describe("resolveCompactionThreshold", () => {
+	const modelOptions = [
+		{
+			id: "config-1",
+			provider: "openai",
+			model: "gpt-4o",
+			displayName: "GPT-4o",
+			compressionThreshold: 70,
+		},
+	];
+
+	it("returns the user override when one is stored for the model", () => {
+		expect(
+			resolveCompactionThreshold(
+				"config-1",
+				[{ model_config_id: "config-1", threshold_percent: 60 }],
+				modelOptions,
+			),
+		).toBe(60);
+	});
+
+	it("returns the option threshold when no override is stored", () => {
+		expect(resolveCompactionThreshold("config-1", [], modelOptions)).toBe(70);
+	});
+
+	it("returns undefined when the model is not in the options", () => {
+		expect(resolveCompactionThreshold("missing", [], modelOptions)).toBe(
+			undefined,
+		);
 	});
 });

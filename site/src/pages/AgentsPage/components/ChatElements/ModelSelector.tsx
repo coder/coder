@@ -35,6 +35,7 @@ export interface ModelSelectorOption {
 	model: string;
 	displayName: string;
 	contextLimit?: number;
+	compressionThreshold?: number;
 	reasoningEffortDefault?: string;
 	reasoningEfforts?: readonly string[];
 }
