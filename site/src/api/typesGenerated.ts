@@ -2039,6 +2039,11 @@ export interface Chat {
 	 */
 	readonly summary: string | null;
 	readonly diff_status?: ChatDiffStatus;
+	/**
+	 * Goal is experiment-gated (chat-goals) and excluded from the
+	 * public API reference until the experiment ships.
+	 */
+	readonly goal?: ChatGoal;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
@@ -2719,6 +2724,115 @@ export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
 export const ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found.";
 
 // From codersdk/chats.go
+/**
+ * ChatGoal is a durable objective associated with a root chat.
+ * @Description x-apidocgen:skip experiment-gated (chat-goals) schema.
+ */
+export interface ChatGoal {
+	readonly id: string;
+	readonly root_chat_id: string;
+	readonly objective: string;
+	readonly status: ChatGoalStatus;
+	/**
+	 * CreatedFromMessageID identifies the user message whose send set
+	 * this goal, when the goal was set alongside a message.
+	 */
+	readonly created_from_message_id?: number;
+	readonly completion_summary?: string;
+	readonly created_by_user_id: string;
+	readonly completed_by_user_id?: string;
+	readonly completed_by_agent: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly completed_at?: string;
+	readonly cleared_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatGoalMutation requests a goal lifecycle change.
+ */
+export interface ChatGoalMutation {
+	readonly action: ChatGoalMutationAction;
+	readonly goal_id?: string;
+	readonly objective?: string;
+	readonly completion_summary?: string;
+}
+
+// From codersdk/chats.go
+export type ChatGoalMutationAction =
+	| "clear"
+	| "complete"
+	| "pause"
+	| "resume"
+	| "set";
+
+export const ChatGoalMutationActions: ChatGoalMutationAction[] = [
+	"clear",
+	"complete",
+	"pause",
+	"resume",
+	"set",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatGoalResponse is returned by chat goal lifecycle endpoints.
+ * @Description x-apidocgen:skip experiment-gated (chat-goals) schema.
+ */
+export interface ChatGoalResponse {
+	readonly goal?: ChatGoal;
+}
+
+// From codersdk/chats.go
+export type ChatGoalSetAction = "set";
+
+export const ChatGoalSetActions: ChatGoalSetAction[] = ["set"];
+
+// From codersdk/chats.go
+/**
+ * ChatGoalSetRequest requests the message-bound `set` mutation carried
+ * on a chat create or message send. Metadata mutations go through
+ * ChatGoalUpdateRequest instead.
+ */
+export interface ChatGoalSetRequest {
+	readonly action: ChatGoalSetAction;
+	readonly objective: string;
+}
+
+// From codersdk/chats.go
+export type ChatGoalStatus = "active" | "cleared" | "complete" | "paused";
+
+export const ChatGoalStatuses: ChatGoalStatus[] = [
+	"active",
+	"cleared",
+	"complete",
+	"paused",
+];
+
+// From codersdk/chats.go
+export type ChatGoalUpdateAction = "clear" | "complete" | "pause" | "resume";
+
+export const ChatGoalUpdateActions: ChatGoalUpdateAction[] = [
+	"clear",
+	"complete",
+	"pause",
+	"resume",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatGoalUpdateRequest requests a metadata-only goal lifecycle change.
+ * Setting a goal is message-bound, so `set` is not accepted here.
+ * @Description x-apidocgen:skip experiment-gated (chat-goals) schema.
+ */
+export interface ChatGoalUpdateRequest {
+	readonly action: ChatGoalUpdateAction;
+	readonly goal_id?: string;
+	readonly completion_summary?: string;
+}
+
+// From codersdk/chats.go
 export interface ChatGroup extends Group {
 	readonly role: ChatRole;
 }
@@ -2818,6 +2932,11 @@ export interface ChatMessage {
 	readonly created_at: string;
 	readonly role: ChatMessageRole;
 	readonly content?: readonly ChatMessagePart[];
+	/**
+	 * SentAsGoal is experiment-gated (chat-goals) and excluded from
+	 * the public API reference until the experiment ships.
+	 */
+	readonly sent_as_goal?: boolean;
 	readonly usage?: ChatMessageUsage;
 	/**
 	 * QueuedMessageID is the ID of the queued message this message was
@@ -3761,6 +3880,7 @@ export type ChatWatchEventKind =
 	| "created"
 	| "deleted"
 	| "diff_status_change"
+	| "goal_change"
 	| "status_change"
 	| "summary_change"
 	| "title_change";
@@ -3772,6 +3892,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"created",
 	"deleted",
 	"diff_status_change",
+	"goal_change",
 	"status_change",
 	"summary_change",
 	"title_change",
@@ -4028,6 +4149,11 @@ export interface CreateChatMessageRequest {
 	 * nil: no change, empty: remove all.
 	 */
 	readonly inline_mcp_servers?: InlineMCPServerRequest[];
+	/**
+	 * GoalMutation is experiment-gated (chat-goals) and excluded from
+	 * the public API reference until the experiment ships.
+	 */
+	readonly goal_mutation?: ChatGoalSetRequest;
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
 	 * PlanMode switches the chat's persistent plan mode.
@@ -4051,6 +4177,11 @@ export interface CreateChatMessageResponse {
 	readonly messages?: readonly ChatMessage[];
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
+	/**
+	 * Goal is experiment-gated (chat-goals) and excluded from the
+	 * public API reference until the experiment ships.
+	 */
+	readonly goal?: ChatGoal;
 	readonly warnings?: readonly string[];
 }
 
@@ -4100,6 +4231,11 @@ export interface CreateChatRequest {
 	readonly reasoning_effort?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
+	/**
+	 * GoalMutation is experiment-gated (chat-goals) and excluded from
+	 * the public API reference until the experiment ships.
+	 */
+	readonly goal_mutation?: ChatGoalSetRequest;
 	/**
 	 * UnsafeDynamicTools declares client-executed tools that the
 	 * LLM can invoke. This API is highly experimental and highly
@@ -5296,6 +5432,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "chat-advisor"
 	| "chat-board"
+	| "chat-goals"
 	| "chat-inline-mcp-servers"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
@@ -5376,6 +5513,7 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"chat-advisor",
 	"chat-board",
+	"chat-goals",
 	"chat-inline-mcp-servers",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
@@ -6503,6 +6641,20 @@ export const MaxAISpendPeriodDays = 31;
  * attachments.
  */
 export const MaxChatFileSizeBytes = 10485760;
+
+// From codersdk/chats.go
+/**
+ * MaxChatGoalCompletionSummaryBytes limits goal completion summaries
+ * accepted by chat goal mutations.
+ */
+export const MaxChatGoalCompletionSummaryBytes = 4096;
+
+// From codersdk/chats.go
+/**
+ * MaxChatGoalObjectiveBytes limits goal objective text accepted by
+ * chat goal mutations.
+ */
+export const MaxChatGoalObjectiveBytes = 4096;
 
 // From codersdk/chats.go
 /**
