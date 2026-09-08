@@ -69,6 +69,37 @@ export const ModelsActive: Story = {
 	},
 };
 
+export const OrganizationParamPreserved: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/models",
+				searchParams: { org: "my organization" },
+			},
+			routing: [{ path: "/ai/settings/models", useStoryElement: true }],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toHaveAttribute(
+			"href",
+			"/ai/settings/models?org=my+organization",
+		);
+		await expect(
+			canvas.getByRole("link", { name: "Coder Agents" }),
+		).toHaveAttribute("href", "/ai/settings/coder-agents?org=my+organization");
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers?org=my+organization");
+		await expect(
+			canvas.getByRole("link", { name: "Providers" }),
+		).toHaveAttribute("href", "/ai/settings/providers");
+		await expect(
+			canvas.getByRole("link", { name: "Templates" }),
+		).toHaveAttribute("href", "/ai/settings/templates");
+	},
+};
+
 export const ModelsActiveOnOrganizationRoute: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -296,6 +327,35 @@ export const MCPServersForCreateOnlyAdmin: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "MCP servers" }),
 		).toHaveAttribute("href", "/ai/settings/mcp-servers/add");
+	},
+};
+
+export const MCPServersForCreateOnlyAdminPreservesOrganization: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			createAnyMCPServerConfig: true,
+		},
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/mcp-servers/add",
+				searchParams: { org: MockDefaultOrganization.name },
+			},
+			routing: [
+				{ path: "/ai/settings/mcp-servers/add", useStoryElement: true },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute(
+			"href",
+			`/ai/settings/mcp-servers/add?org=${MockDefaultOrganization.name}`,
+		);
 	},
 };
 
