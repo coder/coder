@@ -50,6 +50,7 @@ func TestResolveParameters(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		values, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
+			database.WorkspaceTransitionStart,
 			[]database.WorkspaceBuildParameter{},        // No previous values
 			[]codersdk.WorkspaceBuildParameter{},        // No new build values
 			[]database.TemplateVersionPresetParameter{}, // No preset values
@@ -106,6 +107,7 @@ func TestResolveParameters(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
+			database.WorkspaceTransitionStart,
 			[]database.WorkspaceBuildParameter{
 				{Name: "immutable", Value: "foo"}, // Previous value foo
 			},
@@ -185,6 +187,7 @@ func TestResolveParameters(t *testing.T) {
 
 				ctx := testutil.Context(t, testutil.WaitShort)
 				_, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, tc.firstBuild,
+					database.WorkspaceTransitionStart,
 					previousValues,
 					[]codersdk.WorkspaceBuildParameter{
 						{Name: "param", Value: tc.cur},
@@ -201,6 +204,73 @@ func TestResolveParameters(t *testing.T) {
 				} else {
 					require.NoError(t, err)
 				}
+			})
+		}
+	})
+
+	// A render that omits a parameter the workspace already has a value for must
+	// not discard that value on a stop or delete build. Only a start build may
+	// narrow the stored set. See https://github.com/coder/coder/issues/29099.
+	t.Run("UnmatchedValues", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			transition database.WorkspaceTransition
+			expect     map[string]string
+		}{
+			{
+				transition: database.WorkspaceTransitionStart,
+				expect:     map[string]string{"rendered": "foo"},
+			},
+			{
+				transition: database.WorkspaceTransitionStop,
+				expect:     map[string]string{"rendered": "foo", "unrendered": "1000Gi"},
+			},
+			{
+				transition: database.WorkspaceTransitionDelete,
+				expect:     map[string]string{"rendered": "foo", "unrendered": "1000Gi"},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(string(tc.transition), func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				render := rendermock.NewMockRenderer(ctrl)
+
+				// The render only knows about "rendered". "unrendered" is absent,
+				// as it would be if it came from a module that failed to load.
+				render.EXPECT().
+					Render(gomock.Any(), gomock.Any(), gomock.Any()).
+					AnyTimes().
+					Return(&preview.Output{
+						Parameters: []previewtypes.Parameter{
+							{
+								ParameterData: previewtypes.ParameterData{
+									Name:     "rendered",
+									Type:     previewtypes.ParameterTypeString,
+									FormType: provider.ParameterFormTypeInput,
+									Mutable:  true,
+								},
+								Value:       previewtypes.StringLiteral("foo"),
+								Diagnostics: nil,
+							},
+						},
+					}, nil)
+
+				ctx := testutil.Context(t, testutil.WaitShort)
+				values, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
+					tc.transition,
+					[]database.WorkspaceBuildParameter{
+						{Name: "rendered", Value: "foo"},
+						{Name: "unrendered", Value: "1000Gi"},
+					},
+					[]codersdk.WorkspaceBuildParameter{},
+					[]database.TemplateVersionPresetParameter{},
+				)
+				require.NoError(t, err)
+				require.Equal(t, tc.expect, values)
 			})
 		}
 	})
