@@ -38,7 +38,7 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "./ChatConversation/chatError";
 import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
-import { CompactOrgSelector } from "./ChatElements";
+import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,

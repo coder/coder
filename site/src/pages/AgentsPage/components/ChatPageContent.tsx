@@ -49,7 +49,7 @@ import {
 } from "./ChatConversation/messageParsing";
 import { buildStreamTools } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
-import type { ModelSelectorOption } from "./ChatElements";
+import type { ModelSelectorOption } from "./ChatElements/ModelSelector";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 

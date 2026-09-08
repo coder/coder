@@ -335,7 +335,7 @@ module "personalize" {
 module "mux" {
   count                = data.coder_workspace.me.start_count
   source               = "registry.coder.com/coder/mux/coder"
-  version              = "1.5.0"
+  version              = "2.0.0"
   agent_id             = coder_agent.dev.id
   subdomain            = true
   display_name         = "Mux"
@@ -666,7 +666,7 @@ resource "coder_script" "install-deps" {
     # writes this file when it's absent.
     [settings]
     trusted_config_paths = [
-      "/home/coder/coder",
+      "${local.repo_dir}",
       "/etc/mise",
     ]
     TRUST

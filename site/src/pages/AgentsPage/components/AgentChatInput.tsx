@@ -79,7 +79,10 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
-import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "./ChatElements/ModelSelector";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
