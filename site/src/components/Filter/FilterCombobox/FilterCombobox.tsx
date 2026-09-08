@@ -299,12 +299,12 @@ function TypeaheadList({
 						{category.icon && (
 							<span
 								aria-hidden
-								className="flex size-icon-sm shrink-0 items-center justify-center text-content-secondary [&>svg]:size-icon-sm"
+								className="flex size-icon-sm shrink-0 items-center justify-center [&>svg]:size-icon-sm"
 							>
 								{category.icon}
 							</span>
 						)}
-						<span className="text-content-primary">{category.label}</span>
+						{category.label}
 					</FilterComboboxItem>
 				))}
 				{[...valueSuggestionsByCategory.entries()].map(
@@ -321,9 +321,7 @@ function TypeaheadList({
 									{suggestion.option.startIcon ? (
 										<span aria-hidden>{suggestion.option.startIcon}</span>
 									) : null}
-									<span className="text-content-primary">
-										{suggestion.option.label}
-									</span>
+									{suggestion.option.label}
 								</FilterComboboxItem>
 							))}
 						</FilterComboboxGroup>
@@ -341,9 +339,7 @@ function TypeaheadList({
 							>
 								<ResultIcon result={result} />
 								<span className="flex min-w-0 flex-col">
-									<span className="truncate text-content-primary">
-										{result.label}
-									</span>
+									<span className="truncate">{result.label}</span>
 									{result.subtitle && (
 										<span className="truncate text-xs text-content-secondary">
 											{result.subtitle}
@@ -448,7 +444,7 @@ function CategoryOptionsList({
 									{option.startIcon ? (
 										<span aria-hidden>{option.startIcon}</span>
 									) : null}
-									<span className="text-content-primary">{option.label}</span>
+									{option.label}
 								</FilterComboboxItem>
 							);
 						})}
