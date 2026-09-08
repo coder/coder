@@ -191,7 +191,6 @@ const defaultUserProviderConfigs: TypesGen.UserChatProviderConfig[] = [
 		has_user_api_key: false,
 		has_central_api_key_fallback: true,
 		byok_enabled: false,
-		supports_user_api_key: true,
 	},
 	{
 		provider_id: "provider-anthropic",
@@ -202,7 +201,6 @@ const defaultUserProviderConfigs: TypesGen.UserChatProviderConfig[] = [
 		has_user_api_key: false,
 		has_central_api_key_fallback: true,
 		byok_enabled: false,
-		supports_user_api_key: true,
 	},
 ];
 

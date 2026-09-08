@@ -1,24 +1,30 @@
 package messages
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/bedrock"
+	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -1332,4 +1338,155 @@ func TestRecordTokenUsage(t *testing.T) {
 			require.Equal(t, tc.expected, usages[0])
 		})
 	}
+}
+
+// captureNext returns a MiddlewareNext that records the request it receives and
+// a fully buffered copy of its body, then returns a minimal 200 response.
+func captureNext(t *testing.T, out **http.Request, body *[]byte) option.MiddlewareNext {
+	t.Helper()
+	return func(r *http.Request) (*http.Response, error) {
+		*out = r
+		if r.Body != nil {
+			b, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			*body = b
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(nil))}, nil
+	}
+}
+
+// TestBedrockInvokeModelBearerMiddleware verifies that a user-supplied Bedrock
+// API key authenticates via Authorization: Bearer, without SigV4 signing, while
+// still applying the InvokeModel wire transform (path rewrite, anthropic_version
+// injection, anthropic-beta header relocation, model/stream stripping).
+func TestBedrockInvokeModelBearerMiddleware(t *testing.T) {
+	t.Parallel()
+
+	const token = "bedrock-api-key-abc123"
+
+	tests := []struct {
+		name       string
+		stream     bool
+		wantMethod string
+	}{
+		{name: "blocking", stream: false, wantMethod: "invoke"},
+		{name: "streaming", stream: true, wantMethod: "invoke-with-response-stream"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body, err := sjson.SetBytes([]byte(`{"max_tokens":1}`), "model", "anthropic.claude-x")
+			require.NoError(t, err)
+			body, err = sjson.SetBytes(body, "stream", tt.stream)
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+				"https://bedrock-runtime.us-east-1.amazonaws.com/v1/messages", bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("anthropic-beta", "interleaved-thinking-2025-05-14")
+			req.Header.Set("User-Agent", "test-agent")
+
+			var captured *http.Request
+			var capturedBody []byte
+			_, err = bedrockInvokeModelBearerMiddleware(token)(req, captureNext(t, &captured, &capturedBody))
+			require.NoError(t, err)
+			require.NotNil(t, captured)
+
+			// Bearer auth, not SigV4.
+			require.Equal(t, "Bearer "+token, captured.Header.Get("Authorization"))
+			require.NotContains(t, captured.Header.Get("Authorization"), "AWS4-HMAC-SHA256")
+			require.Empty(t, captured.Header.Get("X-Amz-Date"))
+			require.Empty(t, captured.Header.Get("X-Amz-Security-Token"))
+
+			// InvokeModel path rewrite.
+			require.Equal(t, "/model/anthropic.claude-x/"+tt.wantMethod, captured.URL.Path)
+
+			// Body transform: model & stream stripped, anthropic_version added,
+			// anthropic-beta relocated to the body.
+			require.False(t, gjson.GetBytes(capturedBody, "model").Exists())
+			require.False(t, gjson.GetBytes(capturedBody, "stream").Exists())
+			require.Equal(t, bedrock.DefaultVersion, gjson.GetBytes(capturedBody, "anthropic_version").String())
+			require.Equal(t, "interleaved-thinking-2025-05-14", gjson.GetBytes(capturedBody, "anthropic_beta.0").String())
+			require.Empty(t, captured.Header.Get("anthropic-beta"))
+
+			// PRM attribution appended.
+			require.Contains(t, captured.Header.Get("User-Agent"), bedrocksig.PRMUserAgent)
+		})
+	}
+}
+
+// TestBedrockMantleBearerMiddleware verifies the mantle passthrough forwards the
+// body unchanged and authenticates via Authorization: Bearer without SigV4.
+func TestBedrockMantleBearerMiddleware(t *testing.T) {
+	t.Parallel()
+
+	const token = "bedrock-api-key-mantle"
+	body := []byte(`{"model":"anthropic.claude-x","max_tokens":1}`)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+		"https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("User-Agent", "test-agent")
+
+	var captured *http.Request
+	var capturedBody []byte
+	_, err = bedrockMantleBearerMiddleware(token)(req, captureNext(t, &captured, &capturedBody))
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+
+	require.Equal(t, "Bearer "+token, captured.Header.Get("Authorization"))
+	require.NotContains(t, captured.Header.Get("Authorization"), "AWS4-HMAC-SHA256")
+	require.Empty(t, captured.Header.Get("X-Amz-Date"))
+	// Native passthrough: model kept, path unchanged.
+	require.Equal(t, "/anthropic/v1/messages", captured.URL.Path)
+	require.Equal(t, "anthropic.claude-x", gjson.GetBytes(capturedBody, "model").String())
+	require.Contains(t, captured.Header.Get("User-Agent"), bedrocksig.PRMUserAgent)
+}
+
+// TestWithBedrockBYOKOptions verifies option assembly and validation for the
+// BYOK (bearer token) Bedrock paths.
+func TestWithBedrockBYOKOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InvokeModelOK", func(t *testing.T) {
+		t.Parallel()
+		base := &interceptionBase{bedrock: &BedrockRuntime{Cfg: config.AWSBedrock{
+			Region:         "us-east-1",
+			Model:          "anthropic.claude-x",
+			SmallFastModel: "anthropic.claude-haiku",
+		}}}
+		opts, err := base.withBedrockInvokeModelBYOKOptions("tok")
+		require.NoError(t, err)
+		require.NotEmpty(t, opts)
+	})
+
+	t.Run("MantleOK", func(t *testing.T) {
+		t.Parallel()
+		base := &interceptionBase{bedrock: &BedrockRuntime{Cfg: config.AWSBedrock{
+			Region:   "us-east-1",
+			BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+			Protocol: config.BedrockProtocolMantle,
+		}}}
+		opts, err := base.withBedrockMantleBYOKOptions("tok")
+		require.NoError(t, err)
+		require.NotEmpty(t, opts)
+	})
+
+	t.Run("NilRuntime", func(t *testing.T) {
+		t.Parallel()
+		base := &interceptionBase{}
+		_, err := base.withBedrockInvokeModelBYOKOptions("tok")
+		require.ErrorContains(t, err, "nil bedrock runtime")
+		_, err = base.withBedrockMantleBYOKOptions("tok")
+		require.ErrorContains(t, err, "nil bedrock runtime")
+	})
+
+	t.Run("InvalidConfig", func(t *testing.T) {
+		t.Parallel()
+		base := &interceptionBase{bedrock: &BedrockRuntime{Cfg: config.AWSBedrock{}}}
+		_, err := base.withBedrockInvokeModelBYOKOptions("tok")
+		require.Error(t, err)
+	})
 }

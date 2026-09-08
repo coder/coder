@@ -444,6 +444,113 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
 
+	// BYOK: a user-supplied Bedrock API key must authenticate the upstream
+	// request as a bearer token instead of being dropped in favor of the
+	// deployment's SigV4 signing.
+	t.Run("byok/invoke-model", func(t *testing.T) {
+		for _, streaming := range []bool{true, false} {
+			t.Run(fmt.Sprintf("streaming=%v", streaming), func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
+
+				const userKey = "user-bedrock-api-key"
+
+				fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+
+				bedrockCfg := &config.AWSBedrock{
+					Region:          "us-west-2",
+					AccessKey:       "test-access-key",
+					AccessKeySecret: "test-secret-key",
+					Model:           "danthropic",
+					SmallFastModel:  "danthropic-mini",
+					BaseURL:         upstream.URL,
+				}
+
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+					withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+				)
+
+				reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
+				require.NoError(t, err)
+				resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody,
+					http.Header{"X-Api-Key": {userKey}})
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				if streaming {
+					_, err = io.ReadAll(resp.Body)
+					require.NoError(t, err)
+				}
+
+				received := upstream.ReceivedRequests()
+				require.Len(t, received, 1)
+
+				// The user key authenticates as a bearer token; no SigV4.
+				require.Equal(t, "Bearer "+userKey, received[0].Header.Get("Authorization"))
+				require.NotContains(t, received[0].Header.Get("Authorization"), "AWS4-HMAC-SHA256")
+				require.Empty(t, received[0].Header.Get("X-Amz-Date"))
+				require.Empty(t, received[0].Header.Get("X-Api-Key"))
+
+				// InvokeModel wire transform still applied.
+				pathParts := strings.Split(received[0].Path, "/")
+				require.True(t, len(pathParts) >= 3 && pathParts[1] == "model", "unexpected path: %s", received[0].Path)
+				require.Equal(t, bedrockCfg.Model, pathParts[2])
+				require.False(t, gjson.GetBytes(received[0].Body, "model").Exists(), "model should be stripped from body")
+				require.False(t, gjson.GetBytes(received[0].Body, "stream").Exists(), "stream should be stripped from body")
+				require.Contains(t, received[0].Header.Get("User-Agent"), bedrocksig.PRMUserAgent)
+
+				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+			})
+		}
+	})
+
+	t.Run("byok/mantle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		const userKey = "user-bedrock-api-key-mantle"
+
+		fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+		upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+
+		bedrockCfg := &config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-access-key",
+			AccessKeySecret: "test-secret-key",
+			BaseURL:         upstream.URL + "/anthropic",
+			Protocol:        config.BedrockProtocolMantle,
+		}
+		wantModel := gjson.GetBytes(fix.Request(), "model").String()
+		require.NotEmpty(t, wantModel)
+
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+		)
+
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, fix.Request(),
+			http.Header{"X-Api-Key": {userKey}})
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		received := upstream.ReceivedRequests()
+		require.Len(t, received, 1)
+
+		// Native passthrough, bearer auth, no SigV4.
+		require.Equal(t, "/anthropic/v1/messages", received[0].Path)
+		require.Equal(t, "Bearer "+userKey, received[0].Header.Get("Authorization"))
+		require.NotContains(t, received[0].Header.Get("Authorization"), "AWS4-HMAC-SHA256")
+		require.Empty(t, received[0].Header.Get("X-Amz-Date"))
+		require.Empty(t, received[0].Header.Get("X-Api-Key"))
+		require.Equal(t, wantModel, gjson.GetBytes(received[0].Body, "model").String(), "model should be forwarded unchanged")
+		require.Contains(t, received[0].Header.Get("User-Agent"), bedrocksig.PRMUserAgent)
+
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+	})
+
 	// Tests that Bedrock-incompatible fields are stripped and adaptive thinking
 	// is handled correctly per model. Different Bedrock model names trigger
 	// different behavior for beta flag filtering and field stripping.
