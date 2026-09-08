@@ -35,12 +35,21 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+type allowAllPreparedAuthorized struct{}
+
+func (allowAllPreparedAuthorized) Authorize(context.Context, rbac.Object) error { return nil }
+
+func (allowAllPreparedAuthorized) CompileToSQL(context.Context, regosql.ConvertConfig) (string, error) {
+	return "TRUE", nil
+}
 
 func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 	t.Parallel()
@@ -11542,6 +11551,26 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 		require.False(t, updated.ErrorType.Valid)
 		require.False(t, updated.ErrorMessage.Valid)
 	})
+}
+
+func TestListAuthorizedAIBridgeSessionThreads(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	sponsor := dbgen.User(t, db, database.User{})
+	endedAt := dbtime.Now()
+	interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:   sponsor.ID,
+		SponsorUserID: uuid.NullUUID{UUID: sponsor.ID, Valid: true},
+	}, &endedAt)
+
+	rows, err := db.ListAuthorizedAIBridgeSessionThreads(ctx, database.ListAIBridgeSessionThreadsParams{
+		SessionID: interception.SessionID,
+	}, allowAllPreparedAuthorized{})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, interception.SponsorUserID, rows[0].AIBridgeInterception.SponsorUserID)
 }
 
 func TestAIBridgeInterceptionAgentFirewallColumns(t *testing.T) {
