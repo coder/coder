@@ -1,9 +1,9 @@
 import {
 	Building2Icon,
 	CircleDotIcon,
-	LayoutGridIcon,
 	SlidersHorizontalIcon,
 	UserIcon,
+	LayoutPanelTopIcon,
 } from "lucide-react";
 import { type FC, useCallback, useMemo } from "react";
 import { useQueryClient } from "react-query";
@@ -66,7 +66,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			{
 				key: "template",
 				label: "Template",
-				icon: <LayoutGridIcon />,
+				icon: <LayoutPanelTopIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
 			{
