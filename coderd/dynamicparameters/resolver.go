@@ -211,26 +211,23 @@ func ResolveParameters(
 	// problems in the future, as it makes it challenging to remove values from the
 	// database
 	//
+	// Two conditions must hold before a value can be discarded.
+	//
 	// Only a start build may narrow the stored set. A stop or delete build does not
 	// change which parameters a workspace has, so a parameter missing from this
 	// render is not evidence the user removed it. Dropping the value there persists
 	// the reduced set and the following start build reads it as the previous state,
 	// which loses the value even when that build renders the parameter correctly.
-	if transition == database.WorkspaceTransitionStart {
-		// An incomplete render does not report every parameter the template
-		// declares, so absence from the output says nothing about whether the
-		// parameter still exists. Keeping the values is safe: provisionerd
-		// resolves modules itself, so the build still applies them correctly.
-		// Dropping them destroys user data, which is not recoverable.
-		incomplete := incompleteRender(diags)
+	//
+	// The render must also be complete. An incomplete one does not report every
+	// parameter the template declares, so absence from the output means nothing.
+	// Keeping those values is safe, because provisionerd resolves modules itself
+	// and the build still applies them correctly. Dropping them destroys user data.
+	if transition == database.WorkspaceTransitionStart && !incompleteRender(diags) {
 		for k := range values {
-			if _, ok := parameterNames[k]; ok {
-				continue
+			if _, ok := parameterNames[k]; !ok {
+				delete(values, k)
 			}
-			if incomplete {
-				continue
-			}
-			delete(values, k)
 		}
 	}
 
