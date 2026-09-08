@@ -904,12 +904,9 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	return httpClient, nil
 }
 
-// rejectRedirect is an http.Client CheckRedirect hook that refuses to
-// follow any redirect. Go's default behavior would follow a 301, 302, or
-// 303 by downgrading the request to a GET with no body, silently turning
-// a POST into a read of the same path. A redirect from the API almost
-// always means the configured deployment URL is stale, so surface that
-// instead. The --allow-redirects flag restores the old behavior.
+// rejectRedirect is an http.Client CheckRedirect hook. Go's default would
+// follow a 3xx by downgrading POST to GET, which silently changes the API
+// call being made.
 func rejectRedirect(req *http.Request, via []*http.Request) error {
 	err := &redirectError{to: req.URL}
 	if len(via) > 0 {
@@ -931,9 +928,7 @@ func (e *redirectError) Error() string {
 	return fmt.Sprintf("server redirected request from %s to %s", e.from, e.to)
 }
 
-// Helper returns a suggestion for resolving the redirect. When the
-// redirect points at a different deployment URL, the user should log in
-// against it so the stored URL and token are refreshed.
+// Helper returns a suggestion for resolving the redirect.
 func (e *redirectError) Helper() string {
 	if e.to == nil {
 		return ""
@@ -1610,8 +1605,7 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 	return str.String()
 }
 
-// formatRedirectError formats a redirectError with the redirect target
-// and a suggestion for fixing the configured deployment URL.
+// formatRedirectError formats a redirectError for CLI output.
 func formatRedirectError(from string, err *redirectError) string {
 	var str strings.Builder
 	if from != "" {

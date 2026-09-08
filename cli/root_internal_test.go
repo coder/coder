@@ -712,14 +712,12 @@ func Test_createHTTPClientRedirects(t *testing.T) {
 
 		r := &RootCmd{noVersionCheck: true, noFeatureWarning: true, allowRedirects: true}
 		client := newClient(t, r, stale.URL)
-		// The redirect is followed as a GET, so the list endpoint responds.
 		tokens, err := client.Tokens(context.Background(), codersdk.Me, codersdk.TokensFilter{})
 		require.NoError(t, err)
 		require.Empty(t, tokens)
 
-		// The legacy downgrade behavior is preserved: the POST is followed as
-		// a GET and the mismatched body surfaces as a decode error rather
-		// than a redirectError.
+		// Legacy behavior: the POST is followed as a GET and fails on the
+		// mismatched body rather than on the redirect itself.
 		_, err = client.CreateToken(context.Background(), codersdk.Me, codersdk.CreateTokenRequest{})
 		require.Error(t, err)
 		var redirectErr *redirectError
