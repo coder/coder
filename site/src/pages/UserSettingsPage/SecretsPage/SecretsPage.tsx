@@ -10,14 +10,16 @@ import {
 	userSecrets,
 } from "#/api/queries/userSecrets";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useUserSecretFilePathEnabled } from "#/hooks/useEmbeddedMetadata";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { SecretsPageView } from "./SecretsPageView";
 import { buildImportSuccessMessage } from "./secretForm";
 
 const SecretsPage: FC = () => {
 	const { user: me } = useAuthenticated();
 	const queryClient = useQueryClient();
-	const filePathEnabled = useUserSecretFilePathEnabled();
+	const { metadata } = useEmbeddedMetadata();
+	const filePathEnabled =
+		metadata["user-secret-file-path-enabled"].value ?? true;
 	const secretsQueryOptions = userSecrets(me.id);
 	const secretsQuery = useQuery(secretsQueryOptions);
 	const createSecretMutation = useMutation(

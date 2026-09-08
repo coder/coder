@@ -941,18 +941,13 @@ const filePathDisabledSecrets = [
 	MockDisabledFileOnlyUserSecret,
 ];
 
-const filePathDisabledCreateSecret = fn<
-	(request: CreateUserSecretRequest) => Promise<UserSecret>
->(async (request) => createSecretFromRequest(request));
-
 export const FilePathDisabledStatusAndCreate: Story = {
 	args: {
 		filePathEnabled: false,
 		secrets: filePathDisabledSecrets,
-		onCreateSecret: filePathDisabledCreateSecret,
+		onCreateSecret: fn(async (request) => createSecretFromRequest(request)),
 	},
-	play: async ({ canvasElement }) => {
-		filePathDisabledCreateSecret.mockClear();
+	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -990,10 +985,8 @@ export const FilePathDisabledStatusAndCreate: Story = {
 		await user.type(dialog.getByLabelText("Value"), PLACEHOLDER_INPUT);
 		await user.click(dialog.getByRole("button", { name: "Save" }));
 
-		await waitFor(() =>
-			expect(filePathDisabledCreateSecret).toHaveBeenCalledTimes(1),
-		);
-		expect(filePathDisabledCreateSecret).toHaveBeenCalledWith({
+		await waitFor(() => expect(args.onCreateSecret).toHaveBeenCalledTimes(1));
+		expect(args.onCreateSecret).toHaveBeenCalledWith({
 			name: "example-secret",
 			env_name: "EXAMPLE_SECRET",
 			value: PLACEHOLDER_INPUT,
@@ -1002,14 +995,12 @@ export const FilePathDisabledStatusAndCreate: Story = {
 	},
 };
 
-const filePathDisabledCleanup = fn<
-	(name: string, request: UpdateUserSecretRequest) => Promise<UserSecret>
->(async (name) => findVisibleSecretByName(name));
-
 export const FilePathDisabledCleanupDisablesSecret: Story = {
-	args: { filePathEnabled: false, onUpdateSecret: filePathDisabledCleanup },
-	play: async ({ canvasElement }) => {
-		filePathDisabledCleanup.mockClear();
+	args: {
+		filePathEnabled: false,
+		onUpdateSecret: fn(async (name) => findVisibleSecretByName(name)),
+	},
+	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -1039,10 +1030,8 @@ export const FilePathDisabledCleanupDisablesSecret: Story = {
 		await user.click(dialog.getByRole("button", { name: "Remove file path" }));
 		await user.click(updateButton);
 
-		await waitFor(() =>
-			expect(filePathDisabledCleanup).toHaveBeenCalledTimes(1),
-		);
-		expect(filePathDisabledCleanup).toHaveBeenCalledWith(fileOnlySecret.name, {
+		await waitFor(() => expect(args.onUpdateSecret).toHaveBeenCalledTimes(1));
+		expect(args.onUpdateSecret).toHaveBeenCalledWith(fileOnlySecret.name, {
 			file_path: "",
 			enabled: false,
 		});
@@ -1050,23 +1039,14 @@ export const FilePathDisabledCleanupDisablesSecret: Story = {
 	},
 };
 
-const filePathDisabledToggle = fn<
-	(secret: UserSecret, enabled: boolean) => Promise<void>
->(async () => {});
-const filePathDisabledAddEnv = fn<
-	(name: string, request: UpdateUserSecretRequest) => Promise<UserSecret>
->(async () => MockDisabledFileOnlyUserSecret);
-
 export const FilePathDisabledBlockedEnableThenAddEnv: Story = {
 	args: {
 		filePathEnabled: false,
 		secrets: filePathDisabledSecrets,
-		onToggleSecretEnabled: filePathDisabledToggle,
-		onUpdateSecret: filePathDisabledAddEnv,
+		onToggleSecretEnabled: fn(async () => {}),
+		onUpdateSecret: fn(async () => MockDisabledFileOnlyUserSecret),
 	},
-	play: async ({ canvasElement }) => {
-		filePathDisabledToggle.mockClear();
-		filePathDisabledAddEnv.mockClear();
+	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -1077,7 +1057,7 @@ export const FilePathDisabledBlockedEnableThenAddEnv: Story = {
 		});
 		await expect(toggle).toBeDisabled();
 		await user.click(toggle);
-		expect(filePathDisabledToggle).not.toHaveBeenCalled();
+		expect(args.onToggleSecretEnabled).not.toHaveBeenCalled();
 
 		await user.hover(toggle);
 		await waitFor(() =>
@@ -1101,10 +1081,8 @@ export const FilePathDisabledBlockedEnableThenAddEnv: Story = {
 		await waitFor(() => expect(envField).toHaveValue("LEGACY_KUBECONFIG"));
 		await user.click(dialog.getByRole("button", { name: "Update" }));
 
-		await waitFor(() =>
-			expect(filePathDisabledAddEnv).toHaveBeenCalledTimes(1),
-		);
-		expect(filePathDisabledAddEnv).toHaveBeenCalledWith(name, {
+		await waitFor(() => expect(args.onUpdateSecret).toHaveBeenCalledTimes(1));
+		expect(args.onUpdateSecret).toHaveBeenCalledWith(name, {
 			env_name: "LEGACY_KUBECONFIG",
 		});
 		await waitForDialogToClose(body);

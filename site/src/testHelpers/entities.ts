@@ -664,7 +664,6 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 ];
 
 export const MockAIGatewayEnabled: boolean = true;
-export const MockUserSecretFilePathEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,

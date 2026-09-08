@@ -258,8 +258,3 @@ export function useAIGatewayEnabled(): boolean {
 	const { metadata } = useEmbeddedMetadata();
 	return metadata["ai-gateway-enabled"].value ?? true;
 }
-
-export function useUserSecretFilePathEnabled(): boolean {
-	const { metadata } = useEmbeddedMetadata();
-	return metadata["user-secret-file-path-enabled"].value ?? true;
-}
