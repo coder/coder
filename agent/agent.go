@@ -683,6 +683,12 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 			err = errors.Join(err, xerrors.Errorf("stderr: %s", strings.TrimSpace(stderr.String())))
 		}
 		result.Error = fmt.Sprintf("run cmd: %+v", err)
+		// coderd replaces errors above 2048 bytes, discarding their diagnostics.
+		const maxErrorLen = 2048
+		const truncated = " [truncated]"
+		if len(result.Error) > maxErrorLen {
+			result.Error = strings.ToValidUTF8(result.Error[:maxErrorLen-len(truncated)], "") + truncated
+		}
 	}
 	result.Value = stdout.String()
 	return result

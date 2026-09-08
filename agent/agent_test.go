@@ -1842,6 +1842,11 @@ func TestAgent_Metadata(t *testing.T) {
 					Interval: 0,
 					Script:   "echo 'permission denied' >&2; exit 1",
 				},
+				{
+					Key:      "long_stderr",
+					Interval: 0,
+					Script:   "echo 'permission denied: " + strings.Repeat("界", 4096) + "' >&2; echo 'hello'; exit 1",
+				},
 			},
 		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
 			opts.ReportMetadataInterval = testutil.IntervalFast
@@ -1850,7 +1855,7 @@ func TestAgent_Metadata(t *testing.T) {
 		var gotMd map[string]agentsdk.Metadata
 		require.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
-			return len(gotMd) == 2
+			return len(gotMd) == 3
 		}, testutil.WaitShort, testutil.IntervalFast/2)
 
 		// A script that succeeds reports stdout only, even when the shell
@@ -1862,6 +1867,14 @@ func TestAgent_Metadata(t *testing.T) {
 		// explain the failure.
 		require.Empty(t, strings.TrimSpace(gotMd["failing"].Value))
 		require.Contains(t, gotMd["failing"].Error, "permission denied")
+
+		// Keep diagnostics within the server's error budget, including the marker.
+		require.Equal(t, "hello", strings.TrimSpace(gotMd["long_stderr"].Value))
+		require.Contains(t, gotMd["long_stderr"].Error, "exit status 1")
+		require.Contains(t, gotMd["long_stderr"].Error, "permission denied")
+		require.LessOrEqual(t, len(gotMd["long_stderr"].Error), 2048)
+		require.True(t, strings.HasSuffix(gotMd["long_stderr"].Error, " [truncated]"))
+		require.Equal(t, strings.ToValidUTF8(gotMd["long_stderr"].Error, ""), gotMd["long_stderr"].Error)
 	})
 }
 
