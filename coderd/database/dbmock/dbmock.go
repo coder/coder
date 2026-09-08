@@ -59,6 +59,21 @@ func (mr *MockStoreMockRecorder) AccountAgentTimeMessages(ctx, messageIds any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountAgentTimeMessages", reflect.TypeOf((*MockStore)(nil).AccountAgentTimeMessages), ctx, messageIds)
 }
 
+// AcquireAgentTimeBackfillOrganization mocks base method.
+func (m *MockStore) AcquireAgentTimeBackfillOrganization(ctx context.Context) (database.AgentTimeBackfillStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireAgentTimeBackfillOrganization", ctx)
+	ret0, _ := ret[0].(database.AgentTimeBackfillStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireAgentTimeBackfillOrganization indicates an expected call of AcquireAgentTimeBackfillOrganization.
+func (mr *MockStoreMockRecorder) AcquireAgentTimeBackfillOrganization(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireAgentTimeBackfillOrganization", reflect.TypeOf((*MockStore)(nil).AcquireAgentTimeBackfillOrganization), ctx)
+}
+
 // AcquireExternalAuthLinkRefreshLease mocks base method.
 func (m *MockStore) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	m.ctrl.T.Helper()
@@ -205,6 +220,21 @@ func (m *MockStore) AutoArchiveInactiveChats(ctx context.Context, arg database.A
 func (mr *MockStoreMockRecorder) AutoArchiveInactiveChats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AutoArchiveInactiveChats", reflect.TypeOf((*MockStore)(nil).AutoArchiveInactiveChats), ctx, arg)
+}
+
+// BackfillAgentTimeBatch mocks base method.
+func (m *MockStore) BackfillAgentTimeBatch(ctx context.Context, arg database.BackfillAgentTimeBatchParams) (database.BackfillAgentTimeBatchRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackfillAgentTimeBatch", ctx, arg)
+	ret0, _ := ret[0].(database.BackfillAgentTimeBatchRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BackfillAgentTimeBatch indicates an expected call of BackfillAgentTimeBatch.
+func (mr *MockStoreMockRecorder) BackfillAgentTimeBatch(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackfillAgentTimeBatch", reflect.TypeOf((*MockStore)(nil).BackfillAgentTimeBatch), ctx, arg)
 }
 
 // BackfillChatMessagesSearchTsv mocks base method.
@@ -449,6 +479,20 @@ func (m *MockStore) ClearChatDiffStatusPR(ctx context.Context, arg database.Clea
 func (mr *MockStoreMockRecorder) ClearChatDiffStatusPR(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatDiffStatusPR", reflect.TypeOf((*MockStore)(nil).ClearChatDiffStatusPR), ctx, arg)
+}
+
+// CompleteAgentTimeBackfillOrganization mocks base method.
+func (m *MockStore) CompleteAgentTimeBackfillOrganization(ctx context.Context, organizationID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteAgentTimeBackfillOrganization", ctx, organizationID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CompleteAgentTimeBackfillOrganization indicates an expected call of CompleteAgentTimeBackfillOrganization.
+func (mr *MockStoreMockRecorder) CompleteAgentTimeBackfillOrganization(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteAgentTimeBackfillOrganization", reflect.TypeOf((*MockStore)(nil).CompleteAgentTimeBackfillOrganization), ctx, organizationID)
 }
 
 // CountAIBridgeSessions mocks base method.
@@ -1770,6 +1814,21 @@ func (mr *MockStoreMockRecorder) EnqueueNotificationMessage(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueNotificationMessage", reflect.TypeOf((*MockStore)(nil).EnqueueNotificationMessage), ctx, arg)
 }
 
+// EnsureAgentTimeBackfillStatuses mocks base method.
+func (m *MockStore) EnsureAgentTimeBackfillStatuses(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnsureAgentTimeBackfillStatuses", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnsureAgentTimeBackfillStatuses indicates an expected call of EnsureAgentTimeBackfillStatuses.
+func (mr *MockStoreMockRecorder) EnsureAgentTimeBackfillStatuses(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureAgentTimeBackfillStatuses", reflect.TypeOf((*MockStore)(nil).EnsureAgentTimeBackfillStatuses), ctx)
+}
+
 // ExpirePrebuildsAPIKeys mocks base method.
 func (m *MockStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
 	m.ctrl.T.Helper()
@@ -2381,6 +2440,21 @@ func (m *MockStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, te
 func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(ctx, templateID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), ctx, templateID)
+}
+
+// GetAgentTimeStatus mocks base method.
+func (m *MockStore) GetAgentTimeStatus(ctx context.Context, organizationID uuid.UUID) (database.GetAgentTimeStatusRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentTimeStatus", ctx, organizationID)
+	ret0, _ := ret[0].(database.GetAgentTimeStatusRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentTimeStatus indicates an expected call of GetAgentTimeStatus.
+func (mr *MockStoreMockRecorder) GetAgentTimeStatus(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentTimeStatus", reflect.TypeOf((*MockStore)(nil).GetAgentTimeStatus), ctx, organizationID)
 }
 
 // GetAllTailnetCoordinators mocks base method.
@@ -7663,6 +7737,21 @@ func (mr *MockStoreMockRecorder) HasTemplateVersionsUsingCachedModuleFileInOrg(c
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasTemplateVersionsUsingCachedModuleFileInOrg", reflect.TypeOf((*MockStore)(nil).HasTemplateVersionsUsingCachedModuleFileInOrg), ctx, arg)
 }
 
+// HasUnaccountedAgentTimeMessages mocks base method.
+func (m *MockStore) HasUnaccountedAgentTimeMessages(ctx context.Context, organizationID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasUnaccountedAgentTimeMessages", ctx, organizationID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasUnaccountedAgentTimeMessages indicates an expected call of HasUnaccountedAgentTimeMessages.
+func (mr *MockStoreMockRecorder) HasUnaccountedAgentTimeMessages(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasUnaccountedAgentTimeMessages", reflect.TypeOf((*MockStore)(nil).HasUnaccountedAgentTimeMessages), ctx, organizationID)
+}
+
 // HydrateAgentChatsContext mocks base method.
 func (m *MockStore) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -9476,6 +9565,20 @@ func (mr *MockStoreMockRecorder) LockProvisionerKeyByIDForShare(ctx, id any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockProvisionerKeyByIDForShare", reflect.TypeOf((*MockStore)(nil).LockProvisionerKeyByIDForShare), ctx, id)
 }
 
+// MarkAgentTimeBackfillFailed mocks base method.
+func (m *MockStore) MarkAgentTimeBackfillFailed(ctx context.Context, arg database.MarkAgentTimeBackfillFailedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkAgentTimeBackfillFailed", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkAgentTimeBackfillFailed indicates an expected call of MarkAgentTimeBackfillFailed.
+func (mr *MockStoreMockRecorder) MarkAgentTimeBackfillFailed(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAgentTimeBackfillFailed", reflect.TypeOf((*MockStore)(nil).MarkAgentTimeBackfillFailed), ctx, arg)
+}
+
 // MarkAllInboxNotificationsAsRead mocks base method.
 func (m *MockStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	m.ctrl.T.Helper()
@@ -9740,6 +9843,20 @@ func (m *MockStore) ReorderChatQueuedMessageToHead(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) ReorderChatQueuedMessageToHead(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderChatQueuedMessageToHead", reflect.TypeOf((*MockStore)(nil).ReorderChatQueuedMessageToHead), ctx, arg)
+}
+
+// ResetAgentTimeBackfillCursor mocks base method.
+func (m *MockStore) ResetAgentTimeBackfillCursor(ctx context.Context, organizationID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetAgentTimeBackfillCursor", ctx, organizationID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetAgentTimeBackfillCursor indicates an expected call of ResetAgentTimeBackfillCursor.
+func (mr *MockStoreMockRecorder) ResetAgentTimeBackfillCursor(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetAgentTimeBackfillCursor", reflect.TypeOf((*MockStore)(nil).ResetAgentTimeBackfillCursor), ctx, organizationID)
 }
 
 // RevokeDBCryptKey mocks base method.
@@ -10056,6 +10173,20 @@ func (m *MockStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPI
 func (mr *MockStoreMockRecorder) UpdateAPIKeyByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyByID", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyByID), ctx, arg)
+}
+
+// UpdateAgentTimeBackfillProgress mocks base method.
+func (m *MockStore) UpdateAgentTimeBackfillProgress(ctx context.Context, arg database.UpdateAgentTimeBackfillProgressParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAgentTimeBackfillProgress", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateAgentTimeBackfillProgress indicates an expected call of UpdateAgentTimeBackfillProgress.
+func (mr *MockStoreMockRecorder) UpdateAgentTimeBackfillProgress(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAgentTimeBackfillProgress", reflect.TypeOf((*MockStore)(nil).UpdateAgentTimeBackfillProgress), ctx, arg)
 }
 
 // UpdateChatACLByID mocks base method.

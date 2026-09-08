@@ -58,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/agenttime"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
@@ -197,6 +198,7 @@ type Options struct {
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
 	DatabaseRolluper                   *dbrollup.Rolluper
+	AgentTimeBackfiller                *agenttime.Backfiller
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
 	NotificationsEnqueuer              notifications.Enqueuer
@@ -682,6 +684,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
 			NewTicker:                          options.NewTicker,
 			DatabaseRolluper:                   options.DatabaseRolluper,
+			AgentTimeBackfiller:                options.AgentTimeBackfiller,
 			WorkspaceUsageTracker:              wuTracker,
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,

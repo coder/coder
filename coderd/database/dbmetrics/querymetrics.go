@@ -112,6 +112,14 @@ func (m queryMetricsStore) AccountAgentTimeMessages(ctx context.Context, message
 	return r0, r1
 }
 
+func (m queryMetricsStore) AcquireAgentTimeBackfillOrganization(ctx context.Context) (database.AgentTimeBackfillStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireAgentTimeBackfillOrganization(ctx)
+	m.queryLatencies.WithLabelValues("AcquireAgentTimeBackfillOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireAgentTimeBackfillOrganization").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireExternalAuthLinkRefreshLease(ctx, arg)
@@ -189,6 +197,14 @@ func (m queryMetricsStore) AutoArchiveInactiveChats(ctx context.Context, arg dat
 	r0, r1 := m.s.AutoArchiveInactiveChats(ctx, arg)
 	m.queryLatencies.WithLabelValues("AutoArchiveInactiveChats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AutoArchiveInactiveChats").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) BackfillAgentTimeBatch(ctx context.Context, arg database.BackfillAgentTimeBatchParams) (database.BackfillAgentTimeBatchRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.BackfillAgentTimeBatch(ctx, arg)
+	m.queryLatencies.WithLabelValues("BackfillAgentTimeBatch").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BackfillAgentTimeBatch").Inc()
 	return r0, r1
 }
 
@@ -325,6 +341,14 @@ func (m queryMetricsStore) ClearChatDiffStatusPR(ctx context.Context, arg databa
 	r0 := m.s.ClearChatDiffStatusPR(ctx, arg)
 	m.queryLatencies.WithLabelValues("ClearChatDiffStatusPR").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatDiffStatusPR").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) CompleteAgentTimeBackfillOrganization(ctx context.Context, organizationID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.CompleteAgentTimeBackfillOrganization(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("CompleteAgentTimeBackfillOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CompleteAgentTimeBackfillOrganization").Inc()
 	return r0
 }
 
@@ -1024,6 +1048,14 @@ func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg d
 	return r0
 }
 
+func (m queryMetricsStore) EnsureAgentTimeBackfillStatuses(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.EnsureAgentTimeBackfillStatuses(ctx)
+	m.queryLatencies.WithLabelValues("EnsureAgentTimeBackfillStatuses").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "EnsureAgentTimeBackfillStatuses").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
 	start := time.Now()
 	r0 := m.s.ExpirePrebuildsAPIKeys(ctx, now)
@@ -1349,6 +1381,14 @@ func (m queryMetricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Cont
 	r0, r1 := m.s.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 	m.queryLatencies.WithLabelValues("GetActiveWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveWorkspaceBuildsByTemplateID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentTimeStatus(ctx context.Context, organizationID uuid.UUID) (database.GetAgentTimeStatusRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentTimeStatus(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetAgentTimeStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentTimeStatus").Inc()
 	return r0, r1
 }
 
@@ -4072,6 +4112,14 @@ func (m queryMetricsStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx con
 	return r0, r1
 }
 
+func (m queryMetricsStore) HasUnaccountedAgentTimeMessages(ctx context.Context, organizationID uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.HasUnaccountedAgentTimeMessages(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("HasUnaccountedAgentTimeMessages").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "HasUnaccountedAgentTimeMessages").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.HydrateAgentChatsContext(ctx, arg)
@@ -5000,6 +5048,14 @@ func (m queryMetricsStore) LockProvisionerKeyByIDForShare(ctx context.Context, i
 	return r0, r1
 }
 
+func (m queryMetricsStore) MarkAgentTimeBackfillFailed(ctx context.Context, arg database.MarkAgentTimeBackfillFailedParams) error {
+	start := time.Now()
+	r0 := m.s.MarkAgentTimeBackfillFailed(ctx, arg)
+	m.queryLatencies.WithLabelValues("MarkAgentTimeBackfillFailed").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkAgentTimeBackfillFailed").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	start := time.Now()
 	r0 := m.s.MarkAllInboxNotificationsAsRead(ctx, arg)
@@ -5126,6 +5182,14 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToHead").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToHead").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) ResetAgentTimeBackfillCursor(ctx context.Context, organizationID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ResetAgentTimeBackfillCursor(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("ResetAgentTimeBackfillCursor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResetAgentTimeBackfillCursor").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
@@ -5301,6 +5365,14 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	r0 := m.s.UpdateAPIKeyByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAPIKeyByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAPIKeyByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateAgentTimeBackfillProgress(ctx context.Context, arg database.UpdateAgentTimeBackfillProgressParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateAgentTimeBackfillProgress(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAgentTimeBackfillProgress").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAgentTimeBackfillProgress").Inc()
 	return r0
 }
 

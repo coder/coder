@@ -122,6 +122,248 @@ func (q *sqlQuerier) AccountAgentTimeMessages(ctx context.Context, messageIds []
 	return column_1, err
 }
 
+const acquireAgentTimeBackfillOrganization = `-- name: AcquireAgentTimeBackfillOrganization :one
+SELECT organization_id, cursor_message_id, processed_messages, completed_at, last_error, last_error_at, updated_at
+FROM agent_time_backfill_status
+WHERE completed_at IS NULL
+ORDER BY updated_at ASC, organization_id ASC
+LIMIT 1
+FOR UPDATE SKIP LOCKED
+`
+
+func (q *sqlQuerier) AcquireAgentTimeBackfillOrganization(ctx context.Context) (AgentTimeBackfillStatus, error) {
+	row := q.db.QueryRowContext(ctx, acquireAgentTimeBackfillOrganization)
+	var i AgentTimeBackfillStatus
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.CursorMessageID,
+		&i.ProcessedMessages,
+		&i.CompletedAt,
+		&i.LastError,
+		&i.LastErrorAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const backfillAgentTimeBatch = `-- name: BackfillAgentTimeBatch :one
+WITH candidate_chats AS MATERIALIZED (
+    SELECT c.id
+    FROM chats c
+    WHERE c.organization_id = $2::uuid
+      AND EXISTS (
+          SELECT 1
+          FROM chat_messages cm
+          LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
+          WHERE cm.chat_id = c.id
+            AND cm.runtime_ms IS NOT NULL
+            AND accounted.message_id IS NULL
+            AND cm.id > $1::bigint
+      )
+    ORDER BY c.id ASC
+    LIMIT $3::int
+    FOR UPDATE OF c SKIP LOCKED
+),
+candidate_messages AS MATERIALIZED (
+    SELECT cm.id
+    FROM chat_messages cm
+    JOIN candidate_chats c ON c.id = cm.chat_id
+    LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
+    WHERE cm.runtime_ms IS NOT NULL
+      AND accounted.message_id IS NULL
+      AND cm.id > $1::bigint
+    ORDER BY cm.id ASC
+    LIMIT $3::int
+),
+accounted AS (
+    SELECT account_agent_time_messages(ARRAY(
+        SELECT id
+        FROM candidate_messages
+        ORDER BY id
+    ))::bigint AS processed_messages
+)
+SELECT
+    COALESCE((SELECT MAX(id) FROM candidate_messages), $1::bigint)::bigint AS cursor_message_id,
+    COALESCE((SELECT COUNT(*) FROM candidate_messages), 0)::bigint AS selected_messages,
+    COALESCE((SELECT processed_messages FROM accounted), 0)::bigint AS processed_messages
+`
+
+type BackfillAgentTimeBatchParams struct {
+	CursorMessageID int64     `db:"cursor_message_id" json:"cursor_message_id"`
+	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
+	LimitCount      int32     `db:"limit_count" json:"limit_count"`
+}
+
+type BackfillAgentTimeBatchRow struct {
+	CursorMessageID   int64 `db:"cursor_message_id" json:"cursor_message_id"`
+	SelectedMessages  int64 `db:"selected_messages" json:"selected_messages"`
+	ProcessedMessages int64 `db:"processed_messages" json:"processed_messages"`
+}
+
+func (q *sqlQuerier) BackfillAgentTimeBatch(ctx context.Context, arg BackfillAgentTimeBatchParams) (BackfillAgentTimeBatchRow, error) {
+	row := q.db.QueryRowContext(ctx, backfillAgentTimeBatch, arg.CursorMessageID, arg.OrganizationID, arg.LimitCount)
+	var i BackfillAgentTimeBatchRow
+	err := row.Scan(&i.CursorMessageID, &i.SelectedMessages, &i.ProcessedMessages)
+	return i, err
+}
+
+const completeAgentTimeBackfillOrganization = `-- name: CompleteAgentTimeBackfillOrganization :exec
+UPDATE agent_time_backfill_status
+SET completed_at = now(),
+    last_error = '',
+    last_error_at = NULL,
+    updated_at = now()
+WHERE organization_id = $1::uuid
+`
+
+func (q *sqlQuerier) CompleteAgentTimeBackfillOrganization(ctx context.Context, organizationID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, completeAgentTimeBackfillOrganization, organizationID)
+	return err
+}
+
+const ensureAgentTimeBackfillStatuses = `-- name: EnsureAgentTimeBackfillStatuses :execrows
+INSERT INTO agent_time_backfill_status (organization_id)
+SELECT organizations.id
+FROM organizations
+UNION
+SELECT organization_id FROM agent_time_organization_daily
+ON CONFLICT (organization_id) DO NOTHING
+`
+
+func (q *sqlQuerier) EnsureAgentTimeBackfillStatuses(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, ensureAgentTimeBackfillStatuses)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getAgentTimeStatus = `-- name: GetAgentTimeStatus :one
+WITH scopes AS (
+    SELECT id AS organization_id FROM organizations
+    UNION
+    SELECT organization_id FROM agent_time_backfill_status
+    UNION
+    SELECT $1::uuid WHERE $1::uuid <> '00000000-0000-0000-0000-000000000000'
+), selected_scopes AS (
+    SELECT organization_id FROM scopes
+    WHERE $1::uuid = '00000000-0000-0000-0000-000000000000'
+        OR organization_id = $1
+)
+SELECT
+    capture.capture_started_at,
+    BOOL_AND(scope.organization_id IS NULL OR status.completed_at IS NOT NULL)::boolean AS backfill_complete,
+    COALESCE(MIN(NULLIF(status.last_error, '')), '')::text AS backfill_error,
+    COALESCE(SUM(status.processed_messages), 0)::bigint AS processed_messages,
+    CASE
+        WHEN capture.capture_started_at = date_trunc('day', capture.capture_started_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+            THEN (capture.capture_started_at AT TIME ZONE 'UTC')::date
+        ELSE ((capture.capture_started_at AT TIME ZONE 'UTC')::date + 1)
+    END::date AS earliest_date
+FROM agent_time_capture capture
+LEFT JOIN selected_scopes scope ON TRUE
+LEFT JOIN agent_time_backfill_status status ON status.organization_id = scope.organization_id
+WHERE capture.id = 1
+GROUP BY capture.capture_started_at
+`
+
+type GetAgentTimeStatusRow struct {
+	CaptureStartedAt  time.Time `db:"capture_started_at" json:"capture_started_at"`
+	BackfillComplete  bool      `db:"backfill_complete" json:"backfill_complete"`
+	BackfillError     string    `db:"backfill_error" json:"backfill_error"`
+	ProcessedMessages int64     `db:"processed_messages" json:"processed_messages"`
+	EarliestDate      time.Time `db:"earliest_date" json:"earliest_date"`
+}
+
+func (q *sqlQuerier) GetAgentTimeStatus(ctx context.Context, organizationID uuid.UUID) (GetAgentTimeStatusRow, error) {
+	row := q.db.QueryRowContext(ctx, getAgentTimeStatus, organizationID)
+	var i GetAgentTimeStatusRow
+	err := row.Scan(
+		&i.CaptureStartedAt,
+		&i.BackfillComplete,
+		&i.BackfillError,
+		&i.ProcessedMessages,
+		&i.EarliestDate,
+	)
+	return i, err
+}
+
+const hasUnaccountedAgentTimeMessages = `-- name: HasUnaccountedAgentTimeMessages :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chat_messages cm
+    JOIN chats c ON c.id = cm.chat_id
+    LEFT JOIN chat_message_agent_time_accounted accounted ON accounted.message_id = cm.id
+    WHERE c.organization_id = $1::uuid
+      AND cm.runtime_ms IS NOT NULL
+      AND accounted.message_id IS NULL
+    LIMIT 1
+)::boolean
+`
+
+func (q *sqlQuerier) HasUnaccountedAgentTimeMessages(ctx context.Context, organizationID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasUnaccountedAgentTimeMessages, organizationID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const markAgentTimeBackfillFailed = `-- name: MarkAgentTimeBackfillFailed :exec
+INSERT INTO agent_time_backfill_status (organization_id, last_error, last_error_at, updated_at)
+VALUES ($1::uuid, $2::text, now(), now())
+ON CONFLICT (organization_id) DO UPDATE SET
+    last_error = EXCLUDED.last_error,
+    last_error_at = EXCLUDED.last_error_at,
+    updated_at = EXCLUDED.updated_at
+`
+
+type MarkAgentTimeBackfillFailedParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	LastError      string    `db:"last_error" json:"last_error"`
+}
+
+// Status discovery can roll back with the first batch. Persist the failure even
+// when that transaction created the organization's first status row.
+func (q *sqlQuerier) MarkAgentTimeBackfillFailed(ctx context.Context, arg MarkAgentTimeBackfillFailedParams) error {
+	_, err := q.db.ExecContext(ctx, markAgentTimeBackfillFailed, arg.OrganizationID, arg.LastError)
+	return err
+}
+
+const resetAgentTimeBackfillCursor = `-- name: ResetAgentTimeBackfillCursor :exec
+UPDATE agent_time_backfill_status
+SET cursor_message_id = 0,
+    last_error = '',
+    last_error_at = NULL,
+    updated_at = now()
+WHERE organization_id = $1::uuid
+`
+
+func (q *sqlQuerier) ResetAgentTimeBackfillCursor(ctx context.Context, organizationID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, resetAgentTimeBackfillCursor, organizationID)
+	return err
+}
+
+const updateAgentTimeBackfillProgress = `-- name: UpdateAgentTimeBackfillProgress :exec
+UPDATE agent_time_backfill_status
+SET cursor_message_id = $1::bigint,
+    processed_messages = processed_messages + $2::bigint,
+    last_error = '',
+    last_error_at = NULL,
+    updated_at = now()
+WHERE organization_id = $3::uuid
+`
+
+type UpdateAgentTimeBackfillProgressParams struct {
+	CursorMessageID   int64     `db:"cursor_message_id" json:"cursor_message_id"`
+	ProcessedMessages int64     `db:"processed_messages" json:"processed_messages"`
+	OrganizationID    uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) UpdateAgentTimeBackfillProgress(ctx context.Context, arg UpdateAgentTimeBackfillProgressParams) error {
+	_, err := q.db.ExecContext(ctx, updateAgentTimeBackfillProgress, arg.CursorMessageID, arg.ProcessedMessages, arg.OrganizationID)
+	return err
+}
+
 const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
 DELETE FROM ai_gateway_keys WHERE id = $1
 RETURNING id, name, secret_prefix, created_at, last_heartbeat_at
