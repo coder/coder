@@ -30,6 +30,8 @@ const meta: Meta<typeof GroupsPageView> = {
 	args: {
 		canCreateGroup: true,
 		groupsEnabled: true,
+		showOrganizations: true,
+		spendError: false,
 		filterProps: getDefaultFilterProps<FilterProps>({
 			values: {},
 			menus: {},
@@ -113,6 +115,14 @@ export const WithGroups: Story = {
 	},
 	parameters: {
 		queries: [seedAvatars(MockGroup.name, [MockUserOwner, MockUserMember], 2)],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("heading", { name: "Groups" })).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: /view docs/i }),
+		).toBeVisible();
+		expect(canvas.getAllByRole("link", { name: "New group" })).toHaveLength(1);
 	},
 };
 
@@ -386,11 +396,28 @@ export const EmptyGroup: Story = {
 		groups: [],
 		canCreateGroup: false,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("heading", { name: "Groups" })).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: /view docs/i }),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: "New group" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 export const EmptyGroupWithPermission: Story = {
 	args: {
 		groups: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("heading", { name: "Groups" })).toBeVisible();
+		expect(
+			canvas.getAllByRole("link", { name: "New group" }).length,
+		).toBeGreaterThanOrEqual(2);
 	},
 };
 

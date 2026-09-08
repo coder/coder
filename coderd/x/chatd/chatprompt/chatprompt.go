@@ -807,14 +807,6 @@ func sdkPartFromContent(
 	}
 }
 
-// ToolResultToPart converts a tool call ID, raw result, error flag,
-// and media flag into a ChatMessagePart. This is the minimal
-// conversion used both during streaming and when reading from the
-// database.
-func ToolResultToPart(toolCallID, toolName string, result json.RawMessage, isError bool, isMedia bool) codersdk.ChatMessagePart {
-	return codersdk.ChatMessageToolResult(toolCallID, toolName, result, isError, isMedia)
-}
-
 // toolResultContentToPart converts a fantasy ToolResultContent into a
 // ChatMessagePart.
 func toolResultContentToPart(
@@ -888,7 +880,7 @@ func toolResultContentToPart(
 		result = []byte(`{}`)
 	}
 
-	part := ToolResultToPart(content.ToolCallID, content.ToolName, result, isError, isMedia)
+	part := codersdk.ChatMessageToolResult(content.ToolCallID, content.ToolName, result, isError, isMedia)
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
 	return part

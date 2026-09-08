@@ -60,8 +60,6 @@ type OpenAIRequest struct {
 	// fields the typed struct does not expose, such as the Responses
 	// API "input" payload. It is populated before JSON decoding.
 	RawBody []byte `json:"-"`
-	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
-	Options map[string]interface{} `json:",inline"` //nolint:revive
 }
 
 func (r *OpenAIRequest) UnmarshalJSON(data []byte) error {

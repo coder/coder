@@ -118,7 +118,6 @@ type generationOutcome struct {
 	WatchEventKind    codersdk.ChatWatchEventKind
 	LastError         string
 	PromotedMessageID int64
-	InsertedMessages  []runnerActionMessage
 }
 
 type generationActionKind string
@@ -1245,19 +1244,16 @@ func (s *taskStarter) commitGenerationStep(
 		postCommitLastError, postCommitMessage = generationLastError(commitHooks.PostCommitError)
 	}
 	var committed database.Chat
-	insertedMessages := []runnerActionMessage{}
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{
+		if _, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages:                 messages.Messages,
 			ConsumeCompactionRequest: messages.ConsumeCompactionRequest,
-		})
-		if err != nil {
+		}); err != nil {
 			return xerrors.Errorf("tx.CommitStep: %w", err)
 		}
-		inserted := commitResult.InsertedMessages
 		// The fail-closed hook error must commit atomically with the
 		// step; a separate commit races the runner and can be dropped
 		// on crash.
@@ -1265,10 +1261,6 @@ func (s *taskStarter) commitGenerationStep(
 			if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: postCommitLastError}); err != nil {
 				return xerrors.Errorf("tx.FinishError: %w", err)
 			}
-		}
-		insertedMessages = make([]runnerActionMessage, 0, len(inserted))
-		for _, msg := range inserted {
-			insertedMessages = append(insertedMessages, runnerActionMessage{ID: msg.ID, Role: codersdk.ChatMessageRole(msg.Role)})
 		}
 		loadedChat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
@@ -1296,9 +1288,8 @@ func (s *taskStarter) commitGenerationStep(
 	}
 	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat:             committed,
-		Kind:             runnerActionKind(kind),
-		InsertedMessages: insertedMessages,
+		Chat: committed,
+		Kind: runnerActionKind(kind),
 	})
 }
 

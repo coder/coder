@@ -19,6 +19,12 @@ import { EmptyState } from "#/components/EmptyState/EmptyState";
 import type { useFilter } from "#/components/Filter/Filter";
 import { GroupsFilter } from "#/components/Filter/GroupsFilter";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
@@ -38,6 +44,7 @@ import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { AIBudgetUsage } from "#/modules/groups/AIBudgetUsage";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
+import { docs } from "#/utils/docs";
 import { SpendEstimateDocsLink } from "./AICostControl";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
@@ -73,6 +80,7 @@ type GroupsPageViewProps = {
 	spendError: boolean;
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
+	showOrganizations: boolean;
 	showAIBudget: boolean;
 	filterProps: { filter: ReturnType<typeof useFilter> };
 	groupsQuery: PaginationResultInfo & {
@@ -86,86 +94,98 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	spendError,
 	canCreateGroup,
 	groupsEnabled,
+	showOrganizations,
 	showAIBudget,
 	filterProps,
 	groupsQuery,
 	permissions,
 }) => {
-	if (!groupsEnabled) {
-		return (
-			<PremiumPaywall
-				source="groups"
-				message="Groups"
-				description="Run isolated business units on one deployment, each with its own users, templates, provisioners, and infrastructure."
-				features={[
-					"Isolate provisioners & infrastructure",
-					"Sync org membership from your IdP",
-					"Manage orgs at scale via Terraform",
-				]}
-				canViewPremium={permissions.viewAllLicenses}
-			/>
-		);
-	}
-
 	return (
-		<div className="flex flex-col gap-4">
-			<div className="flex flex-row justify-between">
-				<GroupsFilter {...filterProps} />
-				{canCreateGroup && (
-					<Button asChild>
-						<RouterLink to="create">
-							<PlusIcon className="size-icon-sm" />
-							Create group
-						</RouterLink>
-					</Button>
-				)}
-			</div>
+		<>
+			<SettingsHeader
+				actions={
+					groupsEnabled &&
+					canCreateGroup && (
+						<Button asChild>
+							<RouterLink to="create">
+								<PlusIcon />
+								New group
+							</RouterLink>
+						</Button>
+					)
+				}
+			>
+				<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Manage groups for this{" "}
+					{showOrganizations ? "organization" : "deployment"}.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
-			<PaginationContainer query={groupsQuery} paginationUnitLabel="groups">
-				<Table aria-label="Groups">
-					<TableHeader>
-						<TableRow>
-							<TableHead className="w-2/5">Name</TableHead>
-							<TableHead className={showAIBudget ? "w-1/5" : "w-3/5"}>
-								Users
-							</TableHead>
-							{showAIBudget && (
-								<TableHead className="w-2/5">
-									<div className="flex items-center gap-1">
-										AI spend
-										{spendError ? (
-											<StatusIconTooltip
-												kind="warning"
-												message="AI spend couldn't be loaded, so budgets aren't shown."
-											/>
-										) : (
-											<StatusIconTooltip
-												message={
-													<>
-														Approximate AI spend compared to the group's AI
-														budget for the active period.{" "}
-														<SpendEstimateDocsLink />
-													</>
-												}
-											/>
-										)}
-									</div>
-								</TableHead>
-							)}
-							<TableHead className="w-auto" />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						<GroupsTableBody
-							groups={groups}
-							canCreateGroup={canCreateGroup}
-							showAIBudget={showAIBudget}
-							filterUsed={filterProps.filter.used}
-						/>
-					</TableBody>
-				</Table>
-			</PaginationContainer>
-		</div>
+			{!groupsEnabled ? (
+				<PremiumPaywall
+					source="groups"
+					message="Groups"
+					description="Run isolated business units on one deployment, each with its own users, templates, provisioners, and infrastructure."
+					features={[
+						"Isolate provisioners & infrastructure",
+						"Sync org membership from your IdP",
+						"Manage orgs at scale via Terraform",
+					]}
+					canViewPremium={permissions.viewAllLicenses}
+				/>
+			) : (
+				<div className="flex flex-col gap-4">
+					<GroupsFilter {...filterProps} />
+
+					<PaginationContainer query={groupsQuery} paginationUnitLabel="groups">
+						<Table aria-label="Groups">
+							<TableHeader>
+								<TableRow>
+									<TableHead className="w-2/5">Name</TableHead>
+									<TableHead className={showAIBudget ? "w-1/5" : "w-3/5"}>
+										Users
+									</TableHead>
+									{showAIBudget && (
+										<TableHead className="w-2/5">
+											<div className="flex items-center gap-1">
+												AI spend
+												{spendError ? (
+													<StatusIconTooltip
+														kind="warning"
+														message="AI spend couldn't be loaded, so budgets aren't shown."
+													/>
+												) : (
+													<StatusIconTooltip
+														message={
+															<>
+																Approximate AI spend compared to the group's AI
+																budget for the active period.{" "}
+																<SpendEstimateDocsLink />
+															</>
+														}
+													/>
+												)}
+											</div>
+										</TableHead>
+									)}
+									<TableHead className="w-auto" />
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								<GroupsTableBody
+									groups={groups}
+									canCreateGroup={canCreateGroup}
+									showAIBudget={showAIBudget}
+									filterUsed={filterProps.filter.used}
+								/>
+							</TableBody>
+						</Table>
+					</PaginationContainer>
+				</div>
+			)}
+		</>
 	);
 };
 
@@ -212,8 +232,8 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 					canCreateGroup && (
 						<Button asChild>
 							<RouterLink to="create">
-								<PlusIcon className="size-icon-sm" />
-								Create group
+								<PlusIcon />
+								New group
 							</RouterLink>
 						</Button>
 					)
