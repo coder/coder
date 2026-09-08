@@ -3295,21 +3295,21 @@ func (q *querier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	return q.db.GetChatDesktopEnabled(ctx)
 }
 
-func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
-	// Authorize read on the parent chat.
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return database.ChatDiffStatus{}, err
-	}
-	return q.db.GetChatDiffStatusByChatID(ctx, chatID)
-}
-
 func (q *querier) GetChatDiffStatusSummary(ctx context.Context) (database.GetChatDiffStatusSummaryRow, error) {
 	// Telemetry queries are called from system contexts only.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetChatDiffStatusSummaryRow{}, err
 	}
 	return q.db.GetChatDiffStatusSummary(ctx)
+}
+
+func (q *querier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatDiffStatus, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatDiffStatusesByChatID(ctx, chatID)
 }
 
 func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) ([]database.ChatDiffStatus, error) {

@@ -447,7 +447,6 @@ type sqlcQuerier interface {
 	GetChatDebugRunsByChatID(ctx context.Context, arg GetChatDebugRunsByChatIDParams) ([]ChatDebugRun, error)
 	GetChatDebugStepsByRunID(ctx context.Context, runID uuid.UUID) ([]ChatDebugStep, error)
 	GetChatDesktopEnabled(ctx context.Context) (bool, error)
-	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
 	// Returns aggregate PR counts across all agent chats for telemetry.
 	// Deduplicates by PR URL so forked chats referencing the same pull
 	// request are counted once (using the most recently refreshed state).
@@ -455,6 +454,10 @@ type sqlcQuerier interface {
 	// always equals open + merged + closed; other non-NULL states are
 	// intentionally excluded from these aggregates.
 	GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffStatusSummaryRow, error)
+	// The rows are ordered newest first.
+	GetChatDiffStatusesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatDiffStatus, error)
+	// The rows are ordered newest first. The first row per chat is its
+	// most recently reported ref.
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
 	// Returns the chat IDs of every chat in a family (root + all children)
 	// in deterministic order. The id parameter must be the root id; the
@@ -562,6 +565,7 @@ type sqlcQuerier interface {
 	// Retrieves chats updated after the given timestamp for telemetry
 	// snapshot collection. Uses updated_at so that long-running chats
 	// still appear in each snapshot window while they are active.
+	// One row per chat. The newest ref wins ties.
 	GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error)
 	// Fetches child chats of the given parents, optionally filtered by
 	// archive state (NULL = all, true/false = match). The archive

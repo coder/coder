@@ -11,6 +11,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"slices"
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -11866,8 +11868,10 @@ func TestGetChatDiffStatus(t *testing.T) {
 		_, err = db.UpsertChatDiffStatus(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusParams{
-				ChatID: cachedStatusChat.ID,
-				Url:    sql.NullString{},
+				ChatID:          cachedStatusChat.ID,
+				GitRemoteOrigin: "git@github.com:coder/coder.git",
+				GitBranch:       "feature/diff-status",
+				Url:             sql.NullString{},
 				PullRequestState: sql.NullString{
 					String: " open ",
 					Valid:  true,
@@ -12009,6 +12013,101 @@ func TestGetChatDiffContents(t *testing.T) {
 		require.Nil(t, diffContents.Branch)
 		require.Nil(t, diffContents.PullRequestURL)
 		require.Empty(t, diffContents.Diff)
+	})
+
+	t.Run("DiscoveryWriteKeysStoredRef", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const gitToken = "test-git-token"
+		var githubServer *httptest.Server
+		githubServer = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The provider accepts only https URLs, so the fake server
+			// uses TLS and every URL string uses the https scheme.
+			host := strings.TrimPrefix(githubServer.URL, "https://")
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case strings.HasSuffix(r.URL.Path, "/pulls"):
+				_, _ = w.Write([]byte(`[{"html_url": "https://` + host + `/acme/project/pull/7", "number": 7}]`))
+			case strings.HasSuffix(r.URL.Path, "/reviews"):
+				_, _ = w.Write([]byte(`[]`))
+			case strings.Contains(r.URL.Path, "/compare/"):
+				w.Header().Set("Content-Type", "text/plain")
+				_, _ = w.Write([]byte("diff --git a/main.go b/main.go"))
+			default:
+				_, _ = w.Write([]byte(`{"default_branch": "main", "state": "open", "number": 7}`))
+			}
+		}))
+		t.Cleanup(githubServer.Close)
+		// The provider parses the origin against the fake host, so the
+		// stored origin must use it too.
+		host := strings.TrimPrefix(githubServer.URL, "https://")
+		origin := "https://" + host + "/acme/project.git"
+		prURL := "https://" + host + "/acme/project/pull/7"
+
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			ExternalAuthConfigs: []*externalauth.Config{
+				{
+					ID:           "github-test",
+					Type:         "github",
+					Regex:        regexp.MustCompile(`^https?://` + regexp.QuoteMeta(host) + `(/.*)?$`),
+					APIBaseURL:   githubServer.URL + "/api/v3",
+					HTTPClient:   githubServer.Client(),
+					RefreshGroup: new(singleflight.Group),
+				},
+			},
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		db := api.Database
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		_, err := db.InsertExternalAuthLink(dbauthz.AsSystemRestricted(ctx), database.InsertExternalAuthLinkParams{
+			ProviderID:       "github-test",
+			UserID:           user.UserID,
+			OAuthAccessToken: gitToken,
+			OAuthExpiry:      dbtime.Now().Add(24 * time.Hour),
+			CreatedAt:        dbtime.Now(),
+			UpdatedAt:        dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "discovery write keys stored ref",
+		})
+		// A reported ref with no stored PR URL, so the diff GET must
+		// resolve the PR upstream.
+		_, err = db.UpsertChatDiffStatusReference(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusReferenceParams{
+				ChatID:          chat.ID,
+				Url:             sql.NullString{},
+				GitBranch:       "feature/keyed-discovery",
+				GitRemoteOrigin: origin,
+				StaleAt:         time.Now().UTC().Add(time.Hour),
+			},
+		)
+		require.NoError(t, err)
+
+		diffContents, err := client.GetChatDiffContents(ctx, chat.ID)
+		require.NoError(t, err)
+		require.NotNil(t, diffContents.Provider)
+		require.NotNil(t, diffContents.PullRequestURL)
+		require.Equal(t, prURL, *diffContents.PullRequestURL)
+
+		statuses, err := db.GetChatDiffStatusesByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Len(t, statuses, 1, "the discovery write must update the reported ref, not add a row")
+		require.Equal(t, "feature/keyed-discovery", statuses[0].GitBranch)
+		require.Equal(t, origin, statuses[0].GitRemoteOrigin)
+		require.True(t, statuses[0].Url.Valid)
+		require.Equal(t, prURL, statuses[0].Url.String)
 	})
 
 	t.Run("NotFoundForDifferentUser", func(t *testing.T) {
