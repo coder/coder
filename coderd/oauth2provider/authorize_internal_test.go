@@ -739,10 +739,10 @@ func TestRegisteredRedirectURIs(t *testing.T) {
 
 	strs := func(t *testing.T, app database.OAuth2ProviderApp) []string {
 		t.Helper()
-		urls, err := registeredRedirectURIs(app)
+		primary, alternates, err := registeredRedirectURIs(app)
 		require.NoError(t, err)
-		out := make([]string, 0, len(urls))
-		for _, u := range urls {
+		out := []string{primary.String()}
+		for _, u := range alternates {
 			out = append(out, u.String())
 		}
 		return out
@@ -788,7 +788,7 @@ func TestRegisteredRedirectURIs(t *testing.T) {
 
 	t.Run("UnparsableEntryIsAnError", func(t *testing.T) {
 		t.Parallel()
-		_, err := registeredRedirectURIs(database.OAuth2ProviderApp{
+		_, _, err := registeredRedirectURIs(database.OAuth2ProviderApp{
 			CallbackURL:  "https://app.example.com/callback",
 			RedirectUris: []string{"http://a b"},
 		})

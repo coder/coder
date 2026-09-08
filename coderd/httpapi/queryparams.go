@@ -220,25 +220,25 @@ func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam st
 	})
 }
 
-// RedirectURL parses queryParam as a URL and requires it to match one of the
-// app's registered redirect URIs. When the param is absent it returns
-// allowed[0], the primary callback. allowed must be non-empty.
-func (p *QueryParamParser) RedirectURL(vals url.Values, allowed []*url.URL, queryParam string) *url.URL {
-	v, err := parseQueryParam(p, vals, url.Parse, allowed[0], queryParam)
+// RedirectURL parses queryParam as a URL and requires it to match the primary
+// callback or one of the alternates. When the param is absent it returns primary.
+func (p *QueryParamParser) RedirectURL(vals url.Values, primary *url.URL, alternates []*url.URL, queryParam string) *url.URL {
+	v, err := parseQueryParam(p, vals, url.Parse, primary, queryParam)
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid url: %s", queryParam, err.Error()),
 		})
 		// url.Parse returns a nil URL alongside its error, so the comparison
-		// below would panic. allowed[0] stands in: p.Errors is already non-empty,
+		// below would panic. primary stands in: p.Errors is already non-empty,
 		// so every caller rejects the request before reading this.
-		return allowed[0]
+		return primary
 	}
 
 	// OAuth 2.1 §2.3.1 requires an exact match against a registered URI. RFC 8252
 	// §7.3 excepts the port of a loopback redirect URI; the comparator owns that rule.
-	if !slices.ContainsFunc(allowed, func(a *url.URL) bool { return codersdk.RedirectURIMatches(v, a) }) {
+	matches := func(a *url.URL) bool { return codersdk.RedirectURIMatches(v, a) }
+	if !matches(primary) && !slices.ContainsFunc(alternates, matches) {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must match one of the application's registered redirect URIs; only the port of a loopback URI may differ", queryParam),

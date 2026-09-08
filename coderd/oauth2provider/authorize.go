@@ -426,20 +426,25 @@ type authorizeResponse struct {
 	state    string
 }
 
-// registeredRedirectURIs returns the app's redirect URIs, parsed and deduplicated,
-// with the primary callback first. CallbackURL is included because admin-created
-// apps have an empty RedirectUris list.
-func registeredRedirectURIs(app database.OAuth2ProviderApp) ([]*url.URL, error) {
-	raw := slice.Unique(append([]string{app.CallbackURL}, app.RedirectUris...))
-	out := make([]*url.URL, 0, len(raw))
-	for _, s := range raw {
+// registeredRedirectURIs returns the app's primary callback and its other
+// registered redirect URIs, parsed and deduplicated. CallbackURL is the primary
+// because admin-created apps have an empty RedirectUris list.
+func registeredRedirectURIs(app database.OAuth2ProviderApp) (primary *url.URL, alternates []*url.URL, err error) {
+	primary, err = url.Parse(app.CallbackURL)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("parse callback URL %q: %w", app.CallbackURL, err)
+	}
+	for _, s := range slice.Unique(app.RedirectUris) {
+		if s == app.CallbackURL {
+			continue
+		}
 		u, err := url.Parse(s)
 		if err != nil {
-			return nil, xerrors.Errorf("parse registered redirect URI %q: %w", s, err)
+			return nil, nil, xerrors.Errorf("parse registered redirect URI %q: %w", s, err)
 		}
-		out = append(out, u)
+		alternates = append(alternates, u)
 	}
-	return out, nil
+	return primary, alternates, nil
 }
 
 // newAuthorizeResponse checks the app's registered redirect URIs, matches any
@@ -455,17 +460,17 @@ func registeredRedirectURIs(app database.OAuth2ProviderApp) ([]*url.URL, error) 
 // state. A mismatch is the client's mistake and joins the other parameter
 // failures in p.Errors.
 func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, app database.OAuth2ProviderApp) (authorizeResponse, error) {
-	allowed, err := registeredRedirectURIs(app)
+	primary, alternates, err := registeredRedirectURIs(app)
 	if err != nil {
 		return authorizeResponse{}, err
 	}
-	for _, u := range allowed {
+	for _, u := range append([]*url.URL{primary}, alternates...) {
 		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
 			return authorizeResponse{}, err
 		}
 	}
 
-	callback := p.RedirectURL(vals, allowed, "redirect_uri")
+	callback := p.RedirectURL(vals, primary, alternates, "redirect_uri")
 	response := authorizeResponse{state: p.String(vals, "", "state")}
 	// The field, not a count of errors across these two lines: reading state
 	// can fail too, and that failure belongs to the client's callback rather
