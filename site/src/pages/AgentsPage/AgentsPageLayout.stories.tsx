@@ -196,7 +196,7 @@ const setInnerWidthForStory = (width: number) => {
 const AgentTopBarRouteElement = () => {
 	return (
 		<ChatTopBar
-			chatTitle="Collapsed sidebar agent"
+			chat={{ ...MockChat, title: "Collapsed sidebar agent" }}
 			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
 			onArchiveAgent={fn()}
 			onArchiveAndDeleteWorkspace={fn()}

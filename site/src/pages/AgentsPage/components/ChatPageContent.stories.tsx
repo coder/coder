@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -36,16 +36,15 @@ type Story = StoryObj<typeof meta>;
 
 const CHAT_ID = "chat-page-content-stories";
 
-// Renders only the composer half of the chat page. chatId and
-// organizationId stay undefined so the prompt-history and draft
-// attachment queries stay disabled.
+// Renders only the composer half of the chat page. Empty chat id and
+// organization keep the prompt-history and draft attachment queries disabled.
 const StoryChatPageInput: FC<{
 	store: ReturnType<typeof createChatStore>;
 	onInterrupt?: () => void;
 }> = ({ store, onInterrupt }) => (
 	<div className="mx-auto w-full max-w-3xl p-4">
 		<ChatPageInput
-			organizationId={undefined}
+			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
 			compressionThreshold={undefined}
 			onSend={fn()}
@@ -72,7 +71,6 @@ const StoryChatPageInput: FC<{
 			isEditing={false}
 			onCancelHistoryEdit={fn()}
 			workspaceOptions={[]}
-			selectedWorkspaceId={null}
 			isWorkspaceLoading={false}
 		/>
 	</div>
