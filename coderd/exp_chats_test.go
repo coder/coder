@@ -3239,7 +3239,10 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
-		err = chatDaemon.PublishDiffStatusChange(dbauthz.AsChatd(ctx), chat.ID)
+		err = chatDaemon.PublishDiffStatusChange(dbauthz.AsChatd(ctx), chat.ID, codersdk.DiffStatusRef{
+			RemoteOrigin: "git@github.com:coder/coder.git",
+			GitBranch:    "feature/test",
+		})
 		require.NoError(t, err)
 
 		var received codersdk.ChatWatchEvent
@@ -3264,6 +3267,11 @@ func TestWatchChats(t *testing.T) {
 		require.EqualValues(t, 42, ds.Additions)
 		require.EqualValues(t, 7, ds.Deletions)
 		require.EqualValues(t, 5, ds.ChangedFiles)
+
+		require.NotNil(t, received.ChangedDiffStatus)
+		require.Equal(t, "git@github.com:coder/coder.git", received.ChangedDiffStatus.Ref.RemoteOrigin)
+		require.Equal(t, "feature/test", received.ChangedDiffStatus.Ref.GitBranch)
+		require.NotNil(t, received.ChangedDiffStatus.Status)
 	})
 	t.Run("ArchiveAndUnarchiveEmitEventsForDescendants", func(t *testing.T) {
 		t.Parallel()
