@@ -78,7 +78,7 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 
 ## Performance
 
-- `src/pages/AgentsPage/`, including `components/ChatElements/`, uses React Compiler. Do not add `useMemo`, `useCallback`, or `memo()` there.
+- `src/pages/AgentsPage/`, including `components/ChatElements/`, and `src/modules/aiModels/` use React Compiler. Do not add `useMemo`, `useCallback`, or `memo()` there.
 - `memo()` remains valid for list-item components rendered in a map because compiler memoization does not cross component boundaries.
 - Isolate frequently changing state in a small child component instead of rerendering a large parent subtree.
 - Throttle high-frequency handlers that set state with `requestAnimationFrame` or an established throttle utility.

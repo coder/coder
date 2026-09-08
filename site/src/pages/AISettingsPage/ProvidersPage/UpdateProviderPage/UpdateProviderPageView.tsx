@@ -18,9 +18,9 @@ import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
+import { getProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { pageTitle } from "#/utils/page";
 import { ProviderForm } from "../components/ProviderForm";
-import { getProviderIcon } from "../components/ProviderIcon";
 import {
 	aiProviderToFormValues,
 	bedrockExternalId,
