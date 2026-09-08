@@ -163,7 +163,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		chat: buildChat(chat),
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
-		isChatSummaryGenerating: false,
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,

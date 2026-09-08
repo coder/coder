@@ -3624,16 +3624,6 @@ export interface ChatUser extends MinimalUser {
 export interface ChatWatchEvent {
 	readonly kind: ChatWatchEventKind;
 	readonly chat: Chat;
-	/**
-	 * ChatSummaryGenerationStartedAt identifies the summary worker that emitted
-	 * generating and terminal lifecycle events.
-	 */
-	readonly chat_summary_generation_started_at?: string;
-	/**
-	 * ChatSummaryGenerationRemainingMS is present on chat_summary_generating
-	 * events so clients do not restart the generation timeout after reconnecting.
-	 */
-	readonly chat_summary_generation_remaining_ms?: number;
 	readonly tool_calls?: readonly ChatStreamToolCall[];
 }
 
@@ -3641,8 +3631,6 @@ export interface ChatWatchEvent {
 export type ChatWatchEventKind =
 	| "action_required"
 	| "chat_summary_change"
-	| "chat_summary_failed"
-	| "chat_summary_generating"
 	| "context_dirty"
 	| "created"
 	| "deleted"
@@ -3654,8 +3642,6 @@ export type ChatWatchEventKind =
 export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
 	"chat_summary_change",
-	"chat_summary_failed",
-	"chat_summary_generating",
 	"context_dirty",
 	"created",
 	"deleted",

@@ -2004,17 +2004,6 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
 }
 
-func (q *querier) ClearChatSummaryGeneration(ctx context.Context, arg database.ClearChatSummaryGenerationParams) (int64, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return 0, err
-	}
-	return q.db.ClearChatSummaryGeneration(ctx, arg)
-}
-
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -3056,19 +3045,6 @@ func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return q.db.GetActiveAISeatCount(ctx)
-}
-
-func (q *querier) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg database.GetActiveChatSummaryGenerationsByOwnerIDParams) ([]database.GetActiveChatSummaryGenerationsByOwnerIDRow, error) {
-	rows, err := q.db.GetActiveChatSummaryGenerationsByOwnerID(ctx, arg)
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		if err := q.authorizeContext(ctx, policy.ActionRead, row.Chat); err != nil {
-			return nil, err
-		}
-	}
-	return rows, nil
 }
 
 func (q *querier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
@@ -7394,17 +7370,6 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 		return err
 	}
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
-}
-
-func (q *querier) StartChatSummaryGeneration(ctx context.Context, arg database.StartChatSummaryGenerationParams) (time.Time, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return time.Time{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return time.Time{}, err
-	}
-	return q.db.StartChatSummaryGeneration(ctx, arg)
 }
 
 func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {

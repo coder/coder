@@ -66,7 +66,6 @@ export const HeadlineAndBullets: Story = {
 		const list = canvas.getByRole("list");
 		await expect(within(list).getAllByRole("listitem")).toHaveLength(3);
 
-		// Backticked identifiers render as inline code, not literal backticks.
 		await expect(canvas.getByText("chatd.go")).toBeInTheDocument();
 		await expect(canvas.queryByText(/`/)).not.toBeInTheDocument();
 	},
@@ -162,51 +161,14 @@ export const NoSummary: Story = {
 	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await expect(canvas.getByText("No summary yet.")).toBeInTheDocument();
 		await expect(
-			canvas.getByText("Not enough details to summarize."),
+			canvas.getByText("A recap of this chat will appear here when available."),
 		).toBeInTheDocument();
-		await expect(
-			canvas.getByText(
-				"A recap of your chat will appear here after a few more messages.",
-			),
-		).toBeInTheDocument();
-		await expect(
-			canvas.queryByText("Generating summary"),
-		).not.toBeInTheDocument();
 		await expect(canvas.getByText("Created:")).toBeInTheDocument();
 		await expect(canvas.getByText("Updated:")).toBeInTheDocument();
 		await expect(canvas.getByText("Cost:")).toBeInTheDocument();
 		await expect(canvas.getByText("$1.25")).toBeInTheDocument();
-	},
-};
-
-export const GeneratingSummary: Story = {
-	args: { summary: null, isGenerating: true },
-	decorators: [
-		(Story) => (
-			<div className="flex h-[420px] w-[400px] max-w-full flex-col border border-solid border-border-default">
-				<Story />
-			</div>
-		),
-	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const status = canvas.getByRole("status");
-		await expect(status).toHaveTextContent("Generating summary");
-		await expect(
-			canvas.queryByText("Not enough details to summarize."),
-		).not.toBeInTheDocument();
-		await expect(canvas.getByText("Created:")).toBeInTheDocument();
-		await expect(canvas.getByText("Cost:")).toBeInTheDocument();
-	},
-};
-
-export const RegeneratingSummary: Story = {
-	args: { summary: "Existing summary remains visible.", isGenerating: true },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("status")).toHaveTextContent("Generating summary");
-		expect(canvas.getByText("Existing summary remains visible.")).toBeVisible();
 	},
 };
 

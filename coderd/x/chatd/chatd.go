@@ -3226,7 +3226,13 @@ func chatWatchEventSDKChat(chat database.Chat, diffStatus *codersdk.ChatDiffStat
 	return sdkChat
 }
 
-func (p *Server) publishChatWatchEvent(chat database.Chat, event codersdk.ChatWatchEvent) {
+// publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
+// pubsub so that all replicas can push updates to watching clients.
+func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
+	event := codersdk.ChatWatchEvent{
+		Kind: kind,
+		Chat: chatWatchEventSDKChat(chat, diffStatus),
+	}
 	payload, err := json.Marshal(event)
 	if err != nil {
 		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
@@ -3238,31 +3244,10 @@ func (p *Server) publishChatWatchEvent(chat database.Chat, event codersdk.ChatWa
 	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
 			slog.F("chat_id", chat.ID),
-			slog.F("kind", event.Kind),
+			slog.F("kind", kind),
 			slog.Error(err),
 		)
 	}
-}
-
-// publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
-// pubsub so that all replicas can push updates to watching clients.
-func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
-	p.publishChatWatchEvent(chat, codersdk.ChatWatchEvent{
-		Kind: kind,
-		Chat: chatWatchEventSDKChat(chat, diffStatus),
-	})
-}
-
-func (p *Server) publishChatSummaryGenerationEvent(
-	chat database.Chat,
-	kind codersdk.ChatWatchEventKind,
-	generationStartedAt time.Time,
-) {
-	p.publishChatWatchEvent(chat, codersdk.ChatWatchEvent{
-		Kind:                           kind,
-		Chat:                           chatWatchEventSDKChat(chat, nil),
-		ChatSummaryGenerationStartedAt: &generationStartedAt,
-	})
 }
 
 // ChatQueuedForCapacity reports whether the chat is waiting for a
@@ -4668,7 +4653,7 @@ const (
 	// New completed user turns before the summary is regenerated (since the last summary).
 	summaryStaleTurnThreshold  = 3
 	summaryMinTranscriptRunes  = 200
-	chatSummaryWorkTimeout     = codersdk.ChatSummaryGenerationTimeout
+	chatSummaryWorkTimeout     = 120 * time.Second
 	chatSummaryGenerateTimeout = 60 * time.Second
 	chatSummaryWriteTimeout    = 5 * time.Second
 
@@ -4761,28 +4746,6 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
-	generationStartedAt, err := p.db.StartChatSummaryGeneration(ctx, database.StartChatSummaryGenerationParams{
-		ID:                     chat.ID,
-		ExpectedHistoryVersion: chat.HistoryVersion,
-	})
-	if err != nil {
-		logger.Debug(ctx, "failed to mark chat summary generation",
-			slog.F("chat_id", chat.ID), slog.Error(err))
-		return
-	}
-	summaryStored := false
-	defer func() {
-		if !summaryStored {
-			p.failChatSummaryGeneration(ctx, logger, chat, generationStartedAt)
-		}
-	}()
-
-	p.publishChatSummaryGenerationEvent(
-		chat,
-		codersdk.ChatWatchEventKindChatSummaryGenerating,
-		generationStartedAt,
-	)
-
 	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
 	defer cancelGen()
 	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), transcript)
@@ -4793,10 +4756,7 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
-	summaryStored = p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, sql.NullTime{
-		Time:  generationStartedAt,
-		Valid: true,
-	}, summary)
+	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, summary)
 }
 
 func (p *Server) resolveChatSummaryModel(
@@ -4850,42 +4810,6 @@ func countCompletedTurnsSince(messages []database.ChatMessage, after time.Time) 
 	return count
 }
 
-func (p *Server) clearChatSummaryGeneration(
-	ctx context.Context,
-	logger slog.Logger,
-	chatID uuid.UUID,
-	generationStartedAt time.Time,
-) bool {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), chatSummaryWriteTimeout)
-	defer cancel()
-
-	affected, err := p.db.ClearChatSummaryGeneration(ctx, database.ClearChatSummaryGenerationParams{
-		ID:                  chatID,
-		GenerationStartedAt: generationStartedAt,
-	})
-	if err != nil {
-		logger.Warn(ctx, "failed to clear chat summary generation",
-			slog.F("chat_id", chatID), slog.Error(err))
-		return false
-	}
-	return affected > 0
-}
-
-func (p *Server) failChatSummaryGeneration(
-	ctx context.Context,
-	logger slog.Logger,
-	chat database.Chat,
-	generationStartedAt time.Time,
-) {
-	if p.clearChatSummaryGeneration(ctx, logger, chat.ID, generationStartedAt) {
-		p.publishChatSummaryGenerationEvent(
-			chat,
-			codersdk.ChatWatchEventKindChatSummaryFailed,
-			generationStartedAt,
-		)
-	}
-}
-
 // updateChatSummary persists the whole-chat summary. Best-effort background
 // write (pass a detached context); a blank summary is a no-op, never clearing
 // an existing one.
@@ -4894,12 +4818,11 @@ func (p *Server) updateChatSummary(
 	logger slog.Logger,
 	chat database.Chat,
 	expectedHistoryVersion int64,
-	expectedGenerationStartedAt sql.NullTime,
 	summary string,
-) bool {
+) {
 	summary = strings.TrimSpace(summary)
 	if summary == "" {
-		return false
+		return
 	}
 	sqlSummary := sql.NullString{String: summary, Valid: true}
 
@@ -4907,15 +4830,14 @@ func (p *Server) updateChatSummary(
 	defer cancel()
 
 	affected, err := p.db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
-		ID:                          chat.ID,
-		ExpectedHistoryVersion:      expectedHistoryVersion,
-		ExpectedGenerationStartedAt: expectedGenerationStartedAt,
-		Summary:                     sqlSummary,
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: expectedHistoryVersion,
+		Summary:                sqlSummary,
 	})
 	if err != nil {
 		logger.Warn(ctx, "failed to update chat summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
-		return false
+		return
 	}
 	if affected == 0 {
 		logger.Info(ctx, "skipped stale chat summary update",
@@ -4923,21 +4845,12 @@ func (p *Server) updateChatSummary(
 			slog.F("summary_length", len(summary)),
 			slog.F("expected_history_version", expectedHistoryVersion),
 		)
-		return false
+		return
 	}
 
 	updatedChat := chat
 	updatedChat.Summary = sqlSummary
-	if expectedGenerationStartedAt.Valid {
-		p.publishChatSummaryGenerationEvent(
-			updatedChat,
-			codersdk.ChatWatchEventKindChatSummaryChange,
-			expectedGenerationStartedAt.Time,
-		)
-	} else {
-		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)
-	}
-	return true
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)
 }
 
 func (p *Server) storeSubagentReportSummaryAsync(
@@ -4972,12 +4885,11 @@ func (p *Server) storeSubagentReportSummary(
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return
 	}
-	// Extracted from the report rather than generated, so no bullets.
-	summary := formatChatSummaryMarkdown(subagentReportSummarySnippet(report), nil)
+	summary := subagentReportSummarySnippet(report)
 	if summary == "" {
 		return
 	}
-	_ = p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, sql.NullTime{}, summary)
+	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, summary)
 }
 
 func (p *Server) webpushConfigured() bool {

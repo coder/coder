@@ -21353,15 +21353,6 @@ const docTemplate = `{
                 "chat": {
                     "$ref": "#/definitions/codersdk.Chat"
                 },
-                "chat_summary_generation_remaining_ms": {
-                    "description": "ChatSummaryGenerationRemainingMS is present on chat_summary_generating\nevents so clients do not restart the generation timeout after reconnecting.",
-                    "type": "integer"
-                },
-                "chat_summary_generation_started_at": {
-                    "description": "ChatSummaryGenerationStartedAt identifies the summary worker that emitted\ngenerating and terminal lifecycle events.",
-                    "type": "string",
-                    "format": "date-time"
-                },
                 "kind": {
                     "$ref": "#/definitions/codersdk.ChatWatchEventKind"
                 },
@@ -21379,8 +21370,6 @@ const docTemplate = `{
                 "status_change",
                 "summary_change",
                 "chat_summary_change",
-                "chat_summary_generating",
-                "chat_summary_failed",
                 "title_change",
                 "created",
                 "deleted",
@@ -21392,8 +21381,6 @@ const docTemplate = `{
                 "ChatWatchEventKindStatusChange",
                 "ChatWatchEventKindSummaryChange",
                 "ChatWatchEventKindChatSummaryChange",
-                "ChatWatchEventKindChatSummaryGenerating",
-                "ChatWatchEventKindChatSummaryFailed",
                 "ChatWatchEventKindTitleChange",
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",

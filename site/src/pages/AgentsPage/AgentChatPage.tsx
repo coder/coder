@@ -162,7 +162,6 @@ const AgentChatPage: FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 		onChatReady,
-		summaryGeneratingChatIds,
 	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
@@ -1149,9 +1148,6 @@ const AgentChatPage: FC = () => {
 					canShareChat={canShareChat}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
-					isChatSummaryGenerating={
-						summaryGeneratingChatIds?.has(agentId) ?? false
-					}
 					store={store}
 					initialMessages={chatMessagesList ?? []}
 					editing={{ ...editing, handleEditUserMessage }}
