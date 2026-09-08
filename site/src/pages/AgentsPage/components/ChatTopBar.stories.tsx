@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Outlet, useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { PopoverContent } from "#/components/Popover/Popover";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -13,6 +14,18 @@ import { ChatTopBar } from "./ChatTopBar";
 const AgentsSearchProbe = () => {
 	const location = useLocation();
 	return <div data-testid="agents-search">{location.search}</div>;
+};
+
+const defaultChat: TypesGen.Chat = {
+	...MockChat,
+	id: "chat-1",
+	title: "Build authentication feature",
+};
+
+const parentChat: TypesGen.Chat = {
+	...MockChat,
+	id: "parent-chat-1",
+	title: "Set up CI/CD pipeline",
 };
 
 const requestArchiveAgent = fn<(chatId: string) => void>();
@@ -106,11 +119,26 @@ export const WithPanelOpen: Story = {
 
 export const WithParentChat: Story = {
 	args: {
-		parentChat: {
-			...MockChat,
-			id: "parent-chat-1",
-			title: "Set up CI/CD pipeline",
+		chat: {
+			...defaultChat,
+			parent_chat_id: parentChat.id,
 		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatEntityKey(parentChat.id),
+				data: parentChat,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const parentLink = await canvas.findByRole("link", {
+			name: parentChat.title,
+		});
+		expect(parentLink).toHaveAttribute("href", `/agents/${parentChat.id}`);
+		expect(canvas.getByText(defaultChat.title)).toBeInTheDocument();
 	},
 };
 
@@ -406,10 +434,18 @@ export const UnpinAgentItem: Story = {
 export const ChildChatHidesPinAndArchiveActions: Story = {
 	args: {
 		chat: {
-			...MockChat,
-			parent_chat_id: "parent-chat-1",
+			...defaultChat,
+			parent_chat_id: parentChat.id,
 			workspace_id: "workspace-1",
 		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatEntityKey(parentChat.id),
+				data: parentChat,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -434,11 +470,18 @@ export const ChildChatHidesPinAndArchiveActions: Story = {
 export const ArchivedChildChatHasNoActionsMenu: Story = {
 	args: {
 		chat: {
-			...MockChat,
-			title: "Build authentication feature",
-			parent_chat_id: "parent-chat-1",
+			...defaultChat,
+			parent_chat_id: parentChat.id,
 			archived: true,
 		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatEntityKey(parentChat.id),
+				data: parentChat,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
