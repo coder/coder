@@ -1,4 +1,6 @@
-# Appearance (Premium)
+---
+title: Appearance (Premium)
+---
 
 > [!NOTE]
 > Customizing Coder's appearance is a Premium feature.

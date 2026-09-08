@@ -5,9 +5,10 @@
  * This component was updated to match the styles from the Figma design:
  * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=656-2354&t=CiGt5le3yJEwMH4M-0}
  */
+
+import { cn } from "cn";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
-import { cn } from "#/utils/cn";
 import {
 	menuContentClass,
 	menuItemClass,
@@ -17,8 +18,6 @@ import {
 export const DropdownMenu = DropdownMenuPrimitive.Root;
 
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
-
-export const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
@@ -61,8 +60,8 @@ export const DropdownMenuRadioItem: React.FC<
 	return (
 		<DropdownMenuPrimitive.RadioItem
 			className={cn(
-				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none transition-colors",
-				"focus:bg-surface-secondary focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden transition-colors",
+				"focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50",
 				"data-[state=checked]:bg-surface-secondary data-[state=checked]:text-content-primary",
 				"font-medium",
 				className,
@@ -70,7 +69,7 @@ export const DropdownMenuRadioItem: React.FC<
 			{...props}
 		>
 			{children}
-			<span className="absolute top-2.75 right-2 flex h-3.5 w-3.5 items-center justify-center">
+			<span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
 				<DropdownMenuPrimitive.ItemIndicator>
 					<CheckIcon className="size-4" />
 				</DropdownMenuPrimitive.ItemIndicator>

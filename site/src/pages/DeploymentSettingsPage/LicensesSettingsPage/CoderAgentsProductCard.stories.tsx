@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { CoderAgentsProductCard } from "./CoderAgentsProductCard";
 
 const meta: Meta<typeof CoderAgentsProductCard> = {
@@ -173,7 +174,7 @@ export const NoAllocation: Story = {
 			canvas.queryByText(/Agent hours used/),
 		).not.toBeInTheDocument();
 		const upgrade = canvas.getByRole("link", { name: "Upgrade" });
-		await expect(upgrade).toHaveAttribute("href", "mailto:sales@coder.com");
+		await expect(upgrade).toHaveAttribute("href", CONTACT_SALES_LINK);
 	},
 };
 

@@ -1,15 +1,29 @@
 import { QueryClient, QueryObserver } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { authorizationKey } from "#/api/queries/authCheck";
+import {
+	organizations,
+	organizationsPermissions,
+} from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatWatchEventKinds } from "#/api/typesGenerated";
 import {
 	ERROR_STATUSES,
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatMessage,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
+import {
+	MockChatModelACL,
+	MockChatModelACLAvailable,
+	MockMCPServerConfigACL,
+	MockMCPServerConfigACLAvailable,
+} from "#/testHelpers/entities";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
@@ -39,6 +53,8 @@ import {
 	chatMessagesKey,
 	chatModel,
 	chatModelACL,
+	chatModelACLAvailable,
+	chatModelACLAvailableKey,
 	chatModelACLKey,
 	chatModelKey,
 	chatPromptsKey,
@@ -63,6 +79,12 @@ import {
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	mcpServerConfigACL,
+	mcpServerConfigACLAvailable,
+	mcpServerConfigACLAvailableKey,
+	mcpServerConfigACLKey,
+	mcpServerConfigKey,
+	mcpServerConfigsKey,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	openChat,
@@ -94,6 +116,7 @@ import {
 	updateChatWorkspace,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
+	updateMCPServerConfigACL,
 	upsertChatMessages,
 } from "./chats";
 
@@ -117,7 +140,11 @@ vi.mock("#/api/api", () => ({
 			updateChatACL: vi.fn(),
 			getChatModel: vi.fn(),
 			getChatModelACL: vi.fn(),
+			getChatModelACLAvailable: vi.fn(),
 			updateChatModelACL: vi.fn(),
+			getMCPServerConfigACL: vi.fn(),
+			getMCPServerConfigACLAvailable: vi.fn(),
+			updateMCPServerConfigACL: vi.fn(),
 			updateChatModel: vi.fn(),
 			deleteChatModel: vi.fn(),
 		},
@@ -240,15 +267,45 @@ describe("chat model query factories", () => {
 		);
 	});
 
+	it("scopes model ACL candidates by organization, model, and options", async () => {
+		const options = { q: "alice@example.com", limit: 25 };
+		const otherOptions = { q: "bob@example.com", limit: 25 };
+		vi.mocked(API.experimental.getChatModelACLAvailable).mockResolvedValue(
+			MockChatModelACLAvailable,
+		);
+
+		const query = chatModelACLAvailable(organizationId, modelId, options);
+
+		expect(query.queryKey).toEqual(
+			chatModelACLAvailableKey(organizationId, modelId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(otherOrganizationId, modelId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(organizationId, "other-model", options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(organizationId, modelId, otherOptions),
+		);
+		await expect(query.queryFn()).resolves.toEqual(MockChatModelACLAvailable);
+		expect(API.experimental.getChatModelACLAvailable).toHaveBeenCalledWith(
+			organizationId,
+			modelId,
+			options,
+		);
+	});
+
 	it("gets and sparsely updates an organization-scoped model ACL", async () => {
-		const acl = { user_roles: {}, group_roles: {} };
 		const req = { user_roles: { "user-1": "read" as const } };
-		vi.mocked(API.experimental.getChatModelACL).mockResolvedValue(acl);
+		vi.mocked(API.experimental.getChatModelACL).mockResolvedValue(
+			MockChatModelACL,
+		);
 		vi.mocked(API.experimental.updateChatModelACL).mockResolvedValue();
 
 		const query = chatModelACL(organizationId, modelId);
 		expect(query.queryKey).toEqual(chatModelACLKey(organizationId, modelId));
-		await expect(query.queryFn()).resolves.toEqual(acl);
+		await expect(query.queryFn()).resolves.toEqual(MockChatModelACL);
 		expect(API.experimental.getChatModelACL).toHaveBeenCalledWith(
 			organizationId,
 			modelId,
@@ -334,6 +391,93 @@ describe("chat model query factories", () => {
 			organizationId,
 			modelId,
 		);
+	});
+});
+
+describe("MCP server ACL query factories", () => {
+	const organization = "organization-1";
+	const otherOrganization = "organization-2";
+	const serverId = MockMCPServerConfig.id;
+
+	it("scopes ACL candidates by organization, server, and options", async () => {
+		const options = { q: "alice@example.com", limit: 25 };
+		const otherOptions = { q: "bob@example.com", limit: 25 };
+		vi.mocked(
+			API.experimental.getMCPServerConfigACLAvailable,
+		).mockResolvedValue(MockMCPServerConfigACLAvailable);
+
+		const query = mcpServerConfigACLAvailable(organization, serverId, options);
+
+		expect(query.queryKey).toEqual(
+			mcpServerConfigACLAvailableKey(organization, serverId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			mcpServerConfigACLAvailableKey(otherOrganization, serverId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			mcpServerConfigACLAvailableKey(organization, "other-server", options),
+		);
+		expect(query.queryKey).not.toEqual(
+			mcpServerConfigACLAvailableKey(organization, serverId, otherOptions),
+		);
+		await expect(query.queryFn()).resolves.toEqual(
+			MockMCPServerConfigACLAvailable,
+		);
+		expect(
+			API.experimental.getMCPServerConfigACLAvailable,
+		).toHaveBeenCalledWith(organization, serverId, options);
+	});
+
+	it("gets and sparsely updates an organization-scoped ACL", async () => {
+		const req: TypesGen.UpdateMCPServerConfigACLRequest = {
+			user_roles: { "user-1": "read" },
+		};
+		vi.mocked(API.experimental.getMCPServerConfigACL).mockResolvedValue(
+			MockMCPServerConfigACL,
+		);
+		vi.mocked(API.experimental.updateMCPServerConfigACL).mockResolvedValue();
+
+		const query = mcpServerConfigACL(organization, serverId);
+		expect(query.queryKey).toEqual(
+			mcpServerConfigACLKey(organization, serverId),
+		);
+		await expect(query.queryFn()).resolves.toEqual(MockMCPServerConfigACL);
+		expect(API.experimental.getMCPServerConfigACL).toHaveBeenCalledWith(
+			organization,
+			serverId,
+		);
+
+		const queryClient = createTestQueryClient();
+		const keys = [
+			mcpServerConfigACLKey(organization, serverId),
+			mcpServerConfigKey(organization, serverId),
+			mcpServerConfigsKey(organization),
+			[...authorizationKey, "mcp-servers"],
+			organizationsPermissions([organization]).queryKey,
+		] as const;
+		const unaffectedKeys = [
+			organizations().queryKey,
+			organizationsPermissions([otherOrganization]).queryKey,
+		] as const;
+		for (const key of [...keys, ...unaffectedKeys]) {
+			queryClient.setQueryData(key, {});
+		}
+		const variables = { organization, id: serverId, req };
+		const mutation = updateMCPServerConfigACL(queryClient);
+
+		await expect(mutation.mutationFn(variables)).resolves.toBeUndefined();
+		expect(API.experimental.updateMCPServerConfigACL).toHaveBeenCalledWith(
+			organization,
+			serverId,
+			req,
+		);
+		await mutation.onSuccess(undefined, variables);
+		for (const key of keys) {
+			expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+		}
+		for (const key of unaffectedKeys) {
+			expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+		}
 	});
 });
 
@@ -2997,6 +3141,83 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
+	it.each([
+		{ field: "base_branch", to: "release" },
+		{ field: "head_branch", to: "feature-renamed" },
+		{ field: "reviewer_count", to: 2 },
+	])("adopts diff status when only $field changes", ({ field, to }) => {
+		const cachedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/1",
+			pull_request_state: "open",
+			pull_request_title: "Title",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 2,
+			changed_files: 3,
+			base_branch: "main",
+			head_branch: "feature",
+			reviewer_count: 1,
+			refreshed_at: "2025-01-01T00:00:00.000Z",
+			stale_at: "2025-01-01T01:00:00.000Z",
+		};
+		const watchedDiffStatus = {
+			...cachedDiffStatus,
+			[field]: to,
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_status: cachedDiffStatus,
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_status: watchedDiffStatus,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+		});
+
+		expect(merged.diff_status).toBe(watchedDiffStatus);
+	});
+
+	it("returns the cached chat when only refreshed_at/stale_at differ", () => {
+		const cachedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/1",
+			pull_request_state: "open",
+			pull_request_title: "Title",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 2,
+			changed_files: 3,
+			base_branch: "main",
+			head_branch: "feature",
+			reviewer_count: 1,
+			refreshed_at: "2025-01-01T00:00:00.000Z",
+			stale_at: "2025-01-01T01:00:00.000Z",
+		};
+		const watchedDiffStatus = {
+			...cachedDiffStatus,
+			refreshed_at: "2025-01-01T00:05:00.000Z",
+			stale_at: "2025-01-01T01:05:00.000Z",
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_status: cachedDiffStatus,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_status: watchedDiffStatus,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "diff_status_change",
+			}),
+		).toBe(cachedChat);
+	});
+
 	it("marks other chats unread on fresh status updates", () => {
 		const cachedChat = makeChat("chat-1", {
 			has_unread: false,
@@ -4378,25 +4599,25 @@ describe("archive mutation entity retention", () => {
 	it.each([
 		{ name: "archiveChat", factory: archiveChat, archived: true },
 		{ name: "unarchiveChat", factory: unarchiveChat, archived: false },
-	])("$name onSuccess never removes the entity family", ({
-		factory,
-		archived,
-	}) => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		queryClient.setQueryData(
-			chatEntityKey(chatId),
-			makeChat(chatId, { archived: !archived }),
-		);
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
+	])(
+		"$name onSuccess never removes the entity family",
+		({ factory, archived }) => {
+			const queryClient = createTestQueryClient();
+			const chatId = "chat-1";
+			queryClient.setQueryData(
+				chatEntityKey(chatId),
+				makeChat(chatId, { archived: !archived }),
+			);
+			queryClient.setQueryData(chatMessagesKey(chatId), []);
 
-		const mutation = factory(queryClient);
-		mutation.onSuccess(undefined, chatId);
-		mutation.onSettled(undefined, undefined, chatId);
+			const mutation = factory(queryClient);
+			mutation.onSuccess(undefined, chatId);
+			mutation.onSettled(undefined, undefined, chatId);
 
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
-		).toMatchObject({ archived });
-		expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
-	});
+			expect(
+				queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
+			).toMatchObject({ archived });
+			expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
+		},
+	);
 });

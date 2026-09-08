@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -58,7 +57,7 @@ func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db 
 				return nil, xerrors.Errorf("get default organization: %w", err)
 			}
 			if defaultOrganization.ID == orgID {
-				settings = ptr.Ref(GroupSyncSettings(codersdk.GroupSyncSettings{
+				settings = new(GroupSyncSettings(codersdk.GroupSyncSettings{
 					Field:             s.Legacy.GroupField,
 					LegacyNameMapping: s.Legacy.GroupMapping,
 					RegexFilter:       s.Legacy.GroupFilter,

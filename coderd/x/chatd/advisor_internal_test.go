@@ -368,8 +368,8 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		rawOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
 			Temperature: func() *float64 { v := 0.42; return &v }(),
 			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-				Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
-				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortXHigh),
+				Default: new(codersdk.ChatModelReasoningEffortLow),
+				Max:     new(codersdk.ChatModelReasoningEffortXHigh),
 			},
 		})
 		require.NoError(t, err)
@@ -397,7 +397,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			p,
 			database.Chat{},
 			configID,
-			ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+			new(codersdk.ChatModelReasoningEffortHigh),
 			advisorTestMaxOutputTokens,
 			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
@@ -701,12 +701,12 @@ func TestNewAdvisorRuntime(t *testing.T) {
 
 		options, err := json.Marshal(codersdk.ChatModelCallConfig{
 			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-				Default: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
-				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortXHigh),
+				Default: new(codersdk.ChatModelReasoningEffortHigh),
+				Max:     new(codersdk.ChatModelReasoningEffortXHigh),
 			},
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-					User: ptr.Ref("advisor-user"),
+					User: new("advisor-user"),
 				},
 			},
 		})

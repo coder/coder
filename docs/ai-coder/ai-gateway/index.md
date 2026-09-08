@@ -1,4 +1,6 @@
-# AI Gateway
+---
+title: AI Gateway
+---
 
 ![AI Gateway diagram](../../images/aibridge/aibridge_diagram.png)
 

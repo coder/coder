@@ -1,4 +1,6 @@
-# Users
+---
+title: Users
+---
 
 By default, Coder is accessible via password authentication. For production
 deployments, we recommend using an SSO authentication provider with multi-factor
@@ -72,13 +74,11 @@ To create a user with the web UI:
 
 1. Log in as a user admin.
 2. Go to **Users** > **New user**.
-3. In the window that opens, provide the **username**, **email**, and
-   **password** for the user (they can opt to change their password after their
-   initial login).
-4. Click **Submit** to create the user.
+3. Enter the **Username**, **Email**, and **Password**.
+4. Select **Save**.
 
-The new user will appear in the **Users** list. Use the toggle to change their
-**Roles** if desired.
+The new user appears in the **Users** list.
+You can assign roles on this page before you save, or later from the user's actions menu.
 
 To create a user via the Coder CLI, run:
 
@@ -110,9 +110,9 @@ User admins can suspend a user, removing the user's access to Coder.
 To suspend a user via the web UI:
 
 1. Go to **Users**.
-2. Find the user you want to suspend, click the vertical ellipsis to the right,
-   and click **Suspend**.
-3. In the confirmation dialog, click **Suspend**.
+2. Find the user you want to suspend, select the vertical ellipsis to the right,
+   and select **Suspend**.
+3. In the confirmation dialog, select **Suspend**.
 
 To suspend a user via the CLI, run:
 
@@ -129,9 +129,9 @@ User admins can activate a suspended user, restoring their access to Coder.
 To activate a user via the web UI:
 
 1. Go to **Users**.
-2. Find the user you want to activate, click the vertical ellipsis to the right,
-   and click **Activate**.
-3. In the confirmation dialog, click **Activate**.
+2. Find the user you want to activate, select the vertical ellipsis to the right,
+   and select **Activate**.
+3. In the confirmation dialog, select **Activate**.
 
 To activate a user via the CLI, run:
 
@@ -144,17 +144,17 @@ Confirm the user activation by typing **yes** and pressing **enter**.
 ## Reset a password
 
 As of 2.17.0, users can reset their password independently on the login screen
-by clicking "Forgot Password." This feature requires
+by selecting "Forgot Password." This feature requires
 [email notifications](../monitoring/notifications/index.md#smtp-email) to be
 configured on the deployment.
 
 To reset a user's password as an administrator via the web UI:
 
 1. Go to **Users**.
-2. Find the user whose password you want to reset, click the vertical ellipsis
+2. Find the user whose password you want to reset, select the vertical ellipsis
    to the right, and select **Reset password**.
 3. Coder displays a temporary password that you can send to the user; copy the
-   password and click **Reset password**.
+   password and select **Reset password**.
 
 Coder will prompt the user to change their temporary password immediately after
 logging in.
@@ -227,11 +227,10 @@ The following filters are supported:
 To edit a user's display name or username with the web UI:
 
 1. Log in as a user admin.
-2. Go to **Users**
-3. Find the user whose details you would like to edit
-4. Select **Edit** from the actions menu
-5. Make any desired changes
-6. Click **Save**
+2. Go to **Users**.
+3. Open the actions menu for the user and select **Edit**.
+4. Make any desired changes.
+5. Select **Save**.
 
 ## Retrieve your list of Coder users
 

@@ -12,69 +12,132 @@ import {
 } from "#/components/Collapsible/Collapsible";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { formatDateTime } from "#/utils/time";
+import { HighlightText } from "./HighlightText";
 
 interface NetworkCallsTableProps {
 	/**
-	 * Drives the header count and blocked badge. Reflects the whole session, so
-	 * its total can exceed the number of rows in `calls`, which is capped
-	 * server-side.
+	 * Reports the whole session's network call totals. The total can exceed the
+	 * number of rows in `calls`, which is capped server-side.
 	 */
 	summary: AIBridgeSessionNetworkCallSummary;
 	calls: readonly AgentFirewallLog[];
+	/**
+	 * When set, the table renders search results. `calls` holds only the
+	 * matching rows, and `loaded` is the number of network calls the client
+	 * received (at most the server-side cap). When `loaded` is below
+	 * `summary.total`, the search only covered a truncated prefix. `query`
+	 * bolds the matched substring in each row.
+	 */
+	search?: { loaded: number; query: string };
 }
 
 export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
 	summary,
 	calls,
-}) => (
-	<Collapsible defaultOpen className="border border-solid rounded-md">
-		<div className="flex items-center justify-between gap-2 px-2 py-1">
-			<CollapsibleTrigger asChild>
-				<button
-					type="button"
-					className="group flex items-center gap-4 p-1 bg-transparent border-none cursor-pointer text-sm font-normal text-content-secondary"
-				>
-					<ChevronRightIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
-					<span>Network calls ({summary.total.toLocaleString("en-US")})</span>
-				</button>
-			</CollapsibleTrigger>
-			{summary.blocked > 0 && (
-				<Badge svgSize="xs" className="gap-1 text-content-warning">
-					<BanIcon className="flex-shrink-0" />
-					<span className="sr-only">Blocked network calls: </span>
-					{summary.blocked.toLocaleString("en-US")}
-				</Badge>
-			)}
-		</div>
+	search,
+}) => {
+	const matches = calls.length;
+	const blocked = search
+		? calls.filter((call) => !call.allowed).length
+		: summary.blocked;
 
-		<CollapsibleContent className="border-0 border-t border-solid">
-			<NetworkCallsList summary={summary} calls={calls} />
-		</CollapsibleContent>
-	</Collapsible>
-);
+	return (
+		<Collapsible defaultOpen className="border border-solid rounded-md">
+			<div className="flex items-center justify-between gap-2 px-2 py-1">
+				<CollapsibleTrigger asChild>
+					<button
+						type="button"
+						className="group flex items-center gap-4 p-1 bg-transparent border-none cursor-pointer text-sm font-normal text-content-secondary"
+					>
+						<ChevronRightIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
+						{search ? (
+							<span>
+								{matches.toLocaleString("en-US")}{" "}
+								{matches === 1 ? "match" : "matches"}
+							</span>
+						) : (
+							<span>
+								Network calls ({summary.total.toLocaleString("en-US")})
+							</span>
+						)}
+					</button>
+				</CollapsibleTrigger>
+				{blocked > 0 && (
+					<Badge svgSize="xs" className="gap-1 text-content-warning">
+						<BanIcon className="flex-shrink-0" />
+						<span className="sr-only">
+							{search ? "Blocked matches: " : "Blocked network calls: "}
+						</span>
+						{blocked.toLocaleString("en-US")}
+					</Badge>
+				)}
+			</div>
 
-const NetworkCallsList: FC<NetworkCallsTableProps> = ({ summary, calls }) => {
-	if (calls.length === 0) {
+			<CollapsibleContent className="border-0 border-t border-solid">
+				<NetworkCallsList
+					calls={calls}
+					search={search}
+					sessionTotal={summary.total}
+				/>
+			</CollapsibleContent>
+		</Collapsible>
+	);
+};
+
+const NetworkCallsList: FC<{
+	calls: readonly AgentFirewallLog[];
+	search?: { loaded: number; query: string };
+	sessionTotal: number;
+}> = ({ calls, search, sessionTotal }) => {
+	const matches = calls.length;
+	const hiddenCount = sessionTotal - matches;
+	const isTruncated = search ? search.loaded < sessionTotal : hiddenCount > 0;
+
+	if (matches === 0) {
 		return (
-			<p className="m-0 px-4 py-3 text-sm font-normal text-content-secondary">
-				No network calls were recorded for this session.
-			</p>
+			<>
+				{search ? (
+					<p className="m-0 px-4 py-3 text-sm font-normal text-content-secondary">
+						No network calls match your search.
+					</p>
+				) : (
+					<p className="m-0 px-4 py-3 text-sm font-normal text-content-secondary">
+						No network calls were recorded for this session.
+					</p>
+				)}
+				{search && isTruncated && (
+					<p className="m-0 px-4 py-2 text-xs font-normal text-content-secondary border-0 border-t border-solid">
+						{`0 matches within the first ${search.loaded.toLocaleString(
+							"en-US",
+						)} of ${sessionTotal.toLocaleString("en-US")} network calls.`}
+					</p>
+				)}
+			</>
 		);
 	}
-
-	const hiddenCount = summary.total - calls.length;
 
 	return (
 		<>
 			<ul className="m-0 p-0 list-none">
 				{calls.map((call) => (
-					<NetworkCallRow key={call.id} call={call} />
+					<NetworkCallRow
+						key={call.id}
+						call={call}
+						query={search?.query ?? ""}
+					/>
 				))}
 			</ul>
-			{hiddenCount > 0 && (
+			{isTruncated && (
 				<p className="m-0 px-4 py-2 text-xs font-normal text-content-secondary border-0 border-t border-solid">
-					Showing the first {calls.length.toLocaleString("en-US")} of{" "}
-					{summary.total.toLocaleString("en-US")} network calls.
+					{search
+						? `${matches.toLocaleString("en-US")} ${
+								matches === 1 ? "match" : "matches"
+							} within the first ${search.loaded.toLocaleString("en-US")} of ${sessionTotal.toLocaleString(
+								"en-US",
+							)} network calls.`
+						: `Showing the first ${matches.toLocaleString("en-US")} of ${sessionTotal.toLocaleString(
+								"en-US",
+							)} network calls.`}
 				</p>
 			)}
 		</>
@@ -83,9 +146,11 @@ const NetworkCallsList: FC<NetworkCallsTableProps> = ({ summary, calls }) => {
 
 interface NetworkCallRowProps {
 	call: AgentFirewallLog;
+	/** The active query, used to bold the matched substring in the URL. */
+	query: string;
 }
 
-const NetworkCallRow: FC<NetworkCallRowProps> = ({ call }) => {
+const NetworkCallRow: FC<NetworkCallRowProps> = ({ call, query }) => {
 	const timestamp = formatDateTime(new Date(call.created_at));
 
 	return (
@@ -96,9 +161,9 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call }) => {
 						type="button"
 						className="group flex items-center gap-3 w-full px-2 py-2 text-left bg-transparent border-none cursor-pointer hover:bg-surface-secondary"
 					>
-						<ChevronRightIcon className="size-3.5 flex-shrink-0 text-content-secondary transition-transform group-data-[state=open]:rotate-90" />
+						<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary transition-transform group-data-[state=open]:rotate-90" />
 						{call.method && (
-							<Badge size="sm" className="flex-shrink-0 font-mono">
+							<Badge size="sm" className="shrink-0 font-mono">
 								{call.method}
 							</Badge>
 						)}
@@ -107,9 +172,13 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call }) => {
 							className="flex-1 min-w-0 truncate font-mono text-xs text-content-primary"
 							title={call.detail}
 						>
-							{call.detail || "N/A"}
+							{call.detail ? (
+								<HighlightText text={call.detail} query={query} />
+							) : (
+								"N/A"
+							)}
 						</span>
-						<span className="hidden md:flex items-center gap-2 flex-shrink-0 text-sm font-normal text-content-secondary">
+						<span className="hidden md:flex items-center gap-2 shrink-0 text-sm font-normal text-content-secondary">
 							Timestamp
 							<span className="font-mono text-xs text-content-primary">
 								{timestamp}
@@ -158,17 +227,17 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call }) => {
 
 const NetworkCallStatusBadge: FC<{ allowed: boolean }> = ({ allowed }) =>
 	allowed ? (
-		<Badge size="sm" svgSize="xs" className="flex-shrink-0 gap-1">
-			<CheckIcon className="flex-shrink-0" />
+		<Badge size="sm" svgSize="xs" className="shrink-0 gap-1">
+			<CheckIcon className="shrink-0" />
 			Allowed
 		</Badge>
 	) : (
 		<Badge
 			size="sm"
 			svgSize="xs"
-			className="flex-shrink-0 gap-1 text-content-warning"
+			className="shrink-0 gap-1 text-content-warning"
 		>
-			<BanIcon className="flex-shrink-0" />
+			<BanIcon className="shrink-0" />
 			Blocked
 		</Badge>
 	);

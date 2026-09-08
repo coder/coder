@@ -20,6 +20,7 @@ import {
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -30,6 +31,7 @@ import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
@@ -262,7 +264,6 @@ const meta: Meta<typeof AgentCreateForm> = {
 	decorators: [withDashboardProvider],
 	args: {
 		onCreateChat: fn(),
-		sendShortcut: "enter",
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,
@@ -286,6 +287,10 @@ const meta: Meta<typeof AgentCreateForm> = {
 					.queryKey,
 				data: buildPersonalModelOverridesResponse(),
 			},
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
 		],
 	},
 	beforeEach: () => {
@@ -298,6 +303,9 @@ const meta: Meta<typeof AgentCreateForm> = {
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
 		).mockResolvedValue(buildPersonalModelOverridesResponse());
+		spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+			MockUserPreferenceSettings,
+		);
 	},
 };
 
@@ -625,6 +633,13 @@ export const RemembersReasoningEffortByModel: Story = {
 			await body.findByRole("option", { name: /Claude Sonnet 4/i }),
 		);
 
+		// Selecting a model with efforts keeps the popover open. Close it
+		// and wait for the unmount so the next trigger click is a real
+		// reopen rather than a toggle-close racing the exit animation.
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 		await userEvent.click(
 			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
 		);
@@ -634,6 +649,10 @@ export const RemembersReasoningEffortByModel: Story = {
 		);
 		await userEvent.click(await body.findByRole("option", { name: /GPT-4o/i }));
 
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
 		const restoredSlider = await body.findByRole("slider");
 		expect(restoredSlider).toHaveAttribute("aria-valuenow", "4");
@@ -732,6 +751,13 @@ export const ManualReselectKeepsRootOverrideEffort: Story = {
 		// Re-selecting the override's own model keeps the override effort.
 		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
 		await userEvent.click(await body.findByRole("option", { name: /GPT-4o/i }));
+		// Selecting a model with efforts keeps the popover open. Close it
+		// and wait for the unmount so the next trigger click is a real
+		// reopen rather than a toggle-close racing the exit animation.
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
 		expect(await body.findByRole("slider")).toHaveAttribute(
 			"aria-valuenow",
@@ -1380,7 +1406,7 @@ export const HookDenied: Story = {
 	},
 };
 
-export const ForbiddenErrorWithRole: Story = {
+export const ForbiddenErrorWithPermission: Story = {
 	args: {
 		...defaultArgs,
 		canCreateChat: true,
@@ -1388,14 +1414,10 @@ export const ForbiddenErrorWithRole: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The friendly "role required" alert must NOT appear because the
-		// user has the agents-access role.
 		await expect(
 			canvas.queryByText("Permission required"),
 		).not.toBeInTheDocument();
-		// The generic ErrorAlert should surface the real backend message.
 		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
-		// The textbox should remain enabled since the user has the role.
 		const textbox = canvas.getByRole("textbox");
 		await waitFor(() =>
 			expect(textbox).not.toHaveAttribute("aria-disabled", "true"),
@@ -1541,7 +1563,6 @@ export const RestrictedMultiOrganizationUser: Story = {
 			MockDefaultOrganization,
 			MockOrganization2,
 		]);
-		// Model agents-access: "me" supplies the owner for member-scoped chat:create.
 		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
 			Object.fromEntries(
 				Object.entries(checks).map(([id, check]) => [
@@ -1861,7 +1882,9 @@ export const SelectedOrganizationSurvivesRemount: Story = {
 const revocablePermissions: Record<string, boolean> = {};
 let revocableQueryClient: QueryClient | undefined;
 
-const withRevocableQueryClient: Decorator = (Story) => {
+const withRevocableQueryClient: Decorator = function WithRevocableQueryClient(
+	Story,
+) {
 	const [queryClient] = useState(
 		() =>
 			new QueryClient({
@@ -2014,7 +2037,7 @@ export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
 
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
-		await canvas.findByText(/don't have permission/i);
+		await canvas.findByText(/don't have permission to use Coder Agents/i);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
@@ -2233,7 +2256,7 @@ export const OrgChangeConfirmation: Story = {
 	},
 };
 
-export const ForbiddenNoAgentsRole: Story = {
+export const ForbiddenNoOrganizationAccess: Story = {
 	args: {
 		...defaultArgs,
 		canCreateChat: false,
@@ -2242,6 +2265,9 @@ export const ForbiddenNoAgentsRole: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Permission required")).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/don't have permission to use Coder Agents/),
+		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", { name: /View Docs/ }),
 		).toBeInTheDocument();
@@ -2293,7 +2319,9 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		const canvas = within(canvasElement);
 		await waitFor(
 			() => {
-				expect(canvas.getByText(/don't have permission/i)).toBeInTheDocument();
+				expect(
+					canvas.getByText(/don't have permission to use Coder Agents/i),
+				).toBeInTheDocument();
 			},
 			{ timeout: 3000 },
 		);
@@ -2367,11 +2395,6 @@ export const PermittedOrgsResolvesToSubset: Story = {
 	},
 };
 
-/**
- * Member-scoped roles like agents-access grant chat:create only on
- * chats the user owns, so the per-org check must carry owner context
- * for the picker to render.
- */
 export const MemberScopedPermissionsShowOrgPicker: Story = {
 	parameters: {
 		showOrganizations: true,

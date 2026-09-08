@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -34,6 +35,19 @@ import (
 type generationPrepareInput struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
+	// RecordMCPConnectSummaries receives the preparation's per-server
+	// MCP connect outcomes as soon as the connect phase completes,
+	// with the debug context needed to create the run when no action
+	// ever reaches Ensure. Preparation invokes it directly (rather
+	// than returning the outcomes) so attempts that fail after
+	// connecting still record before their error discards the
+	// prepared state.
+	RecordMCPConnectSummaries func(
+		ctx context.Context,
+		chat database.Chat,
+		debug *generationDebug,
+		summaries []mcpclient.ConnectSummary,
+	)
 }
 
 // generationPrepared contains the side-effect inputs for a generation task.
@@ -82,8 +96,9 @@ type generationCompaction struct {
 	// changes when sanitizing the compaction prompt.
 	ChatModelConfig database.ChatModelConfig
 
-	Required bool
-	Options  chatloop.GenerateCompactionOptions
+	Required        bool
+	Options         chatloop.GenerateCompactionOptions
+	PendingUserRows []database.ChatMessage
 }
 
 type generationDebug struct {
@@ -104,7 +119,6 @@ type generationOutcome struct {
 	WatchEventKind    codersdk.ChatWatchEventKind
 	LastError         string
 	PromotedMessageID int64
-	InsertedMessages  []runnerActionMessage
 }
 
 type generationActionKind string
@@ -218,7 +232,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	// execution); the stale marker is then cleared by the terminal
 	// transition of this turn.
 	if input.chat.CompactionRequestedAt.Valid {
-		boundary := latestCompactionBoundaryIndex(input.messages)
+		boundary := latestContextBoundaryIndex(input.messages)
 		if _, ok := firstUncompressedAssistantAfter(input.messages, boundary); ok {
 			return generationDecision{kind: generationActionCompact, forced: true}, nil
 		}
@@ -441,8 +455,9 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			}
 		}
 		prepareInput := generationPrepareInput{
-			Chat:     chat,
-			Messages: messages,
+			Chat:                      chat,
+			Messages:                  messages,
+			RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
 		}
 		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
 			return s.server.prepareGeneration(ctx, prepareInput)
@@ -1048,11 +1063,12 @@ func (s *taskStarter) generateCompaction(
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	messages, err := buildCompactionMessages(buildCompactionMessagesInput{
-		modelConfigID:  prepared.ModelConfigID,
-		toolCallID:     compactionOpts.ToolCallID,
-		toolName:       compactionOpts.ToolName,
-		compaction:     compactionOutcome(outcome),
-		contentVersion: chatprompt.CurrentContentVersion,
+		modelConfigID:       prepared.ModelConfigID,
+		toolCallID:          compactionOpts.ToolCallID,
+		toolName:            compactionOpts.ToolName,
+		compaction:          compactionOutcome(outcome),
+		contentVersion:      chatprompt.CurrentContentVersion,
+		pendingUserMessages: prepared.Compaction.PendingUserRows,
 	})
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
@@ -1230,19 +1246,16 @@ func (s *taskStarter) commitGenerationStep(
 		postCommitLastError, postCommitMessage = generationLastError(commitHooks.PostCommitError)
 	}
 	var committed database.Chat
-	insertedMessages := []runnerActionMessage{}
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{
+		if _, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages:                 messages.Messages,
 			ConsumeCompactionRequest: messages.ConsumeCompactionRequest,
-		})
-		if err != nil {
+		}); err != nil {
 			return xerrors.Errorf("tx.CommitStep: %w", err)
 		}
-		inserted := commitResult.InsertedMessages
 		// The fail-closed hook error must commit atomically with the
 		// step; a separate commit races the runner and can be dropped
 		// on crash.
@@ -1250,10 +1263,6 @@ func (s *taskStarter) commitGenerationStep(
 			if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: postCommitLastError}); err != nil {
 				return xerrors.Errorf("tx.FinishError: %w", err)
 			}
-		}
-		insertedMessages = make([]runnerActionMessage, 0, len(inserted))
-		for _, msg := range inserted {
-			insertedMessages = append(insertedMessages, runnerActionMessage{ID: msg.ID, Role: codersdk.ChatMessageRole(msg.Role)})
 		}
 		loadedChat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
@@ -1281,9 +1290,8 @@ func (s *taskStarter) commitGenerationStep(
 	}
 	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat:             committed,
-		Kind:             runnerActionKind(kind),
-		InsertedMessages: insertedMessages,
+		Chat: committed,
+		Kind: runnerActionKind(kind),
 	})
 }
 

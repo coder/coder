@@ -30,11 +30,10 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
@@ -285,10 +284,10 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	var taskAppHealth *codersdk.WorkspaceAppHealth
 
 	if dbTask.WorkspaceAgentLifecycleState.Valid {
-		taskAgentLifecycle = ptr.Ref(codersdk.WorkspaceAgentLifecycle(dbTask.WorkspaceAgentLifecycleState.WorkspaceAgentLifecycleState))
+		taskAgentLifecycle = new(codersdk.WorkspaceAgentLifecycle(dbTask.WorkspaceAgentLifecycleState.WorkspaceAgentLifecycleState))
 	}
 	if dbTask.WorkspaceAppHealth.Valid {
-		taskAppHealth = ptr.Ref(codersdk.WorkspaceAppHealth(dbTask.WorkspaceAppHealth.WorkspaceAppHealth))
+		taskAppHealth = new(codersdk.WorkspaceAppHealth(dbTask.WorkspaceAppHealth.WorkspaceAppHealth))
 	}
 
 	// If we have an agent ID from the task, find the agent health info
@@ -414,7 +413,7 @@ func deriveTaskCurrentState(
 	return currentState
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
@@ -518,7 +517,7 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 	return result, nil
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
@@ -587,7 +586,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, taskResp)
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
@@ -654,7 +653,7 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusAccepted)
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
@@ -727,7 +726,7 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
@@ -813,7 +812,7 @@ func convertAgentAPIMessagesToLogEntries(messages []agentapisdk.Message) ([]code
 	return logs, nil
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
@@ -953,7 +952,7 @@ func (api *API) fetchSnapshotTaskLogs(ctx context.Context, taskID uuid.UUID) (co
 	return codersdk.TaskLogsResponse{
 		Logs:       logs,
 		Snapshot:   true,
-		SnapshotAt: ptr.Ref(snapshot.LogSnapshotCreatedAt),
+		SnapshotAt: new(snapshot.LogSnapshotCreatedAt),
 	}, nil
 }
 
@@ -1086,7 +1085,7 @@ type TaskLogSnapshotEnvelope struct {
 	Data   any    `json:"data"`
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
@@ -1224,7 +1223,7 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
@@ -1295,7 +1294,7 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// Deprecated: Coder Tasks is deprecated as of v2.34. This route is only
 // registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
 // v2.37.
 func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {

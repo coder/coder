@@ -1,11 +1,18 @@
 import type { FC } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { ModelForm } from "../components/ModelForm";
 import { ModelFormBackLink } from "../components/ModelFormHeader";
+import {
+	creatableModelOrganizations,
+	selectModelOrganizationPath,
+	useOrganizationModels,
+} from "../organizationModels";
 
 interface AddModelPageViewProps {
 	isLoading: boolean;
@@ -32,6 +39,35 @@ const AddModelPageView: FC<AddModelPageViewProps> = ({
 	onProviderChange,
 	onCreateModel,
 }) => {
+	const { organization, accessibleOrganizations, permissionsByOrganization } =
+		useOrganizationModels();
+	const location = useLocation();
+	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const creatableOrganizations = creatableModelOrganizations(
+		accessibleOrganizations,
+		permissionsByOrganization,
+	);
+	const organizationPicker = creatableOrganizations.length > 1 && (
+		<OrganizationField
+			id="add-model-organization"
+			organization={organization}
+			organizations={creatableOrganizations}
+			labelOrganizations={accessibleOrganizations}
+			className="w-60"
+			optionsTabbable
+			onChange={(nextOrganization) => {
+				void navigate(
+					selectModelOrganizationPath(
+						location.pathname,
+						nextOrganization,
+						searchParams,
+					),
+				);
+			}}
+		/>
+	);
+
 	if (isLoading) {
 		return <Loader fullscreen />;
 	}
@@ -41,6 +77,7 @@ const AddModelPageView: FC<AddModelPageViewProps> = ({
 			<div className="flex flex-col items-start gap-4">
 				<ModelFormBackLink />
 				<ErrorAlert error={loadError} />
+				{organizationPicker}
 			</div>
 		);
 	}
@@ -56,6 +93,7 @@ const AddModelPageView: FC<AddModelPageViewProps> = ({
 						Please try again.
 					</AlertDescription>
 				</Alert>
+				{organizationPicker}
 			</div>
 		);
 	}

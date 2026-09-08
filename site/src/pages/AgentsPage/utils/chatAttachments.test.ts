@@ -19,7 +19,7 @@ describe("handleAttachmentDownloadClick", () => {
 	const iPhoneUserAgent =
 		"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15";
 	const target = {
-		href: "/api/experimental/chats/files/file-1",
+		href: "/api/v2/chats/files/file-1",
 		fileName: "01-agents-list.png",
 		mediaType: "image/png",
 	};

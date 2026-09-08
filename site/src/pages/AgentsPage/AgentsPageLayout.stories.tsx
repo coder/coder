@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { Navigate, useOutletContext } from "react-router";
+import { Navigate } from "react-router";
 import {
 	expect,
 	fireEvent,
@@ -38,14 +38,12 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsLayout from "./AgentSettingsLayout";
-import AgentsPageLayout, {
-	type AgentsPageOutletContext,
-} from "./AgentsPageLayout";
+import AgentsPageLayout from "./AgentsPageLayout";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -56,6 +54,7 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 const defaultModelID = "model-config-1";
 
@@ -195,17 +194,10 @@ const setInnerWidthForStory = (width: number) => {
 };
 
 const AgentTopBarRouteElement = () => {
-	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
-		useOutletContext<AgentsPageOutletContext>();
 	return (
 		<ChatTopBar
-			chatTitle="Collapsed sidebar agent"
+			chat={{ ...MockChat, title: "Collapsed sidebar agent" }}
 			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
-			onArchiveAgent={fn()}
-			onArchiveAndDeleteWorkspace={fn()}
-			onUnarchiveAgent={fn()}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 		/>
 	);
 };
@@ -1206,6 +1198,26 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
+export const OpensSettingsForOrgModelAdmins: Story = {
+	parameters: {
+		permissions: {
+			...MockNoPermissions,
+			editAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await openSettingsView(canvasElement);
+
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
+	},
+};
+
 export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -1253,7 +1265,9 @@ export const SettingsViewCoderAgentsLink: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(/Configure deployment-wide Coder Agents capabilities/),
+				screen.getByText(
+					/organization model choices and deployment-wide Coder Agents capabilities/,
+				),
 			).toBeInTheDocument();
 		});
 	},

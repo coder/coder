@@ -3049,26 +3049,30 @@ effective AS (
 	LEFT JOIN user_highest_group ON user_highest_group.user_id = filtered_users.user_id
 	LEFT JOIN user_fallback_group ON user_fallback_group.user_id = filtered_users.user_id
 ),
-applied_budget AS (
-	-- The limit and source only for users whose effective budget source is the
-	-- queried group.
-	SELECT user_id, spend_limit_micros, limit_source
+visible_effective AS (
+	-- The effective group and budget only when the group belongs to the queried
+	-- group's organization.
+	SELECT
+		effective.user_id,
+		effective.raw_effective_group_id AS group_id,
+		effective.spend_limit_micros,
+		effective.limit_source
 	FROM effective
-	WHERE raw_effective_group_id = $1
+	JOIN groups ON groups.id = effective.raw_effective_group_id
+	CROSS JOIN queried_group
+	WHERE groups.organization_id = queried_group.organization_id
 )
 SELECT
 	effective.user_id,
 	queried_group.organization_id,
-	effective_group.id AS effective_group_id,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source,
+	visible_effective.group_id AS effective_group_id,
+	visible_effective.spend_limit_micros AS effective_spend_limit_micros,
+	visible_effective.limit_source AS effective_limit_source,
 	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS group_spend_micros
 FROM effective
 CROSS JOIN queried_group
-LEFT JOIN groups effective_group
-	ON effective_group.id = effective.raw_effective_group_id
-	AND effective_group.organization_id = queried_group.organization_id
-LEFT JOIN applied_budget ON applied_budget.user_id = effective.user_id
+LEFT JOIN visible_effective
+	ON visible_effective.user_id = effective.user_id
 LEFT JOIN ai_user_daily_spend spend
 	ON spend.user_id = effective.user_id
 	AND spend.effective_group_id = $1
@@ -3076,9 +3080,9 @@ LEFT JOIN ai_user_daily_spend spend
 GROUP BY
 	effective.user_id,
 	queried_group.organization_id,
-	effective_group.id,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source
+	visible_effective.group_id,
+	visible_effective.spend_limit_micros,
+	visible_effective.limit_source
 ORDER BY effective.user_id
 `
 
@@ -3089,25 +3093,24 @@ type GetGroupMembersAISpendParams struct {
 }
 
 type GetGroupMembersAISpendRow struct {
-	UserID           uuid.UUID      `db:"user_id" json:"user_id"`
-	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
-	EffectiveGroupID uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
-	SpendLimitMicros sql.NullInt64  `db:"spend_limit_micros" json:"spend_limit_micros"`
-	LimitSource      sql.NullString `db:"limit_source" json:"limit_source"`
-	GroupSpendMicros int64          `db:"group_spend_micros" json:"group_spend_micros"`
+	UserID                    uuid.UUID      `db:"user_id" json:"user_id"`
+	OrganizationID            uuid.UUID      `db:"organization_id" json:"organization_id"`
+	EffectiveGroupID          uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
+	EffectiveSpendLimitMicros sql.NullInt64  `db:"effective_spend_limit_micros" json:"effective_spend_limit_micros"`
+	EffectiveLimitSource      sql.NullString `db:"effective_limit_source" json:"effective_limit_source"`
+	GroupSpendMicros          int64          `db:"group_spend_micros" json:"group_spend_micros"`
 }
 
 // Returns each user's AI spend attributed to the queried group, on or after
 // period_start until NOW. Only current members of the queried group are
-// returned. spend_limit_micros and limit_source are populated only when the
-// queried group is the user's effective budget source. The effective group
-// falls back to the Everyone group, and effective_group_id is null only when
-// that group belongs to a different organization than the queried group.
+// returned. effective_spend_limit_micros and effective_limit_source describe
+// the user's effective budget when its group belongs to the queried group's
+// organization. The effective group falls back to the Everyone group, and
+// effective_group_id is null only when that group belongs to a different
+// organization than the queried group.
 // The period_start parameter is normalized to its UTC calendar day.
 // TODO(AIGOV-527): unify effective group resolution in a single place.
 // Spend is aggregated for the queried group, not the user's effective group.
-// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
-// whose effective budget source is not the queried group.
 func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupMembersAISpend, arg.GroupID, arg.PeriodStart, pq.Array(arg.UserIds))
 	if err != nil {
@@ -3121,8 +3124,8 @@ func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMem
 			&i.UserID,
 			&i.OrganizationID,
 			&i.EffectiveGroupID,
-			&i.SpendLimitMicros,
-			&i.LimitSource,
+			&i.EffectiveSpendLimitMicros,
+			&i.EffectiveLimitSource,
 			&i.GroupSpendMicros,
 		); err != nil {
 			return nil, err
@@ -3394,6 +3397,71 @@ func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart
 	for rows.Next() {
 		var i GetOverBudgetUsersPerGroupRow
 		if err := rows.Scan(&i.GroupID, &i.OverBudgetUsers); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUnpricedAIModelsSince = `-- name: GetUnpricedAIModelsSince :many
+SELECT
+	providers.type::text AS provider_type,
+	interceptions.model AS model,
+	SUM(
+		token_usages.input_tokens
+		+ token_usages.output_tokens
+		+ token_usages.cache_read_input_tokens
+		+ token_usages.cache_write_input_tokens
+	)::bigint AS token_count
+FROM aibridge_interceptions AS interceptions
+JOIN aibridge_token_usages AS token_usages
+	ON token_usages.interception_id = interceptions.id
+JOIN ai_providers AS providers
+	ON providers.name = interceptions.provider_name
+	AND providers.deleted = false
+WHERE interceptions.started_at >= $1::timestamptz
+	AND token_usages.cost_micros IS NULL
+	AND providers.type::text = ANY($2::text[])
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ai_model_prices AS prices
+		WHERE prices.provider = providers.type::text
+			AND prices.model = interceptions.model
+	)
+GROUP BY providers.type, interceptions.model
+ORDER BY token_count DESC, provider_type ASC, model ASC
+`
+
+type GetUnpricedAIModelsSinceParams struct {
+	Since              time.Time `db:"since" json:"since"`
+	PriceableProviders []string  `db:"priceable_providers" json:"priceable_providers"`
+}
+
+type GetUnpricedAIModelsSinceRow struct {
+	ProviderType string `db:"provider_type" json:"provider_type"`
+	Model        string `db:"model" json:"model"`
+	TokenCount   int64  `db:"token_count" json:"token_count"`
+}
+
+// Returns the models used since the given time that hold no price, most used
+// first. openai-compat providers cannot be priced, so their models are excluded.
+func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, arg.Since, pq.Array(arg.PriceableProviders))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUnpricedAIModelsSinceRow
+	for rows.Next() {
+		var i GetUnpricedAIModelsSinceRow
+		if err := rows.Scan(&i.ProviderType, &i.Model, &i.TokenCount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -7493,6 +7561,41 @@ func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUps
 	return err
 }
 
+const clearChatDiffStatusPR = `-- name: ClearChatDiffStatusPR :exec
+UPDATE
+    chat_diff_statuses
+SET
+    url = NULL,
+    pull_request_state = NULL,
+    pull_request_title = '',
+    pull_request_draft = FALSE,
+    changes_requested = FALSE,
+    additions = 0,
+    deletions = 0,
+    changed_files = 0,
+    author_login = NULL,
+    author_avatar_url = NULL,
+    base_branch = NULL,
+    head_branch = NULL,
+    pr_number = NULL,
+    commits = NULL,
+    approved = NULL,
+    reviewer_count = NULL,
+    stale_at = $1::timestamptz
+WHERE
+    chat_id = $2::uuid
+`
+
+type ClearChatDiffStatusPRParams struct {
+	StaleAt time.Time `db:"stale_at" json:"stale_at"`
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error {
+	_, err := q.db.ExecContext(ctx, clearChatDiffStatusPR, arg.StaleAt, arg.ChatID)
+	return err
+}
+
 const countChatCapacityActiveByPool = `-- name: CountChatCapacityActiveByPool :one
 SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
@@ -11516,6 +11619,108 @@ func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID u
 	return err
 }
 
+const syncAgentChatsContextMCPResources = `-- name: SyncAgentChatsContextMCPResources :many
+WITH agent_mcp AS (
+    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    FROM workspace_agent_context_resources
+    WHERE workspace_agent_id = $1::uuid
+        AND body_kind IN ('mcp_config', 'mcp_server')
+),
+changed AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.agent_id = $1::uuid
+        AND chats.archived = false
+        AND chats.context_aggregate_hash IS NOT NULL
+        AND (
+            EXISTS (
+                SELECT 1 FROM agent_mcp m
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM chat_context_resources ccr
+                    WHERE ccr.chat_id = chats.id
+                        AND ccr.source = m.source
+                        AND ccr.body_kind = m.body_kind
+                        AND ccr.content_hash = m.content_hash
+                        AND ccr.status = m.status
+                        AND ccr.error = m.error
+                )
+            )
+            OR EXISTS (
+                SELECT 1 FROM chat_context_resources ccr
+                WHERE ccr.chat_id = chats.id
+                    AND ccr.body_kind IN ('mcp_config', 'mcp_server')
+                    AND NOT EXISTS (
+                        SELECT 1 FROM agent_mcp m
+                        WHERE m.source = ccr.source
+                            AND m.body_kind = ccr.body_kind
+                            AND m.content_hash = ccr.content_hash
+                            AND m.status = ccr.status
+                            AND m.error = ccr.error
+                    )
+            )
+        )
+),
+locked AS (
+    SELECT id FROM chats
+    WHERE id IN (SELECT id FROM changed)
+    ORDER BY id
+    FOR UPDATE
+),
+deleted AS (
+    DELETE FROM chat_context_resources
+    USING locked
+    WHERE chat_context_resources.chat_id = locked.id
+        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
+        AND chat_context_resources.source NOT IN (SELECT source FROM agent_mcp)
+),
+upserted AS (
+    INSERT INTO chat_context_resources (
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    )
+    SELECT
+        locked.id, m.source, m.body_kind, m.body, m.content_hash,
+        m.size_bytes, m.status, m.error, m.source_path
+    FROM locked
+    CROSS JOIN agent_mcp m
+    ON CONFLICT (chat_id, source) DO UPDATE SET
+        body_kind = EXCLUDED.body_kind,
+        body = EXCLUDED.body,
+        content_hash = EXCLUDED.content_hash,
+        size_bytes = EXCLUDED.size_bytes,
+        status = EXCLUDED.status,
+        error = EXCLUDED.error,
+        source_path = EXCLUDED.source_path,
+        updated_at = now()
+)
+SELECT id FROM locked
+`
+
+// MCP resources bypass context drift and are live-synced on each push.
+// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
+// cannot interleave with the replacement.
+func (q *sqlQuerier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextMCPResources, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unarchiveChatByID = `-- name: UnarchiveChatByID :many
 WITH updated_chats AS (
     UPDATE chats SET
@@ -14756,6 +14961,58 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 	return i, err
 }
 
+const deleteCachedModuleFilesCreatedBetween = `-- name: DeleteCachedModuleFilesCreatedBetween :execrows
+WITH doomed AS (
+	SELECT
+		files.id
+	FROM
+		files
+	INNER JOIN
+		template_version_terraform_values
+		ON template_version_terraform_values.cached_module_files = files.id
+	WHERE
+		files.created_by = '00000000-0000-0000-0000-000000000000'
+		AND files.mimetype = 'application/x-tar'
+		AND files.created_at >= $1
+		AND files.created_at < $2
+), cleared AS (
+	-- The foreign key is NO ACTION, so references must be cleared before the
+	-- files rows can be deleted. Data-modifying CTEs always run to completion,
+	-- and the constraint is checked at the end of the statement.
+	UPDATE
+		template_version_terraform_values
+	SET
+		cached_module_files = NULL
+	WHERE
+		cached_module_files IN (SELECT id FROM doomed)
+	RETURNING 1
+)
+DELETE FROM
+	files
+USING
+	doomed
+WHERE
+	files.id = doomed.id
+`
+
+type DeleteCachedModuleFilesCreatedBetweenParams struct {
+	CreatedAtAfter  time.Time `db:"created_at_after" json:"created_at_after"`
+	CreatedAtBefore time.Time `db:"created_at_before" json:"created_at_before"`
+}
+
+// Deletes cached Terraform module archives ingested in the given time range and
+// clears the template version references to them. created_by and mimetype
+// identify a provisionerd-written module archive, matching the checks in
+// provisionerdserver, so user-uploaded template tarballs are never removed.
+// Only archives referenced by a template version are considered.
+func (q *sqlQuerier) DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg DeleteCachedModuleFilesCreatedBetweenParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCachedModuleFilesCreatedBetween, arg.CreatedAtAfter, arg.CreatedAtBefore)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
 SELECT
 	hash, created_at, created_by, mimetype, data, id
@@ -16574,25 +16831,17 @@ func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetT
 
 const getTemplateInsightsByTemplate = `-- name: GetTemplateInsightsByTemplate :many
 WITH
-	-- This CTE is used to truncate agent usage into minute buckets, then
-	-- flatten the users agent usage within the template so that usage in
-	-- multiple workspaces under one template is only counted once for
-	-- every minute (per user).
-	insights AS (
+	-- Deduplicate activity by template, user, and minute.
+	minute_activity AS (
 		SELECT
 			template_id,
 			user_id,
-			COUNT(DISTINCT CASE WHEN session_count_ssh > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
-			-- TODO(mafredri): Enable when we have the column.
-			-- COUNT(DISTINCT CASE WHEN session_count_sftp > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS sftp_mins,
-			COUNT(DISTINCT CASE WHEN session_count_reconnecting_pty > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
-			COUNT(DISTINCT CASE WHEN session_count_vscode > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
-			COUNT(DISTINCT CASE WHEN session_count_jetbrains > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
-			-- NOTE(mafredri): The agent stats are currently very unreliable, and
-			-- sometimes the connections are missing, even during active sessions.
-			-- Since we can't fully rely on this, we check for "any connection
-			-- within this bucket". A better solution here would be preferable.
-			MAX(connection_count) > 0 AS has_connection
+			date_trunc('minute', created_at) AS minute,
+			BOOL_OR((session_counts ->> 'ssh')::bigint > 0) AS ssh,
+			BOOL_OR((session_counts ->> 'reconnecting_pty')::bigint > 0) AS reconnecting_pty,
+			BOOL_OR((session_counts ->> 'vscode')::bigint > 0) AS vscode,
+			BOOL_OR((session_counts ->> 'jetbrains')::bigint > 0) AS jetbrains,
+			BOOL_OR(connection_count > 0) AS has_connection
 		FROM
 			workspace_agent_stats
 		WHERE
@@ -16600,13 +16849,29 @@ WITH
 			AND created_at < $2::timestamptz
 			-- Inclusion criteria to filter out empty results.
 			AND (
-				session_count_ssh > 0
-				-- TODO(mafredri): Enable when we have the column.
-				-- OR session_count_sftp > 0
-				OR session_count_reconnecting_pty > 0
-				OR session_count_vscode > 0
-				OR session_count_jetbrains > 0
+				(session_counts ->> 'ssh')::bigint > 0
+				OR (session_counts ->> 'reconnecting_pty')::bigint > 0
+				OR (session_counts ->> 'vscode')::bigint > 0
+				OR (session_counts ->> 'jetbrains')::bigint > 0
 			)
+		GROUP BY
+			template_id, user_id, minute
+	),
+	insights AS (
+		SELECT
+			template_id,
+			user_id,
+			COUNT(*) FILTER (WHERE ssh) AS ssh_mins,
+			COUNT(*) FILTER (WHERE reconnecting_pty) AS reconnecting_pty_mins,
+			COUNT(*) FILTER (WHERE vscode) AS vscode_mins,
+			COUNT(*) FILTER (WHERE jetbrains) AS jetbrains_mins,
+			-- NOTE(mafredri): The agent stats are currently very unreliable, and
+			-- sometimes the connections are missing, even during active sessions.
+			-- Since we can't fully rely on this, we check for "any connection
+			-- within this bucket". A better solution here would be preferable.
+			BOOL_OR(has_connection) AS has_connection
+		FROM
+			minute_activity
 		GROUP BY
 			template_id, user_id
 	)
@@ -17216,27 +17481,11 @@ WITH
 			template_id,
 			user_id,
 			-- Store each unique minute bucket for later merge between datasets.
-			array_agg(
-				DISTINCT CASE
-				WHEN
-					session_count_ssh > 0
-					-- TODO(mafredri): Enable when we have the column.
-					-- OR session_count_sftp > 0
-					OR session_count_reconnecting_pty > 0
-					OR session_count_vscode > 0
-					OR session_count_jetbrains > 0
-				THEN
-					date_trunc('minute', created_at)
-				ELSE
-					NULL
-				END
-			) AS minute_buckets,
-			COUNT(DISTINCT CASE WHEN session_count_ssh > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
-			-- TODO(mafredri): Enable when we have the column.
-			-- COUNT(DISTINCT CASE WHEN session_count_sftp > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS sftp_mins,
-			COUNT(DISTINCT CASE WHEN session_count_reconnecting_pty > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
-			COUNT(DISTINCT CASE WHEN session_count_vscode > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
-			COUNT(DISTINCT CASE WHEN session_count_jetbrains > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
+			array_agg(DISTINCT date_trunc('minute', created_at)) AS minute_buckets,
+			COUNT(DISTINCT CASE WHEN (session_counts ->> 'ssh')::bigint > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
+			COUNT(DISTINCT CASE WHEN (session_counts ->> 'reconnecting_pty')::bigint > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
+			COUNT(DISTINCT CASE WHEN (session_counts ->> 'vscode')::bigint > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
+			COUNT(DISTINCT CASE WHEN (session_counts ->> 'jetbrains')::bigint > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
 			-- NOTE(mafredri): The agent stats are currently very unreliable, and
 			-- sometimes the connections are missing, even during active sessions.
 			-- Since we can't fully rely on this, we check for "any connection
@@ -17251,12 +17500,10 @@ WITH
 			AND created_at < NOW()
 			-- Inclusion criteria to filter out empty results.
 			AND (
-				session_count_ssh > 0
-				-- TODO(mafredri): Enable when we have the column.
-				-- OR session_count_sftp > 0
-				OR session_count_reconnecting_pty > 0
-				OR session_count_vscode > 0
-				OR session_count_jetbrains > 0
+				(session_counts ->> 'ssh')::bigint > 0
+				OR (session_counts ->> 'reconnecting_pty')::bigint > 0
+				OR (session_counts ->> 'vscode')::bigint > 0
+				OR (session_counts ->> 'jetbrains')::bigint > 0
 			)
 		GROUP BY
 			time_bucket, template_id, user_id
@@ -25874,6 +26121,18 @@ func (q *sqlQuerier) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
 	return workspace_ttl, err
 }
 
+const getCodernautsEnabled = `-- name: GetCodernautsEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'codernauts_enabled'), true) :: boolean AS codernauts_enabled
+`
+
+func (q *sqlQuerier) GetCodernautsEnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getCodernautsEnabled)
+	var codernauts_enabled bool
+	err := row.Scan(&codernauts_enabled)
+	return codernauts_enabled, err
+}
+
 const getDERPMeshKey = `-- name: GetDERPMeshKey :one
 SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
 `
@@ -26251,6 +26510,28 @@ WHERE site_configs.key = 'agents_workspace_ttl'
 
 func (q *sqlQuerier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatWorkspaceTTL, workspaceTtl)
+	return err
+}
+
+const upsertCodernautsEnabled = `-- name: UpsertCodernautsEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'codernauts_enabled',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'codernauts_enabled'
+`
+
+func (q *sqlQuerier) UpsertCodernautsEnabled(ctx context.Context, enabled bool) error {
+	_, err := q.db.ExecContext(ctx, upsertCodernautsEnabled, enabled)
 	return err
 }
 
@@ -29467,6 +29748,38 @@ func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetT
 	return total_runtime_ms, err
 }
 
+const getUsageEventsStats = `-- name: GetUsageEventsStats :one
+SELECT
+    (COUNT(*) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
+    COALESCE(MIN(created_at) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
+    (COUNT(*) FILTER (WHERE created_at <= ($1::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
+FROM
+    usage_events
+WHERE
+    published_at IS NULL
+    AND created_at > ($1::timestamptz) - INTERVAL '60 days'
+`
+
+type GetUsageEventsStatsRow struct {
+	PendingCount           int64     `db:"pending_count" json:"pending_count"`
+	OldestPendingCreatedAt time.Time `db:"oldest_pending_created_at" json:"oldest_pending_created_at"`
+	ExpiredCount           int64     `db:"expired_count" json:"expired_count"`
+}
+
+// Counts unpublished usage events in the last 60 days:
+//
+//	pending: created within the last 30 days (still eligible to publish)
+//	expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+//
+// Events older than 60 days are ignored so this query stays bounded and the
+// expired gauge can recover to zero.
+func (q *sqlQuerier) GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getUsageEventsStats, now)
+	var i GetUsageEventsStatsRow
+	err := row.Scan(&i.PendingCount, &i.OldestPendingCreatedAt, &i.ExpiredCount)
+	return i, err
+}
+
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
 INSERT INTO
     usage_events (
@@ -30506,6 +30819,37 @@ type GetUserSecretByUserIDAndNameParams struct {
 
 func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error) {
 	row := q.db.QueryRowContext(ctx, getUserSecretByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ValueKeyID,
+		&i.Enabled,
+	)
+	return i, err
+}
+
+const getUserSecretByUserIDAndNameForUpdate = `-- name: GetUserSecretByUserIDAndNameForUpdate :one
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
+FROM user_secrets
+WHERE user_id = $1 AND name = $2
+FOR UPDATE
+`
+
+type GetUserSecretByUserIDAndNameForUpdateParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg GetUserSecretByUserIDAndNameForUpdateParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecretByUserIDAndNameForUpdate, arg.UserID, arg.Name)
 	var i UserSecret
 	err := row.Scan(
 		&i.ID,
@@ -35599,30 +35943,27 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 
 const getDeploymentWorkspaceAgentStats = `-- name: GetDeploymentWorkspaceAgentStats :one
 WITH stats AS (
-    SELECT
-        agent_id,
-        created_at,
-        rx_bytes,
-        tx_bytes,
-        connection_median_latency_ms,
-        session_count_vscode,
-        session_count_ssh,
-        session_count_jetbrains,
-        session_count_reconnecting_pty,
-        ROW_NUMBER() OVER (PARTITION BY agent_id ORDER BY created_at DESC) AS rn
-    FROM workspace_agent_stats
-    WHERE created_at > $1
+	SELECT
+		agent_id,
+		created_at,
+		rx_bytes,
+		tx_bytes,
+		connection_median_latency_ms,
+		session_counts,
+		ROW_NUMBER() OVER (PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+	FROM workspace_agent_stats
+	WHERE created_at > $1
 )
 SELECT
-    coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
-    coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
+	coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
+	coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-    coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_50,
-    coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_95,
-    coalesce(SUM(session_count_vscode) FILTER (WHERE rn = 1), 0)::bigint AS session_count_vscode,
-    coalesce(SUM(session_count_ssh) FILTER (WHERE rn = 1), 0)::bigint AS session_count_ssh,
-    coalesce(SUM(session_count_jetbrains) FILTER (WHERE rn = 1), 0)::bigint AS session_count_jetbrains,
-    coalesce(SUM(session_count_reconnecting_pty) FILTER (WHERE rn = 1), 0)::bigint AS session_count_reconnecting_pty
+	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_50,
+	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_95,
+	coalesce(SUM((session_counts ->> 'vscode')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_vscode,
+	coalesce(SUM((session_counts ->> 'ssh')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_ssh,
+	coalesce(SUM((session_counts ->> 'jetbrains')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_jetbrains,
+	coalesce(SUM((session_counts ->> 'reconnecting_pty')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_reconnecting_pty
 FROM stats
 `
 
@@ -35664,46 +36005,36 @@ WITH agent_stats AS (
 	 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 ),
-minute_buckets AS (
+latest_minutes AS (
 	SELECT
 		agent_id,
-		date_trunc('minute', created_at) AS minute_bucket,
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+		MAX(date_trunc('minute', created_at)) AS minute_bucket
 	FROM
 		workspace_agent_stats
 	WHERE
 		created_at >= $1
-		AND created_at < date_trunc('minute', now())  -- Exclude current partial minute
-		AND usage = true
+		-- Exclude the current partial minute.
+		AND created_at < date_trunc('minute', now())
+		AND usage
 	GROUP BY
-		agent_id,
-		minute_bucket
-),
-latest_buckets AS (
-	SELECT DISTINCT ON (agent_id)
-		agent_id,
-		minute_bucket,
-		session_count_vscode,
-		session_count_jetbrains,
-		session_count_reconnecting_pty,
-		session_count_ssh
-	FROM
-		minute_buckets
-	ORDER BY
-		agent_id,
-		minute_bucket DESC
+		agent_id
 ),
 latest_agent_stats AS (
-    SELECT
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
-    FROM
-        latest_buckets
+	SELECT
+		coalesce(SUM((stats.session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
+		coalesce(SUM((stats.session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
+		coalesce(SUM((stats.session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM((stats.session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty
+	FROM
+		latest_minutes
+	JOIN
+		workspace_agent_stats AS stats
+	ON
+		stats.agent_id = latest_minutes.agent_id
+		AND stats.created_at >= $1
+		AND stats.created_at >= latest_minutes.minute_bucket
+		AND stats.created_at < latest_minutes.minute_bucket + '1 minute'::interval
+		AND stats.usage
 )
 SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
 `
@@ -35754,14 +36085,16 @@ WITH agent_stats AS (
 ), latest_agent_stats AS (
 	SELECT
 		a.agent_id,
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+		coalesce(SUM((a.session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
+		coalesce(SUM((a.session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
+		coalesce(SUM((a.session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM((a.session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, usage, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
-	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
+	) AS a
+	WHERE a.rn = 1
+	GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
 SELECT user_id, agent_stats.agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, latest_agent_stats.agent_id, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id
 `
@@ -35835,14 +36168,14 @@ WITH agent_stats AS (
 ), latest_agent_stats AS (
 	SELECT
 		a.agent_id,
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
-		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
-		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
+		coalesce(SUM((a.session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
+		coalesce(SUM((a.session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
+		coalesce(SUM((a.session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM((a.session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(a.connection_count), 0)::bigint AS connection_count,
+		coalesce(MAX(a.connection_median_latency_ms), 0)::float AS connection_median_latency_ms
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, usage, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats
 		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 		WHERE created_at > $1 AND connection_median_latency_ms > 0
@@ -35924,72 +36257,38 @@ func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, create
 }
 
 const getWorkspaceAgentUsageStats = `-- name: GetWorkspaceAgentUsageStats :many
-WITH agent_stats AS (
+WITH stats AS (
 	SELECT
-		user_id,
-		agent_id,
-		workspace_id,
-		template_id,
-		MIN(created_at)::timestamptz AS aggregated_from,
-		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
-		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
-		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
-		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
+		id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts,
+		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+		created_at > $1 AND connection_median_latency_ms > 0 AS reports_latency,
+		usage AND date_trunc('minute', created_at) = MAX(date_trunc('minute', created_at)) FILTER (
+			-- Exclude the current partial minute.
+			WHERE usage AND created_at < date_trunc('minute', now())
+		) OVER (PARTITION BY agent_id) AS in_latest_usage_minute
 	FROM workspace_agent_stats
-	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
-	GROUP BY user_id, agent_id, workspace_id, template_id
-),
-minute_buckets AS (
-	SELECT
-		agent_id,
-		date_trunc('minute', created_at) AS minute_bucket,
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
-	FROM
-		workspace_agent_stats
-	WHERE
-		created_at >= $1
-		AND created_at < date_trunc('minute', now())  -- Exclude current partial minute
-		AND usage = true
-	GROUP BY
-		agent_id,
-		minute_bucket,
-		user_id,
-		agent_id,
-		workspace_id,
-		template_id
-),
-latest_buckets AS (
-	SELECT DISTINCT ON (agent_id)
-		agent_id,
-		session_count_vscode,
-		session_count_ssh,
-		session_count_jetbrains,
-		session_count_reconnecting_pty
-	FROM
-		minute_buckets
-	ORDER BY
-		agent_id,
-		minute_bucket DESC
+	WHERE created_at >= $1
 )
-SELECT user_id,
-agent_stats.agent_id,
-workspace_id,
-template_id,
-aggregated_from,
-workspace_rx_bytes,
-workspace_tx_bytes,
-workspace_connection_latency_50,
-workspace_connection_latency_95,
-coalesce(latest_buckets.agent_id,agent_stats.agent_id) AS agent_id,
-coalesce(session_count_vscode, 0)::bigint AS session_count_vscode,
-coalesce(session_count_ssh, 0)::bigint AS session_count_ssh,
-coalesce(session_count_jetbrains, 0)::bigint AS session_count_jetbrains,
-coalesce(session_count_reconnecting_pty, 0)::bigint AS session_count_reconnecting_pty
-FROM agent_stats LEFT JOIN latest_buckets ON agent_stats.agent_id = latest_buckets.agent_id
+SELECT
+	user_id,
+	agent_id,
+	workspace_id,
+	template_id,
+	MIN(created_at) FILTER (WHERE reports_latency)::timestamptz AS aggregated_from,
+	coalesce(SUM(rx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_rx_bytes,
+	coalesce(SUM(tx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_tx_bytes,
+	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_50,
+	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_95,
+	-- Repeated so this row keeps the same layout as GetWorkspaceAgentStats, which
+	-- telemetry converts between.
+	agent_id,
+	coalesce(SUM((session_counts ->> 'vscode')::bigint) FILTER (WHERE in_latest_usage_minute), 0)::bigint AS session_count_vscode,
+	coalesce(SUM((session_counts ->> 'ssh')::bigint) FILTER (WHERE in_latest_usage_minute), 0)::bigint AS session_count_ssh,
+	coalesce(SUM((session_counts ->> 'jetbrains')::bigint) FILTER (WHERE in_latest_usage_minute), 0)::bigint AS session_count_jetbrains,
+	coalesce(SUM((session_counts ->> 'reconnecting_pty')::bigint) FILTER (WHERE in_latest_usage_minute), 0)::bigint AS session_count_reconnecting_pty
+FROM stats
+GROUP BY user_id, agent_id, workspace_id, template_id
+HAVING BOOL_OR(reports_latency)
 `
 
 type GetWorkspaceAgentUsageStatsRow struct {
@@ -36009,7 +36308,6 @@ type GetWorkspaceAgentUsageStatsRow struct {
 	SessionCountReconnectingPTY  int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 }
 
-// `minute_buckets` could return 0 rows if there are no usage stats since `created_at`.
 func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStats, createdAt)
 	if err != nil {
@@ -36064,15 +36362,15 @@ WITH agent_stats AS (
 ), latest_agent_stats AS (
 	SELECT
 		agent_id,
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM((session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
+		coalesce(SUM((session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
+		coalesce(SUM((session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM((session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count
 	FROM workspace_agent_stats
 	-- We only want the latest stats, but those stats might be
 	-- spread across multiple rows.
-	WHERE usage = true AND created_at > now() - '1 minute'::interval
+	WHERE usage AND created_at > now() - '1 minute'::interval
 	GROUP BY user_id, agent_id, workspace_id
 )
 SELECT
@@ -36167,10 +36465,7 @@ INSERT INTO
 		rx_bytes,
 		tx_packets,
 		tx_bytes,
-		session_count_vscode,
-		session_count_jetbrains,
-		session_count_reconnecting_pty,
-		session_count_ssh,
+		session_counts,
 		connection_median_latency_ms,
 		usage
 	)
@@ -36187,33 +36482,27 @@ SELECT
 	unnest($10 :: bigint[]) AS rx_bytes,
 	unnest($11 :: bigint[]) AS tx_packets,
 	unnest($12 :: bigint[]) AS tx_bytes,
-	unnest($13 :: bigint[]) AS session_count_vscode,
-	unnest($14 :: bigint[]) AS session_count_jetbrains,
-	unnest($15 :: bigint[]) AS session_count_reconnecting_pty,
-	unnest($16 :: bigint[]) AS session_count_ssh,
-	unnest($17 :: double precision[]) AS connection_median_latency_ms,
-	unnest($18 :: boolean[]) AS usage
+	jsonb_array_elements($13 :: jsonb) AS session_counts,
+	unnest($14 :: double precision[]) AS connection_median_latency_ms,
+	unnest($15 :: boolean[]) AS usage
 `
 
 type InsertWorkspaceAgentStatsParams struct {
-	ID                          []uuid.UUID     `db:"id" json:"id"`
-	CreatedAt                   []time.Time     `db:"created_at" json:"created_at"`
-	UserID                      []uuid.UUID     `db:"user_id" json:"user_id"`
-	WorkspaceID                 []uuid.UUID     `db:"workspace_id" json:"workspace_id"`
-	TemplateID                  []uuid.UUID     `db:"template_id" json:"template_id"`
-	AgentID                     []uuid.UUID     `db:"agent_id" json:"agent_id"`
-	ConnectionsByProto          json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
-	ConnectionCount             []int64         `db:"connection_count" json:"connection_count"`
-	RxPackets                   []int64         `db:"rx_packets" json:"rx_packets"`
-	RxBytes                     []int64         `db:"rx_bytes" json:"rx_bytes"`
-	TxPackets                   []int64         `db:"tx_packets" json:"tx_packets"`
-	TxBytes                     []int64         `db:"tx_bytes" json:"tx_bytes"`
-	SessionCountVSCode          []int64         `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountJetBrains       []int64         `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY []int64         `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-	SessionCountSSH             []int64         `db:"session_count_ssh" json:"session_count_ssh"`
-	ConnectionMedianLatencyMS   []float64       `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
-	Usage                       []bool          `db:"usage" json:"usage"`
+	ID                        []uuid.UUID     `db:"id" json:"id"`
+	CreatedAt                 []time.Time     `db:"created_at" json:"created_at"`
+	UserID                    []uuid.UUID     `db:"user_id" json:"user_id"`
+	WorkspaceID               []uuid.UUID     `db:"workspace_id" json:"workspace_id"`
+	TemplateID                []uuid.UUID     `db:"template_id" json:"template_id"`
+	AgentID                   []uuid.UUID     `db:"agent_id" json:"agent_id"`
+	ConnectionsByProto        json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount           []int64         `db:"connection_count" json:"connection_count"`
+	RxPackets                 []int64         `db:"rx_packets" json:"rx_packets"`
+	RxBytes                   []int64         `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets                 []int64         `db:"tx_packets" json:"tx_packets"`
+	TxBytes                   []int64         `db:"tx_bytes" json:"tx_bytes"`
+	SessionCounts             json.RawMessage `db:"session_counts" json:"session_counts"`
+	ConnectionMedianLatencyMS []float64       `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	Usage                     []bool          `db:"usage" json:"usage"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error {
@@ -36230,10 +36519,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 		pq.Array(arg.RxBytes),
 		pq.Array(arg.TxPackets),
 		pq.Array(arg.TxBytes),
-		pq.Array(arg.SessionCountVSCode),
-		pq.Array(arg.SessionCountJetBrains),
-		pq.Array(arg.SessionCountReconnectingPTY),
-		pq.Array(arg.SessionCountSSH),
+		arg.SessionCounts,
 		pq.Array(arg.ConnectionMedianLatencyMS),
 		pq.Array(arg.Usage),
 	)

@@ -1,4 +1,6 @@
-# Dotfiles
+---
+title: Dotfiles
+---
 
 <!-- markdown-link-check-disable -->
 

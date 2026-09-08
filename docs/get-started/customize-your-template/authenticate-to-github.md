@@ -1,4 +1,6 @@
-# Clone private repositories
+---
+title: Clone private repositories
+---
 
 Now that you've finished [Launch your first workspace](../index.md), you can let your workspaces clone private GitHub repositories without a manual login each time.
 

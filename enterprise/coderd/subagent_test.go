@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entdbauthz "github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	entportsharing "github.com/coder/coder/v2/enterprise/coderd/portsharing"
@@ -53,22 +52,22 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsEnterpriseMaxPortShareLevel(t 
 				{
 					Slug:  "public-app",
 					Share: proto.CreateSubAgentRequest_App_PUBLIC.Enum(),
-					Url:   ptr.Ref("http://localhost:8080"),
+					Url:   new("http://localhost:8080"),
 				},
 				{
 					Slug:  "authenticated-app",
 					Share: proto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
-					Url:   ptr.Ref("http://localhost:8081"),
+					Url:   new("http://localhost:8081"),
 				},
 				{
 					Slug:  "owner-app",
 					Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
-					Url:   ptr.Ref("http://localhost:8082"),
+					Url:   new("http://localhost:8082"),
 				},
 				{
 					Slug:  "organization-app",
 					Share: proto.CreateSubAgentRequest_App_ORGANIZATION.Enum(),
-					Url:   ptr.Ref("http://localhost:8083"),
+					Url:   new("http://localhost:8083"),
 				},
 			},
 			expectedStoredApps: []expectedApp{
@@ -97,22 +96,22 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsEnterpriseMaxPortShareLevel(t 
 				{
 					Slug:  "public-app",
 					Share: proto.CreateSubAgentRequest_App_PUBLIC.Enum(),
-					Url:   ptr.Ref("http://localhost:8080"),
+					Url:   new("http://localhost:8080"),
 				},
 				{
 					Slug:  "authenticated-app",
 					Share: proto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
-					Url:   ptr.Ref("http://localhost:8081"),
+					Url:   new("http://localhost:8081"),
 				},
 				{
 					Slug:  "owner-app",
 					Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
-					Url:   ptr.Ref("http://localhost:8082"),
+					Url:   new("http://localhost:8082"),
 				},
 				{
 					Slug:  "organization-app",
 					Share: proto.CreateSubAgentRequest_App_ORGANIZATION.Enum(),
-					Url:   ptr.Ref("http://localhost:8083"),
+					Url:   new("http://localhost:8083"),
 				},
 			},
 			expectedStoredApps: []expectedApp{
@@ -141,22 +140,22 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsEnterpriseMaxPortShareLevel(t 
 				{
 					Slug:  "authenticated-app",
 					Share: proto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
-					Url:   ptr.Ref("http://localhost:8080"),
+					Url:   new("http://localhost:8080"),
 				},
 				{
 					Slug:  "public-app",
 					Share: proto.CreateSubAgentRequest_App_PUBLIC.Enum(),
-					Url:   ptr.Ref("http://localhost:8081"),
+					Url:   new("http://localhost:8081"),
 				},
 				{
 					Slug:  "owner-app",
 					Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
-					Url:   ptr.Ref("http://localhost:8082"),
+					Url:   new("http://localhost:8082"),
 				},
 				{
 					Slug:  "organization-app",
 					Share: proto.CreateSubAgentRequest_App_ORGANIZATION.Enum(),
-					Url:   ptr.Ref("http://localhost:8083"),
+					Url:   new("http://localhost:8083"),
 				},
 			},
 			expectedStoredApps: []expectedApp{
@@ -185,22 +184,22 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsEnterpriseMaxPortShareLevel(t 
 				{
 					Slug:  "authenticated-app",
 					Share: proto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
-					Url:   ptr.Ref("http://localhost:8080"),
+					Url:   new("http://localhost:8080"),
 				},
 				{
 					Slug:  "public-app",
 					Share: proto.CreateSubAgentRequest_App_PUBLIC.Enum(),
-					Url:   ptr.Ref("http://localhost:8081"),
+					Url:   new("http://localhost:8081"),
 				},
 				{
 					Slug:  "owner-app",
 					Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
-					Url:   ptr.Ref("http://localhost:8082"),
+					Url:   new("http://localhost:8082"),
 				},
 				{
 					Slug:  "organization-app",
 					Share: proto.CreateSubAgentRequest_App_ORGANIZATION.Enum(),
-					Url:   ptr.Ref("http://localhost:8083"),
+					Url:   new("http://localhost:8083"),
 				},
 			},
 			expectedStoredApps: []expectedApp{

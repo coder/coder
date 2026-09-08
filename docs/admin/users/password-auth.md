@@ -1,4 +1,6 @@
-# Password Authentication
+---
+title: Password Authentication
+---
 
 Coder has password authentication enabled by default. The account created during
 setup is a username/password account.

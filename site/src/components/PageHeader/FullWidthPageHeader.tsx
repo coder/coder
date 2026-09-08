@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import type { FC, PropsWithChildren, ReactNode } from "react";
-import { cn } from "#/utils/cn";
 
 interface FullWidthPageHeaderProps {
 	children?: ReactNode;

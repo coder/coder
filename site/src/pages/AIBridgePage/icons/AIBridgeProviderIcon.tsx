@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { CircleQuestionMarkIcon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { cn } from "#/utils/cn";
 
 export const AIBridgeProviderIcon = ({
 	provider,
@@ -9,7 +9,7 @@ export const AIBridgeProviderIcon = ({
 }: {
 	provider: string;
 } & React.ComponentProps<"svg">) => {
-	const iconClassName = "flex-shrink-0";
+	const iconClassName = "shrink-0";
 	switch (provider) {
 		case "openai":
 			return (

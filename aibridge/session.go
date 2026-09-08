@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/tidwall/gjson"
-
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 var claudeCodePattern = regexp.MustCompile(`_session_(.+)$`) // Legacy format: save compilation on each call.
@@ -107,5 +105,5 @@ func cleanRef(str string) *string {
 		return nil
 	}
 
-	return utils.PtrTo(str)
+	return new(str)
 }

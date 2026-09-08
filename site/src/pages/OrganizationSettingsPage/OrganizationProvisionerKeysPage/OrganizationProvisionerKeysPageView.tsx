@@ -50,13 +50,12 @@ export const OrganizationProvisionerKeysPageView: FC<
 	);
 
 	return (
-		<section className="w-full max-w-screen-2xl pb-10">
-			<SettingsHeader
-				actions={<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />}
-			>
+		<section className="w-full max-w-(--breakpoint-2xl) pb-10">
+			<SettingsHeader>
 				<SettingsHeaderTitle>Provisioner Keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Manage provisioner keys used to authenticate provisioner instances.
+					Manage provisioner keys used to authenticate provisioner instances.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

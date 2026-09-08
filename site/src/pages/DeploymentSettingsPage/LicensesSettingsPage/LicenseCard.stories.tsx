@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { MockLicenseResponse } from "#/testHelpers/entities";
 
 import { LicenseCard } from "./LicenseCard";
@@ -163,7 +164,7 @@ export const Premium: Story = {
 			"137.3",
 		);
 		const upgrade = canvas.getByRole("link", { name: "Upgrade" });
-		await expect(upgrade).toHaveAttribute("href", "mailto:sales@coder.com");
+		await expect(upgrade).toHaveAttribute("href", CONTACT_SALES_LINK);
 		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
 		await expect(canvas.queryByText("AI Governance")).not.toBeInTheDocument();
 	},

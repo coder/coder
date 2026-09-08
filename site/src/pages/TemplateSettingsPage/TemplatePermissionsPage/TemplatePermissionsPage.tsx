@@ -41,16 +41,13 @@ const TemplatePermissionsPage: FC = () => {
 			<title>{pageTitle(template.name, "Permissions")}</title>
 
 			<div className="flex flex-col gap-12">
-				<SettingsHeader
-					actions={
+				<SettingsHeader>
+					<SettingsHeaderTitle>Permissions</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Manage which members and groups can use this template.{" "}
 						<SettingsHeaderDocsLink
 							href={docs("/admin/templates/template-permissions")}
 						/>
-					}
-				>
-					<SettingsHeaderTitle>Permissions</SettingsHeaderTitle>
-					<SettingsHeaderDescription>
-						Manage which members and groups can use this template.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 

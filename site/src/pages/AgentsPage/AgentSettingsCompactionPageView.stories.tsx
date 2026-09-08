@@ -21,9 +21,7 @@ const baseArgs: AgentSettingsCompactionPageViewProps = {
 		},
 	],
 	providerTypeByID: new Map<string, string>([["prov-openai", "openai"]]),
-	organizationNameByID: new Map<string, string>([
-		[MockDefaultOrganization.id, MockDefaultOrganization.display_name],
-	]),
+	organizations: [MockDefaultOrganization],
 	modelsError: undefined,
 	isLoadingModels: false,
 	thresholds: [

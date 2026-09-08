@@ -58,8 +58,9 @@ export const Default: Story = {
 		await expect(canvas.getByText("GitHub")).toBeInTheDocument();
 		await expect(canvas.getByText("Image")).toBeInTheDocument();
 		await expect(canvas.getByText("API key")).toBeInTheDocument();
-		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
-		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+		expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+		const disabledRow = canvas.getByRole("button", { name: /Image/i });
+		await expect(within(disabledRow).getByText("Disabled")).toBeInTheDocument();
 	},
 };
 

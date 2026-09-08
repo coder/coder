@@ -45,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/promoauth"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
@@ -506,7 +505,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AuthenticatedUser: func(ctx context.Context, _ *http.Client) (*github.User, error) {
 					return &github.User{
 						AvatarURL: github.String("/hello-world"),
-						ID:        ptr.Ref[int64](1234),
+						ID:        new(int64(1234)),
 						Login:     github.String("kyle"),
 						Name:      github.String("Kylium Carbonate"),
 					}, nil
@@ -574,7 +573,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
 					return &github.User{
 						AvatarURL: github.String("/hello-world"),
-						ID:        ptr.Ref[int64](1234),
+						ID:        new(int64(1234)),
 						Login:     github.String("kyle"),
 						Name:      github.String(" " + strings.Repeat("a", 129) + " "),
 					}, nil

@@ -1,4 +1,6 @@
-# Data Retention
+---
+title: Data Retention
+---
 
 Coder supports configurable retention policies that automatically purge old
 Audit Logs, Connection Logs, Workspace Agent Logs, API keys, and AI Gateway

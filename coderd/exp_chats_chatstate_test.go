@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -143,7 +142,7 @@ func TestArchiveChatStateTransitions(t *testing.T) {
 
 		driveChatToWaiting(ctx, t, api, chat.ID)
 
-		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 
 		got, err := client.GetChat(ctx, chat.ID)
@@ -165,7 +164,7 @@ func TestArchiveChatStateTransitions(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		requireSDKError(t, err, http.StatusConflict)
 
 		got, err := client.GetChat(ctx, chat.ID)
@@ -476,7 +475,7 @@ func TestPatchChatArchiveChildRejected(t *testing.T) {
 		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
 	})
 
-	err = client.UpdateChat(ctx, childA.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+	err = client.UpdateChat(ctx, childA.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 	requireSDKError(t, err, http.StatusBadRequest)
 
 	for _, id := range []uuid.UUID{root.ID, childA.ID, childB.ID} {
@@ -526,7 +525,7 @@ func TestPatchChatUnarchiveChildRejected(t *testing.T) {
 	})
 
 	// Archive the whole family via the root.
-	err = client.UpdateChat(ctx, root.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+	err = client.UpdateChat(ctx, root.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 	require.NoError(t, err)
 	for _, id := range []uuid.UUID{root.ID, childA.ID, childB.ID} {
 		got, gerr := loadChatRow(ctx, db, id)
@@ -535,7 +534,7 @@ func TestPatchChatUnarchiveChildRejected(t *testing.T) {
 	}
 
 	// Unarchiving a child must be rejected.
-	err = client.UpdateChat(ctx, childA.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+	err = client.UpdateChat(ctx, childA.ID, codersdk.UpdateChatRequest{Archived: new(false)})
 	requireSDKError(t, err, http.StatusBadRequest)
 
 	for _, id := range []uuid.UUID{root.ID, childA.ID, childB.ID} {
@@ -576,7 +575,7 @@ func TestPatchChatArchiveRootRollsBackWhenChildCannotArchive(t *testing.T) {
 		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
 	})
 
-	err = client.UpdateChat(ctx, root.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+	err = client.UpdateChat(ctx, root.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 	requireSDKError(t, err, http.StatusConflict)
 
 	for _, id := range []uuid.UUID{root.ID, child.ID} {

@@ -10,7 +10,6 @@ import {
 } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -38,7 +37,7 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "./ChatConversation/chatError";
 import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
-import { CompactOrgSelector } from "./ChatElements";
+import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -132,7 +131,6 @@ export function useEmptyStateDraft() {
 
 interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
-	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
@@ -146,7 +144,6 @@ interface AgentCreateFormProps {
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
-	sendShortcut,
 	isCreating,
 	createError,
 	canCreateChat,
@@ -194,8 +191,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const permittedOrgsQuery = useQuery({
 		...permittedOrganizations({
-			// agents-access grants chat:create only at member scope. "me" is
-			// replaced with the caller ID so that permission can match.
+			// "me" resolves to the caller ID for owner-scoped permissions.
 			object: { resource_type: "chat", owner_id: "me" },
 			action: "create",
 		}),
@@ -567,7 +563,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	return (
 		<>
-			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-none sm:h-full sm:flex-1 sm:items-center">
+			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-0 sm:h-full sm:flex-1 sm:items-center">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
 					{isForbidden ? (
 						<ChatAccessDeniedAlert />
@@ -637,7 +633,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
-						sendShortcut={sendShortcut}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={
 							isCreating ||

@@ -2,9 +2,10 @@
  * Copied from shadc/ui on 04/03/2025
  * @see {@link https://ui.shadcn.com/docs/components/checkbox}
  */
+
+import { cn } from "cn";
 import { CheckIcon, MinusIcon } from "lucide-react";
 import { Checkbox as CheckboxPrimitive } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 /**
  * To allow for an indeterminate state the checkbox must be controlled, otherwise the checked prop would remain undefined
@@ -16,7 +17,7 @@ export const Checkbox: React.FC<
 		<CheckboxPrimitive.Root
 			className={cn(
 				"peer size-[18px] shrink-0 rounded-xs border border-border border-solid m-1",
-				"focus-visible:outline-none focus-visible:ring-2 relative",
+				"focus-visible:outline-hidden focus-visible:ring-2 relative",
 				"focus-visible:ring-content-link focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface-primary",
 				"disabled:cursor-not-allowed",
 				"disabled:bg-surface-primary",

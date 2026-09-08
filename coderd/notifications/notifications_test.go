@@ -1619,6 +1619,27 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Data: map[string]any{},
 			},
 		},
+		{
+			name: "TemplateAIModelsUnpricedReport",
+			id:   notifications.TemplateAIModelsUnpricedReport,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				// We need to use floats as `json.Unmarshal` unmarshal numbers in `map[string]any` to floats.
+				Data: map[string]any{
+					"report_frequency": "week",
+					"models": []map[string]any{
+						{"provider": "anthropic", "model": "claude-opus-4-8"},
+						{"provider": "openai", "model": "gpt-5.7"},
+						{"provider": "openrouter", "model": "z-ai/glm-5.4"},
+					},
+					"total_count": 15.0,
+					"truncated":   true,
+				},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:

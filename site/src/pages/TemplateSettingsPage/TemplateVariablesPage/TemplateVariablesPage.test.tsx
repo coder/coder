@@ -32,7 +32,7 @@ const renderTemplateVariablesPage = async () => {
 	renderWithTemplateSettingsLayout(<TemplateVariablesPage />, {
 		route: `/templates/${MockTemplate.name}/variables`,
 		path: "/templates/:template/variables",
-		extraRoutes: [{ path: `/templates/${MockTemplate.name}`, element: <></> }],
+		extraRoutes: [{ path: `/templates/${MockTemplate.name}`, element: null }],
 	});
 	await waitForLoaderToBeRemoved();
 };

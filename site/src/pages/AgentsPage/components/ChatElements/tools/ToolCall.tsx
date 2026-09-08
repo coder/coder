@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	LoaderIcon,
@@ -18,7 +19,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolIcon } from "./ToolIcon";
@@ -227,7 +227,7 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 		<TranscriptRow
 			asChild
 			className={cn(
-				"m-0 min-w-0 max-w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors",
+				"m-0 min-w-0 max-w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-inherit text-content-secondary transition-colors",
 				collapsible && "cursor-pointer hover:text-content-primary",
 				className,
 			)}
@@ -259,7 +259,7 @@ const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
 }) => {
 	const { active } = useToolCallContext();
 	if (children) {
-		return <>{children}</>;
+		return children;
 	}
 	if (!name) {
 		return null;
@@ -444,7 +444,7 @@ const Content: FC<ToolCallContentProps> = ({ children }) => {
 	if (!collapsible || !expanded) {
 		return null;
 	}
-	return <>{children}</>;
+	return children;
 };
 
 export const ToolCall = {

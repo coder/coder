@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
+import { toast } from "sonner";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -19,7 +20,9 @@ import {
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
+	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -36,7 +39,9 @@ import {
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	mockApiError,
@@ -49,9 +54,10 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -74,6 +80,7 @@ const AgentChatPageLayout: FC = () => {
 							requestUnarchiveAgent: () => {},
 							requestPinAgent: () => {},
 							requestUnpinAgent: () => {},
+							onOpenRenameDialog: () => {},
 							isArchiving: false,
 							archivingChatId: undefined,
 							activeChatChildren: undefined,
@@ -377,6 +384,14 @@ const buildQueries = (
 				allowed: chat.owner_id === MockUserOwner.id && !chat.parent_chat_id,
 			},
 		}),
+		{
+			key: preferenceSettingsKey,
+			data: MockUserPreferenceSettings,
+		},
+		{
+			key: userCompactionThresholdsKey,
+			data: MockUserChatCompactionThresholds,
+		},
 	];
 };
 
@@ -3253,11 +3268,7 @@ export const WithWaitAgentComputerUseVNC: Story = {
 	},
 };
 
-// ---------------------------------------------------------------------------
-// /compact slash command
-// ---------------------------------------------------------------------------
-
-const compactCommandMessages: TypesGen.ChatMessagesResponse = {
+const slashCommandMessages: TypesGen.ChatMessagesResponse = {
 	messages: [
 		{
 			id: 1,
@@ -3293,7 +3304,7 @@ export const SlashCompactCommandSubmits: Story = {
 				title: "Compact command",
 				status: "waiting",
 			},
-			compactCommandMessages,
+			slashCommandMessages,
 			{ diffUrl: undefined },
 		),
 	},
@@ -3332,6 +3343,106 @@ export const SlashCompactCommandSubmits: Story = {
 	},
 };
 
+export const SlashClearCommandSubmits: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Clear command",
+				status: "waiting",
+			},
+			slashCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const clearSpy = spyOn(API.experimental, "clearChat").mockResolvedValue({
+			id: CHAT_ID,
+			...baseChatFields,
+			title: "Clear command",
+			status: "waiting",
+		});
+		const sendSpy = spyOn(API.experimental, "createChatMessage");
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/clear");
+		// The menu popover fades in from opacity 0, so retry the visibility
+		// check instead of racing the entrance animation (flaked under pixel).
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText(
+					"Clear the conversation context; the next message starts fresh",
+				),
+			).toBeVisible();
+		});
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(clearSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(clearSpy).toHaveBeenCalledWith(CHAT_ID);
+		expect(sendSpy).not.toHaveBeenCalled();
+	},
+};
+
+export const SlashClearCommandConflictShowsError: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Clear command conflict",
+				status: "waiting",
+			},
+			slashCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const clearSpy = spyOn(API.experimental, "clearChat").mockRejectedValue(
+			mockApiError({
+				message: "Nothing to clear.",
+				detail:
+					"The chat has no conversation to clear after the latest context boundary.",
+			}),
+		);
+		// Stories render no Toaster portal, so assert the toast call
+		// rather than its DOM.
+		const toastErrorSpy = spyOn(toast, "error");
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/clear");
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText(
+					"Clear the conversation context; the next message starts fresh",
+				),
+			).toBeVisible();
+		});
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(clearSpy).toHaveBeenCalledTimes(1);
+		});
+		await waitFor(() => {
+			expect(toastErrorSpy).toHaveBeenCalledWith("Nothing to clear.");
+		});
+	},
+};
+
 /** A personal skill named "compact" takes precedence: "/compact" is sent
  *  as a normal message (skill trigger) and no compaction is requested. */
 export const SlashCompactYieldsToPersonalSkill: Story = {
@@ -3345,7 +3456,7 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 				title: "Compact skill precedence",
 				status: "waiting",
 			},
-			compactCommandMessages,
+			slashCommandMessages,
 			{ diffUrl: undefined },
 		),
 	},
@@ -3409,7 +3520,7 @@ const promotedQueueHeadChat: TypesGen.Chat = {
 };
 
 const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
-	messages: compactCommandMessages.messages,
+	messages: slashCommandMessages.messages,
 	queued_messages: [
 		{
 			...MockChatQueuedMessage,
@@ -3602,6 +3713,7 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 export const SendResponseAfterChatSwitch: Story = {
 	render: () => <AgentChatSwitchHarness />,
 	parameters: {
+		pixel: { exclude: true },
 		queries: [
 			...buildQueries(
 				{
@@ -3861,7 +3973,12 @@ export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
 		await userEvent.type(editor, "Durable prompt");
-		await userEvent.keyboard("{Enter}");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		await waitFor(() => {
+			expect(editor).toHaveTextContent("Durable prompt");
+			expect(sendButton).toBeEnabled();
+		});
+		await userEvent.click(sendButton);
 		await waitFor(() => {
 			expect(sendSpy).toHaveBeenCalledTimes(1);
 		});

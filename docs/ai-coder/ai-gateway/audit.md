@@ -1,4 +1,6 @@
-# Auditing AI Sessions
+---
+title: Auditing AI Sessions
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is
@@ -65,7 +67,15 @@ Select one to view its full details.
 
 ### Session detail
 
-Click into a session to see a chronological causal chain of events.
+Open a session to see a chronological causal chain of events.
+
+A search input next to the Back button filters the events by prompt text,
+tool names, tool inputs, and network call destinations. While a query is
+active, the timeline shows only matching events and a count below the input
+reports how many events match. Matches render in bold in prompts, tool names,
+and network call destinations, and a matching prompt expands to show the
+match. A "No events match your search in the loaded events." message appears
+when nothing in the loaded events matches.
 
 Within a thread, each step shows token usage, tool call details (including
 arguments and MCP server URLs), duration, and any errors or warnings.

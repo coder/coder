@@ -205,8 +205,10 @@ func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
 
 	rolename := chi.URLParam(r, "roleName")
 
-	// Catch requests that try to delete system roles.
-	if !validOrganizationRoleRequest(ctx, codersdk.CustomRoleRequest{Name: rolename}, rw) {
+	// Catch requests that try to delete system roles. Retired built-in
+	// names skip this: they stay reserved for creation and updates, but a
+	// custom role that predates the reservation must remain deletable.
+	if !rbac.IsRetiredRoleName(rolename) && !validOrganizationRoleRequest(ctx, codersdk.CustomRoleRequest{Name: rolename}, rw) {
 		return
 	}
 

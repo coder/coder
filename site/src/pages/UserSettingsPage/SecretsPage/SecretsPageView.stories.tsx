@@ -109,7 +109,7 @@ export const Loaded: Story = {
 		await expect(canvas.getByText("env var + file")).toBeInTheDocument();
 		await expect(canvas.getByText("not injected")).toBeInTheDocument();
 
-		const docsLink = canvas.getByRole("link", { name: "Read the docs" });
+		const docsLink = canvas.getByRole("link", { name: /View docs/ });
 		await expect(docsLink).toHaveAttribute(
 			"href",
 			expect.stringContaining("/user-guides/user-secrets"),

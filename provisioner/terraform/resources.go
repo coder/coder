@@ -16,7 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
@@ -841,11 +840,11 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 
 			if !param.Validation[0].MaxDisabled {
 				// #nosec G115 - Safe conversion as the number is expected to be within int32 range
-				protoParam.ValidationMax = ptr.Ref(int32(param.Validation[0].Max))
+				protoParam.ValidationMax = new(int32(param.Validation[0].Max))
 			}
 			if !param.Validation[0].MinDisabled {
 				// #nosec G115 - Safe conversion as the number is expected to be within int32 range
-				protoParam.ValidationMin = ptr.Ref(int32(param.Validation[0].Min))
+				protoParam.ValidationMin = new(int32(param.Validation[0].Min))
 			}
 			protoParam.ValidationMonotonic = param.Validation[0].Monotonic
 		}

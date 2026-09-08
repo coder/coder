@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -8,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -82,16 +83,35 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 			OS:            string(templatebuilder.BaseTemplateOS(id)),
 			Variables:     vars,
 			Prerequisites: templatebuilder.BasePrerequisites(id),
+			Agents:        baseAgentsToSDK(templatebuilder.BaseAgents(id)),
 		})
 	}
 
-	sort.Slice(bases, func(i, j int) bool {
-		return bases[i].Name < bases[j].Name
+	// Order bases by display name, tiebreaking on ID so the order is total and
+	// deterministic even if two bases ever share a display name.
+	slices.SortFunc(bases, func(a, b codersdk.TemplateBuilderBase) int {
+		return cmp.Or(
+			cmp.Compare(a.Name, b.Name),
+			cmp.Compare(a.ID, b.ID),
+		)
 	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderBasesResponse{
 		Bases: bases,
 	})
+}
+
+// baseAgentsToSDK converts base template agents to the SDK type.
+func baseAgentsToSDK(agents []templatebuilder.BaseAgent) []codersdk.TemplateBuilderBaseAgent {
+	out := make([]codersdk.TemplateBuilderBaseAgent, 0, len(agents))
+	for _, a := range agents {
+		out = append(out, codersdk.TemplateBuilderBaseAgent{
+			Name:        a.Name,
+			DisplayName: a.DisplayName,
+			Default:     a.Default,
+		})
+	}
+	return out
 }
 
 // baseVariablesToSDK converts base template variables to the SDK type,
@@ -139,8 +159,11 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Resolve OS filter from the base query param.
-	var filterOS templatebuilder.BaseOS
+	// Resolve OS filter and base-included modules from the base query param.
+	var (
+		filterOS    templatebuilder.BaseOS
+		baseModules map[string]bool
+	)
 	if base := r.URL.Query().Get("base"); base != "" {
 		filterOS = templatebuilder.BaseTemplateOS(base)
 		if filterOS == "" {
@@ -150,11 +173,20 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
+		included := templatebuilder.BaseIncludedModules(base)
+		baseModules = make(map[string]bool, len(included))
+		for _, id := range included {
+			baseModules[id] = true
+		}
 	}
 
 	modules := make([]codersdk.TemplateBuilderModule, 0, len(manifests))
 	for _, m := range manifests {
 		if filterOS != "" && !m.CompatibleWithOS(string(filterOS)) {
+			continue
+		}
+		// Skip modules the base already includes (see BaseIncludedModules).
+		if baseModules[m.ID] {
 			continue
 		}
 		modules = append(modules, m.ToSDK())
@@ -202,6 +234,7 @@ func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) 
 	for _, m := range req.Modules {
 		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
 			ID:        m.ID,
+			AgentName: m.AgentName,
 			Variables: m.Variables,
 		})
 	}
@@ -312,6 +345,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	for _, m := range req.Modules {
 		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
 			ID:        m.ID,
+			AgentName: m.AgentName,
 			Variables: m.Variables,
 		})
 	}

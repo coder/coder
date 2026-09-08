@@ -79,7 +79,7 @@ export const OrganizationSidebarView: FC<
 						) : (
 							<span className="truncate">No organization selected</span>
 						)}
-						<ChevronDownIcon className="ml-auto !size-icon-sm" />
+						<ChevronDownIcon className="ml-auto size-icon-sm!" />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">

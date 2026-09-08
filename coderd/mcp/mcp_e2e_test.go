@@ -1260,17 +1260,12 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 			"path":      "/tmp/secret.txt",
 		},
 	})
-	// The MCP library may return the error in the tool result itself
-	// (isError=true) rather than as a Go error. Check both.
-	if err != nil {
-		require.ErrorContains(t, err, "unauthorized")
-		return
-	}
-	// If no Go error, the tool result must report failure.
+	require.NoError(t, err)
 	require.True(t, toolResult.IsError, "expected tool call to fail for user without SSH access")
+	require.Len(t, toolResult.Content, 1)
 	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
-	assert.Contains(t, textContent.Text, "unauthorized")
+	assert.Equal(t, "failed to dial agent: unauthorized: you do not have SSH access to this workspace", textContent.Text)
 }
 
 func mustParseURL(t *testing.T, rawURL string) *url.URL {
@@ -1325,15 +1320,18 @@ func (s *sentinelTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 //nolint:paralleltest // Mutates http.DefaultTransport.
 func TestMCPHTTP_E2E_TransportIsolation(t *testing.T) {
+	// Construct the API before swapping DefaultTransport: coderd's guarded
+	// MCP client clones http.DefaultTransport at construction, and safedial
+	// panics on a non-*http.Transport rather than guessing.
+	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	t.Cleanup(func() { closer.Close() })
+	_ = coderdtest.CreateFirstUser(t, coderClient)
+
 	// Replace DefaultTransport with a counting sentinel.
 	original := http.DefaultTransport
 	sentinel := &sentinelTransport{inner: original}
 	http.DefaultTransport = sentinel
 	t.Cleanup(func() { http.DefaultTransport = original })
-
-	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
-	t.Cleanup(func() { closer.Close() })
-	_ = coderdtest.CreateFirstUser(t, coderClient)
 
 	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 	authHeaders := map[string]string{

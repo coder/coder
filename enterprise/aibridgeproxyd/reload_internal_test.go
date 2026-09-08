@@ -40,7 +40,7 @@ func TestServerReloadSwapsProviderRouter(t *testing.T) {
 	srv.providerRouter.Store(emptyProviderRouter)
 
 	require.NoError(t, srv.Reload(ctx))
-	assert.Equal(t, "old", srv.loadProviderRouter().providerFromHost("old.example.com"))
+	assert.Equal(t, routedProvider{name: "old", providerType: "openai"}, srv.loadProviderRouter().providerFromHost("old.example.com"))
 	assert.Empty(t, srv.loadProviderRouter().providerFromHost("new.example.com"))
 
 	reload = ProviderReload{Providers: []ReloadedProvider{enabledProvider("new", "new.example.com")}}
@@ -48,7 +48,7 @@ func TestServerReloadSwapsProviderRouter(t *testing.T) {
 
 	router := srv.loadProviderRouter()
 	assert.Empty(t, router.providerFromHost("old.example.com"))
-	assert.Equal(t, "new", router.providerFromHost("new.example.com"))
+	assert.Equal(t, routedProvider{name: "new", providerType: "openai"}, router.providerFromHost("new.example.com"))
 	assert.Equal(t, []string{"new.example.com:443"}, router.mitmHosts)
 }
 
@@ -74,14 +74,14 @@ func TestServerReloadPreservesProviderRouterOnRefreshError(t *testing.T) {
 
 	require.NoError(t, srv.Reload(ctx))
 	before := srv.loadProviderRouter()
-	assert.Equal(t, "old", before.providerFromHost("old.example.com"))
+	assert.Equal(t, routedProvider{name: "old", providerType: "openai"}, before.providerFromHost("old.example.com"))
 
 	failRefresh = true
 	require.ErrorIs(t, srv.Reload(ctx), refreshErr)
 
 	after := srv.loadProviderRouter()
 	assert.Same(t, before, after)
-	assert.Equal(t, "old", after.providerFromHost("old.example.com"))
+	assert.Equal(t, routedProvider{name: "old", providerType: "openai"}, after.providerFromHost("old.example.com"))
 	assert.Equal(t, []string{"old.example.com:443"}, after.mitmHosts)
 }
 
@@ -95,7 +95,7 @@ func TestBuildProviderRouter(t *testing.T) {
 
 		reload := ProviderReload{Providers: []ReloadedProvider{
 			enabledProvider("openai", "api.openai.com"),
-			enabledProvider("anthropic", "api.anthropic.com"),
+			{ProviderOutcome: aibridged.ProviderOutcome{Name: "anthropic", Type: "anthropic", Status: aibridged.ProviderStatusEnabled}, Host: "api.anthropic.com"},
 			enabledProvider("custom", "custom-llm.example.com"),
 			// Host is populated on the non-enabled rows so the Status
 			// guard, not the empty-host guard, is what excludes them.
@@ -106,9 +106,9 @@ func TestBuildProviderRouter(t *testing.T) {
 		router, err := buildProviderRouter(reload, []string{"443"})
 		require.NoError(t, err)
 
-		assert.Equal(t, "openai", router.providerFromHost("api.openai.com"))
-		assert.Equal(t, "anthropic", router.providerFromHost("api.anthropic.com"))
-		assert.Equal(t, "custom", router.providerFromHost("custom-llm.example.com"))
+		assert.Equal(t, routedProvider{name: "openai", providerType: "openai"}, router.providerFromHost("api.openai.com"))
+		assert.Equal(t, routedProvider{name: "anthropic", providerType: "anthropic"}, router.providerFromHost("api.anthropic.com"))
+		assert.Equal(t, routedProvider{name: "custom", providerType: "openai"}, router.providerFromHost("custom-llm.example.com"))
 		assert.Empty(t, router.providerFromHost("unknown.com"))
 		assert.Empty(t, router.providerFromHost("disabled.example.com"),
 			"disabled provider must not be routable even with a populated Host")
@@ -130,8 +130,8 @@ func TestBuildProviderRouter(t *testing.T) {
 		router, err := buildProviderRouter(reload, []string{"443"})
 		require.NoError(t, err)
 
-		assert.Equal(t, "provider", router.providerFromHost("API.Example.COM"))
-		assert.Equal(t, "provider", router.providerFromHost("api.example.com"))
+		assert.Equal(t, routedProvider{name: "provider", providerType: "openai"}, router.providerFromHost("API.Example.COM"))
+		assert.Equal(t, routedProvider{name: "provider", providerType: "openai"}, router.providerFromHost("api.example.com"))
 	})
 
 	t.Run("DefensiveDeduplicatesSameHost", func(t *testing.T) {
@@ -147,7 +147,7 @@ func TestBuildProviderRouter(t *testing.T) {
 		router, err := buildProviderRouter(reload, []string{"443"})
 		require.NoError(t, err)
 
-		assert.Equal(t, "first", router.providerFromHost("api.example.com"))
+		assert.Equal(t, routedProvider{name: "first", providerType: "openai"}, router.providerFromHost("api.example.com"))
 	})
 
 	t.Run("SkipsRowsWithEmptyHost", func(t *testing.T) {
@@ -161,7 +161,7 @@ func TestBuildProviderRouter(t *testing.T) {
 		router, err := buildProviderRouter(reload, []string{"443"})
 		require.NoError(t, err)
 
-		assert.Equal(t, "good", router.providerFromHost("api.good.example.com"))
+		assert.Equal(t, routedProvider{name: "good", providerType: "openai"}, router.providerFromHost("api.good.example.com"))
 		assert.Equal(t, []string{"api.good.example.com:443"}, router.mitmHosts)
 	})
 }

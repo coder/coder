@@ -91,7 +91,6 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
       "captivePortal": "string",
       "globalV4": "string",
       "globalV6": "string",
-      "hairPinning": "string",
       "icmpv4": true,
       "ipv4": true,
       "ipv4CanSend": true,

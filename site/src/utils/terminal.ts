@@ -9,8 +9,10 @@ export const terminalWebsocketUrl = async (
 	width: number,
 	containerName: string | undefined,
 	containerUser: string | undefined,
+	sessionId: string,
 ): Promise<string> => {
 	const query = new URLSearchParams({ reconnect });
+	query.set("client_session_id", sessionId);
 	if (command) {
 		query.set("command", command);
 	}
@@ -38,10 +40,13 @@ export const terminalWebsocketUrl = async (
 	}
 
 	// Do ticket issuance and set the query parameter.
-	const tokenRes = await API.issueReconnectingPTYSignedToken({
-		url: url.toString(),
-		agentID: agentId,
-	});
+	const tokenRes = await API.issueReconnectingPTYSignedToken(
+		{
+			url: url.toString(),
+			agentID: agentId,
+		},
+		sessionId,
+	);
 	query.set("coder_signed_app_token_23db1dde", tokenRes.signed_token);
 	url.search = `?${query.toString()}`;
 

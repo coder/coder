@@ -193,7 +193,7 @@ export const OAuthNeedsAuth: Story = {
 			body.getByRole("button", { name: "Authenticate with GitHub" }),
 		);
 		expect(window.open).toHaveBeenCalledWith(
-			"/api/experimental/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
+			"/api/v2/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
 			"_blank",
 			"width=900,height=600",
 		);

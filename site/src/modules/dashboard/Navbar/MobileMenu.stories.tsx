@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { fn, userEvent, within } from "storybook/test";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
@@ -43,7 +42,6 @@ const meta: Meta<typeof MobileMenu> = {
 		supportLinks: MockSupportLinks,
 		onSignOut: fn(),
 		isDefaultOpen: true,
-		canViewModels: false,
 		adminPermissions: {
 			canViewDeployment: true,
 			canViewOrganizations: true,
@@ -95,38 +93,6 @@ export const Member: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},
-	},
-};
-
-export const MemberWithModelAccess: Story = {
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/" },
-			routing: [
-				{ path: "/", useStoryElement: true },
-				{
-					path: "/ai/settings/models",
-					element: <h1>Organization models</h1>,
-				},
-			],
-		}),
-	},
-	args: {
-		user: MockUserMember,
-		adminPermissions: {},
-		canViewModels: true,
-	},
-	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		await expect(
-			body.queryByRole("menuitem", { name: /admin settings/i }),
-		).not.toBeInTheDocument();
-		await user.click(body.getByRole("menuitem", { name: "Models" }));
-		await expect(
-			await canvas.findByRole("heading", { name: "Organization models" }),
-		).toBeInTheDocument();
 	},
 };
 

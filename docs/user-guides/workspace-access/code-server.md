@@ -1,4 +1,6 @@
-# code-server
+---
+title: code-server
+---
 
 [code-server](https://github.com/coder/code-server) is our supported method of running VS Code in the web browser.
 

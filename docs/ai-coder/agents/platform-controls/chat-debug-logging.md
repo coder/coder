@@ -1,4 +1,6 @@
-# Chat debug logging
+---
+title: Chat debug logging
+---
 
 Records a detailed trace of each chat turn for troubleshooting: the
 normalized request sent to the LLM provider, the full response, token usage,
@@ -40,8 +42,7 @@ You can export the same captured debug data from the UI:
 1. Navigate to **Agents**.
 1. Open a chat with debug logging enabled.
 1. Open the **Debug** tab in the right panel.
-1. Click **Export debug logs** to download the chat's recent debug runs as
-   JSON, or expand a run and click **Export this run** to download one run.
+1. Select **Export debug logs** to download the chat's recent debug runs as JSON, or expand a run and select **Export this run** to download one run.
 
 The chat-level export includes the full run detail for the runs returned by
 the debug run list endpoint. The current list endpoint returns up to 100 of

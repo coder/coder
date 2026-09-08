@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 type keyVal struct {
@@ -61,6 +60,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     29,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "claude-cli/2.0.67 (external, cli)",
 			expectedClient: aibridge.ClientClaudeCode,
@@ -86,6 +86,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     76,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -95,14 +96,16 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-4.1",
 			expectPromptRecorded: "This was a large input...",
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:                "resp_0cd5d6b8310055d600696a1776b42c81a199fbb02248a8bfa0",
-				Input:                129, // 12033 input - 11904 cached
-				Output:               44,
-				CacheReadInputTokens: 11904,
+				MsgID:                 "resp_0cd5d6b8310055d600696a1776b42c81a199fbb02248a8bfa0",
+				Input:                 114, // 12033 input - 11904 cached - 15 cache write
+				Output:                44,
+				CacheReadInputTokens:  11904,
+				CacheWriteInputTokens: 15,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     12077,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -127,6 +130,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 128,
 					"total_tokens":     212,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -154,6 +158,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     80,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -170,6 +175,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     164,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -186,6 +192,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     172,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -203,6 +210,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     29,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "Zed/0.219.4+stable.119.abc123 (macos; aarch64)",
 			expectedClient: aibridge.ClientZed,
@@ -221,6 +229,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     4019,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "codex_cli_rs/0.87.0 (Mac OS 26.2.0; arm64)",
 			expectedClient: aibridge.ClientCodex,
@@ -247,6 +256,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     76,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -257,14 +267,16 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-5.2-codex",
 			expectPromptRecorded: "Test cached input tokens.",
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:                "resp_05080461b406f3f501696a1409d34c8195a40ff4b092145c35",
-				Input:                1165, // 16909 input - 15744 cached
-				Output:               54,
-				CacheReadInputTokens: 15744,
+				MsgID:                 "resp_05080461b406f3f501696a1409d34c8195a40ff4b092145c35",
+				Input:                 1135, // 16909 input - 15744 cached - 30 cache write
+				Output:                54,
+				CacheReadInputTokens:  15744,
+				CacheWriteInputTokens: 30,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     16963,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -290,6 +302,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 320,
 					"total_tokens":     404,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -318,6 +331,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     80,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -343,6 +357,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     225,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			expectedClient: aibridge.ClientUnknown,
 		},
@@ -385,6 +400,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 					"output_reasoning": 0,
 					"total_tokens":     29,
 				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 		},
 	}
@@ -519,59 +535,59 @@ func TestResponsesParallelToolsOverwritten(t *testing.T) {
 			name:              "with injected and builtin tools: parallel_tool_calls true",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSingleBuiltinTool, fixtures.OaiResponsesStreamingBuiltinTool},
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(true),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected and builtin tools: parallel_tool_calls false",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSingleBuiltinTool, fixtures.OaiResponsesStreamingBuiltinTool},
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected and builtin tools: parallel_tool_calls unset",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSingleBuiltinTool, fixtures.OaiResponsesStreamingBuiltinTool},
 			withInjectedTools: true,
 			initialSetting:    nil,
-			expectedSetting:   utils.PtrTo(false),
+			expectedSetting:   new(false),
 		},
 		// With injected tools but without builtin tools: parallel_tool_calls should be forced false.
 		{
 			name:              "with injected tools only: parallel_tool_calls true",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple},
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(true),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected tools only: parallel_tool_calls false",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple},
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected tools only: parallel_tool_calls unset",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple},
 			withInjectedTools: true,
 			initialSetting:    nil,
-			expectedSetting:   utils.PtrTo(false),
+			expectedSetting:   new(false),
 		},
 		// With builtin tools but without injected tools: parallel_tool_calls should be preserved.
 		{
 			name:              "with builtin tools only: parallel_tool_calls true",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSingleBuiltinTool, fixtures.OaiResponsesStreamingBuiltinTool},
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(true),
+			initialSetting:    new(true),
+			expectedSetting:   new(true),
 		},
 		{
 			name:              "with builtin tools only: parallel_tool_calls false",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSingleBuiltinTool, fixtures.OaiResponsesStreamingBuiltinTool},
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with builtin tools only: parallel_tool_calls unset",
@@ -585,15 +601,15 @@ func TestResponsesParallelToolsOverwritten(t *testing.T) {
 			name:              "no tools: parallel_tool_calls true",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple},
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(true),
+			initialSetting:    new(true),
+			expectedSetting:   new(true),
 		},
 		{
 			name:              "no tools: parallel_tool_calls false",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple},
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "no tools: parallel_tool_calls unset",
@@ -804,7 +820,8 @@ func TestResponsesInjectedTool(t *testing.T) {
 		expectToolArgs    map[string]any
 		expectToolError   string // If non-empty, MCP tool returns this error.
 		expectPrompt      string
-		expectTokenUsages []recorder.TokenUsageRecord
+		expectTokenUsages []*recorder.TokenUsageRecord
+		expectClientUsage responses.ResponseUsage
 	}{
 		{
 			name:        "blocking_success",
@@ -814,26 +831,42 @@ func TestResponsesInjectedTool(t *testing.T) {
 				"template_version_id": "aa4e30e4-a086-4df6-a364-1343f1458104",
 			},
 			expectPrompt: "list the template params for version aa4e30e4-a086-4df6-a364-1343f1458104",
-			expectTokenUsages: []recorder.TokenUsageRecord{
+			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
-					MsgID:                "resp_012db006225b0ec700696b5de8a01481a28182ea6885448f93",
-					Input:                227, // 6371 input - 6144 cached
-					Output:               75,
-					CacheReadInputTokens: 6144,
+					MsgID:                 "resp_012db006225b0ec700696b5de8a01481a28182ea6885448f93",
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+					Input:                 220, // 6371 input - 6144 cached - 7 cache write
+					Output:                75,
+					CacheReadInputTokens:  6144,
+					CacheWriteInputTokens: 7,
 					ExtraTokenTypes: map[string]int64{
 						"output_reasoning": 25,
 						"total_tokens":     6446,
 					},
 				},
 				{
-					MsgID:                "resp_012db006225b0ec700696b5dec1d4c81a2a6a416e31af39b90",
-					Input:                612, // 6756 input - 6144 cached
-					Output:               231,
-					CacheReadInputTokens: 6144,
+					MsgID:                 "resp_012db006225b0ec700696b5dec1d4c81a2a6a416e31af39b90",
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+					Input:                 601, // 6756 input - 6144 cached - 11 cache write
+					Output:                231,
+					CacheReadInputTokens:  6144,
+					CacheWriteInputTokens: 11,
 					ExtraTokenTypes: map[string]int64{
 						"output_reasoning": 43,
 						"total_tokens":     6987,
 					},
+				},
+			},
+			expectClientUsage: responses.ResponseUsage{
+				InputTokens:  13127,
+				OutputTokens: 306,
+				TotalTokens:  13433,
+				InputTokensDetails: responses.ResponseUsageInputTokensDetails{
+					CachedTokens:     12288,
+					CacheWriteTokens: 18,
+				},
+				OutputTokensDetails: responses.ResponseUsageOutputTokensDetails{
+					ReasoningTokens: 68,
 				},
 			},
 		},
@@ -846,26 +879,42 @@ func TestResponsesInjectedTool(t *testing.T) {
 			},
 			expectPrompt:    "delete the template with ID 03cb4fdd-8109-4a22-8e22-bb4975171395, don't ask for confirmation",
 			expectToolError: "500 Internal error deleting template: unauthorized: rbac: forbidden",
-			expectTokenUsages: []recorder.TokenUsageRecord{
+			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
-					MsgID:                "resp_06e2afba24b6b2ad00696b774d1df0819eaf1ec802bc8a2ca9",
-					Input:                233, // 6377 input - 6144 cached
-					Output:               119,
-					CacheReadInputTokens: 6144,
+					MsgID:                 "resp_06e2afba24b6b2ad00696b774d1df0819eaf1ec802bc8a2ca9",
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+					Input:                 228, // 6377 input - 6144 cached - 5 cache write
+					Output:                119,
+					CacheReadInputTokens:  6144,
+					CacheWriteInputTokens: 5,
 					ExtraTokenTypes: map[string]int64{
 						"output_reasoning": 70,
 						"total_tokens":     6496,
 					},
 				},
 				{
-					MsgID:                "resp_06e2afba24b6b2ad00696b775044e8819ea14840698ef966e2",
-					Input:                395, // 6539 input - 6144 cached
-					Output:               144,
-					CacheReadInputTokens: 6144,
+					MsgID:                 "resp_06e2afba24b6b2ad00696b775044e8819ea14840698ef966e2",
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+					Input:                 386, // 6539 input - 6144 cached - 9 cache write
+					Output:                144,
+					CacheReadInputTokens:  6144,
+					CacheWriteInputTokens: 9,
 					ExtraTokenTypes: map[string]int64{
 						"output_reasoning": 28,
 						"total_tokens":     6683,
 					},
+				},
+			},
+			expectClientUsage: responses.ResponseUsage{
+				InputTokens:  12916,
+				OutputTokens: 263,
+				TotalTokens:  13179,
+				InputTokensDetails: responses.ResponseUsageInputTokensDetails{
+					CachedTokens:     12288,
+					CacheWriteTokens: 14,
+				},
+				OutputTokensDetails: responses.ResponseUsageOutputTokensDetails{
+					ReasoningTokens: 98,
 				},
 			},
 		},
@@ -876,23 +925,28 @@ func TestResponsesInjectedTool(t *testing.T) {
 			mcpToolName:    "coder_list_templates",
 			expectToolArgs: map[string]any{},
 			expectPrompt:   "List my coder templates.",
-			expectTokenUsages: []recorder.TokenUsageRecord{
+			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
-					MsgID:  "resp_016595fe42aa62ca0069724419c52081a0b7eb479c6bc8109f",
-					Input:  6269, // 6269 input - 0 cached
-					Output: 18,
+					MsgID:                 "resp_016595fe42aa62ca0069724419c52081a0b7eb479c6bc8109f",
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+					Input:                 6162, // 6269 input - 100 cached - 7 cache write
+					Output:                18,
+					CacheReadInputTokens:  100,
+					CacheWriteInputTokens: 7,
 					ExtraTokenTypes: map[string]int64{
-						"output_reasoning": 0,
+						"output_reasoning": 3,
 						"total_tokens":     6287,
 					},
 				},
 				{
-					MsgID:                "resp_0bc5f54fce6df69a006972442175908194bb81d31f576e6ca6",
-					Input:                319, // 6463 input - 6144 cached
-					Output:               182,
-					CacheReadInputTokens: 6144,
+					MsgID:                 "resp_0bc5f54fce6df69a006972442175908194bb81d31f576e6ca6",
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+					Input:                 308, // 6463 input - 6144 cached - 11 cache write
+					Output:                182,
+					CacheReadInputTokens:  6144,
+					CacheWriteInputTokens: 11,
 					ExtraTokenTypes: map[string]int64{
-						"output_reasoning": 0,
+						"output_reasoning": 5,
 						"total_tokens":     6645,
 					},
 				},
@@ -909,22 +963,28 @@ func TestResponsesInjectedTool(t *testing.T) {
 			},
 			expectPrompt:    "Create a new workspace build for an workspace with id: 'non_existing_id'",
 			expectToolError: "workspace_id must be a valid UUID: invalid UUID length: 15",
-			expectTokenUsages: []recorder.TokenUsageRecord{
+			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
-					MsgID:  "resp_0dfed48e1052ad7f0069725ca129f88193b97d6deff1760524",
-					Input:  6280, // 6280 input - 0 cached
-					Output: 30,
+					MsgID:                 "resp_0dfed48e1052ad7f0069725ca129f88193b97d6deff1760524",
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+					Input:                 6175, // 6280 input - 100 cached - 5 cache write
+					Output:                30,
+					CacheReadInputTokens:  100,
+					CacheWriteInputTokens: 5,
 					ExtraTokenTypes: map[string]int64{
-						"output_reasoning": 0,
+						"output_reasoning": 3,
 						"total_tokens":     6310,
 					},
 				},
 				{
-					MsgID:  "resp_0dfed48e1052ad7f0069725ca39880819390fcc5b2eb8cf8c6",
-					Input:  6346, // 6346 input - 0 cached
-					Output: 56,
+					MsgID:                 "resp_0dfed48e1052ad7f0069725ca39880819390fcc5b2eb8cf8c6",
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+					Input:                 6237, // 6346 input - 100 cached - 9 cache write
+					Output:                56,
+					CacheReadInputTokens:  100,
+					CacheWriteInputTokens: 9,
 					ExtraTokenTypes: map[string]int64{
-						"output_reasoning": 0,
+						"output_reasoning": 5,
 						"total_tokens":     6402,
 					},
 				},
@@ -984,24 +1044,23 @@ func TestResponsesInjectedTool(t *testing.T) {
 			require.Len(t, prompts, 1)
 			require.Equal(t, tc.expectPrompt, prompts[0].Prompt)
 
+			// Verify both upstream iterations were recorded exactly. Match by
+			// content because AsyncRecorder does not guarantee record ordering.
 			tokenUsages := bridgeServer.Recorder.RecordedTokenUsages()
-			require.Len(t, tokenUsages, len(tc.expectTokenUsages))
 			for i := range tokenUsages {
-				tokenUsages[i].InterceptionID = "" // ignore interception ID and time creation when comparing
+				tokenUsages[i].InterceptionID = ""
 				tokenUsages[i].CreatedAt = time.Time{}
 			}
+			require.ElementsMatch(t, tc.expectTokenUsages, tokenUsages)
 
-			// Match by content, not position, AsyncRecorder may flake.
-			// See https://github.com/coder/internal/issues/1544.
-			for _, expected := range tc.expectTokenUsages {
-				require.Contains(t, tokenUsages, &expected)
-			}
-
-			// Verify the response is the final tool response (after agentic loop).
+			// Streaming forwards the final upstream response unchanged. Blocking
+			// rewrites its usage with the sum from both agentic-loop iterations.
 			if tc.streaming {
 				require.Equal(t, string(fix.StreamingToolCall()), string(body))
 			} else {
-				require.Equal(t, string(fix.NonStreamingToolCall()), string(body))
+				expectedBody, err := sjson.SetBytes(fix.NonStreamingToolCall(), "usage", tc.expectClientUsage)
+				require.NoError(t, err)
+				require.JSONEq(t, string(expectedBody), string(body))
 			}
 		})
 	}

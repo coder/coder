@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FC, type HTMLAttributes, useState } from "react";
 import {
 	Tooltip,
@@ -6,7 +7,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useClickable } from "#/hooks/useClickable";
 import { useClipboard } from "#/hooks/useClipboard";
-import { cn } from "#/utils/cn";
 
 type TooltipSide = "top" | "right" | "bottom" | "left";
 

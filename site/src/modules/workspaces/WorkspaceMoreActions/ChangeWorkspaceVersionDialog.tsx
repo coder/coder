@@ -22,7 +22,6 @@ import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
 import { FormFields } from "#/components/Form/Form";
 import { Loader } from "#/components/Loader/Loader";
 import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
-import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 
 type ChangeWorkspaceVersionDialogProps = {
@@ -115,10 +114,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 													key={option.id}
 													value={option.id}
 													keywords={[option.name]}
-													className={cn(
-														"px-3 py-2 font-normal",
-														"data-[selected=true]:bg-surface-tertiary",
-													)}
+													className="px-3 py-2 font-normal"
 												>
 													<AvatarData
 														avatar={
