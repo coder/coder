@@ -238,8 +238,7 @@ export type PendingAttachment = {
 };
 
 interface ChatPageInputProps {
-	// Organization that owns this chat. Used to scope file uploads.
-	organizationId: string | undefined;
+	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
 	onSend: (
@@ -266,7 +265,6 @@ interface ChatPageInputProps {
 	modelCount?: number;
 	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
-	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
@@ -290,27 +288,21 @@ interface ChatPageInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	// Pinned workspace-context state for the chat, surfaced by the
-	// context indicator (dirty marker and pinned resources).
-	chatContext?: TypesGen.ChatContext;
 	// Workspace skill menu data derived from the resolved chat detail;
 	// undefined while the chat is still loading.
 	workspaceSkills?: readonly SkillMetadata[];
 	workspaceOptions: readonly TypesGen.Workspace[];
-	chatOrganizationId?: string;
-	selectedWorkspaceId: string | null;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
-	chatId?: string;
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
-	organizationId,
+	chat,
 	store,
 	compressionThreshold,
 	onSend,
@@ -334,7 +326,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelCount,
 	unsupportedProviderNames,
 	aiGatewayDisabled,
-	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
 	inputRef,
@@ -349,20 +340,21 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	chatContext,
 	workspaceSkills,
 	workspaceOptions,
-	chatOrganizationId,
-	selectedWorkspaceId,
 	onWorkspaceChange,
 	isWorkspaceLoading,
 	workspace,
 	workspaceAgent,
-	chatId,
 	sshCommand,
 	attachedWorkspace,
 	folder,
 }) => {
+	const organizationId = chat.organization_id;
+	const chatId = chat.id;
+	const chatContext = chat.context;
+	const planModeEnabled = chat.plan_mode === "plan";
+	const selectedWorkspaceId = chat.workspace_id ?? null;
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
@@ -589,7 +581,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onPlanModeToggle={onPlanModeToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
-			chatOrganizationId={chatOrganizationId}
+			chatOrganizationId={organizationId}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={isWorkspaceLoading}

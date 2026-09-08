@@ -36,7 +36,6 @@ import {
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
-import { getParentChatID } from "./components/ChatConversation/chatHelpers";
 import type { useChatStore } from "./components/ChatConversation/chatStore";
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import type { ModelSelectorOption } from "./components/ChatElements/ModelSelector";
@@ -839,7 +838,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							<div className="relative z-10 shrink-0 overflow-visible">
 								{" "}
 								<ChatTopBar
-									chatTitle={chat.title}
+									chat={chat}
 									parentChat={parentChat}
 									panel={{
 										showSidebarPanel,
@@ -854,14 +853,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									onPinAgent={handlePinAgentAction}
 									onUnpinAgent={handleUnpinAgentAction}
 									onOpenRenameDialog={handleOpenRenameDialogAction}
-									isPinned={chat.pin_order > 0}
-									isChildChat={getParentChatID(chat) !== undefined}
 									isArchiving={isArchivingThisChat}
 									isArchiveBlocked={isArchiveBlocked}
 									hasWorkspace={Boolean(workspace)}
-									isArchived={isArchived}
-									diffStatusData={chat.diff_status}
-									isSharedChat={chat.shared}
 									renderChatSharingContent={
 										canShareChat
 											? (open) => (
@@ -954,7 +948,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							/>
 							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 								<ChatPageInput
-									organizationId={organizationId}
+									chat={chat}
 									sendShortcut={sendShortcut}
 									store={store}
 									compressionThreshold={compressionThreshold}
@@ -978,12 +972,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									modelSelectorHelp={modelSelectorHelp}
 									reasoningEffort={reasoningEffort}
 									onReasoningEffortChange={onReasoningEffortChange}
-									planModeEnabled={chat.plan_mode === "plan"}
 									onPlanModeToggle={onPlanModeToggle}
 									isModelCatalogLoading={isModelCatalogLoading}
 									workspaceOptions={workspaceOptions}
-									chatOrganizationId={organizationId}
-									selectedWorkspaceId={chat.workspace_id ?? null}
 									onWorkspaceChange={onWorkspaceChange}
 									isWorkspaceLoading={isWorkspaceLoading}
 									inputRef={editing.chatInputRef}
@@ -998,11 +989,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									selectedMCPServerIds={selectedMCPServerIds}
 									onMCPSelectionChange={onMCPSelectionChange}
 									onMCPAuthComplete={onMCPAuthComplete}
-									chatContext={chat.context}
 									workspaceSkills={workspaceSkills}
 									workspace={workspace}
 									workspaceAgent={workspaceAgent}
-									chatId={agentId}
 									sshCommand={sshCommand}
 									attachedWorkspace={attachedWorkspace}
 									folder={preferredFolder}

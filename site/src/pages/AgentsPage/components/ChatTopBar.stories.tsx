@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { PopoverContent } from "#/components/Popover/Popover";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { ChatTopBar } from "./ChatTopBar";
 
 // Probe element rendered at /agents to verify search params are preserved
@@ -12,8 +13,13 @@ const AgentsSearchProbe = () => {
 	return <div data-testid="agents-search">{location.search}</div>;
 };
 
+const defaultChat = {
+	...MockChat,
+	title: "Build authentication feature",
+};
+
 const defaultProps = {
-	chatTitle: "Build authentication feature",
+	chat: defaultChat,
 	panel: {
 		showSidebarPanel: false,
 		onToggleSidebar: fn(),
@@ -41,7 +47,10 @@ export const Default: Story = {};
 
 export const SharedChat: Story = {
 	args: {
-		isSharedChat: true,
+		chat: {
+			...defaultChat,
+			shared: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -62,25 +71,9 @@ export const WithPanelOpen: Story = {
 export const WithParentChat: Story = {
 	args: {
 		parentChat: {
+			...MockChat,
 			id: "parent-chat-1",
-			organization_id: "test-org-id",
-			owner_id: "owner-id",
-			owner_username: "owner",
-			last_model_config_id: "model-config-1",
-			mcp_server_ids: [],
-			labels: {},
 			title: "Set up CI/CD pipeline",
-			status: "waiting",
-			last_turn_summary: null,
-			summary: null,
-			created_at: "2026-02-18T00:00:00.000Z",
-			updated_at: "2026-02-18T00:00:00.000Z",
-			archived: false,
-			shared: false,
-			pin_order: 0,
-			has_unread: false,
-			client_type: "ui",
-			children: [],
 		},
 	},
 };
@@ -116,13 +109,16 @@ export const SidebarCollapsed: Story = {
 
 export const Archived: Story = {
 	args: {
-		isArchived: true,
+		chat: {
+			...defaultChat,
+			archived: true,
+		},
 	},
 };
 
 export const NoTitle: Story = {
 	args: {
-		chatTitle: undefined,
+		chat: undefined,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -134,62 +130,74 @@ export const NoTitle: Story = {
 
 export const WithOpenPR: Story = {
 	args: {
-		diffStatusData: {
-			chat_id: "chat-1",
-			url: "https://github.com/coder/coder/pull/123",
-			pull_request_title: "fix: resolve race condition in workspace builds",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: 42,
-			deletions: 7,
-			changed_files: 5,
+		chat: {
+			...defaultChat,
+			diff_status: {
+				chat_id: "chat-1",
+				url: "https://github.com/coder/coder/pull/123",
+				pull_request_title: "fix: resolve race condition in workspace builds",
+				pull_request_draft: false,
+				changes_requested: false,
+				additions: 42,
+				deletions: 7,
+				changed_files: 5,
+			},
 		},
 	},
 };
 
 export const WithDraftPR: Story = {
 	args: {
-		diffStatusData: {
-			chat_id: "chat-1",
-			url: "https://github.com/coder/coder/pull/456",
-			pull_request_title: "feat: add new notification system",
-			pull_request_draft: true,
-			changes_requested: false,
-			additions: 120,
-			deletions: 30,
-			changed_files: 8,
+		chat: {
+			...defaultChat,
+			diff_status: {
+				chat_id: "chat-1",
+				url: "https://github.com/coder/coder/pull/456",
+				pull_request_title: "feat: add new notification system",
+				pull_request_draft: true,
+				changes_requested: false,
+				additions: 120,
+				deletions: 30,
+				changed_files: 8,
+			},
 		},
 	},
 };
 
 export const WithMergedPR: Story = {
 	args: {
-		diffStatusData: {
-			chat_id: "chat-1",
-			url: "https://github.com/coder/coder/pull/789",
-			pull_request_title: "chore: update dependencies",
-			pull_request_state: "merged",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: 5,
-			deletions: 3,
-			changed_files: 1,
+		chat: {
+			...defaultChat,
+			diff_status: {
+				chat_id: "chat-1",
+				url: "https://github.com/coder/coder/pull/789",
+				pull_request_title: "chore: update dependencies",
+				pull_request_state: "merged",
+				pull_request_draft: false,
+				changes_requested: false,
+				additions: 5,
+				deletions: 3,
+				changed_files: 1,
+			},
 		},
 	},
 };
 
 export const WithClosedPR: Story = {
 	args: {
-		diffStatusData: {
-			chat_id: "chat-1",
-			url: "https://github.com/coder/coder/pull/101",
-			pull_request_title: "fix: deprecated API cleanup",
-			pull_request_state: "closed",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: 0,
-			deletions: 50,
-			changed_files: 3,
+		chat: {
+			...defaultChat,
+			diff_status: {
+				chat_id: "chat-1",
+				url: "https://github.com/coder/coder/pull/101",
+				pull_request_title: "fix: deprecated API cleanup",
+				pull_request_state: "closed",
+				pull_request_draft: false,
+				changes_requested: false,
+				additions: 0,
+				deletions: 50,
+				changed_files: 3,
+			},
 		},
 	},
 };
@@ -211,15 +219,18 @@ export const MobileWithOpenPR: Story = {
 	decorators: mobileDecorator,
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
-		diffStatusData: {
-			chat_id: "chat-1",
-			url: "https://github.com/coder/coder/pull/123",
-			pull_request_title: "fix: resolve race condition in workspace builds",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: 42,
-			deletions: 7,
-			changed_files: 5,
+		chat: {
+			...defaultChat,
+			diff_status: {
+				chat_id: "chat-1",
+				url: "https://github.com/coder/coder/pull/123",
+				pull_request_title: "fix: resolve race condition in workspace builds",
+				pull_request_draft: false,
+				changes_requested: false,
+				additions: 42,
+				deletions: 7,
+				changed_files: 5,
+			},
 		},
 	},
 };
@@ -228,15 +239,18 @@ export const MobileWithDraftPR: Story = {
 	decorators: mobileDecorator,
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
-		diffStatusData: {
-			chat_id: "chat-1",
-			url: "https://github.com/coder/coder/pull/456",
-			pull_request_title: "feat: add new notification system",
-			pull_request_draft: true,
-			changes_requested: false,
-			additions: 120,
-			deletions: 30,
-			changed_files: 8,
+		chat: {
+			...defaultChat,
+			diff_status: {
+				chat_id: "chat-1",
+				url: "https://github.com/coder/coder/pull/456",
+				pull_request_title: "feat: add new notification system",
+				pull_request_draft: true,
+				changes_requested: false,
+				additions: 120,
+				deletions: 30,
+				changed_files: 8,
+			},
 		},
 	},
 };
@@ -245,16 +259,19 @@ export const MobileWithMergedPR: Story = {
 	decorators: mobileDecorator,
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
-		diffStatusData: {
-			chat_id: "chat-1",
-			url: "https://github.com/coder/coder/pull/789",
-			pull_request_title: "chore: update dependencies",
-			pull_request_state: "merged",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: 5,
-			deletions: 3,
-			changed_files: 1,
+		chat: {
+			...defaultChat,
+			diff_status: {
+				chat_id: "chat-1",
+				url: "https://github.com/coder/coder/pull/789",
+				pull_request_title: "chore: update dependencies",
+				pull_request_state: "merged",
+				pull_request_draft: false,
+				changes_requested: false,
+				additions: 5,
+				deletions: 3,
+				changed_files: 1,
+			},
 		},
 	},
 };
@@ -263,16 +280,19 @@ export const MobileWithClosedPR: Story = {
 	decorators: mobileDecorator,
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
-		diffStatusData: {
-			chat_id: "chat-1",
-			url: "https://github.com/coder/coder/pull/101",
-			pull_request_title: "fix: deprecated API cleanup",
-			pull_request_state: "closed",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: 0,
-			deletions: 50,
-			changed_files: 3,
+		chat: {
+			...defaultChat,
+			diff_status: {
+				chat_id: "chat-1",
+				url: "https://github.com/coder/coder/pull/101",
+				pull_request_title: "fix: deprecated API cleanup",
+				pull_request_state: "closed",
+				pull_request_draft: false,
+				changes_requested: false,
+				additions: 0,
+				deletions: 50,
+				changed_files: 3,
+			},
 		},
 	},
 };
@@ -313,7 +333,10 @@ export const PinAgentItem: Story = {
 
 export const UnpinAgentItem: Story = {
 	args: {
-		isPinned: true,
+		chat: {
+			...defaultChat,
+			pin_order: 1,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -331,7 +354,10 @@ export const UnpinAgentItem: Story = {
 
 export const ChildChatHidesPinAndArchiveActions: Story = {
 	args: {
-		isChildChat: true,
+		chat: {
+			...defaultChat,
+			parent_chat_id: "parent-chat-1",
+		},
 		hasWorkspace: true,
 	},
 	play: async ({ canvasElement }) => {
@@ -354,8 +380,11 @@ export const ChildChatHidesPinAndArchiveActions: Story = {
 
 export const ArchivedChildChatHasNoActionsMenu: Story = {
 	args: {
-		isChildChat: true,
-		isArchived: true,
+		chat: {
+			...defaultChat,
+			parent_chat_id: "parent-chat-1",
+			archived: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -512,7 +541,10 @@ export const ShareChatButtonHiddenWithoutPermission: Story = {
 
 export const ArchivedWithUnarchive: Story = {
 	args: {
-		isArchived: true,
+		chat: {
+			...defaultChat,
+			archived: true,
+		},
 		onUnarchiveAgent: fn(),
 	},
 	play: async ({ canvasElement }) => {
