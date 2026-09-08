@@ -147,7 +147,7 @@ func extract(ctx context.Context, data []byte, dest string) error {
 			}
 		case tar.TypeSymlink:
 			// Only allow links that stay inside the runtime root.
-			if filepath.IsAbs(hdr.Linkname) {
+			if filepath.IsAbs(hdr.Linkname) || strings.HasPrefix(hdr.Linkname, "/") {
 				return xerrors.Errorf("absolute symlink %q -> %q rejected", hdr.Name, hdr.Linkname)
 			}
 			//nolint:gosec // G305: securePath rejects anything outside dest.
@@ -171,10 +171,12 @@ func extract(ctx context.Context, data []byte, dest string) error {
 // securePath joins name onto dest and rejects anything that would land
 // outside dest.
 func securePath(dest, name string) (string, error) {
-	if filepath.IsAbs(name) {
+	// Archives are built on Linux, so also treat a leading slash as absolute
+	// on platforms where filepath.IsAbs would not.
+	if filepath.IsAbs(name) || strings.HasPrefix(name, "/") {
 		return "", xerrors.Errorf("tar entry %q escapes destination", name)
 	}
-	clean := filepath.Clean(name)
+	clean := filepath.Clean(filepath.FromSlash(name))
 	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", xerrors.Errorf("tar entry %q escapes destination", name)
 	}

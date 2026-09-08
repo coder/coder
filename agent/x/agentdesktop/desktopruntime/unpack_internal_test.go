@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
@@ -65,6 +66,11 @@ func validEntries() []entry {
 
 func TestExtract(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		// The runtime is linux only; symlinks and permission bits do not
+		// round-trip on Windows.
+		t.Skip("desktop runtime archives are linux only")
+	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -134,6 +140,9 @@ func TestExtract(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("executable bits are not reported on Windows")
+	}
 
 	dir := t.TempDir()
 	require.Error(t, Validate(dir), "missing Xvnc must fail")
