@@ -428,7 +428,7 @@ export const CompactsAtUserOverride: Story = {
 	parameters: {
 		queries: [
 			{
-				key: preferenceSettings().queryKey,
+				key: preferenceSettingsKey,
 				data: MockUserPreferenceSettings,
 			},
 			{
@@ -455,7 +455,7 @@ export const CompactsAtHistoricalModelDefault: Story = {
 	parameters: {
 		queries: [
 			{
-				key: preferenceSettings().queryKey,
+				key: preferenceSettingsKey,
 				data: MockUserPreferenceSettings,
 			},
 			{
