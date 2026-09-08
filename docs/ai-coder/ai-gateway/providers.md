@@ -127,6 +127,16 @@ export ANTHROPIC_BEDROCK_MANTLE_BASE_URL="<your-deployment-url>/api/v2/ai-gatewa
 export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 ```
 
+You can also validate that the provider works with `curl`:
+
+```sh
+curl <your-deployment-url>/api/v2/ai-gateway/<provider-name>/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-coder-api-token>" \
+  -H "Anthropic-Version: 2023-06-01" \
+  -d '{"model": "anthropic.claude-sonnet-5","max_tokens": 1024,"messages": [{"role": "user", "content": "Hello, Claude"}]}'
+```
+
 #### AWS credentials
 
 Do not attach API keys to a Bedrock provider.
