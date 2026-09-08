@@ -160,7 +160,7 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 				}
 			}}
 			className={cn(
-				"group/combobox-content w-(--radix-popover-trigger-width) p-0 max-h-[min(24rem,var(--radix-popper-available-height))]",
+				"group/combobox-content flex w-(--radix-popover-trigger-width) max-h-[min(24rem,var(--radix-popper-available-height))] flex-col overflow-y-hidden p-0",
 				className,
 			)}
 			{...props}
@@ -183,7 +183,7 @@ export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 			data-slot="combobox-list"
 			data-empty={isEmpty ? "" : undefined}
 			className={cn(
-				"max-h-96 scroll-py-1 overflow-y-auto overscroll-contain p-1",
+				"min-h-0 scroll-py-1 overflow-y-auto overscroll-contain p-1",
 				className,
 			)}
 			{...props}
