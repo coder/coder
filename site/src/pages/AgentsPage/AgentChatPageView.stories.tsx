@@ -13,8 +13,14 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import {
+	chatEntityKey,
+	userCompactionThresholdsKey,
+} from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
@@ -22,7 +28,9 @@ import {
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
@@ -43,7 +51,6 @@ import {
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
-import type { ModelSelectorOption } from "./components/ChatElements/ModelSelector";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
 // ---------------------------------------------------------------------------
@@ -159,15 +166,13 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 
 	const props = {
 		chat: buildChat(chat),
-		sendShortcut: "enter" as const,
 		persistedError: undefined as ChatDetailError | undefined,
-		parentChat: undefined as TypesGen.Chat | undefined,
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
+		models: [],
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
-		compressionThreshold: undefined as number | undefined,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
@@ -180,9 +185,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
-		handleArchiveAgentAction: fn(),
-		handleUnarchiveAgentAction: fn(),
-		handleArchiveAndDeleteWorkspaceAction: fn(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -231,6 +233,16 @@ const meta: Meta<typeof AgentChatPageView> = {
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/${AGENT_ID}`,
@@ -515,11 +527,30 @@ export const NotQueuedForCapacity: Story = {
 
 /** Shows the parent chat link in the top bar when a parent exists. */
 export const WithParentChat: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: chatEntityKey("parent-chat-1"),
+				data: buildChat({ id: "parent-chat-1", title: "Root agent" }),
+			},
+		],
+	},
 	render: () => (
-		<StoryAgentChatPageView
-			parentChat={buildChat({ id: "parent-chat-1", title: "Root agent" })}
-		/>
+		<StoryAgentChatPageView chat={{ parent_chat_id: "parent-chat-1" }} />
 	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const parentLink = await canvas.findByRole("link", { name: "Root agent" });
+		expect(parentLink).toHaveAttribute("href", "/agents/parent-chat-1");
+	},
 };
 
 /** Persisted error reason shown in the timeline area. */
@@ -942,7 +973,6 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -963,7 +993,6 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -983,7 +1012,6 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -1005,7 +1033,6 @@ export const LoadingSidebarCollapsed: Story = {
 	parameters: { reactRouter: collapsedSidebarRouter },
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}

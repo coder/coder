@@ -1,4 +1,6 @@
-# landjail Jail Type
+---
+title: landjail jail type
+---
 
 > [!NOTE]
 > Agent Firewall is part of [AI Governance](../ai-governance.md), which is
