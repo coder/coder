@@ -152,10 +152,13 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Detail, "GetInferenceProfile")
 
+		// The provider is stored with the ARN the operator asked for, but
+		// without a resolution the gateway refuses to serve it.
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		providers, err := client.AIProviders(ctx)
 		require.NoError(t, err)
-		require.Empty(t, providers, "an unresolvable provider is not stored")
+		require.Len(t, providers, 1)
+		require.Empty(t, providers[0].Settings.Bedrock.ResolvedModel)
 	})
 
 	t.Run("CreateRejectsClientSuppliedResolution", func(t *testing.T) {

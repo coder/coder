@@ -2,6 +2,8 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"net/http"
 
 	"golang.org/x/xerrors"
@@ -9,15 +11,22 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/provider"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// errAIProviderProfileUnresolvable wraps a failed Bedrock inference profile
-// lookup so the write path reports it as a client-visible validation failure
-// rather than an internal error.
-var errAIProviderProfileUnresolvable = xerrors.New("resolve bedrock inference profile")
+// bedrockProfileUnresolvableError marks a failed Bedrock inference profile lookup
+// so the write path reports it as a client-visible validation failure rather
+// than an internal error.
+type bedrockProfileUnresolvableError struct{ err error }
+
+func (e bedrockProfileUnresolvableError) Error() string {
+	return "resolve bedrock inference profile: " + e.err.Error()
+}
+
+func (e bedrockProfileUnresolvableError) Unwrap() error { return e.err }
 
 // resolveBedrockModels fills in the server-owned resolved identifiers on
 // settings. Only application inference profile ARNs are opaque, so only they
@@ -27,14 +36,7 @@ var errAIProviderProfileUnresolvable = xerrors.New("resolve bedrock inference pr
 // Resolution runs here, where the provider is written, so the gateway never
 // calls the Bedrock control plane: not at startup, not on reload, and not on a
 // request.
-//
-// A failure is returned to the caller: an unresolvable profile must not be
-// stored, because the gateway cannot tell what an opaque ARN refers to and
-// would misshape every request made through it.
 func resolveBedrockModels(ctx context.Context, settings *codersdk.AIProviderSettings) error {
-	if settings.Bedrock == nil {
-		return nil
-	}
 	cfg := agplaibridge.BedrockConfig("", settings.Bedrock)
 	if cfg == nil {
 		return nil
@@ -42,7 +44,7 @@ func resolveBedrockModels(ctx context.Context, settings *codersdk.AIProviderSett
 
 	model, smallFastModel, err := provider.ResolveBedrockModels(ctx, *cfg)
 	if err != nil {
-		return xerrors.Errorf("%w: %w", errAIProviderProfileUnresolvable, err)
+		return bedrockProfileUnresolvableError{err: err}
 	}
 
 	settings.Bedrock.ResolvedModel = ""
@@ -56,49 +58,62 @@ func resolveBedrockModels(ctx context.Context, settings *codersdk.AIProviderSett
 	return nil
 }
 
-// bedrockModelsMatch reports whether two settings configure the same model
-// identifiers. The update path resolves against a snapshot taken outside the
-// transaction, so it re-checks the merged settings before storing the result.
-func bedrockModelsMatch(a, b codersdk.AIProviderSettings) bool {
-	if a.Bedrock == nil || b.Bedrock == nil {
-		return a.Bedrock == b.Bedrock
-	}
-	return a.Bedrock.Model == b.Bedrock.Model && a.Bedrock.SmallFastModel == b.Bedrock.SmallFastModel
-}
-
-// previewResolvedBedrockSettings merges patch onto the stored settings of the
-// named provider and resolves the result, so the write path can perform the
-// AWS lookup outside its transaction. The boolean reports whether a preview was
-// produced: there is nothing to resolve, or the provider cannot be read, in
-// which case the transaction reports the failure with its own error handling.
-func (api *API) previewResolvedBedrockSettings(ctx context.Context, idOrName string, patch *codersdk.AIProviderSettings) (codersdk.AIProviderSettings, bool, error) {
-	if patch == nil || patch.Bedrock == nil {
-		return codersdk.AIProviderSettings{}, false, nil
-	}
-	old, err := lookupAIProvider(ctx, api.Database, idOrName)
+// applyBedrockResolution resolves the inference profile ARNs of a provider that
+// was just written and stores the result on it. Resolution is an AWS call, so
+// it runs after the write transaction has committed rather than holding a
+// database connection open across the network.
+//
+// The provider row is the merged settings the operator will actually use, which
+// is why resolution reads it back instead of the request.
+func (api *API) applyBedrockResolution(ctx context.Context, row database.AIProvider) (database.AIProvider, error) {
+	settings, err := db2sdk.AIProviderSettings(row.Settings)
 	if err != nil {
-		//nolint:nilerr // The transaction reports lookup failures.
-		return codersdk.AIProviderSettings{}, false, nil
+		return row, xerrors.Errorf("decode settings: %w", err)
 	}
-	existing, err := db2sdk.AIProviderSettings(old.Settings)
-	if err != nil {
-		//nolint:nilerr // The transaction reports decode failures.
-		return codersdk.AIProviderSettings{}, false, nil
+	if settings.Bedrock == nil {
+		return row, nil
 	}
 
-	preview := mergeAIProviderSettings(existing, *patch)
-	ensureBedrockExternalID(&preview)
-	if err := resolveBedrockModels(ctx, &preview); err != nil {
-		return codersdk.AIProviderSettings{}, false, err
+	stored := *settings.Bedrock
+	if err := resolveBedrockModels(ctx, &settings); err != nil {
+		return row, err
 	}
-	return preview, true, nil
+	if settings.Bedrock.ResolvedModel == stored.ResolvedModel &&
+		settings.Bedrock.ResolvedSmallFastModel == stored.ResolvedSmallFastModel {
+		return row, nil
+	}
+
+	encoded, err := encodeAIProviderSettings(settings)
+	if err != nil {
+		return row, xerrors.Errorf("encode settings: %w", err)
+	}
+	updated, err := api.Database.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+		ID:          row.ID,
+		Type:        row.Type,
+		DisplayName: row.DisplayName,
+		Icon:        row.Icon,
+		Enabled:     row.Enabled,
+		BaseUrl:     row.BaseUrl,
+		Settings:    encoded,
+		// SettingsKeyID is set by the dbcrypt wrapper.
+		SettingsKeyID: sql.NullString{},
+	})
+	if err != nil {
+		return row, xerrors.Errorf("store resolved models: %w", err)
+	}
+	return updated, nil
 }
 
 // writeAIProviderResolutionError reports a failed Bedrock model resolution. The
-// write is rejected rather than stored unresolved: the gateway cannot serve an
-// opaque profile ARN, so accepting it would produce a provider that fails every
-// request.
+// provider keeps the identifiers the operator asked for, but without a
+// resolution the gateway cannot tell what an opaque profile ARN refers to, so
+// it refuses to serve the provider until the write succeeds.
 func (api *API) writeAIProviderResolutionError(ctx context.Context, rw http.ResponseWriter, err error) {
+	var unresolvable bedrockProfileUnresolvableError
+	if !errors.As(err, &unresolvable) {
+		writeAIProviderError(ctx, api.Logger, rw, err, "resolve bedrock inference profile", "Internal error resolving the Bedrock application inference profile.")
+		return
+	}
 	api.Logger.Warn(ctx, "resolve bedrock inference profile", slog.Error(err))
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: "Could not resolve the Bedrock application inference profile. Check that the ARN is correct and that the AWS identity used by Coder is allowed bedrock:GetInferenceProfile.",
