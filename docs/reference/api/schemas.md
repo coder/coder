@@ -5961,7 +5961,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
-  "kind": "status_change",
+  "kind": "created",
   "tool_calls": [
     {
       "args": "string",
@@ -5978,22 +5978,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-----------------------|---------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------|
 | `changed_diff_status` | [codersdk.ChangedDiffStatus](#codersdkchangeddiffstatus)            | false    |              | Changed diff status is set when Kind is ChatWatchEventKindDiffStatusChange. It identifies the ref that changed. |
 | `chat`                | [codersdk.Chat](#codersdkchat)                                      | false    |              |                                                                                                                 |
-| `kind`                | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |                                                                                                                 |
+| `kind`                | string                                                              | false    |              |                                                                                                                 |
 | `tool_calls`          | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |                                                                                                                 |
-
-## codersdk.ChatWatchEventKind
-
-```json
-"status_change"
-```
-
-### Properties
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                 |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Property | Value(s)                                                                                                                                                 |
+|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`   | `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ChatWorkspaceTTLResponse
 
@@ -9859,9 +9851,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-automations`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-automations`, `chat-goals`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 

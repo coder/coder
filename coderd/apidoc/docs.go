@@ -23357,7 +23357,18 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.Chat"
                 },
                 "kind": {
-                    "$ref": "#/definitions/codersdk.ChatWatchEventKind"
+                    "type": "string",
+                    "enum": [
+                        "created",
+                        "deleted",
+                        "title_change",
+                        "summary_change",
+                        "chat_summary_change",
+                        "status_change",
+                        "diff_status_change",
+                        "context_dirty",
+                        "action_required"
+                    ]
                 },
                 "tool_calls": {
                     "type": "array",
@@ -23366,31 +23377,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "codersdk.ChatWatchEventKind": {
-            "type": "string",
-            "enum": [
-                "status_change",
-                "summary_change",
-                "chat_summary_change",
-                "title_change",
-                "created",
-                "deleted",
-                "diff_status_change",
-                "action_required",
-                "context_dirty"
-            ],
-            "x-enum-varnames": [
-                "ChatWatchEventKindStatusChange",
-                "ChatWatchEventKindSummaryChange",
-                "ChatWatchEventKindChatSummaryChange",
-                "ChatWatchEventKindTitleChange",
-                "ChatWatchEventKindCreated",
-                "ChatWatchEventKindDeleted",
-                "ChatWatchEventKindDiffStatusChange",
-                "ChatWatchEventKindActionRequired",
-                "ChatWatchEventKindContextDirty"
-            ]
         },
         "codersdk.ChatWorkspaceTTLResponse": {
             "type": "object",
@@ -25626,7 +25612,8 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
-                "chat-automations"
+                "chat-automations",
+                "chat-goals"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -25635,6 +25622,7 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatAutomations": "Enables webhook and scheduled automations that deliver prompts to agent chats.",
+                "ExperimentChatGoals": "Enables durable goals for root agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
@@ -25668,7 +25656,8 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "Enables webhook and scheduled automations that deliver prompts to agent chats."
+                "Enables webhook and scheduled automations that deliver prompts to agent chats.",
+                "Enables durable goals for root agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -25689,7 +25678,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
-                "ExperimentChatAutomations"
+                "ExperimentChatAutomations",
+                "ExperimentChatGoals"
             ]
         },
         "codersdk.ExperimentRule": {
