@@ -11,10 +11,7 @@ import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import type {
-	AgentChatSendShortcut,
-	ChatMessagePart,
-} from "#/api/typesGenerated";
+import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -109,7 +106,6 @@ interface EditingState {
 
 interface AgentChatPageViewProps {
 	chat: TypesGen.Chat;
-	sendShortcut: AgentChatSendShortcut;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	canShareChat: boolean;
@@ -285,7 +281,6 @@ const UserTabContent: FC<UserTabContentProps> = ({
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	chat,
-	sendShortcut,
 	parentChat,
 	persistedError,
 	canShareChat,
@@ -928,7 +923,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 								<ChatPageInput
 									chat={chat}
-									sendShortcut={sendShortcut}
 									store={store}
 									compressionThreshold={compressionThreshold}
 									onSend={editing.handleSendFromInput}
@@ -1016,7 +1010,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 };
 
 interface AgentChatPageLoadingViewProps {
-	sendShortcut: AgentChatSendShortcut;
 	inputRef: RefObject<ChatMessageInputRef | null>;
 	initialValue: string;
 	initialEditorState: string | undefined;
@@ -1039,7 +1032,6 @@ interface AgentChatPageLoadingViewProps {
 }
 
 export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
-	sendShortcut,
 	inputRef,
 	initialValue,
 	initialEditorState,
@@ -1086,7 +1078,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 					<AgentChatInput
 						onSend={() => {}}
-						sendShortcut={sendShortcut}
 						inputRef={inputRef}
 						initialValue={initialValue}
 						initialEditorState={initialEditorState}

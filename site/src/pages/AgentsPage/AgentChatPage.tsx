@@ -46,7 +46,6 @@ import {
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
-import { preferenceSettings } from "#/api/queries/users";
 import {
 	workspaceById,
 	workspaceByIdKey,
@@ -112,7 +111,6 @@ import {
 	useConversationEditingState,
 } from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
-import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
@@ -231,7 +229,6 @@ const AgentChatPage: FC = () => {
 		enabled: permissions.editDeploymentConfig,
 	});
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
-	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(chatOrganizationId),
@@ -1104,10 +1101,6 @@ const AgentChatPage: FC = () => {
 			</title>
 			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
 				<AgentChatPageLoadingView
-					sendShortcut={getAgentChatSendShortcut(
-						preferencesQuery.data?.agent_chat_send_shortcut,
-						preferencesQuery.isLoading,
-					)}
 					inputRef={editing.chatInputRef}
 					initialValue={editing.editorInitialValue}
 					initialEditorState={editing.initialEditorState}
@@ -1150,10 +1143,6 @@ const AgentChatPage: FC = () => {
 				<AgentChatPageView
 					key={agentId}
 					chat={chat}
-					sendShortcut={getAgentChatSendShortcut(
-						preferencesQuery.data?.agent_chat_send_shortcut,
-						preferencesQuery.isLoading,
-					)}
 					parentChat={parentChat}
 					persistedError={persistedError}
 					canShareChat={canShareChat}

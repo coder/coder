@@ -2,8 +2,10 @@ import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -29,6 +31,14 @@ const StoryChatPageTimeline: FC<{
 
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+		],
+	},
 } satisfies Meta;
 
 export default meta;
@@ -48,7 +58,6 @@ const StoryChatPageInput: FC<{
 			store={store}
 			compressionThreshold={undefined}
 			onSend={fn()}
-			sendShortcut="enter"
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
 			onInterrupt={onInterrupt ?? fn()}
