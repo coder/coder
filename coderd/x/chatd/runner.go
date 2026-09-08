@@ -143,10 +143,14 @@ func stateUpdateFromPubsub(chatID uuid.UUID, payload coderdpubsub.ChatStateUpdat
 	}
 }
 
-// processState applies a delivered state and ensures the work it requires has
-// an active task. Duplicate deliveries matter here: a task can exit without a
-// newer snapshot following it, and the only later signal is the manager sync
-// redelivering the same row, so a duplicate must be able to restart work.
+// processState decides which task should be running for the chat and starts
+// it if it is not. It runs for every state the runner receives: pubsub hints,
+// the periodic database sync, and the bootstrap read.
+//
+// It must handle a state it has already seen. A task can stop on its own,
+// for example when the chat history changes under it, and nothing tells the
+// runner. The periodic sync then delivers the same row again, and that is
+// how the runner notices the task is gone and starts it again.
 func (r *runner) processState(state runnerStateUpdate) {
 	r.removeFinishedTasks()
 
@@ -162,8 +166,8 @@ func (r *runner) processState(state runnerStateUpdate) {
 		r.acceptState(state)
 	}
 
-	// After a takeover is accepted, events can still arrive before cleanup
-	// cancels the runner; do not start work for the new owner's chat.
+	// Once another runner owns the chat, this runner is only waiting to be
+	// canceled. Events that arrive in the meantime must not start work.
 	if !r.activeTaskSet && r.owns(r.latestState) {
 		r.spawnForState(r.latestState)
 	}
@@ -173,11 +177,13 @@ func (r *runner) owns(state runnerStateUpdate) bool {
 	return uuidPtrEqual(state.WorkerID, r.rec.workerID) && uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID)
 }
 
-// isNewer reports whether state carries information the runner has not yet
-// accepted. Writes through the state machine bump snapshot_version, but a
-// direct chat_messages edit advances history_version through the trigger
-// without bumping it, so an equal snapshot is new when the required work
-// differs.
+// isNewer reports whether the runner has not seen this state before.
+//
+// Comparing snapshot versions alone is not enough. Every write through the
+// state machine increments snapshot_version, but editing a chat_messages row
+// directly fires a trigger that increments history_version only. Two states
+// with the same snapshot version can therefore require different work, and
+// the second one is new.
 func (r *runner) isNewer(state runnerStateUpdate) bool {
 	if state.SnapshotVersion != r.lastSnapshotVersion {
 		return state.SnapshotVersion > r.lastSnapshotVersion

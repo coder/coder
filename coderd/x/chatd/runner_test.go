@@ -172,9 +172,9 @@ func TestWorker_CleanupStopsRoutingAndCancelsTasks(t *testing.T) {
 	starter.assertNoCall(t)
 }
 
-// A task can exit without a newer snapshot following it, and a direct message
-// edit leaves the snapshot version unchanged. Neither publishes a
-// notification, so the manager sync must restore the work.
+// Nothing in these cases publishes a state update: the task stops on its own,
+// or the chat_messages trigger changes history_version without a snapshot
+// bump. The periodic sync alone must be enough to start the right task.
 func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -228,8 +228,8 @@ func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 			expected := tc.mutate(t, f, chat)
 			starter.assertNoCall(t)
 
-			// Each advance delivers one sync. A released task may still be
-			// exiting when the first sync arrives; the next one restores it.
+			// Each advance triggers one sync. The released task may not have
+			// exited when the first sync runs, so advance until a task starts.
 			var second taskCall
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				clock.Advance(time.Minute).MustWait(ctx)
@@ -251,8 +251,10 @@ func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 	}
 }
 
-// Real generation rejects a direct message edit on its history fence; the
-// runner must then continue from the edited history without a notification.
+// Editing a chat_messages row directly changes the history under a running
+// generation. The generation must refuse to commit its stale response, and
+// the runner must then generate again from the edited history with no
+// notification to help it.
 func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 	t.Parallel()
 	for _, phase := range []string{"BeforeGeneration", "InFlightResponse"} {
@@ -302,8 +304,8 @@ func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 				Title: "history fence", InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 			})
 			require.NoError(t, err)
-			// Close clears chatWorker.manager under its mutex while tasks may
-			// still be draining, so read it the way Wake and WaitIdle do.
+			// worker.Close sets manager to nil under the mutex while a task may
+			// still be running, so read it under the same mutex.
 			manager := func() *runnerManager {
 				server.chatWorker.mu.Lock()
 				defer server.chatWorker.mu.Unlock()
@@ -340,8 +342,8 @@ func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 					}
 				},
 			}
-			// The message edit publishes nothing, so recovery comes from the
-			// manager sync. It runs on the real clock here; shorten its interval.
+			// Recovery depends on the periodic sync. It runs on the real clock
+			// here, so shorten its interval.
 			server.chatWorker.opts.RunnerSyncInterval = testutil.IntervalMedium
 			server.Start()
 			if phase == "BeforeGeneration" {

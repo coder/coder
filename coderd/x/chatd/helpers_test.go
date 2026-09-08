@@ -310,9 +310,9 @@ type taskCall struct {
 	ctx   context.Context
 }
 
-// generationResultTaskStarter wraps a starter so a test can hold
-// StartGeneration before it runs and observe its result. Scheduling stays
-// with the worker.
+// generationResultTaskStarter wraps a task starter. A test can block
+// StartGeneration before it runs and read the error it returns. The worker
+// still decides when to call it.
 type generationResultTaskStarter struct {
 	chatWorkerTaskStarter
 	results          chan error
@@ -331,9 +331,9 @@ func (s *generationResultTaskStarter) StartGeneration(ctx context.Context, input
 	return err
 }
 
-// editUserMessage edits message content directly, bypassing the state
-// machine. The message trigger advances history_version without bumping
-// snapshot_version, and nothing is published.
+// editUserMessage updates a chat_messages row with plain SQL. The trigger
+// increments history_version, snapshot_version stays the same, and nothing
+// is published.
 func editUserMessage(t *testing.T, f *workerTestFixture, chatID uuid.UUID, text string) database.Chat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
