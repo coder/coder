@@ -75,8 +75,8 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
-          # dogfood.cdr.dev uses a separate AWS account from dev.coder.com.
-          role-to-assume: arn:aws:iam::153844979634:role/dogfood-coder-repo-ci
+          # This role must target the AWS account hosting dogfood.cdr.dev.
+          role-to-assume: ${{ vars.AWS_DOGFOOD_DEPLOY_ROLE }}
           aws-region: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
 
       - name: Get Cluster Credentials
