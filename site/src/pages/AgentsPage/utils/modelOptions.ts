@@ -250,7 +250,6 @@ export const getModelOptionsFromModels = (
 
 		const displayName = model.display_name.trim() || modelName;
 		const contextLimit = asNumber(model.context_limit);
-		const compressionThreshold = asNumber(model.compression_threshold);
 		const reasoningEffort = model.model_config?.reasoning_effort;
 		const reasoningEffortDefault = asString(reasoningEffort?.default).trim();
 		const reasoningEfforts = model.reasoning_efforts ?? [];
@@ -263,7 +262,6 @@ export const getModelOptionsFromModels = (
 			model: modelName,
 			displayName,
 			...(contextLimit !== undefined ? { contextLimit } : {}),
-			...(compressionThreshold !== undefined ? { compressionThreshold } : {}),
 			...(reasoningEffortDefault ? { reasoningEffortDefault } : {}),
 			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
 		});
@@ -326,13 +324,13 @@ export { formatProviderLabel } from "#/utils/aiProviders";
 export function resolveCompactionThreshold(
 	modelID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	modelOptions: readonly ModelSelectorOption[] | null | undefined,
+	models: readonly TypesGen.ChatModel[] | null | undefined,
 ): number | undefined {
-	if (!modelID || !Array.isArray(modelOptions)) {
+	if (!modelID || !Array.isArray(models)) {
 		return undefined;
 	}
-	const option = modelOptions.find((modelOption) => modelOption.id === modelID);
-	if (!option) {
+	const model = models.find((model) => model.id === modelID);
+	if (!model) {
 		return undefined;
 	}
 	const userOverride = userThresholds?.find(
@@ -341,7 +339,7 @@ export function resolveCompactionThreshold(
 	if (userOverride) {
 		return userOverride.threshold_percent;
 	}
-	return option.compressionThreshold;
+	return model.compression_threshold;
 }
 
 export const getModelSelectorPlaceholder = (

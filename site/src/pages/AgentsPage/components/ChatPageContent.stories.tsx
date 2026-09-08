@@ -6,6 +6,7 @@ import { chatPromptsKey, userCompactionThresholds } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
 	MockUserPreferenceSettings,
@@ -54,6 +55,24 @@ type Story = StoryObj<typeof meta>;
 
 const CHAT_ID = "chat-page-content-stories";
 
+const MockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionThresholds =
+	{
+		...MockUserChatCompactionThresholds,
+		thresholds: [
+			{
+				model_config_id: MockChat.last_model_config_id,
+				threshold_percent: 60,
+			},
+		],
+	};
+
+const compactionModels: readonly TypesGen.ChatModel[] = [
+	{
+		...MockChatModel,
+		id: MockChat.last_model_config_id,
+	},
+];
+
 // Renders only the composer half of the chat page. Empty chat id and
 // organization keep the prompt-history and draft attachment queries disabled.
 const StoryChatPageInput: FC<{
@@ -64,6 +83,7 @@ const StoryChatPageInput: FC<{
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
+			models={[]}
 			onSend={fn()}
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
@@ -350,6 +370,57 @@ export const RunningShowsBusyComposer: Story = {
 	},
 };
 
+const CompactionChatPageInput: FC = () => {
+	const store = createChatStore();
+	store.replaceMessages([
+		buildMessage(1, "user", [{ type: "text", text: "Summarize the diff" }]),
+		{
+			...buildMessage(2, "assistant", [
+				{ type: "text", text: "The diff is a rename." },
+			]),
+			usage: {
+				input_tokens: 30_000,
+				output_tokens: 10_000,
+				context_limit: 128_000,
+			},
+		},
+	]);
+
+	return (
+		<div className="mx-auto w-full max-w-3xl p-4">
+			<ChatPageInput
+				chat={MockChat}
+				store={store}
+				models={compactionModels}
+				onSend={fn()}
+				onDeleteQueuedMessage={fn()}
+				onPromoteQueuedMessage={fn()}
+				onInterrupt={fn()}
+				isInputDisabled={false}
+				isSendPending={false}
+				isInterruptPending={false}
+				hasModelOptions={false}
+				selectedModel={MockChat.last_model_config_id}
+				onModelChange={fn()}
+				modelOptions={[]}
+				modelSelectorPlaceholder="Select model"
+				canConfigureAgentSetup={false}
+				isEditing={false}
+				onCancelHistoryEdit={fn()}
+				workspaceOptions={[]}
+				isWorkspaceLoading={false}
+			/>
+		</div>
+	);
+};
+
+const openContextUsage = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	await userEvent.click(
+		await canvas.findByRole("button", { name: /Context usage/ }),
+	);
+};
+
 export const CompactsAtUserOverride: Story = {
 	parameters: {
 		queries: [
@@ -359,14 +430,7 @@ export const CompactsAtUserOverride: Story = {
 			},
 			{
 				key: userCompactionThresholds().queryKey,
-				data: {
-					thresholds: [
-						{
-							model_config_id: MockChat.last_model_config_id,
-							threshold_percent: 60,
-						},
-					],
-				} satisfies TypesGen.UserChatCompactionThresholds,
+				data: MockUserChatCompactionThresholdsWithOverride,
 			},
 			{
 				key: chatPromptsKey(MockChat.id),
@@ -374,64 +438,38 @@ export const CompactsAtUserOverride: Story = {
 			},
 		],
 	},
-	render: () => {
-		const store = createChatStore();
-		store.replaceMessages([
-			buildMessage(1, "user", [{ type: "text", text: "Summarize the diff" }]),
-			{
-				...buildMessage(2, "assistant", [
-					{ type: "text", text: "The diff is a rename." },
-				]),
-				usage: {
-					input_tokens: 30_000,
-					output_tokens: 10_000,
-					context_limit: 128_000,
-				},
-			},
-		]);
-
-		return (
-			<div className="mx-auto w-full max-w-3xl p-4">
-				<ChatPageInput
-					chat={MockChat}
-					store={store}
-					onSend={fn()}
-					onDeleteQueuedMessage={fn()}
-					onPromoteQueuedMessage={fn()}
-					onInterrupt={fn()}
-					isInputDisabled={false}
-					isSendPending={false}
-					isInterruptPending={false}
-					hasModelOptions
-					selectedModel={MockChat.last_model_config_id}
-					onModelChange={fn()}
-					modelOptions={[
-						{
-							id: MockChat.last_model_config_id,
-							provider: "openai",
-							model: "gpt-4o",
-							displayName: "GPT-4o",
-							compressionThreshold: 70,
-						},
-					]}
-					modelSelectorPlaceholder="Select model"
-					canConfigureAgentSetup={false}
-					isEditing={false}
-					onCancelHistoryEdit={fn()}
-					workspaceOptions={[]}
-					isWorkspaceLoading={false}
-				/>
-			</div>
-		);
-	},
+	render: () => <CompactionChatPageInput />,
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			await canvas.findByRole("button", { name: /Context usage/ }),
-		);
+		await openContextUsage(canvasElement);
 		await waitFor(() => {
 			expect(within(document.body).getByText("Compacts at 60%")).toBeVisible();
 		});
 		expect(within(document.body).queryByText("Compacts at 70%")).toBeNull();
+	},
+};
+
+export const CompactsAtHistoricalModelDefault: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettings().queryKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholds().queryKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: chatPromptsKey(MockChat.id),
+				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
+			},
+		],
+	},
+	render: () => <CompactionChatPageInput />,
+	play: async ({ canvasElement }) => {
+		await openContextUsage(canvasElement);
+		await waitFor(() => {
+			expect(within(document.body).getByText("Compacts at 70%")).toBeVisible();
+		});
 	},
 };

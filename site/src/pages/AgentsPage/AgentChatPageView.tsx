@@ -124,6 +124,7 @@ interface AgentChatPageViewProps {
 	effectiveSelectedModel: string;
 	setSelectedModel: (model: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
+	models: readonly TypesGen.ChatModel[] | undefined;
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
 	modelCatalogError?: unknown;
@@ -291,6 +292,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
+	models,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
 	modelCatalogError,
@@ -922,6 +924,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								<ChatPageInput
 									chat={chat}
 									store={store}
+									models={models}
 									onSend={editing.handleSendFromInput}
 									onDeleteQueuedMessage={handleDeleteQueuedMessage}
 									onPromoteQueuedMessage={handlePromoteQueuedMessage}

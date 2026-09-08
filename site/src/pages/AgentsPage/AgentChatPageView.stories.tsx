@@ -168,6 +168,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
+		models: [],
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
 		isInputDisabled: false,

@@ -246,6 +246,7 @@ export type PendingAttachment = {
 interface ChatPageInputProps {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
+	models: readonly TypesGen.ChatModel[] | undefined;
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -308,6 +309,7 @@ interface ChatPageInputProps {
 export const ChatPageInput: FC<ChatPageInputProps> = ({
 	chat,
 	store,
+	models,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -361,7 +363,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const compressionThreshold = resolveCompactionThreshold(
 		chat.last_model_config_id,
 		thresholdsQuery.data?.thresholds,
-		modelOptions,
+		models,
 	);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);

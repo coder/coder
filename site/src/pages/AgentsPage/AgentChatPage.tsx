@@ -1146,6 +1146,7 @@ const AgentChatPage: FC = () => {
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
+					models={modelCatalog?.models}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
 					modelSelectorHelp={modelSelectorHelp}
 					modelCatalogError={modelsQuery.error}
