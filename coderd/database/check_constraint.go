@@ -22,12 +22,14 @@ const (
 	CheckAibridgeTokenUsagesOutputPriceMicrosCheck           CheckConstraint = "aibridge_token_usages_output_price_micros_check"           // aibridge_token_usages
 	CheckAPIKeysAllowListNotEmpty                            CheckConstraint = "api_keys_allow_list_not_empty"                             // api_keys
 	CheckBoundaryLogsSequenceNumberCheck                     CheckConstraint = "boundary_logs_sequence_number_check"                       // boundary_logs
+	CheckChatGoalsBlockedReasonStatusCheck                   CheckConstraint = "chat_goals_blocked_reason_status_check"                    // chat_goals
 	CheckChatGoalsClearedAtStatusCheck                       CheckConstraint = "chat_goals_cleared_at_status_check"                        // chat_goals
 	CheckChatGoalsCompletedAtStatusCheck                     CheckConstraint = "chat_goals_completed_at_status_check"                      // chat_goals
 	CheckChatGoalsCompletedByAgentStatusCheck                CheckConstraint = "chat_goals_completed_by_agent_status_check"                // chat_goals
 	CheckChatGoalsCompletedByUserStatusCheck                 CheckConstraint = "chat_goals_completed_by_user_status_check"                 // chat_goals
 	CheckChatGoalsCompletionSummaryStatusCheck               CheckConstraint = "chat_goals_completion_summary_status_check"                // chat_goals
 	CheckChatGoalsObjectiveNotEmpty                          CheckConstraint = "chat_goals_objective_not_empty"                            // chat_goals
+	CheckChatGoalsPausedReasonStatusCheck                    CheckConstraint = "chat_goals_paused_reason_status_check"                     // chat_goals
 	CheckChatGoalsReplacedAtStatusCheck                      CheckConstraint = "chat_goals_replaced_at_status_check"                       // chat_goals
 	CheckChatModelConfigsAIProviderRequiredWhenActive        CheckConstraint = "chat_model_configs_ai_provider_required_when_active"       // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck           CheckConstraint = "chat_model_configs_compression_threshold_check"            // chat_model_configs

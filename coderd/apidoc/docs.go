@@ -20554,6 +20554,9 @@ const docTemplate = `{
             "description": "x-apidocgen:skip experiment-gated (chat-goals) schema.",
             "type": "object",
             "properties": {
+                "blocked_reason": {
+                    "type": "string"
+                },
                 "cleared_at": {
                     "type": "string",
                     "format": "date-time"
@@ -20571,6 +20574,9 @@ const docTemplate = `{
                 },
                 "completion_summary": {
                     "type": "string"
+                },
+                "continuation_count": {
+                    "type": "integer"
                 },
                 "created_at": {
                     "type": "string",
@@ -20591,6 +20597,9 @@ const docTemplate = `{
                 "objective": {
                     "type": "string"
                 },
+                "paused_reason": {
+                    "$ref": "#/definitions/codersdk.ChatGoalPausedReason"
+                },
                 "root_chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -20603,6 +20612,24 @@ const docTemplate = `{
                     "format": "date-time"
                 }
             }
+        },
+        "codersdk.ChatGoalPausedReason": {
+            "description": "x-apidocgen:skip experiment-gated (chat-goals) schema.",
+            "type": "string",
+            "enum": [
+                "user",
+                "interrupt",
+                "turn_limit",
+                "usage_limit",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "ChatGoalPausedReasonUser",
+                "ChatGoalPausedReasonInterrupt",
+                "ChatGoalPausedReasonTurnLimit",
+                "ChatGoalPausedReasonUsageLimit",
+                "ChatGoalPausedReasonError"
+            ]
         },
         "codersdk.ChatGoalResponse": {
             "description": "x-apidocgen:skip experiment-gated (chat-goals) schema.",
@@ -20619,12 +20646,14 @@ const docTemplate = `{
             "enum": [
                 "active",
                 "paused",
+                "blocked",
                 "complete",
                 "cleared"
             ],
             "x-enum-varnames": [
                 "ChatGoalStatusActive",
                 "ChatGoalStatusPaused",
+                "ChatGoalStatusBlocked",
                 "ChatGoalStatusComplete",
                 "ChatGoalStatusCleared"
             ]
