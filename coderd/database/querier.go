@@ -389,7 +389,11 @@ type sqlcQuerier interface {
 	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
+	GetAgentTimeBreakdown(ctx context.Context, arg GetAgentTimeBreakdownParams) ([]GetAgentTimeBreakdownRow, error)
+	GetAgentTimeBuckets(ctx context.Context, arg GetAgentTimeBucketsParams) ([]GetAgentTimeBucketsRow, error)
+	GetAgentTimeEarliestDate(ctx context.Context, arg GetAgentTimeEarliestDateParams) (string, error)
 	GetAgentTimeStatus(ctx context.Context, organizationID uuid.UUID) (GetAgentTimeStatusRow, error)
+	GetAgentTimeSummary(ctx context.Context, arg GetAgentTimeSummaryParams) (GetAgentTimeSummaryRow, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)

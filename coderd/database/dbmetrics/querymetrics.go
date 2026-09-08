@@ -1384,11 +1384,43 @@ func (m queryMetricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Cont
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAgentTimeBreakdown(ctx context.Context, arg database.GetAgentTimeBreakdownParams) ([]database.GetAgentTimeBreakdownRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentTimeBreakdown(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentTimeBreakdown").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentTimeBreakdown").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentTimeBuckets(ctx context.Context, arg database.GetAgentTimeBucketsParams) ([]database.GetAgentTimeBucketsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentTimeBuckets(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentTimeBuckets").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentTimeBuckets").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentTimeEarliestDate(ctx context.Context, arg database.GetAgentTimeEarliestDateParams) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentTimeEarliestDate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentTimeEarliestDate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentTimeEarliestDate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAgentTimeStatus(ctx context.Context, organizationID uuid.UUID) (database.GetAgentTimeStatusRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAgentTimeStatus(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetAgentTimeStatus").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentTimeStatus").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentTimeSummary(ctx context.Context, arg database.GetAgentTimeSummaryParams) (database.GetAgentTimeSummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentTimeSummary(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentTimeSummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentTimeSummary").Inc()
 	return r0, r1
 }
 

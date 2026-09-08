@@ -3115,11 +3115,39 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 }
 
+func (q *querier) GetAgentTimeBreakdown(ctx context.Context, arg database.GetAgentTimeBreakdownParams) ([]database.GetAgentTimeBreakdownRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetAgentTimeBreakdown(ctx, arg)
+}
+
+func (q *querier) GetAgentTimeBuckets(ctx context.Context, arg database.GetAgentTimeBucketsParams) ([]database.GetAgentTimeBucketsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetAgentTimeBuckets(ctx, arg)
+}
+
+func (q *querier) GetAgentTimeEarliestDate(ctx context.Context, arg database.GetAgentTimeEarliestDateParams) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetAgentTimeEarliestDate(ctx, arg)
+}
+
 func (q *querier) GetAgentTimeStatus(ctx context.Context, organizationID uuid.UUID) (database.GetAgentTimeStatusRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return database.GetAgentTimeStatusRow{}, err
 	}
 	return q.db.GetAgentTimeStatus(ctx, organizationID)
+}
+
+func (q *querier) GetAgentTimeSummary(ctx context.Context, arg database.GetAgentTimeSummaryParams) (database.GetAgentTimeSummaryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.GetAgentTimeSummaryRow{}, err
+	}
+	return q.db.GetAgentTimeSummary(ctx, arg)
 }
 
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {

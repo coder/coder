@@ -344,10 +344,109 @@ func TestAgentTimeBackfillUsesAdvisoryLock(t *testing.T) {
 	require.False(t, event.Locked)
 }
 
-type chatState struct {
-	SnapshotVersion   int64
-	HistoryVersion    int64
-	GenerationAttempt int64
+func TestAgentTimeChatDeletionPreservesUnaccountedMessages(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	fixture := setupAgentTimeFixture(t, db)
+	ids := []int64{
+		insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, time.Date(2025, 4, 1, 12, 0, 0, 0, time.UTC), int64Ptr(150), false),
+		insertAgentTimeMessage(ctx, t, sqlDB, fixture.chat.ID, database.ChatMessageRoleTool, database.ChatMessageVisibilityUser, time.Date(2025, 4, 2, 12, 0, 0, 0, time.UTC), int64Ptr(250), false),
+	}
+	clearAgentTimeAccounting(ctx, t, sqlDB, ids)
+
+	_, err := sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, fixture.chat.ID)
+	require.NoError(t, err)
+
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 4, 1), 150)
+	requireDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 4, 2), 250)
+	requireAgentTimeMarkerCount(ctx, t, sqlDB, ids, 0)
+}
+
+func TestAgentTimePhysicalIdentityCascadesPreserveTotals(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+
+	userCascade := setupAgentTimeFixture(t, db)
+	userMessageID := insertAgentTimeMessage(ctx, t, sqlDB, userCascade.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, time.Date(2025, 5, 1, 12, 0, 0, 0, time.UTC), int64Ptr(500), false)
+	clearAgentTimeAccounting(ctx, t, sqlDB, []int64{userMessageID})
+	_, err := sqlDB.ExecContext(ctx, `DELETE FROM user_status_changes WHERE user_id = $1`, userCascade.user.ID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, userCascade.user.ID)
+	require.NoError(t, err)
+	requireDailyAgentTime(ctx, t, sqlDB, userCascade.org.ID, userCascade.user.ID, date(2025, 5, 1), 500)
+
+	orgCascade := setupAgentTimeFixture(t, db)
+	orgMessageID := insertAgentTimeMessage(ctx, t, sqlDB, orgCascade.chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, time.Date(2025, 5, 2, 12, 0, 0, 0, time.UTC), int64Ptr(600), false)
+	clearAgentTimeAccounting(ctx, t, sqlDB, []int64{orgMessageID})
+	_, err = sqlDB.ExecContext(ctx, `DELETE FROM organizations WHERE id = $1`, orgCascade.org.ID)
+	require.NoError(t, err)
+	requireDailyAgentTime(ctx, t, sqlDB, orgCascade.org.ID, orgCascade.user.ID, date(2025, 5, 2), 600)
+}
+
+func TestAgentTimeRetentionSkipsBusyChats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	fixture := setupAgentTimeFixture(t, db)
+	_, err := db.ArchiveChatByID(ctx, fixture.chat.ID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chats SET updated_at = $1 WHERE id = $2`, time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC), fixture.chat.ID)
+	require.NoError(t, err)
+
+	lockTx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = lockTx.Rollback() }()
+	_, err = lockTx.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, fixture.chat.ID)
+	require.NoError(t, err)
+
+	deleted, err := db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+		BeforeTime: time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC),
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+	require.Zero(t, deleted)
+
+	require.NoError(t, lockTx.Rollback())
+	deleted, err = db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+		BeforeTime: time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC),
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+}
+
+func TestAgentTimeRetentionDefersOversizedUnaccountedChats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	fixture := setupAgentTimeFixture(t, db)
+	_, err := db.ArchiveChatByID(ctx, fixture.chat.ID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chats SET updated_at = $1 WHERE id = $2`, time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC), fixture.chat.ID)
+	require.NoError(t, err)
+	insertManyUnaccountedAgentTimeMessages(ctx, t, sqlDB, fixture.chat.ID, time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC), 10001)
+
+	deleted, err := db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+		BeforeTime: time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC),
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+	require.Zero(t, deleted)
+	_, err = db.GetChatByID(ctx, fixture.chat.ID)
+	require.NoError(t, err)
+
+	_, err = sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, fixture.chat.ID)
+	require.ErrorContains(t, err, "exceeding fallback limit")
+	_, err = db.GetChatByID(ctx, fixture.chat.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, 10001, countChatMessages(ctx, t, sqlDB, fixture.chat.ID))
+	requireNoDailyAgentTime(ctx, t, sqlDB, fixture.org.ID, fixture.user.ID, date(2025, 6, 1))
 }
 
 func setupAgentTimeFixture(t testing.TB, db database.Store) agentTimeFixture {
@@ -382,6 +481,24 @@ func insertAgentTimeMessage(ctx context.Context, t testing.TB, db *sql.DB, chatI
 	return id
 }
 
+func insertManyUnaccountedAgentTimeMessages(ctx context.Context, t testing.TB, db *sql.DB, chatID uuid.UUID, createdAt time.Time, count int) {
+	t.Helper()
+
+	_, err := db.ExecContext(ctx, `ALTER TABLE chat_messages DISABLE TRIGGER trigger_zz_agent_time_account_chat_messages_after_insert`)
+	require.NoError(t, err)
+	defer func() {
+		_, enableErr := db.ExecContext(ctx, `ALTER TABLE chat_messages ENABLE TRIGGER trigger_zz_agent_time_account_chat_messages_after_insert`)
+		require.NoError(t, enableErr)
+	}()
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility, runtime_ms, created_at)
+		SELECT $1, 'assistant'::chat_message_role, '[]'::jsonb, 1, 'both'::chat_message_visibility, 1, $2::timestamptz + (gs || ' milliseconds')::interval
+		FROM generate_series(1, $3::int) AS gs
+	`, chatID, createdAt, count)
+	require.NoError(t, err)
+}
+
 func clearAgentTimeAccounting(ctx context.Context, t testing.TB, db *sql.DB, messageIDs []int64) {
 	t.Helper()
 
@@ -389,6 +506,43 @@ func clearAgentTimeAccounting(ctx context.Context, t testing.TB, db *sql.DB, mes
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `DELETE FROM agent_time_daily; DELETE FROM agent_time_organization_daily`)
 	require.NoError(t, err)
+}
+
+func isolateBackfillOrg(ctx context.Context, t testing.TB, db *sql.DB, orgID uuid.UUID, cursorMessageID int64) {
+	t.Helper()
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO agent_time_backfill_status (organization_id, cursor_message_id, completed_at)
+		SELECT id, CASE WHEN id = $1 THEN $2::bigint ELSE 0 END, CASE WHEN id = $1 THEN NULL ELSE now() END
+		FROM organizations
+		ON CONFLICT (organization_id) DO UPDATE SET
+			cursor_message_id = EXCLUDED.cursor_message_id,
+			completed_at = EXCLUDED.completed_at,
+			processed_messages = 0,
+			last_error = '',
+			last_error_at = NULL,
+			updated_at = now()
+	`, orgID, cursorMessageID)
+	require.NoError(t, err)
+}
+
+func readBackfillStatus(ctx context.Context, t testing.TB, db *sql.DB, orgID uuid.UUID) database.AgentTimeBackfillStatus {
+	t.Helper()
+
+	var status database.AgentTimeBackfillStatus
+	err := db.QueryRowContext(ctx, `
+		SELECT organization_id, cursor_message_id, processed_messages, completed_at, last_error, last_error_at, updated_at
+		FROM agent_time_backfill_status
+		WHERE organization_id = $1
+	`, orgID).Scan(&status.OrganizationID, &status.CursorMessageID, &status.ProcessedMessages, &status.CompletedAt, &status.LastError, &status.LastErrorAt, &status.UpdatedAt)
+	require.NoError(t, err)
+	return status
+}
+
+type chatState struct {
+	SnapshotVersion   int64
+	HistoryVersion    int64
+	GenerationAttempt int64
 }
 
 func readChatState(ctx context.Context, t testing.TB, db *sql.DB, chatID uuid.UUID) chatState {
@@ -470,37 +624,6 @@ func requireAgentTimeSummaryInvariant(ctx context.Context, t testing.TB, db *sql
  )`).Scan(&mismatch)
 	require.NoError(t, err)
 	require.False(t, mismatch, "organization summaries must equal canonical user/day sums")
-}
-
-func isolateBackfillOrg(ctx context.Context, t testing.TB, db *sql.DB, orgID uuid.UUID, cursorMessageID int64) {
-	t.Helper()
-
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO agent_time_backfill_status (organization_id, cursor_message_id, completed_at)
-		SELECT id, CASE WHEN id = $1 THEN $2::bigint ELSE 0 END, CASE WHEN id = $1 THEN NULL ELSE now() END
-		FROM organizations
-		ON CONFLICT (organization_id) DO UPDATE SET
-			cursor_message_id = EXCLUDED.cursor_message_id,
-			completed_at = EXCLUDED.completed_at,
-			processed_messages = 0,
-			last_error = '',
-			last_error_at = NULL,
-			updated_at = now()
-	`, orgID, cursorMessageID)
-	require.NoError(t, err)
-}
-
-func readBackfillStatus(ctx context.Context, t testing.TB, db *sql.DB, orgID uuid.UUID) database.AgentTimeBackfillStatus {
-	t.Helper()
-
-	var status database.AgentTimeBackfillStatus
-	err := db.QueryRowContext(ctx, `
-		SELECT organization_id, cursor_message_id, processed_messages, completed_at, last_error, last_error_at, updated_at
-		FROM agent_time_backfill_status
-		WHERE organization_id = $1
-	`, orgID).Scan(&status.OrganizationID, &status.CursorMessageID, &status.ProcessedMessages, &status.CompletedAt, &status.LastError, &status.LastErrorAt, &status.UpdatedAt)
-	require.NoError(t, err)
-	return status
 }
 
 func TestAgentTimeCaptureFollowsHistoryLocks(t *testing.T) {
