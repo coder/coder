@@ -15,11 +15,6 @@ const AgentsSearchProbe = () => {
 	return <div data-testid="agents-search">{location.search}</div>;
 };
 
-const defaultChat = {
-	...MockChat,
-	title: "Build authentication feature",
-};
-
 const requestArchiveAgent = fn<(chatId: string) => void>();
 const requestArchiveAndDeleteWorkspace =
 	fn<(chatId: string, workspaceId: string) => void>();
@@ -48,7 +43,7 @@ const chatTopBarOutletContext = {
 } satisfies AgentsPageOutletContext;
 
 const defaultProps = {
-	chat: defaultChat,
+	chat: MockChat,
 	panel: {
 		showSidebarPanel: false,
 		onToggleSidebar: fn(),
@@ -89,7 +84,7 @@ export const Default: Story = {};
 export const SharedChat: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			shared: true,
 		},
 	},
@@ -150,7 +145,7 @@ export const SidebarCollapsed: Story = {
 export const Archived: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			archived: true,
 		},
 	},
@@ -171,7 +166,7 @@ export const NoTitle: Story = {
 export const WithOpenPR: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/123",
@@ -189,7 +184,7 @@ export const WithOpenPR: Story = {
 export const WithDraftPR: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/456",
@@ -207,7 +202,7 @@ export const WithDraftPR: Story = {
 export const WithMergedPR: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/789",
@@ -226,7 +221,7 @@ export const WithMergedPR: Story = {
 export const WithClosedPR: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/101",
@@ -260,7 +255,7 @@ export const MobileWithOpenPR: Story = {
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/123",
@@ -280,7 +275,7 @@ export const MobileWithDraftPR: Story = {
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/456",
@@ -300,7 +295,7 @@ export const MobileWithMergedPR: Story = {
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/789",
@@ -321,7 +316,7 @@ export const MobileWithClosedPR: Story = {
 	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			diff_status: {
 				chat_id: "chat-1",
 				url: "https://github.com/coder/coder/pull/101",
@@ -356,7 +351,7 @@ export const RenameChatItem: Story = {
 			body.queryByText("Archive & delete workspace"),
 		).not.toBeInTheDocument();
 		await userEvent.click(body.getByRole("menuitem", { name: "Rename chat" }));
-		expect(onOpenRenameDialog).toHaveBeenCalledWith(defaultChat);
+		expect(onOpenRenameDialog).toHaveBeenCalledWith(MockChat);
 	},
 };
 
@@ -377,14 +372,14 @@ export const PinAgentItem: Story = {
 		await userEvent.click(
 			within(document.body).getByRole("menuitem", { name: "Pin agent" }),
 		);
-		expect(requestPinAgent).toHaveBeenCalledWith(defaultChat.id);
+		expect(requestPinAgent).toHaveBeenCalledWith(MockChat.id);
 	},
 };
 
 export const UnpinAgentItem: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			pin_order: 1,
 		},
 	},
@@ -404,14 +399,14 @@ export const UnpinAgentItem: Story = {
 		await userEvent.click(
 			within(document.body).getByRole("menuitem", { name: "Unpin agent" }),
 		);
-		expect(requestUnpinAgent).toHaveBeenCalledWith(defaultChat.id);
+		expect(requestUnpinAgent).toHaveBeenCalledWith(MockChat.id);
 	},
 };
 
 export const ChildChatHidesPinAndArchiveActions: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			parent_chat_id: "parent-chat-1",
 			workspace_id: "workspace-1",
 		},
@@ -439,7 +434,8 @@ export const ChildChatHidesPinAndArchiveActions: Story = {
 export const ArchivedChildChatHasNoActionsMenu: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
+			title: "Build authentication feature",
 			parent_chat_id: "parent-chat-1",
 			archived: true,
 		},
@@ -462,7 +458,7 @@ export const ArchivedChildChatHasNoActionsMenu: Story = {
 export const ArchiveAndDeleteWorkspaceItem: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			workspace_id: "workspace-1",
 		},
 	},
@@ -481,7 +477,7 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 			}),
 		);
 		expect(requestArchiveAndDeleteWorkspace).toHaveBeenCalledWith(
-			defaultChat.id,
+			MockChat.id,
 			"workspace-1",
 		);
 	},
@@ -490,7 +486,7 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 export const IdleChatArchiveActionsEnabled: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			workspace_id: "workspace-1",
 		},
 	},
@@ -510,14 +506,14 @@ export const IdleChatArchiveActionsEnabled: Story = {
 			body.queryByText("Interrupt or wait for the agent to finish first."),
 		).not.toBeInTheDocument();
 		await userEvent.click(archiveItem);
-		expect(requestArchiveAgent).toHaveBeenCalledWith(defaultChat.id);
+		expect(requestArchiveAgent).toHaveBeenCalledWith(MockChat.id);
 	},
 };
 
 export const ActiveChatArchiveActionsDisabled: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			workspace_id: "workspace-1",
 		},
 		liveChatStatus: "running",
@@ -621,7 +617,7 @@ export const ShareChatButtonHiddenWithoutPermission: Story = {
 export const ArchivedWithUnarchive: Story = {
 	args: {
 		chat: {
-			...defaultChat,
+			...MockChat,
 			archived: true,
 		},
 	},
@@ -645,6 +641,6 @@ export const ArchivedWithUnarchive: Story = {
 		await userEvent.click(
 			body.getByRole("menuitem", { name: "Unarchive agent" }),
 		);
-		expect(requestUnarchiveAgent).toHaveBeenCalledWith(defaultChat.id);
+		expect(requestUnarchiveAgent).toHaveBeenCalledWith(MockChat.id);
 	},
 };
