@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -654,44 +655,76 @@ func TestWrapTransportWithSessionIDHeader(t *testing.T) {
 	require.Equal(t, tracing.SessionIDBaggageKey+"="+sessionID, gotHeader.Get("baggage"))
 }
 
-func Test_createHTTPClientRejectsRedirect(t *testing.T) {
+func Test_createHTTPClientRedirects(t *testing.T) {
 	t.Parallel()
 
-	// The redirect target serves the "list" shape on GET so that following
-	// the redirect would silently turn a create into a list.
-	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte("[]"))
-	}))
-	t.Cleanup(target.Close)
+	// newRedirectingServers returns a stale server that 301s every request
+	// to a target serving the "list" shape on GET, so that following the
+	// redirect would silently turn a create into a list.
+	newRedirectingServers := func(t *testing.T) (stale, target *httptest.Server) {
+		target = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte("[]"))
+		}))
+		t.Cleanup(target.Close)
 
-	stale := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusMovedPermanently)
-	}))
-	t.Cleanup(stale.Close)
+		stale = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL+r.URL.Path, http.StatusMovedPermanently)
+		}))
+		t.Cleanup(stale.Close)
+		return stale, target
+	}
 
-	staleURL, err := url.Parse(stale.URL)
-	require.NoError(t, err)
+	newClient := func(t *testing.T, r *RootCmd, rawURL string) *codersdk.Client {
+		serverURL, err := url.Parse(rawURL)
+		require.NoError(t, err)
+		inv := &serpent.Invocation{Command: &serpent.Command{Use: "test"}}
+		httpClient, err := r.createHTTPClient(context.Background(), serverURL, inv)
+		require.NoError(t, err)
+		t.Cleanup(httpClient.CloseIdleConnections)
+		return codersdk.New(serverURL, codersdk.WithHTTPClient(httpClient))
+	}
 
-	r := &RootCmd{noVersionCheck: true, noFeatureWarning: true}
-	inv := &serpent.Invocation{Command: &serpent.Command{Use: "test"}}
-	httpClient, err := r.createHTTPClient(context.Background(), staleURL, inv)
-	require.NoError(t, err)
-	t.Cleanup(httpClient.CloseIdleConnections)
+	t.Run("RejectedByDefault", func(t *testing.T) {
+		t.Parallel()
+		stale, target := newRedirectingServers(t)
 
-	client := codersdk.New(staleURL, codersdk.WithHTTPClient(httpClient))
-	_, err = client.CreateToken(context.Background(), codersdk.Me, codersdk.CreateTokenRequest{})
-	require.Error(t, err)
+		r := &RootCmd{noVersionCheck: true, noFeatureWarning: true}
+		client := newClient(t, r, stale.URL)
+		_, err := client.CreateToken(context.Background(), codersdk.Me, codersdk.CreateTokenRequest{})
+		require.Error(t, err)
 
-	var redirectErr *redirectError
-	require.ErrorAs(t, err, &redirectErr)
-	require.Equal(t, stale.URL+"/api/v2/users/me/keys/tokens", redirectErr.from.String())
-	require.Equal(t, target.URL+"/api/v2/users/me/keys/tokens", redirectErr.to.String())
+		var redirectErr *redirectError
+		require.ErrorAs(t, err, &redirectErr)
+		require.Equal(t, stale.URL+"/api/v2/users/me/keys/tokens", redirectErr.from.String())
+		require.Equal(t, target.URL+"/api/v2/users/me/keys/tokens", redirectErr.to.String())
 
-	msg, special := cliHumanFormatError("", err, nil)
-	require.True(t, special)
-	require.Contains(t, msg, "server redirected request from "+stale.URL)
-	require.Contains(t, msg, fmt.Sprintf("Run %q to log in against the new URL.", "coder login "+target.URL))
+		msg, special := cliHumanFormatError("", err, nil)
+		require.True(t, special)
+		require.Contains(t, msg, "server redirected request from "+stale.URL)
+		require.Contains(t, msg, fmt.Sprintf("Run %q to log in against the new URL", "coder login "+target.URL))
+		require.Contains(t, msg, "--allow-redirects")
+	})
+
+	t.Run("AllowRedirects", func(t *testing.T) {
+		t.Parallel()
+		stale, _ := newRedirectingServers(t)
+
+		r := &RootCmd{noVersionCheck: true, noFeatureWarning: true, allowRedirects: true}
+		client := newClient(t, r, stale.URL)
+		// The redirect is followed as a GET, so the list endpoint responds.
+		tokens, err := client.Tokens(context.Background(), codersdk.Me, codersdk.TokensFilter{})
+		require.NoError(t, err)
+		require.Empty(t, tokens)
+
+		// The legacy downgrade behavior is preserved: the POST is followed as
+		// a GET and the mismatched body surfaces as a decode error rather
+		// than a redirectError.
+		_, err = client.CreateToken(context.Background(), codersdk.Me, codersdk.CreateTokenRequest{})
+		require.Error(t, err)
+		var redirectErr *redirectError
+		require.False(t, errors.As(err, &redirectErr))
+	})
 }
 
 func Test_redirectErrorHelper(t *testing.T) {

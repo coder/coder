@@ -75,6 +75,7 @@ const (
 	varNoOpen                  = "no-open"
 	varNoVersionCheck          = "no-version-warning"
 	varNoFeatureWarning        = "no-feature-warning"
+	varAllowRedirects          = "allow-redirects"
 	varForceTty                = "force-tty"
 	varVerbose                 = "verbose"
 	varDisableDirect           = "disable-direct-connections"
@@ -88,6 +89,7 @@ const (
 
 	envNoVersionCheck    = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning  = "CODER_NO_FEATURE_WARNING"
+	envAllowRedirects    = "CODER_ALLOW_REDIRECTS"
 	envSessionToken      = "CODER_SESSION_TOKEN"
 	envUseKeyring        = "CODER_USE_KEYRING"
 	envClientTLSCAFile   = "CODER_CLIENT_TLS_CA_FILE"
@@ -455,6 +457,13 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varAllowRedirects,
+			Env:         envAllowRedirects,
+			Description: "Follow HTTP redirects from the server instead of returning an error. Following a redirect downgrades POST requests to GET and may cause unexpected behavior.",
+			Value:       serpent.BoolOf(&r.allowRedirects),
+			Group:       globalGroup,
+		},
+		{
 			Flag:        varHeader,
 			Env:         "CODER_HEADER",
 			Description: "Additional HTTP headers added to all requests. Provide as " + `key=value` + ". Can be specified multiple times.",
@@ -587,6 +596,7 @@ type RootCmd struct {
 	disableNetworkTelemetry    bool
 	noVersionCheck             bool
 	noFeatureWarning           bool
+	allowRedirects             bool
 	useKeyring                 bool
 	keyringServiceName         string
 	useKeyringWithGlobalConfig bool
@@ -885,10 +895,13 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	// codersdk checks for the header transport to get headers
 	// to clone on the DERP client.
 	headerTransport.Transport = transport
-	return &http.Client{
-		Transport:     headerTransport,
-		CheckRedirect: rejectRedirect,
-	}, nil
+	httpClient := &http.Client{
+		Transport: headerTransport,
+	}
+	if !r.allowRedirects {
+		httpClient.CheckRedirect = rejectRedirect
+	}
+	return httpClient, nil
 }
 
 // rejectRedirect is an http.Client CheckRedirect hook that refuses to
@@ -896,7 +909,7 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 // 303 by downgrading the request to a GET with no body, silently turning
 // a POST into a read of the same path. A redirect from the API almost
 // always means the configured deployment URL is stale, so surface that
-// instead.
+// instead. The --allow-redirects flag restores the old behavior.
 func rejectRedirect(req *http.Request, via []*http.Request) error {
 	err := &redirectError{to: req.URL}
 	if len(via) > 0 {
@@ -927,9 +940,9 @@ func (e *redirectError) Helper() string {
 	}
 	newBase := &url.URL{Scheme: e.to.Scheme, Host: e.to.Host}
 	if e.from != nil && e.from.Scheme == newBase.Scheme && e.from.Host == newBase.Host {
-		return "The request was redirected within the same deployment. Check for a proxy or path rewrite in front of Coder."
+		return fmt.Sprintf("The request was redirected within the same deployment. Check for a proxy or path rewrite in front of Coder, or pass --%s to follow redirects.", varAllowRedirects)
 	}
-	return fmt.Sprintf("The deployment URL may have changed. Run %q to log in against the new URL.", "coder login "+newBase.String())
+	return fmt.Sprintf("The deployment URL may have changed. Run %q to log in against the new URL, or pass --%s to follow redirects.", "coder login "+newBase.String(), varAllowRedirects)
 }
 
 func newHTTPTransport(tlsConfig *tls.Config) (http.RoundTripper, error) {
