@@ -230,7 +230,7 @@ export function FilterCombobox({
 	);
 }
 
-const OPTION_ITEM_CLASS = "min-h-[34px] gap-2 px-2 py-[5px]";
+const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";
 
 // Fixed 24px slot so icons, avatars, and status dots of different sizes align.
 function OptionIcon({ children }: { children: ReactNode }): ReactNode {
