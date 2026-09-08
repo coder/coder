@@ -886,8 +886,50 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	// to clone on the DERP client.
 	headerTransport.Transport = transport
 	return &http.Client{
-		Transport: headerTransport,
+		Transport:     headerTransport,
+		CheckRedirect: rejectRedirect,
 	}, nil
+}
+
+// rejectRedirect is an http.Client CheckRedirect hook that refuses to
+// follow any redirect. Go's default behavior would follow a 301, 302, or
+// 303 by downgrading the request to a GET with no body, silently turning
+// a POST into a read of the same path. A redirect from the API almost
+// always means the configured deployment URL is stale, so surface that
+// instead.
+func rejectRedirect(req *http.Request, via []*http.Request) error {
+	err := &redirectError{to: req.URL}
+	if len(via) > 0 {
+		err.from = via[0].URL
+	}
+	return err
+}
+
+// redirectError is returned when the server redirects an API request.
+type redirectError struct {
+	from *url.URL
+	to   *url.URL
+}
+
+func (e *redirectError) Error() string {
+	if e.from == nil {
+		return fmt.Sprintf("server redirected request to %s", e.to)
+	}
+	return fmt.Sprintf("server redirected request from %s to %s", e.from, e.to)
+}
+
+// Helper returns a suggestion for resolving the redirect. When the
+// redirect points at a different deployment URL, the user should log in
+// against it so the stored URL and token are refreshed.
+func (e *redirectError) Helper() string {
+	if e.to == nil {
+		return ""
+	}
+	newBase := &url.URL{Scheme: e.to.Scheme, Host: e.to.Host}
+	if e.from != nil && e.from.Scheme == newBase.Scheme && e.from.Host == newBase.Host {
+		return "The request was redirected within the same deployment. Check for a proxy or path rewrite in front of Coder."
+	}
+	return fmt.Sprintf("The deployment URL may have changed. Run %q to log in against the new URL.", "coder login "+newBase.String())
 }
 
 func newHTTPTransport(tlsConfig *tls.Config) (http.RoundTripper, error) {
@@ -1416,6 +1458,10 @@ func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool
 		return formatCoderSDKError(from, sdkError, opts), true
 	}
 
+	if redirectErr, ok := err.(*redirectError); ok {
+		return formatRedirectError(from, redirectErr), true
+	}
+
 	if cmdErr, ok := err.(*serpent.RunCommandError); ok {
 		// no need to pass the "from" context to this since it is always
 		// top level. We care about what is below this.
@@ -1547,6 +1593,22 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 	if opts.Verbose || (err.Helper == "" && err.Detail != "") {
 		_, _ = str.WriteString("\n")
 		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Detail))
+	}
+	return str.String()
+}
+
+// formatRedirectError formats a redirectError with the redirect target
+// and a suggestion for fixing the configured deployment URL.
+func formatRedirectError(from string, err *redirectError) string {
+	var str strings.Builder
+	if from != "" {
+		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Trace=[%s]", from)))
+		_, _ = str.WriteString("\n")
+	}
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), err.Error()))
+	if helper := err.Helper(); helper != "" {
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(pretty.Sprintf(tailLineStyle(), "Suggestion: %s", helper))
 	}
 	return str.String()
 }
