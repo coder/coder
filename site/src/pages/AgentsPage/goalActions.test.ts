@@ -13,6 +13,8 @@ describe("runGoalAction", () => {
 		{ status: "active", action: "clear", completionSummary: undefined },
 		{ status: "paused", action: "clear", completionSummary: undefined },
 		{ status: "paused", action: "resume", completionSummary: undefined },
+		{ status: "blocked", action: "resume", completionSummary: undefined },
+		{ status: "blocked", action: "clear", completionSummary: undefined },
 		{ status: "complete", action: "clear", completionSummary: undefined },
 		{
 			status: "active",
