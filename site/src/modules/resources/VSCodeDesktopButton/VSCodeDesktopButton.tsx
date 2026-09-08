@@ -9,9 +9,22 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { useStorage } from "#/hooks/useStorage";
 import { getVSCodeHref } from "#/modules/apps/apps";
+import { defineStorageKey, stringLiteralCodec } from "#/storage";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
+
+type VSCodeVariant = "vscode" | "vscode-insiders";
+
+/** Shared with VSCodeDevContainerButton so both buttons track the same choice. */
+export const vscodeVariantStorage = defineStorageKey<VSCodeVariant>({
+	key: "vscode-variant",
+	codec: stringLiteralCodec<VSCodeVariant>({
+		oneOf: ["vscode", "vscode-insiders"],
+	}),
+	defaultValue: "vscode",
+});
 
 interface VSCodeDesktopButtonProps {
 	userName: string;
@@ -21,20 +34,9 @@ interface VSCodeDesktopButtonProps {
 	displayApps: readonly DisplayApp[];
 }
 
-type VSCodeVariant = "vscode" | "vscode-insiders";
-
-const VARIANT_KEY = "vscode-variant";
-
-const isVSCodeVariant = (value: string | null): value is VSCodeVariant => {
-	return value === "vscode" || value === "vscode-insiders";
-};
-
 export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 	const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false);
-	const [variant, setVariant] = useState<VSCodeVariant>(() => {
-		const previousVariant = localStorage.getItem(VARIANT_KEY);
-		return isVSCodeVariant(previousVariant) ? previousVariant : "vscode";
-	});
+	const [variant, setVariant] = useStorage(vscodeVariantStorage);
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
 	const menuContentId = useId();
 	const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
@@ -44,11 +46,6 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 			setMenuWidth(menuAnchorRef.current?.clientWidth);
 		}
 	}, [isVariantMenuOpen]);
-
-	const selectVariant = (nextVariant: VSCodeVariant) => {
-		localStorage.setItem(VARIANT_KEY, nextVariant);
-		setVariant(nextVariant);
-	};
 
 	const includesVSCodeDesktop = props.displayApps.includes("vscode");
 	const includesVSCodeInsiders = props.displayApps.includes("vscode_insiders");
@@ -83,7 +80,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 				>
 					<DropdownMenuItem
 						onClick={() => {
-							selectVariant("vscode");
+							setVariant("vscode");
 						}}
 					>
 						<ExternalImage src="/icon/code.svg" alt="" className="size-3" />
@@ -91,7 +88,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						onClick={() => {
-							selectVariant("vscode-insiders");
+							setVariant("vscode-insiders");
 						}}
 					>
 						<ExternalImage

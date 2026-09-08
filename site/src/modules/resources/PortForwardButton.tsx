@@ -57,9 +57,8 @@ import { usePortsData } from "#/modules/resources/usePortsData";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
-	getWorkspaceListeningPortsProtocol,
 	portForwardURL,
-	saveWorkspaceListeningPortsProtocol,
+	workspaceListeningPortsProtocolStorage,
 } from "#/utils/portForward";
 
 interface PortForwardButtonProps {
@@ -165,7 +164,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	refetchSharedPorts,
 }) => {
 	const [listeningPortProtocol, setListeningPortProtocol] = useState(
-		getWorkspaceListeningPortsProtocol(workspace.id),
+		workspaceListeningPortsProtocolStorage.forId(workspace.id).get(),
 	);
 	const protocolFieldId = useId();
 	const shareLevelFieldId = useId();
@@ -284,7 +283,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										return;
 									}
 									setListeningPortProtocol(value);
-									saveWorkspaceListeningPortsProtocol(workspace.id, value);
+									workspaceListeningPortsProtocolStorage
+										.forId(workspace.id)
+										.set(value);
 								}}
 							>
 								<SelectTrigger

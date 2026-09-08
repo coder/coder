@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import type { Workspace, WorkspaceBuild } from "#/api/typesGenerated";
+import { workspaceListeningPortsProtocolStorage } from "#/utils/portForward";
 
 interface UseBatchActionsOptions {
 	onSuccess: () => Promise<void>;
@@ -65,7 +66,15 @@ export function useBatchActions(
 
 	const deleteAllMutation = useMutation({
 		mutationFn: (workspaces: readonly Workspace[]) => {
-			return Promise.all(workspaces.map((w) => API.deleteWorkspace(w.id)));
+			return Promise.all(
+				workspaces.map(async (w) => {
+					// Clear per-workspace as each delete succeeds so a mixed
+					// batch still cleans up the workspaces that were deleted.
+					const build = await API.deleteWorkspace(w.id);
+					workspaceListeningPortsProtocolStorage.clear(w.id);
+					return build;
+				}),
+			);
 		},
 		onSuccess,
 		onError: (error) => {
