@@ -1190,6 +1190,116 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
+func TestMigration000591RemoveTaskNotificationsAndUsage(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 591
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	userID, bridgeUserID, orgID := uuid.New(), uuid.New(), uuid.New()
+	taskTemplateIDs := pq.StringArray{
+		"bd4b7168-d05e-4e19-ad0f-3593b77aa90f",
+		"d4a6271c-cced-4ed0-84ad-afd02a9c7799",
+		"8c5a4d12-9f7e-4b3a-a1c8-6e4f2d9b5a7c",
+		"3b7e8f1a-4c2d-49a6-b5e9-7f3a1c8d6b4e",
+		"2a74f3d3-ab09-4123-a4a5-ca238f4f65a1",
+		"843ee9c3-a8fb-4846-afa9-977bec578649",
+	}
+	const otherTemplateID = "281fdf73-c6d6-4cbb-8ff5-888baf8a2fff"
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles)
+		VALUES ($1, $1::uuid::text, 'Notifications', '', $2, $2, '{}')`, orgID, now)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO users (id, username, email, hashed_password, created_at, updated_at)
+		VALUES ($1, $1::uuid::text, $1::uuid::text || '@test.com', '', $3, $3),
+		       ($2, $2::uuid::text, $2::uuid::text || '@test.com', '', $3, $3)`, userID, bridgeUserID, now)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO notification_preferences (user_id, notification_template_id, disabled)
+		VALUES ($1, $2, true), ($1, $3, true)`, userID, taskTemplateIDs[0], otherTemplateID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO user_configs (user_id, key, value)
+		VALUES ($1, 'preference_task_notification_alert_dismissed', 'true')`, userID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO ai_seat_state (user_id, first_used_at, last_used_at, last_event_type, last_event_description, updated_at)
+		VALUES ($1, $3, $3, 'task', 'task usage', $3),
+		       ($2, $3, $3, 'aibridge', 'bridge usage', $3)`, userID, bridgeUserID, now)
+	require.NoError(t, err)
+
+	var count int
+	const taskTemplatesQuery = "SELECT count(*) FROM notification_templates WHERE id = ANY($1::uuid[])"
+	require.NoError(t, sqlDB.QueryRowContext(ctx, taskTemplatesQuery, taskTemplateIDs).Scan(&count))
+	require.Equal(t, 6, count)
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	require.NoError(t, sqlDB.QueryRowContext(ctx, taskTemplatesQuery, taskTemplateIDs).Scan(&count))
+	require.Zero(t, count)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM notification_templates WHERE id = $1", otherTemplateID).Scan(&count))
+	require.Equal(t, 1, count)
+	var preferences pq.StringArray
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT ARRAY(SELECT notification_template_id::text FROM notification_preferences WHERE user_id = $1)", userID).Scan(&preferences))
+	require.Equal(t, pq.StringArray{otherTemplateID}, preferences)
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM user_configs WHERE user_id = $1 AND key = 'preference_task_notification_alert_dismissed'", userID).Scan(&count))
+	require.Zero(t, count)
+	for id, description := range map[uuid.UUID]string{userID: "task usage", bridgeUserID: "bridge usage"} {
+		var event, gotDescription string
+		var firstUsed, lastUsed, updated time.Time
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `
+			SELECT last_event_type, last_event_description, first_used_at, last_used_at, updated_at
+			FROM ai_seat_state WHERE user_id = $1`, id).Scan(&event, &gotDescription, &firstUsed, &lastUsed, &updated))
+		require.Equal(t, "aibridge", event)
+		require.Equal(t, description, gotDescription)
+		require.True(t, now.Equal(firstUsed))
+		require.True(t, now.Equal(lastUsed))
+		require.True(t, now.Equal(updated))
+	}
+	var reasons pq.StringArray
+	const reasonsQuery = "SELECT enum_range(NULL::ai_seat_usage_reason)::text[]"
+	require.NoError(t, sqlDB.QueryRowContext(ctx, reasonsQuery).Scan(&reasons))
+	require.Equal(t, pq.StringArray{"aibridge"}, reasons)
+
+	downSQL, err := os.ReadFile("000591_remove_task_notifications_and_usage.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, taskTemplatesQuery, taskTemplateIDs).Scan(&count))
+	require.Equal(t, 6, count)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, reasonsQuery).Scan(&reasons))
+	require.Equal(t, pq.StringArray{"aibridge", "task"}, reasons)
+
+	upSQL, err := os.ReadFile("000591_remove_task_notifications_and_usage.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, taskTemplatesQuery, taskTemplateIDs).Scan(&count))
+	require.Zero(t, count)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, reasonsQuery).Scan(&reasons))
+	require.Equal(t, pq.StringArray{"aibridge"}, reasons)
+}
+
 func TestMigration000587RemoveAgentsAccessRole(t *testing.T) {
 	t.Parallel()
 

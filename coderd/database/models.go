@@ -230,7 +230,6 @@ type AISeatUsageReason string
 
 const (
 	AISeatUsageReasonAibridge AISeatUsageReason = "aibridge"
-	AISeatUsageReasonTask     AISeatUsageReason = "task"
 )
 
 func (e *AISeatUsageReason) Scan(src interface{}) error {
@@ -270,8 +269,7 @@ func (ns NullAISeatUsageReason) Value() (driver.Value, error) {
 
 func (e AISeatUsageReason) Valid() bool {
 	switch e {
-	case AISeatUsageReasonAibridge,
-		AISeatUsageReasonTask:
+	case AISeatUsageReasonAibridge:
 		return true
 	}
 	return false
@@ -280,7 +278,6 @@ func (e AISeatUsageReason) Valid() bool {
 func AllAISeatUsageReasonValues() []AISeatUsageReason {
 	return []AISeatUsageReason{
 		AISeatUsageReasonAibridge,
-		AISeatUsageReasonTask,
 	}
 }
 
