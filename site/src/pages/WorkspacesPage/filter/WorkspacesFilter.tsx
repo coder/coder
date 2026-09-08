@@ -1,9 +1,9 @@
 import {
 	Building2Icon,
 	CircleDotIcon,
-	UserIcon,
 	LayoutPanelTopIcon,
 	TagsIcon,
+	UserIcon,
 } from "lucide-react";
 import { type FC, useCallback, useMemo } from "react";
 import { useQueryClient } from "react-query";
