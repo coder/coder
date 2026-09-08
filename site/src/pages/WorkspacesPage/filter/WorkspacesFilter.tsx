@@ -1,7 +1,6 @@
 import {
 	Building2Icon,
 	CircleDotIcon,
-	SlidersHorizontalIcon,
 	UserIcon,
 	LayoutPanelTopIcon,
 	TagsIcon,
