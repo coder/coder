@@ -883,6 +883,10 @@ lint/prose: docs/.style/.vale-synced
 # all commits.
 #
 # pre-push adds heavier checks: Go tests, JS tests, and site build.
+# Storybook tests are not included: vitest's browser import() calls
+# stall indefinitely under the CPU contention of the parallel Go
+# test, JS test, and site build phases, and the storybook job in CI
+# (build plus Pixel snapshots) covers stories on every PR.
 # The pre-push hook is allowlisted, see scripts/githooks/pre-push.
 #
 # pre-commit uses two phases: gen+fmt first, then lint+build. This
@@ -954,20 +958,11 @@ pre-push:
 	start=$$(date +%s)
 	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
 	echo "$(BOLD)pre-push$(RESET) ($$logdir)"
-	test -d site/node_modules/.cache/storybook || (cd site/ && pnpm exec node scripts/warmup-storybook-cache.mjs)
 	echo "test + build site:"
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
 		test-js \
 		site/out/index.html
-	# Storybook tests run after Go tests and the site build to avoid
-	# CPU starvation. Rolldown's tokio workers in Vite's transform
-	# pipeline stall when competing with Go compilation and the
-	# production build, causing browser import() calls to hang
-	# indefinitely (vitest has no import-phase timeout).
-	echo "test storybook:"
-	$(MAKE) --no-print-directory MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
-		test-storybook
 	rm -rf $$logdir
 	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-push
