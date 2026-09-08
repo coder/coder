@@ -5101,6 +5101,7 @@ export type Experiment =
 	| "oauth2"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
+	| "workspace-desktop"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
@@ -5117,6 +5118,7 @@ export const Experiments: Experiment[] = [
 	"oauth2",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
+	"workspace-desktop",
 	"workspace-usage",
 ];
 

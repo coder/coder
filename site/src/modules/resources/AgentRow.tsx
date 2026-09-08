@@ -60,6 +60,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import {
 	getAgentConnectivityIssues,
@@ -76,6 +77,7 @@ import { AgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
+import { DesktopLink } from "./DesktopLink/DesktopLink";
 import { DownloadSelectedAgentLogsButton } from "./DownloadSelectedAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
@@ -153,6 +155,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	initialMetadata,
 }) => {
 	const { browser_only, workspace_external_agent } = useFeatureVisibility();
+	const { experiments } = useDashboard();
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
@@ -164,6 +167,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
 	const showVSCode = hasVSCodeApp && !browser_only;
+	// The built-in desktop is experimental and only ships a linux runtime.
+	const showDesktop =
+		experiments.includes("workspace-desktop") &&
+		agent.operating_system === "linux";
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const runningScriptsCount = agent.scripts.filter(
@@ -500,6 +507,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 						{agent.display_apps.includes("web_terminal") && (
 							<TerminalLink
+								workspaceName={workspace.name}
+								agentName={agent.name}
+								userName={workspace.owner_name}
+							/>
+						)}
+						{showDesktop && (
+							<DesktopLink
 								workspaceName={workspace.name}
 								agentName={agent.name}
 								userName={workspace.owner_name}

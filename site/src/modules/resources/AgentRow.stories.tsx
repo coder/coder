@@ -597,3 +597,10 @@ export const LogsTabs: Story = {
 		await expect(canvas.getByText("install: pnpm install")).toBeVisible();
 	},
 };
+
+export const WithDesktop: Story = {
+	parameters: {
+		...meta.parameters,
+		experiments: ["workspace-desktop"],
+	},
+};

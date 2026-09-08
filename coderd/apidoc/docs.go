@@ -14563,6 +14563,38 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workspaceagents/{workspaceagent}/desktop": {
+            "get": {
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Connect to the workspace agent desktop",
+                "operationId": "connect-to-the-workspace-agent-desktop",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
                 "produces": [
@@ -23452,7 +23484,8 @@ const docTemplate = `{
                 "ai-gateway-seat-exclusion",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "workspace-desktop"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
@@ -23468,6 +23501,7 @@ const docTemplate = `{
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
+                "ExperimentWorkspaceDesktop": "Enables the built-in virtual desktop workspace app.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
@@ -23484,7 +23518,8 @@ const docTemplate = `{
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Enables the built-in virtual desktop workspace app."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23500,7 +23535,8 @@ const docTemplate = `{
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentWorkspaceDesktop"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
