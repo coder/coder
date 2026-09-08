@@ -624,6 +624,55 @@ func TestPushContextState(t *testing.T) {
 	})
 }
 
+// TestPushContextState_LegacyOmitsMCPSettled verifies that a push
+// request from a legacy agent (without the optional mcp_settled field)
+// stores NULL in the database. This is the protocol-level test for
+// backwards compatibility with agents that predate the settlement gate.
+func TestPushContextState_LegacyOmitsMCPSettled(t *testing.T) {
+	t.Parallel()
+
+	agentID := uuid.New()
+	clock := quartz.NewMock(t)
+	clock.Set(dbtime.Now())
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(f func(database.Store) error, _ *database.TxOptions) error {
+			return f(db)
+		},
+	)
+
+	db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+		Return(database.WorkspaceAgentContextSnapshot{}, sql.ErrNoRows)
+	db.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), gomock.Any()).Return(nil)
+
+	db.EXPECT().
+		UpsertWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, params database.UpsertWorkspaceAgentContextSnapshotParams) (database.WorkspaceAgentContextSnapshot, error) {
+			require.Equal(t, agentID, params.WorkspaceAgentID)
+			require.False(t, params.McpSettled.Valid,
+				"legacy agent push without mcp_settled field should store NULL")
+			return database.WorkspaceAgentContextSnapshot{}, nil
+		})
+
+	api := &agentapi.ContextAPI{
+		AgentID:  agentID,
+		Database: db,
+		Log:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
+		Clock:    clock,
+	}
+
+	_, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+		Version:       1,
+		AggregateHash: []byte("test-hash"),
+		Initial:       true,
+		// McpSettled intentionally omitted (nil) to simulate legacy agent.
+	})
+	require.NoError(t, err)
+}
+
 // errNoRows returns the database "no rows" sentinel for the mocks;
 // the handler uses errors.Is(err, sql.ErrNoRows) to recognize first
 // pushes vs. updates.

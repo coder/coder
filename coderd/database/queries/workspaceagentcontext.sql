@@ -4,19 +4,22 @@ INSERT INTO workspace_agent_context_snapshots (
     version,
     aggregate_hash,
     snapshot_error,
-    received_at
+    received_at,
+    mcp_settled
 ) VALUES (
     @workspace_agent_id,
     @version,
     @aggregate_hash,
     @snapshot_error,
-    @received_at
+    @received_at,
+    @mcp_settled
 )
 ON CONFLICT (workspace_agent_id) DO UPDATE SET
     version = EXCLUDED.version,
     aggregate_hash = EXCLUDED.aggregate_hash,
     snapshot_error = EXCLUDED.snapshot_error,
-    received_at = EXCLUDED.received_at
+    received_at = EXCLUDED.received_at,
+    mcp_settled = EXCLUDED.mcp_settled
 RETURNING *;
 
 -- name: UpsertWorkspaceAgentContextResource :one

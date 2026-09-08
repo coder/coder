@@ -183,6 +183,10 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 			}
 		}
 
+		var mcpSettled sql.NullBool
+		if req.McpSettled != nil {
+			mcpSettled = sql.NullBool{Bool: *req.McpSettled, Valid: true}
+		}
 		_, err = tx.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
 			WorkspaceAgentID: a.AgentID,
 			//nolint:gosec // Bounded by validateContextPushRequest.
@@ -190,6 +194,7 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 			AggregateHash: append([]byte(nil), req.AggregateHash...),
 			SnapshotError: req.SnapshotError,
 			ReceivedAt:    now,
+			McpSettled:    mcpSettled,
 		})
 		if err != nil {
 			return xerrors.Errorf("upsert snapshot: %w", err)

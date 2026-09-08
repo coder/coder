@@ -54,11 +54,13 @@ func (p *DRPCPusher) PushContextState(ctx context.Context, req *PushRequest) (*P
 // is always set (zero-valued if necessary) so coderd can tell
 // the kind even when Status != OK.
 func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
+	mcpSettled := req.MCPSettled
 	pb := &agentproto.PushContextStateRequest{
 		Version:       req.Version,
 		AggregateHash: append([]byte(nil), req.AggregateHash[:]...),
 		Initial:       req.Initial,
 		SnapshotError: req.SnapshotError,
+		McpSettled:    &mcpSettled,
 		Resources:     make([]*agentproto.ContextResource, 0, len(req.Resources)),
 	}
 	for i := range req.Resources {

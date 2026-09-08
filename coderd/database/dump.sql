@@ -3830,7 +3830,8 @@ CREATE TABLE workspace_agent_context_snapshots (
     version bigint NOT NULL,
     aggregate_hash bytea NOT NULL,
     snapshot_error text DEFAULT ''::text NOT NULL,
-    received_at timestamp with time zone DEFAULT now() NOT NULL
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    mcp_settled boolean
 );
 
 COMMENT ON TABLE workspace_agent_context_snapshots IS 'Latest workspace agent context snapshot received via PushContextState. One row per workspace agent, overwritten in place.';
@@ -3842,6 +3843,8 @@ COMMENT ON COLUMN workspace_agent_context_snapshots.aggregate_hash IS 'sha256 ov
 COMMENT ON COLUMN workspace_agent_context_snapshots.snapshot_error IS 'Singular snapshot-level error string (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
 
 COMMENT ON COLUMN workspace_agent_context_snapshots.received_at IS 'Time at which coderd received the push.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.mcp_settled IS 'True once the agent''s first MCP registration attempt settled (success, failure, or zero servers). NULL for legacy agents or before the first settled push.';
 
 CREATE TABLE workspace_agent_devcontainers (
     id uuid NOT NULL,

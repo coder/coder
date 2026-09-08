@@ -31,6 +31,10 @@ func newCreateWorkspaceMockStore(ctrl *gomock.Controller) *dbmock.MockStore {
 		GetTemplateVersionByID(gomock.Any(), gomock.Any()).
 		Return(database.TemplateVersion{}, sql.ErrNoRows).
 		AnyTimes()
+	db.EXPECT().
+		GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+		Return(database.WorkspaceAgentContextSnapshot{}, sql.ErrNoRows).
+		AnyTimes()
 	return db
 }
 

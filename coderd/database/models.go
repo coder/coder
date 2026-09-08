@@ -6618,6 +6618,8 @@ type WorkspaceAgentContextSnapshot struct {
 	SnapshotError string `db:"snapshot_error" json:"snapshot_error"`
 	// Time at which coderd received the push.
 	ReceivedAt time.Time `db:"received_at" json:"received_at"`
+	// True once the agent's first MCP registration attempt settled (success, failure, or zero servers). NULL for legacy agents or before the first settled push.
+	McpSettled sql.NullBool `db:"mcp_settled" json:"mcp_settled"`
 }
 
 // Workspace agent devcontainer configuration

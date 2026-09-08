@@ -33063,7 +33063,7 @@ func (q *sqlQuerier) DeleteStaleWorkspaceAgentContextResources(ctx context.Conte
 }
 
 const getLatestWorkspaceAgentContextSnapshot = `-- name: GetLatestWorkspaceAgentContextSnapshot :one
-SELECT workspace_agent_id, version, aggregate_hash, snapshot_error, received_at FROM workspace_agent_context_snapshots
+SELECT workspace_agent_id, version, aggregate_hash, snapshot_error, received_at, mcp_settled FROM workspace_agent_context_snapshots
 WHERE workspace_agent_id = $1
 `
 
@@ -33076,6 +33076,7 @@ func (q *sqlQuerier) GetLatestWorkspaceAgentContextSnapshot(ctx context.Context,
 		&i.AggregateHash,
 		&i.SnapshotError,
 		&i.ReceivedAt,
+		&i.McpSettled,
 	)
 	return i, err
 }
@@ -33208,28 +33209,32 @@ INSERT INTO workspace_agent_context_snapshots (
     version,
     aggregate_hash,
     snapshot_error,
-    received_at
+    received_at,
+    mcp_settled
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
-    $5
+    $5,
+    $6
 )
 ON CONFLICT (workspace_agent_id) DO UPDATE SET
     version = EXCLUDED.version,
     aggregate_hash = EXCLUDED.aggregate_hash,
     snapshot_error = EXCLUDED.snapshot_error,
-    received_at = EXCLUDED.received_at
-RETURNING workspace_agent_id, version, aggregate_hash, snapshot_error, received_at
+    received_at = EXCLUDED.received_at,
+    mcp_settled = EXCLUDED.mcp_settled
+RETURNING workspace_agent_id, version, aggregate_hash, snapshot_error, received_at, mcp_settled
 `
 
 type UpsertWorkspaceAgentContextSnapshotParams struct {
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	Version          int64     `db:"version" json:"version"`
-	AggregateHash    []byte    `db:"aggregate_hash" json:"aggregate_hash"`
-	SnapshotError    string    `db:"snapshot_error" json:"snapshot_error"`
-	ReceivedAt       time.Time `db:"received_at" json:"received_at"`
+	WorkspaceAgentID uuid.UUID    `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Version          int64        `db:"version" json:"version"`
+	AggregateHash    []byte       `db:"aggregate_hash" json:"aggregate_hash"`
+	SnapshotError    string       `db:"snapshot_error" json:"snapshot_error"`
+	ReceivedAt       time.Time    `db:"received_at" json:"received_at"`
+	McpSettled       sql.NullBool `db:"mcp_settled" json:"mcp_settled"`
 }
 
 func (q *sqlQuerier) UpsertWorkspaceAgentContextSnapshot(ctx context.Context, arg UpsertWorkspaceAgentContextSnapshotParams) (WorkspaceAgentContextSnapshot, error) {
@@ -33239,6 +33244,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentContextSnapshot(ctx context.Context, ar
 		arg.AggregateHash,
 		arg.SnapshotError,
 		arg.ReceivedAt,
+		arg.McpSettled,
 	)
 	var i WorkspaceAgentContextSnapshot
 	err := row.Scan(
@@ -33247,6 +33253,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentContextSnapshot(ctx context.Context, ar
 		&i.AggregateHash,
 		&i.SnapshotError,
 		&i.ReceivedAt,
+		&i.McpSettled,
 	)
 	return i, err
 }

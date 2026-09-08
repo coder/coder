@@ -45,6 +45,11 @@ type ManagerOptions struct {
 	// It is ignored when the resolver already has an MCP provider
 	// (e.g. a test injecting one via Resolver).
 	MCPCatalog func() []MCPServerStatus
+	// MCPSettled, when non-nil, reports whether the MCP engine's
+	// first registration attempt has settled (success, failure, or
+	// zero configured servers). The Snapshot carries this so the
+	// pushed state lets coderd gate first-turn tool discovery.
+	MCPSettled func() bool
 	// Debounce overrides the watcher's debounce window.
 	Debounce time.Duration
 }
@@ -98,6 +103,10 @@ type Manager struct {
 	// observe a change.
 	trigger chan struct{}
 
+	// mcpSettled reports whether the agent's MCP engine has
+	// completed its first registration attempt.
+	mcpSettled func() bool
+
 	// ready gates collection. While false (until the first SetReady
 	// call) the Manager does not scan; Snapshot() returns the empty
 	// version-0 value, which the push loop never sends to coderd.
@@ -139,6 +148,7 @@ func NewManager(opts ManagerOptions) *Manager {
 		allowedRoots: append([]string(nil), opts.AllowedRoots...),
 		resolver:     resolver,
 		debounce:     debounce,
+		mcpSettled:   opts.MCPSettled,
 		sources:      make([]Source, 0),
 		sourceIndex:  make(map[string]int),
 		subscribers:  make(map[chan struct{}]struct{}),
@@ -461,13 +471,12 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
 	}
+	var mcpSettled bool
+	if m.mcpSettled != nil {
+		mcpSettled = m.mcpSettled()
+	}
 	snap := resolver.ResolveContext(ctx, roots)
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		// Cancellation mid-walk yields a partial or empty
-		// Snapshot whose SnapshotError is set to
-		// "context canceled". Publishing it would replace
-		// the live Snapshot with empty resources until the
-		// next trigger, so bail without touching state.
 		return m.Snapshot(), ctxErr
 	}
 	if snap.SnapshotError == "" && watcher != nil {
@@ -475,6 +484,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 			snap.SnapshotError = d
 		}
 	}
+	snap.MCPSettled = mcpSettled
 
 	m.mu.Lock()
 	if m.closed {
@@ -648,23 +658,28 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	if err := ctx.Err(); err != nil {
 		return
 	}
+	// Capture MCP settlement BEFORE resolution so the flag
+	// reflects the same state as the catalog the resolver
+	// will read. If settlement completes between this read
+	// and the catalog read inside ResolveContext, the snapshot
+	// conservatively carries false, and the subsequent
+	// onChange-triggered resolve pass captures the settled
+	// state together with the populated catalog.
+	var mcpSettled bool
+	if m.mcpSettled != nil {
+		mcpSettled = m.mcpSettled()
+	}
+
 	snap := resolver.ResolveContext(ctx, roots)
 	if err := ctx.Err(); err != nil {
-		// Cancellation mid-walk yields a partial or empty
-		// Snapshot. Publishing it would replace the live
-		// Snapshot with empty resources, so bail without
-		// touching state. The Run loop's gracefulCtx is
-		// canceled only at shutdown, but defensive checks
-		// keep the publish contract uniform with Resync.
 		return
 	}
-	// Surface watcher degradation as a snapshot-level error
-	// when the resolver did not already emit one.
 	if snap.SnapshotError == "" && watcher != nil {
 		if d := watcher.Degraded(); d != "" {
 			snap.SnapshotError = d
 		}
 	}
+	snap.MCPSettled = mcpSettled
 
 	m.mu.Lock()
 	if m.resolveEpoch != myEpoch {

@@ -1002,6 +1002,11 @@ type Snapshot struct {
 	// string when present (count cap exceeded, watcher
 	// degraded, ENOSPC, etc.). Empty when healthy.
 	SnapshotError string
+	// MCPSettled is true once the agent's first MCP registration
+	// attempt has completed (success, failure, or zero configured
+	// servers). Coderd persists this so chatd can gate first-turn
+	// tool discovery on it.
+	MCPSettled bool
 }
 
 // driftResources excludes MCP resources because agents discover them
