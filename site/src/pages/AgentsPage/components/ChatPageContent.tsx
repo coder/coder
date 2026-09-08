@@ -293,9 +293,6 @@ interface ChatPageInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	// Workspace skill menu data derived from the resolved chat detail;
-	// undefined while the chat is still loading.
-	workspaceSkills?: readonly SkillMetadata[];
 	workspaceOptions: readonly TypesGen.Workspace[];
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
@@ -344,7 +341,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	workspaceSkills,
 	workspaceOptions,
 	onWorkspaceChange,
 	isWorkspaceLoading,
@@ -359,6 +355,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const chatContext = chat.context;
 	const planModeEnabled = chat.plan_mode === "plan";
 	const selectedWorkspaceId = chat.workspace_id ?? null;
+	const workspaceSkills = workspaceSkillsFromChat(chat);
 	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const compressionThreshold = resolveCompactionThreshold(
 		chat.last_model_config_id,

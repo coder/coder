@@ -42,7 +42,6 @@ import {
 
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
-import type { SkillMetadata } from "./components/ChatMessageInput/SkillsTriggerMenu";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
@@ -190,8 +189,6 @@ interface AgentChatPageViewProps {
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
-
-	workspaceSkills?: readonly SkillMetadata[];
 }
 
 const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
@@ -335,7 +332,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	desktopChatId,
-	workspaceSkills,
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
@@ -962,7 +958,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									selectedMCPServerIds={selectedMCPServerIds}
 									onMCPSelectionChange={onMCPSelectionChange}
 									onMCPAuthComplete={onMCPAuthComplete}
-									workspaceSkills={workspaceSkills}
 									workspace={workspace}
 									workspaceAgent={workspaceAgent}
 									sshCommand={sshCommand}

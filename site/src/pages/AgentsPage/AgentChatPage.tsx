@@ -1196,7 +1196,6 @@ const AgentChatPage: FC = () => {
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
 					onMCPAuthComplete={handleMCPAuthComplete}
-					workspaceSkills={chatWorkspaceSkills}
 				/>
 			)}
 		</>
