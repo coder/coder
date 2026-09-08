@@ -14,6 +14,7 @@ import {
 	sortableKeyboardCoordinates,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { cn } from "cn";
 import {
 	PanelLeftCloseIcon,
 	SearchIcon,
@@ -29,7 +30,6 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { cn } from "#/utils/cn";
 import { getOSKey } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_ORDER,
@@ -524,11 +524,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														(disablePinnedReordering ? (
 															<div className="flex flex-col gap-0.5">
 																{sortedPinnedChats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
+																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
 															</div>
 														) : (
@@ -582,11 +578,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
 														<div className="flex flex-col gap-0.5">
 															{sharedWithYouChats.map((chat) => (
-																<ChatTreeNode
-																	key={chat.id}
-																	chat={chat}
-																	isChildNode={false}
-																/>
+																<ChatTreeNode key={chat.id} chat={chat} />
 															))}
 														</div>
 													)}
@@ -607,11 +599,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														{isSectionExpanded && (
 															<div className="flex flex-col gap-0.5">
 																{section.chats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
+																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
 															</div>
 														)}

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
 import { type FC, type ReactNode, useState } from "react";
 import {
@@ -29,7 +30,6 @@ import { Label } from "#/components/Label/Label";
 import { Separator } from "#/components/Separator/Separator";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
 	buildCreateUserSecretRequest,
@@ -363,13 +363,10 @@ const SecretFields: FC<SecretFieldsProps> = ({
 					)
 				}
 				placeholder="Secret name"
-				autoComplete="off"
 				className="placeholder:text-content-disabled"
 				disabled={disableName}
 				aria-required={showRequiredLabels}
-				data-lpignore="true"
-				data-1p-ignore="true"
-				data-form-type="other"
+				ignorePasswordManagers
 			/>
 			<FormField
 				field={getFieldHelpers("env_name", {
@@ -383,12 +380,9 @@ const SecretFields: FC<SecretFieldsProps> = ({
 					)
 				}
 				placeholder="SERVICE_TOKEN"
-				autoComplete="off"
 				className="placeholder:text-content-disabled"
 				aria-required={envNameRequired}
-				data-lpignore="true"
-				data-1p-ignore="true"
-				data-form-type="other"
+				ignorePasswordManagers
 			/>
 			{filePathEnabled && (
 				<FormField
@@ -398,11 +392,8 @@ const SecretFields: FC<SecretFieldsProps> = ({
 					})}
 					label="File path"
 					placeholder="~/api-key.txt"
-					autoComplete="off"
 					className="placeholder:text-content-disabled"
-					data-lpignore="true"
-					data-1p-ignore="true"
-					data-form-type="other"
+					ignorePasswordManagers
 				/>
 			)}
 			{showValue && (

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	CopyIcon,
@@ -44,7 +45,6 @@ import {
 	canShowPortForwarding,
 	usePortsData,
 } from "#/modules/resources/usePortsData";
-import { cn } from "#/utils/cn";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";

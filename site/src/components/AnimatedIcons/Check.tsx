@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import { CheckIcon as LucideCheckIcon } from "lucide-react";
-import { cn } from "#/utils/cn";
 
 type CheckIconProps = React.ComponentProps<typeof LucideCheckIcon>;
 

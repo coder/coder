@@ -335,7 +335,7 @@ module "personalize" {
 module "mux" {
   count                = data.coder_workspace.me.start_count
   source               = "registry.coder.com/coder/mux/coder"
-  version              = "1.5.0"
+  version              = "2.0.0"
   agent_id             = coder_agent.dev.id
   subdomain            = true
   display_name         = "Mux"
@@ -456,9 +456,9 @@ resource "coder_agent" "dev" {
       MISE_DATA_DIR : "/home/coder/.local/share/mise",
     },
     {
-      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/anthropic",
+      ANTHROPIC_BASE_URL : "${trimsuffix(data.coder_workspace.me.access_url, "/")}/api/v2/ai-gateway/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/openai/v1",
+      OPENAI_BASE_URL : "${trimsuffix(data.coder_workspace.me.access_url, "/")}/api/v2/ai-gateway/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     }
   )
@@ -666,7 +666,7 @@ resource "coder_script" "install-deps" {
     # writes this file when it's absent.
     [settings]
     trusted_config_paths = [
-      "/home/coder/coder",
+      "${local.repo_dir}",
       "/etc/mise",
     ]
     TRUST

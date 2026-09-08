@@ -7,15 +7,9 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 type runnerActionKind string
-
-type runnerActionMessage struct {
-	ID   int64
-	Role codersdk.ChatMessageRole
-}
 
 const (
 	runnerActionKindEnterRequiresAction runnerActionKind = "enter_requires_action"

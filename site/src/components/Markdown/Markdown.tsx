@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import isEqual from "lodash/isEqual";
 import {
 	createElement,
@@ -20,7 +21,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { cn } from "#/utils/cn";
 
 interface MarkdownProps {
 	/**

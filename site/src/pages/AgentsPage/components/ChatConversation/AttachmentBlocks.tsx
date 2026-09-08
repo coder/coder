@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	AlertTriangleIcon,
 	DownloadIcon,
@@ -11,7 +12,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { useLatestAbortController } from "../../hooks/useLatestAbortController";
 import {
 	type AttachmentFailure,

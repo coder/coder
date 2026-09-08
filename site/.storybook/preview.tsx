@@ -118,7 +118,7 @@ const withQuery: Decorator = (Story, { parameters }) => {
 	);
 };
 
-const withTheme: Decorator = (Story, context) => {
+const withTheme: Decorator = function WithTheme(Story, context) {
 	const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
 	const { themeOverride } = DecoratorHelpers.useThemeParameters() ?? {};
 	const selected = themeOverride || selectedTheme || "dark";

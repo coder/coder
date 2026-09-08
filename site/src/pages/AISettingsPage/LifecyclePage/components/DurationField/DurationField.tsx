@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import { type FC, type ReactNode, useState } from "react";
 import { Input } from "#/components/Input/Input";
@@ -8,7 +9,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
-import { cn } from "#/utils/cn";
 import {
 	durationInDays,
 	durationInHours,

@@ -60,6 +60,9 @@ export const Default: Story = {
 		);
 		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
 		await expect(canvas.getByLabelText(/client id/i)).toBeInTheDocument();
+		await waitFor(() => {
+			expect(body.queryByRole("option", { name: "OAuth2" })).toBeNull();
+		});
 
 		await userEvent.click(addButton);
 		await waitFor(() => {

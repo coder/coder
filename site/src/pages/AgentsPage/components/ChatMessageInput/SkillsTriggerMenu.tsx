@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useLayoutEffect, useRef } from "react";
 import {
 	Command,
@@ -11,7 +12,6 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 type SkillSource = "personal" | "workspace";
 

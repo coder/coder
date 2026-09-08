@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { GlobeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useOutletContext } from "react-router";
@@ -9,7 +10,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { pageTitle } from "#/utils/page";
 import {

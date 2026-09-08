@@ -1,4 +1,5 @@
 import { cva } from "class-variance-authority";
+import { cn } from "cn";
 import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "#/components/Button/Button";
@@ -8,7 +9,6 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
-import { cn } from "#/utils/cn";
 
 const formatMessage = (message: string) => {
 	// If the message ends with an alphanumeric character, add a period.

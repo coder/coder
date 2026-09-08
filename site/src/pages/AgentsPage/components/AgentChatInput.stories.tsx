@@ -3,12 +3,17 @@ import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
-import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	MockUserPreferenceSettings,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
 import {
@@ -33,9 +38,16 @@ const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
 	component: AgentChatInput,
 	decorators: [withProxyProvider()],
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+		],
+	},
 	args: {
 		onSend: fn(),
-		sendShortcut: "enter",
 		onContentChange: fn(),
 		onModelChange: fn(),
 		initialValue: "",
@@ -239,9 +251,19 @@ export const EnterSendsByDefault: Story = {
 };
 
 export const ModifierEnterSendsWhenRequired: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: {
+					...MockUserPreferenceSettings,
+					agent_chat_send_shortcut: "modifier_enter",
+				},
+			},
+		],
+	},
 	args: {
 		onSend: fn(),
-		sendShortcut: "modifier_enter",
 		initialValue: "Run focused tests",
 	},
 	play: async ({ canvasElement, args }) => {
@@ -510,7 +532,7 @@ export const WithAttachmentError: Story = {
 
 /** File reference chip rendered inline with text in the editor. */
 export const WithFileReference: Story = {
-	render: (args) => {
+	render: function WithFileReferenceRender(args) {
 		const ref = useRef<ChatMessageInputRef>(null);
 
 		useEffect(() => {
@@ -539,7 +561,7 @@ export const WithFileReference: Story = {
 
 /** Multiple file reference chips rendered inline with text. */
 export const WithMultipleFileReferences: Story = {
-	render: (args) => {
+	render: function WithMultipleFileReferencesRender(args) {
 		const ref = useRef<ChatMessageInputRef>(null);
 
 		useEffect(() => {

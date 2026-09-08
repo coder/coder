@@ -4,8 +4,8 @@
 */
 
 @import "tailwindcss";
+@import "tw-animate-css";
 
-@plugin "tailwindcss-animate";
 @plugin "@tailwindcss/typography";
 
 /* Preserve Tailwind CSS v3's default ring color and width. */
@@ -766,7 +766,12 @@
 		}
 	}
 
+	h1 {
+		margin-block: 0.67em;
+	}
+
 	h2 {
+		margin-block: 0.83em;
 		font-size: 1.5em;
 		font-weight: bold;
 	}

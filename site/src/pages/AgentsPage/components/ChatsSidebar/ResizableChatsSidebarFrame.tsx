@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type ReactNode,
@@ -7,7 +8,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cn } from "#/utils/cn";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,

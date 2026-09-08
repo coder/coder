@@ -25,6 +25,7 @@ import {
 	NIL_UUID,
 	providerInfoByIDFromUserConfigs,
 	providerTypeByIDFromUserConfigs,
+	resolveCompactionThreshold,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./modelOptions";
@@ -1170,5 +1171,42 @@ describe("resolveModelSelector", () => {
 				contextLimit: 128_000,
 			},
 		]);
+	});
+});
+
+describe("resolveCompactionThreshold", () => {
+	const models = [
+		createConfig({
+			id: "config-1",
+			ai_provider_id: "prov-openai",
+			model: "gpt-4o",
+			compression_threshold: 70,
+		}),
+	];
+
+	it("returns the user override when one is stored for the model", () => {
+		expect(
+			resolveCompactionThreshold(
+				"config-1",
+				[{ model_config_id: "config-1", threshold_percent: 60 }],
+				models,
+			),
+		).toBe(60);
+	});
+
+	it("returns the model threshold when no override is stored", () => {
+		expect(resolveCompactionThreshold("config-1", [], models)).toBe(70);
+	});
+
+	it("returns the threshold for a disabled historical model", () => {
+		const historicalModels = [{ ...models[0], enabled: false }];
+
+		expect(resolveCompactionThreshold("config-1", [], historicalModels)).toBe(
+			70,
+		);
+	});
+
+	it("returns undefined when the model is not in the catalog", () => {
+		expect(resolveCompactionThreshold("missing", [], models)).toBe(undefined);
 	});
 });

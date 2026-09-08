@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -159,15 +160,64 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 		status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
 
-		require.Equal(t, http.StatusBadRequest, status, body)
-		var oauthErr struct {
-			Error            string `json:"error"`
-			ErrorDescription string `json:"error_description"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
-		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidGrant), oauthErr.Error)
-		require.Contains(t, oauthErr.ErrorDescription, scopeOutOfCatalog,
+		description := requireTokenGrantError(t, status, body)
+		require.Contains(t, description, oauth2provider.ReasonUnmintableScope,
+			"the mint check is what this case is named for, and both sentinels echo the scope")
+		require.Contains(t, description, scopeOutOfCatalog,
 			"an operator cannot act on this without knowing which stored name is the problem")
+	})
+
+	t.Run("AllowlistNarrowedAfterAuthorizationRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		setAppAllowlist(ctx, t, db, app, sql.NullString{String: scopeAlsoInCatalog, Valid: true})
+
+		status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
+
+		description := requireTokenGrantError(t, status, body)
+		require.Contains(t, description, oauth2provider.ReasonStaleScope)
+		require.Contains(t, description, "workspace:ssh",
+			"the client needs the scope name to know what was withdrawn")
+		requireNoSessionKey(ctx, t, db, owner.UserID, app.ID)
+	})
+
+	t.Run("AllowlistWidenedAfterAuthorizationStillRedeems", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		setAppAllowlist(ctx, t, db, app, sql.NullString{String: scopeInCatalog + " " + scopeAlsoInCatalog, Valid: true})
+
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
+			mintedKeyScopes(ctx, t, db, token.RefreshToken))
+		requireCodeConsumed(ctx, t, db, code)
+	})
+
+	t.Run("RefreshIgnoresAllowlistNarrowing", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+		setAppAllowlist(ctx, t, db, app, sql.NullString{String: scopeAlsoInCatalog, Valid: true})
+
+		form := url.Values{}
+		form.Set("grant_type", "refresh_token")
+		form.Set("refresh_token", token.RefreshToken)
+		form.Set("client_id", app.ID.String())
+		form.Set("client_secret", app.ClientSecret)
+		status, body := postTokenRequest(ctx, t, client, form)
+		refreshed := requireTokenResponse(t, status, body)
+
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
+			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
 	})
 }
 
@@ -201,6 +251,38 @@ func seedAppWithSecret(t *testing.T, db database.Store, allowlist sql.NullString
 		ClientSecret:      secret.Formatted,
 		SecretID:          dbSecret.ID,
 	}
+}
+
+// setAppAllowlist rewrites an app's registered scopes, leaving every other
+// column as seeded.
+func setAppAllowlist(ctx context.Context, t *testing.T, db database.Store, app appWithSecret, allowlist sql.NullString) {
+	t.Helper()
+
+	_, err := db.UpdateOAuth2ProviderAppByID(dbauthz.AsSystemRestricted(ctx), database.UpdateOAuth2ProviderAppByIDParams{
+		ID:                      app.ID,
+		UpdatedAt:               dbtime.Now(),
+		Name:                    app.Name,
+		Icon:                    app.Icon,
+		CallbackURL:             app.CallbackURL,
+		RedirectUris:            app.RedirectUris,
+		ClientType:              app.ClientType,
+		DynamicallyRegistered:   app.DynamicallyRegistered,
+		ClientSecretExpiresAt:   app.ClientSecretExpiresAt,
+		GrantTypes:              app.GrantTypes,
+		ResponseTypes:           app.ResponseTypes,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		Scope:                   allowlist,
+		Contacts:                app.Contacts,
+		ClientUri:               app.ClientUri,
+		LogoUri:                 app.LogoUri,
+		TosUri:                  app.TosUri,
+		PolicyUri:               app.PolicyUri,
+		JwksUri:                 app.JwksUri,
+		Jwks:                    app.Jwks,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion,
+	})
+	require.NoError(t, err)
 }
 
 // Returns the secret that redeems the row. dbgen is unusable here: it derives
@@ -276,6 +358,29 @@ func seedCode(ctx context.Context, t *testing.T, db database.Store, appID, userI
 	return secret.Formatted
 }
 
+// requireNoSessionKey asserts the exchange minted nothing. The scope checks run
+// before the transaction that deletes the code and inserts the key, so a
+// rejection that left a row behind would still answer 400.
+func requireNoSessionKey(ctx context.Context, t *testing.T, db database.Store, userID, appID uuid.UUID) {
+	t.Helper()
+
+	_, err := db.GetAPIKeyByName(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeyByNameParams{
+		UserID:    userID,
+		TokenName: fmt.Sprintf("%s_%s_oauth_session_token", userID, appID),
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows, "a refused redemption must mint no key")
+}
+
+// requireCodeConsumed asserts a redeemed code cannot be redeemed again.
+func requireCodeConsumed(ctx context.Context, t *testing.T, db database.Store, code string) {
+	t.Helper()
+
+	parsed, err := oauth2provider.ParseFormattedSecret(code)
+	require.NoError(t, err)
+	_, err = db.GetOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(parsed.Prefix))
+	require.ErrorIs(t, err, sql.ErrNoRows, "a redeemed code must not survive the exchange")
+}
+
 func tokenExchangeForm(app appWithSecret, code, verifier string) url.Values {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
@@ -316,6 +421,21 @@ func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2
 	require.NotEmpty(t, token.AccessToken)
 	require.NotEmpty(t, token.RefreshToken)
 	return token
+}
+
+// requireTokenGrantError asserts an RFC 6749 §5.2 invalid_grant response and
+// returns its description.
+func requireTokenGrantError(t *testing.T, status int, body string) string {
+	t.Helper()
+
+	require.Equal(t, http.StatusBadRequest, status, body)
+	var oauthErr struct {
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
+	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidGrant), oauthErr.Error)
+	return oauthErr.ErrorDescription
 }
 
 func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.APIKeyScopes {

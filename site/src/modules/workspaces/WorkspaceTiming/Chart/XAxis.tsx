@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import { type FC, type HTMLProps, useLayoutEffect, useRef } from "react";
-import { cn } from "#/utils/cn";
 import { formatTime } from "./utils";
 
 const XAxisMinWidth = 130;

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CheckIcon,
 	ChevronDownIcon,
@@ -30,7 +31,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
@@ -10,7 +11,6 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
 interface ManagedAgentsConsumptionProps {

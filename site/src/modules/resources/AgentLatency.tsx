@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import type { DERPRegion, WorkspaceAgent } from "#/api/typesGenerated";
 import {
@@ -7,7 +8,6 @@ import {
 	HelpPopoverTitle,
 	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
-import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 
 const getDisplayLatency = (agent: WorkspaceAgent) => {

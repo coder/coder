@@ -16556,15 +16556,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "A random unguessable string",
+                        "description": "A random unguessable string, echoed back on the callback",
                         "name": "state",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "enum": [
-                            "code",
-                            "token"
+                            "code"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -16583,6 +16581,28 @@ const docTemplate = `{
                         "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)",
+                        "name": "code_challenge",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "S256"
+                        ],
+                        "type": "string",
+                        "description": "PKCE challenge method. S256 only; omitting it means S256",
+                        "name": "code_challenge_method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC 8707 resource indicator: an absolute URI without a fragment",
+                        "name": "resource",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -16591,6 +16611,12 @@ const docTemplate = `{
                     },
                     "302": {
                         "description": "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
+                    },
+                    "400": {
+                        "description": "HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback"
+                    },
+                    "500": {
+                        "description": "HTML error page. The app's registered callback URL is not usable"
                     }
                 },
                 "security": [
@@ -16600,6 +16626,9 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -16615,15 +16644,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "A random unguessable string",
+                        "description": "A random unguessable string, echoed back on the callback",
                         "name": "state",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "enum": [
-                            "code",
-                            "token"
+                            "code"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -16642,11 +16669,45 @@ const docTemplate = `{
                         "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)",
+                        "name": "code_challenge",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "S256"
+                        ],
+                        "type": "string",
+                        "description": "PKCE challenge method. S256 only; omitting it means S256",
+                        "name": "code_challenge_method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC 8707 resource indicator: an absolute URI without a fragment",
+                        "name": "resource",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "302": {
                         "description": "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
+                    },
+                    "400": {
+                        "description": "The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
+                    "500": {
+                        "description": "The app's registered callback URL is not usable",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 },
                 "security": [
@@ -25214,6 +25275,51 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.OAuth2GithubConfig"
                 }
             }
+        },
+        "codersdk.OAuth2Error": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/codersdk.OAuth2ErrorCode"
+                },
+                "error_description": {
+                    "type": "string"
+                },
+                "error_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ErrorCode": {
+            "type": "string",
+            "enum": [
+                "invalid_request",
+                "invalid_client",
+                "invalid_grant",
+                "unauthorized_client",
+                "unsupported_grant_type",
+                "invalid_scope",
+                "access_denied",
+                "unsupported_response_type",
+                "server_error",
+                "temporarily_unavailable",
+                "unsupported_token_type",
+                "invalid_target"
+            ],
+            "x-enum-varnames": [
+                "OAuth2ErrorCodeInvalidRequest",
+                "OAuth2ErrorCodeInvalidClient",
+                "OAuth2ErrorCodeInvalidGrant",
+                "OAuth2ErrorCodeUnauthorizedClient",
+                "OAuth2ErrorCodeUnsupportedGrantType",
+                "OAuth2ErrorCodeInvalidScope",
+                "OAuth2ErrorCodeAccessDenied",
+                "OAuth2ErrorCodeUnsupportedResponseType",
+                "OAuth2ErrorCodeServerError",
+                "OAuth2ErrorCodeTemporarilyUnavailable",
+                "OAuth2ErrorCodeUnsupportedTokenType",
+                "OAuth2ErrorCodeInvalidTarget"
+            ]
         },
         "codersdk.OAuth2GithubConfig": {
             "type": "object",

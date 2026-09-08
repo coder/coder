@@ -72,3 +72,21 @@ export const normalizeChatErrorPayload = (
 		...(detail ? { detail } : {}),
 	};
 };
+
+export const getPersistedDetailError = ({
+	chatStatus,
+	chatRecord,
+	cachedError,
+}: {
+	chatStatus: TypesGen.ChatStatus | null;
+	chatRecord: TypesGen.Chat | undefined;
+	cachedError: ChatDetailError | undefined;
+}): ChatDetailError | undefined => {
+	if (chatStatus !== "error") {
+		return undefined;
+	}
+	if (cachedError) {
+		return cachedError;
+	}
+	return normalizeChatErrorPayload(chatRecord?.last_error);
+};

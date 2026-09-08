@@ -1,14 +1,20 @@
 import { useFormik } from "formik";
+import { ArrowLeftIcon } from "lucide-react";
 import type { FC } from "react";
-import { useNavigate } from "react-router";
+import { Link } from "react-router";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import type { CreateGroupRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { FormFields, FormFooter } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	getFormHelpers,
@@ -22,16 +28,19 @@ const validationSchema = Yup.object({
 
 type CreateGroupPageViewProps = {
 	onSubmit: (data: CreateGroupRequest) => void;
+	onCancel: () => void;
 	error?: unknown;
 	isLoading: boolean;
+	showOrganizations: boolean;
 };
 
 export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 	onSubmit,
+	onCancel,
 	error,
 	isLoading,
+	showOrganizations,
 }) => {
-	const navigate = useNavigate();
 	const form = useFormik<CreateGroupRequest>({
 		initialValues: {
 			name: "",
@@ -43,85 +52,51 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 		onSubmit,
 	});
 	const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, error);
-	const onCancel = () => navigate(-1);
-	const nameField = getFieldHelpers("name");
-	const displayNameField = getFieldHelpers("display_name", {
-		helperText: "Keep empty to default to the name.",
-	});
 
 	return (
-		<div className="flex flex-col items-start w-full max-w-xl">
-			<div className="flex flex-row items-start pb-6">
-				<h1 className="m-0 flex items-center gap-2 text-3xl font-semibold leading-tight">
-					New Group
-				</h1>
-			</div>
+		<>
+			<Button variant="subtle" asChild className="-ml-3">
+				<Link to="..">
+					<ArrowLeftIcon />
+					<span>Back to groups</span>
+				</Link>
+			</Button>
 
-			<form
-				className="flex flex-col w-full max-w-xl  gap-10 rounded-lg border border-solid border-border-default p-6"
-				onSubmit={form.handleSubmit}
-			>
-				<section className="flex flex-col gap-4">
-					<div className="flex flex-col gap-2">
-						<h2 className="text-xl font-medium text-content-primary m-0">
-							Group settings
-						</h2>
-						<p className="text-sm leading-relaxed text-content-secondary m-0">
-							Set a name and avatar for this group.
-						</p>
-					</div>
-					<div className="flex flex-col gap-6">
-						{Boolean(error) && !isApiValidationError(error) && (
-							<ErrorAlert error={error} />
-						)}
+			<div className="pt-6">
+				<SettingsHeader>
+					<SettingsHeaderTitle>New group</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Add a group to this{" "}
+						{showOrganizations ? "organization" : "deployment"}.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
-						<div className="flex flex-col items-start gap-2">
-							<Label htmlFor={nameField.id}>Name</Label>
-							<Input
-								id={nameField.id}
-								name={nameField.name}
-								value={nameField.value}
-								onChange={onChangeTrimmed(form)}
-								onBlur={nameField.onBlur}
-								autoFocus
-								autoComplete="name"
-								aria-invalid={nameField.error}
-							/>
-							{nameField.helperText && (
-								<span
-									className={`text-xs text-left ${
-										nameField.error
-											? "text-content-destructive"
-											: "text-content-secondary"
-									}`}
-								>
-									{nameField.helperText}
-								</span>
-							)}
-						</div>
-						<div className="flex flex-col items-start gap-2">
-							<Label htmlFor={displayNameField.id}>Display Name</Label>
-							<Input
-								id={displayNameField.id}
-								name={displayNameField.name}
-								value={displayNameField.value}
-								onChange={displayNameField.onChange}
-								onBlur={displayNameField.onBlur}
-								autoComplete="display_name"
-								aria-invalid={displayNameField.error}
-							/>
-							{displayNameField.helperText && (
-								<span
-									className={`text-xs text-left ${
-										displayNameField.error
-											? "text-content-destructive"
-											: "text-content-secondary"
-									}`}
-								>
-									{displayNameField.helperText}
-								</span>
-							)}
-						</div>
+				<form
+					className="flex flex-col gap-6 border border-solid p-6 rounded-lg"
+					onSubmit={form.handleSubmit}
+				>
+					{Boolean(error) && !isApiValidationError(error) && (
+						<ErrorAlert error={error} />
+					)}
+
+					<FormFields>
+						<FormField
+							field={getFieldHelpers("name", {
+								helperText: "Unique identifier.",
+							})}
+							label="Name"
+							onChange={onChangeTrimmed(form)}
+							autoFocus
+							autoComplete="name"
+							required
+						/>
+						<FormField
+							field={getFieldHelpers("display_name", {
+								helperText: "Friendly name. Defaults to the name if blank.",
+							})}
+							label="Display name"
+							autoComplete="display_name"
+						/>
 						<IconField
 							{...getFieldHelpers("avatar_url")}
 							onChange={onChangeTrimmed(form)}
@@ -129,19 +104,19 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 							label="Avatar URL"
 							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 						/>
-					</div>
-				</section>
+					</FormFields>
 
-				<footer className="flex items-center justify-end space-x-2">
-					<Button onClick={onCancel} variant="outline">
-						Cancel
-					</Button>
-					<Button type="submit" disabled={isLoading}>
-						<Spinner loading={isLoading} />
-						Create group
-					</Button>
-				</footer>
-			</form>
-		</div>
+					<FormFooter className="mt-0">
+						<Button type="button" onClick={onCancel} variant="outline">
+							Cancel
+						</Button>
+						<Button type="submit" disabled={isLoading}>
+							<Spinner loading={isLoading} />
+							Save
+						</Button>
+					</FormFooter>
+				</form>
+			</div>
+		</>
 	);
 };

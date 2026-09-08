@@ -2,9 +2,10 @@
  * Copied from shadc/ui on 01/13/2025
  * @see {@link https://ui.shadcn.com/docs/components/chart}
  */
+
+import { cn } from "cn";
 import { createContext, type Ref, useContext, useId, useMemo } from "react";
 import * as RechartsPrimitive from "recharts";
-import { cn } from "#/utils/cn";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;

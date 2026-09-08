@@ -400,17 +400,21 @@ Ensure the redirect URI in your request exactly matches the one registered for y
 
 ### "Invalid Callback URL" on the consent page
 
-If you see this error when authorizing, the registered callback URL uses a
-blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). Update the
-application's callback URL to a valid scheme (see
-[Callback URL schemes](#callback-url-schemes)).
+If you see this error when authorizing, the application's registered callback
+URL is not usable: either it does not parse as a URL, or it uses a blocked
+scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause answers
+`server_error` on `POST /oauth2/authorize`. Update the application's callback
+URL (see [Callback URL schemes](#callback-url-schemes)).
+
+The server log records the application ID and the stored value. The response
+does not, so a bad URL is never echoed back to a browser.
 
 ### "invalid_scope" returned to your callback
 
 The authorization endpoint validates the `scope` parameter. When it cannot
 grant what was asked for, it redirects to your registered callback with
 `error=invalid_scope` rather than issuing a code. The `error_description`
-opens with the name that caused the rejection:
+opens with the requested name that caused the rejection:
 
 - `unknown or unsupported scope`: this deployment does not offer that scope
   name. Read the current list from `scopes_supported` in
@@ -421,7 +425,9 @@ opens with the name that caused the rejection:
 - `none of the scopes registered for this app are supported by this
   deployment`: the application's own registered `scope` names nothing this
   deployment offers, so no request against it can succeed, including one
-  that omits `scope`. Re-register the application with supported scopes.
+  that omits `scope`. Re-register the application with supported scopes. This
+  description stands alone. Nothing validates a registered `scope`, so the
+  response never echoes it; the server log records the application ID.
 
 Omitting `scope` requests the application's registered scopes, or full access
 if it was registered without any.
@@ -440,17 +446,52 @@ The usual cause is a grant made against a scope the deployment has since
 dropped. Authorize again to negotiate a scope it still supports; the stored
 scope is not something the client can change by requesting a different one.
 
+The exchange also re-checks the code's scope against the application's
+registered `scope`, which can change during the ten minutes a code stays valid.
+Two more descriptions can open the `error_description` here:
+
+- `scope is no longer allowed by this app's registered scopes`: the
+  registration narrowed after the code was issued and no longer covers the
+  code's scope. Authorize again to negotiate a scope within the new
+  registration.
+- `none of the scopes registered for this app are supported by this
+  deployment`: the registration names nothing this deployment offers, so no
+  code against it can be redeemed. Re-register the application with supported
+  scopes. As on the authorize endpoint, the registered value stays out of the
+  response.
+
+A coverage comparison this deployment cannot decide answers HTTP 500 with
+`error=server_error` and `The requested scope could not be evaluated`; the
+scope that could not be compared is in the server logs, not the response.
+
+Only the application itself can change its registered `scope`, through
+[Dynamic Client Registration](#dynamic-client-registration). No administrator
+surface writes the column, and an application that holds its registration
+access token can widen its own allowlist again before redeeming a code, so
+treat this re-check as reflecting the registration at redemption time rather
+than as a constraint on the client.
+
+A refresh is not re-checked against the registration. That is a Coder policy
+choice: withdrawing scope from a session already running would break it
+mid-flight, so a narrowing takes effect at the next authorization. A refresh
+token keeps its granted scope until it expires, which can be up to the
+configured refresh lifetime; revoke the token to cut a live session.
+
+Codes issued before the upgrade that added scope columns carry `coder:all`,
+recorded as an unrestricted grant. For an application registered with a
+narrower `scope`, those codes are refused with `scope is no longer allowed by
+this app's registered scopes` until they expire, which takes at most ten
+minutes. Authorizing again issues a code within the current registration.
+
 ### "unsupported_response_type" returned to your callback
 
 Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.
 `GET /.well-known/oauth-authorization-server` reports it in `response_types_supported`.
 
-`response_type=token`, the implicit grant, redirects to your registered callback with `error=unsupported_response_type`, an `error_description` of `Only response_type=code is supported`, and the `state` you sent.
+Any other value, including the `token` of the implicit grant, redirects to your registered callback with `error=unsupported_response_type`, an `error_description` of `Only response_type=code is supported`, and the `state` you sent.
 This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
 
-A value Coder does not recognize at all, or an omitted `response_type`, fails query parameter validation instead and is answered on Coder rather than redirected: `GET` renders an "Invalid Query Parameters" page and `POST` returns a 400 with a JSON `invalid_request` body.
-
-Earlier releases answered `response_type=token` on Coder as well: `GET` rendered an "Unsupported Response Type" page and `POST` returned a 400 with a JSON body.
+Earlier releases answered on Coder instead: `GET` rendered an "Unsupported Response Type" page and `POST` returned a 400 with a JSON body.
 An integration that watched for either now has to read the error from its own callback.
 
 ### "invalid_request" for `code_challenge_method`
@@ -461,6 +502,38 @@ Omitting the parameter is allowed and means `S256`.
 
 An unsupported method redirects to your registered callback with `error=invalid_request`, an `error_description` that names the method, and the `state` you sent.
 This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
+### "invalid_request" for a rejected parameter
+
+Coder validates every authorization parameter before issuing a code, and reports all the failing fields together in one `error_description`.
+Each entry reads `field: reason`, and entries are separated by a semicolon and a space.
+Common causes are a `code_challenge` outside the 43 to 128 character unreserved set, and any parameter sent more than once.
+
+The rejection redirects to your registered callback with `error=invalid_request`, an `error_description` naming the fields, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+A description longer than 2048 characters is cut short and marked `(truncated)`.
+
+Parameters the endpoint does not read are ignored, as RFC 6749 Section 3.1 requires, so an OIDC `nonce` or a vendor extension does not fail the request.
+A misspelled parameter is ignored on the same rule, so what you see is the failure caused by the parameter you meant to send being absent.
+
+Two failures stay on Coder rather than reaching your callback, because in both cases the callback is not yet trustworthy:
+
+- A `redirect_uri` that does not parse, or that does not exactly match the one registered for the application.
+  Redirecting to it would defeat the check that just rejected it, so Coder answers 400 (see ["Invalid redirect_uri"](#invalid-redirect_uri)).
+- A `client_id` sent more than once, or one that does not name the application the callback was matched against.
+  Coder cannot tell whose registration it is about to redirect to.
+
+Earlier releases answered on Coder for all of these: `GET` rendered an "Invalid Query Parameters" page and `POST` returned a 400 with a JSON body.
+An integration that watched for either now has to read the error from its own callback.
+
+### "invalid_target" for a rejected `resource`
+
+`resource` must be an absolute URI without a fragment (RFC 8707).
+A value that is not redirects to your registered callback with `error=invalid_target`, an `error_description` naming the field, and the `state` you sent.
+`POST /oauth2/token` already answered `invalid_target` for the same value.
+
+If anything else in the request also failed, the answer is `invalid_request` instead, naming every failing field.
+Correct them all before retrying: a retry that fixes only `resource` fails again.
 
 ### "PKCE verification failed"
 

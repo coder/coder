@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CircleCheckIcon,
 	CircleXIcon,
@@ -51,8 +52,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
-
-import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 import {
 	addTime,

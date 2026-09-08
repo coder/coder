@@ -1,7 +1,7 @@
 import { cva } from "class-variance-authority";
+import { cn } from "cn";
 import { createContext, type PropsWithChildren, useContext } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { cn } from "#/utils/cn";
 import type { StepId } from "./steps";
 
 type Variant = "complete" | "current" | "upcoming" | null | undefined;

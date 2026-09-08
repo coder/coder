@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
@@ -18,7 +19,6 @@ import {
 import { Label } from "#/components/Label/Label";
 import { Textarea } from "#/components/Textarea/Textarea";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 

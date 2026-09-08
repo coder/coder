@@ -242,8 +242,8 @@ new conventions, but all new components should follow these guidelines.
 
 We use [Tailwind CSS](https://tailwindcss.com/) to handle CSS styles. Reusable UI
 primitives come from [shadcn/ui](https://ui.shadcn.com/) components in
-`site/src/components`. Use the `cn` helper from `#/utils/cn` to compose and
-conditionally apply classes.
+`site/src/components`. Import `cn` directly from the `cn` package to compose
+and conditionally apply classes.
 
 ## Forms
 

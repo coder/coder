@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren, ReactNode } from "react";
 import {
@@ -6,7 +7,6 @@ import {
 	type PopoverContentProps,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 type Icon = typeof CircleHelpIcon;
 
