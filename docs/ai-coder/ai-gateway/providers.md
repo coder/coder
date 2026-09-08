@@ -52,7 +52,6 @@ Credential options had no YAML equivalent, and indexed provider options were env
 </details>
 
 Providers already stored in the database remain available without these options.
-For a new or empty database, create providers through the dashboard or API.
 
 Both the embedded gateway and a [standalone gateway](./standalone.md) fetch provider configuration from Coder.
 
