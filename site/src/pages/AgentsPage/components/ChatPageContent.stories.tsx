@@ -426,6 +426,7 @@ const openContextUsage = async (canvasElement: HTMLElement) => {
 
 export const CompactsAtUserOverride: Story = {
 	parameters: {
+		pixel: { exclude: true },
 		queries: [
 			{
 				key: preferenceSettingsKey,
@@ -453,6 +454,7 @@ export const CompactsAtUserOverride: Story = {
 
 export const CompactsAtHistoricalModelDefault: Story = {
 	parameters: {
+		pixel: { exclude: true },
 		queries: [
 			{
 				key: preferenceSettingsKey,
