@@ -1,4 +1,6 @@
-# Workspace Startup Coordination
+---
+title: Workspace startup coordination
+---
 
 > [!NOTE]
 > This feature is experimental and may change without notice in future releases.
