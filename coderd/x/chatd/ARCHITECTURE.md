@@ -808,7 +808,7 @@ The runner maintains the following local state:
 
 ### Event processing
 
-TODO: Update the loop iteration steps below. Finished goroutines are removed before the snapshot check; an event with an equal snapshot version but changed history, status, or archived state is processed as new; and after any event, including a duplicate delivered by the manager sync, the required goroutine is spawned when none is active.
+TODO: Update the loop iteration steps below. Finished goroutines are removed before the snapshot check; an event with an equal snapshot version but changed history, status, or archived state is processed as new; and after any event, including a duplicate delivered by the manager sync, the required goroutine is spawned when none is active and the runner still owns the chat.
 
 The main idea behind the event processing logic is that a chat's status and its history version determine the work that the runner should be performing at any given time. Let's go through an example:
 

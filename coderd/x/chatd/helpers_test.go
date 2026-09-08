@@ -310,8 +310,9 @@ type taskCall struct {
 	ctx   context.Context
 }
 
-// generationResultTaskStarter can pause entry to real generation and records
-// its result while leaving scheduling to the worker.
+// generationResultTaskStarter wraps a starter so a test can hold
+// StartGeneration before it runs and observe its result. Scheduling stays
+// with the worker.
 type generationResultTaskStarter struct {
 	chatWorkerTaskStarter
 	results          chan error
@@ -330,8 +331,9 @@ func (s *generationResultTaskStarter) StartGeneration(ctx context.Context, input
 	return err
 }
 
-// editUserMessage changes message content outside the state machine. The
-// trigger advances history_version without bumping snapshot_version.
+// editUserMessage edits message content directly, bypassing the state
+// machine. The message trigger advances history_version without bumping
+// snapshot_version, and nothing is published.
 func editUserMessage(t *testing.T, f *workerTestFixture, chatID uuid.UUID, text string) database.Chat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)

@@ -143,10 +143,10 @@ func stateUpdateFromPubsub(chatID uuid.UUID, payload coderdpubsub.ChatStateUpdat
 	}
 }
 
-// processState applies a delivered state and leaves the required task
-// running. Hints are lossy and the manager sync redelivers rows, so every
-// delivery, including a duplicate, must restore work that no goroutine is
-// performing: a task can exit without a newer snapshot following it.
+// processState applies a delivered state and ensures the work it requires has
+// an active task. Duplicate deliveries matter here: a task can exit without a
+// newer snapshot following it, and the only later signal is the manager sync
+// redelivering the same row, so a duplicate must be able to restart work.
 func (r *runner) processState(state runnerStateUpdate) {
 	r.removeFinishedTasks()
 
@@ -162,8 +162,8 @@ func (r *runner) processState(state runnerStateUpdate) {
 		r.acceptState(state)
 	}
 
-	// A takeover has been accepted but cleanup has not canceled the runner
-	// yet; events in that window must not start work for the new owner.
+	// After a takeover is accepted, events can still arrive before cleanup
+	// cancels the runner; do not start work for the new owner's chat.
 	if !r.activeTaskSet && r.owns(r.latestState) {
 		r.spawnForState(r.latestState)
 	}
@@ -173,10 +173,11 @@ func (r *runner) owns(state runnerStateUpdate) bool {
 	return uuidPtrEqual(state.WorkerID, r.rec.workerID) && uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID)
 }
 
-// isNewer reports whether state carries information the runner has not
-// accepted. Writes through the state machine bump the snapshot version, but
-// a history change made outside it can leave the version unchanged, so an
-// equal snapshot still counts when the required work differs.
+// isNewer reports whether state carries information the runner has not yet
+// accepted. Writes through the state machine bump snapshot_version, but a
+// direct chat_messages edit advances history_version through the trigger
+// without bumping it, so an equal snapshot is new when the required work
+// differs.
 func (r *runner) isNewer(state runnerStateUpdate) bool {
 	if state.SnapshotVersion != r.lastSnapshotVersion {
 		return state.SnapshotVersion > r.lastSnapshotVersion

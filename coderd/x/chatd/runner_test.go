@@ -172,9 +172,9 @@ func TestWorker_CleanupStopsRoutingAndCancelsTasks(t *testing.T) {
 	starter.assertNoCall(t)
 }
 
-// A task can exit without a newer snapshot following it, and a history edit
-// outside the state machine leaves the snapshot version unchanged. Neither
-// publishes a usable notification; the manager sync must restore the work.
+// A task can exit without a newer snapshot following it, and a direct message
+// edit leaves the snapshot version unchanged. Neither publishes a
+// notification, so the manager sync must restore the work.
 func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -251,8 +251,8 @@ func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 	}
 }
 
-// Real generation rejects a history edit made outside the state machine,
-// then the runner must continue from the edited history on its own.
+// Real generation rejects a direct message edit on its history fence; the
+// runner must then continue from the edited history without a notification.
 func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 	t.Parallel()
 	for _, phase := range []string{"BeforeGeneration", "InFlightResponse"} {
@@ -340,8 +340,8 @@ func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 					}
 				},
 			}
-			// The out-of-band edit publishes nothing; recovery comes from the
-			// manager sync, which runs on the real clock here.
+			// The message edit publishes nothing, so recovery comes from the
+			// manager sync. It runs on the real clock here; shorten its interval.
 			server.chatWorker.opts.RunnerSyncInterval = testutil.IntervalMedium
 			server.Start()
 			if phase == "BeforeGeneration" {
