@@ -186,6 +186,14 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	// Generate the server-owned external ID when the provider assumes a role.
 	ensureBedrockExternalID(&req.Settings)
 
+	// Resolve application inference profile ARNs before storing them. Doing it
+	// here means the operator learns immediately that a profile is wrong or
+	// unreachable, and the gateway never calls AWS to find out.
+	if err := api.resolveBedrockModels(ctx, &req.Settings); err != nil {
+		api.writeAIProviderResolutionError(ctx, rw, err)
+		return
+	}
+
 	settings, err := encodeAIProviderSettings(req.Settings)
 	if err != nil {
 		api.Logger.Error(ctx, "encode AI provider settings", slog.Error(err))
@@ -309,12 +317,21 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 
 	idOrName := chi.URLParam(r, "idOrName")
 
+	// Resolve outside the transaction: it is a network call. The merge is redone
+	// inside the transaction against the row that gets written, and the
+	// resolution is applied only when the model identifiers still match.
+	resolvedPreview, hasResolvedPreview, err := api.previewResolvedBedrockSettings(ctx, idOrName, req.Settings)
+	if err != nil {
+		api.writeAIProviderResolutionError(ctx, rw, err)
+		return
+	}
+
 	var (
 		updated    database.AIProvider
 		keys       []database.AIProviderKey
 		keyChanges aiProviderKeyChanges
 	)
-	err := api.Database.InTx(func(tx database.Store) error {
+	err = api.Database.InTx(func(tx database.Store) error {
 		old, err := lookupAIProvider(ctx, tx, idOrName)
 		if err != nil {
 			return err
@@ -345,6 +362,13 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		// Generate the server-owned external ID when the provider assumes a role
 		// and lacks one.
 		ensureBedrockExternalID(&existing)
+		if req.Settings != nil && existing.Bedrock != nil {
+			if !hasResolvedPreview || !bedrockModelsMatch(existing, resolvedPreview) {
+				return errAIProviderChangedDuringUpdate
+			}
+			existing.Bedrock.ResolvedModel = resolvedPreview.Bedrock.ResolvedModel
+			existing.Bedrock.ResolvedSmallFastModel = resolvedPreview.Bedrock.ResolvedSmallFastModel
+		}
 		settings, err := encodeAIProviderSettings(existing)
 		if err != nil {
 			return xerrors.Errorf("encode settings: %w", err)
@@ -420,6 +444,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errAIProviderExternalIDReadOnly) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The Bedrock external ID is server-generated and cannot be changed.",
+		})
+		return
+	}
+	if errors.Is(err, errAIProviderChangedDuringUpdate) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "The AI provider changed while it was being updated. Retry the request.",
 		})
 		return
 	}
@@ -535,6 +565,11 @@ var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only va
 // Bedrock external ID; the outer handler translates it into a 400. A
 // patch may echo the stored value but not set a different one.
 var errAIProviderExternalIDReadOnly = xerrors.New("external_id is server-generated and cannot be changed")
+
+// errAIProviderChangedDuringUpdate is the sentinel returned from inside the
+// update transaction when the provider's model identifiers changed after they
+// were resolved, so the resolution no longer describes what would be stored.
+var errAIProviderChangedDuringUpdate = xerrors.New("provider changed while it was being updated, retry the request")
 
 // errAIProviderInvalidName is returned from lookupAIProvider when the
 // idOrName parameter is neither a UUID nor a syntactically-valid name.

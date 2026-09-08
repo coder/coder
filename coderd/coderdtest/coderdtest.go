@@ -131,9 +131,12 @@ type Options struct {
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- autobuild.Stats
 	Auditor              audit.Auditor
-	TLSCertificates      []tls.Certificate
-	ExternalAuthConfigs  []*externalauth.Config
-	TrialGenerator       func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// AIProviderBedrockResolver resolves Bedrock application inference profile
+	// ARNs when an AI provider is written. Tests set it to avoid calling AWS.
+	AIProviderBedrockResolver coderd.BedrockModelResolver
+	TLSCertificates           []tls.Certificate
+	ExternalAuthConfigs       []*externalauth.Config
+	TrialGenerator            func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	// MCPAllowedPrivateCIDRs exempts IP ranges from the MCP
 	// SSRF guard for MCP server and OAuth2 traffic. Defaults to loopback so
 	// tests can serve mock MCP and authorization servers via httptest.
@@ -642,6 +645,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			UsageInserter:                  usageInserter,
 
 			Auditor:                            options.Auditor,
+			AIProviderBedrockResolver:          options.AIProviderBedrockResolver,
 			ConnectionLogger:                   options.ConnectionLogger,
 			AWSCertificates:                    options.AWSCertificates,
 			AzureCertificates:                  options.AzureCertificates,

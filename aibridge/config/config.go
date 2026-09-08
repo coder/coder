@@ -68,6 +68,12 @@ type AWSBedrock struct {
 	// Protocol selects the Bedrock wire protocol. The zero value behaves as
 	// BedrockProtocolInvokeModel.
 	Protocol BedrockProtocol
+	// ResolvedModel is the model ID behind Model, which differs from it only
+	// when Model is an application inference profile ARN. coderd resolves it
+	// when the provider is written, so the gateway never calls AWS for it.
+	ResolvedModel string
+	// ResolvedSmallFastModel is ResolvedModel for SmallFastModel.
+	ResolvedSmallFastModel string
 }
 
 // ResolvedProtocol returns the configured protocol, mapping the empty value to

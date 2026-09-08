@@ -216,6 +216,8 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 		bedrock.RoleARN = b.GetRoleArn()
 		bedrock.ExternalID = b.GetExternalId()
 		bedrock.Protocol = codersdk.AIProviderBedrockProtocol(b.GetProtocol())
+		bedrock.ResolvedModel = b.GetResolvedModel()
+		bedrock.ResolvedSmallFastModel = b.GetResolvedSmallFastModel()
 		spec.Bedrock = new(bedrock)
 	}
 	return spec
@@ -350,15 +352,17 @@ func bedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) 
 	accessKey := ptr.NilToEmpty(bedrockSettings.AccessKey)
 	accessKeySecret := ptr.NilToEmpty(bedrockSettings.AccessKeySecret)
 	return &aibridge.AWSBedrockConfig{
-		BaseURL:         baseURL,
-		Region:          bedrockSettings.Region,
-		AccessKey:       accessKey,
-		AccessKeySecret: accessKeySecret,
-		Model:           bedrockSettings.Model,
-		SmallFastModel:  bedrockSettings.SmallFastModel,
-		RoleARN:         bedrockSettings.RoleARN,
-		ExternalID:      bedrockSettings.ExternalID,
-		Protocol:        config.BedrockProtocol(bedrockSettings.ResolvedProtocol()),
+		BaseURL:                baseURL,
+		Region:                 bedrockSettings.Region,
+		AccessKey:              accessKey,
+		AccessKeySecret:        accessKeySecret,
+		Model:                  bedrockSettings.Model,
+		SmallFastModel:         bedrockSettings.SmallFastModel,
+		RoleARN:                bedrockSettings.RoleARN,
+		ExternalID:             bedrockSettings.ExternalID,
+		Protocol:               config.BedrockProtocol(bedrockSettings.ResolvedProtocol()),
+		ResolvedModel:          bedrockSettings.ResolvedModel,
+		ResolvedSmallFastModel: bedrockSettings.ResolvedSmallFastModel,
 	}
 }
 

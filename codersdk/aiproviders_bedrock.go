@@ -61,6 +61,33 @@ type AIProviderBedrockSettings struct {
 	// AIProviderBedrockProtocolInvokeModel, so existing rows keep the legacy
 	// behavior.
 	Protocol AIProviderBedrockProtocol `json:"protocol,omitempty"`
+	// ResolvedModel is the Bedrock model ID behind Model. It differs from Model
+	// only when Model is an application inference profile ARN, whose identifier
+	// is opaque. The server resolves it through AWS when the provider is
+	// written and owns the value: create and update reject a client-supplied
+	// one that differs from the stored value.
+	ResolvedModel string `json:"resolved_model,omitempty"`
+	// ResolvedSmallFastModel is ResolvedModel for SmallFastModel.
+	ResolvedSmallFastModel string `json:"resolved_small_fast_model,omitempty"`
+}
+
+// ModelIdentity returns the model ID the gateway records for usage, pricing,
+// and capability detection. It is the resolved value when the configured
+// identifier needed resolution, and the configured identifier otherwise.
+func (b AIProviderBedrockSettings) ModelIdentity() string {
+	if b.ResolvedModel != "" {
+		return b.ResolvedModel
+	}
+	return b.Model
+}
+
+// SmallFastModelIdentity is [AIProviderBedrockSettings.ModelIdentity] for the
+// small/fast model.
+func (b AIProviderBedrockSettings) SmallFastModelIdentity() string {
+	if b.ResolvedSmallFastModel != "" {
+		return b.ResolvedSmallFastModel
+	}
+	return b.SmallFastModel
 }
 
 // ResolvedProtocol returns the configured protocol, mapping the empty value to

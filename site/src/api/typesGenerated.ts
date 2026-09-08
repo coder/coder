@@ -482,6 +482,18 @@ export interface AIProviderBedrockSettings {
 	 * behavior.
 	 */
 	readonly protocol?: AIProviderBedrockProtocol;
+	/**
+	 * ResolvedModel is the Bedrock model ID behind Model. It differs from Model
+	 * only when Model is an application inference profile ARN, whose identifier
+	 * is opaque. The server resolves it through AWS when the provider is
+	 * written and owns the value: create and update reject a client-supplied
+	 * one that differs from the stored value.
+	 */
+	readonly resolved_model?: string;
+	/**
+	 * ResolvedSmallFastModel is ResolvedModel for SmallFastModel.
+	 */
+	readonly resolved_small_fast_model?: string;
 }
 
 // From codersdk/aiproviders_bedrock.go

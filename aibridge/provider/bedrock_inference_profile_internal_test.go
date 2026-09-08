@@ -124,15 +124,19 @@ func TestModelIDFromARN(t *testing.T) {
 	}
 }
 
-// TestNewAnthropic_InferenceProfileResolution drives the Bedrock
-// GetInferenceProfile path against a mock endpoint.
+// TestResolveBedrockModels drives the Bedrock GetInferenceProfile path against
+// a mock endpoint. Resolution runs where a provider is written, so this covers
+// what coderd calls, not what the gateway does when serving.
 // https://docs.aws.amazon.com/bedrock/latest/APIReference/API_GetInferenceProfile.html
 // NOTE: no t.Parallel() because the subtests use t.Setenv.
-func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
-	const profileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5"
+func TestResolveBedrockModels(t *testing.T) {
+	const (
+		profileARN          = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5"
+		smallFastProfileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/8x1qk20fzp3r"
+	)
 
-	bedrockCfg := func(model, smallFastModel string) *config.AWSBedrock {
-		return &config.AWSBedrock{
+	bedrockCfg := func(model, smallFastModel string) config.AWSBedrock {
+		return config.AWSBedrock{
 			Region:          "us-east-1",
 			AccessKey:       "test-key",
 			AccessKeySecret: "test-secret",
@@ -155,24 +159,22 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 		return srv.URL, &got
 	}
 
-	t.Run("resolved profile drives the model id", func(t *testing.T) {
+	t.Run("profile resolves to its model", func(t *testing.T) {
 		url, paths := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"models":[{"modelArn":"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8"}]}`))
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
+		model, smallFastModel, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
 		require.NoError(t, err)
-		require.Equal(t, "anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
-		// The profile stays the configured identifier so AWS attributes spend to it.
-		require.Equal(t, profileARN, p.bedrock.ConfiguredModel())
-		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
+		require.Equal(t, "anthropic.claude-opus-4-8", model)
+		require.Equal(t, "anthropic.claude-haiku-4-5", smallFastModel)
 		require.Len(t, *paths, 1, "only the profile ARN is resolved")
 		require.Contains(t, (*paths)[0], profileARN)
 	})
 
-	t.Run("failed resolution fails construction", func(t *testing.T) {
+	t.Run("failed resolution is an error", func(t *testing.T) {
 		url, _ := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-Amzn-Errortype", "AccessDeniedException")
@@ -181,50 +183,109 @@ func TestNewAnthropic_InferenceProfileResolution(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
-		require.ErrorContains(t, err, "resolve bedrock models")
+		_, _, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
+		require.ErrorContains(t, err, "resolve model")
 		require.ErrorContains(t, err, "GetInferenceProfile")
 	})
 
-	t.Run("profile without a model fails construction", func(t *testing.T) {
+	t.Run("profile without a model is an error", func(t *testing.T) {
 		url, _ := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"models":[]}`))
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
+		_, _, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
 		require.ErrorContains(t, err, "references no model")
 	})
 
 	t.Run("small fast profile resolves independently", func(t *testing.T) {
-		const smallFastProfileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/8x1qk20fzp3r"
-
 		url, paths := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"models":[{"modelArn":"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5"}]}`))
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8", smallFastProfileARN))
+		model, smallFastModel, err := ResolveBedrockModels(context.Background(), bedrockCfg("eu.anthropic.claude-opus-4-8", smallFastProfileARN))
 		require.NoError(t, err)
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
-		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
-		require.Equal(t, smallFastProfileARN, p.bedrock.ConfiguredSmallFastModel())
+		require.Equal(t, "eu.anthropic.claude-opus-4-8", model)
+		require.Equal(t, "anthropic.claude-haiku-4-5", smallFastModel)
 		require.Len(t, *paths, 1, "only the small fast profile ARN is resolved")
 		require.Contains(t, (*paths)[0], smallFastProfileARN)
 	})
 
-	t.Run("plain model id needs no resolution", func(t *testing.T) {
+	t.Run("plain model ids need no resolution", func(t *testing.T) {
 		url, paths := mockBedrock(t, func(http.ResponseWriter, *http.Request) {
-			t.Error("Bedrock called for a plain model id")
+			t.Error("Bedrock called for plain model ids")
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"))
+		model, smallFastModel, err := ResolveBedrockModels(context.Background(), bedrockCfg("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"))
+		require.NoError(t, err)
+		require.Equal(t, "eu.anthropic.claude-opus-4-8", model)
+		require.Equal(t, "anthropic.claude-haiku-4-5", smallFastModel)
+		require.Empty(t, *paths)
+	})
+}
+
+// TestNewAnthropic_ServesStoredResolution covers what the gateway does with the
+// resolution coderd stored: it serves it, and refuses to serve an opaque
+// profile ARN that has none.
+func TestNewAnthropic_ServesStoredResolution(t *testing.T) {
+	t.Parallel()
+
+	const profileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5"
+
+	bedrockCfg := func(mutate func(*config.AWSBedrock)) *config.AWSBedrock {
+		cfg := &config.AWSBedrock{
+			Region:          "us-east-1",
+			AccessKey:       "test-key",
+			AccessKeySecret: "test-secret",
+			Model:           profileARN,
+			SmallFastModel:  "anthropic.claude-haiku-4-5",
+		}
+		mutate(cfg)
+		return cfg
+	}
+
+	t.Run("stored resolution drives the model id", func(t *testing.T) {
+		t.Parallel()
+
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(cfg *config.AWSBedrock) {
+			cfg.ResolvedModel = "anthropic.claude-opus-4-8"
+		}))
+		require.NoError(t, err)
+		require.Equal(t, "anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
+		// The profile stays the configured identifier so AWS attributes spend to it.
+		require.Equal(t, profileARN, p.bedrock.ConfiguredModel())
+		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
+	})
+
+	t.Run("unresolved profile fails construction", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(*config.AWSBedrock) {}))
+		require.ErrorContains(t, err, "no resolved model")
+	})
+
+	t.Run("unresolved small fast profile fails construction", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(cfg *config.AWSBedrock) {
+			cfg.Model = "eu.anthropic.claude-opus-4-8"
+			cfg.SmallFastModel = profileARN
+		}))
+		require.ErrorContains(t, err, "small fast model")
+	})
+
+	t.Run("plain model ids serve themselves", func(t *testing.T) {
+		t.Parallel()
+
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(cfg *config.AWSBedrock) {
+			cfg.Model = "eu.anthropic.claude-opus-4-8"
+		}))
 		require.NoError(t, err)
 		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
 		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ConfiguredModel())
-		require.Empty(t, *paths)
 	})
 }
