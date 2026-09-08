@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/config"
@@ -72,7 +73,7 @@ func TestIsApplicationInferenceProfileARN(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tt.want, isApplicationInferenceProfileARN(tt.model))
+			require.Equal(t, tt.want, IsApplicationInferenceProfileARN(tt.model))
 		})
 	}
 }
@@ -124,26 +125,13 @@ func TestModelIDFromARN(t *testing.T) {
 	}
 }
 
-// TestResolveBedrockModels drives the Bedrock GetInferenceProfile path against
-// a mock endpoint. Resolution runs where a provider is written, so this covers
-// what coderd calls, not what the gateway does when serving.
+// TestResolveInferenceProfile drives the Bedrock GetInferenceProfile path
+// against a mock endpoint. Resolution runs where a provider is written, so this
+// covers the primitive coderd calls, not what the gateway does when serving.
 // https://docs.aws.amazon.com/bedrock/latest/APIReference/API_GetInferenceProfile.html
 // NOTE: no t.Parallel() because the subtests use t.Setenv.
-func TestResolveBedrockModels(t *testing.T) {
-	const (
-		profileARN          = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5"
-		smallFastProfileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/8x1qk20fzp3r"
-	)
-
-	bedrockCfg := func(model, smallFastModel string) config.AWSBedrock {
-		return config.AWSBedrock{
-			Region:          "us-east-1",
-			AccessKey:       "test-key",
-			AccessKeySecret: "test-secret",
-			Model:           model,
-			SmallFastModel:  smallFastModel,
-		}
-	}
+func TestResolveInferenceProfile(t *testing.T) {
+	const profileARN = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5"
 
 	// mockBedrock serves the Bedrock control-plane API and records the paths it
 	// receives. Callers point the SDK at the returned URL.
@@ -159,6 +147,18 @@ func TestResolveBedrockModels(t *testing.T) {
 		return srv.URL, &got
 	}
 
+	credentials := func(t *testing.T) aws.Config {
+		t.Helper()
+
+		awsCfg, err := BuildBedrockCredentials(context.Background(), BedrockIdentity{
+			Region:          "us-east-1",
+			AccessKey:       "test-key",
+			AccessKeySecret: "test-secret",
+		})
+		require.NoError(t, err)
+		return awsCfg
+	}
+
 	t.Run("profile resolves to its model", func(t *testing.T) {
 		url, paths := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -166,15 +166,14 @@ func TestResolveBedrockModels(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		model, smallFastModel, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
+		model, err := ResolveInferenceProfile(context.Background(), credentials(t), profileARN)
 		require.NoError(t, err)
 		require.Equal(t, "anthropic.claude-opus-4-8", model)
-		require.Equal(t, "anthropic.claude-haiku-4-5", smallFastModel)
-		require.Len(t, *paths, 1, "only the profile ARN is resolved")
+		require.Len(t, *paths, 1)
 		require.Contains(t, (*paths)[0], profileARN)
 	})
 
-	t.Run("failed resolution is an error", func(t *testing.T) {
+	t.Run("failed lookup is an error", func(t *testing.T) {
 		url, _ := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-Amzn-Errortype", "AccessDeniedException")
@@ -183,8 +182,7 @@ func TestResolveBedrockModels(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		_, _, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
-		require.ErrorContains(t, err, "resolve model")
+		_, err := ResolveInferenceProfile(context.Background(), credentials(t), profileARN)
 		require.ErrorContains(t, err, "GetInferenceProfile")
 	})
 
@@ -195,36 +193,8 @@ func TestResolveBedrockModels(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		_, _, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
+		_, err := ResolveInferenceProfile(context.Background(), credentials(t), profileARN)
 		require.ErrorContains(t, err, "references no model")
-	})
-
-	t.Run("small fast profile resolves independently", func(t *testing.T) {
-		url, paths := mockBedrock(t, func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"models":[{"modelArn":"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5"}]}`))
-		})
-		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
-
-		model, smallFastModel, err := ResolveBedrockModels(context.Background(), bedrockCfg("eu.anthropic.claude-opus-4-8", smallFastProfileARN))
-		require.NoError(t, err)
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", model)
-		require.Equal(t, "anthropic.claude-haiku-4-5", smallFastModel)
-		require.Len(t, *paths, 1, "only the small fast profile ARN is resolved")
-		require.Contains(t, (*paths)[0], smallFastProfileARN)
-	})
-
-	t.Run("plain model ids need no resolution", func(t *testing.T) {
-		url, paths := mockBedrock(t, func(http.ResponseWriter, *http.Request) {
-			t.Error("Bedrock called for plain model ids")
-		})
-		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
-
-		model, smallFastModel, err := ResolveBedrockModels(context.Background(), bedrockCfg("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"))
-		require.NoError(t, err)
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", model)
-		require.Equal(t, "anthropic.claude-haiku-4-5", smallFastModel)
-		require.Empty(t, *paths)
 	})
 }
 
