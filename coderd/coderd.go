@@ -945,6 +945,12 @@ func New(options *Options) *API {
 					options.PrometheusRegistry,
 				)
 			}
+			// With the experiment on, chatd reaches external MCP servers
+			// only through the gateway.
+			var chatMCPGateway http.Handler
+			if api.Experiments.Enabled(codersdk.ExperimentMCPGateway) {
+				chatMCPGateway = api.mcpGateway.Handler()
+			}
 			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
@@ -969,6 +975,7 @@ func New(options *Options) *API {
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
+				MCPGateway:                     chatMCPGateway,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 			})
