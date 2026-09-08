@@ -151,7 +151,7 @@ func (r *runner) processState(state runnerStateUpdate) {
 	r.removeFinishedTasks()
 
 	if r.isNewer(state) {
-		if !uuidPtrEqual(state.WorkerID, r.rec.workerID) || !uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID) {
+		if !r.owns(state) {
 			r.acceptState(state)
 			r.mgr.requestCleanup(r.ctx, r.rec.key)
 			return
@@ -162,9 +162,15 @@ func (r *runner) processState(state runnerStateUpdate) {
 		r.acceptState(state)
 	}
 
-	if !r.activeTaskSet {
+	// A takeover has been accepted but cleanup has not canceled the runner
+	// yet; events in that window must not start work for the new owner.
+	if !r.activeTaskSet && r.owns(r.latestState) {
 		r.spawnForState(r.latestState)
 	}
+}
+
+func (r *runner) owns(state runnerStateUpdate) bool {
+	return uuidPtrEqual(state.WorkerID, r.rec.workerID) && uuidPtrEqual(state.RunnerID, r.rec.key.RunnerID)
 }
 
 // isNewer reports whether state carries information the runner has not
