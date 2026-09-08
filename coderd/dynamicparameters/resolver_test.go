@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -274,4 +275,109 @@ func TestResolveParameters(t *testing.T) {
 			})
 		}
 	})
+
+	// An incomplete render omits parameters the template still declares, so the
+	// values behind them must survive a start build.
+	// See https://github.com/coder/coder/issues/29099.
+	t.Run("IncompleteRender", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			diags    hcl.Diagnostics
+			previous []database.WorkspaceBuildParameter
+			build    []codersdk.WorkspaceBuildParameter
+			expect   map[string]string
+		}{
+			{
+				// A complete render is authoritative, so the value is still dropped.
+				name: "complete render drops",
+				previous: []database.WorkspaceBuildParameter{
+					{Name: "rendered", Value: "foo"},
+					{Name: "unrendered", Value: "1000Gi"},
+				},
+				expect: map[string]string{"rendered": "foo"},
+			},
+			{
+				name:  "module not loaded preserves previous",
+				diags: hcl.Diagnostics{moduleNotLoadedDiagnostic()},
+				previous: []database.WorkspaceBuildParameter{
+					{Name: "rendered", Value: "foo"},
+					{Name: "unrendered", Value: "1000Gi"},
+				},
+				expect: map[string]string{"rendered": "foo", "unrendered": "1000Gi"},
+			},
+			{
+				// A value supplied with this build is user input too.
+				name:  "module not loaded preserves build value",
+				diags: hcl.Diagnostics{moduleNotLoadedDiagnostic()},
+				build: []codersdk.WorkspaceBuildParameter{
+					{Name: "unrendered", Value: "1000Gi"},
+				},
+				expect: map[string]string{"rendered": "foo", "unrendered": "1000Gi"},
+			},
+			{
+				// Warnings that say nothing about completeness do not preserve.
+				name: "unrelated warning drops",
+				diags: hcl.Diagnostics{{
+					Severity: hcl.DiagWarning,
+					Summary:  "Some other warning",
+				}},
+				previous: []database.WorkspaceBuildParameter{
+					{Name: "rendered", Value: "foo"},
+					{Name: "unrendered", Value: "1000Gi"},
+				},
+				expect: map[string]string{"rendered": "foo"},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				render := rendermock.NewMockRenderer(ctrl)
+
+				// "unrendered" is never reported by the render.
+				render.EXPECT().
+					Render(gomock.Any(), gomock.Any(), gomock.Any()).
+					AnyTimes().
+					Return(&preview.Output{
+						Parameters: []previewtypes.Parameter{
+							{
+								ParameterData: previewtypes.ParameterData{
+									Name:         "rendered",
+									Type:         previewtypes.ParameterTypeString,
+									FormType:     provider.ParameterFormTypeInput,
+									Mutable:      true,
+									DefaultValue: previewtypes.StringLiteral("foo"),
+								},
+								Value:       previewtypes.StringLiteral("foo"),
+								Diagnostics: nil,
+							},
+						},
+					}, tc.diags)
+
+				ctx := testutil.Context(t, testutil.WaitShort)
+				values, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
+					database.WorkspaceTransitionStart,
+					tc.previous,
+					tc.build,
+					[]database.TemplateVersionPresetParameter{},
+				)
+				require.NoError(t, err)
+				require.Equal(t, tc.expect, values)
+			})
+		}
+	})
+}
+
+// moduleNotLoadedDiagnostic is the warning preview emits when a module block
+// cannot be resolved, which is what a missing module cache looks like.
+func moduleNotLoadedDiagnostic() *hcl.Diagnostic {
+	return previewtypes.DiagnosticCode(&hcl.Diagnostic{
+		Severity: hcl.DiagWarning,
+		Summary:  "Module not loaded. Did you run `terraform init`?",
+		Detail:   "Module 'module \"jetbrains_gateway\"' cannot be resolved. This module will be ignored.",
+	}, previewtypes.DiagnosticModuleNotLoaded)
 }
