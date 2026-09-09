@@ -14,17 +14,18 @@ import type {
  */
 export type WorkingBlock = {
 	/**
-	 * React key and expansion identity. Complete blocks key off their newest
-	 * row, which pagination never changes; the live block keys off its turn
-	 * so appended steps never remount it.
+	 * React key. Complete blocks key off their newest row, which pagination
+	 * never changes; the live block uses liveKey so appended steps never
+	 * remount it.
 	 */
 	key: string;
 	/**
-	 * Expansion alias shared by the live and completed forms of one block, so
-	 * an expansion made while the turn was running survives the handoff.
-	 * Absent when the turn's opening row is not loaded.
+	 * Identity the block had (or would have had) while live: its turn's
+	 * opening row plus its position in the turn. Deterministic across the
+	 * live-to-complete handoff, so expansion recorded before any step
+	 * persisted can still be found afterwards.
 	 */
-	turnKey?: string;
+	liveKey: string;
 	rowIndices: number[];
 	/** Distinct visible tools across the block. */
 	stepCount: number;
@@ -304,17 +305,14 @@ export const groupWorkingBlocks = (
 			}
 		}
 
-		const turnKey =
-			draft.anchorKey === undefined
-				? undefined
-				: `working:turn:${draft.anchorKey}:${draft.ordinal}`;
+		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 		const key = isLive
-			? (turnKey ?? "working:live")
+			? liveKey
 			: `working:through:${rowKey(rows[lastRowIndex])}`;
 		const tools = Array.from(draft.tools.values());
 		return {
 			key,
-			turnKey,
+			liveKey,
 			rowIndices: draft.rowIndices,
 			stepCount: tools.length,
 			failedCount: tools.filter(

@@ -8,6 +8,7 @@ import {
 	refreshChatContext,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
+import { preferenceSettings } from "#/api/queries/users";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -156,6 +157,9 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		selectSubagentStatusOverrides,
 	);
 	const isChatCompleted = !hasStream;
+	// The timeline renders nothing until the display preferences settle, and
+	// that blank must not read as the start of history to the pager.
+	const preferences = useQuery(preferenceSettings());
 
 	const liveStatus = deriveLiveStatus({
 		streamState,
@@ -199,7 +203,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				isFetchingMoreMessages={isFetchingMoreMessages}
 				isHydratingMessages={isHydratingMessages}
 				hasFetchMoreError={hasFetchMoreError}
-				hasTranscriptRows={parsedMessages.length > 0}
+				hasTranscriptRows={parsedMessages.length > 0 && !preferences.isPending}
 				onFetchMoreMessages={onFetchMoreMessages}
 			>
 				{/* VNC sessions for completed agents may already be

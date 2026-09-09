@@ -144,7 +144,7 @@ describe("groupWorkingBlocks", () => {
 			startedAt: base + 1000,
 			endedAt: base + 13000,
 			key: `working:through:message:${steps[2].id}`,
-			turnKey: `working:turn:message:${prompt.id}:0`,
+			liveKey: `working:live:message:${prompt.id}:0`,
 		});
 	});
 
@@ -200,8 +200,8 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks).toHaveLength(2);
 		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([first[0].id]);
 		expect(rowIds(rows, blocks[1].rowIndices)).toEqual([second[0].id]);
-		expect(blocks[0].turnKey).toBe(`working:turn:message:${prompt.id}:0`);
-		expect(blocks[1].turnKey).toBe(`working:turn:message:${prompt.id}:1`);
+		expect(blocks[0].liveKey).toBe(`working:live:message:${prompt.id}:0`);
+		expect(blocks[1].liveKey).toBe(`working:live:message:${prompt.id}:1`);
 	});
 
 	it.each(["ask_user_question", "propose_plan", "chat_summarized"])(
@@ -326,7 +326,7 @@ describe("groupWorkingBlocks", () => {
 			stepCount: 1,
 			startedAt: base + 5000,
 			endedAt: base + 6000,
-			turnKey: undefined,
+			liveKey: "working:live:head:0",
 		});
 
 		const complete = group(all, { hasMoreMessages: false });
@@ -335,7 +335,7 @@ describe("groupWorkingBlocks", () => {
 			stepCount: 3,
 			startedAt: base + 1000,
 			endedAt: base + 6000,
-			turnKey: `working:turn:message:${prompt.id}:0`,
+			liveKey: `working:live:message:${prompt.id}:0`,
 		});
 		expect(complete.blocks[0].key).toBe(newest.blocks[0].key);
 	});
@@ -392,7 +392,7 @@ describe("groupWorkingBlocks", () => {
 				stepCount: 2,
 				startedAt: base + 1000,
 				endedAt: undefined,
-				key: `working:turn:message:${prompt.id}:0`,
+				key: `working:live:message:${prompt.id}:0`,
 			});
 		});
 
@@ -443,7 +443,7 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0].startedAt).toBe(base + 2000);
 		});
 
-		it("hands the live block off to a completed block that shares its turnKey", () => {
+		it("hands the live block off to a completed block that shares its liveKey", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
 			const live = liveStream([call("b", at(3))]);
@@ -458,7 +458,7 @@ describe("groupWorkingBlocks", () => {
 			const answer = message("assistant", [text("Done.")], at(5));
 			const done = group([prompt, ...persisted, answer]);
 
-			expect(done.blocks[0].turnKey).toBe(running.blocks[0].turnKey);
+			expect(done.blocks[0].liveKey).toBe(running.blocks[0].liveKey);
 			expect(done.blocks[0].key).not.toBe(running.blocks[0].key);
 			expect(done.blocks[0]).toMatchObject({
 				isLive: false,
@@ -490,6 +490,30 @@ describe("groupWorkingBlocks", () => {
 				startedAt: base + 1000,
 				endedAt: undefined,
 			});
+		});
+
+		it("gives a prompt-less live block a stable head liveKey", () => {
+			const steps = [...step("a", 1, 2), ...step("b", 3, 4)];
+			const live = liveStream([call("c", at(5))]);
+			const running = group(steps, {
+				hasMoreMessages: true,
+				isTurnActive: true,
+				isLiveRowCollapsible: true,
+				liveBlocks: live.streamState.blocks,
+				liveTools: live.liveTools,
+				streamState: live.streamState,
+			});
+			expect(running.blocks[0]).toMatchObject({
+				isLive: true,
+				isPartial: true,
+				key: "working:live:head:0",
+				liveKey: "working:live:head:0",
+			});
+			const done = group([...steps, ...step("c", 5, 6)], {
+				hasMoreMessages: true,
+			});
+			expect(done.blocks[0].liveKey).toBe("working:live:head:0");
+			expect(done.blocks[0].isPartial).toBe(true);
 		});
 
 		it("does not treat a completed earlier turn as live", () => {
