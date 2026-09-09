@@ -1,5 +1,5 @@
 import { ListChecksIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
+import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
 import { useTime } from "#/hooks/useTime";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import {
@@ -48,8 +48,46 @@ const getCompletedWorkingLabel = (block: WorkingBlock): string => {
 		: `Worked for ${duration} (${steps})`;
 };
 
+const getScrollParent = (element: HTMLElement): HTMLElement | null => {
+	for (let node = element.parentElement; node; node = node.parentElement) {
+		const { overflowY } = getComputedStyle(node);
+		if (overflowY === "auto" || overflowY === "scroll") {
+			return node;
+		}
+	}
+	return null;
+};
+
+/**
+ * Older pages prepend rows inside an expanded partial block rather than as
+ * new scroller items, so the scroller cannot hold the reading position and
+ * browsers skip scroll anchoring at the top. Scroll by the growth instead.
+ */
+const useKeepReadingPositionAcrossPrepend = (firstRowKey: string) => {
+	const contentRef = useRef<HTMLDivElement>(null);
+	const previousRef = useRef<{ firstRowKey: string; height: number }>(null);
+	useLayoutEffect(() => {
+		const content = contentRef.current;
+		const previous = previousRef.current;
+		previousRef.current = content
+			? { firstRowKey, height: content.offsetHeight }
+			: null;
+		if (!content || !previous || previous.firstRowKey === firstRowKey) {
+			return;
+		}
+		const delta = content.offsetHeight - previous.height;
+		const viewport = getScrollParent(content);
+		if (delta !== 0 && viewport) {
+			viewport.scrollTop += delta;
+		}
+	});
+	return contentRef;
+};
+
 type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
+	/** Key of the block's oldest row; it changes when older pages join. */
+	firstRowKey: string;
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
 	children: ReactNode;
@@ -64,11 +102,13 @@ type WorkingBlockDisclosureProps = {
  */
 export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 	block,
+	firstRowKey,
 	expanded,
 	onExpandedChange,
 	children,
 	now,
 }) => {
+	const contentRef = useKeepReadingPositionAcrossPrepend(firstRowKey);
 	return (
 		<ToolCall.Root
 			status={block.isLive ? "running" : "completed"}
@@ -94,7 +134,10 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
 			<ToolCall.Content>
-				<div className="mt-2 flex min-w-0 flex-col gap-2 border-0 border-l border-solid border-border-default pl-3">
+				<div
+					ref={contentRef}
+					className="mt-2 flex min-w-0 flex-col gap-2 border-0 border-l border-solid border-border-default pl-3"
+				>
 					{children}
 				</div>
 			</ToolCall.Content>
