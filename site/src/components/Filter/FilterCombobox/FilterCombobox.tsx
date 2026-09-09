@@ -124,7 +124,7 @@ export function FilterCombobox({
 								variant="outline"
 								size="md"
 								data-slot="combobox-chip-search"
-								className="px-2 text-sm font-medium leading-4"
+								className="px-2 font-medium"
 							>
 								{committedFreeText}
 							</Badge>
@@ -136,7 +136,7 @@ export function FilterCombobox({
 								variant="dashed"
 								size="md"
 								data-slot="combobox-chip-draft"
-								className="px-2 text-sm font-medium leading-4"
+								className="px-2 font-medium"
 								aria-hidden
 							>
 								{`${activeCategory.key}:`}
