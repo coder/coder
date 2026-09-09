@@ -402,6 +402,9 @@ const ChatMessageItem = memo<{
 
 interface ConversationTimelineProps {
 	hasMoreMessages?: boolean;
+	// Server chat status. The stream is cleared between persisted steps, so
+	// only this says whether the turn is still working.
+	chatStatus?: TypesGen.ChatStatus | null;
 	now?: number;
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
@@ -431,6 +434,7 @@ interface ConversationTimelineProps {
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		hasMoreMessages = false,
+		chatStatus,
 		now,
 		organizationId,
 		parsedMessages,
@@ -477,11 +481,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const workingBlocks = preferences.data?.collapse_assistant_steps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,
-					isTurnActive: Boolean(
-						liveStatus &&
-							liveStatus.phase !== "idle" &&
-							liveStatus.phase !== "failed",
-					),
+					isTurnActive:
+						chatStatus === "running" ||
+						chatStatus === "requires_action" ||
+						chatStatus === "interrupting",
 					isLiveRowCollapsible: Boolean(liveStatus?.phase === "streaming"),
 					liveBlocks,
 					liveTools,

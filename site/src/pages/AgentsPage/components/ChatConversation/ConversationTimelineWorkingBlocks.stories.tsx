@@ -195,6 +195,7 @@ export const StreamingToDurable: Story = {
 							? buildStreamTools(stream.toolCalls, stream.toolResults)
 							: []
 					}
+					chatStatus={stage < 2 ? "running" : "waiting"}
 					liveStatus={{
 						phase: stage < 2 ? "streaming" : "idle",
 						hasAccumulatedOutput: stage < 2,
@@ -222,6 +223,44 @@ export const StreamingToDurable: Story = {
 		).toHaveAttribute("aria-expanded", "true");
 		expect(canvas.getByText(/echo first/)).toBeVisible();
 		expect(canvas.getByText("Workspace inspection complete.")).toBeVisible();
+	},
+};
+
+// Between persisted steps the stream is cleared while a tool runs, so the
+// timeline only knows the turn is active from the chat status.
+export const RunningBetweenSteps: Story = {
+	render: function Render(args) {
+		const [status, setStatus] = useState<"running" | "waiting">("running");
+		return (
+			<>
+				<Button
+					onClick={() => setStatus("waiting")}
+					disabled={status === "waiting"}
+				>
+					Finish turn
+				</Button>
+				<ConversationTimeline
+					{...args}
+					parsedMessages={parseMessagesWithMergedTools(
+						MockWorkingMessages.slice(0, 4),
+						{ pendingToolCallIDs: new Set(["second"]) },
+					)}
+					chatStatus={status}
+					liveStatus={{ phase: "idle", hasAccumulatedOutput: false }}
+				/>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summary = canvas.getByRole("button", { name: "Working for 12s" });
+		await userEvent.click(summary);
+		expect(summary).toHaveAttribute("aria-expanded", "true");
+		expect(canvas.getByText(/echo second/)).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "Finish turn" }));
+		expect(
+			canvas.getByRole("button", { name: "Worked for 4s (2 steps)" }),
+		).toHaveAttribute("aria-expanded", "true");
 	},
 };
 
