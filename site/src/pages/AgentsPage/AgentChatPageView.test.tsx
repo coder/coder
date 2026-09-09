@@ -132,7 +132,6 @@ it.each([false, true])(
 						selectedMCPServerIds={[]}
 						onMCPSelectionChange={vi.fn()}
 						onMCPAuthComplete={vi.fn()}
-						canShareChat={false}
 						canConfigureAgentSetup={false}
 						providerCount={0}
 						modelCount={0}
