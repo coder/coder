@@ -5164,7 +5164,8 @@ func highUsageTextResponse(text string) chattest.AnthropicResponse {
 func anthropicCompactionResponse(t testing.TB, req *chattest.AnthropicRequest, text string) chattest.AnthropicResponse {
 	t.Helper()
 	require.True(t, req.Stream)
-	require.Equal(t, 32_000, req.MaxTokens)
+	// The summary call doubles the configured 32000 cap for headroom.
+	require.Equal(t, 64_000, req.MaxTokens)
 	return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks(text)...)
 }
 
@@ -6246,14 +6247,15 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			},
 		},
 		{
-			// 25600 is 0.8 (high) of the summary call's 32000 max_tokens.
+			// 51200 is 0.8 (high) of the summary call's doubled
+			// 64000 max_tokens.
 			name:          "legacy budget-thinking override model",
 			overrideModel: "claude-haiku-4-5",
 			effort:        "high",
 			assertSummaryRequest: func(t *testing.T, req *chattest.AnthropicRequest) {
 				require.Empty(t, string(req.OutputConfig))
 				require.Contains(t, string(req.Thinking), `"type":"enabled"`)
-				require.Contains(t, string(req.Thinking), `"budget_tokens":25600`)
+				require.Contains(t, string(req.Thinking), `"budget_tokens":51200`)
 			},
 		},
 		{

@@ -483,7 +483,7 @@ func generateCompactionSummary(
 		NopMetrics(),
 	)
 	if err != nil {
-		return "", xerrors.Errorf("stream summary text: %w", err)
+		return "", xerrors.Errorf("stream summary text: %w", wrapProviderStreamError(options.ResolvedProvider, err))
 	}
 	defer attempt.release()
 
@@ -529,7 +529,10 @@ func generateCompactionSummary(
 		}
 	}
 	if err := attempt.finish(streamErr); err != nil {
-		return "", xerrors.Errorf("stream summary text: %w", err)
+		// Providers can surface remote stream resets as bare
+		// context.Canceled; wrap them like GenerateAssistant so the
+		// generation loop retries instead of terminally erroring.
+		return "", xerrors.Errorf("stream summary text: %w", wrapProviderStreamError(options.ResolvedProvider, err))
 	}
 	if !finishSeen {
 		// A stream that ends without a finish part was interrupted.

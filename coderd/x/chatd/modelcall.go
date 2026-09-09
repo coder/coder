@@ -195,10 +195,16 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 // must not call tools. Streaming avoids the Anthropic SDK's non-streaming
 // duration limit, while the explicit cap prevents adaptive thinking from
 // exhausting fantasy's smaller provider default before producing summary text.
+// The cap is doubled because the summary must fit reasoning plus summary text
+// in one response; a low configured chat cap could otherwise truncate the
+// summary that replaces pruned history.
 func compactionSummaryCall(resolved resolvedModelCall) fantasy.Call {
 	call := resolved.newCall()
 	toolChoiceNone := fantasy.ToolChoiceNone
 	call.ToolChoice = &toolChoiceNone
+	if call.MaxOutputTokens != nil {
+		call.MaxOutputTokens = ptr.Ref(*call.MaxOutputTokens * 2)
+	}
 	return call
 }
 

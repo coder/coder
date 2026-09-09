@@ -177,7 +177,7 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.NotNil(t, summaryCall.ToolChoice)
 	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
 	require.NotNil(t, summaryCall.MaxOutputTokens)
-	require.Equal(t, defaultChatMaxOutputTokens, *summaryCall.MaxOutputTokens)
+	require.Equal(t, 2*defaultChatMaxOutputTokens, *summaryCall.MaxOutputTokens)
 }
 
 func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {

@@ -330,6 +330,48 @@ func TestGenerateCompactionSummary_Stream(t *testing.T) {
 		require.EqualError(t, err, "compaction summary stream ended without a finish part")
 	})
 
+	t.Run("classifies canceled stream open as transport reset", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return nil, context.Canceled
+			},
+		}
+
+		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
+			ResolvedProvider: "fake",
+		})
+		require.Empty(t, summary)
+		require.ErrorIs(t, err, chaterror.ErrProviderTransportReset)
+		classified := chaterror.Classify(err)
+		require.True(t, classified.Retryable)
+		require.Equal(t, "fake", classified.Provider)
+	})
+
+	t.Run("classifies canceled error part as transport reset", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return compactionStream(
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeError, Error: context.Canceled},
+				), nil
+			},
+		}
+
+		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
+			ResolvedProvider: "fake",
+		})
+		require.Empty(t, summary)
+		require.ErrorIs(t, err, chaterror.ErrProviderTransportReset)
+		classified := chaterror.Classify(err)
+		require.True(t, classified.Retryable)
+		require.Equal(t, "fake", classified.Provider)
+	})
+
 	t.Run("classifies stream silence", func(t *testing.T) {
 		t.Parallel()
 
