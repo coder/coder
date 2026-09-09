@@ -830,13 +830,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("compute max idle connections: %w", err)
 			}
 			logger.Debug(ctx, "creating database connection pool", slog.F("max_open_conns", maxOpenConns), slog.F("max_idle_conns", maxIdleConns))
+			var postgresVersionNum int
 			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver,
 				WithMaxOpenConns(maxOpenConns),
 				WithMaxIdleConns(maxIdleConns),
+				WithVersionNum(&postgresVersionNum),
 			)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
+			options.PostgresVersionNum = postgresVersionNum
 			defer func() {
 				_ = sqlDB.Close()
 			}()
@@ -2431,6 +2434,21 @@ func embeddedPostgresURL(cfg config.Root) (string, error) {
 	return fmt.Sprintf("postgres://coder@localhost:%s/coder?sslmode=disable&password=%s", pgPort, pgPassword), nil
 }
 
+// selectEmbeddedPostgresVersion picks the embedded PostgreSQL major version to
+// use for a built-in deployment. A fresh install (no existing data directory)
+// uses the latest supported version for current platform and security
+// coverage. An existing data directory keeps the original version, since
+// embedded-postgres wipes and reinitializes the data directory whenever the
+// requested major version doesn't match PG_VERSION on disk.
+//
+// revive:disable-next-line:flag-parameter // Not control flow, just selecting a version by install state.
+func selectEmbeddedPostgresVersion(dataDirExists bool) embeddedpostgres.PostgresVersion {
+	if dataDirExists {
+		return embeddedpostgres.V13
+	}
+	return embeddedpostgres.V16
+}
+
 func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger, customCacheDir string) (string, func() error, error) {
 	usr, err := user.Current()
 	if err != nil {
@@ -2454,6 +2472,12 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		}
 	}
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
+
+	// Determine the data directory's existence once, before any retry
+	// attempt below might delete it, so version selection reflects whether
+	// this is a fresh install or an existing deployment.
+	_, err = os.Stat(filepath.Join(cfg.PostgresPath(), "data"))
+	dataDirExists := err == nil
 
 	// If the port is not defined, an available port will be found dynamically. This has
 	// implications in CI because here is no way to tell Postgres to use an ephemeral
@@ -2502,7 +2526,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 
 		ep := embeddedpostgres.NewDatabase(
 			embeddedpostgres.DefaultConfig().
-				Version(embeddedpostgres.V13).
+				Version(selectEmbeddedPostgresVersion(dataDirExists)).
 				BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
 				// Default BinaryRepositoryURL repo1.maven.org is flaky.
 				BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
@@ -2654,6 +2678,9 @@ func IsLocalhost(host string) bool {
 type PostgresConnectOptions struct {
 	MaxOpenConns int
 	MaxIdleConns int
+	// VersionNum, if non-nil, receives the PostgreSQL server_version_num
+	// reported by the connected server once ConnectToPostgres succeeds.
+	VersionNum *int
 }
 
 // PostgresConnectOption is a functional option for ConnectToPostgres.
@@ -2670,6 +2697,14 @@ func WithMaxOpenConns(n int) PostgresConnectOption {
 func WithMaxIdleConns(n int) PostgresConnectOption {
 	return func(o *PostgresConnectOptions) {
 		o.MaxIdleConns = n
+	}
+}
+
+// WithVersionNum captures the PostgreSQL server_version_num into out once
+// ConnectToPostgres succeeds.
+func WithVersionNum(out *int) PostgresConnectOption {
+	return func(o *PostgresConnectOptions) {
+		o.VersionNum = out
 	}
 }
 
@@ -2755,6 +2790,9 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 		return nil, xerrors.Errorf("PostgreSQL version must be v13.0.0 or higher! Got: %d", versionNum)
 	}
 	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionNum))
+	if options.VersionNum != nil {
+		*options.VersionNum = versionNum
+	}
 
 	if migrate != nil {
 		err = migrate(sqlDB)

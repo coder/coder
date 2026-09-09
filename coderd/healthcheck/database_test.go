@@ -146,4 +146,66 @@ func TestDatabase(t *testing.T) {
 			assert.Equal(t, report.Warnings[0].Code, health.CodeDatabasePingSlow)
 		}
 	})
+
+	t.Run("EOLVersionWarns", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
+			report      = healthcheck.DatabaseReport{}
+			db          = dbmock.NewMockStore(gomock.NewController(t))
+			ping        = 10 * time.Millisecond
+		)
+		defer cancel()
+
+		db.EXPECT().Ping(gomock.Any()).Return(ping, nil).Times(5)
+
+		report.Run(ctx, &healthcheck.DatabaseReportOptions{DB: db, ServerVersionNum: 130004})
+
+		assert.True(t, report.Healthy)
+		assert.True(t, report.Reachable)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
+		assert.Nil(t, report.Error)
+		if assert.NotEmpty(t, report.Warnings) {
+			assert.Equal(t, health.CodeDatabasePostgresVersionEOL, report.Warnings[0].Code)
+		}
+	})
+
+	t.Run("SupportedVersionNoWarning", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
+			report      = healthcheck.DatabaseReport{}
+			db          = dbmock.NewMockStore(gomock.NewController(t))
+			ping        = 10 * time.Millisecond
+		)
+		defer cancel()
+
+		db.EXPECT().Ping(gomock.Any()).Return(ping, nil).Times(5)
+
+		report.Run(ctx, &healthcheck.DatabaseReportOptions{DB: db, ServerVersionNum: 160003})
+
+		assert.True(t, report.Healthy)
+		assert.True(t, report.Reachable)
+		assert.Equal(t, health.SeverityOK, report.Severity)
+		assert.Empty(t, report.Warnings)
+	})
+
+	t.Run("EOLVersionDoesNotDowngradeError", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
+			report      = healthcheck.DatabaseReport{}
+			db          = dbmock.NewMockStore(gomock.NewController(t))
+		)
+		defer cancel()
+
+		db.EXPECT().Ping(gomock.Any()).Return(time.Duration(0), xerrors.New("ping error"))
+
+		report.Run(ctx, &healthcheck.DatabaseReportOptions{DB: db, ServerVersionNum: 130004})
+
+		assert.Equal(t, health.SeverityError, report.Severity)
+	})
 }

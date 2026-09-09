@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,6 +39,20 @@ func Test_configureServerTLS(t *testing.T) {
 				}
 			}
 		}
+	})
+}
+
+func Test_selectEmbeddedPostgresVersion(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FreshInstallUsesV16", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, embeddedpostgres.V16, selectEmbeddedPostgresVersion(false))
+	})
+
+	t.Run("ExistingDataDirUsesV13", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, embeddedpostgres.V13, selectEmbeddedPostgresVersion(true))
 	})
 }
 

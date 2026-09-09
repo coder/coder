@@ -167,7 +167,12 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 	Logger           slog.Logger
 	Database         database.Store
-	Pubsub           pubsub.Pubsub
+	// PostgresVersionNum is the server_version_num reported by the connected
+	// PostgreSQL server (0 if unknown). It is populated once at server
+	// startup after a successful ConnectToPostgres call and is used by the
+	// database health check to flag end-of-life PostgreSQL major versions.
+	PostgresVersionNum int
+	Pubsub             pubsub.Pubsub
 	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
 	// All other consumers of pubsub should reference Options.Pubsub.
 	ReplicaSyncPubsub pubsub.Pubsub
@@ -814,8 +819,9 @@ func New(options *Options) *API {
 			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				Database: healthcheck.DatabaseReportOptions{
-					DB:        options.Database,
-					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
+					DB:               options.Database,
+					Threshold:        options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
+					ServerVersionNum: options.PostgresVersionNum,
 				},
 				Websocket: healthcheck.WebsocketReportOptions{
 					AccessURL: options.AccessURL,
