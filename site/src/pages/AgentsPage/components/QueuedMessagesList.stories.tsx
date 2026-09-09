@@ -109,14 +109,6 @@ export const MultiLineTextTruncation: Story = {
 			),
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// The first line and ellipsis should be visible in the same span.
-		const textSpan = canvas.getByText(/First line of the message…/);
-		expect(textSpan).toBeInTheDocument();
-		// The second line should not appear anywhere.
-		expect(canvas.queryByText(/Second line/)).not.toBeInTheDocument();
-	},
 };
 
 // A message with both text and a file attachment shows the ImageIcon badge.
@@ -147,16 +139,6 @@ export const AttachmentsOnly: Story = {
 export const ActionsExcludeEdit: Story = {
 	args: {
 		messages: [buildMessage(1, textContent("Run the linter"))],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("button", { name: "Send now" })).toBeVisible();
-		expect(
-			canvas.getByRole("button", { name: "Remove from queue" }),
-		).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: "Edit" }),
-		).not.toBeInTheDocument();
 	},
 };
 

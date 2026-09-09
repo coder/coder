@@ -193,19 +193,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       },
       "bridge": {
         "allow_byok": true,
-        "anthropic": {
-          "base_url": "string",
-          "key": "string"
-        },
         "api_dump_dir": "string",
-        "bedrock": {
-          "access_key": "string",
-          "access_key_secret": "string",
-          "base_url": "string",
-          "model": "string",
-          "region": "string",
-          "small_fast_model": "string"
-        },
         "budget_period": "string",
         "budget_policy": "string",
         "circuit_breaker_enabled": true,
@@ -216,20 +204,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
-        "openai": {
-          "base_url": "string",
-          "key": "string"
-        },
-        "providers": [
-          {
-            "base_url": "string",
-            "bedrock_model": "string",
-            "bedrock_region": "string",
-            "bedrock_small_fast_model": "string",
-            "name": "string",
-            "type": "string"
-          }
-        ],
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
