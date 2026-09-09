@@ -1721,11 +1721,9 @@ export const NarrowingSuppressesExpandedPanel: Story = {
 
 		await user.click(canvas.getByRole("button", { name: "Expand panel" }));
 
-		// Narrow the viewport and give the suppression effect frames to run.
+		// Narrow the viewport so the suppression effect hides the panel;
+		// Pixel's stability wait captures the suppressed state.
 		narrowingMedia?.setMatches(belowLgViewportMediaQuery, true);
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-		);
 	},
 };
 
@@ -3307,11 +3305,9 @@ export const SendResponseAfterChatSwitch: Story = {
 			timeout: 10_000,
 		});
 
-		// Release the gated send so the discard path runs before the screenshot.
+		// Release the gated send so the stale response resolves within the
+		// test and the discard path runs.
 		releaseSend?.();
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-		);
 	},
 };
 

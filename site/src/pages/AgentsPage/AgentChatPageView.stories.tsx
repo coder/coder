@@ -1092,11 +1092,7 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 			]);
 		});
 		// The live assistant row mounts under its ephemeral key.
-		await waitFor(() => {
-			expect(
-				canvas.getByTestId("chat-message-live-assistant"),
-			).toBeInTheDocument();
-		});
+		await canvas.findByTestId("chat-message-live-assistant");
 		await settleScroller();
 
 		// The durable assistant row replaces the live row, then the turn ends.
