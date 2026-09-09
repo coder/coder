@@ -4,6 +4,7 @@ import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
@@ -25,6 +26,12 @@ import { ChatTopBar } from "./ChatTopBar";
 const AgentsSearchProbe = () => {
 	const location = useLocation();
 	return <div data-testid="agents-search">{location.search}</div>;
+};
+
+const mockParentChat = {
+	...MockChat,
+	id: "parent-chat-1",
+	title: "Set up CI/CD pipeline",
 };
 
 const requestArchiveAgent = fn<(chatId: string) => void>();
@@ -121,11 +128,25 @@ export const WithPanelOpen: Story = {
 
 export const WithParentChat: Story = {
 	args: {
-		parentChat: {
+		chat: {
 			...MockChat,
-			id: "parent-chat-1",
-			title: "Set up CI/CD pipeline",
+			parent_chat_id: mockParentChat.id,
 		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatEntityKey(mockParentChat.id),
+				data: mockParentChat,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const parentLink = await canvas.findByRole("link", {
+			name: mockParentChat.title,
+		});
+		expect(parentLink).toHaveAttribute("href", `/agents/${mockParentChat.id}`);
 	},
 };
 
@@ -422,9 +443,17 @@ export const ChildChatHidesPinAndArchiveActions: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			parent_chat_id: "parent-chat-1",
+			parent_chat_id: mockParentChat.id,
 			workspace_id: "workspace-1",
 		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatEntityKey(mockParentChat.id),
+				data: mockParentChat,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -451,9 +480,17 @@ export const ArchivedChildChatHasNoActionsMenu: Story = {
 		chat: {
 			...MockChat,
 			title: "Build authentication feature",
-			parent_chat_id: "parent-chat-1",
+			parent_chat_id: mockParentChat.id,
 			archived: true,
 		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatEntityKey(mockParentChat.id),
+				data: mockParentChat,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

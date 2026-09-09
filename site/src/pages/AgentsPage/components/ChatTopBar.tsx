@@ -13,6 +13,7 @@ import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
+import { chat as chatById } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -48,7 +49,6 @@ type ChatSharingTopBarButtonProps = {
 type ChatTopBarProps = {
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
-	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
 };
 
@@ -92,12 +92,17 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
-	parentChat,
 	panel,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
-	const isRootChat = chat !== undefined && getParentChatID(chat) === undefined;
+	const parentChatID = getParentChatID(chat);
+	const parentChatQuery = useQuery({
+		...chatById(parentChatID ?? ""),
+		enabled: Boolean(parentChatID),
+	});
+	const parentChat = parentChatQuery.data;
+	const isRootChat = chat !== undefined && parentChatID === undefined;
 	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
 	if (chat !== undefined && isRootChat) {
 		chatAuthorizationChecks.canShareChat = {

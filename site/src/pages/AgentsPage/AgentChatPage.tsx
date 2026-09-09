@@ -21,7 +21,6 @@ import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
-	chat as chatById,
 	chatMessagesForInfiniteScroll,
 	chatModels,
 	chatQueueConvergence,
@@ -73,10 +72,7 @@ import {
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
 } from "./components/ChatConversation/chatError";
-import {
-	getParentChatID,
-	getWorkspaceAgent,
-} from "./components/ChatConversation/chatHelpers";
+import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
@@ -205,12 +201,6 @@ const AgentChatPage: FC = () => {
 	const chatMessagesQuery = useInfiniteQuery(
 		chatMessagesForInfiniteScroll(agentId),
 	);
-	const parentChatID = getParentChatID(chatQuery.data);
-	const parentChatQuery = useQuery({
-		...chatById(parentChatID ?? ""),
-		enabled: Boolean(parentChatID),
-	});
-	const parentChat = parentChatQuery.data;
 	const workspaceId = chatQuery.data?.workspace_id;
 	const chatAgentId = chatQuery.data?.agent_id;
 	const workspaceQuery = useQuery({
@@ -1112,7 +1102,6 @@ const AgentChatPage: FC = () => {
 				<AgentChatPageView
 					key={agentId}
 					chat={chat}
-					parentChat={parentChat}
 					persistedError={persistedError}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}

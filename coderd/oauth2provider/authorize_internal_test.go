@@ -576,6 +576,26 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		require.Empty(t, p.Errors)
 		require.False(t, response.canRedirect())
 	})
+
+	// RFC 8252 §7.3: the port of a loopback redirect URI is not compared, and
+	// the response goes to the port the client presented.
+	t.Run("LoopbackPortDiffersIsADestination", func(t *testing.T) {
+		t.Parallel()
+
+		const presented = "http://127.0.0.1:53219/callback"
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{
+			"redirect_uri": {presented},
+			"state":        {"abc123"},
+		}, "http://127.0.0.1/callback")
+
+		require.NoError(t, err)
+		require.Empty(t, p.Errors)
+		require.True(t, response.canRedirect())
+		require.Equal(t, presented, response.callbackURL())
+		errorURL := response.errorURL(codersdk.OAuth2ErrorCodeAccessDenied, "denied")
+		require.Equal(t, "127.0.0.1:53219", errorURL.Host, "error redirects must keep the presented port")
+	})
 }
 
 // TestAuthorizeResponseZeroValue pins the zero value as inert, since it is what

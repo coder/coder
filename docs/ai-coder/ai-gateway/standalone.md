@@ -1,4 +1,6 @@
-# Deploy AI Gateway as a standalone service
+---
+title: Deploy AI Gateway as a standalone service
+---
 
 > [!NOTE]
 > AI Gateway requires a [Premium](../ai-governance.md) license.

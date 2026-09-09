@@ -123,8 +123,18 @@ client-side signing disabled so the gateway signs centrally:
 ```sh
 export CLAUDE_CODE_USE_MANTLE=1
 export CLAUDE_CODE_SKIP_MANTLE_AUTH=1
-export ANTHROPIC_BEDROCK_MANTLE_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/<provider-name>"
-export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
+export ANTHROPIC_BEDROCK_MANTLE_BASE_URL="${CODER_URL}/api/v2/ai-gateway/${PROVIDER_NAME}"
+export ANTHROPIC_AUTH_TOKEN="${CODER_TOKEN}"
+```
+
+You can also validate that the provider works with `curl`:
+
+```sh
+curl "${CODER_URL}/api/v2/ai-gateway/${PROVIDER_NAME}/v1/messages" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${CODER_TOKEN}" \
+  -H "Anthropic-Version: 2023-06-01" \
+  -d '{"model": "anthropic.claude-sonnet-5","max_tokens": 1024,"messages": [{"role": "user", "content": "Hello, Claude"}]}'
 ```
 
 #### AWS credentials
