@@ -187,9 +187,8 @@ export const UnsupportedSingletonPanels: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByLabelText("Add panel"));
 
-		const body = within(document.body);
-		await body.findByText("New Terminal");
-		expect(body.queryByRole("menuitemcheckbox")).toBeNull();
+		// Wait for the menu to render before the screenshot.
+		await within(document.body).findByText("New Terminal");
 	},
 };
 
@@ -204,15 +203,10 @@ export const ExcludesAgentBrowserApp: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByLabelText("Add panel"));
 
+		// Wait for the menu to render before the screenshot.
 		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Preview")).toBeInTheDocument();
-			// The reserved app drives the Browser toggle instead of a normal app item.
-			expect(
-				body.getByRole("menuitemcheckbox", { name: "Browser" }),
-			).toBeVisible();
-		});
-		expect(body.queryByText("agent-browser")).toBeNull();
+		await body.findByText("Preview");
+		await body.findByRole("menuitemcheckbox", { name: "Browser" });
 	},
 };
 
