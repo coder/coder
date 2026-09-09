@@ -147,7 +147,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				onChange={filter.update}
 				categories={categories}
 				placeholder="Search and filter workspaces…"
-				className="max-w-lg"
 				errorMessage={
 					showValidationError ? getValidationErrorMessage(error) : undefined
 				}
