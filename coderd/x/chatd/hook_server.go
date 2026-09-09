@@ -145,7 +145,7 @@ func loadDynamicPostToolUseState(
 		if err != nil {
 			return xerrors.Errorf("load chat messages: %w", err)
 		}
-		_, pending, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+		_, _, pending, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 		if err != nil {
 			return xerrors.Errorf("load pending dynamic tool calls: %w", err)
 		}

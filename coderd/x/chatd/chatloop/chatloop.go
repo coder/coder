@@ -262,6 +262,12 @@ type ExecuteLocalToolsOptions struct {
 	ModelProvider      string
 	ModelName          string
 
+	// ChatID and AssistantMessageID identify the dispatch, which a
+	// tool that must run at most once per persisted call combines
+	// with the call's own ID (see chattool.ToolCallIdentity).
+	ChatID             uuid.UUID
+	AssistantMessageID int64
+
 	// ContextLimit is the model's context window in tokens. It is used
 	// to derive a per-result byte budget so a single oversized tool
 	// result cannot overflow the prompt. Zero means unknown, in which
@@ -602,6 +608,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 	// intermediate output (e.g. the advisor tool) can publish parts
 	// without capturing the publisher at construction time.
 	ctx = WithMessagePartPublisher(ctx, opts.PublishMessagePart)
+	ctx = chattool.WithDispatchIdentity(ctx, opts.ChatID, opts.AssistantMessageID)
 	if ctx.Err() != nil {
 		return PersistedStep{}, ctx.Err()
 	}
@@ -1475,7 +1482,7 @@ func executeSingleTool(
 		slog.F("builtin", builtinToolNames[resolvedName]),
 		slog.F("is_provider_runner", isProviderRunner),
 	)
-	resp, err := tool.Run(ctx, fantasy.ToolCall{
+	resp, err := tool.Run(chattool.WithToolCallID(ctx, tc.ToolCallID), fantasy.ToolCall{
 		ID:    tc.ToolCallID,
 		Name:  resolvedName,
 		Input: tc.Input,

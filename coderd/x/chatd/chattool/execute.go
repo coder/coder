@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -25,7 +27,27 @@ const (
 	// request is allowed to take when retrieving a process
 	// output snapshot after a blocking wait times out.
 	snapshotTimeout = 30 * time.Second
+
+	// processWaitRetryDelay is the pause before re-issuing a
+	// blocking process wait whose server-side bound returned
+	// early, so a short agent-side wait cannot degenerate into a
+	// zero-delay request loop.
+	processWaitRetryDelay = time.Second
 )
+
+// idempotencyKeyFromContext derives the idempotency key for the tool
+// call being run, or "" when the dispatch did not identify it, in
+// which case a replay runs its command again. The chat is left out
+// because the agent scopes reservations to the chat that sent them.
+func idempotencyKeyFromContext(ctx context.Context) string {
+	identity, ok := ToolCallIdentityFromContext(ctx)
+	if !ok {
+		return ""
+	}
+	// The message ID is decimal digits, so the first "-" splits the
+	// two parts unambiguously.
+	return fmt.Sprintf("%d-%s", identity.AssistantMessageID, identity.ToolCallID)
+}
 
 // nonInteractiveEnvVars are set on every process to prevent
 // interactive prompts that would hang a headless execution.
@@ -98,6 +120,7 @@ type ExecuteOptions struct {
 	// AGENT_BROWSER_SESSION so agent-browser CLI invocations land in a
 	// browser session scoped to this chat instead of a shared default.
 	AgentBrowserSession string
+	Logger              slog.Logger
 }
 
 // ProcessToolOptions configures a process management tool
@@ -148,6 +171,8 @@ func executeTool(
 		return fantasy.NewTextErrorResponse("command is required")
 	}
 
+	idempotencyKey := idempotencyKeyFromContext(ctx)
+
 	// Build the environment map for the process request.
 	env := make(map[string]string, len(nonInteractiveEnvVars)+2)
 	env["CODER_CHAT_AGENT"] = "true"
@@ -176,27 +201,84 @@ func executeTool(
 	}
 
 	if background {
-		return executeBackground(ctx, conn, args.Command, workDir, env)
+		return executeBackground(ctx, conn, options, args.Command, workDir, env, idempotencyKey)
 	}
-	return executeForeground(ctx, conn, args, options.DefaultTimeout, workDir, env)
+	return executeForeground(ctx, conn, options, args, workDir, env, idempotencyKey)
 }
 
-// executeBackground starts a process in the background and
-// returns immediately with the process ID.
+func isConflictError(err error) bool {
+	var conflict *workspacesdk.ProcessConflictError
+	return xerrors.As(err, &conflict)
+}
+
+// isStartPendingError reports the unresolved flavor of a start
+// conflict: the start holding this key had not published a process
+// before the wait gave up, so the command may still run.
+func isStartPendingError(err error) bool {
+	var conflict *workspacesdk.ProcessConflictError
+	return xerrors.As(err, &conflict) && conflict.Code == workspacesdk.ProcessConflictStartPending
+}
+
+// startProcessResolvingPendingWait retries start-pending conflicts
+// while ctx lasts, so an unresolved start is not recorded as a
+// permanent failure. The concurrent start either publishes its
+// process or releases the key.
+func startProcessResolvingPendingWait(ctx context.Context, conn workspacesdk.AgentConn, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+	for {
+		resp, err := conn.StartProcess(ctx, req)
+		if err == nil || req.IdempotencyKey == "" || !isStartPendingError(err) {
+			return resp, err
+		}
+		select {
+		case <-ctx.Done():
+			return resp, err
+		case <-time.After(processWaitRetryDelay):
+		}
+	}
+}
+
+// startConflictResult converts a start conflict into an error result.
+// A parameter mismatch is permanent and started nothing. A
+// start-pending conflict is unresolved: the concurrent start may
+// still run the command.
+func startConflictResult(ctx context.Context, logger slog.Logger, idempotencyKey string, err error) fantasy.ToolResponse {
+	logger.Warn(ctx, "execute start conflicted on its idempotency key",
+		slog.F("idempotency_key", idempotencyKey),
+		slog.Error(err),
+	)
+	if isStartPendingError(err) {
+		return errorResult(fmt.Sprintf(
+			"start process: %v. The outcome is unresolved: a concurrent dispatch of this tool call owns the command and may still run it. Check the process list before re-running the command.", err,
+		))
+	}
+	return errorResult(fmt.Sprintf(
+		"start process: %v. This dispatch conflicted with an earlier start of the same tool call with different parameters; no new process was started.", err,
+	))
+}
+
+// executeBackground starts a process in the background and returns
+// immediately with the process ID. Attaching yields the same result
+// as starting, so replays need no special handling here.
 func executeBackground(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
+	options ExecuteOptions,
 	command string,
 	workDir string,
 	env map[string]string,
+	idempotencyKey string,
 ) fantasy.ToolResponse {
-	resp, err := conn.StartProcess(ctx, workspacesdk.StartProcessRequest{
-		Command:    command,
-		WorkDir:    workDir,
-		Env:        env,
-		Background: true,
+	resp, err := startProcessResolvingPendingWait(ctx, conn, workspacesdk.StartProcessRequest{
+		Command:        command,
+		WorkDir:        workDir,
+		Env:            env,
+		Background:     true,
+		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
+		if idempotencyKey != "" && isConflictError(err) {
+			return startConflictResult(ctx, options.Logger, idempotencyKey, err)
+		}
 		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
 
@@ -217,12 +299,13 @@ func executeBackground(
 func executeForeground(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
+	options ExecuteOptions,
 	args ExecuteArgs,
-	optTimeout time.Duration,
 	workDir string,
 	env map[string]string,
+	idempotencyKey string,
 ) fantasy.ToolResponse {
-	timeout := optTimeout
+	timeout := options.DefaultTimeout
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
@@ -241,18 +324,38 @@ func executeForeground(
 
 	start := time.Now()
 
-	resp, err := conn.StartProcess(cmdCtx, workspacesdk.StartProcessRequest{
-		Command:    args.Command,
-		WorkDir:    workDir,
-		Env:        env,
-		Background: false,
+	resp, err := startProcessResolvingPendingWait(cmdCtx, conn, workspacesdk.StartProcessRequest{
+		Command:        args.Command,
+		WorkDir:        workDir,
+		Env:            env,
+		Background:     false,
+		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
+		if idempotencyKey != "" && isConflictError(err) {
+			return startConflictResult(ctx, options.Logger, idempotencyKey, err)
+		}
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
 
-	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
-	result.WallDurationMs = time.Since(start).Milliseconds()
+	var result ExecuteResult
+	if resp.Attached {
+		options.Logger.Debug(ctx, "execute attached to a process from an earlier dispatch",
+			slog.F("process_id", resp.ID),
+			slog.F("idempotency_key", idempotencyKey),
+		)
+		result = resumeAttachedProcess(cmdCtx, ctx, conn, resp.ID, resp.StartedAt, timeout)
+		if resp.StartedAt > 0 {
+			// Anchor the wall duration to the original start so
+			// replays report the real elapsed time.
+			start = time.Unix(resp.StartedAt, 0)
+		}
+	} else {
+		result = waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
+	}
+	// An agent clock running ahead can place start in the future;
+	// clamp instead of reporting a negative duration.
+	result.WallDurationMs = max(time.Since(start).Milliseconds(), 0)
 
 	// Add an advisory note for file-dump commands.
 	if note := detectFileDump(args.Command); note != "" {
@@ -266,6 +369,50 @@ func executeForeground(
 	return fantasy.NewTextResponse(string(data))
 }
 
+// resumeAttachedProcess waits out what remains of the original
+// execution budget, bounded by both the agent-reported remainder and
+// cmdCtx. An exited process reports its real result even past the
+// deadline. A running one detaches with the standard timed-out
+// result, rather than granting a fresh budget on every replay.
+func resumeAttachedProcess(
+	cmdCtx context.Context,
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	processID string,
+	startedAtUnix int64,
+	timeout time.Duration,
+) ExecuteResult {
+	// A zero start time (an agent predating the field) leaves no
+	// remaining budget to compute, so resolve from a snapshot.
+	remaining := time.Duration(0)
+	if startedAtUnix > 0 {
+		remaining = time.Until(time.Unix(startedAtUnix, 0).Add(timeout))
+		// StartedAt comes from the agent's clock; clamp so skew
+		// cannot grant a replay more than the requested timeout.
+		remaining = min(remaining, timeout)
+	}
+	if remaining <= 0 {
+		bgCtx, cancel := context.WithTimeout(ctx, snapshotTimeout)
+		defer cancel()
+		resp, err := conn.ProcessOutput(bgCtx, processID, nil)
+		if err != nil {
+			return ExecuteResult{
+				Success:             false,
+				ExitCode:            -1,
+				Error:               fmt.Sprintf("get attached process output: %v; use process_output with ID %s to retry", err, processID),
+				BackgroundProcessID: processID,
+			}
+		}
+		if resp.Running {
+			return timedOutRunningResult(resp, timeout, processID)
+		}
+		return completedResult(resp)
+	}
+	waitCtx, cancel := context.WithTimeout(cmdCtx, remaining)
+	defer cancel()
+	return waitForProcess(waitCtx, ctx, conn, processID, timeout)
+}
+
 // truncateOutput safely truncates output to maxOutputToModel,
 // ensuring the result is valid UTF-8 even if the cut falls in
 // the middle of a multi-byte character.
@@ -276,8 +423,34 @@ func truncateOutput(output string) string {
 	return output
 }
 
-// waitForProcess waits for process completion using the
-// blocking process output API instead of polling.
+// timedOutRunningResult reports partial output plus the process
+// handle, so the model can re-attach or poll.
+func timedOutRunningResult(resp workspacesdk.ProcessOutputResponse, timeout time.Duration, processID string) ExecuteResult {
+	return ExecuteResult{
+		Success:             false,
+		Output:              truncateOutput(resp.Output),
+		ExitCode:            -1,
+		Error:               fmt.Sprintf("command timed out after %s", timeout),
+		Truncated:           resp.Truncated,
+		BackgroundProcessID: processID,
+	}
+}
+
+// completedResult builds the ExecuteResult for an exited process,
+// treating a missing exit code as success.
+func completedResult(resp workspacesdk.ProcessOutputResponse) ExecuteResult {
+	exitCode := 0
+	if resp.ExitCode != nil {
+		exitCode = *resp.ExitCode
+	}
+	return ExecuteResult{
+		Success:   exitCode == 0,
+		Output:    truncateOutput(resp.Output),
+		ExitCode:  exitCode,
+		Truncated: resp.Truncated,
+	}
+}
+
 // waitForProcess blocks until the process exits or the context
 // expires. On any error (timeout or transport), it tries a
 // non-blocking snapshot to recover. Total wall time may exceed
@@ -289,11 +462,57 @@ func waitForProcess(
 	processID string,
 	timeout time.Duration,
 ) ExecuteResult {
-	// Block until the process exits or the context is
-	// canceled.
-	resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
-		Wait: true,
-	})
+	for {
+		resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
+			Wait: true,
+		})
+		if err == nil && resp.Running && ctx.Err() == nil {
+			// The server-side wait can return before the process
+			// exits when its maximum wait is shorter than the
+			// caller's timeout.
+			select {
+			case <-ctx.Done():
+			case <-time.After(processWaitRetryDelay):
+			}
+			if ctx.Err() == nil {
+				continue
+			}
+		}
+		if err == nil && resp.Running && ctx.Err() != nil {
+			// resp predates the retry delay, so refresh it to
+			// report an exit or output from that window.
+			resp = refreshRunningSnapshot(parentCtx, conn, processID, resp)
+		}
+		return resolveProcessWait(ctx, parentCtx, conn, processID, timeout, resp, err)
+	}
+}
+
+// refreshRunningSnapshot re-reads a running process without blocking,
+// returning the original response when the snapshot fails.
+func refreshRunningSnapshot(
+	parentCtx context.Context,
+	conn workspacesdk.AgentConn,
+	processID string,
+	resp workspacesdk.ProcessOutputResponse,
+) workspacesdk.ProcessOutputResponse {
+	bgCtx, bgCancel := context.WithTimeout(parentCtx, snapshotTimeout)
+	defer bgCancel()
+	fresh, err := conn.ProcessOutput(bgCtx, processID, nil)
+	if err != nil {
+		return resp
+	}
+	return fresh
+}
+
+func resolveProcessWait(
+	ctx context.Context,
+	parentCtx context.Context,
+	conn workspacesdk.AgentConn,
+	processID string,
+	timeout time.Duration,
+	resp workspacesdk.ProcessOutputResponse,
+	err error,
+) ExecuteResult {
 	if err != nil {
 		origErr := err
 		timedOut := ctx.Err() != nil
@@ -325,66 +544,31 @@ func waitForProcess(
 		// Snapshot succeeded. If the process finished, return
 		// its real result (transparent recovery).
 		if !resp.Running {
-			exitCode := 0
-			if resp.ExitCode != nil {
-				exitCode = *resp.ExitCode
-			}
-			output := truncateOutput(resp.Output)
-			return ExecuteResult{
-				Success:   exitCode == 0,
-				Output:    output,
-				ExitCode:  exitCode,
-				Truncated: resp.Truncated,
-			}
+			return completedResult(resp)
 		}
 
 		// Process still running, return partial output.
-		output := truncateOutput(resp.Output)
-		errMsg := fmt.Sprintf("command timed out after %s", timeout)
-		if !timedOut {
-			errMsg = fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr)
+		if timedOut {
+			return timedOutRunningResult(resp, timeout, processID)
 		}
 		return ExecuteResult{
 			Success:             false,
-			Output:              output,
+			Output:              truncateOutput(resp.Output),
 			ExitCode:            -1,
-			Error:               errMsg,
+			Error:               fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr),
 			Truncated:           resp.Truncated,
 			BackgroundProcessID: processID,
 		}
 	}
 
-	// The server-side wait may return before the
-	// process exits if maxWaitDuration is shorter than
-	// the client's timeout. Retry if our context still
-	// has time left.
 	if resp.Running {
-		if ctx.Err() == nil {
-			// Still within the caller's timeout, retry.
-			return waitForProcess(ctx, parentCtx, conn, processID, timeout)
-		}
-		output := truncateOutput(resp.Output)
-		return ExecuteResult{
-			Success:             false,
-			Output:              output,
-			ExitCode:            -1,
-			Error:               fmt.Sprintf("command timed out after %s", timeout),
-			Truncated:           resp.Truncated,
-			BackgroundProcessID: processID,
-		}
+		// Only reachable once ctx ended while the process was
+		// still running; waitForProcess retries early server-side
+		// wait returns itself.
+		return timedOutRunningResult(resp, timeout, processID)
 	}
 
-	exitCode := 0
-	if resp.ExitCode != nil {
-		exitCode = *resp.ExitCode
-	}
-	output := truncateOutput(resp.Output)
-	return ExecuteResult{
-		Success:   exitCode == 0,
-		Output:    output,
-		ExitCode:  exitCode,
-		Truncated: resp.Truncated,
-	}
+	return completedResult(resp)
 }
 
 // errorResult builds a ToolResponse from an ExecuteResult with
