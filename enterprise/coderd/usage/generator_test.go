@@ -103,7 +103,7 @@ func (h *generatorHarness) insertRuntimeMessage(ctx context.Context, t *testing.
 		Role:          database.ChatMessageRoleAssistant,
 		RuntimeMs:     sql.NullInt64{Int64: runtimeMs, Valid: true},
 	})
-	_, err := h.rawDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", createdAt, deleted, msg.ID)
+	err := dbtestutil.ExecChatHistorySQL(ctx, h.rawDB, msg.ChatID, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", createdAt, deleted, msg.ID)
 	require.NoError(t, err)
 }
 

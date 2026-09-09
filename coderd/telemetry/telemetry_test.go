@@ -1829,7 +1829,9 @@ func TestChatsTelemetry(t *testing.T) {
 		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
 		RuntimeMs:           sql.NullInt64{Int64: 999999, Valid: true},
 	})
-	err = db.SoftDeleteChatMessageByID(ctx, poisonMsg.ID)
+	err = dbtestutil.InChatTransition(ctx, db, poisonMsg.ChatID, func(tx database.Store) error {
+		return tx.SoftDeleteChatMessageByID(ctx, poisonMsg.ID)
+	})
 	require.NoError(t, err)
 
 	_, snapshot := collectSnapshot(ctx, t, db, nil)

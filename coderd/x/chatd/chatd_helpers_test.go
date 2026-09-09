@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -131,7 +132,10 @@ func insertSystemTextMessage(
 		modelID,
 		uuid.Nil,
 	)
-	_, err = db.InsertChatMessages(ctx, params)
+	err = dbtestutil.InChatTransition(ctx, db, chatID, func(tx database.Store) error {
+		_, err := tx.InsertChatMessages(ctx, params)
+		return err
+	})
 	require.NoError(t, err)
 }
 
@@ -164,7 +168,10 @@ func insertOrphanProviderToolCall(ctx context.Context, t *testing.T, db database
 		modelID,
 		uuid.Nil,
 	)
-	_, err = db.InsertChatMessages(ctx, params)
+	err = dbtestutil.InChatTransition(ctx, db, chatID, func(tx database.Store) error {
+		_, err := tx.InsertChatMessages(ctx, params)
+		return err
+	})
 	require.NoError(t, err)
 }
 

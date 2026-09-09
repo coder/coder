@@ -5374,13 +5374,16 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 		ContextFileDirectory: "/home/coder/project",
 	}})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessages(ctx, singleChatMessageInsertParams(
-		chat.ID,
-		database.ChatMessageRoleUser,
-		contextContent,
-		model.ID,
-		user.ID,
-	))
+	err = dbtestutil.InChatTransition(ctx, db, chat.ID, func(tx database.Store) error {
+		_, err := tx.InsertChatMessages(ctx, singleChatMessageInsertParams(
+			chat.ID,
+			database.ChatMessageRoleUser,
+			contextContent,
+			model.ID,
+			user.ID,
+		))
+		return err
+	})
 	require.NoError(t, err)
 
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -8825,7 +8828,11 @@ func insertChatMessageParts(
 		modelID,
 		createdBy,
 	)
-	messages, err := db.InsertChatMessages(ctx, params)
+	var messages []database.InsertChatMessagesRow
+	err = dbtestutil.InChatTransition(ctx, db, chatID, func(tx database.Store) error {
+		messages, err = tx.InsertChatMessages(ctx, params)
+		return err
+	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	return database.ChatMessage(messages[0])
