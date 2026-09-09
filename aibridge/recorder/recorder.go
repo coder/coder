@@ -8,7 +8,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/tracing"
 )
@@ -21,7 +20,6 @@ var (
 // WrappedRecorder is a convenience struct which implements Recorder and resolves a client before calling each method.
 // It also sets the start/creation time of each record.
 type WrappedRecorder struct {
-	logger   slog.Logger
 	tracer   trace.Tracer
 	clientFn func(context.Context) (Recorder, error)
 }
@@ -36,12 +34,7 @@ func (r *WrappedRecorder) RecordInterception(ctx context.Context, req *Intercept
 	}
 
 	req.StartedAt = time.Now()
-	if err = client.RecordInterception(ctx, req); err == nil {
-		return nil
-	}
-
-	r.logger.Warn(ctx, "failed to record interception", slog.Error(err))
-	return err
+	return client.RecordInterception(ctx, req)
 }
 
 func (r *WrappedRecorder) RecordInterceptionEnded(ctx context.Context, req *InterceptionRecordEnded) (outErr error) {
@@ -54,12 +47,7 @@ func (r *WrappedRecorder) RecordInterceptionEnded(ctx context.Context, req *Inte
 	}
 
 	req.EndedAt = time.Now().UTC()
-	if err = client.RecordInterceptionEnded(ctx, req); err == nil {
-		return nil
-	}
-
-	r.logger.Warn(ctx, "failed to record that interception ended", slog.Error(err))
-	return err
+	return client.RecordInterceptionEnded(ctx, req)
 }
 
 func (r *WrappedRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRecord) (outErr error) {
@@ -72,12 +60,7 @@ func (r *WrappedRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsag
 	}
 
 	req.CreatedAt = time.Now()
-	if err = client.RecordPromptUsage(ctx, req); err == nil {
-		return nil
-	}
-
-	r.logger.Warn(ctx, "failed to record prompt usage", slog.Error(err))
-	return err
+	return client.RecordPromptUsage(ctx, req)
 }
 
 func (r *WrappedRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecord) (outErr error) {
@@ -90,12 +73,7 @@ func (r *WrappedRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageR
 	}
 
 	req.CreatedAt = time.Now()
-	if err = client.RecordTokenUsage(ctx, req); err == nil {
-		return nil
-	}
-
-	r.logger.Warn(ctx, "failed to record token usage", slog.Error(err))
-	return err
+	return client.RecordTokenUsage(ctx, req)
 }
 
 func (r *WrappedRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord) (outErr error) {
@@ -108,12 +86,7 @@ func (r *WrappedRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRec
 	}
 
 	req.CreatedAt = time.Now()
-	if err = client.RecordToolUsage(ctx, req); err == nil {
-		return nil
-	}
-
-	r.logger.Warn(ctx, "failed to record tool usage", slog.Error(err))
-	return err
+	return client.RecordToolUsage(ctx, req)
 }
 
 func (r *WrappedRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtRecord) (outErr error) {
@@ -126,27 +99,21 @@ func (r *WrappedRecorder) RecordModelThought(ctx context.Context, req *ModelThou
 	}
 
 	req.CreatedAt = time.Now()
-	if err = client.RecordModelThought(ctx, req); err == nil {
-		return nil
-	}
-
-	r.logger.Warn(ctx, "failed to record model thought", slog.Error(err))
-	return err
+	return client.RecordModelThought(ctx, req)
 }
 
 // NewWrappedRecorder creates a [WrappedRecorder]. clientFn receives the
 // context of the call it serves.
-func NewWrappedRecorder(logger slog.Logger, tracer trace.Tracer, clientFn func(context.Context) (Recorder, error)) *WrappedRecorder {
+func NewWrappedRecorder(tracer trace.Tracer, clientFn func(context.Context) (Recorder, error)) *WrappedRecorder {
 	return &WrappedRecorder{
-		logger:   logger,
 		tracer:   tracer,
 		clientFn: clientFn,
 	}
 }
 
-// AsyncRecorder calls [Recorder] methods asynchronously and logs any errors which may occur.
+// AsyncRecorder calls [Recorder] methods asynchronously, discarding any errors
+// which may occur; wrap it in a [LogRecorder] to have those logged.
 type AsyncRecorder struct {
-	logger  slog.Logger
 	wrapped Recorder
 	timeout time.Duration
 	metrics *metrics.Metrics
@@ -159,8 +126,8 @@ type AsyncRecorder struct {
 	wg sync.WaitGroup
 }
 
-func NewAsyncRecorder(logger slog.Logger, wrapped Recorder, timeout time.Duration) *AsyncRecorder {
-	return &AsyncRecorder{logger: logger, wrapped: wrapped, timeout: timeout}
+func NewAsyncRecorder(wrapped Recorder, timeout time.Duration) *AsyncRecorder {
+	return &AsyncRecorder{wrapped: wrapped, timeout: timeout}
 }
 
 func (a *AsyncRecorder) WithMetrics(m any) {
@@ -198,10 +165,7 @@ func (a *AsyncRecorder) RecordInterceptionEnded(ctx context.Context, req *Interc
 		timedCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), a.timeout)
 		defer cancel()
 
-		err := a.wrapped.RecordInterceptionEnded(timedCtx, req)
-		if err != nil {
-			a.logger.Warn(timedCtx, "failed to record interception end", slog.F("type", "prompt"), slog.Error(err), slog.F("payload", req))
-		}
+		_ = a.wrapped.RecordInterceptionEnded(timedCtx, req)
 	}()
 
 	return nil // Caller is not interested in error.
@@ -214,10 +178,7 @@ func (a *AsyncRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageR
 		timedCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), a.timeout)
 		defer cancel()
 
-		err := a.wrapped.RecordPromptUsage(timedCtx, req)
-		if err != nil {
-			a.logger.Warn(timedCtx, "failed to record usage", slog.F("type", "prompt"), slog.Error(err), slog.F("payload", req))
-		}
+		_ = a.wrapped.RecordPromptUsage(timedCtx, req)
 
 		if a.metrics != nil && req.Prompt != "" { // TODO: will be irrelevant once https://github.com/coder/aibridge/issues/55 is fixed.
 			a.metrics.PromptCount.WithLabelValues(a.provider, a.model, a.initiatorID, a.client).Add(1)
@@ -234,10 +195,7 @@ func (a *AsyncRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRec
 		timedCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), a.timeout)
 		defer cancel()
 
-		err := a.wrapped.RecordTokenUsage(timedCtx, req)
-		if err != nil {
-			a.logger.Warn(timedCtx, "failed to record usage", slog.F("type", "token"), slog.Error(err), slog.F("payload", req))
-		}
+		_ = a.wrapped.RecordTokenUsage(timedCtx, req)
 
 		if a.metrics != nil {
 			a.metrics.TokenUseCount.WithLabelValues(a.provider, a.model, "input", a.initiatorID, a.client).Add(float64(req.Input))
@@ -260,10 +218,7 @@ func (a *AsyncRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecor
 		timedCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), a.timeout)
 		defer cancel()
 
-		err := a.wrapped.RecordToolUsage(timedCtx, req)
-		if err != nil {
-			a.logger.Warn(timedCtx, "failed to record usage", slog.F("type", "tool"), slog.Error(err), slog.F("payload", req))
-		}
+		_ = a.wrapped.RecordToolUsage(timedCtx, req)
 
 		if a.metrics != nil {
 			if req.Injected {
@@ -288,10 +243,7 @@ func (a *AsyncRecorder) RecordModelThought(ctx context.Context, req *ModelThough
 		timedCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), a.timeout)
 		defer cancel()
 
-		err := a.wrapped.RecordModelThought(timedCtx, req)
-		if err != nil {
-			a.logger.Warn(timedCtx, "failed to record model thought", slog.F("type", "model_thought"), slog.Error(err), slog.F("payload", req))
-		}
+		_ = a.wrapped.RecordModelThought(timedCtx, req)
 	}()
 
 	return nil // Caller is not interested in error.
