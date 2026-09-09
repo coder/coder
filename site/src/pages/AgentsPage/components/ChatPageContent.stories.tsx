@@ -7,13 +7,16 @@ import {
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
+import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
+	MockUserOwner,
 	MockUserPreferenceSettings,
 } from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -39,7 +42,9 @@ const StoryChatPageTimeline: FC<{
 
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
+	decorators: [withAuthProvider],
 	parameters: {
+		user: MockUserOwner,
 		queries: [
 			{
 				key: preferenceSettingsKey,
@@ -48,6 +53,13 @@ const meta = {
 			{
 				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
 			},
 		],
 	},
@@ -109,8 +121,6 @@ const StoryChatPageInput: FC<{
 			canConfigureAgentSetup={false}
 			isEditing={false}
 			onCancelHistoryEdit={fn()}
-			workspaceOptions={[]}
-			isWorkspaceLoading={false}
 		/>
 	</div>
 );
@@ -382,8 +392,6 @@ const CompactionChatPageInput: FC = () => {
 				canConfigureAgentSetup={false}
 				isEditing={false}
 				onCancelHistoryEdit={fn()}
-				workspaceOptions={[]}
-				isWorkspaceLoading={false}
 			/>
 		</div>
 	);
@@ -412,6 +420,13 @@ export const CompactsAtUserOverride: Story = {
 				key: chatPromptsKey(MockChat.id),
 				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
 			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
 		],
 	},
 	render: () => <CompactionChatPageInput />,
@@ -439,6 +454,13 @@ export const CompactsAtHistoricalModelDefault: Story = {
 			{
 				key: chatPromptsKey(MockChat.id),
 				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
 			},
 		],
 	},
