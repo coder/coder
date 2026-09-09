@@ -112,6 +112,10 @@ Disabling only blocks *new* self-registrations. Applications that already
 registered while it was enabled keep authorizing and exchanging tokens
 normally; disabling does not revoke or otherwise affect them.
 
+A registration may list several `redirect_uris`.
+A request may present any of them, and the code it receives can only be exchanged with that same URI.
+The first entry is the primary callback: it is what the web UI shows for the application, and what a request that omits `redirect_uri` is sent to.
+
 ## Integration Patterns
 
 ### Client Authentication Methods
@@ -398,7 +402,7 @@ Add `oauth2` to your experiment flags: `coder server --experiments oauth2`
 
 ### "Invalid redirect_uri"
 
-Ensure the redirect URI in your request exactly matches the one registered for your application.
+Ensure the redirect URI in your request exactly matches one of the redirect URIs registered for your application.
 The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which may differ from the registered one.
 Refer to the note under [Client Authentication Methods](#client-authentication-methods).
 
@@ -566,7 +570,7 @@ A misspelled parameter is ignored on the same rule, so what you see is the failu
 
 Two failures stay on Coder rather than reaching your callback, because in both cases the callback is not yet trustworthy:
 
-- A `redirect_uri` that does not parse, or that does not exactly match the one registered for the application.
+- A `redirect_uri` that does not parse, or that does not exactly match one of the redirect URIs registered for the application.
   Redirecting to it would defeat the check that just rejected it, so Coder answers 400 (see ["Invalid redirect_uri"](#invalid-redirect_uri)).
 - A `client_id` sent more than once, or one that does not name the application the callback was matched against.
   Coder cannot tell whose registration it is about to redirect to.

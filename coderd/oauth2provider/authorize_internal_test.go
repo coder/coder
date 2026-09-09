@@ -514,6 +514,10 @@ func TestConsentScopes(t *testing.T) {
 	}
 }
 
+func appWithCallback(callback string) database.OAuth2ProviderApp {
+	return database.OAuth2ProviderApp{CallbackURL: callback}
+}
+
 // TestNewAuthorizeResponse covers the two preconditions the constructor exists
 // to run together, and which of them is the server's fault.
 func TestNewAuthorizeResponse(t *testing.T) {
@@ -528,7 +532,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {registered},
 			"state":        {"abc123"},
-		}, registered)
+		}, appWithCallback(registered))
 
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
@@ -541,7 +545,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		t.Parallel()
 
 		p := httpapi.NewQueryParamParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, registered)
+		response, err := newAuthorizeResponse(p, url.Values{}, appWithCallback(registered))
 
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
@@ -555,7 +559,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		p := httpapi.NewQueryParamParser()
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {"https://elsewhere.example/cb"},
-		}, registered)
+		}, appWithCallback(registered))
 
 		// The client's mistake, so it joins the parser's other errors rather
 		// than becoming a server fault.
@@ -572,7 +576,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		p := httpapi.NewQueryParamParser()
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {"javascript:alert(1)"},
-		}, registered)
+		}, appWithCallback(registered))
 
 		require.NoError(t, err, "the app registered a usable callback; the client did not send one")
 		require.NotEmpty(t, p.Errors)
@@ -583,7 +587,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		t.Parallel()
 
 		p := httpapi.NewQueryParamParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, "javascript:alert(1)")
+		response, err := newAuthorizeResponse(p, url.Values{}, appWithCallback("javascript:alert(1)"))
 
 		require.Error(t, err)
 		require.Empty(t, p.Errors, "the registration is rejected before any parameter is read")
@@ -594,7 +598,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		t.Parallel()
 
 		p := httpapi.NewQueryParamParser()
-		response, err := newAuthorizeResponse(p, url.Values{}, "http://a b")
+		response, err := newAuthorizeResponse(p, url.Values{}, appWithCallback("http://a b"))
 
 		require.Error(t, err, "a registration that does not parse is the same class as one this server rejects")
 		require.Empty(t, p.Errors)
@@ -611,7 +615,7 @@ func TestNewAuthorizeResponse(t *testing.T) {
 		response, err := newAuthorizeResponse(p, url.Values{
 			"redirect_uri": {presented},
 			"state":        {"abc123"},
-		}, "http://127.0.0.1/callback")
+		}, appWithCallback("http://127.0.0.1/callback"))
 
 		require.NoError(t, err)
 		require.Empty(t, p.Errors)
@@ -751,4 +755,66 @@ func TestCarveOutDelivery(t *testing.T) {
 			require.Equal(t, tc.deliver, failure.redirect.canRedirect())
 		})
 	}
+}
+
+func TestRegisteredRedirectURIs(t *testing.T) {
+	t.Parallel()
+
+	strs := func(t *testing.T, app database.OAuth2ProviderApp) []string {
+		t.Helper()
+		primary, alternates, err := registeredRedirectURIs(app)
+		require.NoError(t, err)
+		out := []string{primary.String()}
+		for _, u := range alternates {
+			out = append(out, u.String())
+		}
+		return out
+	}
+
+	t.Run("AdminAppHasOnlyTheCallback", func(t *testing.T) {
+		t.Parallel()
+		got := strs(t, database.OAuth2ProviderApp{
+			CallbackURL:  "https://app.example.com/callback",
+			RedirectUris: []string{},
+		})
+		require.Equal(t, []string{"https://app.example.com/callback"}, got)
+	})
+
+	t.Run("PrimaryFirstAndDeduplicated", func(t *testing.T) {
+		t.Parallel()
+		got := strs(t, database.OAuth2ProviderApp{
+			CallbackURL: "cursor://anysphere.cursor-mcp/oauth/callback",
+			RedirectUris: []string{
+				"cursor://anysphere.cursor-mcp/oauth/callback",
+				"https://www.cursor.com/agents/mcp/oauth/callback",
+			},
+		})
+		require.Equal(t, []string{
+			"cursor://anysphere.cursor-mcp/oauth/callback",
+			"https://www.cursor.com/agents/mcp/oauth/callback",
+		}, got)
+	})
+
+	// An admin edit rewrites CallbackURL without touching RedirectUris.
+	t.Run("EditedCallbackIsIncluded", func(t *testing.T) {
+		t.Parallel()
+		got := strs(t, database.OAuth2ProviderApp{
+			CallbackURL:  "https://new.example.com/callback",
+			RedirectUris: []string{"https://a.example.com/cb", "https://b.example.com/cb"},
+		})
+		require.Equal(t, []string{
+			"https://new.example.com/callback",
+			"https://a.example.com/cb",
+			"https://b.example.com/cb",
+		}, got)
+	})
+
+	t.Run("UnparsableEntryIsAnError", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := registeredRedirectURIs(database.OAuth2ProviderApp{
+			CallbackURL:  "https://app.example.com/callback",
+			RedirectUris: []string{"http://a b"},
+		})
+		require.Error(t, err)
+	})
 }
