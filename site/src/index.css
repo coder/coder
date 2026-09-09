@@ -186,19 +186,19 @@
 
 	@keyframes flip-card {
 		0%,
-		12% {
+		17% {
 			transform: rotateY(0deg);
 		}
 		25%,
-		37% {
+		42% {
 			transform: rotateY(-90deg);
 		}
 		50%,
-		62% {
+		67% {
 			transform: rotateY(-180deg);
 		}
 		75%,
-		87% {
+		92% {
 			transform: rotateY(-270deg);
 		}
 		100% {

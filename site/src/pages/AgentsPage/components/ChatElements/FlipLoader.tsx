@@ -11,7 +11,7 @@ type FlipLoaderProps = {
 const SLICES = 4;
 // Phase lead per slice from the top down. Slices realign during the hold on
 // each face, so the box appears to twist through the turn and snap straight.
-const SLICE_LEAD_MS = 90;
+const SLICE_LEAD_MS = 60;
 
 /**
  * A box turning a quarter at a time, alternating a primary face and a
@@ -44,31 +44,46 @@ export const FlipLoader: FC<FlipLoaderProps> = ({
 			}
 		>
 			{Array.from({ length: SLICES }, (_, index) => (
+				// Bands overlap by a pixel so anti-aliasing never opens a seam. The
+				// pivot sits half the depth back so a resting face lands at z=0 and
+				// rasterises 1:1 instead of at a perspective-scaled fraction.
 				<span
 					key={index}
-					className="relative block animate-flip-card motion-reduce:animate-none [transform-style:preserve-3d]"
+					className="relative block [transform-style:preserve-3d]"
 					style={{
 						width,
-						height: sliceHeight,
-						animationDelay: `-${(SLICES - 1 - index) * SLICE_LEAD_MS}ms`,
+						height: sliceHeight + (index > 0 ? 1 : 0),
+						marginTop: index > 0 ? -1 : 0,
+						transform: `translateZ(${-depth / 2}px)`,
 					}}
 				>
 					<span
-						className={cn(face, "bg-content-primary")}
-						style={{ transform: `translateZ(${depth / 2}px)` }}
-					/>
-					<span
-						className={cn(face, "bg-surface-quaternary")}
-						style={{ transform: `rotateY(90deg) translateZ(${width / 2}px)` }}
-					/>
-					<span
-						className={cn(face, "bg-content-primary")}
-						style={{ transform: `rotateY(180deg) translateZ(${depth / 2}px)` }}
-					/>
-					<span
-						className={cn(face, "bg-surface-quaternary")}
-						style={{ transform: `rotateY(-90deg) translateZ(${width / 2}px)` }}
-					/>
+						className="absolute inset-0 animate-flip-card motion-reduce:animate-none [transform-style:preserve-3d]"
+						style={{
+							animationDelay: `-${(SLICES - 1 - index) * SLICE_LEAD_MS}ms`,
+						}}
+					>
+						<span
+							className={cn(face, "bg-content-primary")}
+							style={{ transform: `translateZ(${depth / 2}px)` }}
+						/>
+						<span
+							className={cn(face, "bg-surface-quaternary")}
+							style={{ transform: `rotateY(90deg) translateZ(${width / 2}px)` }}
+						/>
+						<span
+							className={cn(face, "bg-content-primary")}
+							style={{
+								transform: `rotateY(180deg) translateZ(${depth / 2}px)`,
+							}}
+						/>
+						<span
+							className={cn(face, "bg-surface-quaternary")}
+							style={{
+								transform: `rotateY(-90deg) translateZ(${width / 2}px)`,
+							}}
+						/>
+					</span>
 				</span>
 			))}
 		</span>
