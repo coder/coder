@@ -147,6 +147,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				onChange={filter.update}
 				categories={categories}
 				placeholder="Search and filter workspaces…"
+				// Starts at a compact width and widens to fit chips before wrapping.
+				className="w-auto min-w-lg max-w-full self-start"
 				errorMessage={
 					showValidationError ? getValidationErrorMessage(error) : undefined
 				}
