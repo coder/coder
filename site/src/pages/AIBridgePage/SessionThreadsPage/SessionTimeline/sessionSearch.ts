@@ -27,25 +27,22 @@ export const classifyThreadSearch = (
 	const normalizedQuery = normalizeQuery(query);
 	const toolCallIds = new Set<string>();
 
-	// find toolCallIds
-	if (normalizedQuery !== "") {
-		for (const action of thread.agentic_actions) {
-			for (const call of action.tool_calls) {
-				if (
-					call.tool.toLowerCase().includes(normalizedQuery) ||
-					call.input.toLowerCase().includes(normalizedQuery)
-				) {
-					toolCallIds.add(call.id);
-				}
-			}
-		}
-	}
-
 	if (normalizedQuery === "") {
 		return {
 			promptMatch: true,
 			toolCallIds,
 		};
+	}
+
+	for (const action of thread.agentic_actions) {
+		for (const call of action.tool_calls) {
+			if (
+				call.tool.toLowerCase().includes(normalizedQuery) ||
+				call.input.toLowerCase().includes(normalizedQuery)
+			) {
+				toolCallIds.add(call.id);
+			}
+		}
 	}
 
 	if (!thread.prompt) {
