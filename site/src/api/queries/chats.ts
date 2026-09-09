@@ -1056,7 +1056,7 @@ type UpdateChatPlanModeVariables = {
 
 const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
 
-const toChatPlanModePayload = (
+export const toChatPlanModePayload = (
 	planMode: TypesGen.ChatPlanMode | undefined,
 ): ChatPlanModeOrClear => {
 	// The API expects an empty string on the wire to clear plan mode.

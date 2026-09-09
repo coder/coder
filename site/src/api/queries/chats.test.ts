@@ -107,6 +107,7 @@ import {
 	shouldInvalidateChatsByWorkspace,
 	TERMINAL_RUN_STATUSES,
 	toChatListParams,
+	toChatPlanModePayload,
 	unarchiveChat,
 	unpinChat,
 	updateChatModel,
@@ -601,6 +602,16 @@ describe("invalidateChatListQueries", () => {
 		expect(readInfiniteChats(queryClient, { archived: false })?.[0]).toEqual(
 			activeChat,
 		);
+	});
+});
+
+describe("toChatPlanModePayload", () => {
+	it("sends plan to enable plan mode", () => {
+		expect(toChatPlanModePayload("plan")).toBe("plan");
+	});
+
+	it("sends an empty string to clear plan mode", () => {
+		expect(toChatPlanModePayload(undefined)).toBe("");
 	});
 });
 

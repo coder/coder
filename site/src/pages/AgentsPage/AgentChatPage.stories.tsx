@@ -35,6 +35,7 @@ import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockGroup,
 	MockOrganizationMember,
@@ -1853,6 +1854,156 @@ export const PlanModeFromChatState: Story = {
 		await waitFor(() => {
 			expect(canvas.queryByText("Planning")).not.toBeInTheDocument();
 		});
+	},
+};
+
+const proposedPlanMessages: TypesGen.ChatMessagesResponse = {
+	messages: [
+		{
+			...MockChatMessage,
+			id: 1,
+			chat_id: CHAT_ID,
+			created_at: "2026-02-18T00:00:01.000Z",
+			content: [{ type: "text", text: "Plan the auth split." }],
+		},
+		{
+			...MockChatMessage,
+			id: 2,
+			chat_id: CHAT_ID,
+			created_at: "2026-02-18T00:00:02.000Z",
+			role: "assistant",
+			content: [
+				{ type: "text", text: "Here is the plan." },
+				{
+					type: "tool-call",
+					tool_call_id: "plan-1",
+					tool_name: "propose_plan",
+					args: { path: "/home/coder/PLAN.md" },
+				},
+				{
+					type: "tool-result",
+					tool_call_id: "plan-1",
+					tool_name: "propose_plan",
+					result: {
+						file_id: "plan-file-1",
+						content: "# Plan\n\n1. Implement the auth split.",
+					},
+				},
+			],
+		},
+	] as TypesGen.ChatMessage[],
+	queued_messages: [],
+	has_more: false,
+};
+
+export const ImplementPlanClearsPlanMode: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Implement the proposed plan",
+				status: "waiting",
+				plan_mode: "plan",
+			},
+			proposedPlanMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({ queued: false, messages: [] });
+
+		const implementButton = await canvas.findByRole("button", {
+			name: "Implement plan",
+		});
+		await userEvent.click(implementButton);
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				plan_mode: "",
+				content: [{ type: "text", text: "Implement the plan." }],
+			}),
+		);
+	},
+};
+
+export const PendingPlanModeUpdateBlocksSendAndImplementPlan: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Plan mode update in flight",
+				status: "waiting",
+				plan_mode: "plan",
+			},
+			proposedPlanMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const user = userEvent.setup();
+		const planModeUpdate = createDeferred<void>();
+		spyOn(API.experimental, "updateChat").mockImplementation(
+			() => planModeUpdate.promise,
+		);
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({ queued: false, messages: [] });
+
+		expect(
+			await canvas.findByRole("button", { name: "Implement plan" }),
+		).toBeVisible();
+
+		await user.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+		const toggles = await body.findAllByRole("menuitemcheckbox", {
+			name: "Plan first",
+		});
+		const toggle = toggles.at(-1);
+		if (!toggle) {
+			throw new Error("Plan mode toggle did not render.");
+		}
+		await user.click(toggle);
+
+		try {
+			await waitFor(() => {
+				expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+			});
+			expect(
+				canvas.queryByRole("button", { name: "Implement plan" }),
+			).not.toBeInTheDocument();
+			expect(canvas.getByRole("textbox")).toHaveAttribute(
+				"aria-disabled",
+				"true",
+			);
+			expect(sendSpy).not.toHaveBeenCalled();
+
+			planModeUpdate.resolve(undefined);
+
+			await waitFor(() => {
+				expect(canvas.getByRole("textbox")).not.toHaveAttribute(
+					"aria-disabled",
+					"true",
+				);
+			});
+			expect(
+				await canvas.findByRole("button", { name: "Implement plan" }),
+			).toBeVisible();
+		} finally {
+			planModeUpdate.resolve(undefined);
+		}
 	},
 };
 
