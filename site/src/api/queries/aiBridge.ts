@@ -3,6 +3,9 @@ import { API } from "#/api/api";
 import type {
 	AIBridgeListSessionsResponse,
 	AIBridgeSessionThreadsResponse,
+	AIGatewaySpendFilter,
+	AIGatewaySpendUsersFilter,
+	AIGatewaySpendUsersResponse,
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
@@ -26,6 +29,53 @@ export const paginatedSessions = (
 			}),
 	};
 };
+
+type PaginatedAIGatewaySpendUsersPayload = Omit<
+	AIGatewaySpendUsersFilter,
+	"limit" | "offset"
+>;
+
+export const paginatedAIGatewaySpendUsers = (
+	payload: PaginatedAIGatewaySpendUsersPayload,
+): UsePaginatedQueryOptions<
+	AIGatewaySpendUsersResponse,
+	PaginatedAIGatewaySpendUsersPayload
+> => {
+	return {
+		queryPayload: () => payload,
+		queryKey: ({ payload, pageNumber }) =>
+			["aiGatewaySpendUsers", payload, pageNumber] as const,
+		queryFn: ({ payload, limit, offset }) =>
+			API.getAIGatewaySpendUsers({
+				start_date: payload.start_date,
+				end_date: payload.end_date,
+				provider_name: payload.provider_name,
+				client: payload.client,
+				model: payload.model,
+				search: payload.search || undefined,
+				sort_by: payload.sort_by,
+				sort_order: payload.sort_order,
+				limit,
+				offset,
+			}),
+		staleTime: 60_000,
+	};
+};
+
+export const aiGatewaySpendSummary = (params: AIGatewaySpendFilter) => ({
+	queryKey: ["aiGatewaySpendSummary", params] as const,
+	queryFn: () => API.getAIGatewaySpendSummary(params),
+	staleTime: 60_000,
+});
+
+export const aiGatewaySpendUserSummary = (
+	user: string,
+	params: AIGatewaySpendFilter,
+) => ({
+	queryKey: ["aiGatewaySpendUserSummary", user, params] as const,
+	queryFn: () => API.getAIGatewaySpendUserSummary(user, params),
+	staleTime: 60_000,
+});
 
 export const infiniteSessionThreads = (sessionId: string) => {
 	return {
