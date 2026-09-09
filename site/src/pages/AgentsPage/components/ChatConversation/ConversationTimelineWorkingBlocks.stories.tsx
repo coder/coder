@@ -2,96 +2,28 @@ import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { useQueryClient } from "react-query";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { API } from "#/api/api";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { ConversationTimeline } from "./ConversationTimeline";
-import { parseMessagesWithMergedTools } from "./messageParsing";
+import {
+	getPendingToolCallIDs,
+	parseMessagesWithMergedTools,
+} from "./messageParsing";
+import {
+	buildWorkingConversation,
+	WORKING_FIXTURE_START,
+	workingFixtureTime,
+} from "./storyFixtures";
 import { buildStreamTools } from "./streamState";
 import type { StreamState } from "./types";
 
-const start = Date.parse("2026-04-01T12:00:00Z");
-const time = (seconds: number) =>
-	new Date(start + seconds * 1000).toISOString();
-const MockWorkingMessages: ChatMessage[] = [
-	{
-		...MockChatMessage,
-		id: 1,
-		created_at: time(0),
-		content: [{ type: "text", text: "Inspect the workspace" }],
-	},
-	{
-		...MockChatMessage,
-		id: 2,
-		role: "assistant",
-		created_at: time(1),
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: "first",
-				tool_name: "execute",
-				args: { command: "echo first" },
-				created_at: time(1),
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 3,
-		role: "tool",
-		created_at: time(4),
-		content: [
-			{
-				type: "tool-result",
-				tool_call_id: "first",
-				tool_name: "execute",
-				result: { output: "First output", exit_code: "0" },
-				created_at: time(4),
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 4,
-		role: "assistant",
-		created_at: time(5),
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: "second",
-				tool_name: "execute",
-				args: { command: "echo second" },
-				created_at: time(5),
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 5,
-		role: "tool",
-		created_at: time(13),
-		content: [
-			{
-				type: "tool-result",
-				tool_call_id: "second",
-				tool_name: "execute",
-				result: { output: "Second output", exit_code: "0" },
-				created_at: time(13),
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 6,
-		role: "assistant",
-		created_at: time(14),
-		content: [{ type: "text", text: "Workspace inspection complete." }],
-	},
-];
+const start = WORKING_FIXTURE_START;
+const time = workingFixtureTime;
+const MockWorkingMessages = buildWorkingConversation();
 
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/ChatConversation/ConversationTimeline/WorkingBlocks",
@@ -232,6 +164,7 @@ export const StreamingToDurable: Story = {
 export const RunningBetweenSteps: Story = {
 	render: function Render(args) {
 		const [status, setStatus] = useState<"running" | "waiting">("running");
+		const messages = MockWorkingMessages.slice(0, 4);
 		return (
 			<>
 				<Button
@@ -242,10 +175,9 @@ export const RunningBetweenSteps: Story = {
 				</Button>
 				<ConversationTimeline
 					{...args}
-					parsedMessages={parseMessagesWithMergedTools(
-						MockWorkingMessages.slice(0, 4),
-						{ pendingToolCallIDs: new Set(["second"]) },
-					)}
+					parsedMessages={parseMessagesWithMergedTools(messages, {
+						pendingToolCallIDs: getPendingToolCallIDs(messages, status),
+					})}
 					chatStatus={status}
 					liveStatus={{ phase: "idle", hasAccumulatedOutput: false }}
 				/>
@@ -309,40 +241,46 @@ export const RequiresActionCompletesBlock: Story = {
 	},
 };
 
-// On a cold load the saved preference decides the first paint: rows never
-// render ungrouped and then fold.
-export const ColdLoadUsesSavedPreference: Story = {
-	parameters: { queries: [] },
-	beforeEach: () => {
-		spyOn(API, "getUserPreferenceSettings").mockImplementation(
-			() =>
-				new Promise((resolve) => {
-					setTimeout(
-						() =>
-							resolve({
-								...MockUserPreferenceSettings,
-								shell_tool_display_mode: "always_collapsed",
-								collapse_assistant_steps: true,
-							}),
-						300,
-					);
-				}),
-		);
+const MockParkedToolMessage: ChatMessage = {
+	...MockChatMessage,
+	id: 4,
+	role: "assistant",
+	created_at: time(5),
+	content: [
+		{
+			type: "tool-call",
+			tool_call_id: "editor",
+			tool_name: "open_editor",
+			args: { path: "README.md" },
+			created_at: time(5),
+		},
+	],
+};
+
+// A client-executed tool parks the chat in requires_action with its call
+// still running. It waits on that client, so it stays outside the fold.
+export const RequiresActionKeepsPendingToolVisible: Story = {
+	args: {
+		chatStatus: "requires_action",
+		parsedMessages: parseMessagesWithMergedTools(
+			[...MockWorkingMessages.slice(0, 3), MockParkedToolMessage],
+			{ pendingToolCallIDs: new Set(["editor"]) },
+		),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByTestId("chat-message-message:2")).toBeNull();
-		expect(canvas.queryByText("Inspect the workspace")).toBeNull();
-		await waitFor(
-			() => {
-				expect(
-					canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
-				).toBeVisible();
-			},
-			{ timeout: 3000 },
-		);
-		expect(canvas.queryByTestId("chat-message-message:2")).toBeNull();
-		expect(canvas.getByText("Inspect the workspace")).toBeVisible();
+		expect(
+			canvas.getByRole("button", { name: "Worked for 3s (1 step)" }),
+		).toBeVisible();
+		expect(canvas.queryByRole("button", { name: /Completed/ })).toBeNull();
+		const parkedRow = canvas.getByTestId("chat-message-message:4");
+		expect(parkedRow).toBeVisible();
+		expect(within(parkedRow).getByText("open_editor")).toBeVisible();
+		expect(
+			within(canvas.getByTestId("working-block")).queryByTestId(
+				"chat-message-message:4",
+			),
+		).toBeNull();
 	},
 };
 

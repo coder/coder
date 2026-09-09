@@ -497,9 +497,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			workingBlocks.flatMap((block) => block.rowIndices),
 		);
 
-		// Wait for the preference before the first paint so a saved "collapse"
-		// setting never renders rows ungrouped and then folds them.
-		if (renderRows.length === 0 || preferences.isPending) {
+		if (renderRows.length === 0) {
 			return null;
 		}
 
