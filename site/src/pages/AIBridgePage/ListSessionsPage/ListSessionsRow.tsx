@@ -60,7 +60,6 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 						<Avatar
 							fallback={session.initiator.username}
 							src={session.initiator.avatar_url}
-							size="lg"
 							className="shrink-0"
 						/>
 						<div className="font-normal truncate min-w-0 flex-1 overflow-hidden">
