@@ -135,6 +135,14 @@ const isStepRow = (
 	if (visibleTools.some((tool) => UNCOLLAPSIBLE_TOOLS.has(tool.name))) {
 		return undefined;
 	}
+	// A tool still running while the turn is parked (requires_action) is
+	// waiting on a client, so it stays visible like a question.
+	if (
+		!options.isTurnActive &&
+		visibleTools.some((tool) => tool.status === "running")
+	) {
+		return undefined;
+	}
 	const last = visibleBlocks[visibleBlocks.length - 1];
 	if (last.type !== "tool" && last.type !== "thinking") {
 		return undefined;

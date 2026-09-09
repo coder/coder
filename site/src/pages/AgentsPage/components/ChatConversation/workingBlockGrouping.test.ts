@@ -492,6 +492,29 @@ describe("groupWorkingBlocks", () => {
 			});
 		});
 
+		it("keeps a tool awaiting a client out of the fold while the turn is parked", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const parked = message(
+				"assistant",
+				[call("b", at(3), "open_editor")],
+				at(3),
+			);
+			const entries = parseMessagesWithMergedTools([prompt, ...steps, parked], {
+				pendingToolCallIDs: new Set(["b"]),
+			});
+			const rows = assignTimelineRows(buildDisplayMessages(entries), false);
+			const blocks = groupWorkingBlocks(rows, entries, defaultOptions);
+
+			expect(blocks).toHaveLength(1);
+			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id]);
+			expect(blocks[0]).toMatchObject({
+				isLive: false,
+				stepCount: 1,
+				endedAt: base + 2000,
+			});
+		});
+
 		it("gives a prompt-less live block a stable head liveKey", () => {
 			const steps = [...step("a", 1, 2), ...step("b", 3, 4)];
 			const live = liveStream([call("c", at(5))]);
