@@ -1941,6 +1941,118 @@ func TestCurrentChatGoalOrdersBySerializedGoalOrder(t *testing.T) {
 	require.Equal(t, second.ID, current.ID)
 }
 
+func TestInterruptChatPausesActiveGoal(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	goal, err := f.db.InsertActiveChatGoal(dbauthz.AsSystemRestricted(ctx), database.InsertActiveChatGoalParams{
+		RootChatID:      chat.ID,
+		Objective:       "finish the work",
+		CreatedByUserID: f.user.ID,
+	})
+	require.NoError(t, err)
+
+	pubsub := newRecordingPubsub(f.pubsub)
+	server := &Server{
+		db:          f.db,
+		pubsub:      pubsub,
+		logger:      testutil.Logger(t),
+		clock:       quartz.NewReal(),
+		experiments: codersdk.Experiments{codersdk.ExperimentChatGoals},
+	}
+	updated, err := server.InterruptChat(dbauthz.AsSystemRestricted(ctx), chat)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusInterrupting, updated.Status)
+
+	paused, err := currentChatGoal(dbauthz.AsSystemRestricted(ctx), f.db, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, paused)
+	require.Equal(t, goal.ID, paused.ID)
+	require.Equal(t, database.ChatGoalStatusPaused, paused.Status)
+
+	var sawGoalChange bool
+	for _, event := range pubsub.watchEvents(t) {
+		if event.Chat.ID == chat.ID && event.Kind == codersdk.ChatWatchEventKindGoalChange {
+			sawGoalChange = true
+			// Goal events carry no goal payload; consumers refetch.
+			require.Nil(t, event.Chat.Goal)
+		}
+	}
+	require.True(t, sawGoalChange)
+}
+
+func TestInterruptChatLeavesGoalUntouched(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		experiments codersdk.Experiments
+		pauseFirst  bool
+		wantStatus  database.ChatGoalStatus
+	}{
+		{
+			name:        "ExperimentDisabled",
+			experiments: codersdk.Experiments{},
+			wantStatus:  database.ChatGoalStatusActive,
+		},
+		{
+			name:        "GoalAlreadyPaused",
+			experiments: codersdk.Experiments{codersdk.ExperimentChatGoals},
+			pauseFirst:  true,
+			wantStatus:  database.ChatGoalStatusPaused,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			goal, err := f.db.InsertActiveChatGoal(dbauthz.AsSystemRestricted(ctx), database.InsertActiveChatGoalParams{
+				RootChatID:      chat.ID,
+				Objective:       "finish the work",
+				CreatedByUserID: f.user.ID,
+			})
+			require.NoError(t, err)
+			if tc.pauseFirst {
+				_, err := f.db.PauseChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.PauseChatGoalByIDParams{
+					RootChatID: chat.ID,
+					ID:         goal.ID,
+				})
+				require.NoError(t, err)
+			}
+
+			pubsub := newRecordingPubsub(f.pubsub)
+			server := &Server{
+				db:          f.db,
+				pubsub:      pubsub,
+				logger:      testutil.Logger(t),
+				clock:       quartz.NewReal(),
+				experiments: tc.experiments,
+			}
+			_, err = server.InterruptChat(dbauthz.AsSystemRestricted(ctx), chat)
+			require.NoError(t, err)
+
+			latest, err := currentChatGoal(dbauthz.AsSystemRestricted(ctx), f.db, chat.ID)
+			require.NoError(t, err)
+			require.NotNil(t, latest)
+			require.Equal(t, goal.ID, latest.ID)
+			require.Equal(t, tc.wantStatus, latest.Status)
+
+			for _, event := range pubsub.watchEvents(t) {
+				if event.Chat.ID == chat.ID {
+					require.NotEqual(t, codersdk.ChatWatchEventKindGoalChange, event.Kind)
+				}
+			}
+		})
+	}
+}
+
 func TestApplyGoalMutationResumeStartsTurn(t *testing.T) {
 	t.Parallel()
 

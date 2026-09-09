@@ -1146,3 +1146,175 @@ func TestSendMessageGoalOnErroredChatDispatchesHook(t *testing.T) {
 	require.Equal(t, agenthooks.EventUserPromptSubmit, received.Type)
 	require.Equal(t, "recovery objective", decodeHookData[agenthooks.UserPromptSubmitData](t, received).GoalObjective)
 }
+
+// The source message anchors the current goal's objective; editing it
+// would start a turn from new text while the goal pursues the old
+// objective, so the edit is refused until the goal can no longer run.
+func TestEditMessageGoalSourceRejected(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "goal source edit",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("objective text")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "objective text",
+		},
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	goals, err := db.GetCurrentChatGoalsByRootChatIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{chat.ID})
+	require.NoError(t, err)
+	require.Len(t, goals, 1)
+	goal := goals[0]
+	require.True(t, goal.CreatedFromMessageID.Valid)
+	sourceID := goal.CreatedFromMessageID.Int64
+
+	edit := func(messageID int64) (chatd.EditMessageResult, error) {
+		return server.EditMessage(ctx, chatd.EditMessageOptions{
+			ChatID:          chat.ID,
+			CreatedBy:       user.ID,
+			EditedMessageID: messageID,
+			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("rewritten")},
+		})
+	}
+	_, err = edit(sourceID)
+	require.ErrorIs(t, err, chatd.ErrChatGoalSourceMessageEdit)
+
+	_, err = db.PauseChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.PauseChatGoalByIDParams{
+		RootChatID: chat.ID,
+		ID:         goal.ID,
+	})
+	require.NoError(t, err)
+	_, err = edit(sourceID)
+	require.ErrorIs(t, err, chatd.ErrChatGoalSourceMessageEdit,
+		"a paused goal can resume, so its source stays locked")
+
+	_, err = db.ResumeChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.ResumeChatGoalByIDParams{
+		RootChatID: chat.ID,
+		ID:         goal.ID,
+	})
+	require.NoError(t, err)
+	_, err = db.CompleteChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.CompleteChatGoalByIDParams{
+		RootChatID:       chat.ID,
+		ID:               goal.ID,
+		CompletedByAgent: true,
+	})
+	require.NoError(t, err)
+	replaced, err := edit(sourceID)
+	require.NoError(t, err, "a completed goal no longer locks its source message")
+
+	// A goal anchored to a later message locks every earlier message
+	// too: the edit's suffix deletion would truncate the source away.
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	sendResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("second objective")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "second objective",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sendResult.Goal)
+	require.Less(t, replaced.Message.ID, sendResult.Message.ID)
+	_, err = edit(replaced.Message.ID)
+	require.ErrorIs(t, err, chatd.ErrChatGoalSourceMessageEdit,
+		"editing a message older than the goal source would delete the source")
+}
+
+// Message IDs are allocated globally, so a child chat's rows can be
+// older than the root goal's source message. Editing child history
+// cannot delete the source row and must not trip the guard.
+func TestEditMessageChildChatIgnoresGoalSourceGuard(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "root without goal",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("root start")},
+	})
+	require.NoError(t, err)
+
+	childContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("child question"),
+	})
+	require.NoError(t, err)
+	createdChild, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ParentChatID:      uuid.NullUUID{UUID: chat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: chat.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "child before goal",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        childContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	childMessageID := createdChild.InitialMessages[len(createdChild.InitialMessages)-1].ID
+
+	// Set the root goal after the child message exists so the goal
+	// source ID exceeds the child message ID.
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	sendResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("objective text")},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "objective text",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sendResult.Goal)
+	require.Greater(t, sendResult.Message.ID, childMessageID)
+
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     createdChild.Chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          createdChild.Chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: childMessageID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("rewritten child question")},
+	})
+	require.NoError(t, err, "editing child history cannot delete the root goal source")
+}
