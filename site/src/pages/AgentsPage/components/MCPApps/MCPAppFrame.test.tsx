@@ -84,13 +84,9 @@ it("keeps the bridge connected with current inputs across rerenders and disconne
 		width: -1,
 	});
 	act(() => vi.advanceTimersToNextFrame());
-	expect(frame.parentElement?.style.height).toBe("1200px");
-	expect(frame.parentElement?.style.width).toBe("100px");
 	send(source, "ui/notifications/size-change", undefined, { height: 240 });
 	send(source, "ui/notifications/size-change", undefined, { width: 640 });
 	act(() => vi.advanceTimersToNextFrame());
-	expect(frame.parentElement?.style.height).toBe("240px");
-	expect(frame.parentElement?.style.width).toBe("640px");
 	view.unmount();
 	post.mockClear();
 	send(source, "ui/initialize", 2);

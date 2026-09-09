@@ -22,7 +22,11 @@ const meta = {
 	],
 	parameters: { experiments: ["chat-mcp-apps"] },
 	args: {
-		src: "about:blank",
+		src:
+			"data:text/html," +
+			encodeURIComponent(
+				'<!doctype html><html lang="en"><meta charset="utf-8"><title>Sales chart</title><style>html,body{margin:0;height:100%;box-sizing:border-box}body{padding:24px;background:#10243b;color:#fff;font:16px system-ui;border:4px solid #63b3ff}h1{margin:0 0 24px;font-size:20px}.bar{height:36px;margin:12px 0;padding:8px;box-sizing:border-box;background:#63b3ff;color:#10243b}</style><h1>Sales chart</h1><div class="bar" style="width:40%">10</div><div class="bar" style="width:80%">20</div></html>',
+			),
 		title: "Sales chart",
 		args: { metric: "sales" },
 		result: MockChatMCPApp.result,
@@ -83,6 +87,18 @@ export const Resized: Story = {
 };
 export const Panel: Story = {
 	args: { displayMode: "fullscreen" },
+	play: initialize,
+};
+export const InactivePanel: Story = {
+	args: { displayMode: "fullscreen" },
+	render: (args) => (
+		<div style={{ height: "100%" }}>
+			<p>Another tab is active</p>
+			<div style={{ visibility: "hidden", height: "100%" }}>
+				<MCPAppFrame {...args} />
+			</div>
+		</div>
+	),
 	play: initialize,
 };
 export const InitializationError: Story = {

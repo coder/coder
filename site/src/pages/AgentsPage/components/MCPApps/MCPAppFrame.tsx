@@ -118,7 +118,7 @@ export const MCPAppFrame = ({
 				sandbox="allow-scripts"
 				referrerPolicy="no-referrer"
 				className="h-full w-full border-0"
-				style={{ visibility: status === "ready" ? "visible" : "hidden" }}
+				style={{ visibility: status === "ready" ? undefined : "hidden" }}
 			/>
 		</div>
 	);
