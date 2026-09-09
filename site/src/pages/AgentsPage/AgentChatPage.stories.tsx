@@ -1548,9 +1548,10 @@ export const NoLocalModelDisablesGeneration: Story = {
 				name: "The model used by this chat is not available. Generation is disabled because no usable model is available.",
 			}),
 		).toBeVisible();
-		expect(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-		).toHaveAttribute("aria-disabled", "true");
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.keyboard("Draft with no usable model");
+		expect(input).not.toHaveAttribute("aria-disabled", "true");
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 		expect(sendSpy).not.toHaveBeenCalled();
 	},
@@ -1777,6 +1778,9 @@ export const ArchivedOtherUserChat: Story = {
 		).toBeVisible();
 		expect(
 			canvas.queryByText(/^This chat is owned by/),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("textbox", { name: "Chat message" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -4124,9 +4128,11 @@ export const ModelEndpointFailureKeepsHistoryReadable: Story = {
 		expect(await canvas.findByText("Readable history line")).toBeVisible();
 		expect(await canvas.findByText("Internal server error.")).toBeVisible();
 		expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
-		expect(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-		).toHaveAttribute("aria-disabled", "true");
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.keyboard("Draft after model failure");
+		expect(input).not.toHaveAttribute("aria-disabled", "true");
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
 

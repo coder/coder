@@ -964,55 +964,58 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									) : undefined
 								}
 							/>
-							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-								<ChatPageInput
-									chat={chat}
-									store={store}
-									models={models}
-									onSend={editing.handleSendFromInput}
-									onDeleteQueuedMessage={handleDeleteQueuedMessage}
-									onPromoteQueuedMessage={handlePromoteQueuedMessage}
-									onInterrupt={handleInterrupt}
-									isInputDisabled={isInputDisabled}
-									isSendPending={isSubmissionPending}
-									isInterruptPending={isInterruptPending}
-									hasModelOptions={hasModelOptions}
-									canConfigureAgentSetup={canConfigureAgentSetup}
-									providerCount={providerCount}
-									modelCount={modelCount}
-									unsupportedProviderNames={unsupportedProviderNames}
-									aiGatewayDisabled={aiGatewayDisabled}
-									selectedModel={effectiveSelectedModel}
-									onModelChange={setSelectedModel}
-									modelOptions={modelOptions}
-									modelSelectorPlaceholder={modelSelectorPlaceholder}
-									modelSelectorHelp={modelSelectorHelp}
-									reasoningEffort={reasoningEffort}
-									onReasoningEffortChange={onReasoningEffortChange}
-									onPlanModeToggle={onPlanModeToggle}
-									isModelCatalogLoading={isModelCatalogLoading}
-									workspaceOptions={workspaceOptions}
-									onWorkspaceChange={onWorkspaceChange}
-									isWorkspaceLoading={isWorkspaceLoading}
-									inputRef={editing.chatInputRef}
-									initialValue={editing.editorInitialValue}
-									initialEditorState={editing.initialEditorState}
-									remountKey={editing.remountKey}
-									onContentChange={editing.handleContentChange}
-									isEditing={isEditing}
-									onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-									editingFileBlocks={editing.editingFileBlocks}
-									mcpServers={mcpServers}
-									selectedMCPServerIds={selectedMCPServerIds}
-									onMCPSelectionChange={onMCPSelectionChange}
-									onMCPAuthComplete={onMCPAuthComplete}
-									workspace={workspace}
-									workspaceAgent={workspaceAgent}
-									sshCommand={sshCommand}
-									attachedWorkspace={attachedWorkspace}
-									folder={preferredFolder}
-								/>
-							</div>
+							{!isArchived && (
+								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+									<ChatPageInput
+										chat={chat}
+										store={store}
+										models={models}
+										onSend={editing.handleSendFromInput}
+										onDeleteQueuedMessage={handleDeleteQueuedMessage}
+										onPromoteQueuedMessage={handlePromoteQueuedMessage}
+										onInterrupt={handleInterrupt}
+										isInputDisabled={isInputDisabled}
+										isReadOnly={isOtherUserReadOnly}
+										isSendPending={isSubmissionPending}
+										isInterruptPending={isInterruptPending}
+										hasModelOptions={hasModelOptions}
+										canConfigureAgentSetup={canConfigureAgentSetup}
+										providerCount={providerCount}
+										modelCount={modelCount}
+										unsupportedProviderNames={unsupportedProviderNames}
+										aiGatewayDisabled={aiGatewayDisabled}
+										selectedModel={effectiveSelectedModel}
+										onModelChange={setSelectedModel}
+										modelOptions={modelOptions}
+										modelSelectorPlaceholder={modelSelectorPlaceholder}
+										modelSelectorHelp={modelSelectorHelp}
+										reasoningEffort={reasoningEffort}
+										onReasoningEffortChange={onReasoningEffortChange}
+										onPlanModeToggle={onPlanModeToggle}
+										isModelCatalogLoading={isModelCatalogLoading}
+										workspaceOptions={workspaceOptions}
+										onWorkspaceChange={onWorkspaceChange}
+										isWorkspaceLoading={isWorkspaceLoading}
+										inputRef={editing.chatInputRef}
+										initialValue={editing.editorInitialValue}
+										initialEditorState={editing.initialEditorState}
+										remountKey={editing.remountKey}
+										onContentChange={editing.handleContentChange}
+										isEditing={isEditing}
+										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+										editingFileBlocks={editing.editingFileBlocks}
+										mcpServers={mcpServers}
+										selectedMCPServerIds={selectedMCPServerIds}
+										onMCPSelectionChange={onMCPSelectionChange}
+										onMCPAuthComplete={onMCPAuthComplete}
+										workspace={workspace}
+										workspaceAgent={workspaceAgent}
+										sshCommand={sshCommand}
+										attachedWorkspace={attachedWorkspace}
+										folder={preferredFolder}
+									/>
+								</div>
+							)}
 						</div>
 						<RightPanel
 							isOpen={shouldShowSidebar}

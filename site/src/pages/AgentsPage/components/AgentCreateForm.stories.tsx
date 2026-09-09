@@ -1006,6 +1006,22 @@ export const LoadingModelCatalog: Story = {
 	args: {
 		...defaultArgs,
 	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModels").mockReturnValue(
+			new Promise(() => undefined),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.keyboard("Draft while models load");
+		expect(input).not.toHaveAttribute("aria-disabled", "true");
+		await expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		await waitFor(() => {
+			expect(input).toHaveTextContent("Draft while models load");
+		});
+	},
 };
 
 export const CachedModelsWithRefetchError: Story = {
@@ -1059,10 +1075,14 @@ export const LoadingPersonalModelOverrides: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.keyboard("Draft while overrides load");
+		expect(input).not.toHaveAttribute("aria-disabled", "true");
+		await expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		await waitFor(() => {
+			expect(input).toHaveTextContent("Draft while overrides load");
+		});
 	},
 };
 
@@ -1094,10 +1114,14 @@ export const FailedPersonalModelOverridesBlocksSend: Story = {
 		// pass a catalog fallback as an explicit model, silently bypassing the
 		// user's saved root override.
 		await canvas.findAllByText(/failed to load personal overrides/i);
-		await expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.keyboard("Draft after override failure");
+		expect(input).not.toHaveAttribute("aria-disabled", "true");
+		await expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		await waitFor(() => {
+			expect(input).toHaveTextContent("Draft after override failure");
+		});
 	},
 };
 
@@ -1267,10 +1291,14 @@ export const AIGatewayDisabled: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.keyboard("Draft while gateway is disabled");
+		expect(input).not.toHaveAttribute("aria-disabled", "true");
+		await expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		await waitFor(() => {
+			expect(input).toHaveTextContent("Draft while gateway is disabled");
+		});
 	},
 };
 
@@ -2186,9 +2214,10 @@ export const ForeignOnlyModelsDisableGeneration: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
-		expect(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-		).toHaveAttribute("aria-disabled", "true");
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.keyboard("Draft with no usable model");
+		expect(input).not.toHaveAttribute("aria-disabled", "true");
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 		expect(args.onCreateChat).not.toHaveBeenCalled();
 	},
@@ -2444,9 +2473,13 @@ export const MCPServersLoadingDisablesSend: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const input = canvas.getByRole("textbox");
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
 		await userEvent.click(input);
 		await userEvent.keyboard("send while MCP servers load");
+		expect(input).not.toHaveAttribute("aria-disabled", "true");
+		await waitFor(() => {
+			expect(input).toHaveTextContent("send while MCP servers load");
+		});
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };

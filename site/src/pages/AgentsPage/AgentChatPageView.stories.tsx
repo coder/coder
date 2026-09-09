@@ -292,11 +292,23 @@ export const CachedModelsWithRefetchError: Story = {
 	},
 };
 
-/** Archived agent displays the read-only banner below the top bar. */
+/** Archived agent hides the composer and shows the read-only banner. */
 export const Archived: Story = {
 	render: () => (
 		<StoryAgentChatPageView chat={{ archived: true }} isInputDisabled />
 	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("This agent has been archived and is read-only."),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("textbox", { name: "Chat message" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Send" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 export const OtherUserChatReadOnly: Story = {
@@ -395,6 +407,9 @@ export const ArchivedOtherUserChat: Story = {
 		expect(
 			canvas.getByText("This agent has been archived and is read-only."),
 		).toBeVisible();
+		expect(
+			canvas.queryByRole("textbox", { name: "Chat message" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -582,7 +597,7 @@ export const WithError: Story = {
 	},
 };
 
-/** Input area appears disabled when `isInputDisabled` is true. */
+/** Send is blocked while input stays editable for drafts. */
 export const InputDisabled: Story = {
 	render: () => <StoryAgentChatPageView isInputDisabled />,
 };
@@ -989,6 +1004,17 @@ export const Loading: Story = {
 			showRightPanel={false}
 		/>
 	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.keyboard("Draft while the chat loads");
+		expect(input).not.toHaveAttribute("aria-disabled", "true");
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		await waitFor(() => {
+			expect(input).toHaveTextContent("Draft while the chat loads");
+		});
+	},
 };
 
 /** Loading state with the model selector populated. */
@@ -2282,6 +2308,9 @@ export const ArchivedWithSharing: Story = {
 		expect(
 			canvas.getByText("This agent has been archived and is read-only."),
 		).toBeVisible();
+		expect(
+			canvas.queryByRole("textbox", { name: "Chat message" }),
+		).not.toBeInTheDocument();
 
 		await userEvent.click(canvas.getByLabelText("Share chat"));
 		const body = within(document.body);

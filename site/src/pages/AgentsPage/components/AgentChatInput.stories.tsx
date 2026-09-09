@@ -167,6 +167,7 @@ export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 export const PromptHistorySuppressedWhileDisabled: Story = {
 	args: {
 		isDisabled: true,
+		isReadOnly: true,
 		userPromptHistory: promptHistory,
 	},
 	play: async ({ canvasElement }) => {
@@ -331,6 +332,7 @@ export const MobileEnterInsertsNewline: Story = {
 export const DisabledInput: Story = {
 	args: {
 		isDisabled: true,
+		isReadOnly: true,
 		initialValue: "Should not send",
 	},
 	play: async ({ canvasElement }) => {
@@ -343,6 +345,26 @@ export const DisabledInput: Story = {
 		await waitFor(() => {
 			expect(editor).toHaveAttribute("contenteditable", "false");
 		});
+	},
+};
+
+export const DisabledSendAllowsTyping: Story = {
+	args: {
+		isDisabled: true,
+		initialValue: "",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const editor = getEditor(canvasElement);
+		await userEvent.click(editor);
+		await userEvent.keyboard("Draft while models load");
+		await expectEditorText(editor, "Draft while models load");
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		expect(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+		).not.toHaveAttribute("aria-disabled", "true");
+		await userEvent.keyboard("{Enter}");
+		expect(args.onSend).not.toHaveBeenCalled();
 	},
 };
 

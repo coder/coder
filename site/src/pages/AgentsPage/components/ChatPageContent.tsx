@@ -255,6 +255,7 @@ interface ChatPageInputProps {
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
+	isReadOnly?: boolean;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -312,6 +313,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onPromoteQueuedMessage,
 	onInterrupt,
 	isInputDisabled,
+	isReadOnly = false,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -569,6 +571,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onCancelHistoryEdit={onCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
+			isReadOnly={isReadOnly}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
