@@ -454,6 +454,7 @@ func (i *interceptionBase) withBedrockInvokeModelBYOKOptions(token string) ([]op
 
 	var out []option.RequestOption
 	out = append(out, option.WithBaseURL(baseURL))
+	//nolint:bodyclose // The middleware returns the upstream response for the SDK to close.
 	out = append(out, option.WithMiddleware(bedrockInvokeModelBearerMiddleware(token)))
 	return out, nil
 }
@@ -471,6 +472,7 @@ func (i *interceptionBase) withBedrockMantleBYOKOptions(token string) ([]option.
 
 	var out []option.RequestOption
 	out = append(out, option.WithBaseURL(cfg.BaseURL))
+	//nolint:bodyclose // The middleware returns the upstream response for the SDK to close.
 	out = append(out, option.WithMiddleware(bedrockMantleBearerMiddleware(token)))
 	return out, nil
 }

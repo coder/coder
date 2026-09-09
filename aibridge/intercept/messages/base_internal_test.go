@@ -1362,7 +1362,7 @@ func captureNext(t *testing.T, out **http.Request, body *[]byte) option.Middlewa
 func TestBedrockInvokeModelBearerMiddleware(t *testing.T) {
 	t.Parallel()
 
-	const token = "bedrock-api-key-abc123"
+	const token = "bedrock-api-key-abc123" //nolint:gosec // G101: test-only fake credential.
 
 	tests := []struct {
 		name       string
@@ -1390,6 +1390,7 @@ func TestBedrockInvokeModelBearerMiddleware(t *testing.T) {
 
 			var captured *http.Request
 			var capturedBody []byte
+			//nolint:bodyclose // captureNext returns a synthetic no-op response body.
 			_, err = bedrockInvokeModelBearerMiddleware(token)(req, captureNext(t, &captured, &capturedBody))
 			require.NoError(t, err)
 			require.NotNil(t, captured)
@@ -1422,7 +1423,7 @@ func TestBedrockInvokeModelBearerMiddleware(t *testing.T) {
 func TestBedrockMantleBearerMiddleware(t *testing.T) {
 	t.Parallel()
 
-	const token = "bedrock-api-key-mantle"
+	const token = "bedrock-api-key-mantle" //nolint:gosec // G101: test-only fake credential.
 	body := []byte(`{"model":"anthropic.claude-x","max_tokens":1}`)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
@@ -1432,6 +1433,7 @@ func TestBedrockMantleBearerMiddleware(t *testing.T) {
 
 	var captured *http.Request
 	var capturedBody []byte
+	//nolint:bodyclose // captureNext returns a synthetic no-op response body.
 	_, err = bedrockMantleBearerMiddleware(token)(req, captureNext(t, &captured, &capturedBody))
 	require.NoError(t, err)
 	require.NotNil(t, captured)
