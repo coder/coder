@@ -46,7 +46,7 @@ interface PersonalModelOverrideRowProps {
 	disabled: boolean;
 }
 
-const PERSONAL_OVERRIDE_COPY: Record<
+export const PERSONAL_OVERRIDE_COPY: Record<
 	PersonalOverrideContext,
 	{ title: string; description: string }
 > = {

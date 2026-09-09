@@ -8,30 +8,40 @@ import {
 	updateUserChatPersonalModelOverride,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
-import type * as TypesGen from "#/api/typesGenerated";
+import type {
+	ChatPersonalModelOverrideContext,
+	Organization,
+} from "#/api/typesGenerated";
+import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
+import { PERSONAL_OVERRIDE_COPY } from "./components/PersonalModelOverrideRow";
 import { resolveModelSelector } from "./utils/modelOptions";
 
 const organizationSearchParam = "org";
 
-const overrideSaveToast = {
-	root: {
-		success: "Root agent model saved.",
-		error: "Failed to save root agent model.",
-	},
-	general: {
-		success: "General subagent model saved.",
-		error: "Failed to save general subagent model.",
-	},
-	explore: {
-		success: "Explore subagent model saved.",
-		error: "Failed to save Explore subagent model.",
-	},
-} as const satisfies Record<
-	TypesGen.ChatPersonalModelOverrideContext,
-	{ success: string; error: string }
->;
+const overrideSaveToast = (
+	organizations: readonly Organization[],
+	organizationId: string,
+	context: ChatPersonalModelOverrideContext,
+): { success: string; error: string } => {
+	const label = PERSONAL_OVERRIDE_COPY[context].title;
+	const organization =
+		organizations.length > 1
+			? organizations.find((org) => org.id === organizationId)
+			: undefined;
+	if (!organization) {
+		return {
+			success: `${label} saved successfully.`,
+			error: `Failed to save ${label}.`,
+		};
+	}
+	const organizationLabel = getOrganizationLabel(organization, organizations);
+	return {
+		success: `${label} for "${organizationLabel}" saved successfully.`,
+		error: `Failed to save ${label} for "${organizationLabel}".`,
+	};
+};
 
 const AgentSettingsUserAgentsPage: FC = () => {
 	const { organizations } = useDashboard();
@@ -56,11 +66,24 @@ const AgentSettingsUserAgentsPage: FC = () => {
 		...saveOverrideOptions,
 		onSuccess: async (data, variables) => {
 			await saveOverrideOptions.onSuccess?.(data, variables);
-			toast.success(overrideSaveToast[variables.context].success);
+			toast.success(
+				overrideSaveToast(
+					organizations,
+					variables.organizationId,
+					variables.context,
+				).success,
+			);
 		},
 		onError: (error, variables) => {
 			toast.error(
-				getErrorMessage(error, overrideSaveToast[variables.context].error),
+				getErrorMessage(
+					error,
+					overrideSaveToast(
+						organizations,
+						variables.organizationId,
+						variables.context,
+					).error,
+				),
 				{
 					description: getErrorDetail(error),
 				},
