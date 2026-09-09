@@ -66,7 +66,11 @@ export function connectMCPApp({
 				const size: { height?: number; width?: number } = {};
 				for (const dimension of ["height", "width"] as const) {
 					const value = params?.[dimension];
-					if (typeof value === "number" && Number.isFinite(value)) {
+					if (
+						typeof value === "number" &&
+						Number.isFinite(value) &&
+						value > 0
+					) {
 						size[dimension] = Math.min(1200, Math.max(100, value));
 					}
 				}

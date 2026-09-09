@@ -210,12 +210,13 @@ it("opens only absolute HTTP(S) links without opener or referrer access", () => 
 	bridge.disconnect();
 });
 
-it("clamps finite sizes and does not change the display mode", () => {
+it("clamps positive finite sizes and does not change the display mode", () => {
 	const bridge = setup();
 	bridge.send("ui/initialize", {}, 1);
 	bridge.send("ui/notifications/initialized");
 	for (const height of [
 		-1,
+		0,
 		480,
 		999999,
 		Number.NaN,
@@ -224,7 +225,6 @@ it("clamps finite sizes and does not change the display mode", () => {
 	])
 		bridge.send("ui/notifications/size-change", { height });
 	expect(bridge.onSizeChange.mock.calls).toEqual([
-		[{ height: 100 }],
 		[{ height: 480 }],
 		[{ height: 1200 }],
 	]);
@@ -239,7 +239,6 @@ it("clamps finite sizes and does not change the display mode", () => {
 	])
 		bridge.send("ui/notifications/size-change", { width });
 	expect(bridge.onSizeChange.mock.calls).toEqual([
-		[{ width: 100 }],
 		[{ width: 640 }],
 		[{ width: 1200 }],
 	]);
