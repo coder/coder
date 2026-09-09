@@ -119,11 +119,14 @@ const useKeepReadingPositionAcrossPrepend = (rowKeys: readonly string[]) => {
 };
 
 /**
- * The message scroller re-pins to the end on every content resize while the
- * viewport is near the bottom, and only leaves that mode on wheel, touch, or
- * keyboard input. Without this, expanding a block near the bottom scrolls
- * the opened rows straight past. A synthetic wheel event is the only signal
- * the scroller accepts as user intent.
+ * While the viewport is pinned to the end, the message scroller re-pins on
+ * every content resize and only leaves that mode on wheel, touch, or
+ * keyboard input, so expanding a block there would scroll the opened rows
+ * straight past. A synthetic wheel event is the only signal it accepts as
+ * user intent. It must not fire in any other mode: after a prompt is sent
+ * the scroller anchors the prompt and pads below it with a spacer, and the
+ * same event would end that mode and drop the spacer. That mode is also at
+ * the maximum scroll, so the spacer's height is what tells the two apart.
  */
 const useHoldViewportOnToggle = (
 	expanded: boolean,
@@ -137,9 +140,20 @@ const useHoldViewportOnToggle = (
 		previousRef.current = expanded;
 		const root = rootRef.current;
 		const viewport = root ? getScrollParent(root) : null;
-		viewport?.dispatchEvent(
-			new WheelEvent("wheel", { bubbles: true, deltaY: 0 }),
+		if (!viewport) {
+			return;
+		}
+		const spacer = viewport.querySelector<HTMLElement>(
+			"[data-message-scroller-spacer]",
 		);
+		const anchored = (spacer?.offsetHeight ?? 0) > 0;
+		const scrollable = viewport.dataset.scrollable ?? "";
+		const pinnedToEnd = !scrollable.split(" ").includes("end");
+		if (pinnedToEnd && !anchored) {
+			viewport.dispatchEvent(
+				new WheelEvent("wheel", { bubbles: true, deltaY: 0 }),
+			);
+		}
 	}, [expanded, rootRef]);
 };
 
