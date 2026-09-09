@@ -2264,6 +2264,14 @@ func TestOAuth2AuthorizeNoCORS(t *testing.T) {
 		require.Empty(t, headers.Get("Access-Control-Allow-Origin"))
 	})
 
+	// The router collapses repeated slashes, so this still reaches the
+	// authorize handler and must get the same CORS policy.
+	t.Run("AuthorizeRepeatedSlash", func(t *testing.T) {
+		t.Parallel()
+		headers := preflight(t, "/oauth2//authorize", http.MethodGet)
+		require.Empty(t, headers.Get("Access-Control-Allow-Origin"))
+	})
+
 	t.Run("Tokens", func(t *testing.T) {
 		t.Parallel()
 		headers := preflight(t, "/oauth2/tokens", http.MethodPost)

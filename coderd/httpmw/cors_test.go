@@ -160,6 +160,8 @@ func TestCors(t *testing.T) {
 		{name: "Authorize", path: "/oauth2/authorize", permissive: false},
 		{name: "AuthorizeTrailingSlash", path: "/oauth2/authorize/", permissive: false},
 		{name: "AuthorizeSubpath", path: "/oauth2/authorize/extra", permissive: false},
+		{name: "AuthorizeRepeatedSlash", path: "/oauth2//authorize", permissive: false},
+		{name: "AuthorizeLeadingRepeatedSlash", path: "//oauth2/authorize", permissive: false},
 		{name: "Tokens", path: "/oauth2/tokens", permissive: true},
 		{name: "Revoke", path: "/oauth2/revoke", permissive: true},
 		{name: "Register", path: "/oauth2/register", permissive: true},

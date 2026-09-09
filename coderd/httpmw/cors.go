@@ -25,6 +25,9 @@ const (
 	AccessControlRequestHeadersHeader = "Access-Control-Request-Headers"
 )
 
+// repeatedSlashesRe matches runs of slashes that the router collapses to one.
+var repeatedSlashesRe = regexp.MustCompile(`/+`)
+
 //nolint:revive
 func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler {
 	if len(origins) == 0 {
@@ -77,16 +80,21 @@ func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The router collapses repeated slashes before matching, so
+			// "/oauth2//authorize" reaches the authorize handler. Match on
+			// the same path so a stray slash cannot pick a different policy.
+			path := repeatedSlashesRe.ReplaceAllString(r.URL.Path, "/")
+
 			// OAuth 2.1 §3.1 forbids CORS at the authorization endpoint. The
 			// client sends the user agent there and never fetches it itself.
-			isAuthorize := r.URL.Path == "/oauth2/authorize" ||
-				strings.HasPrefix(r.URL.Path, "/oauth2/authorize/")
+			isAuthorize := path == "/oauth2/authorize" ||
+				strings.HasPrefix(path, "/oauth2/authorize/")
 
 			// Use permissive CORS for OAuth2, MCP, and well-known endpoints
-			if !isAuthorize && (strings.HasPrefix(r.URL.Path, "/oauth2/") ||
-				strings.HasPrefix(r.URL.Path, "/api/experimental/mcp/") ||
-				strings.HasPrefix(r.URL.Path, "/api/v2/mcp/") ||
-				strings.HasPrefix(r.URL.Path, "/.well-known/oauth-")) {
+			if !isAuthorize && (strings.HasPrefix(path, "/oauth2/") ||
+				strings.HasPrefix(path, "/api/experimental/mcp/") ||
+				strings.HasPrefix(path, "/api/v2/mcp/") ||
+				strings.HasPrefix(path, "/.well-known/oauth-")) {
 				permissiveCors(next).ServeHTTP(w, r)
 				return
 			}
