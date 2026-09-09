@@ -38,6 +38,10 @@ type CreateChatInput struct {
 	InitialMessages   []Message
 	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
+	// AfterInsert runs inside the create transaction after the chat and
+	// initial messages are inserted, but before the chat snapshot is
+	// reloaded and publish events are buffered.
+	AfterInsert func(context.Context, database.Store, database.Chat, []database.ChatMessage) error
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -136,6 +140,11 @@ func insertChat(
 		}
 		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs); err != nil {
 			return err
+		}
+		if input.AfterInsert != nil {
+			if err := input.AfterInsert(ctx, store, chat, fromInsertedRows(inserted)); err != nil {
+				return err
+			}
 		}
 		refreshed, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {
