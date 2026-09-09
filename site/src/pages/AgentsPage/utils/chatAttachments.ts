@@ -64,6 +64,25 @@ export async function probeAttachmentFailure(
 	return classifyAttachmentFailureResponse(response);
 }
 
+type AttachmentAvailability = { kind: "available" } | AttachmentFailure;
+
+/**
+ * Checks whether a remote attachment still exists without downloading it.
+ * File responses are cached as immutable, but cap eviction and retention
+ * delete files after the fact, so the check bypasses the HTTP cache.
+ */
+export async function probeAttachmentAvailability(
+	src: string,
+	signal?: AbortSignal,
+): Promise<AttachmentAvailability> {
+	const response = await fetch(src, { signal, cache: "no-store" });
+	if (response.ok) {
+		await response.body?.cancel();
+		return { kind: "available" };
+	}
+	return classifyAttachmentFailureResponse(response);
+}
+
 type IOSNavigator = Navigator & { standalone?: boolean };
 
 const isIOS = (): boolean =>

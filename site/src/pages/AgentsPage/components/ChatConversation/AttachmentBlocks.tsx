@@ -6,6 +6,9 @@ import {
 	FileTextIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
+import { skipToken, useQuery } from "react-query";
+import { chatFileAvailabilityKey, chatFilesKey } from "#/api/queries/chats";
+import { MaxChatFileIDs } from "#/api/typesGenerated";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -19,6 +22,7 @@ import {
 	getChatFileURL,
 	handleAttachmentDownloadClick,
 	isAbortError,
+	probeAttachmentAvailability,
 	probeAttachmentFailure,
 } from "../../utils/chatAttachments";
 import {
@@ -220,9 +224,31 @@ const imageAttachmentFailureLabels: AttachmentFailureLabels = {
 	failed: "Image failed to load",
 };
 
-const textAttachmentFailureLabels: AttachmentFailureLabels = {
+const fileAttachmentFailureLabels: AttachmentFailureLabels = {
 	expired: "Attachment expired",
 	failed: "Attachment failed to load",
+};
+
+const expiredAttachmentExplanation = `A chat keeps its ${MaxChatFileIDs} most recent attachments, and older attachments are removed. Attachments that no chat references are deleted after this deployment's retention window.`;
+
+/**
+ * Images reveal a missing file through the broken-image event, but text and
+ * download tiles have no load step, so they check availability up front.
+ */
+const useAttachmentExpired = (fileId: string | undefined): boolean => {
+	const { hasExpired } = useFileProbes();
+	const availability = useQuery({
+		queryKey: fileId ? chatFileAvailabilityKey(fileId) : chatFilesKey,
+		queryFn: fileId
+			? () => probeAttachmentAvailability(getChatFileURL(fileId))
+			: skipToken,
+		staleTime: Number.POSITIVE_INFINITY,
+		retry: false,
+	});
+	return (
+		fileId !== undefined &&
+		(hasExpired(fileId) || availability.data?.kind === "expired")
+	);
 };
 
 const AttachmentFallbackTile: FC<{
@@ -250,14 +276,12 @@ const AttachmentFallbackTile: FC<{
 	);
 
 	// Only surface a tooltip when we have something to add:
-	// - "expired" explains the retention policy.
+	// - "expired" explains why the file is gone.
 	// - "failed" with a detail surfaces the API error or network reason.
 	// A bare "failed" (e.g. an inline base64 decode failure, where the
 	// browser exposes nothing useful) stays a plain tile.
 	const tooltipBody =
-		state.kind === "expired"
-			? "Attachments are kept while any chat references them. After all references are removed, they are deleted once they are older than this deployment's retention window."
-			: state.detail;
+		state.kind === "expired" ? expiredAttachmentExplanation : state.detail;
 	if (!tooltipBody) {
 		return tile;
 	}
@@ -328,8 +352,8 @@ const RemoteTextAttachmentButton: FC<{
 	onPreview,
 	showStatus = false,
 }) => {
-	const { hasExpired, markExpired } = useFileProbes();
-	const isKnownExpired = hasExpired(fileId);
+	const { markExpired } = useFileProbes();
+	const isKnownExpired = useAttachmentExpired(fileId);
 	const [content, setContent] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [failureState, setFailureState] = useState<AttachmentFailureState>(
@@ -341,7 +365,7 @@ const RemoteTextAttachmentButton: FC<{
 		return (
 			<AttachmentFallbackTile
 				state={{ kind: "expired" }}
-				labels={textAttachmentFailureLabels}
+				labels={fileAttachmentFailureLabels}
 				className="h-16 w-28"
 			/>
 		);
@@ -350,7 +374,7 @@ const RemoteTextAttachmentButton: FC<{
 		return (
 			<AttachmentFallbackTile
 				state={failureState}
-				labels={textAttachmentFailureLabels}
+				labels={fileAttachmentFailureLabels}
 				className="h-16 w-28"
 			/>
 		);
@@ -558,9 +582,20 @@ const FileCard: FC<{
 	block: FileAttachmentBlock;
 	href: string;
 }> = ({ block, href }) => {
+	const isExpired = useAttachmentExpired(block.file_id);
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
 	const badgeLabel = getAttachmentBadgeLabel(block);
+
+	if (isExpired) {
+		return (
+			<AttachmentFallbackTile
+				state={{ kind: "expired" }}
+				labels={fileAttachmentFailureLabels}
+				className="h-16 w-28"
+			/>
+		);
+	}
 
 	return (
 		<a

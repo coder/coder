@@ -162,6 +162,7 @@ const ATTACHMENT_RESPONSES = new Map<string, AttachmentResponse>([
 		},
 	],
 	["storybook-expired-text", { status: 404, body: "" }],
+	["storybook-expired-file", { status: 404, body: "" }],
 	[
 		"storybook-failed-text",
 		{
@@ -908,11 +909,11 @@ export const UserMessageWithExpiredImage: Story = {
 		).not.toBeInTheDocument();
 		expectNoCopyMessageButtonForElement(expiredTile);
 
-		// The tooltip explains the retention policy generically so the
-		// copy survives any operator-chosen retention window.
+		// The tooltip names the attachment cap and describes retention
+		// generically so the copy survives any operator-chosen window.
 		await hoverAndExpectTooltip(
 			expiredTile,
-			/kept while any chat references them/i,
+			/keeps its 50 most recent attachments/i,
 		);
 	},
 };
@@ -1201,6 +1202,7 @@ export const UserMessageWithTextAttachmentOnly: Story = {
 	},
 };
 
+/** Expired text attachments show the placeholder on load, before any click. */
 export const UserMessageWithExpiredTextAttachment: Story = {
 	args: buildStoryArgs(
 		buildUserMessage({
@@ -1210,11 +1212,6 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const textButton = await canvas.findByRole("button", {
-			name: "View text attachment",
-		});
-		expectNoCopyMessageButtonForElement(textButton);
-		await userEvent.click(textButton);
 		const expiredTile = await findAttachmentTile(canvas, "Attachment expired");
 		expect(
 			canvas.getByText("This pasted context has expired"),
@@ -1222,11 +1219,46 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "View text attachment" }),
 		).not.toBeInTheDocument();
+		expectNoCopyMessageButtonForElement(expiredTile);
 
 		await hoverAndExpectTooltip(
 			expiredTile,
-			/kept while any chat references them/i,
+			/keeps its 50 most recent attachments/i,
 		);
+	},
+};
+
+/** Expired downloadable files show the placeholder instead of a dead link. */
+export const UserMessageWithExpiredDownloadableFile: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "The attached report has expired." },
+					{
+						type: "file",
+						media_type: "application/pdf",
+						file_id: "storybook-expired-file",
+						name: "old-report.pdf",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const expiredTile = await findAttachmentTile(canvas, "Attachment expired");
+		expect(
+			canvas.getByText("The attached report has expired."),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("link", { name: "Download old-report.pdf" }),
+		).not.toBeInTheDocument();
+		expectNoCopyMessageButtonForElement(expiredTile);
 	},
 };
 

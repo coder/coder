@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
 	handleAttachmentDownloadClick,
 	isChatAttachmentFile,
+	probeAttachmentAvailability,
 	renameChatFileForUpload,
 	sanitizeChatFileName,
 } from "./chatAttachments";
@@ -243,6 +244,36 @@ describe("handleAttachmentDownloadClick", () => {
 		expect(toast.error).toHaveBeenCalledWith("Couldn't download inline.png", {
 			description: "The attachment data could not be decoded.",
 		});
+	});
+});
+
+describe("probeAttachmentAvailability", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("bypasses the cache and discards the body of an available file", async () => {
+		const response = new Response("file bytes", { status: 200 });
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
+
+		await expect(
+			probeAttachmentAvailability("/api/v2/chats/files/file-1"),
+		).resolves.toEqual({ kind: "available" });
+		expect(globalThis.fetch).toHaveBeenCalledWith(
+			"/api/v2/chats/files/file-1",
+			expect.objectContaining({ cache: "no-store" }),
+		);
+		expect(response.bodyUsed).toBe(true);
+	});
+
+	it("reports a missing file as expired", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response("", { status: 404 }),
+		);
+
+		await expect(
+			probeAttachmentAvailability("/api/v2/chats/files/file-2"),
+		).resolves.toEqual({ kind: "expired" });
 	});
 });
 
