@@ -39,6 +39,11 @@ func TestReadMCPResource(t *testing.T) {
 			assert.NoError(t, json.NewEncoder(w).Encode(codersdk.Response{Message: "not found"}))
 			return
 		}
+		if req.URI == "ui://size/agent-413" {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			assert.NoError(t, json.NewEncoder(w).Encode(codersdk.Response{Message: "too large"}))
+			return
+		}
 		if strings.HasPrefix(req.URI, "ui://size/") {
 			body := `{ "text": "" }`
 			size := workspacesdk.MaxMCPResourceResponseBytes
@@ -75,6 +80,7 @@ func TestReadMCPResource(t *testing.T) {
 		{name: "at"},
 		{name: "over", wantErr: workspacesdk.ErrMCPResourceTooLarge},
 		{name: "over-error", wantErr: workspacesdk.ErrMCPResourceTooLarge},
+		{name: "agent-413", wantErr: workspacesdk.ErrMCPResourceTooLarge},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

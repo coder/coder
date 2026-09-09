@@ -725,7 +725,11 @@ func (m *Manager) ReadResource(ctx context.Context, req workspacesdk.ReadMCPReso
 	if len(result.Contents) == 0 || result.Contents[0] == nil {
 		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("read resource %q on %q: empty contents", req.URI, req.ServerName)
 	}
-	return convertResource(result.Contents[0]), nil
+	resource := result.Contents[0]
+	if len(resource.Text) > workspacesdk.MaxMCPResourceContentBytes || len(resource.Blob) > workspacesdk.MaxMCPResourceContentBytes {
+		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("read resource %q on %q: %w", req.URI, req.ServerName, workspacesdk.ErrMCPResourceTooLarge)
+	}
+	return convertResource(resource), nil
 }
 
 func convertResource(resource *mcp.ResourceContents) workspacesdk.ReadMCPResourceResponse {

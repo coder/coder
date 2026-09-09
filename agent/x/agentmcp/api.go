@@ -71,6 +71,8 @@ func (api *API) handleReadResource(rw http.ResponseWriter, r *http.Request) {
 		status := http.StatusBadGateway
 		if errors.Is(err, ErrUnknownServer) {
 			status = http.StatusNotFound
+		} else if errors.Is(err, workspacesdk.ErrMCPResourceTooLarge) {
+			status = http.StatusRequestEntityTooLarge
 		}
 		httpapi.Write(ctx, rw, status, codersdk.Response{
 			Message: "MCP resource read failed.",

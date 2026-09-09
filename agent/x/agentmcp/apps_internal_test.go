@@ -50,6 +50,17 @@ func TestMCPApps(t *testing.T) {
 	server.AddResource(&mcp.Resource{URI: "ui://empty", Name: "empty"}, func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		return &mcp.ReadResourceResult{}, nil
 	})
+	oversized := bytes.Repeat([]byte("x"), workspacesdk.MaxMCPResourceContentBytes+1)
+	server.AddResource(&mcp.Resource{URI: "ui://large-text", Name: "large-text"}, func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{
+			{URI: "ui://large-text", MIMEType: "text/html;profile=mcp-app", Text: string(oversized)},
+		}}, nil
+	})
+	server.AddResource(&mcp.Resource{URI: "ui://large-blob", Name: "large-blob"}, func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{
+			{URI: "ui://large-blob", MIMEType: "text/html;profile=mcp-app", Blob: oversized},
+		}}, nil
+	})
 	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil))
 	t.Cleanup(httpServer.Close)
 	manager := &Manager{logger: testutil.Logger(t)}
@@ -79,6 +90,8 @@ func TestMCPApps(t *testing.T) {
 		{"unknown server", "missing", "ui://view", http.StatusNotFound},
 		{"unknown resource", "apps", "ui://missing", http.StatusBadGateway},
 		{"empty", "apps", "ui://empty", http.StatusBadGateway},
+		{"large text", "apps", "ui://large-text", http.StatusRequestEntityTooLarge},
+		{"large blob", "apps", "ui://large-blob", http.StatusRequestEntityTooLarge},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

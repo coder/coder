@@ -1322,11 +1322,16 @@ type MCPToolContent struct {
 	MediaType string `json:"media_type,omitempty"`
 }
 
-// MaxMCPResourceResponseBytes limits the encoded agent resource response.
-const MaxMCPResourceResponseBytes = 8 << 20
+const (
+	// MaxMCPResourceContentBytes limits the raw text or blob of one resource.
+	// The agent enforces it before encoding the response.
+	MaxMCPResourceContentBytes = 4 << 20
+	// MaxMCPResourceResponseBytes limits the encoded agent resource response.
+	MaxMCPResourceResponseBytes = 8 << 20
+)
 
-// ErrMCPResourceTooLarge indicates an agent resource response exceeds the limit.
-var ErrMCPResourceTooLarge = xerrors.New("MCP resource response exceeds 8 MiB")
+// ErrMCPResourceTooLarge indicates a resource exceeds one of the size limits.
+var ErrMCPResourceTooLarge = xerrors.New("MCP resource exceeds the size limit")
 
 // ReadMCPResourceRequest identifies a resource on a workspace MCP server.
 type ReadMCPResourceRequest struct {
@@ -1423,7 +1428,7 @@ func (c *agentConn) ReadMCPResource(ctx context.Context, req ReadMCPResourceRequ
 	if err != nil {
 		return ReadMCPResourceResponse{}, xerrors.Errorf("read resource response: %w", err)
 	}
-	if len(body) > MaxMCPResourceResponseBytes {
+	if len(body) > MaxMCPResourceResponseBytes || res.StatusCode == http.StatusRequestEntityTooLarge {
 		return ReadMCPResourceResponse{}, ErrMCPResourceTooLarge
 	}
 	if res.StatusCode != http.StatusOK {

@@ -72,7 +72,7 @@ func (api *API) readChatMCPAppResource(rw http.ResponseWriter, r *http.Request) 
 	defer release()
 	resource, err := conn.ReadMCPResource(ctx, workspacesdk.ReadMCPResourceRequest{ServerName: serverName, URI: resourceURI})
 	if errors.Is(err, workspacesdk.ErrMCPResourceTooLarge) {
-		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{Message: "MCP App resource response exceeds 8 MiB."})
+		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{Message: "MCP App resource exceeds the size limit."})
 		return
 	}
 	if err != nil {
