@@ -2,6 +2,7 @@ package insights
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"sync/atomic"
 	"time"
@@ -34,12 +35,27 @@ type MetricsCollector struct {
 }
 
 type insightsData struct {
-	templates []database.GetTemplateInsightsByTemplateRow
+	templates []templateInsightsRow
 	apps      []database.GetTemplateAppInsightsByTemplateRow
 	params    []parameterRow
 
 	templateNames     map[uuid.UUID]string
 	organizationNames map[uuid.UUID]string // template ID → org name
+}
+
+// templateInsightsRow is the decoded form of
+// database.GetTemplateInsightsByTemplateRow, whose per-session-family usage
+// arrives as a JSONB payload.
+type templateInsightsRow struct {
+	templateID           uuid.UUID
+	activeUsers          int64
+	usageSecondsByFamily map[codersdk.AppFamilyName]int64
+}
+
+// usageSeconds returns the usage seconds reported for a session family. A
+// family the query did not report had no usage.
+func (r templateInsightsRow) usageSeconds(family codersdk.AppFamilyName) int64 {
+	return r.usageSecondsByFamily[family]
 }
 
 type parameterRow struct {
@@ -91,21 +107,26 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		eg, egCtx := errgroup.WithContext(ctx)
 		eg.SetLimit(3)
 
-		var templateInsights []database.GetTemplateInsightsByTemplateRow
+		var templateInsights []templateInsightsRow
 		var appInsights []database.GetTemplateAppInsightsByTemplateRow
 		var paramInsights []parameterRow
 
 		eg.Go(func() error {
-			var err error
-			templateInsights, err = mc.database.GetTemplateInsightsByTemplate(egCtx, database.GetTemplateInsightsByTemplateParams{
+			rows, err := mc.database.GetTemplateInsightsByTemplate(egCtx, database.GetTemplateInsightsByTemplateParams{
 				StartTime:   startTime,
 				EndTime:     endTime,
 				AppFamilies: codersdk.SessionCountAppFamiliesJSON(),
 			})
 			if err != nil {
 				mc.logger.Error(ctx, "unable to fetch template insights from database", slog.Error(err))
+				return err
 			}
-			return err
+			templateInsights, err = convertTemplateInsights(rows)
+			if err != nil {
+				mc.logger.Error(ctx, "unable to convert template insights", slog.Error(err))
+				return err
+			}
+			return nil
 		})
 		eg.Go(func() error {
 			var err error
@@ -228,36 +249,36 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 	// Built-in apps
 	for _, templateRow := range data.templates {
-		orgName := data.organizationNames[templateRow.TemplateID]
+		orgName := data.organizationNames[templateRow.templateID]
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.UsageVscodeSeconds),
-			data.templateNames[templateRow.TemplateID],
+			float64(templateRow.usageSeconds(codersdk.AppFamilyVSCode)),
+			data.templateNames[templateRow.templateID],
 			codersdk.TemplateBuiltinAppDisplayNameVSCode,
 			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.UsageJetbrainsSeconds),
-			data.templateNames[templateRow.TemplateID],
+			float64(templateRow.usageSeconds(codersdk.AppFamilyJetBrains)),
+			data.templateNames[templateRow.templateID],
 			codersdk.TemplateBuiltinAppDisplayNameJetBrains,
 			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.UsageReconnectingPtySeconds),
-			data.templateNames[templateRow.TemplateID],
+			float64(templateRow.usageSeconds(codersdk.AppFamilyReconnectingPTY)),
+			data.templateNames[templateRow.templateID],
 			codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
 			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.UsageSshSeconds),
-			data.templateNames[templateRow.TemplateID],
+			float64(templateRow.usageSeconds(codersdk.AppFamilySSH)),
+			data.templateNames[templateRow.templateID],
 			codersdk.TemplateBuiltinAppDisplayNameSSH,
 			"", orgName)
 	}
 
 	// Templates
 	for _, templateRow := range data.templates {
-		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID], data.organizationNames[templateRow.TemplateID])
+		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.activeUsers), data.templateNames[templateRow.templateID], data.organizationNames[templateRow.templateID])
 	}
 
 	// Parameters
@@ -268,10 +289,10 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 // Helper functions below.
 
-func uniqueTemplateIDs(templateInsights []database.GetTemplateInsightsByTemplateRow, appInsights []database.GetTemplateAppInsightsByTemplateRow, paramInsights []parameterRow) []uuid.UUID {
+func uniqueTemplateIDs(templateInsights []templateInsightsRow, appInsights []database.GetTemplateAppInsightsByTemplateRow, paramInsights []parameterRow) []uuid.UUID {
 	tids := map[uuid.UUID]bool{}
 	for _, t := range templateInsights {
-		tids[t.TemplateID] = true
+		tids[t.templateID] = true
 	}
 	for _, t := range appInsights {
 		tids[t.TemplateID] = true
@@ -295,6 +316,43 @@ func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
 		m[t.ID] = t.Name
 	}
 	return m
+}
+
+// convertTemplateInsights decodes the JSONB session family usage of each
+// template insights row. A malformed payload is an error rather than zero
+// usage, so the collector keeps serving the previous snapshot instead of
+// reporting idle templates.
+func convertTemplateInsights(rows []database.GetTemplateInsightsByTemplateRow) ([]templateInsightsRow, error) {
+	converted := make([]templateInsightsRow, 0, len(rows))
+	for _, row := range rows {
+		usageSeconds, err := decodeSessionFamilyUsageSeconds(row.SessionFamilyUsageSeconds)
+		if err != nil {
+			return nil, xerrors.Errorf("template %s: %w", row.TemplateID, err)
+		}
+		converted = append(converted, templateInsightsRow{
+			templateID:           row.TemplateID,
+			activeUsers:          row.ActiveUsers,
+			usageSecondsByFamily: usageSeconds,
+		})
+	}
+	return converted, nil
+}
+
+// decodeSessionFamilyUsageSeconds decodes a usage seconds JSONB payload keyed
+// by session family. An absent payload decodes to an empty map, but a
+// malformed one is an error.
+func decodeSessionFamilyUsageSeconds(raw json.RawMessage) (map[codersdk.AppFamilyName]int64, error) {
+	if len(raw) == 0 {
+		return map[codersdk.AppFamilyName]int64{}, nil
+	}
+	var decoded map[codersdk.AppFamilyName]int64
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil, xerrors.Errorf("unmarshal session family usage seconds: %w", err)
+	}
+	if decoded == nil {
+		return map[codersdk.AppFamilyName]int64{}, nil
+	}
+	return decoded, nil
 }
 
 func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) []parameterRow {

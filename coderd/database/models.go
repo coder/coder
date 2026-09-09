@@ -6185,18 +6185,30 @@ type TemplateUsageStat struct {
 	MedianLatencyMs sql.NullFloat64 `db:"median_latency_ms" json:"median_latency_ms"`
 	// Total minutes the user has been using the template.
 	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
-	// Total minutes the user has been using SSH.
-	SshMins int16 `db:"ssh_mins" json:"ssh_mins"`
-	// Total minutes the user has been using SFTP.
-	SftpMins int16 `db:"sftp_mins" json:"sftp_mins"`
-	// Total minutes the user has been using the reconnecting PTY.
-	ReconnectingPtyMins int16 `db:"reconnecting_pty_mins" json:"reconnecting_pty_mins"`
-	// Total minutes the user has been using VSCode.
-	VscodeMins int16 `db:"vscode_mins" json:"vscode_mins"`
-	// Total minutes the user has been using JetBrains.
-	JetbrainsMins int16 `db:"jetbrains_mins" json:"jetbrains_mins"`
 	// Object with app names as keys and total minutes used as values. Null means no app usage was recorded.
 	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
+}
+
+// Session usage of each template_usage_stats bucket, split by app name. A bucket with family rows but no rows here predates per-app recording, so its per-app usage is unknown rather than zero.
+type TemplateUsageStatsSessionApp struct {
+	StartTime  time.Time `db:"start_time" json:"start_time"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	// App name as the agent reported it, so it is a source label rather than a curated identity. An agent that reports only the fixed session counts reports family names here, as does history converted by migration 000590.
+	AppName string `db:"app_name" json:"app_name"`
+	// Total minutes the user has been using the app.
+	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
+}
+
+// Session usage of each template_usage_stats bucket, split by app family. A bucket with no row here recorded no session usage.
+type TemplateUsageStatsSessionFamily struct {
+	StartTime  time.Time `db:"start_time" json:"start_time"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	// Family name the registry attributed the session to when the bucket was last rolled up, including 'unknown' for an app name the registry did not know. Buckets the rollup no longer revisits keep their recorded attribution.
+	Family string `db:"family" json:"family"`
+	// Total minutes the user has been using the family. Minutes shared by two apps of the family count once.
+	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
 }
 
 // Joins in the username + avatar url of the created by user.

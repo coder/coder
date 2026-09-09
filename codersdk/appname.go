@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"encoding/json"
-	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -28,8 +27,11 @@ const (
 	AppFamilyUnknown         AppFamilyName = "unknown"
 )
 
-// appNameFamilies never gates storage, so a missing alias only costs an
-// AppFamilyUnknown label. Keys are the IDs Coder's registry modules use.
+// appNameFamilies is the only place an app name is attributed to a family.
+// Storage keeps the raw app name, so a missing alias only costs an
+// AppFamilyUnknown attribution rather than a dropped session. Keys are the
+// IDs Coder's registry modules use, normalized as NormalizeAppName leaves
+// them.
 var appNameFamilies = map[string]AppFamilyName{
 	"vscode":          AppFamilyVSCode,
 	"vscode_insiders": AppFamilyVSCode,
@@ -53,66 +55,24 @@ var appNameFamilies = map[string]AppFamilyName{
 	"reconnecting_pty": AppFamilyReconnectingPTY,
 }
 
-// attributedAppFamilies are the families usage reporting has somewhere to
-// put, and the single definition of the families the session count read
-// queries know about. Every value in appNameFamilies must appear here or its
-// sessions go uncounted, which TestEveryFamilyIsAttributed enforces.
-//
-// Adding a family here is not enough on its own: see AttributedAppFamilies.
-var attributedAppFamilies = []AppFamilyName{
-	AppFamilyVSCode,
-	AppFamilyJetBrains,
-	AppFamilySSH,
-	AppFamilyReconnectingPTY,
-}
-
-// AttributedAppFamilies returns the families session count reporting can
-// attribute to, in registry order. It is the source of truth that dbauthz
-// validates the query parameter against, so a family that exists here but not
-// in the queries (or the reverse) fails loudly instead of silently reporting
-// zero.
-func AttributedAppFamilies() []AppFamilyName {
-	return slices.Clone(attributedAppFamilies)
-}
-
-// AppNamesInFamily returns the app names belonging to a family, sorted so
-// query parameters stay stable across calls.
-func AppNamesInFamily(family AppFamilyName) []string {
-	var names []string
-	for appName, appFamily := range appNameFamilies {
-		if appFamily == family {
-			names = append(names, appName)
-		}
-	}
-	slices.Sort(names)
-	return names
-}
-
-// SessionCountAppFamilies returns the session count attribution registry:
-// every attributed family mapped to its sorted app names. The session count
-// read queries take it as one parameter, so a new app name reaches every
-// caller by being added to appNameFamilies alone.
-//
-// A new family costs more. sqlc output columns are static, so each family
-// needs, in addition to its attributedAppFamilies entry, one probe expression
-// in every query that reports per-family session counts (see
-// coderd/database/queries/workspaceagentstats.sql and insights.sql) plus the
-// matching output column. dbauthz validation rejects a registry whose
-// families do not match AttributedAppFamilies, and
-// TestAttributedAppFamiliesMatchQueries pins that list to what the queries
-// probe, so neither half can drift unnoticed.
-func SessionCountAppFamilies() map[AppFamilyName][]string {
-	families := make(map[AppFamilyName][]string, len(attributedAppFamilies))
-	for _, family := range attributedAppFamilies {
-		families[family] = AppNamesInFamily(family)
+// SessionCountAppFamilies returns the app-to-family attribution registry: one
+// entry per known app name, mapped to the family it reports under. Callers
+// that need a fixed family value derive it from this map, so registering a
+// new app or family means editing appNameFamilies alone.
+func SessionCountAppFamilies() map[string]AppFamilyName {
+	families := make(map[string]AppFamilyName, len(appNameFamilies))
+	for appName, family := range appNameFamilies {
+		families[appName] = family
 	}
 	return families
 }
 
-// SessionCountAppFamiliesJSON is SessionCountAppFamilies marshaled for the
-// jsonb parameter the session count read queries accept.
+// SessionCountAppFamiliesJSON is SessionCountAppFamilies marshaled as the
+// jsonb object of app name to family name that the minute aggregation queries
+// decompose with jsonb_each_text. Queries join it by app name, so no query
+// names a family and no family needs its own column or probe.
 func SessionCountAppFamiliesJSON() json.RawMessage {
-	// Marshaling a map with a string-keyed type cannot fail.
+	// Marshaling a map with string-kinded keys and values cannot fail.
 	data, err := json.Marshal(SessionCountAppFamilies())
 	if err != nil {
 		panic("developer error: marshal session count app families: " + err.Error())

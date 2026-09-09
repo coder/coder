@@ -864,22 +864,15 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 		AppFamilies: appFamilies,
 	})
 	require.NoError(t, err)
-	// The query does not order its rows.
-	require.ElementsMatch(t, []database.GetTemplateInsightsByTemplateRow{
-		{
-			TemplateID:                  templateID,
-			ActiveUsers:                 2,
-			UsageVscodeSeconds:          120,
-			UsageJetbrainsSeconds:       60,
-			UsageReconnectingPtySeconds: 60,
-			UsageSshSeconds:             120,
-		},
-		{
-			TemplateID:         sharedConnectionTemplateID,
-			ActiveUsers:        1,
-			UsageVscodeSeconds: 60,
-		},
-	}, insights)
+	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow)
+	for _, row := range insights {
+		byTemplate[row.TemplateID] = row
+	}
+	require.Len(t, byTemplate, 2)
+	require.EqualValues(t, 2, byTemplate[templateID].ActiveUsers)
+	require.JSONEq(t, `{"vscode":120,"jetbrains":60,"reconnecting_pty":60,"ssh":120,"unknown":60}`, string(byTemplate[templateID].SessionFamilyUsageSeconds))
+	require.EqualValues(t, 1, byTemplate[sharedConnectionTemplateID].ActiveUsers)
+	require.JSONEq(t, `{"vscode":60,"unknown":60}`, string(byTemplate[sharedConnectionTemplateID].SessionFamilyUsageSeconds))
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
@@ -20053,15 +20046,14 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	for _, row := range insights {
 		byTemplate[row.TemplateID] = row
 	}
-	require.Equal(t, int64(60), byTemplate[cursorTemplate].UsageVscodeSeconds)
-	require.Equal(t, int64(60), byTemplate[zedTemplate].UsageSshSeconds)
+	require.JSONEq(t, `{"vscode":60}`, string(byTemplate[cursorTemplate].SessionFamilyUsageSeconds))
+	require.JSONEq(t, `{"ssh":60}`, string(byTemplate[zedTemplate].SessionFamilyUsageSeconds))
 
 	// An app with no family is still activity, so the user is not counted idle.
 	unknown, ok := byTemplate[unknownTemplate]
 	require.True(t, ok, "a session with no family must still appear as usage")
 	require.Equal(t, int64(1), unknown.ActiveUsers)
-	require.Zero(t, unknown.UsageVscodeSeconds)
-	require.Zero(t, unknown.UsageSshSeconds)
+	require.JSONEq(t, `{"unknown":60}`, string(unknown.SessionFamilyUsageSeconds))
 }
 
 // The rollup attributes session counts the same way the read queries do, so a
@@ -20121,24 +20113,22 @@ func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
 	cursor, ok := byTemplate[cursorTemplate]
 	require.True(t, ok, "a VS Code fork must be rolled up")
 	require.Equal(t, int16(1), cursor.UsageMins)
-	require.Equal(t, int16(1), cursor.VscodeMins)
-	require.Zero(t, cursor.SshMins)
+	require.Equal(t, map[string]int64{"vscode": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", cursor.StartTime, cursor.UserID, cursorTemplate))
+	require.Equal(t, map[string]int64{"cursor": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", cursor.StartTime, cursor.UserID, cursorTemplate))
 
 	zed, ok := byTemplate[zedTemplate]
 	require.True(t, ok, "an SSH-speaking editor must be rolled up")
 	require.Equal(t, int16(1), zed.UsageMins)
-	require.Equal(t, int16(1), zed.SshMins)
-	require.Zero(t, zed.VscodeMins)
+	require.Equal(t, map[string]int64{"ssh": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", zed.StartTime, zed.UserID, zedTemplate))
+	require.Equal(t, map[string]int64{"zed": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", zed.StartTime, zed.UserID, zedTemplate))
 
 	// An app with no family is still activity, so it produces usage minutes
-	// without any family minutes.
+	// attributed to the unknown family.
 	unknown, ok := byTemplate[unknownTemplate]
 	require.True(t, ok, "a session with no family must still appear as usage")
 	require.Equal(t, int16(1), unknown.UsageMins)
-	require.Zero(t, unknown.VscodeMins)
-	require.Zero(t, unknown.SshMins)
-	require.Zero(t, unknown.JetbrainsMins)
-	require.Zero(t, unknown.ReconnectingPtyMins)
+	require.Equal(t, map[string]int64{"unknown": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", unknown.StartTime, unknown.UserID, unknownTemplate))
+	require.Equal(t, map[string]int64{"some_new_ide": 1}, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", unknown.StartTime, unknown.UserID, unknownTemplate))
 }
 
 func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
