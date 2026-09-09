@@ -80,8 +80,12 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
  * Older pages prepend rows inside an expanded partial block rather than as
  * new scroller items, so the scroller cannot hold the reading position and
  * browsers skip scroll anchoring at the top. Scroll by the growth instead.
+ * Only a prepend qualifies: the previous first row must still be a member.
+ * When the live row that opened a block is replaced by its persisted step,
+ * the first key changes too, but that content changed in place.
  */
-const useKeepReadingPositionAcrossPrepend = (firstRowKey: string) => {
+const useKeepReadingPositionAcrossPrepend = (rowKeys: readonly string[]) => {
+	const firstRowKey = rowKeys[0];
 	const contentRef = useRef<HTMLDivElement>(null);
 	const previousRef = useRef<{ firstRowKey: string; height: number }>(null);
 	useLayoutEffect(() => {
@@ -90,14 +94,26 @@ const useKeepReadingPositionAcrossPrepend = (firstRowKey: string) => {
 		previousRef.current = content
 			? { firstRowKey, height: content.offsetHeight }
 			: null;
-		if (!content || !previous || previous.firstRowKey === firstRowKey) {
+		if (
+			!content ||
+			!previous ||
+			previous.firstRowKey === firstRowKey ||
+			!rowKeys.includes(previous.firstRowKey)
+		) {
 			return;
 		}
 		const delta = content.offsetHeight - previous.height;
 		const viewport = getScrollParent(content);
-		if (delta !== 0 && viewport) {
-			viewport.scrollTop += delta;
+		if (delta === 0 || !viewport) {
+			return;
 		}
+		// When the same page also prepends rows above the block, MessageScroller
+		// restores the block's own top edge from a MutationObserver callback,
+		// which runs after this effect and would cancel a synchronous adjustment.
+		// The inner growth is applied after it, still before the next paint.
+		queueMicrotask(() => {
+			viewport.scrollTop += delta;
+		});
 	});
 	return contentRef;
 };
@@ -129,8 +145,8 @@ const useHoldViewportOnToggle = (
 
 type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
-	/** Key of the block's oldest row; it changes when older pages join. */
-	firstRowKey: string;
+	/** Keys of the block's rows, oldest first; older pages join at the front. */
+	rowKeys: readonly string[];
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
 	children: ReactNode;
@@ -145,13 +161,16 @@ type WorkingBlockDisclosureProps = {
  */
 export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 	block,
-	firstRowKey,
+	rowKeys,
 	expanded,
 	onExpandedChange,
 	children,
 	now,
 }) => {
-	const contentRef = useKeepReadingPositionAcrossPrepend(firstRowKey);
+	const contentRef = useKeepReadingPositionAcrossPrepend(rowKeys);
+	const failedLabel = block.isPartial
+		? `${pluralize(block.failedCount, "failed step")} or more`
+		: pluralize(block.failedCount, "failed step");
 	const rootRef = useRef<HTMLDivElement>(null);
 	useHoldViewportOnToggle(expanded, rootRef);
 	return (
@@ -180,16 +199,14 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 						<TooltipTrigger asChild>
 							<span
 								role="img"
-								aria-label={pluralize(block.failedCount, "failed step")}
+								aria-label={failedLabel}
 								className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-destructive"
 							>
 								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
 								{block.failedCount}
 							</span>
 						</TooltipTrigger>
-						<TooltipContent>
-							{pluralize(block.failedCount, "failed step")}
-						</TooltipContent>
+						<TooltipContent>{failedLabel}</TooltipContent>
 					</Tooltip>
 				)}
 				<ToolCall.Chevron />

@@ -19,7 +19,6 @@ import type {
 } from "#/api/api";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chatMessagesForInfiniteScroll,
@@ -45,11 +44,7 @@ import {
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
-import {
-	workspaceById,
-	workspaceByIdKey,
-	workspaces,
-} from "#/api/queries/workspaces";
+import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -74,10 +69,7 @@ import {
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
 } from "./components/ChatConversation/chatError";
-import {
-	getParentChatID,
-	getWorkspaceAgent,
-} from "./components/ChatConversation/chatHelpers";
+import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
@@ -104,7 +96,6 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
-import { getWorkspaceOptionsWithLinkedWorkspace } from "./components/workspaceOptions";
 import {
 	BuiltInCommandPendingError,
 	useConversationEditingState,
@@ -232,12 +223,6 @@ const AgentChatPage: FC = () => {
 		(organization) =>
 			organization.id === chatOrganizationId && organization.is_default,
 	);
-	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
-	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
-		workspacesQuery.data?.workspaces ?? [],
-		workspace,
-		currentUser.id,
-	);
 	const desktopEnabled = experiments.includes("chat-virtual-desktop");
 	const debugLoggingEnabled = Boolean(
 		userDebugLoggingQuery.data?.debug_logging_enabled,
@@ -294,28 +279,6 @@ const AgentChatPage: FC = () => {
 	const isArchived = Boolean(chat?.archived);
 	const isViewerNotOwner =
 		chat !== undefined && currentUser.id !== chat.owner_id;
-	const isRootChat = chat !== undefined && getParentChatID(chat) === undefined;
-	const chatAuthorizationObject =
-		chat !== undefined
-			? {
-					resource_type: "chat" as const,
-					owner_id: chat.owner_id,
-					organization_id: chat.organization_id,
-				}
-			: undefined;
-	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
-	if (chatAuthorizationObject !== undefined && isRootChat) {
-		chatAuthorizationChecks.canShareChat = {
-			object: chatAuthorizationObject,
-			action: "share",
-		};
-	}
-	const chatAuthorizationQuery = useQuery({
-		...checkAuthorization({ checks: chatAuthorizationChecks }),
-		enabled: Object.keys(chatAuthorizationChecks).length > 0,
-	});
-	const canShareChat =
-		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
 	const planModeEnabled = chat?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -602,9 +565,6 @@ const AgentChatPage: FC = () => {
 		aiGatewayDisabled;
 	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
-
-	const isWorkspaceLoading =
-		workspacesQuery.isLoading || isUpdateChatWorkspacePending;
 	const handlePlanModeToggle = (enabled: boolean) => {
 		if (enabled === planModeEnabled) {
 			return;
@@ -1135,7 +1095,6 @@ const AgentChatPage: FC = () => {
 					key={agentId}
 					chat={chat}
 					persistedError={persistedError}
-					canShareChat={canShareChat}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}
@@ -1167,11 +1126,10 @@ const AgentChatPage: FC = () => {
 					isInputDisabled={isInputDisabled}
 					isSubmissionPending={isSubmissionPending}
 					isInterruptPending={isInterruptPending}
-					workspaceOptions={workspaceOptions}
 					onWorkspaceChange={
 						canUpdateChatWorkspace ? handleWorkspaceChange : undefined
 					}
-					isWorkspaceLoading={isWorkspaceLoading}
+					isWorkspaceLoading={isUpdateChatWorkspacePending}
 					showSidebarPanel={showSidebarPanel}
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					debugLoggingEnabled={debugLoggingEnabled}

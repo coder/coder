@@ -768,7 +768,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						>
 							<WorkingBlockDisclosure
 								block={block}
-								firstRowKey={renderRows[block.rowIndices[0]].key}
+								rowKeys={block.rowIndices.map(
+									(rowIndex) => renderRows[rowIndex].key,
+								)}
 								expanded={expanded}
 								now={now}
 								onExpandedChange={(value) =>

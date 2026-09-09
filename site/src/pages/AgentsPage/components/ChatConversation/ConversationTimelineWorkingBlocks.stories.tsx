@@ -537,24 +537,42 @@ const longTurnStep = (index: number): ChatMessage[] => [
 const MockLongTurn = Array.from({ length: 60 }, (_, index) =>
 	longTurnStep(index),
 ).flat();
+const MockLongTurnPrompt: ChatMessage = {
+	...MockChatMessage,
+	id: 99,
+	created_at: time(-1),
+	content: [{ type: "text", text: "Run every step" }],
+};
+const longTurnPages = [
+	MockLongTurn.slice(60),
+	MockLongTurn.slice(30),
+	[MockLongTurnPrompt, ...MockLongTurn],
+];
 
 // Older rows join an expanded partial block inside one scroller item, so the
 // scroller cannot anchor them; the block keeps the reading position itself.
+// The last page also prepends the prompt row as a new scroller item, which the
+// scroller anchors on its own; both corrections have to add up.
 export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 	render: function Render(args) {
-		const [loaded, setLoaded] = useState(false);
+		const [page, setPage] = useState(0);
+		// The button follows the rows so the scroller sees the previous first
+		// item move to a later index, as in the real page, and stays fixed so
+		// clicking it never scrolls the viewport away from the top.
 		return (
 			<>
-				<Button onClick={() => setLoaded(true)} disabled={loaded}>
-					Load older messages
-				</Button>
 				<ConversationTimeline
 					{...args}
-					hasMoreMessages
-					parsedMessages={parseMessagesWithMergedTools(
-						loaded ? MockLongTurn : MockLongTurn.slice(60),
-					)}
+					hasMoreMessages={page < 2}
+					parsedMessages={parseMessagesWithMergedTools(longTurnPages[page])}
 				/>
+				<Button
+					className="fixed top-2 right-2 z-20"
+					onClick={() => setPage(page + 1)}
+					disabled={page === 2}
+				>
+					Load older messages
+				</Button>
 			</>
 		);
 	},
@@ -574,9 +592,23 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Load older messages" }),
 		);
-		expect(canvas.getByText(/echo step-0$/)).toBeInTheDocument();
-		expect(canvas.getByText(/echo step-30/)).toBe(anchor);
+		expect(canvas.getByText(/echo step-15$/)).toBeInTheDocument();
 		expect(anchor.getBoundingClientRect().top).toBeCloseTo(anchorTop, 0);
+		expect(viewport.scrollTop).toBeGreaterThan(0);
+		// History only pages while the reader sits at the very top, where the
+		// browser suspends its own scroll anchoring.
+		await fireEvent.wheel(viewport, { deltaY: -100 });
+		viewport.scrollTop = 0;
+		await waitFor(() => expect(viewport.scrollTop).toBe(0));
+		const topAnchor = canvas.getByText(/echo step-15$/);
+		const topAnchorTop = topAnchor.getBoundingClientRect().top;
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Load older messages" }),
+		);
+		expect(canvas.getByText("Run every step")).toBeInTheDocument();
+		expect(canvas.getByText(/echo step-0$/)).toBeInTheDocument();
+		expect(canvas.getByText(/echo step-15$/)).toBe(topAnchor);
+		expect(topAnchor.getBoundingClientRect().top).toBeCloseTo(topAnchorTop, 0);
 		expect(viewport.scrollTop).toBeGreaterThan(0);
 	},
 };

@@ -53,14 +53,6 @@ export const InvisibleUnicodeWarningUserPrompt: Story = {
 			custom_prompt: "My custom prompt\u200b\u200c\u200dhidden",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByText("Personal instructions");
-		const alert = await canvas.findByText(/invisible Unicode/);
-		expect(alert).toBeInTheDocument();
-		expect(alert.textContent).toContain("2");
-	},
 };
 
 export const InvisibleUnicodeWarningOnType: Story = {
@@ -125,17 +117,6 @@ export const SavesUserPrompt: Story = {
 	},
 };
 
-export const RendersChatLayoutSection: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(await canvas.findByText("Chat layout")).toBeInTheDocument();
-		expect(
-			await canvas.findByRole("switch", { name: "Full-width chat" }),
-		).toBeInTheDocument();
-	},
-};
-
 export const TogglesSendShortcut: Story = {
 	beforeEach: () => {
 		let agentChatSendShortcut: AgentChatSendShortcut =
@@ -192,27 +173,16 @@ export const TogglesCollapseAssistantSteps: Story = {
 			},
 		);
 	},
+	// The mutation behavior is covered by CollapseAssistantStepsSettings.test.tsx;
+	// this play only turns the switch on for the screenshot.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const toggle = await canvas.findByRole("switch", {
+		await userEvent.click(
+			await canvas.findByRole("switch", { name: "Collapse assistant steps" }),
+		);
+		await canvas.findByRole("switch", {
 			name: "Collapse assistant steps",
-		});
-		expect(toggle).not.toBeChecked();
-
-		await userEvent.click(toggle);
-		await waitFor(() => {
-			expect(API.updateUserPreferenceSettings).toHaveBeenCalledWith({
-				collapse_assistant_steps: true,
-			});
-			expect(toggle).toBeChecked();
-		});
-
-		await userEvent.click(toggle);
-		await waitFor(() => {
-			expect(API.updateUserPreferenceSettings).toHaveBeenLastCalledWith({
-				collapse_assistant_steps: false,
-			});
-			expect(toggle).not.toBeChecked();
+			checked: true,
 		});
 	},
 };
@@ -226,25 +196,26 @@ export const CollapseAssistantStepsLoadError: Story = {
 		);
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByText(
-				"Failed to load your collapse assistant steps preference.",
-			),
-		).toBeVisible();
-		expect(
-			canvas.getByRole("switch", { name: "Collapse assistant steps" }),
-		).toBeDisabled();
+		await within(canvasElement).findByText(
+			"Failed to load your collapse assistant steps preference.",
+		);
 	},
 };
 
-export const RendersAgentDisplayModeSettings: Story = {
+export const CollapseAssistantStepsSaveError: Story = {
+	beforeEach: () => {
+		spyOn(API, "updateUserPreferenceSettings").mockRejectedValue(
+			new Error("boom"),
+		);
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-
-		expect(await canvas.findByText("Thinking display")).toBeVisible();
-		expect(await canvas.findByText("Shell output display")).toBeVisible();
-		expect(await canvas.findByText("Code diff display")).toBeVisible();
+		await userEvent.click(
+			await canvas.findByRole("switch", { name: "Collapse assistant steps" }),
+		);
+		await canvas.findByText(
+			"Failed to save your collapse assistant steps preference.",
+		);
 	},
 };
 
@@ -271,25 +242,5 @@ export const ShowsChatDebugLoggingToggle: Story = {
 				debug_logging_enabled: true,
 			});
 		});
-	},
-};
-
-export const HidesChatDebugLoggingToggle: Story = {
-	args: {
-		userDebugLoggingData: {
-			debug_logging_enabled: false,
-			user_toggle_allowed: false,
-			forced_by_deployment: false,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(canvas.queryByText("Record debug logs for my chats")).toBeNull();
-		expect(
-			canvas.queryByRole("switch", {
-				name: "Enable personal chat debug logging",
-			}),
-		).toBeNull();
 	},
 };

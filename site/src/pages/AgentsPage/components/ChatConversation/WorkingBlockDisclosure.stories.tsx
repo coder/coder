@@ -41,7 +41,7 @@ const meta = {
 	render: (args) => <ControlledDisclosure {...args} />,
 	args: {
 		block: MockWorkingBlock,
-		firstRowKey: "message:2",
+		rowKeys: ["message:2", "message:4"],
 		expanded: false,
 		onExpandedChange: fn(),
 		children: (
@@ -323,6 +323,12 @@ export const PartialHistory: Story = {
 			}),
 		).toBeVisible();
 	},
+};
+
+// Unloaded history may hold more failures, so the badge reads as a lower
+// bound like the step count.
+export const PartialHistoryWithFailedSteps: Story = {
+	args: { block: { ...MockWorkingBlock, isPartial: true, failedCount: 1 } },
 };
 
 export const PartialHistoryWithoutTimestamps: Story = {

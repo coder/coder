@@ -14373,8 +14373,8 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// Given: an org with two members whose implicit Everyone group carries the
-		// only budget.
+		// Given: an org with two members and the prebuilds system user whose
+		// implicit Everyone group carries the only budget.
 		org := dbgen.Organization(t, db, database.Organization{})
 		for range 2 {
 			user := dbgen.User(t, db, database.User{})
@@ -14383,6 +14383,10 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 				OrganizationID: org.ID,
 			})
 		}
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         database.PrebuildsSystemUserID,
+			OrganizationID: org.ID,
+		})
 		// The Everyone group has ID equal to the organization ID and must be
 		// inserted explicitly for the group_ai_budgets FK constraint.
 		//nolint:gocritic // Requires system context.
@@ -14402,7 +14406,7 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Then: every org member counts toward the total.
+		// Then: only non-system org members count toward the total.
 		require.Len(t, got, 1)
 		require.Equal(t, sql.NullInt64{Int64: 100, Valid: true}, got[0].SpendLimitMicros, "spend_limit_micros")
 		require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, got[0].TotalSpendLimitMicros, "total_spend_limit_micros")
@@ -15321,6 +15325,28 @@ func TestGetOverBudgetUsersPerGroup(t *testing.T) {
 				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: group.ID, SpendLimitMicros: 0})
 				require.NoError(t, err)
 				return []database.GetOverBudgetUsersPerGroupRow{{GroupID: group.ID, OverBudgetUsers: 1}}
+			},
+		},
+		{
+			// A system user in a budgeted group is not counted.
+			name: "SystemUserNotCounted",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				org := dbgen.Organization(t, db, database.Organization{})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					OrganizationID: org.ID,
+					UserID:         database.PrebuildsSystemUserID,
+				})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{
+					GroupID: group.ID,
+					UserID:  database.PrebuildsSystemUserID,
+				})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+					GroupID:          group.ID,
+					SpendLimitMicros: 0,
+				})
+				require.NoError(t, err)
+				return nil
 			},
 		},
 		{
@@ -19423,6 +19449,35 @@ func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
 		})
 		require.True(t, database.IsCheckViolation(err, database.CheckOauth2ProviderAppTokensScopeNotEmpty),
 			"empty scope must be rejected, got %v", err)
+	})
+}
+
+func TestSingleUseDelete(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// Callers rely on this delete to arbitrate single use, so a delete that
+	// removed nothing must report sql.ErrNoRows rather than succeed.
+	t.Run("OAuth2ProviderAppCode", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+		code := dbgen.OAuth2ProviderAppCode(t, db, database.OAuth2ProviderAppCode{
+			AppID:  app.ID,
+			UserID: user.ID,
+		})
+
+		deleted, err := db.DeleteOAuth2ProviderAppCodeByID(ctx, code.ID)
+		require.NoError(t, err)
+		require.Equal(t, code, deleted)
+
+		_, err = db.DeleteOAuth2ProviderAppCodeByID(ctx, code.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
 
