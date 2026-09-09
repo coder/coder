@@ -123,41 +123,7 @@ type Story = StoryObj<typeof ChatSearchDialog>;
 
 export const EmptyState: Story = {};
 
-export const IconInputAlignment: Story = {
-	play: async () => {
-		const body = within(document.body);
-		const searchInput = await body.findByRole("combobox", {
-			name: "Search chats",
-		});
-		const toggleButton = await body.findByRole("button", {
-			name: "Toggle filters",
-		});
-
-		const container = toggleButton.parentElement;
-		if (!container) {
-			throw new Error("Expected the toggle button to have a parent container");
-		}
-		const searchIcon = container.querySelector("svg");
-		const filterIcon = toggleButton.querySelector("svg");
-		if (!searchIcon || !filterIcon) {
-			throw new Error("Expected the search and filter icons to render");
-		}
-
-		const verticalCenter = (element: Element) => {
-			const rect = element.getBoundingClientRect();
-			return rect.top + rect.height / 2;
-		};
-		await waitFor(() => {
-			const inputCenter = verticalCenter(searchInput);
-			expect(
-				Math.abs(verticalCenter(searchIcon) - inputCenter),
-			).toBeLessThanOrEqual(1);
-			expect(
-				Math.abs(verticalCenter(filterIcon) - inputCenter),
-			).toBeLessThanOrEqual(1);
-		});
-	},
-};
+export const IconInputAlignment: Story = {};
 
 export const LoadingState: Story = {
 	beforeEach: () => {

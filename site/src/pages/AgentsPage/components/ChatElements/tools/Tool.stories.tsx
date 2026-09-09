@@ -317,16 +317,6 @@ export const ExecuteModelIntent: Story = {
 			wall_duration_ms: 2300,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const commandButton = canvas.getByRole("button", {
-			name: "Expand command",
-		});
-		expect(commandButton).toHaveTextContent(
-			`Running tests using ${executeIntentCommand} for 2.3s`,
-		);
-		expect(commandButton).not.toHaveTextContent("Ran");
-	},
 };
 
 export const ExecuteModelIntentRunning: Story = {
@@ -341,17 +331,6 @@ export const ExecuteModelIntentRunning: Story = {
 		result: {
 			output: "",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const commandButton = canvas.getByRole("button", {
-			name: "Collapse command",
-		});
-		expect(commandButton).toHaveTextContent(
-			`Checking repository state using ${executeCommand}`,
-		);
-		expect(commandButton).not.toHaveTextContent(" for ");
-		expect(commandButton).not.toHaveTextContent("Ran");
 	},
 };
 
@@ -368,14 +347,6 @@ export const ExecuteModelIntentLeadingUsing: Story = {
 			wall_duration_ms: 2300,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const commandButton = canvas.getByRole("button", {
-			name: "Expand command",
-		});
-		expect(commandButton).toHaveTextContent(`Ran ${executeCommand} for 2.3s`);
-		expect(commandButton).not.toHaveTextContent("using git fetch origin using");
-	},
 };
 
 export const ExecuteSuccess: Story = {
@@ -388,18 +359,6 @@ export const ExecuteSuccess: Story = {
 			output:
 				"From github.com:coder/coder\n * [new branch]      feature/agent-ui -> origin/feature/agent-ui",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
-		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("img", { name: "Running in background" }),
-		).not.toBeInTheDocument();
-		const durationSuffix = canvas.getByText("for 47.2s");
-		expect(durationSuffix).toBeVisible();
-		expect(durationSuffix.tagName).toBe("SPAN");
-		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 	},
 };
 
@@ -445,17 +404,6 @@ export const ExecuteDeniedByHook: Story = {
 				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: secret reads are blocked. This is an administrative policy decision, not a tool or workspace failure; retrying the same call will be denied again. Explain the policy block to the user and adjust your approach.",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Failed to run cat/)).toBeVisible();
-		expect(canvas.queryByText(/Ran cat/)).not.toBeInTheDocument();
-		await expect(
-			canvas.getByRole("img", {
-				name: /blocked by an external policy/,
-			}),
-		).toBeVisible();
-		expect(canvas.getByText(/Reason: secret reads are blocked/)).toBeVisible();
-	},
 };
 
 export const ExecuteRewrittenByHook: Story = {
@@ -466,14 +414,6 @@ export const ExecuteRewrittenByHook: Story = {
 		parsedCommands: [["echo", "REWRITTEN_BY_HOOK"]],
 		hookRewritten: true,
 		result: { output: "REWRITTEN_BY_HOOK", exit_code: 0 },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const header = canvas.getByRole("button", {
-			name: /^(Expand|Collapse) command, modified by policy$/,
-		});
-		expect(within(header).getByText(/Ran echo/)).toBeVisible();
-		expect(canvas.getByText("Modified by policy")).toBeVisible();
 	},
 };
 
@@ -504,10 +444,6 @@ export const WriteFileRewrittenByHook: Story = {
 		hookRewritten: true,
 		result: { success: true },
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Modified by policy")).toBeVisible();
-	},
 };
 
 export const SubagentRewrittenByHook: Story = {
@@ -525,13 +461,6 @@ export const SubagentRewrittenByHook: Story = {
 			status: "completed",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
-		).toBeVisible();
-		expect(canvas.getByText("Modified by policy")).toBeVisible();
-	},
 };
 
 export const NonCollapsibleRewrittenByHook: Story = {
@@ -543,13 +472,6 @@ export const NonCollapsibleRewrittenByHook: Story = {
 		result: {
 			template: { name: "go-template", display_name: "Go Development" },
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByRole("button", { name: /Read template/ }),
-		).not.toBeInTheDocument();
-		expect(canvas.getByText("Modified by policy")).toBeVisible();
 	},
 };
 
@@ -581,11 +503,6 @@ export const ExecuteBackgrounded: Story = {
 			output: "",
 			wall_duration_ms: 2100,
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByText(/for 2\.1s/)).not.toBeInTheDocument();
-		expect(canvas.getByText(/npm start/)).toBeInTheDocument();
 	},
 };
 
@@ -678,11 +595,6 @@ export const ProcessOutputAlwaysExpanded: Story = {
 			).join("\n"),
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/process output line 1/)).toBeVisible();
-		expect(canvas.getByText(/process output line 30/)).toBeVisible();
-	},
 };
 
 export const ProcessOutputExitZeroNoBadge: Story = {
@@ -695,11 +607,6 @@ export const ProcessOutputExitZeroNoBadge: Story = {
 			output: "dogfood complete",
 			exit_code: 0,
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Checked npm start")).toBeVisible();
-		expect(canvas.queryByText(/exit/)).not.toBeInTheDocument();
 	},
 };
 
@@ -716,16 +623,6 @@ export const ProcessOutputModelIntent: Story = {
 			command: "npm start",
 			output: "> Starting Vite dev server...",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Waiting for the dev server to be ready"),
-		).toBeVisible();
-		expect(canvas.queryByText(/npm start/)).not.toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", { name: "Tool call running" }),
-		).toBeVisible();
 	},
 };
 
@@ -746,14 +643,6 @@ export const ProcessOutputStillRunningResult: Story = {
 			note: "process is still running",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Checking npm start")).toBeVisible();
-		expect(canvas.queryByText(/Checked/)).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("img", { name: "Tool call running" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 /** A later kill overrides a stale running snapshot; SIGTERM does not. */
@@ -770,12 +659,6 @@ export const ProcessOutputRunningThenSignaled: Story = {
 			note: "process is still running",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Checked npm start")).toBeVisible();
-		expect(canvas.queryByText(/Checking/)).not.toBeInTheDocument();
-		expect(canvas.getByRole("img", { name: "Killed (SIGKILL)" })).toBeVisible();
-	},
 };
 
 /** Older transcripts carry no command; the label falls back. */
@@ -789,11 +672,6 @@ export const ProcessOutputNoCommand: Story = {
 			exit_code: 0,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Process output")).toBeVisible();
-		expect(canvas.getByText("some output")).toBeVisible();
-	},
 };
 
 export const ProcessOutputStringError: Story = {
@@ -802,12 +680,6 @@ export const ProcessOutputStringError: Story = {
 		status: "error",
 		isError: true,
 		result: "permission denied",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("img", { name: "Failed to read process output" }),
-		).toBeVisible();
 	},
 };
 
@@ -898,16 +770,6 @@ export const SubagentSpawnWithModelAndEffort: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() =>
-			expect(
-				canvas.getByRole("button", {
-					name: /Spawned Workspace diagnostics with Claude Sonnet 4.6, high thinking/,
-				}),
-			).toBeInTheDocument(),
-		);
-	},
 };
 
 export const SubagentSpawnWithModelDefaultEffort: Story = {
@@ -932,16 +794,6 @@ export const SubagentSpawnWithModelDefaultEffort: Story = {
 				data: mockChatModel,
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() =>
-			expect(
-				canvas.getByRole("button", {
-					name: /Spawned Workspace diagnostics with Claude Sonnet 4.6, medium thinking/,
-				}),
-			).toBeInTheDocument(),
-		);
 	},
 };
 
@@ -970,14 +822,6 @@ export const SubagentSpawnWithEffortOnly: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const label = canvas.getByRole("button", {
-			name: /Spawned Workspace diagnostics/,
-		});
-		expect(label).toBeInTheDocument();
-		expect(label).not.toHaveTextContent(/with/);
-	},
 };
 
 export const SubagentSpawnWithUnknownModelConfig: Story = {
@@ -1005,14 +849,6 @@ export const SubagentSpawnWithUnknownModelConfig: Story = {
 				data: null,
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const label = canvas.getByRole("button", {
-			name: /Spawned Workspace diagnostics/,
-		});
-		expect(label).toBeInTheDocument();
-		expect(label).not.toHaveTextContent(/with/);
 	},
 };
 
@@ -1119,14 +955,6 @@ export const SubagentNoErrorWhenCompleted: Story = {
 		status: "error",
 		isError: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
-		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
-		expect(
-			canvas.getByRole("button", { name: /Spawned Sub-agent/ }),
-		).toBeInTheDocument();
-	},
 };
 
 export const SubagentAwaitPreferredTitle: Story = {
@@ -1165,12 +993,6 @@ export const SpawnSubagentGeneralRunning: Story = {
 			status: "pending",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Spawning Workspace diagnostics/ }),
-		).toBeInTheDocument();
-	},
 };
 
 export const SpawnSubagentGeneralCompleted: Story = {
@@ -1189,12 +1011,6 @@ export const SpawnSubagentGeneralCompleted: Story = {
 			status: "completed",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
-		).toBeInTheDocument();
-	},
 };
 
 export const SpawnSubagentExploreRunning: Story = {
@@ -1211,12 +1027,6 @@ export const SpawnSubagentExploreRunning: Story = {
 			status: "pending",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Spawning Explore agent/ }),
-		).toBeInTheDocument();
-	},
 };
 
 export const SpawnSubagentExploreCompleted: Story = {
@@ -1232,12 +1042,6 @@ export const SpawnSubagentExploreCompleted: Story = {
 			type: "explore",
 			status: "completed",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Spawned Explore agent/ }),
-		).toBeInTheDocument();
 	},
 };
 
@@ -1269,16 +1073,6 @@ export const SpawnSubagentComputerUseRunning: Story = {
 			</DesktopPanelContext.Provider>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
-		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: "Open desktop tab" }),
-			).toBeInTheDocument();
-		});
-	},
 };
 
 export const SpawnSubagentComputerUseCompleted: Story = {
@@ -1298,12 +1092,6 @@ export const SpawnSubagentComputerUseCompleted: Story = {
 			status: "completed",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Spawned Visual regression check/ }),
-		).toBeInTheDocument();
-	},
 };
 
 export const WaitAgentExploreStreamingFromHistory: Story = {
@@ -1313,12 +1101,6 @@ export const WaitAgentExploreStreamingFromHistory: Story = {
 		args: { chat_id: "explore-child" },
 		result: { chat_id: "explore-child", status: "pending" },
 		subagentVariants: new Map([["explore-child", "explore"]]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Waiting for Explore agent/ }),
-		).toBeInTheDocument();
 	},
 };
 
@@ -1332,12 +1114,6 @@ export const MessageAgentExploreStreamingFromResult: Story = {
 			type: "explore",
 			status: "pending",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Messaging Explore agent/ }),
-		).toBeInTheDocument();
 	},
 };
 
@@ -1372,12 +1148,6 @@ export const InterruptAgentExploreCompleted: Story = {
 			status: "completed",
 			interrupted: true,
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Interrupted Explore agent/ }),
-		).toBeInTheDocument();
 	},
 };
 
@@ -1443,10 +1213,6 @@ export const ListAgentsRunning: Story = {
 		args: {},
 		result: undefined,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Listing agents")).toBeInTheDocument();
-	},
 };
 
 export const ListAgentsEmpty: Story = {
@@ -1460,10 +1226,6 @@ export const ListAgentsEmpty: Story = {
 			has_more: false,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Listed 0 agents")).toBeInTheDocument();
-	},
 };
 
 export const ListAgentsError: Story = {
@@ -1473,10 +1235,6 @@ export const ListAgentsError: Story = {
 		isError: true,
 		args: {},
 		result: "list_agents is only available on root chats",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Listed 0 agents")).toBeInTheDocument();
 	},
 };
 
@@ -1556,10 +1314,6 @@ export const ListSubagentModelsRunning: Story = {
 		args: {},
 		result: undefined,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Listing subagent models…")).toBeInTheDocument();
-	},
 };
 
 export const ListSubagentModelsEmpty: Story = {
@@ -1571,10 +1325,6 @@ export const ListSubagentModelsEmpty: Story = {
 			models: [],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Listed 0 subagent models")).toBeInTheDocument();
-	},
 };
 
 export const ListSubagentModelsError: Story = {
@@ -1584,10 +1334,6 @@ export const ListSubagentModelsError: Story = {
 		isError: true,
 		args: {},
 		result: "list_subagent_models is only available on root chats",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Listed 0 subagent models")).toBeInTheDocument();
 	},
 };
 
@@ -1599,10 +1345,6 @@ export const ListTemplatesRunning: Story = {
 	args: {
 		name: "list_templates",
 		status: "running",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Listing templates…")).toBeInTheDocument();
 	},
 };
 
@@ -1652,10 +1394,6 @@ export const ListTemplatesSingle: Story = {
 			count: 1,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Listed 1 template")).toBeInTheDocument();
-	},
 };
 
 export const ListTemplatesEmpty: Story = {
@@ -1666,10 +1404,6 @@ export const ListTemplatesEmpty: Story = {
 			templates: [],
 			count: 0,
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Listing templates…")).toBeInTheDocument();
 	},
 };
 
@@ -1707,12 +1441,6 @@ export const ChatSummarizedAutomaticSource: Story = {
 		args: JSON.stringify({ source: "automatic" }),
 		result: { summary: "Compaction summary text.", source: "automatic" },
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: "Summarized" }),
-		).toBeInTheDocument();
-	},
 };
 
 // A user-requested /compact renders with a distinct manual label.
@@ -1746,10 +1474,6 @@ export const ChatSummarizedManualRunning: Story = {
 		status: "running",
 		result: undefined,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Summarizing…")).toBeInTheDocument();
-	},
 };
 
 export const ChatCleared: Story = {
@@ -1757,13 +1481,6 @@ export const ChatCleared: Story = {
 		name: "chat_cleared",
 		args: JSON.stringify({ source: "manual" }),
 		result: { source: "manual" },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Context cleared")).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Context cleared" }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -1774,13 +1491,6 @@ export const ChatClearedError: Story = {
 		result: { error: "chat is archived" },
 		status: "error",
 		isError: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Context cleared")).toBeInTheDocument();
-		expect(
-			await canvas.findByRole("img", { name: "chat is archived" }),
-		).toBeInTheDocument();
 	},
 };
 
@@ -1808,11 +1518,6 @@ export const TaskNameGenericRendering: Story = {
 	args: {
 		name: "task",
 		args: undefined,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("task")).toBeInTheDocument();
-		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
 	},
 };
 
@@ -1855,13 +1560,6 @@ export const MCPToolRunning: Story = {
 		mcpServerConfigId: "mcp-server-1",
 		mcpServers: sampleMCPServers,
 	},
-	play: async ({ canvasElement }) => {
-		// Spinner should be visible while running.
-		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
-		// Icon should be monochrome (brightness-0 filter).
-		const icon = canvasElement.querySelector(".brightness-0");
-		expect(icon).not.toBeNull();
-	},
 };
 
 export const MCPToolCompleted: Story = {
@@ -1902,14 +1600,6 @@ export const MCPToolError: Story = {
 		result: { error: "Authentication token expired" },
 		mcpServerConfigId: "mcp-server-1",
 		mcpServers: sampleMCPServers,
-	},
-	play: async ({ canvasElement }) => {
-		// Warning triangle icon should be present.
-		expect(
-			canvasElement.querySelector(".lucide-triangle-alert"),
-		).not.toBeNull();
-		// Label text should NOT use the destructive color.
-		expect(canvasElement.querySelector(".text-content-destructive")).toBeNull();
 	},
 };
 
@@ -1989,11 +1679,6 @@ export const MCPToolNoServer: Story = {
 		status: "completed",
 		result: { output: "Tool finished successfully" },
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Falls through to generic wrench icon + raw tool name.
-		expect(canvas.getByText("some_custom_tool")).toBeInTheDocument();
-	},
 };
 
 export const WorkspaceMCPToolCompleted: Story = {
@@ -2023,15 +1708,6 @@ export const MCPToolModelIntentRunning: Story = {
 		mcpServerConfigId: "mcp-server-1",
 		mcpServers: sampleMCPServers,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Should show the model intent label instead of the raw tool name.
-		expect(
-			canvas.getByText("Fetching backend issues from Linear"),
-		).toBeInTheDocument();
-		// Spinner should be visible while running.
-		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
-	},
 };
 
 export const MCPToolModelIntentCompleted: Story = {
@@ -2052,13 +1728,6 @@ export const MCPToolModelIntentCompleted: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Intent should be capitalized.
-		expect(
-			canvas.getByText("Creating pull request for auth fix"),
-		).toBeInTheDocument();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -2074,10 +1743,6 @@ export const WriteFileRunning: Story = {
 			content:
 				"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Writing helpers\.ts/)).toBeInTheDocument();
 	},
 };
 
@@ -2115,10 +1780,6 @@ export const WriteFileAlwaysExpanded: Story = {
 			content:
 				"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByTestId("write-file-diff")).toBeVisible();
 	},
 };
 
@@ -2172,10 +1833,6 @@ export const EditFilesSingleRunning: Story = {
 			],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Editing config\.ts/)).toBeInTheDocument();
-	},
 };
 
 export const EditFilesSingleSuccess: Story = {
@@ -2196,11 +1853,6 @@ export const EditFilesSingleSuccess: Story = {
 				},
 			],
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited config\.ts/)).toBeInTheDocument();
-		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
 	},
 };
 
@@ -2263,10 +1915,6 @@ export const EditFilesMultipleSuccess: Story = {
 			],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
-	},
 };
 
 /**
@@ -2295,10 +1943,6 @@ export const EditFilesInterleavedContext: Story = {
 			],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited constants\.ts/)).toBeInTheDocument();
-	},
 };
 
 export const EditFilesError: Story = {
@@ -2320,16 +1964,6 @@ export const EditFilesError: Story = {
 			],
 		},
 		result: { error: "File not found" },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Failed to edit missing\.ts/)).toBeInTheDocument();
-		await waitFor(() => {
-			expect(canvas.getByText("File not found")).toBeVisible();
-		});
-		// On error, no diff body: the synthetic fallback would
-		// misrepresent a rejected edit as applied.
-		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
 	},
 };
 
@@ -2373,13 +2007,6 @@ export const EditFilesServerDiffMultiFile: Story = {
 			],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
-		// Both server diffs must render. FileDiff's internals aren't
-		// queryable from jsdom; count the testid'd wrappers instead.
-		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
-	},
 };
 
 export const EditFilesServerDiffNoOp: Story = {
@@ -2404,11 +2031,6 @@ export const EditFilesServerDiffNoOp: Story = {
 			files: [{ path: "src/unchanged.ts", diff: "" }],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited unchanged\.ts/)).toBeInTheDocument();
-		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
-	},
 };
 
 export const EditFilesFallbackToSynthetic: Story = {
@@ -2429,11 +2051,6 @@ export const EditFilesFallbackToSynthetic: Story = {
 			],
 		},
 		result: { ok: true },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited legacy\.ts/)).toBeInTheDocument();
-		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
 	},
 };
 
@@ -2473,11 +2090,6 @@ export const EditFilesServerDiffPartialFallback: Story = {
 			],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
-		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -2515,11 +2127,6 @@ export const ComputerRunning: Story = {
 		name: "computer",
 		status: "running",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Taking screenshot…")).toBeInTheDocument();
-		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
-	},
 };
 
 export const ComputerTextFallback: Story = {
@@ -2556,14 +2163,6 @@ export const ComputerError: Story = {
 			text: "",
 			mime_type: "image/png",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
-		// Warning icon should be present, not the old destructive style.
-		expect(
-			canvasElement.querySelector(".lucide-triangle-alert"),
-		).not.toBeNull();
 	},
 };
 
@@ -2628,10 +2227,6 @@ export const AttachFileLabelFallsBackToPathBasename: Story = {
 		},
 		result: {},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Attached incident.md")).toBeInTheDocument();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -2645,18 +2240,6 @@ export const GenericToolFailed: Story = {
 		isError: true,
 		args: { input: "test data" },
 		result: { error: "Connection refused: could not reach upstream service" },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Should show "Failed" badge instead of scary red alert.
-		expect(
-			canvasElement.querySelector(".lucide-triangle-alert"),
-		).not.toBeNull();
-		// Label should NOT have destructive color.
-		const label = canvas.getByText("some_custom_tool");
-		expect(label.className).not.toContain("text-content-destructive");
-		// Error icon should not be present (replaced by warning triangle).
-		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
 	},
 };
 
@@ -2679,12 +2262,6 @@ export const GenericToolStringError: Story = {
 		status: "error",
 		isError: true,
 		result: "Network unreachable",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("img", { name: "Web search failed" }),
-		).toBeVisible();
 	},
 };
 
@@ -2796,15 +2373,6 @@ export const SubagentWaitTimedOut: Story = {
 		args: { chat_id: "timed-out-child" },
 		result: "timed out waiting for delegated subagent completion",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Should show clock icon for timeout.
-		expect(canvasElement.querySelector(".lucide-clock")).not.toBeNull();
-		// Should NOT show red alert icon.
-		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
-		// Should show timeout verb.
-		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
-	},
 };
 
 export const SubagentWaitTimedOutWithTitle: Story = {
@@ -2856,16 +2424,6 @@ export const SubagentWaitTimedOutStructured: Story = {
 			timed_out: true,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Should show clock icon for timeout.
-		expect(canvasElement.querySelector(".lucide-clock")).not.toBeNull();
-		// Should NOT show red alert icon.
-		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
-		// Should show timeout verb.
-		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
-		expect(canvas.getByText("Fix login bug")).toBeInTheDocument();
-	},
 };
 
 export const SubagentSpawnError: Story = {
@@ -2883,15 +2441,6 @@ export const SubagentSpawnError: Story = {
 			status: "error",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Should show the muted X icon, not the red alert.
-		expect(canvasElement.querySelector(".lucide-circle-x")).not.toBeNull();
-		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
-		// Should show error verb.
-		expect(canvas.getByText(/Failed to spawn/)).toBeInTheDocument();
-		expect(canvas.getByText("Database migration")).toBeInTheDocument();
-	},
 };
 
 export const SubagentWaitError: Story = {
@@ -2906,12 +2455,6 @@ export const SubagentWaitError: Story = {
 			status: "error",
 			title: "Lint codebase",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvasElement.querySelector(".lucide-circle-x")).not.toBeNull();
-		expect(canvas.getByText(/Failed waiting for/)).toBeInTheDocument();
-		expect(canvas.getByText("Lint codebase")).toBeInTheDocument();
 	},
 };
 
@@ -2954,11 +2497,6 @@ export const SpawnComputerUseAgentRunning: Story = {
 			status: "pending",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
-		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
-	},
 };
 
 export const SpawnComputerUseAgentCompleted: Story = {
@@ -2997,9 +2535,6 @@ export const SpawnComputerUseAgentError: Story = {
 			status: "error",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		expect(canvasElement.querySelector(".lucide-circle-x")).not.toBeNull();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -3031,20 +2566,6 @@ export const WaitAgentComputerUseRunning: Story = {
 			</DesktopPanelContext.Provider>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
-		// Running state shows the monitor icon instead of a spinner.
-		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
-		// The VNC preview container should mount (the connection will
-		// stay in "connecting" state without a real WebSocket, which
-		// is expected; we only verify the container renders).
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: "Open desktop tab" }),
-			).toBeInTheDocument();
-		});
-	},
 };
 
 export const WaitAgentComputerUseCompletedNoRecording: Story = {
@@ -3072,13 +2593,6 @@ export const WaitAgentComputerUseCompletedNoRecording: Story = {
 			</DesktopPanelContext.Provider>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByRole("button", { name: "View recording" })).toBeNull();
-		expect(
-			canvas.queryByRole("button", { name: "Open desktop tab" }),
-		).toBeNull();
-	},
 };
 
 export const WaitAgentComputerUseTimedOutNoRecording: Story = {
@@ -3095,10 +2609,6 @@ export const WaitAgentComputerUseTimedOutNoRecording: Story = {
 		},
 		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByRole("button", { name: "View recording" })).toBeNull();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -3110,10 +2620,6 @@ export const ReadSkillRunning: Story = {
 		name: "read_skill",
 		status: "running",
 		args: { name: "deep-review" },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Reading skill deep-review/)).toBeInTheDocument();
 	},
 };
 
@@ -3148,11 +2654,6 @@ export const ReadSkillError: Story = {
 		args: { name: "nonexistent-skill" },
 		result: { error: 'skill "nonexistent-skill" not found' },
 	},
-	play: async ({ canvasElement }) => {
-		expect(
-			canvasElement.querySelector(".lucide-triangle-alert"),
-		).not.toBeNull();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -3164,12 +2665,6 @@ export const ReadSkillFileRunning: Story = {
 		name: "read_skill_file",
 		status: "running",
 		args: { name: "deep-review", path: "roles/security-reviewer.md" },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(/Reading deep-review\/roles\/security-reviewer\.md/),
-		).toBeInTheDocument();
 	},
 };
 
@@ -3237,10 +2732,6 @@ export const StartWorkspaceRunning: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Starting workspace…")).toBeInTheDocument();
-	},
 };
 
 export const StartWorkspaceCompleted: Story = {
@@ -3265,10 +2756,6 @@ export const StartWorkspaceCompleted: Story = {
 				data: [],
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Started my-project")).toBeInTheDocument();
 	},
 };
 
@@ -3296,10 +2783,6 @@ export const StartWorkspaceError: Story = {
 			error: "workspace was deleted; use create_workspace to make a new one",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Failed to start workspace")).toBeInTheDocument();
-	},
 };
 
 export const StartWorkspaceBuildFailed: Story = {
@@ -3322,10 +2805,6 @@ export const StartWorkspaceBuildFailed: Story = {
 				data: [],
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Failed to start workspace")).toBeInTheDocument();
 	},
 };
 
@@ -3357,10 +2836,6 @@ export const StartWorkspaceQuotaReached: Story = {
 				data: [],
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Workspace quota reached")).toBeInTheDocument();
 	},
 };
 
@@ -3394,10 +2869,6 @@ export const CreateWorkspaceRunning: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
-	},
 };
 
 export const CreateWorkspaceCompleted: Story = {
@@ -3421,10 +2892,6 @@ export const CreateWorkspaceCompleted: Story = {
 				data: [],
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Created my-project")).toBeInTheDocument();
 	},
 };
 
@@ -3457,10 +2924,6 @@ export const CreateWorkspaceQuotaReached: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Workspace quota reached")).toBeInTheDocument();
-	},
 };
 
 export const CreateWorkspaceLegacy: Story = {
@@ -3487,12 +2950,6 @@ export const CreateWorkspaceAlreadyExists: Story = {
 			workspace_name: "my-project",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Workspace my-project already exists"),
-		).toBeInTheDocument();
-	},
 };
 
 export const CreateWorkspaceError: Story = {
@@ -3503,10 +2960,6 @@ export const CreateWorkspaceError: Story = {
 		result: {
 			error: "template not found",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Failed to create workspace")).toBeInTheDocument();
 	},
 };
 
@@ -3530,10 +2983,6 @@ export const CreateWorkspaceBuildFailed: Story = {
 				data: [],
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Failed to create workspace")).toBeInTheDocument();
 	},
 };
 

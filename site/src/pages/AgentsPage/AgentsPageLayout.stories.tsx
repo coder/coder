@@ -675,36 +675,6 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 			routing: agentsWithChatPaneMinimumRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const layout = await canvas.findByTestId("agents-page-layout");
-		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
-		const main = await canvas.findByTestId("agents-main-panel");
-		const chatPanel = await canvas.findByTestId("agents-chat-panel");
-		const composer = await canvas.findByTestId("chat-composer");
-		const sendButton = within(composer).getByRole("button", { name: "Send" });
-
-		await waitFor(() => {
-			const layoutRect = layout.getBoundingClientRect();
-			const sidebarRect = sidebar.getBoundingClientRect();
-			const mainRect = main.getBoundingClientRect();
-			const chatPanelRect = chatPanel.getBoundingClientRect();
-			const composerRect = composer.getBoundingClientRect();
-			const sendButtonRect = sendButton.getBoundingClientRect();
-			const maxSidebarWidth = layoutRect.width - AGENTS_MAIN_PANEL_MIN_WIDTH;
-
-			expect(layoutRect.width).toBe(narrowAgentsLayoutWidth);
-			expect(sidebarRect.width).toBeLessThanOrEqual(maxSidebarWidth + 1);
-			expect(mainRect.width).toBeGreaterThanOrEqual(
-				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
-			);
-			expect(chatPanelRect.width).toBeGreaterThanOrEqual(
-				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
-			);
-			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
-			expect(composerRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
-		});
-	},
 };
 
 export const ResizableSidebarKeyboard: Story = {

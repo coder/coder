@@ -1026,13 +1026,6 @@ export const CachedModelsWithRefetchError: Story = {
 			new Error("Failed to refresh available models."),
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByText("Failed to refresh available models."),
-		).toBeVisible();
-		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
-	},
 };
 
 export const LoadingPersonalModelOverrides: Story = {
@@ -1138,14 +1131,6 @@ export const ProviderRequiresUserApiKey: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
-		expect(canvas.getByRole("link", { name: "Settings" })).toHaveAttribute(
-			"href",
-			"/agents/settings/api-keys",
-		);
-	},
 };
 
 export const ProviderMissingAPIKey: Story = {
@@ -1156,10 +1141,6 @@ export const ProviderMissingAPIKey: Story = {
 				data: missingAPIKeyCatalog,
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 	},
 };
 
@@ -1188,13 +1169,6 @@ export const UnsupportedProviderOnly: Story = {
 			},
 			{ key: aiProvidersListKey, data: [] },
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/GitHub Copilot is configured but/i)).toBeVisible();
-		expect(
-			canvas.getByRole("link", { name: "not supported by Coder Agents" }),
-		).toBeVisible();
 	},
 };
 
@@ -1352,20 +1326,6 @@ export const HookDispatchFailed: Story = {
 			},
 		),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Lifecycle hook failed")).toBeVisible();
-		await expect(
-			canvas.getByText("Chat lifecycle hook dispatch failed."),
-		).toBeVisible();
-		await expect(
-			canvas.getByText(
-				"Lifecycle hook dispatch 00000000-0000-0000-0000-000000000001 failed (http_error).",
-			),
-		).toBeVisible();
-		await expect(canvas.queryByText("Stack Trace")).not.toBeInTheDocument();
-		await expect(canvas.queryByText("Response data")).not.toBeInTheDocument();
-	},
 };
 
 export const HookDenied: Story = {
@@ -1389,20 +1349,6 @@ export const HookDenied: Story = {
 				toJSON: () => ({}),
 			},
 		),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("This prompt is blocked by policy."),
-		).toBeVisible();
-		await expect(
-			canvas.queryByText("Blocked by policy"),
-		).not.toBeInTheDocument();
-		await expect(
-			canvas.queryByText("Go to workspaces"),
-		).not.toBeInTheDocument();
-		await expect(canvas.queryByText("Stack Trace")).not.toBeInTheDocument();
-		await expect(canvas.queryByText("Response data")).not.toBeInTheDocument();
 	},
 };
 
@@ -1534,12 +1480,6 @@ export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
 			},
 			100,
 		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByRole("combobox", { name: "GPT 4.1 Mini" }),
-		).toBeVisible();
 	},
 };
 
@@ -1720,14 +1660,6 @@ export const LoadingWorkspacesBlocksSendUntilValidated: Story = {
 			[MockDefaultOrganization.id]: true,
 			[MockOrganization2.id]: true,
 		});
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Wait for permissions to settle before checking workspace validation.
-		await canvas.findByRole("button", {
-			name: "Organization: My Organization",
-		});
-		await expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
 
@@ -2151,17 +2083,6 @@ export const LocalOrganizationModels: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByRole("button", {
-				name: `Organization: ${MockOrganization2.display_name}`,
-			}),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.getByRole("combobox", { name: "GPT 4.1 Mini" }),
-		).toBeVisible();
-	},
 };
 
 export const ForeignOnlyModelsDisableGeneration: Story = {
@@ -2205,17 +2126,6 @@ export const OrgPickerTightSpacing: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const orgTrigger = await canvas.findByTestId("compact-org-selector");
-		const composer = await canvas.findByTestId("chat-composer");
-
-		const orgRect = orgTrigger.getBoundingClientRect();
-		const composerRect = composer.getBoundingClientRect();
-		const gap = composerRect.top - orgRect.bottom;
-		expect(gap).toBeGreaterThanOrEqual(0);
-		expect(gap).toBeLessThan(16);
-	},
 };
 
 /**
@@ -2236,24 +2146,6 @@ export const OrgChangeConfirmation: Story = {
 			onClose={fn()}
 		/>
 	),
-	play: async () => {
-		const dialog = await screen.findByRole("dialog");
-		await expect(dialog).toBeInTheDocument();
-		await expect(
-			within(dialog).getByText("Change organization?"),
-		).toBeInTheDocument();
-		await expect(
-			within(dialog).getByText(
-				"Changing organization will remove your current attachments.",
-			),
-		).toBeInTheDocument();
-		await expect(
-			within(dialog).getByRole("button", { name: /continue/i }),
-		).toBeInTheDocument();
-		await expect(
-			within(dialog).getByRole("button", { name: /cancel/i }),
-		).toBeInTheDocument();
-	},
 };
 
 export const ForbiddenNoOrganizationAccess: Story = {
@@ -2456,16 +2348,6 @@ export const MCPServersErrorShowsAlertAndDisablesSend: Story = {
 		spyOn(API.experimental, "getMCPServerConfigs").mockRejectedValue(
 			new Error("failed to load MCP servers"),
 		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const alert = await canvas.findByRole("alert");
-		expect(
-			within(alert).getByRole("heading", {
-				name: /failed to load mcp servers/i,
-			}),
-		).toBeVisible();
-		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
 

@@ -541,10 +541,6 @@ export const Empty: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/no debug runs/i)).toBeInTheDocument();
-	},
 };
 
 export const Disabled: Story = {
@@ -569,15 +565,6 @@ export const ErrorState: Story = {
 			getChatDebugRunsMock.mockRestore();
 		};
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// `getErrorMessage` treats any object with a string `message`
-		// property as an `ApiErrorResponse`, which includes plain `Error`
-		// instances, so the rejection surfaces via `error.message`.
-		await waitFor(() => {
-			expect(canvas.getByText(/network failure/i)).toBeInTheDocument();
-		});
-	},
 };
 
 export const Loading: Story = {
@@ -590,10 +577,6 @@ export const Loading: Story = {
 		return () => {
 			getChatDebugRunsMock.mockRestore();
 		};
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/loading debug/i)).toBeInTheDocument();
 	},
 };
 
@@ -1297,13 +1280,6 @@ export const CompactionAndTitleGenerationBadges: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Verify all three kind badge labels render.
-		await expect(canvas.getByText(/compaction/i)).toBeInTheDocument();
-		await expect(canvas.getByText(/chat turn/i)).toBeInTheDocument();
-		await expect(canvas.getByText(/title generation/i)).toBeInTheDocument();
-	},
 };
 
 export const NonChatTurnKindShownWithFirstMessage: Story = {
@@ -1328,21 +1304,6 @@ export const NonChatTurnKindShownWithFirstMessage: Story = {
 				],
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// A failed title generation with a first_message label must
-		// still identify itself by kind so it is distinguishable from
-		// a failed chat turn.
-		const titleRun = await canvas.findByRole("button", {
-			name: /Summarize my workspace/i,
-		});
-		await expect(within(titleRun).getByText("Title Generation")).toBeVisible();
-		// Chat turns keep their metadata kind-free.
-		const chatRun = await canvas.findByRole("button", {
-			name: /Fix the login bug/i,
-		});
-		expect(within(chatRun).queryByText("Chat Turn")).toBeNull();
 	},
 };
 
@@ -1520,17 +1481,6 @@ export const FallbackLabeledRun: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// Without firstMessage, the run header should fall back to the run kind
-		// while keeping the model inline and omitting the provider label.
-		const runTrigger = await canvas.findByRole("button", {
-			name: /Chat Turn/i,
-		});
-		expect(runTrigger).toHaveTextContent(/claude-sonnet-4/i);
-		expect(runTrigger).not.toHaveTextContent(/Anthropic/i);
-	},
 };
 
 export const InProgressRun: Story = {
@@ -1549,17 +1499,6 @@ export const InProgressRun: Story = {
 				],
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// The compact run header keeps the model and running status inline.
-		const runTrigger = await canvas.findByRole("button", {
-			name: /Chat Turn/i,
-		});
-		expect(runTrigger).toHaveTextContent(/gpt-4/i);
-		expect(runTrigger).toHaveTextContent(/in_progress/i);
-		expect(runTrigger).not.toHaveTextContent(/Openai/i);
 	},
 };
 

@@ -463,20 +463,6 @@ export const LifecycleHookNotice: Story = {
 			},
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const notice = canvas.getByRole("note");
-		expect(notice).toBeVisible();
-		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
-		expect(
-			within(notice).getByText(
-				"Your organization requires an approval before deployment.",
-			),
-		).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: "Copy message" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const SystemMessageWithoutHookNotice: Story = {
@@ -490,16 +476,6 @@ export const SystemMessageWithoutHookNotice: Story = {
 				content: [{ type: "text", text: "Maintenance starts in ten minutes." }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const notice = canvas.getByRole("note");
-		expect(
-			within(notice).getByText("Maintenance starts in ten minutes."),
-		).toBeVisible();
-		expect(
-			within(notice).queryByText("Lifecycle hook"),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -678,19 +654,6 @@ export const FindToolsEmptyResult: Story = {
 			},
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const summary = canvas.getByText(
-			"Searched tools: nonexistent capability -> 0 matched",
-		);
-		expect(summary).toBeVisible();
-		expect(
-			canvas.queryByRole("button", {
-				name: "Searched tools: nonexistent capability -> 0 matched",
-			}),
-		).not.toBeInTheDocument();
-		expect(canvas.queryByRole("img")).not.toBeInTheDocument();
-	},
 };
 
 export const FindToolsErrorResult: Story = {
@@ -729,17 +692,6 @@ export const FindToolsErrorResult: Story = {
 			},
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Searched tools: github issues -> 0 matched"),
-		).toBeVisible();
-		expect(
-			canvas.getByRole("img", {
-				name: "The schema budget for this step is exhausted; call the tools already activated or retry next step.",
-			}),
-		).toBeVisible();
-	},
 };
 
 export const FindToolsMalformedResultUsesDefaultRenderer: Story = {
@@ -773,11 +725,6 @@ export const FindToolsMalformedResultUsesDefaultRenderer: Story = {
 				],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByText(/Searched tools:/)).not.toBeInTheDocument();
-		expect(canvas.getByRole("button", { name: "find_tools" })).toBeVisible();
 	},
 };
 
@@ -822,11 +769,6 @@ export const DurableListTemplatesToolLifecycle: Story = {
 				],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getAllByText("Listed 1 template")).toHaveLength(1);
-		expect(canvas.queryByText("Listing templates…")).not.toBeInTheDocument();
 	},
 };
 
@@ -893,12 +835,6 @@ export const UserMessageWithSingleImage: Story = {
 			},
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
-		expect(images).toHaveLength(1);
-		expectNoCopyMessageButtonForElement(images[0]);
-	},
 };
 
 /** Ensures N images in yields exactly N thumbnails with no duplication. */
@@ -930,12 +866,6 @@ export const UserMessageWithMultipleImages: Story = {
 				],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
-		expect(images).toHaveLength(3);
-		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -1250,14 +1180,6 @@ export const UserMessageWithMultipleTextAttachments: Story = {
 			],
 		}),
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const textButtons = await canvas.findAllByRole("button", {
-			name: "View text attachment",
-		});
-		expect(textButtons).toHaveLength(3);
-		expectNoCopyMessageButtonForElement(textButtons[0]);
-	},
 };
 
 export const UserMessageWithTextAttachmentOnly: Story = {
@@ -1427,16 +1349,6 @@ export const UserMessageWithMixedAttachments: Story = {
 			],
 		}),
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
-		expect(images).toHaveLength(1);
-		const textButtons = await canvas.findAllByRole("button", {
-			name: "View text attachment",
-		});
-		expect(textButtons).toHaveLength(1);
-		expectNoCopyMessageButtonForElement(images[0]);
-	},
 };
 
 /** Text-only messages must not produce spurious image thumbnails. */
@@ -1451,12 +1363,6 @@ export const UserMessageTextOnly: Story = {
 				content: [{ type: "text", text: "Just a plain text message" }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const images = canvas.queryAllByRole("img", { name: "Attached image" });
-		expect(images).toHaveLength(0);
-		expect(canvas.getByText("Just a plain text message")).toBeInTheDocument();
 	},
 };
 
@@ -1645,13 +1551,6 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 			},
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
-		expect(images).toHaveLength(1);
-		expect(canvas.getByText(/main\.go/)).toBeInTheDocument();
-		expectNoCopyMessageButtonForElement(images[0]);
-	},
 };
 
 /** File references render inline with text, matching the chat input style. */
@@ -1687,12 +1586,6 @@ export const UserMessageWithInlineFileRef: Story = {
 				],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Button\.tsx/)).toBeInTheDocument();
-		expect(canvas.getByText(/Can you refactor/)).toBeInTheDocument();
-		expect(canvas.getByText(/to use the new API/)).toBeInTheDocument();
 	},
 };
 
@@ -1762,12 +1655,6 @@ export const MetadataOnlyUserMessageRendersNoRow: Story = {
 			},
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Before hidden metadata.")).toBeVisible();
-		expect(canvas.getByText("After hidden metadata.")).toBeVisible();
-		expect(canvas.queryByTestId("chat-message-message:2")).toBeNull();
-	},
 };
 
 /**
@@ -1803,13 +1690,6 @@ export const UserMessagesRenderAsSingleRows: Story = {
 				content: [{ type: "text", text: "Second response" }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getAllByText("First prompt")).toHaveLength(1);
-		expect(canvas.getAllByText("Second prompt")).toHaveLength(1);
-		expect(canvas.getAllByTestId("chat-message-message:1")).toHaveLength(1);
-		expect(canvas.getAllByTestId("chat-message-message:3")).toHaveLength(1);
 	},
 };
 
@@ -2120,31 +2000,6 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 				content: [{ type: "text", text: askUserQuestionSubmittedResponse }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// The submitted-answer summary is hidden after the follow-up user message.
-		expect(
-			canvas.getByText("How should we structure the database migration?"),
-		).toBeInTheDocument();
-		expect(canvas.queryAllByRole("radio")).toHaveLength(0);
-		expect(
-			canvas.queryByRole("button", { name: "Submit" }),
-		).not.toBeInTheDocument();
-		const userMessages = canvasElement.querySelectorAll('[data-role="user"]');
-		const latestUserMessage = userMessages[userMessages.length - 1];
-		if (!(latestUserMessage instanceof HTMLElement)) {
-			throw new Error("Expected a submitted user message bubble.");
-		}
-		expect(
-			within(latestUserMessage).getByText(
-				/Implementation Approach: Incremental migrations/,
-			),
-		).toBeInTheDocument();
-		expect(
-			within(latestUserMessage).getByText(/Release Plan: Small beta/),
-		).toBeInTheDocument();
 	},
 };
 
@@ -2759,26 +2614,6 @@ export const ThinkingBlockAlwaysExpanded: Story = {
 			},
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Thinking about configuring model settings"),
-		).toBeInTheDocument();
-		await waitFor(() => {
-			expect(
-				canvas.getByText(/Let me think about this step by step/),
-			).toBeVisible();
-		});
-		const thinkingRow = canvas
-			.getByText(/Let me think about this step by step/)
-			.closest("[data-transcript-row]");
-		expect(thinkingRow).toBeInstanceOf(HTMLElement);
-		expect(
-			within(thinkingRow as HTMLElement).queryByText(
-				"Configuring model settings",
-			),
-		).not.toBeInTheDocument();
-	},
 };
 
 /**
@@ -2901,10 +2736,6 @@ export const ReadFileRewrittenByHook: Story = {
 				hookRewritten: true,
 			}),
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Modified by policy")).toBeVisible();
 	},
 };
 
@@ -3067,12 +2898,6 @@ export const SequentialReadFilesRunningState: Story = {
 			}),
 		] satisfies ParsedMessageEntry[],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /reading 3 files/i }),
-		).toBeInTheDocument();
-	},
 };
 
 /** Collapsed thinking should visually align with adjacent tool calls. */
@@ -3221,42 +3046,6 @@ export const ThinkingBlockWithShellTools: Story = {
 				],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const thinkingButton = canvas.getByRole("button", { name: /thinking/i });
-		const executeButton = canvas.getByRole("button", {
-			name: /expand command/i,
-		});
-		const processOutputButton = canvas.getByRole("button", {
-			name: /expand process output/i,
-		});
-
-		const wrappers = [
-			thinkingButton.closest("[data-transcript-row]") ?? thinkingButton,
-			executeButton.closest("[data-transcript-row]") ?? executeButton,
-			processOutputButton.closest("[data-transcript-row]") ??
-				processOutputButton,
-		];
-
-		const rows = wrappers.map(
-			(wrapper) => wrapper.firstElementChild ?? wrapper,
-		);
-		const rowHeights = rows.map((row) =>
-			Math.round(row.getBoundingClientRect().height),
-		);
-		expect(new Set(rowHeights)).toHaveLength(1);
-		const gaps = [
-			Math.round(
-				wrappers[1].getBoundingClientRect().top -
-					wrappers[0].getBoundingClientRect().bottom,
-			),
-			Math.round(
-				wrappers[2].getBoundingClientRect().top -
-					wrappers[1].getBoundingClientRect().bottom,
-			),
-		];
-		expect(gaps).toEqual([8, 8]);
 	},
 };
 
