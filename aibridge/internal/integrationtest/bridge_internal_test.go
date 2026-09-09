@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -20,6 +21,8 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream"
+	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream/eventstreamapi"
 	v4signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
@@ -504,6 +507,62 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 			})
 		}
+	})
+
+	// BYOK streaming must still decode Bedrock's binary event-stream frames.
+	// The bearer path drops bedrock.WithConfig, but the SDK's event-stream
+	// decoder is registered by the bedrock package's init and selected by the
+	// response content-type, so decoding is preserved.
+	t.Run("byok/invoke-model/eventstream", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		const userKey = "user-bedrock-api-key-eventstream"
+
+		var gotAuth atomic.Value
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth.Store(r.Header.Get("Authorization"))
+			_ = writeBedrockEventStream(w,
+				`{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"anthropic.claude","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":5,"output_tokens":1}}}`,
+				`{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
+				`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}`,
+				`{"type":"content_block_stop","index":0}`,
+				`{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":2}}`,
+				`{"type":"message_stop"}`,
+			)
+		}))
+		t.Cleanup(upstream.Close)
+
+		bedrockCfg := &config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-access-key",
+			AccessKeySecret: "test-secret-key",
+			Model:           "danthropic",
+			SmallFastModel:  "danthropic-mini",
+			BaseURL:         upstream.URL,
+		}
+
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+		)
+
+		reqBody, err := sjson.SetBytes(fixtures.Parse(t, fixtures.AntSingleBuiltinTool).Request(), "stream", true)
+		require.NoError(t, err)
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody,
+			http.Header{"X-Api-Key": {userKey}})
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// The re-emitted client SSE proves the binary frames were decoded.
+		sp := aibridge.NewSSEParser()
+		require.NoError(t, sp.Parse(resp.Body))
+		assert.Contains(t, sp.AllEvents(), "message_start")
+		assert.Contains(t, sp.AllEvents(), "message_stop")
+
+		require.Equal(t, "Bearer "+userKey, gotAuth.Load())
 	})
 
 	t.Run("byok/mantle", func(t *testing.T) {
@@ -2810,4 +2869,36 @@ func TestTokenUsageRecordedWithoutMCPProxier(t *testing.T) {
 			assert.EqualValues(t, tc.expectedOutputTokens, bridgeServer.Recorder.TotalOutputTokens()-outputBefore, "output tokens miscalculated")
 		})
 	}
+}
+
+// writeBedrockEventStream writes each JSON event as an AWS binary event-stream
+// "chunk" frame, matching the wire format the Bedrock InvokeModel streaming
+// endpoint returns.
+func writeBedrockEventStream(w http.ResponseWriter, events ...string) error {
+	w.Header().Set("Content-Type", "application/vnd.amazon.eventstream")
+	w.WriteHeader(http.StatusOK)
+
+	encoder := eventstream.NewEncoder()
+	for _, event := range events {
+		payload, err := json.Marshal(map[string]string{
+			"bytes": base64.StdEncoding.EncodeToString([]byte(event)),
+		})
+		if err != nil {
+			return err
+		}
+		if err := encoder.Encode(w, eventstream.Message{
+			Headers: eventstream.Headers{
+				{Name: eventstreamapi.MessageTypeHeader, Value: eventstream.StringValue(eventstreamapi.EventMessageType)},
+				{Name: eventstreamapi.EventTypeHeader, Value: eventstream.StringValue("chunk")},
+				{Name: eventstreamapi.ContentTypeHeader, Value: eventstream.StringValue("application/json")},
+			},
+			Payload: payload,
+		}); err != nil {
+			return err
+		}
+	}
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	return nil
 }
