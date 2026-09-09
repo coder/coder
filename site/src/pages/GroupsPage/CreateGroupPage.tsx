@@ -21,12 +21,8 @@ const CreateGroupPage: FC = () => {
 
 			<CreateGroupPageView
 				onSubmit={async (data) => {
-					const newGroup = await createGroupMutation.mutateAsync(data);
-					navigate(
-						organization
-							? `/organizations/${organization}/groups/${newGroup.name}`
-							: `/deployment/groups/${newGroup.name}`,
-					);
+					await createGroupMutation.mutateAsync(data);
+					navigate("..");
 				}}
 				onCancel={() => {
 					navigate("..");

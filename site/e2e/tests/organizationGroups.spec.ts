@@ -56,12 +56,14 @@ test("create group", async ({ page }) => {
 	await page.getByLabel("Avatar URL").fill("/emojis/1f60d.png");
 	await page.getByRole("button", { name: /save/i }).click();
 
+	await expectUrl(page).toHavePathName(`/organizations/${org.name}/groups`);
+	await expect(page).toHaveTitle("Groups - Coder");
+	await page.getByText(displayName).click();
 	await expectUrl(page).toHavePathName(
 		`/organizations/${org.name}/groups/${name}`,
 	);
 	await expect(page).toHaveTitle(`${displayName} - Coder`);
 	await expect(page.getByText("No members yet")).toBeVisible();
-	await expect(page.getByText(displayName)).toBeVisible();
 
 	// Add a user to the group
 	const personToAdd = await createUser(org.id);

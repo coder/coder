@@ -33,7 +33,7 @@ test("create group", async ({ page, baseURL }) => {
 	await page.getByLabel("Avatar URL").fill(groupValues.avatarURL);
 	await page.getByRole("button", { name: /save/i }).click();
 
-	await expect(page).toHaveTitle(`${groupValues.displayName} - Coder`);
+	await expect(page).toHaveURL(`${baseURL}/organizations/${orgName}/groups`);
+	await expect(page).toHaveTitle("Groups - Coder");
 	await expect(page.getByText(groupValues.displayName)).toBeVisible();
-	await expect(page.getByText("No members yet")).toBeVisible();
 });
