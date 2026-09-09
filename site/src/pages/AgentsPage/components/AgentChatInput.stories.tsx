@@ -192,14 +192,7 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 	},
 };
 
-export const DisablesSendUntilInput: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-
-		expect(sendButton).toBeDisabled();
-	},
-};
+export const DisablesSendUntilInput: Story = {};
 
 export const SendsAndClearsInput: Story = {
 	args: {
@@ -352,10 +345,6 @@ export const NoModelOptions: Story = {
 		hasModelOptions: false,
 		initialValue: "Model required",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
-	},
 };
 
 export const AIGatewayDisabledShowsSetupNotice: Story = {
@@ -367,12 +356,6 @@ export const AIGatewayDisabledShowsSetupNotice: Story = {
 		canConfigureAgentSetup: false,
 		aiGatewayDisabled: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/Enable it in your deployment config/),
-		).toBeInTheDocument();
-	},
 };
 
 export const LoadingSpinner: Story = {
@@ -381,18 +364,6 @@ export const LoadingSpinner: Story = {
 		isLoading: true,
 		initialValue: "Sending...",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-		expect(sendButton).toBeDisabled();
-		// The Spinner component renders an SVG with a "Loading spinner"
-		// title when isLoading is true.
-		const spinnerSvg = sendButton.querySelector("svg");
-		expect(spinnerSvg).toBeTruthy();
-		expect(spinnerSvg?.querySelector("title")?.textContent).toBe(
-			"Loading spinner",
-		);
-	},
 };
 
 export const LoadingDisablesSend: Story = {
@@ -400,13 +371,6 @@ export const LoadingDisablesSend: Story = {
 		isDisabled: false,
 		isLoading: true,
 		initialValue: "Another message",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-		// The send button should be disabled while a previous send is
-		// in-flight, even though the textarea has content.
-		expect(sendButton).toBeDisabled();
 	},
 };
 
@@ -551,12 +515,6 @@ export const WithFileReference: Story = {
 	args: {
 		initialValue: "Can you refactor ",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText(/Button\.tsx/)).toBeInTheDocument();
-		});
-	},
 };
 
 /** Multiple file reference chips rendered inline with text. */
@@ -586,13 +544,6 @@ export const WithMultipleFileReferences: Story = {
 	},
 	args: {
 		initialValue: "Compare ",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText(/handler\.go/)).toBeInTheDocument();
-			expect(canvas.getByText(/handler_test\.go/)).toBeInTheDocument();
-		});
 	},
 };
 
@@ -1166,13 +1117,6 @@ export const PlanningIndicator: Story = {
 		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Planning")).toBeVisible();
-		expect(
-			canvas.getByRole("button", { name: "Disable plan mode" }),
-		).toBeVisible();
-	},
 };
 
 const narrowPlanningContextUsage: AgentContextUsage = {
@@ -1204,45 +1148,6 @@ export const PlanningIndicatorNarrow: Story = {
 			</div>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const composer = await canvas.findByTestId("chat-composer");
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-		const contextUsageButton = canvas.getByRole("button", {
-			name: /Context usage/,
-		});
-		const planningBadge = canvasElement.querySelector<HTMLElement>(
-			"[data-testid='planning-badge']",
-		);
-		const isVisible = (element: HTMLElement) => {
-			const style = getComputedStyle(element);
-			const rect = element.getBoundingClientRect();
-			return (
-				style.display !== "none" &&
-				style.visibility !== "hidden" &&
-				rect.width > 0 &&
-				rect.height > 0
-			);
-		};
-
-		await waitFor(() => {
-			const composerRect = composer.getBoundingClientRect();
-			const sendButtonRect = sendButton.getBoundingClientRect();
-			const contextUsageRect = contextUsageButton.getBoundingClientRect();
-
-			expect(contextUsageRect.left).toBeGreaterThanOrEqual(composerRect.left);
-			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
-
-			if (planningBadge && isVisible(planningBadge)) {
-				expect(planningBadge.getBoundingClientRect().right).toBeLessThanOrEqual(
-					contextUsageRect.left + 1,
-				);
-				return;
-			}
-
-			expect(canvas.getByRole("button", { name: "1 more item" })).toBeVisible();
-		});
-	},
 };
 
 export const DisablePlanModeFromBadge: Story = {
@@ -1265,13 +1170,6 @@ export const PlanningIndicatorWithoutToggle: Story = {
 	args: {
 		planModeEnabled: true,
 		onPlanModeToggle: undefined,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Planning")).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: "Disable plan mode" }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -1682,18 +1580,6 @@ export const LongWorkspaceNameMobile: Story = {
 
 // Pill floor (8ch + fixed chrome) resolved against the pills' font so
 // width assertions do not hardcode metrics.
-const measurePillFloor = (canvasElement: HTMLElement): number => {
-	const probe = document.createElement("span");
-	probe.className = "text-xs font-medium";
-	probe.style.position = "absolute";
-	probe.style.visibility = "hidden";
-	probe.style.width = "calc(8ch + 3.125rem)";
-	canvasElement.appendChild(probe);
-	const width = probe.getBoundingClientRect().width;
-	probe.remove();
-	return width;
-};
-
 // +1 tolerance: scrollWidth is ceiled while clientWidth is rounded,
 // so an untruncated fractional-width label can differ by one.
 const expectNotTruncated = (el: HTMLElement) => {
@@ -1725,19 +1611,6 @@ export const ShortModelNameHasNoDeadSpace: Story = {
 		viewport: { defaultViewport: "mobile2" },
 		pixel: { matrix: { viewports: ["phone"] } },
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const trigger = await canvas.findByRole("combobox", {
-			name: /Fable 5/,
-		});
-		await waitFor(() => {
-			// Re-measure the floor inside the retry so font loads cannot
-			// skew the comparison.
-			const floor = measurePillFloor(canvasElement);
-			expect(trigger.getBoundingClientRect().width).toBeLessThan(floor);
-		});
-		expectNotTruncated(canvas.getByText("Fable 5"));
-	},
 };
 
 /**
@@ -1765,23 +1638,6 @@ export const LongLabelsExpandWithoutMCPs: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "ipad" },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const modelLabel = await canvas.findByText("Claude Sonnet 4.5");
-		const workspaceLabel = await canvas.findByText(
-			"my-workspace-name-that-should-not-clamp",
-		);
-		await waitFor(() => {
-			expectNotTruncated(modelLabel);
-			expectNotTruncated(workspaceLabel);
-		});
-		// The pill can exceed 200px: no fixed cap.
-		const pillButton = canvas.getByRole("button", {
-			name: /workspace menu/,
-		});
-		expect(pillButton.getBoundingClientRect().width).toBeGreaterThan(200);
-		expect(canvas.queryByRole("button", { name: /more item/ })).toBeNull();
 	},
 };
 

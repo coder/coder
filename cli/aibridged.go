@@ -39,8 +39,7 @@ import (
 // That reload blocks while acquiring a client, and it passes a background
 // context, so only the daemon lifecycle bounds the wait. That is acceptable
 // here: the embedded daemon's connection is an in-memory pipe that comes up
-// immediately, and the env seed (which holds the seed lock) has already
-// completed earlier in startup, so the wait is negligible.
+// immediately.
 func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg prometheus.Registerer, metrics *aibridge.Metrics) (*aibridged.Server, func(), error) {
 	ctx := context.Background()
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")

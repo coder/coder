@@ -13,9 +13,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/testutil"
@@ -360,8 +362,8 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 }
 
 // TestServerAIProviderKeysEncryptedWithDBCrypt starts a real enterprise server
-// with external token encryption and AI provider config, then verifies that
-// seeded AI provider keys are encrypted at rest.
+// with external token encryption, creates an AI provider through the API,
+// and verifies that its key is encrypted at rest.
 func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 	t.Parallel()
 
@@ -378,7 +380,7 @@ func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 
 	const testAPIKey = "sk-test-key-that-must-be-encrypted-at-rest"
 
-	// Given: enterprise server with encryption and a legacy AI provider.
+	// Given: enterprise server with external token encryption.
 	var root cli.RootCmd
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	require.NoError(t, err)
@@ -389,14 +391,23 @@ func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 		"--external-token-encryption-keys", b64Key,
-		"--aibridge-enabled",
-		"--aibridge-openai-key", testAPIKey,
 	)
 
-	// When: the server starts up and seeds ai providers from env
+	// When: an authenticated owner creates a provider through the API.
 	ctx := testutil.Context(t, testutil.WaitLong)
 	clitest.Start(t, inv.WithContext(ctx))
-	_ = waitAccessURL(t, cfg)
+	client := codersdk.New(waitAccessURL(t, cfg))
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	//nolint:gocritic // Owner role is required for provider management.
+	_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:    codersdk.AIProviderTypeOpenAI,
+		Name:    "openai",
+		Enabled: true,
+		BaseURL: "https://api.openai.com/v1/",
+		APIKeys: []string{testAPIKey},
+	})
+	require.NoError(t, err)
 
 	// Open a RAW database connection to inspect the actual stored values.
 	sqlDB, err := sql.Open("postgres", dbURL)
@@ -404,7 +415,7 @@ func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	rawDB := database.New(sqlDB)
 
-	// Then: we expect a single provider to be seeded in the db.
+	// Then: the API-created provider exists in the database.
 	providers, err := rawDB.GetAIProviders(ctx, database.GetAIProvidersParams{
 		IncludeDeleted:  true,
 		IncludeDisabled: true,
@@ -416,7 +427,7 @@ func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 
 	// Then: provider must exist.
 	require.NotEmpty(t, provider.ID,
-		"seeded AI provider 'openai' should exist in database")
+		"API-created provider 'openai' should exist in database")
 
 	keys, err := rawDB.GetAIProviderKeysByProviderID(ctx, provider.ID)
 	require.NoError(t, err)

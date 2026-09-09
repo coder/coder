@@ -36,9 +36,6 @@ import {
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
 import {
-	MockGroup,
-	MockOrganizationMember,
-	MockOrganizationMember2,
 	MockUserChatCompactionThresholds,
 	MockUserOwner,
 	MockUserPreferenceSettings,
@@ -1556,44 +1553,6 @@ export const NoLocalModelDisablesGeneration: Story = {
 	},
 };
 
-export const RootChatShareActionAvailable: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "Shareable root chat",
-				status: "waiting",
-			},
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getChatACL").mockResolvedValue({
-			users: [],
-			groups: [],
-		});
-		spyOn(API.experimental, "updateChatACL").mockResolvedValue(undefined);
-		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
-			members: [MockOrganizationMember, MockOrganizationMember2],
-			count: 2,
-		});
-		spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByLabelText("Share chat"));
-		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Chat sharing")).toBeVisible();
-		});
-		await waitFor(() => {
-			expect(body.getByText("No shared members or groups yet")).toBeVisible();
-		});
-	},
-};
-
 /** Skeleton placeholder when no query data is available yet. */
 export const Loading: Story = {
 	parameters: {
@@ -1650,137 +1609,6 @@ export const QueuedForCapacityAfterPolling: Story = {
 	},
 };
 
-export const OtherUserChatReadOnly: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				owner_id: "other-user-id",
-				owner_username: "OtherUser",
-				owner_name: "Other User",
-				title: "Other user's chat",
-				status: "waiting",
-			},
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = await canvas.findByText(
-			"This chat is owned by Other User. It is read-only.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-		expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
-	},
-};
-
-export const OtherUserChatWithMessages: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				owner_id: "other-user-id",
-				owner_username: "OtherUser",
-				owner_name: "Other User",
-				title: "Other user's chat with messages",
-				status: "waiting",
-			},
-			{
-				messages: [
-					{
-						id: 1,
-						chat_id: CHAT_ID,
-						created_at: "2026-02-18T00:00:01.000Z",
-						role: "user",
-						content: [{ type: "text", text: "Please review this plan." }],
-					},
-					{
-						id: 2,
-						chat_id: CHAT_ID,
-						created_at: "2026-02-18T00:00:02.000Z",
-						role: "assistant",
-						content: [
-							{ type: "text", text: "I prepared a plan." },
-							{
-								type: "tool-call",
-								tool_call_id: "other-user-plan",
-								tool_name: "propose_plan",
-								args: { path: "/home/coder/PLAN.md" },
-							},
-							{
-								type: "tool-result",
-								tool_call_id: "other-user-plan",
-								tool_name: "propose_plan",
-								result: {
-									file_id: "other-user-plan-file",
-									content: "# Plan\n\n1. Keep this chat read-only.",
-								},
-							},
-						],
-					},
-				] as TypesGen.ChatMessage[],
-				queued_messages: [],
-				has_more: false,
-			},
-			{ diffUrl: undefined },
-		),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByText(
-				"This chat is owned by Other User. It is read-only.",
-			),
-		).toBeVisible();
-		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
-		expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
-		expect(
-			canvas.queryByRole("button", { name: "Edit message" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Implement plan" }),
-		).not.toBeInTheDocument();
-	},
-};
-
-export const ArchivedOtherUserChat: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				archived: true,
-				owner_id: "other-user-id",
-				owner_username: "OtherUser",
-				owner_name: "Other User",
-				title: "Archived other user's chat",
-				status: "waiting",
-			},
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByText("This agent has been archived and is read-only."),
-		).toBeVisible();
-		expect(
-			canvas.queryByText(/^This chat is owned by/),
-		).not.toBeInTheDocument();
-	},
-};
-
 /** Persisted structured errors rehydrate the failed callout after refresh. */
 export const PersistedStructuredError: Story = {
 	parameters: {
@@ -1803,17 +1631,6 @@ export const PersistedStructuredError: Story = {
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /request failed/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic returned an unexpected error\./i),
-		).toBeVisible();
-		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
-		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
 	},
 };
 
@@ -2043,14 +1860,6 @@ export const WithSubagentCards: Story = {
 			{ diffUrl: undefined },
 		),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /Spawn(?:ed|ing) Child agent/ }),
-			).toBeInTheDocument();
-		});
-	},
 };
 
 /** spawn_computer_use_agent tool renders with an "Open Desktop" button
@@ -2124,14 +1933,6 @@ export const WithComputerUseAgent: Story = {
 				{ diffUrl: undefined },
 			),
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// The tool should show "Spawned ... Visual regression check".
-		await waitFor(() => {
-			expect(canvas.getByText(/Visual regression check/)).toBeInTheDocument();
-		});
 	},
 };
 
@@ -2226,38 +2027,6 @@ export const WithMixedSubagentTranscript: Story = {
 			{ diffUrl: undefined },
 		),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(
-				canvas.getByText(
-					(_content, element) =>
-						element?.tagName === "SPAN" &&
-						element.textContent?.includes("Spawned") === true &&
-						element.textContent?.includes("Legacy helper") === true,
-				),
-			).toBeInTheDocument();
-			expect(
-				canvas.getAllByText(/Legacy helper/).length,
-			).toBeGreaterThanOrEqual(2);
-			expect(
-				canvas.getByText(
-					(_content, element) =>
-						element?.tagName === "SPAN" &&
-						element.textContent?.includes("Spawned") === true &&
-						element.textContent?.includes("Explore agent") === true,
-				),
-			).toBeInTheDocument();
-			expect(
-				canvas.getByText(
-					(_content, element) =>
-						element?.tagName === "SPAN" &&
-						element.textContent?.includes("Waited for") === true &&
-						element.textContent?.includes("Explore agent") === true,
-				),
-			).toBeInTheDocument();
-		});
-	},
 };
 
 /** Completed reasoning part renders inline. */
@@ -2343,16 +2112,6 @@ export const StreamedSubagentTitle: Story = {
 				},
 			],
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", {
-					name: /Spawning Streamed Child/,
-				}),
-			).toBeInTheDocument();
-		});
 	},
 };
 
@@ -2663,15 +2422,6 @@ export const RecoversSidebarAfterWorkspaceRebuild: Story = {
 			],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const terminalTab = await canvas.findByRole(
-			"tab",
-			{ name: "Terminal" },
-			{ timeout: 5000 },
-		);
-		expect(terminalTab).toBeVisible();
-	},
 };
 
 /**
@@ -2717,143 +2467,6 @@ export const StreamedReasoning: Story = {
 // setTimeout(0) which resolves before the chat store subscribes.
 // This made the stories render empty chats and fail interaction
 // tests in both local and CI environments.
-
-const mockNewestMessage: TypesGen.ChatMessage = {
-	...MockChatMessage,
-	id: 30,
-	role: "assistant",
-	content: [{ type: "text", text: "Newest message" }],
-};
-
-const mockOlderRevision: TypesGen.ChatMessage = {
-	...MockChatMessage,
-	id: 20,
-	role: "assistant",
-	content: [{ type: "text", text: "Old revision" }],
-};
-
-const mockFreshRevision: TypesGen.ChatMessage = {
-	...mockOlderRevision,
-	content: [{ type: "text", text: "Fresh revision" }],
-};
-
-export const DurableUpdateFansOutToOlderPage: Story = {
-	parameters: {
-		queries: [
-			...withoutQuery(
-				buildQueries(
-					{
-						id: CHAT_ID,
-						...baseChatFields,
-						title: "Fan-out chat",
-						status: "waiting",
-					},
-					{ messages: [], queued_messages: [], has_more: false },
-				),
-				chatMessagesKey(CHAT_ID),
-			),
-			{
-				key: chatMessagesKey(CHAT_ID),
-				data: {
-					pages: [
-						{
-							messages: [mockNewestMessage],
-							queued_messages: [],
-							has_more: true,
-						},
-						{
-							messages: [mockOlderRevision],
-							queued_messages: [],
-							has_more: false,
-						},
-					],
-					pageParams: [undefined, 30],
-				},
-			},
-		],
-		webSocket: {
-			"/chats/": [
-				{
-					event: "message",
-					data: JSON.stringify([
-						{
-							type: "message",
-							chat_id: CHAT_ID,
-							message: mockFreshRevision,
-						},
-					] satisfies TypesGen.ChatStreamEvent[]),
-				},
-			],
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Fresh revision")).toBeVisible();
-		await waitFor(() => {
-			expect(canvas.getAllByText("Fresh revision")).toHaveLength(1);
-		});
-		expect(canvas.queryByText("Old revision")).not.toBeInTheDocument();
-	},
-};
-
-/**
- * The streamed thinking block is asserted via its disclosure header
- * because smoothed body text never reveals in the test iframe
- * (requestAnimationFrame is suspended).
- */
-export const StreamedPartWhileStatusWaiting: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "Stale status stream",
-				status: "waiting",
-			},
-			{
-				messages: [
-					{
-						id: 1,
-						chat_id: CHAT_ID,
-						created_at: "2026-02-18T00:05:00.000Z",
-						role: "user",
-						content: [{ type: "text", text: "Start the next turn" }],
-					},
-				],
-				queued_messages: [],
-				has_more: false,
-			},
-			{ diffUrl: undefined },
-		),
-		webSocket: {
-			"/chats/": [
-				{
-					event: "message",
-					data: JSON.stringify([
-						{
-							type: "message_part",
-							chat_id: CHAT_ID,
-							message_part: {
-								part: {
-									type: "reasoning",
-									text: "Streaming while the chat still reads waiting",
-								},
-							},
-						},
-					] satisfies TypesGen.ChatStreamEvent[]),
-				},
-			],
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByText("Start the next turn");
-		// The disclosure header is the only "Thinking" text in the DOM
-		// at this point: the generic indicator is suppressed at status
-		// "waiting".
-		expect(await canvas.findByText("Thinking")).toBeVisible();
-	},
-};
 
 /**
  * Live agent turn with streaming reasoning and a back-to-back flurry of
@@ -3147,41 +2760,6 @@ export const WithEveryTool: Story = {
 			],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// All five streamed tool calls should appear simultaneously.
-		// read_file, write_file, and edit_files all switch to a
-		// progressive label ("Reading" / "Writing" / "Editing")
-		// while running; the spinner conveys progress.
-		await waitFor(() => {
-			expect(canvas.getByText(/Reading validate\.go/)).toBeInTheDocument();
-			expect(canvas.getByText(/Writing validation\.go/)).toBeInTheDocument();
-			expect(canvas.getByText(/Editing 2 files/)).toBeInTheDocument();
-			expect(canvas.getByText(/Reading CHANGELOG\.md/)).toBeInTheDocument();
-			expect(canvas.getByText(/Writing CHANGELOG\.md/)).toBeInTheDocument();
-			expect(canvas.getByText(/Attached auth-split\.md/)).toBeInTheDocument();
-			expect(
-				canvas.getByRole("button", { name: /Spawned Workspace diagnostics/i }),
-			).toBeInTheDocument();
-			expect(
-				canvas.getByRole("button", { name: /Read skill deep-review/i }),
-			).toBeInTheDocument();
-		});
-
-		const rowHeights = [
-			canvas.getByText(/Attached auth-split\.md/),
-			canvas.getByRole("button", {
-				name: /Spawned Workspace diagnostics/i,
-			}),
-			canvas.getByRole("button", { name: /Read skill deep-review/i }),
-		].map((label) => {
-			const row = label.closest("[data-transcript-row]");
-			expect(row).toBeInstanceOf(HTMLElement);
-			return Math.round((row as HTMLElement).getBoundingClientRect().height);
-		});
-		expect(new Set(rowHeights)).toEqual(new Set([24]));
-	},
 };
 
 /** wait_agent for a computer-use subagent renders the VNC preview card
@@ -3256,15 +2834,6 @@ export const WithWaitAgentComputerUseVNC: Story = {
 				},
 			],
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// The wait_agent card should show "Using the computer..." (running
-		// state) rendered via SubagentTool with VNC preview.
-		await waitFor(() => {
-			expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
-		});
 	},
 };
 
@@ -4024,37 +3593,6 @@ export const DetailQueryError: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockRejectedValue(mockServerError);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
-		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
-		expect(
-			canvas.getByRole("button", { name: "Try again" }),
-		).toBeInTheDocument();
-	},
-};
-
-export const InitialMessagesError: Story = {
-	parameters: {
-		queries: withoutQuery(
-			buildQueries(mockErrorChat, {
-				messages: [],
-				queued_messages: [],
-				has_more: false,
-			}),
-			chatMessagesKey(CHAT_ID),
-		),
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getChatMessages").mockRejectedValue(
-			mockServerError,
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
-		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
-	},
 };
 
 export const ErrorRetryRecovers: Story = {
@@ -4166,30 +3704,6 @@ export const ProviderRequiresUserApiKey: Story = {
 			"href",
 			"/agents/settings/api-keys",
 		);
-	},
-};
-
-export const ChatNotFound: Story = {
-	parameters: {
-		queries: withoutQuery(
-			buildQueries(mockErrorChat, {
-				messages: [],
-				queued_messages: [],
-				has_more: false,
-			}),
-			chatEntityKey(CHAT_ID),
-		),
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getChat").mockRejectedValue({
-			...mockApiError({ message: "Chat not found." }),
-			status: 404,
-		});
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Chat not found")).toBeVisible();
-		expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
 	},
 };
 

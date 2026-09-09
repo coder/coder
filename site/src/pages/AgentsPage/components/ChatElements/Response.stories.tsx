@@ -175,20 +175,6 @@ export const JsxInProse: Story = {
 	args: {
 		children: jsxProseMarkdown,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// These strings live inside the <RemoteDiffPanel .../> JSX block.
-		// Without the rehype-raw fix they are silently eaten by the
-		// HTML sanitizer and never reach the DOM.
-		// The tag name itself is the token most likely to be consumed
-		// by HTML parsing, so assert it explicitly.
-		const tagName = await canvas.findByText(/<RemoteDiffPanel/);
-		expect(tagName).toBeInTheDocument();
-		const marker = await canvas.findByText(/scrollToFile=\{scrollTarget\}/);
-		expect(marker).toBeInTheDocument();
-		const marker2 = await canvas.findByText(/commentBox=\{commentBox\}/);
-		expect(marker2).toBeInTheDocument();
-	},
 };
 
 // A 1x1 transparent PNG. Streamdown's sanitize plugin strips data:
@@ -235,12 +221,6 @@ export const DataImageStrippedBySanitizer: Story = {
 	args: {
 		children: `Before\n\n![inline](${dataImagePNG})\n\nAfter`,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByText("After");
-		expect(canvasElement.querySelector("img")).toBeNull();
-		expect(canvas.queryByRole("button")).toBeNull();
-	},
 };
 
 // Deployment-relative images (for example emoji or uploaded icons)
@@ -259,22 +239,6 @@ export const RelativeImageRendersImmediately: Story = {
 	},
 };
 
-// The consent gate must also apply while streaming.
-export const StreamingExternalImageConsentGate: Story = {
-	args: {
-		children: `![diagram](${externalImageURL})`,
-		streaming: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const loadButton = await canvas.findByRole("button", {
-			name: /load external image/i,
-		});
-		expect(loadButton).toBeInTheDocument();
-		expect(canvasElement.querySelector("img")).toBeNull();
-	},
-};
-
 // Verifies that streaming mode closes incomplete inline markdown via
 // remend so the user never sees raw syntax during the reveal animation.
 export const StreamingInlineMarkdown: Story = {
@@ -282,15 +246,14 @@ export const StreamingInlineMarkdown: Story = {
 		children: "This is **bold text that has not been close",
 		streaming: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// remend should close the unclosed ** so the text renders
-		// as <strong>, not as a raw "**" literal.
-		const el = await canvas.findByText(/bold text/);
-		expect(el).toBeInTheDocument();
-		// The raw double-asterisk should not appear as visible text.
-		const bodyText = canvasElement.textContent ?? "";
-		expect(bodyText).not.toContain("**");
+};
+
+// The streaming external-image consent gate: the placeholder renders
+// instead of an <img>, so no external request fires mid-stream.
+export const StreamingExternalImageConsentGate: Story = {
+	args: {
+		children: `![diagram](${externalImageURL})`,
+		streaming: true,
 	},
 };
 

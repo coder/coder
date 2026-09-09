@@ -7,13 +7,10 @@ the feature easier to understand. It changes user-visible names, configuration
 options, the canonical HTTP API path, and the Prometheus metric names.
 
 > [!NOTE]
-> This release does not break existing deployments. Previous names keep working as
-> deprecated aliases, there are no database changes, and no configuration
-> changes are required to upgrade.
+> Deprecated aliases remain available for gateway and proxy controls.
+> Provider configuration through environment variables, flags, and YAML has been removed under both names; refer to [Provider configuration](./providers.md#database-management-of-providers).
 
-The previous `aibridge` names are retained for backward compatibility. There is no
-planned removal date, but you should adopt the new `ai_gateway` names as soon as possible, so
-your configuration matches the current documentation.
+Adopt the `ai_gateway` names for gateway and proxy settings so your configuration matches the current documentation.
 
 > [!IMPORTANT]
 > New settings added in every area except the database (configuration options,
@@ -24,9 +21,9 @@ your configuration matches the current documentation.
 
 | Area                  | Old name                                       | New (canonical) name                              | Old name still works?              |
 |-----------------------|------------------------------------------------|---------------------------------------------------|------------------------------------|
-| Environment variables | `CODER_AIBRIDGE_*`                             | `CODER_AI_GATEWAY_*`                              | Yes (deprecated alias)             |
-| CLI flags             | `--aibridge-*`                                 | `--ai-gateway-*`                                  | Yes (deprecated alias)             |
-| YAML config group     | `aibridge:` / `aibridgeproxy:`                 | `ai_gateway:` / `ai_gateway_proxy:`               | Yes (deprecated alias)             |
+| Environment variables | `CODER_AIBRIDGE_*`                             | `CODER_AI_GATEWAY_*`                              | Yes, except provider setup         |
+| CLI flags             | `--aibridge-*`                                 | `--ai-gateway-*`                                  | Yes, except provider setup         |
+| YAML config group     | `aibridge:` / `aibridgeproxy:`                 | `ai_gateway:` / `ai_gateway_proxy:`               | Yes, except provider setup         |
 | HTTP API              | `/api/v2/aibridge`                             | `/api/v2/ai-gateway`                              | Yes (legacy route retained)        |
 | Prometheus metrics    | `coder_aibridged_*` / `coder_aibridgeproxyd_*` | `coder_ai_gateway_*` / `coder_ai_gateway_proxy_*` | Yes (both emitted, old deprecated) |
 | Database              | (no change)                                    | (no change)                                       | n/a                                |
@@ -36,16 +33,14 @@ your configuration matches the current documentation.
 - **No database changes.** Table and column names (for example,
   `aibridge_interceptions`) are unchanged. No migration runs and no data is
   rewritten on upgrade.
-- **No behavioral changes.** This is a naming change only. Values, defaults, and
-  semantics of every option are identical.
+- **Gateway and proxy settings.** Renaming options for logging, retention, or listener addresses does not change their behavior or defaults.
 - **Internal/library references.** Some internal package names, log fields, and
   library identifiers still use the `aibridge` name. These are not part of the
   supported configuration surface and do not affect operators.
 
 ## Configuration (env vars, flags, YAML)
 
-The new names are the canonical options; the previous `aibridge` names still set the
-same values as hidden, deprecated aliases.
+The aliases listed below apply only to gateway and proxy controls, not provider setup.
 
 If both a previous name and a new name are set for the same setting, set only one (prefer
 the new name).
@@ -67,7 +62,6 @@ Before:
 ```yaml
 aibridge:
   enabled: true
-  openai_base_url: https://api.openai.com/v1/
   retention: 60d
 aibridgeproxy:
   enabled: true
@@ -79,7 +73,6 @@ After:
 ```yaml
 ai_gateway:
   enabled: true
-  openai_base_url: https://api.openai.com/v1/
   retention: 60d
 ai_gateway_proxy:
   enabled: true
@@ -90,32 +83,21 @@ ai_gateway_proxy:
 
 Core AI Gateway settings:
 
-| Deprecated                                         | New                                                  | Note                                                           |
-|----------------------------------------------------|------------------------------------------------------|----------------------------------------------------------------|
-| `CODER_AIBRIDGE_ENABLED`                           | `CODER_AI_GATEWAY_ENABLED`                           |                                                                |
-| `CODER_AIBRIDGE_OPENAI_BASE_URL`                   | `CODER_AI_GATEWAY_OPENAI_BASE_URL`                   |                                                                |
-| `CODER_AIBRIDGE_OPENAI_KEY`                        | `CODER_AI_GATEWAY_OPENAI_KEY`                        |                                                                |
-| `CODER_AIBRIDGE_ANTHROPIC_BASE_URL`                | `CODER_AI_GATEWAY_ANTHROPIC_BASE_URL`                |                                                                |
-| `CODER_AIBRIDGE_ANTHROPIC_KEY`                     | `CODER_AI_GATEWAY_ANTHROPIC_KEY`                     |                                                                |
-| `CODER_AIBRIDGE_BEDROCK_BASE_URL`                  | `CODER_AI_GATEWAY_BEDROCK_BASE_URL`                  |                                                                |
-| `CODER_AIBRIDGE_BEDROCK_REGION`                    | `CODER_AI_GATEWAY_BEDROCK_REGION`                    |                                                                |
-| `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY`                | `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY`                |                                                                |
-| `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET`         | `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET`         |                                                                |
-| `CODER_AIBRIDGE_BEDROCK_MODEL`                     | `CODER_AI_GATEWAY_BEDROCK_MODEL`                     |                                                                |
-| `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL`          | `CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL`          |                                                                |
-| `CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS`            | `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS`            |                                                                |
-| `CODER_AIBRIDGE_RETENTION`                         | `CODER_AI_GATEWAY_RETENTION`                         |                                                                |
-| `CODER_AIBRIDGE_MAX_CONCURRENCY`                   | `CODER_AI_GATEWAY_MAX_CONCURRENCY`                   |                                                                |
-| `CODER_AIBRIDGE_RATE_LIMIT`                        | `CODER_AI_GATEWAY_RATE_LIMIT`                        |                                                                |
-| `CODER_AIBRIDGE_STRUCTURED_LOGGING`                | `CODER_AI_GATEWAY_STRUCTURED_LOGGING`                |                                                                |
-| `CODER_AIBRIDGE_SEND_ACTOR_HEADERS`                | `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`                |                                                                |
-| `CODER_AIBRIDGE_ALLOW_BYOK`                        | `CODER_AI_GATEWAY_ALLOW_BYOK`                        |                                                                |
-| `CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED`           | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED`           |                                                                |
-| `CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD` |                                                                |
-| `CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL`          | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL`          |                                                                |
-| `CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT`           | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT`           |                                                                |
-| `CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS`      | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS`      |                                                                |
-| `CODER_AIBRIDGE_PROVIDER_<N>_<KEY>`                | `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`                | Cannot be mixed; see [below](#provider-configuration-env-vars) |
+| Deprecated                                         | New                                                  | Note |
+|----------------------------------------------------|------------------------------------------------------|------|
+| `CODER_AIBRIDGE_ENABLED`                           | `CODER_AI_GATEWAY_ENABLED`                           |      |
+| `CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS`            | `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS`            |      |
+| `CODER_AIBRIDGE_RETENTION`                         | `CODER_AI_GATEWAY_RETENTION`                         |      |
+| `CODER_AIBRIDGE_MAX_CONCURRENCY`                   | `CODER_AI_GATEWAY_MAX_CONCURRENCY`                   |      |
+| `CODER_AIBRIDGE_RATE_LIMIT`                        | `CODER_AI_GATEWAY_RATE_LIMIT`                        |      |
+| `CODER_AIBRIDGE_STRUCTURED_LOGGING`                | `CODER_AI_GATEWAY_STRUCTURED_LOGGING`                |      |
+| `CODER_AIBRIDGE_SEND_ACTOR_HEADERS`                | `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`                |      |
+| `CODER_AIBRIDGE_ALLOW_BYOK`                        | `CODER_AI_GATEWAY_ALLOW_BYOK`                        |      |
+| `CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED`           | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED`           |      |
+| `CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD` |      |
+| `CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL`          | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL`          |      |
+| `CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT`           | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT`           |      |
+| `CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS`      | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS`      |      |
 
 AI Gateway Proxy settings:
 
@@ -135,26 +117,6 @@ AI Gateway Proxy settings:
 
 CLI flags follow the same mapping with the `--aibridge-*` to `--ai-gateway-*`
 prefix change.
-
-### Provider configuration env vars
-
-Providers are configured with indexed environment variables of the form
-`CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>` (for example,
-`CODER_AI_GATEWAY_PROVIDER_0_TYPE`, `CODER_AI_GATEWAY_PROVIDER_0_NAME`,
-`CODER_AI_GATEWAY_PROVIDER_0_KEY`, `CODER_AI_GATEWAY_PROVIDER_0_BASE_URL`). The
-old `CODER_AIBRIDGE_PROVIDER_<N>_<KEY>` prefix is accepted as a deprecated alias.
-
-Unlike the scalar settings above, you **cannot mix the two prefixes**. Setting
-both `CODER_AIBRIDGE_PROVIDER_*` and `CODER_AI_GATEWAY_PROVIDER_*` variables in
-the same deployment causes startup to fail with:
-
-```txt
-cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables, please consolidate onto CODER_AI_GATEWAY_PROVIDER_*
-```
-
-Move every provider variable onto the new `CODER_AI_GATEWAY_PROVIDER_*` prefix
-together (for example, `CODER_AIBRIDGE_PROVIDER_0_TYPE` becomes
-`CODER_AI_GATEWAY_PROVIDER_0_TYPE`).
 
 ## HTTP API
 
