@@ -1,6 +1,12 @@
 import { cn } from "cn";
 import type { FC, ReactNode } from "react";
-import { Link, NavLink, useMatch, useSearchParams } from "react-router";
+import {
+	Link,
+	NavLink,
+	type To,
+	useMatch,
+	useSearchParams,
+} from "react-router";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
@@ -18,7 +24,7 @@ interface AISettingsSidebarViewProps {
 	canShareOrganizationMCPServers?: boolean;
 }
 
-const SubNavItem: FC<{ href: string; children?: ReactNode }> = ({
+const SubNavItem: FC<{ href: To; children?: ReactNode }> = ({
 	href,
 	children,
 }) => (
@@ -40,16 +46,16 @@ const SubNavItem: FC<{ href: string; children?: ReactNode }> = ({
 const organizationScopedPath = (
 	pathname: string,
 	organizationName: string | null,
-): string => {
-	if (!organizationName) {
-		return pathname;
-	}
-	const next = new URLSearchParams();
-	next.set(modelOrganizationSearchParam, organizationName);
-	return `${pathname}?${next.toString()}`;
-};
+): To => ({
+	pathname,
+	search: organizationName
+		? new URLSearchParams({
+				[modelOrganizationSearchParam]: organizationName,
+			}).toString()
+		: "",
+});
 
-const ModelsSidebarNavItem: FC<{ href: string }> = ({ href }) => {
+const ModelsSidebarNavItem: FC<{ href: To }> = ({ href }) => {
 	const legacyMatch = useMatch("/ai/settings/models/*");
 	const organizationMatch = useMatch(
 		"/ai/settings/organizations/:organization/models/*",

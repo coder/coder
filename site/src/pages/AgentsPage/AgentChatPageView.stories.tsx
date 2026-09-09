@@ -724,7 +724,7 @@ export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
-			organizationId={MockDefaultOrganization.id}
+			chat={{ organization_id: MockDefaultOrganization.id }}
 			providerCount={0}
 			modelCount={0}
 			hasModelOptions={false}
@@ -760,7 +760,7 @@ export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
-			organizationId={MockDefaultOrganization.id}
+			chat={{ organization_id: MockDefaultOrganization.id }}
 			providerCount={1}
 			modelCount={0}
 			hasModelOptions={false}
