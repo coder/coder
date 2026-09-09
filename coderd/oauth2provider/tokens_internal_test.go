@@ -752,6 +752,9 @@ func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 			}
 			form.Set("nonce", "nonce-value")
 			form.Set("audience", "audience-value")
+			// A double quote in the name would break the line if the sink
+			// trusted the raw string; Unmarshal below would then fail.
+			form.Set(`we"ird`, "1")
 
 			req := &http.Request{
 				Method:   http.MethodPost,
@@ -781,7 +784,7 @@ func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 			}
 			require.NoError(t, json.Unmarshal(logs.Bytes(), &entry), logs.String())
 			require.Equal(t, "ignoring unrecognized token parameters", entry.Msg)
-			require.Equal(t, []string{"audience", "nonce"}, entry.Fields.Params)
+			require.Equal(t, []string{"audience", "nonce", `we"ird`}, entry.Fields.Params)
 			require.NotContains(t, logs.String(), "nonce-value")
 			require.NotContains(t, logs.String(), "audience-value")
 		})

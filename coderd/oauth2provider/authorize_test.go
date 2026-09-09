@@ -934,7 +934,9 @@ func authorizeQuery(t *testing.T, clientID, scope string) url.Values {
 
 // addUnrecognizedParams adds parameters neither OAuth2 endpoint reads. Both
 // endpoints' tests use it, so the same extras are accepted at both. The quoted
-// key catches a log formatter that trusts the raw name.
+// key proves a name containing a double quote is accepted rather than 400'd;
+// TestExtractTokenRequest_UnrecognizedParametersLogged pins that the log sink
+// escapes it.
 func addUnrecognizedParams(q url.Values) {
 	q.Set("nonce", "n-0S6_WzA2Mj")
 	q.Set("prompt", "consent")
