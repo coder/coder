@@ -625,11 +625,8 @@ func TestOAuth2TokenExchangeLoopbackRedirectPort(t *testing.T) {
 	requireTokenResponse(t, status, body)
 }
 
-// RFC 6749 §3.2 and OAuth 2.1 §3.2 require the token endpoint to ignore
-// unrecognized parameters. The set is the one the authorization endpoint's
-// test sends, so both endpoints treat the same extras the same way. The token
-// has to work, not just be issued: checking only for the absence of a 400
-// would also pass a handler that ignored the whole request.
+// OAuth 2.1 §3.2: the token endpoint must ignore parameters it does not
+// recognize. Uses the same set as the authorize endpoint's test.
 func TestOAuth2TokenUnrecognizedParametersIgnored(t *testing.T) {
 	t.Parallel()
 
@@ -669,15 +666,9 @@ func TestOAuth2TokenUnrecognizedParametersIgnored(t *testing.T) {
 	})
 }
 
-// RFC 6749 §3.2 also says parameters MUST NOT be included more than once.
-// Ignoring unrecognized parameters did not loosen this: parseSingle still
-// refuses a repeated parameter the endpoint reads, and this test keeps it so.
-//
-// The error codes are what the handler produces today, not what RFC 6749 §5.2
-// asks for. A repeated grant_type answers unsupported_grant_type and a
-// repeated code reads as missing, because the dispatch keys on the field name
-// and not on why it failed. They are asserted as observed so a fix to the
-// dispatch shows up as a test diff.
+// OAuth 2.1 §3.2: a known parameter sent more than once is still rejected.
+// The expected error codes are the handler's current behavior, not what
+// RFC 6749 §5.2 asks for (a repeated grant_type answers unsupported_grant_type).
 func TestOAuth2TokenRepeatedParameterRejected(t *testing.T) {
 	t.Parallel()
 
