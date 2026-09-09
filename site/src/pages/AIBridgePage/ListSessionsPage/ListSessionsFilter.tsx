@@ -100,13 +100,14 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 		<div className="flex flex-wrap items-start gap-2">
 			{/* Column wrapper so the validation message sits under the input
 			    instead of beside it in the row. */}
-			<div className="flex min-w-0 grow flex-col gap-2">
+			<div className="flex min-w-0 max-w-full flex-col gap-2">
 				<FilterCombobox
 					value={extractFreeText(filter.query, TIME_RANGE_KEYS)}
 					onChange={handleChange}
 					categories={categories}
 					placeholder="Search and filter sessions…"
-					className="max-w-lg"
+					// Starts at a compact width and widens to fit chips before wrapping.
+					className="w-auto min-w-lg max-w-full self-start"
 					errorMessage={
 						showValidationError ? getValidationErrorMessage(error) : undefined
 					}
