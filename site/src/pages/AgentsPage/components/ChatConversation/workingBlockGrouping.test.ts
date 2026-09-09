@@ -4,11 +4,12 @@ import { buildDisplayMessages } from "./messageHelpers";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import { applyMessagePartToStreamState, buildStreamTools } from "./streamState";
 import { assignTimelineRows, type TimelineRow } from "./timelineRows";
-import type { StreamState } from "./types";
+import type { RenderBlock, StreamState } from "./types";
 import {
 	formatWorkingDuration,
 	type GroupWorkingBlocksOptions,
 	groupWorkingBlocks,
+	splitOpeningNarration,
 } from "./workingBlockGrouping";
 
 const base = Date.parse("2026-04-01T12:00:00Z");
@@ -454,8 +455,6 @@ describe("groupWorkingBlocks", () => {
 				liveTools: live.liveTools,
 				streamState: live.streamState,
 			});
-			// Narration and answers look the same while they stream, so the text
-			// stays inside the block rather than flashing into view.
 			expect(streaming.blocks).toHaveLength(1);
 			expect(rowIds(streaming.rows, streaming.blocks[0].rowIndices)).toEqual([
 				steps[0].id,
@@ -504,7 +503,6 @@ describe("groupWorkingBlocks", () => {
 
 			expect(blocks).toHaveLength(1);
 			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id, "live"]);
-			// The idle live row keeps the previous step's activity.
 			expect(blocks[0]).toMatchObject({
 				isLive: true,
 				stepCount: 1,
@@ -557,7 +555,6 @@ describe("groupWorkingBlocks", () => {
 				}).blocks[0].activity,
 			).toBe("List templates");
 
-			// Reasoning without a heading names nothing before the first step.
 			const plain = liveStream([reasoning("Just thinking", at(1))]);
 			expect(
 				group([prompt], {
@@ -569,7 +566,6 @@ describe("groupWorkingBlocks", () => {
 				}).blocks[0].activity,
 			).toBeUndefined();
 
-			// Completed blocks carry no activity.
 			expect(
 				group([prompt, ...step("a", 1, 2)]).blocks[0].activity,
 			).toBeUndefined();
@@ -805,6 +801,42 @@ describe("stream timestamps", () => {
 			created_at: at(4),
 		});
 		expect(final?.toolResults.x.createdAt).toBe(at(4));
+	});
+});
+
+describe("splitOpeningNarration", () => {
+	const parsed = (blocks: RenderBlock[]) =>
+		parseMessagesWithMergedTools([
+			message(
+				"assistant",
+				blocks.flatMap((block) =>
+					block.type === "response"
+						? [text(block.text)]
+						: block.type === "tool"
+							? [call(block.id, at(1))]
+							: [],
+				),
+			),
+		])[0].parsed;
+
+	it("separates leading text from the tool work it introduces", () => {
+		const { opening, rest } = splitOpeningNarration(
+			parsed([
+				{ type: "response", text: "First," },
+				{ type: "tool", id: "a" },
+			]),
+		);
+		expect(opening?.blocks).toEqual([{ type: "response", text: "First," }]);
+		expect(opening?.tools).toEqual([]);
+		expect(rest.blocks).toEqual([{ type: "tool", id: "a" }]);
+		expect(rest.tools).toHaveLength(1);
+	});
+
+	it("returns no opening for rows that start with a tool or are text only", () => {
+		const toolFirst = parsed([{ type: "tool", id: "a" }]);
+		expect(splitOpeningNarration(toolFirst)).toEqual({ rest: toolFirst });
+		const textOnly = parsed([{ type: "response", text: "Done." }]);
+		expect(splitOpeningNarration(textOnly)).toEqual({ rest: textOnly });
 	});
 });
 

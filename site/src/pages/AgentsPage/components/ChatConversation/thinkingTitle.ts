@@ -220,7 +220,6 @@ const removeHeading = (text: string, heading: HeadingMatch): string => {
 	return body.replace(/^\s+/, "");
 };
 
-/** The first markdown heading of a reasoning block, or undefined. */
 export const getThinkingHeading = (text: string): string | undefined =>
 	getFirstHeading(text)?.text;
 

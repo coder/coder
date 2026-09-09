@@ -104,7 +104,6 @@ export const Expanded: Story = {
 		await expect(
 			canvas.getByRole("list", { name: "Original tool steps" }),
 		).toBeVisible();
-		// The rule ends in a completion marker, as in the AI sessions timeline.
 		await expect(canvas.getByTestId("working-block-outcome")).toHaveTextContent(
 			"Completed",
 		);
@@ -163,8 +162,6 @@ export const FailedSteps: Story = {
 				name: "Worked for 12s (2 steps) 1 failed step",
 			}),
 		).toBeVisible();
-		// The badge shows only the icon and count; the wording lives in the
-		// accessible name and tooltip.
 		await expect(
 			canvas.getByRole("img", { name: "1 failed step" }),
 		).toHaveTextContent(/^1$/);
@@ -211,7 +208,6 @@ export const LiveTimer: Story = {
 		const canvas = within(canvasElement);
 		const trigger = canvas.getByRole("button", { name: "Working for 12s" });
 		await userEvent.click(trigger);
-		// A live block has no end yet, so no marker.
 		await expect(
 			canvas.queryByTestId("working-block-outcome"),
 		).not.toBeInTheDocument();
@@ -264,7 +260,6 @@ export const LiveActivity: Story = {
 	render: (args) => <ActivityFeed {...args} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Nothing describable yet: the summary shows the timer alone.
 		await expect(
 			canvas.getByRole("button", { name: "Working for 12s" }),
 		).toBeVisible();

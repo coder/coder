@@ -9,6 +9,7 @@ import { getThinkingHeading } from "./thinkingTitle";
 import type { TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
+	ParsedMessageContent,
 	ParsedMessageEntry,
 	RenderBlock,
 	StreamState,
@@ -39,11 +40,7 @@ export type WorkingBlock = {
 	failedCount: number;
 	/** The turn is still active and this block is where it is working. */
 	isLive: boolean;
-	/**
-	 * How a completed block ended: "stopped" when a step was cut off by an
-	 * interruption or when it is the newest block of a chat that ended in an
-	 * error, otherwise "completed". Absent while live.
-	 */
+	/** "stopped" when a step was interrupted or the chat ended in an error. */
 	outcome?: "completed" | "stopped";
 	/** Older history exists that may contain earlier rows of this block. */
 	isPartial: boolean;
@@ -51,11 +48,8 @@ export type WorkingBlock = {
 	startedAt?: number;
 	endedAt?: number;
 	/**
-	 * One-line description of what the live block is doing, taken from its
-	 * newest step: a tool's stated intent (or command or name) or a reasoning
-	 * heading. While the agent is only thinking, the previous step's activity
-	 * is kept so the summary never reads "Thinking". Absent for completed
-	 * blocks and before the first describable step.
+	 * The live block's newest describable step: tool intent, command, name,
+	 * or reasoning heading. Plain thinking keeps the previous value.
 	 */
 	activity?: string;
 };
@@ -64,10 +58,7 @@ export type GroupWorkingBlocksOptions = {
 	hasMoreMessages: boolean;
 	/** The turn is still producing output (any non-idle, non-failed phase). */
 	isTurnActive: boolean;
-	/**
-	 * The chat ended its last turn in an error, so the newest completed block
-	 * was stopped rather than finished.
-	 */
+	/** The chat's last turn ended in an error. */
 	isTurnStopped?: boolean;
 	/**
 	 * Whether the live row may be folded into the block: the turn is
@@ -92,11 +83,8 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"chat_cleared",
 ]);
 
-/**
- * chatd writes this result onto a tool call that was still running when the
- * turn was interrupted (see interruptedToolResultErrorMessage in
- * coderd/x/chatd/message_conversion.go).
- */
+// Written by chatd onto a tool call cut off by an interruption; see
+// interruptedToolResultErrorMessage in coderd/x/chatd/message_conversion.go.
 const INTERRUPTED_TOOL_RESULT_ERROR =
 	"tool call was interrupted before it produced a result";
 
@@ -115,6 +103,45 @@ const parseTimestamp = (value: string | undefined): number | undefined => {
 	}
 	const time = Date.parse(value);
 	return Number.isFinite(time) ? time : undefined;
+};
+
+/**
+ * Splits a first step's leading narration from the tool work it introduces
+ * so the lead-in can render above the fold. No opening when the row starts
+ * with a tool or is text only.
+ */
+export const splitOpeningBlocks = (
+	blocks: readonly RenderBlock[],
+): { opening?: RenderBlock[]; rest: readonly RenderBlock[] } => {
+	let leading = 0;
+	while (leading < blocks.length && blocks[leading].type === "response") {
+		leading += 1;
+	}
+	if (leading === 0 || leading === blocks.length) {
+		return { rest: blocks };
+	}
+	return { opening: blocks.slice(0, leading), rest: blocks.slice(leading) };
+};
+
+export const splitOpeningNarration = (
+	parsed: ParsedMessageContent,
+): { opening?: ParsedMessageContent; rest: ParsedMessageContent } => {
+	const { opening, rest } = splitOpeningBlocks(parsed.blocks);
+	if (!opening) {
+		return { rest: parsed };
+	}
+	return {
+		opening: {
+			...parsed,
+			blocks: opening,
+			tools: [],
+			toolCalls: [],
+			toolResults: [],
+			sources: [],
+			hookNotices: [],
+		},
+		rest: { ...parsed, blocks: [...rest] },
+	};
 };
 
 export const formatWorkingDuration = (milliseconds: number): string => {
@@ -152,10 +179,6 @@ const getToolActivity = (tool: MergedTool): string => {
 	return humanizeMCPToolName("", tool.name);
 };
 
-/**
- * Describes the newest visible step of a row, or undefined when the row
- * only shows the agent thinking without a heading.
- */
 const getRowActivity = (content: RowContent): string | undefined => {
 	const last = content.visibleBlocks[content.visibleBlocks.length - 1];
 	if (!last) {
@@ -189,11 +212,9 @@ const getRowContent = (
  * folds with it; text that ends a row is an answer and stays visible. A
  * live row with no output yet is the turn working on its next step.
  *
- * Streaming text cannot be told apart from narration until the step ends,
- * so a live row that continues a block already working in this turn folds
- * even while it ends in text: narration then never flashes into view before
- * dropping into the block. If it turns out to be the final answer, the row
- * leaves the block once it persists.
+ * Streaming text cannot be told from narration until the step ends, so a
+ * live row that continues a block folds even while it ends in text; a final
+ * answer leaves the block once it persists.
  */
 const isStepRow = (
 	row: TimelineRow,

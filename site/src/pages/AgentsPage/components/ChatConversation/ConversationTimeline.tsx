@@ -51,7 +51,11 @@ import type {
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
-import { groupWorkingBlocks } from "./workingBlockGrouping";
+import {
+	groupWorkingBlocks,
+	splitOpeningBlocks,
+	splitOpeningNarration,
+} from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -587,16 +591,41 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
-		const renderRow = (row: TimelineRow, grouped = false) => {
+		type RenderRowOptions = {
+			grouped?: boolean;
+			parsedOverride?: ParsedMessageContent;
+			liveBlocksOverride?: readonly RenderBlock[];
+			renderKey?: string;
+			hideActions?: boolean;
+		};
+		const renderRow = (
+			row: TimelineRow,
+			{
+				grouped = false,
+				parsedOverride,
+				liveBlocksOverride,
+				renderKey,
+				hideActions = false,
+			}: RenderRowOptions = {},
+		) => {
 			if (row.type === "live") {
 				// This row only exists when liveStatus is set.
+				const rowKey = renderKey ?? row.key;
+				const blocks = liveBlocksOverride ?? liveBlocks;
+				const blockToolIds = new Set(
+					blocks.flatMap((block) => (block.type === "tool" ? [block.id] : [])),
+				);
 				const content = (
 					<ChatMessageItem
 						organizationId={organizationId}
-						renderKey={row.key}
+						renderKey={rowKey}
 						liveStatus={liveStatus}
-						liveBlocks={liveBlocks}
-						liveTools={liveTools}
+						liveBlocks={blocks}
+						liveTools={
+							liveBlocksOverride
+								? liveTools.filter((tool) => blockToolIds.has(tool.id))
+								: liveTools
+						}
 						subagentStatusOverrides={
 							showsStreamOutput ? subagentStatusOverrides : undefined
 						}
@@ -609,12 +638,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				return grouped ? (
 					content
 				) : (
-					<MessageScroller.Item key={row.key} messageId={row.key}>
+					<MessageScroller.Item key={rowKey} messageId={rowKey}>
 						{content}
 					</MessageScroller.Item>
 				);
 			}
-			const { message, parsed } = row.entry;
+			const { message } = row.entry;
+			const parsed = parsedOverride ?? row.entry.parsed;
+			const rowKey = renderKey ?? row.key;
 			const isUser = message.role === "user";
 			const suppressInitialAnchor =
 				initialActiveTurnMaxMessageId !== undefined &&
@@ -624,7 +655,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			const content = (
 				<ChatMessageItem
 					organizationId={organizationId}
-					renderKey={row.key}
+					renderKey={rowKey}
 					message={message}
 					parsed={parsed}
 					onEditUserMessage={isUser ? onEditUserMessage : undefined}
@@ -639,7 +670,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
 					urlTransform={urlTransform}
 					isAfterEditingMessage={isAfterEditingMessage}
-					hideActions={!isUser && !row.isLastInAssistantChain}
+					hideActions={hideActions || (!isUser && !row.isLastInAssistantChain)}
 					hasActiveStream={Boolean(hasActiveStream)}
 					isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
 					isLastMessage={row.isLastMessage}
@@ -656,8 +687,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				content
 			) : (
 				<MessageScroller.Item
-					key={row.key}
-					messageId={row.key}
+					key={rowKey}
+					messageId={rowKey}
 					scrollAnchor={
 						isUser && row.key === anchorUserRowKey && !suppressInitialAnchor
 					}
@@ -668,10 +699,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		};
 		return (
 			<FileProbeProvider>
-				{renderRows.map((row, index) => {
+				{renderRows.flatMap((row, index) => {
 					const block = blockByFirstRow.get(index);
 					if (!block) {
-						return groupedRows.has(index) ? null : renderRow(row);
+						return groupedRows.has(index) ? [] : [renderRow(row)];
 					}
 					const isAfterEditingMessage =
 						row.type === "message" &&
@@ -693,7 +724,40 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							expanded = decision;
 						}
 					}
-					return (
+					// The first step's lead-in narration renders above the fold.
+					const firstRow = renderRows[block.rowIndices[0]];
+					const messageSplit =
+						firstRow.type === "message"
+							? splitOpeningNarration(firstRow.entry.parsed)
+							: undefined;
+					const liveSplit =
+						firstRow.type === "live"
+							? splitOpeningBlocks(liveBlocks)
+							: undefined;
+					const hasOpening = Boolean(
+						messageSplit?.opening ?? liveSplit?.opening,
+					);
+					const renderMember = (rowIndex: number) =>
+						renderRow(renderRows[rowIndex], {
+							grouped: true,
+							...(rowIndex === block.rowIndices[0] && hasOpening
+								? {
+										renderKey: `${firstRow.key}:steps`,
+										parsedOverride: messageSplit?.rest,
+										liveBlocksOverride: liveSplit?.rest,
+									}
+								: {}),
+						});
+					// The opening keeps the row's own key as a sibling of the block so
+					// its streaming state survives the block appearing.
+					return [
+						hasOpening
+							? renderRow(firstRow, {
+									parsedOverride: messageSplit?.opening,
+									liveBlocksOverride: liveSplit?.opening,
+									hideActions: true,
+								})
+							: null,
 						<MessageScroller.Item
 							key={block.key}
 							messageId={block.key}
@@ -721,12 +785,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								{expanded &&
 									block.rowIndices.map((rowIndex) => (
 										<div key={renderRows[rowIndex].key}>
-											{renderRow(renderRows[rowIndex], true)}
+											{renderMember(rowIndex)}
 										</div>
 									))}
 							</WorkingBlockDisclosure>
-						</MessageScroller.Item>
-					);
+						</MessageScroller.Item>,
+					];
 				})}
 			</FileProbeProvider>
 		);

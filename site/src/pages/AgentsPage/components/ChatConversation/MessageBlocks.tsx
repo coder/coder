@@ -166,24 +166,17 @@ const ResponseBlock = memo<{
 });
 
 /**
- * Branches narration off a working block's rule with two rounded corners,
- * the same shape the AI Bridge session timeline uses, so a step's prose
- * reads as a branch of the fold rather than a sibling of its tool rows.
- *
- * The block pads its content 16px past a 1px rule, so -17px puts the corner
- * pieces' left borders exactly on the rule. A plain cell behind them hides
- * the rule where the corners curve away from it. The corner pieces stop 4px
- * short of the text so the branch does not touch it; the column plus that
- * margin (12 + 4 + 1) returns the text to the block's content edge, so it
- * left-aligns with the tool rows' icons, and the half-line first row puts the
- * top corner mid-line.
+ * Branches narration off a working block's rule with rounded corners. The
+ * block pads content 16px past a 1px rule, so -17px lands the corner pieces
+ * on the rule; the plain cell behind them hides the rule where they curve
+ * away. Column plus padding returns the text to the content edge, level with
+ * the tool icons.
  */
 const StepNarrationBracket: FC<{ children: ReactNode }> = ({ children }) => (
 	<div
 		data-testid="step-narration-bracket"
 		className="-ml-[17px] grid grid-cols-[1rem_1fr] grid-rows-[0.75rem_auto]"
 	>
-		{/* Masks the block rule; the corner pieces redraw the parts to keep. */}
 		<div className="row-start-1 col-start-1 row-span-2 bg-surface-primary" />
 		<div className="row-start-1 col-start-1 mr-1 border-0 border-b border-l border-solid border-border-default rounded-bl-lg" />
 		<div className="row-start-2 col-start-1 -mt-px mr-1 border-0 border-l border-t border-solid border-border-default rounded-tl-lg" />

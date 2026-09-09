@@ -1,10 +1,6 @@
 import { createContext, useContext } from "react";
 
-/**
- * True for rows rendered inside an expanded working block, so nested
- * renderers can adapt to the block's rule (for example, bracketing
- * narration off it).
- */
+/** True for rows rendered inside an expanded working block. */
 export const WorkingBlockContext = createContext(false);
 
 export const useInsideWorkingBlock = (): boolean =>

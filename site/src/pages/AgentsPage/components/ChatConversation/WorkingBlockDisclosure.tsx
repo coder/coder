@@ -20,10 +20,6 @@ import {
 	type WorkingBlock,
 } from "./workingBlockGrouping";
 
-/**
- * The live summary names the current step in parentheses, so a collapsed
- * block still shows what the agent is doing.
- */
 const getLiveWorkingLabel = (block: WorkingBlock, now: number): string => {
 	const activity = block.activity ? ` (${block.activity})` : "";
 	if (block.startedAt === undefined) {
@@ -43,8 +39,6 @@ const LiveLabel: FC<{ block: WorkingBlock; now?: number }> = ({
 	// fixed label, so long transcripts never tick.
 	const clock = useTime(() => Date.now(), { disabled: now !== undefined });
 	return (
-		// Tabular digits keep every second the same width, so the label does
-		// not jiggle as the timer ticks.
 		<ToolCall.Label className="tabular-nums">
 			{getLiveWorkingLabel(block, now ?? clock)}
 		</ToolCall.Label>
@@ -109,12 +103,11 @@ const useKeepReadingPositionAcrossPrepend = (firstRowKey: string) => {
 };
 
 /**
- * The message scroller follows the bottom whenever the viewport sits within
- * a few pixels of the end, and re-pins on every content resize. It only
- * leaves that mode on wheel, touch, or keyboard input, so expanding a block
- * near the bottom would snap the transcript to the end and scroll the rows
- * straight past. Toggling a fold is a deliberate act of reading, so announce
- * it the way the scroller understands: as user scroll intent on the viewport.
+ * The message scroller re-pins to the end on every content resize while the
+ * viewport is near the bottom, and only leaves that mode on wheel, touch, or
+ * keyboard input. Without this, expanding a block near the bottom scrolls
+ * the opened rows straight past. A synthetic wheel event is the only signal
+ * the scroller accepts as user intent.
  */
 const useHoldViewportOnToggle = (
 	expanded: boolean,
@@ -202,8 +195,6 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
 			<ToolCall.Content>
-				{/* ml-2 puts the 1px rule under the center of the 16px leading
-				    icon; pl-4 lines the nested rows up with the summary label. */}
 				<div
 					ref={contentRef}
 					className="ml-2 mt-2 flex min-w-0 flex-col gap-2 border-0 border-l border-solid border-border-default pl-4"
@@ -211,18 +202,13 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 					<WorkingBlockContext.Provider value={true}>
 						{children}
 					</WorkingBlockContext.Provider>
-					{/* Lets the rule run on a little before its end marker. */}
 					{block.outcome && <div aria-hidden className="h-2" />}
 				</div>
 				{block.outcome && (
 					<div
 						data-testid="working-block-outcome"
-						// mb-2 doubles the timeline's 8px gap so the marker reads as the
-						// end of the block rather than the lead-in to the next row.
 						className="relative mb-2 flex h-6 items-center pl-[25px] text-[13px] leading-6 text-content-secondary"
 					>
-						{/* Centered on the rule: left-2 is the rule's x, and the dot
-						    shifts back by half its width. */}
 						<StatusIndicatorDot
 							variant="inactive"
 							size="sm"
