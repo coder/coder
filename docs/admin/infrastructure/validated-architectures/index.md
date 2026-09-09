@@ -1,4 +1,6 @@
-# Coder Validated Architecture
+---
+title: Coder Validated Architecture
+---
 
 Many customers operate Coder in complex organizational environments, consisting
 of multiple business units, agencies, and/or subsidiaries. This can lead to

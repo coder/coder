@@ -160,7 +160,7 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 				}
 			}}
 			className={cn(
-				"group/combobox-content w-(--radix-popover-trigger-width) p-0 max-h-[min(24rem,var(--radix-popper-available-height))]",
+				"group/combobox-content flex w-(--radix-popover-trigger-width) max-h-[min(24rem,var(--radix-popper-available-height))] flex-col overflow-y-hidden p-0",
 				className,
 			)}
 			{...props}
@@ -183,7 +183,7 @@ export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 			data-slot="combobox-list"
 			data-empty={isEmpty ? "" : undefined}
 			className={cn(
-				"max-h-96 scroll-py-1 overflow-y-auto overscroll-contain p-1",
+				"min-h-0 scroll-py-1 overflow-y-auto overscroll-contain p-1",
 				className,
 			)}
 			{...props}
@@ -297,7 +297,7 @@ export const FilterComboboxInputGroup: FC<FilterComboboxInputGroupProps> = ({
 		<PopoverAnchor asChild>
 			<InputGroup
 				ref={anchorRef ?? undefined}
-				className={cn("h-auto min-h-10 w-full items-center", className)}
+				className={cn("h-auto min-h-10 w-full items-start", className)}
 				{...props}
 			/>
 		</PopoverAnchor>
@@ -314,7 +314,7 @@ export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
 		<div
 			data-slot="combobox-chips"
 			className={cn(
-				"flex min-h-10 min-w-0 flex-1 flex-wrap content-center items-center gap-1 py-1",
+				"flex min-h-10 min-w-0 flex-1 flex-wrap content-center items-center gap-1 py-2 pr-2",
 				className,
 			)}
 			{...props}
@@ -354,7 +354,11 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	return (
 		<Badge
 			data-slot="combobox-chip"
-			className={cn("font-medium text-content-primary", className)}
+			svgSize="sm"
+			className={cn(
+				"font-medium text-content-secondary hover:text-content-primary",
+				className,
+			)}
 			{...props}
 		>
 			{children}
@@ -364,7 +368,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 					data-slot="combobox-chip-remove"
 					aria-label={resolvedRemoveLabel}
 					className={cn(
-						"inline-flex size-4 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-content-secondary hover:text-content-primary",
+						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0",
 					)}
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
@@ -374,7 +378,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 						}
 					}}
 				>
-					<XIcon aria-hidden className="size-icon-xs" />
+					<XIcon aria-hidden />
 				</button>
 			)}
 		</Badge>

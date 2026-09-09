@@ -1342,8 +1342,8 @@ export async function createUser(
 	await page.goto("/deployment/users", { waitUntil: "domcontentloaded" });
 	await expect(page).toHaveTitle("Users - Coder");
 
-	await page.getByRole("link", { name: "Create user" }).click();
-	await expect(page).toHaveTitle("Create User - Coder");
+	await page.getByRole("link", { name: "New user" }).click();
+	await expect(page).toHaveTitle("New user - Coder");
 
 	const username = userValues.username ?? randomName();
 	const name = userValues.name ?? username;
@@ -1353,7 +1353,7 @@ export async function createUser(
 
 	await page.getByLabel("Username").fill(username);
 	if (name) {
-		await page.getByLabel("Full name").fill(name);
+		await page.getByLabel("Name", { exact: true }).fill(name);
 	}
 	await page.getByLabel("Email").fill(email);
 

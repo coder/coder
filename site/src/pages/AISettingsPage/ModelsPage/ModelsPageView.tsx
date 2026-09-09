@@ -38,11 +38,11 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import {
 	canManageProviderModels,
 	type ProviderState,
 } from "#/modules/aiModels/providerStates";
-import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { paginateItems } from "#/utils/paginateItems";
 import { ModelRow } from "./components/ModelRow";
 import {

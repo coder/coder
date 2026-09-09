@@ -1,5 +1,6 @@
 import { Building2Icon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
 
 type ProviderIconProps = {
 	provider: string;
@@ -8,7 +9,7 @@ type ProviderIconProps = {
 };
 
 export const getProviderIcon = (provider: string): string | undefined => {
-	switch (provider) {
+	switch (normalizeProvider(provider)) {
 		case "openai":
 			return "/icon/openai.svg";
 		case "anthropic":

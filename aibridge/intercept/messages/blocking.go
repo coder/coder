@@ -41,13 +41,14 @@ func NewBlockingInterceptor(
 	tracer trace.Tracer,
 ) *BlockingInterception {
 	return &BlockingInterception{interceptionBase: interceptionBase{
-		id:            id,
-		reqPayload:    reqPayload,
-		cfg:           cfg,
-		cred:          cred,
-		bedrock:       bedrock,
-		clientHeaders: clientHeaders,
-		tracer:        tracer,
+		id:               id,
+		reqPayload:       reqPayload,
+		cfg:              cfg,
+		cred:             cred,
+		bedrock:          bedrock,
+		clientHeaders:    clientHeaders,
+		tracer:           tracer,
+		isSmallFastModel: isSmallFastModel(reqPayload.model()),
 	}}
 }
 

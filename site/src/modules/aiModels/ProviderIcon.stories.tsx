@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ProviderIcon } from "./ProviderIcon";
 
 const meta: Meta<typeof ProviderIcon> = {
-	title: "pages/AISettingsPage/ProviderIcon",
+	title: "modules/aiModels/ProviderIcon",
 	component: ProviderIcon,
 };
 

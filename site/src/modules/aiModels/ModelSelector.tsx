@@ -22,9 +22,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
+import { formatReasoningEffort } from "#/modules/aiModels/helpers";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
-import { formatReasoningEffort } from "../../utils/reasoningEffort";
 
 export interface ModelSelectorOption {
 	id: string;

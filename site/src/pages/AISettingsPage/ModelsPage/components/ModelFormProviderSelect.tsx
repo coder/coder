@@ -7,8 +7,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
-import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 
 export const ModelFormProviderSelect: FC<{
 	providerStates: readonly ProviderState[];

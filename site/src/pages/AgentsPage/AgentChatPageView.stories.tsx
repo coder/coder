@@ -1,6 +1,6 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useRef, useState } from "react";
+import { type ComponentProps, type FC, useState } from "react";
 import { Outlet } from "react-router";
 import {
 	expect,
@@ -13,8 +13,14 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import {
+	chatEntityKey,
+	userCompactionThresholdsKey,
+} from "#/api/queries/chats";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
@@ -22,7 +28,9 @@ import {
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserChatCompactionThresholds,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
@@ -43,7 +51,8 @@ import {
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
-import type { ModelSelectorOption } from "./components/ChatElements/ModelSelector";
+import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
+import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
 // ---------------------------------------------------------------------------
@@ -154,20 +163,18 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 	chat,
 	...overrides
 }) => {
-	const defaultStoreRef = useRef(createChatStore());
-	const store = overrides.store ?? defaultStoreRef.current;
+	const [defaultStore] = useState(() => createChatStore());
+	const store = overrides.store ?? defaultStore;
 
 	const props = {
 		chat: buildChat(chat),
-		sendShortcut: "enter" as const,
 		persistedError: undefined as ChatDetailError | undefined,
-		parentChat: undefined as TypesGen.Chat | undefined,
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
+		models: [],
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
-		compressionThreshold: undefined as number | undefined,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
@@ -180,9 +187,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
-		handleArchiveAgentAction: fn(),
-		handleUnarchiveAgentAction: fn(),
-		handleArchiveAndDeleteWorkspaceAction: fn(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -231,6 +235,16 @@ const meta: Meta<typeof AgentChatPageView> = {
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/${AGENT_ID}`,
@@ -515,11 +529,30 @@ export const NotQueuedForCapacity: Story = {
 
 /** Shows the parent chat link in the top bar when a parent exists. */
 export const WithParentChat: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: chatEntityKey("parent-chat-1"),
+				data: buildChat({ id: "parent-chat-1", title: "Root agent" }),
+			},
+		],
+	},
 	render: () => (
-		<StoryAgentChatPageView
-			parentChat={buildChat({ id: "parent-chat-1", title: "Root agent" })}
-		/>
+		<StoryAgentChatPageView chat={{ parent_chat_id: "parent-chat-1" }} />
 	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const parentLink = await canvas.findByRole("link", { name: "Root agent" });
+		expect(parentLink).toHaveAttribute("href", "/agents/parent-chat-1");
+	},
 };
 
 /** Persisted error reason shown in the timeline area. */
@@ -942,7 +975,6 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -963,7 +995,6 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -983,7 +1014,6 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -1005,7 +1035,6 @@ export const LoadingSidebarCollapsed: Story = {
 	parameters: { reactRouter: collapsedSidebarRouter },
 	render: () => (
 		<AgentChatPageLoadingView
-			sendShortcut="enter"
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -1443,11 +1472,11 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 const underflowFetchSpy = fn();
 
 const UnderflowPaginationStory: FC = () => {
-	const store = useRef(
+	const [store] = useState(() =>
 		buildStoreWithMessages([
 			buildMessage(9, "assistant", "The newest loaded message. ".repeat(6)),
 		]),
-	).current;
+	);
 	const [loadedPages, setLoadedPages] = useState(0);
 	const [isFetching, setIsFetching] = useState(false);
 
@@ -1528,9 +1557,9 @@ export const ShortTranscriptLoadsUntilHistoryIsExhausted: Story = {
 const retryFetchSpy = fn();
 
 const RetryPaginationStory: FC = () => {
-	const store = useRef(
+	const [store] = useState(() =>
 		buildStoreWithMessages(buildLongConversation(AGENT_ID, 40)),
-	).current;
+	);
 	const [hasError, setHasError] = useState(true);
 	const [isFetching, setIsFetching] = useState(false);
 
@@ -1776,7 +1805,34 @@ const mockAgentWithBrowserApp: TypesGen.WorkspaceAgent = {
 	apps: [...MockWorkspaceAgent.apps, mockAgentBrowserApp],
 };
 
+const singletonTabsStorageKey = `${visibleSingletonTabsStorageKeyPrefix}${AGENT_ID}`;
+
+/**
+ * Singleton panels start hidden, so a story that needs a visible Browser,
+ * Desktop, or Debug tab seeds the per-chat storage entry before mount.
+ */
+const seedVisibleSingletonTabs = (
+	tabIds: readonly SingletonRightPanelTabId[],
+) => {
+	localStorage.setItem(singletonTabsStorageKey, JSON.stringify(tabIds));
+	return () => {
+		localStorage.removeItem(singletonTabsStorageKey);
+	};
+};
+
+const clearVisibleSingletonTabs = () => {
+	localStorage.removeItem(singletonTabsStorageKey);
+	return () => {
+		localStorage.removeItem(singletonTabsStorageKey);
+	};
+};
+
+const openAddPanelMenu = async (canvas: ReturnType<typeof within>) => {
+	await userEvent.click(canvas.getByLabelText("Add panel"));
+};
+
 export const BrowserTabForHealthyAgentBrowserApp: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1807,6 +1863,7 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 };
 
 export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1832,6 +1889,9 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 };
 
 export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
+	// Seed the saved choice so the assertion proves the health gate hides
+	// the tab, instead of passing because panels start hidden.
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1852,6 +1912,9 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 };
 
 export const NoBrowserTabForAppOnNonBoundAgent: Story = {
+	// Seed the saved choice so the assertion proves the agent-binding gate
+	// hides the tab, instead of passing because panels start hidden.
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1912,6 +1975,237 @@ export const PreservesUnavailableBrowserTab: Story = {
 		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("browser");
+	},
+};
+
+const renderWithSingletonSupport = () => (
+	<StoryAgentChatPageView
+		showSidebarPanel
+		debugLoggingEnabled
+		workspace={MockWorkspace}
+		workspaceAgent={mockAgentWithBrowserApp}
+		desktopChatId={AGENT_ID}
+		sshCommand="ssh coder.workspace"
+	/>
+);
+
+export const SingletonPanelsHiddenByDefault: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
+
+		await openAddPanelMenu(canvas);
+		for (const label of ["Browser", "Desktop", "Debug"]) {
+			const item = await body.findByRole("menuitemcheckbox", { name: label });
+			expect(item).toHaveAttribute("aria-checked", "false");
+		}
+	},
+};
+
+export const TogglesSingletonPanelFromDropdown: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		);
+
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+		await waitFor(() => {
+			expect(browserTab).toHaveAttribute("aria-selected", "true");
+		});
+		expect(
+			canvas.getByRole("button", { name: "Close Browser tab" }),
+		).toBeVisible();
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
+
+		await openAddPanelMenu(canvas);
+		expect(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		).toHaveAttribute("aria-checked", "true");
+
+		// Select another tab first: closing the active singleton selects a
+		// neighbor, and "Closes Active Singleton Panel" covers that path.
+		await userEvent.keyboard("{Escape}");
+		// The open menu marks the rest of the page aria-hidden, so wait for it
+		// to close before reaching a tab.
+		await waitFor(() => {
+			expect(
+				body.queryByRole("menuitemcheckbox", { name: "Browser" }),
+			).toBeNull();
+		});
+		await userEvent.click(canvas.getByRole("tab", { name: "Git" }));
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+		});
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe("[]");
+	},
+};
+
+export const ClosesActiveSingletonPanel: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser", "debug"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual([
+			"Summary",
+			"Git",
+			"Debug",
+			"Browser",
+			"Terminal",
+		]);
+
+		await userEvent.click(debugTab);
+		await waitFor(() => {
+			expect(debugTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Close Debug tab" }),
+		);
+
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
+		});
+		expect(canvas.getByRole("tab", { name: "Browser" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
+
+		await openAddPanelMenu(canvas);
+		expect(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		).toHaveAttribute("aria-checked", "false");
+	},
+};
+
+export const ReopenedSingletonPanelStaysSingle: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["debug"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Debug" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
+		});
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+		await canvas.findByRole("tab", { name: "Debug" });
+
+		expect(canvas.getAllByRole("tab", { name: "Debug" })).toHaveLength(1);
+	},
+};
+
+/**
+ * An archived chat is read-only, so showing a singleton panel must not write
+ * the per-chat entry. The archive flow clears that entry on purpose, and
+ * persisting here would recreate it for a chat the user cannot change.
+ */
+export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			chat={{ archived: true }}
+			isInputDisabled
+			debugLoggingEnabled
+			workspace={MockWorkspace}
+			workspaceAgent={mockAgentWithBrowserApp}
+			desktopChatId={AGENT_ID}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+
+		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
+		await waitFor(() => {
+			expect(debugTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBeNull();
+	},
+};
+
+export const RestoresPersistedSingletonPanel: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["desktop"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("tab", { name: "Desktop" });
+		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+		expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
+	},
+};
+
+export const HidesUnsupportedSingletonPanels: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser", "desktop", "debug"]),
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
+
+		await openAddPanelMenu(canvas);
+		await body.findByText("New Terminal");
+		for (const label of ["Browser", "Desktop", "Debug"]) {
+			expect(body.queryByRole("menuitemcheckbox", { name: label })).toBeNull();
+		}
+
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe(
+			'["browser","desktop","debug"]',
+		);
 	},
 };
 

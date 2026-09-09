@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -1323,4 +1324,70 @@ func (f *fakeCoderdAgentAPI) UpdateAppStatus(ctx context.Context, req *agentprot
 		return nil, ctx.Err()
 	}
 	return &agentproto.UpdateAppStatusResponse{}, nil
+}
+
+func TestExpMcpServerToolError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	const sentinelMessage = "sentinel tool API failure"
+	var failRequests atomic.Bool
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/v2/users/me", r.URL.Path)
+		if failRequests.Load() {
+			httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
+				Message: sentinelMessage,
+			})
+			return
+		}
+		user := codersdk.User{}
+		user.Username = "test-user"
+		httpapi.Write(r.Context(), w, http.StatusOK, user)
+	}))
+	t.Cleanup(api.Close)
+	client := codersdk.New(testutil.MustURL(t, api.URL), codersdk.WithSessionToken("test-session"))
+	inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools="+toolsdk.ToolNameGetAuthenticatedUser)
+	inv = inv.WithContext(ctx)
+	stdout, stdoutWriter := expecter.NewPiped(t)
+	inv.Stdout = stdoutWriter
+	stderr := testutil.NewWaitBuffer()
+	inv.Stderr = stderr
+	stdin := testutil.NewWriterAttachedToInvocation(t, testutil.Logger(t), inv)
+	clitest.SetupConfig(t, client, root)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		assert.NoError(t, inv.Run())
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+
+	stdin.WriteLine(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`)
+	_ = stdout.ReadLine(ctx)
+	// Let startup authentication succeed before injecting the tool's API failure.
+	failRequests.Store(true)
+	stdin.WriteLine(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	request, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+		"params": map[string]any{"name": toolsdk.ToolNameGetAuthenticatedUser, "arguments": map[string]any{}},
+	})
+	require.NoError(t, err)
+	stdin.WriteLine(string(request))
+	var response struct {
+		Error  json.RawMessage `json:"error"`
+		Result struct {
+			IsError bool `json:"isError"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(stdout.ReadLine(ctx)), &response))
+	require.Empty(t, response.Error)
+	require.True(t, response.Result.IsError)
+	require.Len(t, response.Result.Content, 1)
+	require.Equal(t, "text", response.Result.Content[0].Type)
+	require.Contains(t, response.Result.Content[0].Text, sentinelMessage)
 }

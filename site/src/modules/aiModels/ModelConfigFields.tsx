@@ -41,7 +41,7 @@ import {
 	findKnownModelByCanonicalId,
 	findKnownModelByExactAlias,
 	formatPricePerMillionTokens,
-} from "./knownModels";
+} from "./knownModels/catalog";
 import {
 	isFieldConflictDisabled,
 	isVisibleWhenSatisfied,
