@@ -9,8 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/aibridge"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -201,13 +200,13 @@ func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 			name:        "EqualSnapshotHistoryChange",
 			releaseTask: true,
 			mutate: func(t *testing.T, f *workerTestFixture, chat database.Chat) database.Chat {
-				return editUserMessage(t, f, chat.ID, "edited")
+				return editUserMessage(t, f.db, f.sqlDB, chat.ID, "edited")
 			},
 		},
 		{
 			name: "EqualSnapshotHistoryChangeWhileActive",
 			mutate: func(t *testing.T, f *workerTestFixture, chat database.Chat) database.Chat {
-				return editUserMessage(t, f, chat.ID, "edited")
+				return editUserMessage(t, f.db, f.sqlDB, chat.ID, "edited")
 			},
 		},
 	} {
@@ -253,152 +252,113 @@ func TestRunner_SyncRestoresRequiredWork(t *testing.T) {
 }
 
 // Editing a chat_messages row directly changes the history under a running
-// generation. The generation must refuse to commit its stale response, and
-// the runner must then generate again from the edited history with no
-// notification to help it.
+// generation. The generation refuses to commit its stale response and exits,
+// and nothing publishes a state update. The periodic sync must then start a
+// generation from the edited history.
 func TestRunner_RealGenerationRecoversHistoryFence(t *testing.T) {
 	t.Parallel()
-	for _, phase := range []string{"BeforeGeneration", "InFlightResponse"} {
-		t.Run(phase, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitLong)
-			f := newWorkerTestFixture(t)
-			firstRequest := make(chan struct{})
-			releaseResponse := make(chan struct{})
-			recoveredRequest := make(chan string, 2)
-			var requests atomic.Int32
-			providerURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-				if !req.Stream {
-					return chattest.OpenAINonStreamingResponse("history fence")
-				}
-				if requests.Add(1) == 1 && phase == "InFlightResponse" {
-					close(firstRequest)
-					select {
-					case <-releaseResponse:
-					case <-req.Context().Done():
-					case <-ctx.Done():
-					}
-					return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("stale response must not commit")...)
-				}
-				select {
-				case recoveredRequest <- string(req.RawBody):
-				case <-req.Context().Done():
-				}
-				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("recovered response")...)
-			})
-			provider := dbgen.ChatProvider(t, f.db, database.ChatProvider{
-				Provider: "openai-compat", DisplayName: "history fence", BaseUrl: providerURL,
-			})
-			model := dbgen.ChatModelConfig(t, f.db, database.ChatModelConfig{
-				AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: f.org.ID,
-			})
-			var transport atomic.Pointer[aibridge.TransportFactory]
-			var factory aibridge.TransportFactory = chattest.NewMockAIBridgeTransport(t, providerURL)
-			transport.Store(&factory)
-			// Closing the server while a post-turn hook is still scheduling
-			// work logs an error; server tests in this package ignore those.
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-			server := New(f.pubsub, Config{
-				Logger: logger, Database: f.db, ReplicaID: uuid.New(),
-				Experiments: codersdk.ExperimentsKnown, AIBridgeTransportFactory: &transport,
-			})
-			t.Cleanup(func() { require.NoError(t, server.Close()) })
-			created, err := server.CreateChat(ctx, CreateOptions{
-				OrganizationID: f.org.ID, OwnerID: f.user.ID, ModelConfigID: model.ID,
-				Title: "history fence", InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-			})
-			require.NoError(t, err)
-			// worker.Close sets manager to nil under the mutex while a task may
-			// still be running, so read it under the same mutex.
-			manager := func() *runnerManager {
-				server.chatWorker.mu.Lock()
-				defer server.chatWorker.mu.Unlock()
-				return server.chatWorker.manager
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f := newWorkerTestFixture(t)
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+	sink := testutil.NewFakeSink(t)
+	firstRequest := make(chan struct{})
+	releaseResponse := make(chan struct{})
+	recoveredRequest := make(chan string, 1)
+	var requests atomic.Int32
+	providerURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("history fence")
+		}
+		if requests.Add(1) == 1 {
+			close(firstRequest)
+			select {
+			case <-releaseResponse:
+			case <-req.Context().Done():
 			}
-			starter, err := newTaskStarter(server, server.chatWorker.opts,
-				func(ctx context.Context, state runnerStateUpdate) {
-					if m := manager(); m != nil {
-						m.RouteStateHint(ctx, state)
-					}
-				},
-				func(ctx context.Context, key runnerKey) {
-					if m := manager(); m != nil {
-						m.requestCleanup(ctx, key)
-					}
-				},
-			)
-			require.NoError(t, err)
-			results := make(chan error, 16)
-			generationStarted := make(chan chatWorkerTaskStartInput, 1)
-			releaseGeneration := make(chan struct{})
-			var invocations atomic.Int32
-			server.chatWorker.opts.TaskStarter = &generationResultTaskStarter{
-				chatWorkerTaskStarter: starter,
-				results:               results,
-				beforeGeneration: func(ctx context.Context, input chatWorkerTaskStartInput) {
-					if phase != "BeforeGeneration" || invocations.Add(1) != 1 {
-						return
-					}
-					generationStarted <- input
-					select {
-					case <-releaseGeneration:
-					case <-ctx.Done():
-					}
-				},
-			}
-			// Recovery depends on the periodic sync. It runs on the real clock
-			// here, so shorten its interval.
-			server.chatWorker.opts.RunnerSyncInterval = testutil.IntervalMedium
-			server.Start()
-			if phase == "BeforeGeneration" {
-				input := testutil.RequireReceive(ctx, t, generationStarted)
-				require.Equal(t, created.ID, input.ChatID)
-			} else {
-				testutil.TryReceive(ctx, t, firstRequest)
-			}
-			before, err := f.db.GetChatByID(ctx, created.ID)
-			require.NoError(t, err)
-			require.Greater(t, before.SnapshotVersion, before.HistoryVersion)
-			mutated := editUserMessage(t, f, created.ID, "hello after out-of-band edit")
-			require.Zero(t, mutated.GenerationAttempt)
-			if phase == "BeforeGeneration" {
-				close(releaseGeneration)
-			} else {
-				close(releaseResponse)
-			}
-			fenceExit := testutil.RequireReceive(ctx, t, results)
-			require.ErrorIs(t, fenceExit, errTaskExpectedExit)
-			require.NotErrorIs(t, fenceExit, errTaskRetryable)
-			require.ErrorContains(t, fenceExit, "chat history version mismatch")
-			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-				chat, err := f.db.GetChatByID(ctx, created.ID)
-				return err == nil && chat.Status == database.ChatStatusWaiting && !chat.WorkerID.Valid && !chat.RunnerID.Valid
-			}, testutil.IntervalFast)
-			messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.ID})
-			require.NoError(t, err)
-			var users, assistants int
-			for _, message := range messages {
-				switch message.Role {
-				case database.ChatMessageRoleUser:
-					users++
-					require.Contains(t, string(message.Content.RawMessage), "hello after out-of-band edit")
-				case database.ChatMessageRoleAssistant:
-					assistants++
-					require.Contains(t, string(message.Content.RawMessage), "recovered response")
-				}
-				require.NotContains(t, string(message.Content.RawMessage), "stale response must not commit")
-			}
-			require.Equal(t, 1, users)
-			require.Equal(t, 1, assistants)
-			wantRequests := int32(1)
-			if phase == "InFlightResponse" {
-				wantRequests = 2
-			}
-			require.Equal(t, wantRequests, requests.Load())
-			require.Contains(t, testutil.RequireReceive(ctx, t, recoveredRequest), "hello after out-of-band edit")
-			final, err := f.db.GetChatByID(ctx, created.ID)
-			require.NoError(t, err)
-			require.False(t, final.LastError.Valid)
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("stale response must not commit")...)
+		}
+		select {
+		case recoveredRequest <- string(req.RawBody):
+		case <-req.Context().Done():
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("recovered response")...)
+	})
+	provider := dbgen.ChatProvider(t, f.db, database.ChatProvider{
+		Provider: "openai-compat", DisplayName: "history fence", BaseUrl: providerURL,
+	})
+	model := dbgen.ChatModelConfig(t, f.db, database.ChatModelConfig{
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: f.org.ID,
+	})
+	server := New(f.pubsub, Config{
+		Logger:                   sink.Logger(),
+		Database:                 f.db,
+		ReplicaID:                uuid.New(),
+		Clock:                    clock,
+		Experiments:              codersdk.ExperimentsKnown,
+		AIBridgeTransportFactory: aibridgeTestFactoryPointer(chattest.NewMockAIBridgeTransport(t, providerURL)),
+	})
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+	created, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: f.org.ID, OwnerID: f.user.ID, ModelConfigID: model.ID,
+		Title: "history fence", InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	server.Start()
+
+	testutil.TryReceive(ctx, t, firstRequest)
+	editUserMessage(t, f.db, f.sqlDB, created.ID, "hello after out-of-band edit")
+	close(releaseResponse)
+
+	// The fence exit changes nothing in the database, so the task log is the
+	// only place the exit is visible.
+	var exits []slog.SinkEntry
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		exits = sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "chatworker task exited" &&
+				sinkFieldValue(t, e.Fields, "chat_id") == created.ID.String()
 		})
+		return len(exits) > 0
+	}, testutil.IntervalFast)
+	require.Len(t, exits, 1)
+	require.Equal(t, "expected_non_retryable_exit", sinkFieldValue(t, exits[0].Fields, "reason"))
+	require.Contains(t, sinkFieldValue(t, exits[0].Fields, "error"), "chat history version mismatch")
+
+	// Fire the server's timers one at a time until the runner sync
+	// redelivers the row and the runner asks the model again.
+	var recovered string
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		_, waiter := clock.AdvanceNext()
+		waiter.MustWait(ctx)
+		select {
+		case recovered = <-recoveredRequest:
+			return true
+		default:
+			return false
+		}
+	}, testutil.IntervalFast)
+	require.Contains(t, recovered, "hello after out-of-band edit")
+
+	var final database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		final, err = f.db.GetChatByID(ctx, created.ID)
+		return err == nil && final.Status == database.ChatStatusWaiting && !final.WorkerID.Valid && !final.RunnerID.Valid
+	}, testutil.IntervalFast)
+	require.False(t, final.LastError.Valid)
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.ID})
+	require.NoError(t, err)
+	var users, assistants int
+	for _, message := range messages {
+		switch message.Role {
+		case database.ChatMessageRoleUser:
+			users++
+			require.Contains(t, string(message.Content.RawMessage), "hello after out-of-band edit")
+		case database.ChatMessageRoleAssistant:
+			assistants++
+			require.Contains(t, string(message.Content.RawMessage), "recovered response")
+		}
+		require.NotContains(t, string(message.Content.RawMessage), "stale response must not commit")
 	}
+	require.Equal(t, 1, users)
+	require.Equal(t, 1, assistants)
+	require.Equal(t, int32(2), requests.Load())
 }

@@ -1251,6 +1251,45 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 	require.Equal(t, otherRunnerID, latest.RunnerID.UUID)
 }
 
+// A generation started for a HistoryVersion the chat has moved past exits on
+// its history fence before it records an attempt or calls the model, and the
+// exit is expected and not retryable. Nothing else stops the stale task;
+// the runner restarts the work from the current history on the next sync
+// (TestRunner_RealGenerationRecoversHistoryFence).
+func TestGenerationTask_StaleHistoryFenceExitsBeforeModelCall(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	edited := editUserMessage(t, f.db, f.sqlDB, chat.ID, "edited")
+
+	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
+	err := starter.StartGeneration(ctx, chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt,
+		Status:            database.ChatStatusRunning,
+	})
+	require.ErrorIs(t, err, errTaskExpectedExit)
+	require.NotErrorIs(t, err, errTaskRetryable)
+	require.ErrorContains(t, err, "chat history version mismatch")
+
+	// Recording an attempt bumps snapshot_version and precedes every model
+	// call, so an unchanged row shows the task stopped before either.
+	latest, err := f.db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, edited.SnapshotVersion, latest.SnapshotVersion)
+	require.Equal(t, edited.HistoryVersion, latest.HistoryVersion)
+	require.Equal(t, database.ChatStatusRunning, latest.Status)
+	require.False(t, latest.LastError.Valid)
+}
+
 func TestRunner_StartsRealInterruptTask(t *testing.T) {
 	t.Parallel()
 

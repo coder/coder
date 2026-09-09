@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/safedial"
 )
 
@@ -2713,6 +2714,116 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 			!recovered.WorkerID.Valid &&
 			!recovered.RunnerID.Valid
 	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+// A worker that dies while executing a local tool call leaves the chat
+// running and owned, with the tool call committed and no result. Once the
+// heartbeat is stale another worker must take the chat over and resolve the
+// call without user action.
+//
+// The dying worker stays in the process with a clock that never advances, so
+// it neither heartbeats nor syncs, and its tool call blocks until canceled.
+// Until the takeover the database sees what it would see after a kill. The
+// takeover then cancels the blocked call, which a killed process would not
+// experience; the checks on the committed parts confirm that the cancel
+// leaves nothing behind.
+func TestNewReplicaResolvesInFlightToolCallFromDeadReplica(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps, rawDB := dbtestutil.NewDBWithSQLDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			chunk := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/in-flight.txt"}`)
+			chunk.Choices[0].ToolCalls[0].ID = "call_in_flight"
+			return chattest.OpenAIStreamingResponse(chunk)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	factory := chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+	ctrl := gomock.NewController(t)
+
+	callInFlight := make(chan struct{})
+	dyingConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, dyingConn)
+	dyingConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/in-flight.txt", int64(1), int64(0), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, _ string, _, _ int64, _ workspacesdk.ReadFileLinesLimits) (workspacesdk.ReadFileLinesResponse, error) {
+			close(callInFlight)
+			<-ctx.Done()
+			return workspacesdk.ReadFileLinesResponse{}, ctx.Err()
+		}).Times(1)
+	dyingWorkerID := uuid.New()
+	dying := newTestServer(t, db, ps, dyingWorkerID, func(cfg *chatd.Config) {
+		cfg.Clock = quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		cfg.AIBridgeTransportFactory = factory
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return dyingConn, func() {}, nil
+		}
+	})
+	chat, err := dying.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "in-flight tool call",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the file"),
+		},
+	})
+	require.NoError(t, err)
+	dying.Start()
+	testutil.TryReceive(ctx, t, callInFlight)
+
+	owned, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRunning, owned.Status)
+	require.Equal(t, uuid.NullUUID{UUID: dyingWorkerID, Valid: true}, owned.WorkerID)
+	parts := chatToolParts(ctx, t, db, chat.ID)
+	requireToolCallPart(t, parts, "read_file")
+	require.False(t, toolResultPartExists(parts, "read_file"))
+
+	// The worker is dead as far as the database can tell once its last
+	// heartbeat is older than the stale threshold.
+	_, err = rawDB.ExecContext(ctx,
+		"UPDATE chat_heartbeats SET heartbeat_at = $1 WHERE chat_id = $2",
+		time.Now().Add(-time.Hour), chat.ID)
+	require.NoError(t, err)
+
+	liveConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, liveConn)
+	liveConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/in-flight.txt", int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{
+			Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+		}, nil).
+		Times(1)
+	live := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = factory
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return liveConn, func() {}, nil
+		}
+	})
+	live.Start()
+
+	recovered := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.False(t, recovered.WorkerID.Valid)
+	require.False(t, recovered.RunnerID.Valid)
+	require.False(t, recovered.LastError.Valid)
+	parts = chatToolParts(ctx, t, db, chat.ID)
+	require.Len(t, parts, 2)
+	result := requireToolResultPart(t, parts, "read_file")
+	require.False(t, result.IsError)
+	messages := chatMessages(ctx, t, db, chat.ID)
+	requireTextPart(t, messages[len(messages)-1], "done")
+	require.Equal(t, int32(2), modelCalls.Load())
 }
 
 func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {

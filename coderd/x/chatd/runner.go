@@ -180,10 +180,11 @@ func (r *runner) owns(state runnerStateUpdate) bool {
 // isNewer reports whether the runner has not seen this state before.
 //
 // Comparing snapshot versions alone is not enough. Every write through the
-// state machine increments snapshot_version, but editing a chat_messages row
-// directly fires a trigger that increments history_version only. Two states
-// with the same snapshot version can therefore require different work, and
-// the second one is new.
+// state machine increments snapshot_version, but a direct write to a
+// chat_messages row fires a trigger that sets history_version to the current
+// snapshot_version and leaves snapshot_version unchanged. Two states with the
+// same snapshot version can therefore require different work, and the second
+// one is new.
 func (r *runner) isNewer(state runnerStateUpdate) bool {
 	if state.SnapshotVersion != r.lastSnapshotVersion {
 		return state.SnapshotVersion > r.lastSnapshotVersion

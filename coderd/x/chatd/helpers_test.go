@@ -310,36 +310,16 @@ type taskCall struct {
 	ctx   context.Context
 }
 
-// generationResultTaskStarter wraps a task starter. A test can block
-// StartGeneration before it runs and read the error it returns. The worker
-// still decides when to call it.
-type generationResultTaskStarter struct {
-	chatWorkerTaskStarter
-	results          chan error
-	beforeGeneration func(context.Context, chatWorkerTaskStartInput)
-}
-
-func (s *generationResultTaskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskStartInput) error {
-	if s.beforeGeneration != nil {
-		s.beforeGeneration(ctx, input)
-	}
-	err := s.chatWorkerTaskStarter.StartGeneration(ctx, input)
-	select {
-	case s.results <- err:
-	case <-ctx.Done():
-	}
-	return err
-}
-
-// editUserMessage updates a chat_messages row with plain SQL. The trigger
-// increments history_version, snapshot_version stays the same, and nothing
-// is published.
-func editUserMessage(t *testing.T, f *workerTestFixture, chatID uuid.UUID, text string) database.Chat {
+// editUserMessage edits a chat_messages row with plain SQL, so nothing is
+// published and the trigger sets history_version to snapshot_version without
+// changing snapshot_version. It fails unless history_version moved, which
+// requires it to have been behind snapshot_version.
+func editUserMessage(t *testing.T, db database.Store, sqlDB *sql.DB, chatID uuid.UUID, text string) database.Chat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	before, err := f.db.GetChatByID(ctx, chatID)
+	before, err := db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
-	result, err := f.sqlDB.ExecContext(ctx, `
+	result, err := sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
 		SET content = $2::jsonb
 		WHERE chat_id = $1 AND role = 'user' AND NOT deleted
@@ -348,7 +328,7 @@ func editUserMessage(t *testing.T, f *workerTestFixture, chatID uuid.UUID, text 
 	affected, err := result.RowsAffected()
 	require.NoError(t, err)
 	require.Equal(t, int64(1), affected)
-	after, err := f.db.GetChatByID(ctx, chatID)
+	after, err := db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	require.Equal(t, before.SnapshotVersion, after.SnapshotVersion)
 	require.Greater(t, after.HistoryVersion, before.HistoryVersion)
