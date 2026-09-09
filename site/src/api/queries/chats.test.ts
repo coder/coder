@@ -92,6 +92,7 @@ import {
 	patchChatEntity,
 	patchChatMessages,
 	pinChat,
+	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
@@ -615,7 +616,41 @@ describe("toChatPlanModePayload", () => {
 	});
 });
 
-describe("updateChatPlanMode optimistic update", () => {
+describe("planModeFieldsForCreateMessage", () => {
+	it("omits plan_mode when the send should not change it", () => {
+		expect(planModeFieldsForCreateMessage(false)).toEqual({});
+	});
+
+	it("sends an empty string when Implement Plan clears plan mode", () => {
+		expect(planModeFieldsForCreateMessage(true)).toEqual({ plan_mode: "" });
+	});
+});
+
+describe("updateChatPlanMode", () => {
+	it("sends plan to enable plan mode", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
+		const mutation = updateChatPlanMode(queryClient);
+
+		await mutation.mutationFn({ chatId: "chat-1", planMode: "plan" });
+
+		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-1", {
+			plan_mode: "plan",
+		});
+	});
+
+	it("sends an empty string to clear plan mode", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
+		const mutation = updateChatPlanMode(queryClient);
+
+		await mutation.mutationFn({ chatId: "chat-1", planMode: undefined });
+
+		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-1", {
+			plan_mode: "",
+		});
+	});
+
 	it("invalidates the chat list on error without a detail cache", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

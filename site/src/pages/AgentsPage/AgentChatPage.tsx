@@ -32,8 +32,8 @@ import {
 	mcpServerConfigs,
 	openChat,
 	patchChatEntity,
+	planModeFieldsForCreateMessage,
 	promoteChatQueuedMessage,
-	toChatPlanModePayload,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
@@ -916,7 +916,7 @@ const AgentChatPage: FC = () => {
 			model_config_id: selectedModelConfigID,
 			reasoning_effort: effectiveReasoningEffort,
 			mcp_server_ids: [...effectiveMCPServerIds],
-			...(clearPlanMode ? { plan_mode: toChatPlanModePayload(undefined) } : {}),
+			...planModeFieldsForCreateMessage(clearPlanMode),
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
