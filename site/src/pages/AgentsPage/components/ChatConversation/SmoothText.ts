@@ -255,6 +255,16 @@ export class SmoothTextEngine {
 		this.stopLoop();
 		this.listeners.clear();
 	}
+
+	/**
+	 * Restart the reveal loop after a dispose that turned out not to be
+	 * final, such as StrictMode's simulated unmount.
+	 */
+	resume(): void {
+		if (this.isStreaming && !this.bypassSmoothing && !this.isCaughtUp) {
+			this.startLoop();
+		}
+	}
 }
 
 // ── Hook ────────────────────────────────────────────────────────────
@@ -386,8 +396,11 @@ export function useSmoothStreamingText(
 		);
 	}
 
-	// Dispose on unmount.
+	// Dispose on unmount. StrictMode runs this cleanup once on mount too,
+	// which would leave a block that mounted mid-stream frozen until its next
+	// delta re-rendered it, so setup re-arms the loop.
 	useEffect(() => {
+		engine.resume();
 		return () => engine.dispose();
 	}, [engine]);
 

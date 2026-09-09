@@ -5317,6 +5317,17 @@ func (q *querier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UU
 	return q.db.GetUserCodeDiffDisplayMode(ctx, userID)
 }
 
+func (q *querier) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
+	user, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
+		return false, err
+	}
+	return q.db.GetUserCollapseAssistantSteps(ctx, userID)
+}
+
 func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	// If you can read every user, then you can read the count of users.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUser); err != nil {
@@ -8443,6 +8454,17 @@ func (q *querier) UpdateUserCodeDiffDisplayMode(ctx context.Context, arg databas
 		return "", err
 	}
 	return q.db.UpdateUserCodeDiffDisplayMode(ctx, arg)
+}
+
+func (q *querier) UpdateUserCollapseAssistantSteps(ctx context.Context, arg database.UpdateUserCollapseAssistantStepsParams) (bool, error) {
+	user, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return false, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, user); err != nil {
+		return false, err
+	}
+	return q.db.UpdateUserCollapseAssistantSteps(ctx, arg)
 }
 
 func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {

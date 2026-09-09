@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
@@ -16,6 +17,101 @@ export type StoryStreamRenderState = {
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	liveStatus: LiveStatusModel;
+};
+
+export const WORKING_FIXTURE_START = Date.parse("2026-04-01T12:00:00Z");
+export const workingFixtureTime = (seconds: number) =>
+	new Date(WORKING_FIXTURE_START + seconds * 1000).toISOString();
+
+/**
+ * One completed turn of two shell steps with part timestamps: prompt at 0s,
+ * tool work from 1s to 13s, answer at 14s.
+ */
+export const buildWorkingConversation = (
+	chatId = MockChatMessage.chat_id,
+): TypesGen.ChatMessage[] => {
+	const time = workingFixtureTime;
+	return [
+		{
+			...MockChatMessage,
+			chat_id: chatId,
+			id: 1,
+			created_at: time(0),
+			content: [{ type: "text", text: "Inspect the workspace" }],
+		},
+		{
+			...MockChatMessage,
+			chat_id: chatId,
+			id: 2,
+			role: "assistant",
+			created_at: time(1),
+			content: [
+				{
+					type: "tool-call",
+					tool_call_id: "first",
+					tool_name: "execute",
+					args: { command: "echo first" },
+					created_at: time(1),
+				},
+			],
+		},
+		{
+			...MockChatMessage,
+			chat_id: chatId,
+			id: 3,
+			role: "tool",
+			created_at: time(4),
+			content: [
+				{
+					type: "tool-result",
+					tool_call_id: "first",
+					tool_name: "execute",
+					result: { output: "First output", exit_code: "0" },
+					created_at: time(4),
+				},
+			],
+		},
+		{
+			...MockChatMessage,
+			chat_id: chatId,
+			id: 4,
+			role: "assistant",
+			created_at: time(5),
+			content: [
+				{
+					type: "tool-call",
+					tool_call_id: "second",
+					tool_name: "execute",
+					args: { command: "echo second" },
+					created_at: time(5),
+				},
+			],
+		},
+		{
+			...MockChatMessage,
+			chat_id: chatId,
+			id: 5,
+			role: "tool",
+			created_at: time(13),
+			content: [
+				{
+					type: "tool-result",
+					tool_call_id: "second",
+					tool_name: "execute",
+					result: { output: "Second output", exit_code: "0" },
+					created_at: time(13),
+				},
+			],
+		},
+		{
+			...MockChatMessage,
+			chat_id: chatId,
+			id: 6,
+			role: "assistant",
+			created_at: time(14),
+			content: [{ type: "text", text: "Workspace inspection complete." }],
+		},
+	];
 };
 
 /**

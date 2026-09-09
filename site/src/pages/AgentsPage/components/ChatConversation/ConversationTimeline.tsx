@@ -10,7 +10,9 @@ import {
 	PencilIcon,
 } from "lucide-react";
 import { type FC, memo, type ReactNode, useState } from "react";
+import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -39,7 +41,7 @@ import {
 	deriveMessageDisplayState,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
-import { assignTimelineRows } from "./timelineRows";
+import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -48,6 +50,8 @@ import type {
 	StreamState,
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
+import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
+import { groupWorkingBlocks } from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -397,6 +401,11 @@ const ChatMessageItem = memo<{
 );
 
 interface ConversationTimelineProps {
+	hasMoreMessages?: boolean;
+	// Server chat status. The stream is cleared between persisted steps, so
+	// only this says whether the agent is still working.
+	chatStatus?: TypesGen.ChatStatus | null;
+	now?: number;
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
 	initialActiveTurnMaxMessageId?: number;
@@ -424,6 +433,9 @@ interface ConversationTimelineProps {
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
+		hasMoreMessages = false,
+		chatStatus,
+		now,
 		organizationId,
 		parsedMessages,
 		initialActiveTurnMaxMessageId,
@@ -445,6 +457,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		isAwaitingFirstStreamChunk,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
+		const preferences = useQuery(preferenceSettings());
+		const [expandedBlocks, setExpandedBlocks] = useState<
+			ReadonlyMap<string, boolean>
+		>(new Map());
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
 		};
@@ -462,6 +478,26 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			(liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput);
 		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
 		const liveTools = showsStreamOutput ? streamTools : [];
+		const workingBlocks = preferences.data?.collapse_assistant_steps
+			? groupWorkingBlocks(renderRows, parsedMessages, {
+					hasMoreMessages,
+					// requires_action is the agent waiting on the user, not working.
+					isTurnActive:
+						chatStatus === "running" || chatStatus === "interrupting",
+					isLiveRowCollapsible:
+						liveStatus?.phase === "streaming" ||
+						liveStatus?.phase === "starting",
+					liveBlocks,
+					liveTools,
+					streamState,
+				})
+			: [];
+		const blockByFirstRow = new Map(
+			workingBlocks.map((block) => [block.rowIndices[0], block]),
+		);
+		const groupedRows = new Set(
+			workingBlocks.flatMap((block) => block.rowIndices),
+		);
 
 		if (renderRows.length === 0) {
 			return null;
@@ -550,76 +586,146 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
+		const renderRow = (row: TimelineRow, grouped = false) => {
+			if (row.type === "live") {
+				// This row only exists when liveStatus is set.
+				const content = (
+					<ChatMessageItem
+						organizationId={organizationId}
+						renderKey={row.key}
+						liveStatus={liveStatus}
+						liveBlocks={liveBlocks}
+						liveTools={liveTools}
+						subagentStatusOverrides={
+							showsStreamOutput ? subagentStatusOverrides : undefined
+						}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						urlTransform={urlTransform}
+						mcpServers={mcpServers}
+					/>
+				);
+				return grouped ? (
+					content
+				) : (
+					<MessageScroller.Item key={row.key} messageId={row.key}>
+						{content}
+					</MessageScroller.Item>
+				);
+			}
+			const { message, parsed } = row.entry;
+			const isUser = message.role === "user";
+			const suppressInitialAnchor =
+				initialActiveTurnMaxMessageId !== undefined &&
+				message.id <= initialActiveTurnMaxMessageId;
+			const neighbors = userNeighborsByKey.get(row.key);
+			const isAfterEditingMessage = afterEditingMessageIds.has(message.id);
+			const content = (
+				<ChatMessageItem
+					organizationId={organizationId}
+					renderKey={row.key}
+					message={message}
+					parsed={parsed}
+					onEditUserMessage={isUser ? onEditUserMessage : undefined}
+					editingMessageId={editingMessageId}
+					onImplementPlan={onImplementPlan}
+					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+					isChatCompleted={isChatCompleted}
+					latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+					askUserQuestionResponseTextByToolId={
+						historicalAskUserQuestionResponseTextByToolId
+					}
+					hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
+					urlTransform={urlTransform}
+					isAfterEditingMessage={isAfterEditingMessage}
+					hideActions={!isUser && !row.isLastInAssistantChain}
+					hasActiveStream={Boolean(hasActiveStream)}
+					isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
+					isLastMessage={row.isLastMessage}
+					mcpServers={mcpServers}
+					subagentTitles={subagentTitles}
+					subagentVariants={subagentVariants}
+					showDesktopPreviews={showDesktopPreviews}
+					prevUserMessageKey={neighbors?.prevKey}
+					nextUserMessageKey={neighbors?.nextKey}
+					onJumpToUserMessage={isUser ? jumpToUserMessage : undefined}
+				/>
+			);
+			return grouped ? (
+				content
+			) : (
+				<MessageScroller.Item
+					key={row.key}
+					messageId={row.key}
+					scrollAnchor={
+						isUser && row.key === anchorUserRowKey && !suppressInitialAnchor
+					}
+				>
+					{content}
+				</MessageScroller.Item>
+			);
+		};
 		return (
 			<FileProbeProvider>
-				{renderRows.map((row) => {
-					if (row.type === "live") {
-						// This row only exists when liveStatus is set.
-						return (
-							<MessageScroller.Item key={row.key} messageId={row.key}>
-								<ChatMessageItem
-									organizationId={organizationId}
-									renderKey={row.key}
-									liveStatus={liveStatus}
-									liveBlocks={liveBlocks}
-									liveTools={liveTools}
-									subagentStatusOverrides={
-										showsStreamOutput ? subagentStatusOverrides : undefined
-									}
-									subagentTitles={subagentTitles}
-									subagentVariants={subagentVariants}
-									urlTransform={urlTransform}
-									mcpServers={mcpServers}
-								/>
-							</MessageScroller.Item>
-						);
+				{renderRows.map((row, index) => {
+					const block = blockByFirstRow.get(index);
+					if (!block) {
+						return groupedRows.has(index) ? null : renderRow(row);
 					}
-					const { message, parsed } = row.entry;
-					const isUser = message.role === "user";
-					const suppressInitialAnchor =
-						initialActiveTurnMaxMessageId !== undefined &&
-						message.id <= initialActiveTurnMaxMessageId;
-					const neighbors = userNeighborsByKey.get(row.key);
-					const isAfterEditingMessage = afterEditingMessageIds.has(message.id);
+					const isAfterEditingMessage =
+						row.type === "message" &&
+						afterEditingMessageIds.has(row.entry.message.id);
+					// Expansion is recorded on the block's durable member rows, so it
+					// follows the same steps through the live-to-complete handoff and
+					// through prepends, even when the turn's prompt is not loaded.
+					// The live row is excluded: it would carry the choice into the
+					// next turn. liveKey covers a block that has no persisted row
+					// yet. The newest decision wins.
+					const memberKeys = block.rowIndices
+						.map((rowIndex) => renderRows[rowIndex])
+						.filter((member) => member.type === "message")
+						.map((member) => member.key);
+					let expanded = expandedBlocks.get(block.liveKey) ?? false;
+					for (const memberKey of memberKeys) {
+						const decision = expandedBlocks.get(memberKey);
+						if (decision !== undefined) {
+							expanded = decision;
+						}
+					}
 					return (
 						<MessageScroller.Item
-							key={row.key}
-							messageId={row.key}
-							scrollAnchor={
-								isUser && row.key === anchorUserRowKey && !suppressInitialAnchor
-							}
+							key={block.key}
+							messageId={block.key}
+							className={cn(
+								isAfterEditingMessage && "opacity-40 pointer-events-none",
+							)}
+							inert={isAfterEditingMessage ? true : undefined}
 						>
-							<ChatMessageItem
-								organizationId={organizationId}
-								renderKey={row.key}
-								message={message}
-								parsed={parsed}
-								onEditUserMessage={isUser ? onEditUserMessage : undefined}
-								editingMessageId={editingMessageId}
-								onImplementPlan={onImplementPlan}
-								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-								isChatCompleted={isChatCompleted}
-								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-								askUserQuestionResponseTextByToolId={
-									historicalAskUserQuestionResponseTextByToolId
+							<WorkingBlockDisclosure
+								block={block}
+								rowKeys={block.rowIndices.map(
+									(rowIndex) => renderRows[rowIndex].key,
+								)}
+								expanded={expanded}
+								now={now}
+								onExpandedChange={(value) =>
+									setExpandedBlocks((previous) => {
+										const next = new Map(previous);
+										next.set(block.liveKey, value);
+										for (const memberKey of memberKeys) {
+											next.set(memberKey, value);
+										}
+										return next;
+									})
 								}
-								hasUserResponseAfterAskQuestion={
-									hasUserResponseAfterAskQuestion
-								}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={isAfterEditingMessage}
-								hideActions={!isUser && !row.isLastInAssistantChain}
-								hasActiveStream={Boolean(hasActiveStream)}
-								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
-								isLastMessage={row.isLastMessage}
-								mcpServers={mcpServers}
-								subagentTitles={subagentTitles}
-								subagentVariants={subagentVariants}
-								showDesktopPreviews={showDesktopPreviews}
-								prevUserMessageKey={neighbors?.prevKey}
-								nextUserMessageKey={neighbors?.nextKey}
-								onJumpToUserMessage={isUser ? jumpToUserMessage : undefined}
-							/>
+							>
+								{expanded &&
+									block.rowIndices.map((rowIndex) => (
+										<div key={renderRows[rowIndex].key}>
+											{renderRow(renderRows[rowIndex], true)}
+										</div>
+									))}
+							</WorkingBlockDisclosure>
 						</MessageScroller.Item>
 					);
 				})}

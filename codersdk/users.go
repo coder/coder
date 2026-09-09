@@ -319,6 +319,7 @@ type UserPreferenceSettings struct {
 	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode"`
 	ShellToolDisplayMode           AgentDisplayMode      `json:"shell_tool_display_mode"`
 	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode"`
+	CollapseAssistantSteps         bool                  `json:"collapse_assistant_steps"`
 	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
 }
 
@@ -327,6 +328,7 @@ type UpdateUserPreferenceSettingsRequest struct {
 	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode,omitempty"`
 	ShellToolDisplayMode           AgentDisplayMode      `json:"shell_tool_display_mode,omitempty"`
 	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
+	CollapseAssistantSteps         *bool                 `json:"collapse_assistant_steps,omitempty"`
 	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
 }
 

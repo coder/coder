@@ -43,6 +43,7 @@ import {
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
+import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
@@ -211,6 +212,9 @@ const AgentChatPage: FC = () => {
 		enabled: permissions.editDeploymentConfig,
 	});
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
+	// The timeline folds steps by preference, so a cold load waits for it here
+	// rather than painting rows unfolded and then collapsing them.
+	const preferencesQuery = useQuery(preferenceSettings());
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
@@ -1044,7 +1048,9 @@ const AgentChatPage: FC = () => {
 			<title>
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
-			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
+			{chatQuery.isLoading ||
+			chatMessagesQuery.isLoading ||
+			preferencesQuery.isLoading ? (
 				<AgentChatPageLoadingView
 					inputRef={editing.chatInputRef}
 					initialValue={editing.editorInitialValue}

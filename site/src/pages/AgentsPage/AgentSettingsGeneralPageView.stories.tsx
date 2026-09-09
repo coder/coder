@@ -12,6 +12,7 @@ const preferencesData = {
 	thinking_display_mode: "auto" as const,
 	shell_tool_display_mode: "auto" as const,
 	code_diff_display_mode: "auto" as const,
+	collapse_assistant_steps: false,
 	agent_chat_send_shortcut: "enter" as const,
 };
 
@@ -151,6 +152,70 @@ export const TogglesSendShortcut: Story = {
 			});
 			expect(toggle).toBeChecked();
 		});
+	},
+};
+
+export const TogglesCollapseAssistantSteps: Story = {
+	beforeEach: () => {
+		let collapseAssistantSteps = false;
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(async () => ({
+			...preferencesData,
+			collapse_assistant_steps: collapseAssistantSteps,
+		}));
+		spyOn(API, "updateUserPreferenceSettings").mockImplementation(
+			async (req) => {
+				collapseAssistantSteps =
+					req.collapse_assistant_steps ?? collapseAssistantSteps;
+				return {
+					...preferencesData,
+					collapse_assistant_steps: collapseAssistantSteps,
+				};
+			},
+		);
+	},
+	// The mutation behavior is covered by CollapseAssistantStepsSettings.test.tsx;
+	// this play only turns the switch on for the screenshot.
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("switch", { name: "Collapse assistant steps" }),
+		);
+		await canvas.findByRole("switch", {
+			name: "Collapse assistant steps",
+			checked: true,
+		});
+	},
+};
+
+export const CollapseAssistantStepsLoadError: Story = {
+	// Drop the seeded preferences so the component fetches and hits the error.
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getUserPreferenceSettings").mockRejectedValue(
+			new Error("boom"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(
+			"Failed to load your collapse assistant steps preference.",
+		);
+	},
+};
+
+export const CollapseAssistantStepsSaveError: Story = {
+	beforeEach: () => {
+		spyOn(API, "updateUserPreferenceSettings").mockRejectedValue(
+			new Error("boom"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("switch", { name: "Collapse assistant steps" }),
+		);
+		await canvas.findByText(
+			"Failed to save your collapse assistant steps preference.",
+		);
 	},
 };
 
