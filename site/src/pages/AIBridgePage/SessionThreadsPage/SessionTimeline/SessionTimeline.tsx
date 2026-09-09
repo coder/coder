@@ -88,7 +88,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 				}
 				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
 			>
-				<HighlightText text={text} query={highlight ?? ""} />
+				<HighlightText text={text} highlight={highlight ?? ""} />
 			</p>
 			{isExpandable && (
 				<div
@@ -233,7 +233,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 				>
 					<span className="text-sm font-normal">Tool call</span>
 					<Badge size="xs" className="font-mono ml-1">
-						<HighlightText text={tool} query={highlight} />
+						<HighlightText text={tool} highlight={highlight} />
 					</Badge>
 				</CollapseButton>
 			</div>
@@ -249,7 +249,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 					/>
 					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
 						<span>
-							<HighlightText text={tool} query={highlight} />
+							<HighlightText text={tool} highlight={highlight} />
 						</span>
 						<span>
 							<JsonPrettyPrinter input={input} />
