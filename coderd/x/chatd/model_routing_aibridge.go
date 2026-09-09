@@ -275,7 +275,6 @@ func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType,
 		return aiGatewayRequestFormatAnthropic
 	case database.AIProviderTypeBedrock:
 		// The BYOK header shape must agree with the inferred wire format.
-		//
 		if bedrockIsAnthropicModel(model) {
 			return aiGatewayRequestFormatAnthropic
 		}

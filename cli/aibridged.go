@@ -303,14 +303,14 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		}, nil)
 
 	case database.AIProviderTypeBedrock:
-		bedrock := bedrockConfig(spec.BaseURL, spec.Bedrock)
 		// A spec typed 'bedrock' authenticates exclusively via settings;
 		// without populated Bedrock credentials it cannot make upstream
 		// calls, so refuse rather than falling back to an unsigned
 		// Anthropic client.
-		if bedrock == nil {
+		if spec.Bedrock == nil {
 			return nil, xerrors.New("bedrock provider has no bedrock credentials configured")
 		}
+		bedrock := bedrockConfig(spec.BaseURL, spec.Bedrock)
 		return aibridge.NewBedrockProvider(ctx, aibridge.AnthropicConfig{
 			Name:             spec.Name,
 			BaseURL:          spec.BaseURL,
