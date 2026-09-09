@@ -25,7 +25,7 @@ func NewLogRecorder(logger slog.Logger, wrapped aibridge.Recorder) *LogRecorder 
 }
 
 func (r *LogRecorder) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
-	r.logger.Debug(ctx, "record interception",
+	r.logger.Info(ctx, "record interception",
 		slog.F("id", req.ID),
 		slog.F("initiator_id", req.InitiatorID),
 		slog.F("provider", req.Provider),
@@ -46,11 +46,12 @@ func (r *LogRecorder) RecordInterception(ctx context.Context, req *aibridge.Inte
 	if r.wrapped == nil {
 		return nil
 	}
-	return r.wrapped.RecordInterception(ctx, req)
+	err := r.wrapped.RecordInterception(ctx, req)
+	return r.logResult(ctx, "interception", err, slog.F("id", req.ID))
 }
 
 func (r *LogRecorder) RecordInterceptionEnded(ctx context.Context, req *aibridge.InterceptionRecordEnded) error {
-	r.logger.Debug(ctx, "record interception ended",
+	r.logger.Info(ctx, "record interception ended",
 		slog.F("id", req.ID),
 		slog.F("ended_at", req.EndedAt),
 		slog.F("credential_hint", req.CredentialHint),
@@ -61,11 +62,12 @@ func (r *LogRecorder) RecordInterceptionEnded(ctx context.Context, req *aibridge
 	if r.wrapped == nil {
 		return nil
 	}
-	return r.wrapped.RecordInterceptionEnded(ctx, req)
+	err := r.wrapped.RecordInterceptionEnded(ctx, req)
+	return r.logResult(ctx, "interception ended", err, slog.F("id", req.ID))
 }
 
 func (r *LogRecorder) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRecord) error {
-	r.logger.Debug(ctx, "record prompt usage",
+	r.logger.Info(ctx, "record prompt usage",
 		slog.F("interception_id", req.InterceptionID),
 		slog.F("msg_id", req.MsgID),
 		slog.F("prompt", req.Prompt),
@@ -76,11 +78,12 @@ func (r *LogRecorder) RecordPromptUsage(ctx context.Context, req *aibridge.Promp
 	if r.wrapped == nil {
 		return nil
 	}
-	return r.wrapped.RecordPromptUsage(ctx, req)
+	err := r.wrapped.RecordPromptUsage(ctx, req)
+	return r.logResult(ctx, "prompt usage", err, slog.F("interception_id", req.InterceptionID))
 }
 
 func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRecord) error {
-	r.logger.Debug(ctx, "record token usage",
+	r.logger.Info(ctx, "record token usage",
 		slog.F("interception_id", req.InterceptionID),
 		slog.F("msg_id", req.MsgID),
 		slog.F("input_tokens", req.Input),
@@ -95,7 +98,8 @@ func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *aibridge.TokenU
 	if r.wrapped == nil {
 		return nil
 	}
-	return r.wrapped.RecordTokenUsage(ctx, req)
+	err := r.wrapped.RecordTokenUsage(ctx, req)
+	return r.logResult(ctx, "token usage", err, slog.F("interception_id", req.InterceptionID))
 }
 
 func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsageRecord) error {
@@ -104,7 +108,7 @@ func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsa
 		invocationErr = req.InvocationError.Error()
 	}
 
-	r.logger.Debug(ctx, "record tool usage",
+	r.logger.Info(ctx, "record tool usage",
 		slog.F("interception_id", req.InterceptionID),
 		slog.F("msg_id", req.MsgID),
 		slog.F("tool", req.Tool),
@@ -121,11 +125,12 @@ func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsa
 	if r.wrapped == nil {
 		return nil
 	}
-	return r.wrapped.RecordToolUsage(ctx, req)
+	err := r.wrapped.RecordToolUsage(ctx, req)
+	return r.logResult(ctx, "tool usage", err, slog.F("interception_id", req.InterceptionID))
 }
 
 func (r *LogRecorder) RecordModelThought(ctx context.Context, req *aibridge.ModelThoughtRecord) error {
-	r.logger.Debug(ctx, "record model thought",
+	r.logger.Info(ctx, "record model thought",
 		slog.F("interception_id", req.InterceptionID),
 		slog.F("content", req.Content),
 		slog.F("metadata", req.Metadata),
@@ -135,5 +140,18 @@ func (r *LogRecorder) RecordModelThought(ctx context.Context, req *aibridge.Mode
 	if r.wrapped == nil {
 		return nil
 	}
-	return r.wrapped.RecordModelThought(ctx, req)
+	err := r.wrapped.RecordModelThought(ctx, req)
+	return r.logResult(ctx, "model thought", err, slog.F("interception_id", req.InterceptionID))
+}
+
+// logResult logs the outcome of a record delegated to the wrapped recorder, and
+// returns err unchanged.
+func (r *LogRecorder) logResult(ctx context.Context, name string, err error, fields ...slog.Field) error {
+	if err != nil {
+		r.logger.Error(ctx, "failed to record "+name, append(fields, slog.Error(err))...)
+		return err
+	}
+
+	r.logger.Debug(ctx, "recorded "+name, fields...)
+	return nil
 }
