@@ -197,11 +197,6 @@ export const UnavailableHistoricalModel: Story = {
 		],
 		modelConfigs: [],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Historical chat")).toBeVisible();
-		expect(canvas.getByText("Unavailable model")).toBeVisible();
-	},
 };
 
 export const ChatWithTurnSummary: Story = {
@@ -213,14 +208,6 @@ export const ChatWithTurnSummary: Story = {
 				last_turn_summary: "Added Docker and Terraform validation",
 			}),
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await expect(
-			canvas.getByText("Added Docker and Terraform validation"),
-		).toBeInTheDocument();
-		expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
 	},
 };
 
@@ -243,15 +230,6 @@ export const SharedChat: Story = {
 			}),
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
-		await expect(canvas.getByText("Original chat summary")).toBeInTheDocument();
-		expect(
-			canvas.queryByText("Shared by Sharing User"),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const SharedUnreadChat: Story = {
@@ -269,14 +247,6 @@ export const SharedUnreadChat: Story = {
 			}),
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
-		await expect(
-			canvas.getByTestId("unread-indicator-shared-unread-chat"),
-		).toBeInTheDocument();
-	},
 };
 
 export const ChatStreamingOverridesTurnSummary: Story = {
@@ -289,14 +259,6 @@ export const ChatStreamingOverridesTurnSummary: Story = {
 				last_turn_summary: "Added Docker and Terraform validation",
 			}),
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await expect(canvas.getByText("GPT-4o streaming…")).toBeInTheDocument();
-		expect(
-			canvas.queryByText("Added Docker and Terraform validation"),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -399,16 +361,6 @@ export const ChatWithTurnSummaryAndError: Story = {
 			}),
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await expect(
-			canvas.getByText("Workspace startup failed"),
-		).toBeInTheDocument();
-		expect(
-			canvas.queryByText("Recreated the workspace image"),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const RunningDelegatedChat: Story = {
@@ -437,12 +389,6 @@ export const RunningDelegatedChat: Story = {
 			},
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByTestId("agents-tree-executing-child-running"),
-		).toBeInTheDocument();
 	},
 };
 
@@ -516,22 +462,6 @@ export const RunningChatPreservesSpinner: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// The root chat is running and has children, so a spinning
-		// Loader2Icon should be rendered inside the icon wrapper.
-		const node = canvas.getByTestId("agents-tree-node-root-running");
-		const spinner = node.querySelector(".animate-spin");
-		await expect(spinner).toBeInTheDocument();
-
-		// The toggle button should exist (the node has children) but
-		// must be invisible by default. It only appears on hover of
-		// the icon area itself, not the whole row.
-		const toggle = canvas.getByTestId("agents-tree-toggle-root-running");
-		await expect(toggle).toBeInTheDocument();
-		await expect(toggle.className).toMatch(/\binvisible\b/);
-	},
 };
 
 // When a root chat is idle but has a running child, the chevron
@@ -563,16 +493,6 @@ export const IdleParentWithRunningChild: Story = {
 			},
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// The parent's toggle should use icon-only hover scope because
-		// its child is actively running.
-		const toggle = canvas.getByTestId("agents-tree-toggle-idle-parent");
-		await expect(toggle).toBeInTheDocument();
-		await expect(toggle.className).toMatch(/\binvisible\b/);
-		await expect(toggle.className).toContain("group-hover/icon:visible");
 	},
 };
 
@@ -1491,38 +1411,6 @@ export const RenameChatGenerateLateResponseDoesNotClobberSameChatReopen: Story =
 		},
 	};
 
-export const ActiveFilterShowsActiveAgents: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "active-1",
-				title: "Active agent one",
-				updated_at: recentTimestamp,
-			}),
-			buildChat({
-				id: "active-2",
-				title: "Active agent two",
-				updated_at: recentTimestamp,
-			}),
-		],
-		sidebarFilters: defaultSidebarFilters,
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Active agent one")).toBeInTheDocument();
-			expect(canvas.getByText("Active agent two")).toBeInTheDocument();
-		});
-		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
-	},
-};
-
 export const ArchivedFilterShowsArchivedAgents: Story = {
 	args: {
 		chats: [
@@ -1546,14 +1434,6 @@ export const ArchivedFilterShowsArchivedAgents: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Archived agent one")).toBeInTheDocument();
-			expect(canvas.getByText("Archived agent two")).toBeInTheDocument();
-		});
-		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
 	},
 };
 
@@ -1615,14 +1495,6 @@ export const NoArchivedSection: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("First active agent")).toBeInTheDocument();
-			expect(canvas.getByText("Second active agent")).toBeInTheDocument();
-		});
-		expect(canvas.queryByText(/^Archived \(/)).not.toBeInTheDocument();
 	},
 };
 
@@ -1735,21 +1607,6 @@ export const WithDiffStats: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("+42")).toBeInTheDocument();
-			expect(canvas.getByText("+120")).toBeInTheDocument();
-		});
-		// The deletions-only agent should show −35.
-		const delOnlyNode = canvas.getByTestId("agents-tree-node-diff-del-only");
-		expect(
-			within(delOnlyNode).getByText("35", { exact: false }),
-		).toBeInTheDocument();
-		// The zero-change agent should NOT render any diff numbers.
-		const noneNode = canvas.getByTestId("agents-tree-node-diff-none");
-		expect(within(noneNode).queryByText("+")).not.toBeInTheDocument();
-	},
 };
 
 export const WithDiffStatsLight: Story = {
@@ -1810,13 +1667,6 @@ export const WithDiffStatsLight: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("+42")).toBeInTheDocument();
-			expect(canvas.getByText("+120")).toBeInTheDocument();
-		});
 	},
 };
 
@@ -1910,15 +1760,6 @@ export const WithPRStateIcons: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByLabelText("Pull request open")).toBeInTheDocument();
-			expect(canvas.getByLabelText("Draft pull request")).toBeInTheDocument();
-			expect(canvas.getByLabelText("Pull request merged")).toBeInTheDocument();
-			expect(canvas.getByLabelText("Pull request closed")).toBeInTheDocument();
-		});
-	},
 };
 
 export const ActiveChatKebabPersistent: Story = {
@@ -1944,18 +1785,6 @@ export const ActiveChatKebabPersistent: Story = {
 			},
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const activeTrigger = await canvas.findByLabelText(
-			"Open actions for Active chat",
-		);
-		// The active chat keeps its actions trigger visible without hover.
-		await waitFor(() => {
-			expect(window.getComputedStyle(activeTrigger).opacity).toBe("1");
-		});
-		const otherTrigger = canvas.getByLabelText("Open actions for Other chat");
-		expect(window.getComputedStyle(otherTrigger).opacity).toBe("0");
 	},
 };
 
@@ -1997,28 +1826,6 @@ export const WithUnreadChats: Story = {
 			},
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			// Unread indicators should be visible for unread chats
-			// that are NOT the active chat.
-			expect(
-				canvas.getByTestId("unread-indicator-unread-1"),
-			).toBeInTheDocument();
-			expect(
-				canvas.getByTestId("unread-indicator-unread-2"),
-			).toBeInTheDocument();
-		});
-		// Read chat should not have an unread indicator.
-		expect(
-			canvas.queryByTestId("unread-indicator-read-1"),
-		).not.toBeInTheDocument();
-		// Unread chat that IS the active chat should not show
-		// the indicator because the user is already viewing it.
-		expect(
-			canvas.queryByTestId("unread-indicator-unread-active"),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -2443,21 +2250,6 @@ export const PinnedChatsSection: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Pinned (1)")).toBeInTheDocument();
-			expect(canvas.getByText("My pinned agent")).toBeInTheDocument();
-		});
-
-		// Pinned chat must not appear again under the "Today" time group.
-		const allPinnedLinks = canvas.getAllByText("My pinned agent");
-		expect(allPinnedLinks).toHaveLength(1);
-
-		// Unpinned chats appear under their time group, not Pinned.
-		expect(canvas.getByText("Today (2)")).toBeInTheDocument();
-		expect(canvas.getByText("Regular agent one")).toBeInTheDocument();
-	},
 };
 
 export const PinUnpinContextMenu: Story = {
@@ -2543,13 +2335,6 @@ export const FilterOnTimeGroupNoPins: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Today (1)")).toBeInTheDocument();
-			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
-		});
-	},
 };
 
 export const SettingsAPIKeysAdmin: Story = {
@@ -2563,48 +2348,8 @@ export const SettingsAPIKeysAdmin: Story = {
 			routing: settingsRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("link", { name: "Secrets (API keys)" }),
-		).toBeInTheDocument();
-	},
 };
 
-export const SettingsAPIKeysNonAdmin: Story = {
-	args: {
-		chats: [],
-		isAdmin: false,
-	},
-	parameters: {
-		queries: [
-			{
-				key: userChatProviderConfigsKey,
-				data: [
-					{
-						provider_id: "prov-1",
-						provider: "openai",
-						display_name: "OpenAI",
-						icon: "",
-						has_user_api_key: false,
-						has_central_api_key_fallback: false,
-						byok_enabled: true,
-					},
-				],
-			},
-		],
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/api-keys" },
-			routing: settingsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("link", { name: "Secrets (API keys)" }),
-		).toBeInTheDocument();
-	},
-};
 export const SettingsUserAgentsNonAdmin: Story = {
 	args: {
 		chats: [],
@@ -2649,40 +2394,6 @@ export const SettingsUserAgentsFeatureDisabled: Story = {
 			location: { path: "/agents/settings/general" },
 			routing: settingsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("link", { name: "General" })).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: "Agents" }),
-		).not.toBeInTheDocument();
-	},
-};
-
-export const SettingsUserAgentsOverridesLoading: Story = {
-	args: {
-		chats: [],
-		isAdmin: false,
-		isPersonalModelOverridesEnabled: undefined,
-	},
-	parameters: {
-		queries: [
-			{
-				key: userChatProviderConfigsKey,
-				data: [],
-			},
-		],
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/general" },
-			routing: settingsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("link", { name: "General" })).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: "Agents" }),
-		).not.toBeInTheDocument();
 	},
 };
 

@@ -59,6 +59,25 @@ describe("useFileAttachments org scoping", () => {
 		expect(uploadedFileIds(result.current)).toStrictEqual(["file-b"]);
 	});
 
+	it("keeps the persisted entry in storage after adopting it for its own org", async () => {
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([
+				persistEntry("file-permitted-org", "notes.txt", "org-b"),
+			]),
+		);
+		const { result } = renderAttachments({ orgId: "org-b" });
+
+		await waitFor(() => {
+			expect(uploadedFileIds(result.current)).toStrictEqual([
+				"file-permitted-org",
+			]);
+		});
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toContain(
+			"file-permitted-org",
+		);
+	});
+
 	it("drops another org's attachments when the org changes", async () => {
 		localStorage.setItem(
 			persistedAttachmentsStorageKey,
