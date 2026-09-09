@@ -1527,19 +1527,7 @@ $$;
 CREATE FUNCTION update_chat_history_after_message_insert() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-DECLARE
-    offending_chat_id uuid;
 BEGIN
-    SELECT c.id INTO offending_chat_id
-    FROM chats c
-    WHERE c.id IN (SELECT DISTINCT chat_id FROM chat_message_history_new_rows)
-      AND c.xmin <> pg_current_xact_id()::xid
-    LIMIT 1;
-    IF offending_chat_id IS NOT NULL THEN
-        RAISE EXCEPTION 'chat_messages for chat % written outside a chat state transition', offending_chat_id
-            USING HINT = 'Write chat history through chatstate.ChatMachine.Update or chatstate.CreateChat, which write the chats row in the same transaction first.';
-    END IF;
-
     UPDATE chats c
     SET history_version = c.snapshot_version,
         generation_attempt = 0
@@ -1555,29 +1543,10 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION update_chat_history_after_message_insert() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages rows are inserted. Rejects inserts made outside a chat state transition, detected as a chats row not written in the current transaction.';
-
 CREATE FUNCTION update_chat_history_after_message_update() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-DECLARE
-    offending_chat_id uuid;
 BEGIN
-    SELECT c.id INTO offending_chat_id
-    FROM chats c
-    WHERE c.id IN (
-        SELECT DISTINCT n.chat_id
-        FROM chat_message_history_new_rows n
-        JOIN chat_message_history_old_rows o ON o.id = n.id
-        WHERE (to_jsonb(o) - 'search_tsv' - 'search_tsv_config') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv' - 'search_tsv_config')
-    )
-      AND c.xmin <> pg_current_xact_id()::xid
-    LIMIT 1;
-    IF offending_chat_id IS NOT NULL THEN
-        RAISE EXCEPTION 'chat_messages for chat % written outside a chat state transition', offending_chat_id
-            USING HINT = 'Write chat history through chatstate.ChatMachine.Update or chatstate.CreateChat, which write the chats row in the same transaction first.';
-    END IF;
-
     UPDATE chats c
     SET history_version = c.snapshot_version,
         generation_attempt = 0
@@ -1596,7 +1565,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config. Rejects updates made outside a chat state transition, detected as a chats row not written in the current transaction.';
+COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config.';
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,

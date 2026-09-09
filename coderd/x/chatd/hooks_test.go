@@ -448,13 +448,9 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	})
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
 	require.NoError(t, err)
-	var inserted []database.InsertChatMessagesRow
-	err = dbtestutil.InChatTransition(ctx, db, chat.ID, func(tx database.Store) error {
-		inserted, err = tx.InsertChatMessages(ctx, singleChatMessageInsertParams(
-			chat.ID, database.ChatMessageRoleUser, content, model.ID, user.ID,
-		))
-		return err
-	})
+	inserted, err := db.InsertChatMessages(ctx, singleChatMessageInsertParams(
+		chat.ID, database.ChatMessageRoleUser, content, model.ID, user.ID,
+	))
 	require.NoError(t, err)
 	require.Len(t, inserted, 1)
 	type receivedHook struct {
@@ -631,13 +627,9 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
 	require.NoError(t, err)
-	var inserted []database.InsertChatMessagesRow
-	err = dbtestutil.InChatTransition(ctx, db, chat.ID, func(tx database.Store) error {
-		inserted, err = tx.InsertChatMessages(ctx, singleChatMessageInsertParams(
-			chat.ID, database.ChatMessageRoleUser, content, model.ID, user.ID,
-		))
-		return err
-	})
+	inserted, err := db.InsertChatMessages(ctx, singleChatMessageInsertParams(
+		chat.ID, database.ChatMessageRoleUser, content, model.ID, user.ID,
+	))
 	require.NoError(t, err)
 	require.Len(t, inserted, 1)
 	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{

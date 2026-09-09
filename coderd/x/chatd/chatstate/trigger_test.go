@@ -1,11 +1,9 @@
 package chatstate_test
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -53,33 +51,6 @@ func newTriggerFixture(t *testing.T) *triggerFixture {
 	return &triggerFixture{f: f, sqlDB: sqlDB}
 }
 
-// chatVersions holds the chat's versions as seen inside a transaction after
-// the snapshot bump and before any message write.
-type chatVersions struct {
-	SnapshotVersion int64
-	HistoryVersion  int64
-}
-
-// inTransition bumps the chat's snapshot_version and runs fn in the same
-// transaction, the way a state machine transition does. The history triggers
-// refuse chat_messages writes whose transaction has not written the chats
-// row, so raw writes in these tests go through here.
-func (tf *triggerFixture) inTransition(ctx context.Context, t *testing.T, chatID uuid.UUID, fn func(tx *sql.Tx) error) chatVersions {
-	t.Helper()
-	tx, err := tf.sqlDB.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	defer func() { _ = tx.Rollback() }()
-	var bumped chatVersions
-	err = tx.QueryRowContext(ctx, `
-		UPDATE chats SET snapshot_version = snapshot_version + 1 WHERE id = $1
-		RETURNING snapshot_version, history_version
-	`, chatID).Scan(&bumped.SnapshotVersion, &bumped.HistoryVersion)
-	require.NoError(t, err)
-	require.NoError(t, fn(tx))
-	require.NoError(t, tx.Commit())
-	return bumped
-}
-
 // userMessageContent returns a marshaled user message body suitable
 // for raw INSERT into chat_messages.
 func userMessageContent(t *testing.T, text string) []byte {
@@ -112,19 +83,21 @@ func TestMessageInsertAssignsRevisionAndHistoryVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), before.GenerationAttempt)
 
-	// Bump snapshot_version and insert a new assistant message via raw
-	// SQL in one transaction, as a transition does, so we know the
+	// Bump snapshot_version directly to simulate a transition having
+	// taken the row lock.
+	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, before.SnapshotVersion+1, bumped.SnapshotVersion)
+
+	// Insert a new assistant message via raw SQL so we know the
 	// BEFORE+AFTER triggers (and only those) decide revision and
 	// history_version.
 	content := userMessageContent(t, "hello-after-bump")
-	bumped := tf.inTransition(ctx, t, created.Chat.ID, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-			INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
-			VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
-		`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
-		return err
-	})
-	require.Equal(t, before.SnapshotVersion+1, bumped.SnapshotVersion)
+	_, err = tf.sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
+		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
+	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
+	require.NoError(t, err)
 
 	// History version equals snapshot_version, generation_attempt resets.
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
@@ -162,16 +135,16 @@ func TestMessageUpdateAssignsNewRevisionAndHistoryVersion(t *testing.T) {
 	target := msgs[0]
 	originalRevision := target.Revision
 
-	// Bump the snapshot so the trigger sees a new revision target, and
-	// edit the message in the same transaction.
-	newContent := userMessageContent(t, "edited content")
-	bumped := tf.inTransition(ctx, t, created.Chat.ID, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-			UPDATE chat_messages SET content = $1::jsonb WHERE id = $2
-		`, string(newContent), target.ID)
-		return err
-	})
+	// Bump the snapshot so the trigger sees a new revision target.
+	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	require.NoError(t, err)
 	require.Greater(t, bumped.SnapshotVersion, originalRevision)
+
+	newContent := userMessageContent(t, "edited content")
+	_, err = tf.sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages SET content = $1::jsonb WHERE id = $2
+	`, string(newContent), target.ID)
+	require.NoError(t, err)
 
 	reloaded, err := f.DB.GetChatMessageByID(ctx, target.ID)
 	require.NoError(t, err)
@@ -285,102 +258,6 @@ func TestNoopMessageUpdateDoesNotAdvanceHistoryVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, originalRevision, reloaded.Revision,
 		"no-op update must NOT advance message revision")
-}
-
-// TestMessageWriteOutsideTransitionIsRejected verifies the AFTER STATEMENT
-// history triggers refuse chat_messages inserts and content updates whose
-// transaction has not written the chats row, and leave the chat and its
-// history untouched. A snapshot bump in an earlier transaction does not
-// count: the write must share the transaction that allocated the snapshot.
-func TestMessageWriteOutsideTransitionIsRejected(t *testing.T) {
-	t.Parallel()
-	tf := newTriggerFixture(t)
-	f := tf.f
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-
-	msgs, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID: created.Chat.ID,
-	})
-	require.NoError(t, err)
-	require.Len(t, msgs, 1)
-	target := msgs[0]
-
-	before, err := f.DB.GetChatByID(ctx, created.Chat.ID)
-	require.NoError(t, err)
-
-	insert := func() error {
-		_, err := tf.sqlDB.ExecContext(ctx, `
-			INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
-			VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
-		`, created.Chat.ID, string(userMessageContent(t, "out of band")), int(chatprompt.CurrentContentVersion))
-		return err
-	}
-	update := func() error {
-		_, err := tf.sqlDB.ExecContext(ctx, `
-			UPDATE chat_messages SET content = $1::jsonb WHERE id = $2
-		`, string(userMessageContent(t, "edited out of band")), target.ID)
-		return err
-	}
-	softDelete := func() error {
-		_, err := tf.sqlDB.ExecContext(ctx, `UPDATE chat_messages SET deleted = true WHERE id = $1`, target.ID)
-		return err
-	}
-	for name, write := range map[string]func() error{"insert": insert, "update": update, "soft delete": softDelete} {
-		err := write()
-		require.Error(t, err, name)
-		require.Contains(t, err.Error(), "written outside a chat state transition", name)
-	}
-
-	// A bump in a separate transaction is not the same transaction.
-	_, err = f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	err = insert()
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "written outside a chat state transition")
-
-	// The shape of the writer removed in coder/coder#27087: a store
-	// transaction that inserts and soft-deletes a message without writing
-	// the chats row.
-	err = f.DB.InTx(func(tx database.Store) error {
-		inserted, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              created.Chat.ID,
-			CreatedBy:           []uuid.UUID{f.User.ID},
-			ModelConfigID:       []uuid.UUID{f.Model.ID},
-			ReasoningEffort:     []string{""},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-			Content:             []string{"[]"},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
-			InputTokens:         []int64{0},
-			OutputTokens:        []int64{0},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
-		})
-		if err != nil {
-			return err
-		}
-		return tx.SoftDeleteChatMessageByID(ctx, inserted[0].ID)
-	}, nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "written outside a chat state transition")
-
-	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, before.HistoryVersion, after.HistoryVersion)
-	require.Equal(t, before.GenerationAttempt, after.GenerationAttempt)
-	msgs, err = f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID: created.Chat.ID,
-	})
-	require.NoError(t, err)
-	require.Len(t, msgs, 1)
-	require.Equal(t, target.Content, msgs[0].Content)
-	require.False(t, msgs[0].Deleted)
 }
 
 // TestSearchTsvBackfillDoesNotTouchChatState verifies that the
@@ -642,14 +519,15 @@ func TestNonQueueUpdateDoesNotUpdateQueueVersion(t *testing.T) {
 	before, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
 
+	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	require.NoError(t, err)
+
 	content := userMessageContent(t, "non-queue mutation")
-	bumped := tf.inTransition(ctx, t, created.Chat.ID, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-			INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
-			VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
-		`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
-		return err
-	})
+	_, err = tf.sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
+		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
+	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
+	require.NoError(t, err)
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
@@ -805,14 +683,14 @@ func TestHistoryChangeClearsRetryState(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	require.NoError(t, err)
 	content := userMessageContent(t, "history clears retry state")
-	bumped := tf.inTransition(ctx, t, created.Chat.ID, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-			INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
-			VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
-		`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
-		return err
-	})
+	_, err = tf.sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
+		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
+	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
+	require.NoError(t, err)
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)

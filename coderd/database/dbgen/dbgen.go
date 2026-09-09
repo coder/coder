@@ -124,37 +124,25 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	}
 	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
 
-	// The chat_messages triggers refuse a history write unless the chat row
-	// was written earlier in the same transaction, as a chat state
-	// transition does. Seeding does the same: lock the row, allocate a
-	// snapshot, then insert.
-	var msgs []database.InsertChatMessagesRow
-	err := db.InTx(func(tx database.Store) error {
-		if _, err := tx.LockChatAndBumpSnapshotVersion(genCtx, seed.ChatID); err != nil {
-			return xerrors.Errorf("lock chat and bump snapshot version: %w", err)
-		}
-		var err error
-		msgs, err = tx.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
-			ChatID:              seed.ChatID,
-			CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
-			ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
-			ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
-			Role:                []database.ChatMessageRole{role},
-			Content:             []string{content},
-			ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
-			Visibility:          []database.ChatMessageVisibility{takeFirst(seed.Visibility, database.ChatMessageVisibilityBoth)},
-			InputTokens:         []int64{seed.InputTokens.Int64},
-			OutputTokens:        []int64{seed.OutputTokens.Int64},
-			TotalTokens:         []int64{seed.TotalTokens.Int64},
-			ReasoningTokens:     []int64{seed.ReasoningTokens.Int64},
-			CacheCreationTokens: []int64{seed.CacheCreationTokens.Int64},
-			CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
-			ContextLimit:        []int64{seed.ContextLimit.Int64},
-			Compressed:          []bool{seed.Compressed},
-			RuntimeMs:           []int64{seed.RuntimeMs.Int64},
-		})
-		return err
-	}, nil)
+	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
+		ChatID:              seed.ChatID,
+		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
+		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
+		ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
+		Role:                []database.ChatMessageRole{role},
+		Content:             []string{content},
+		ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
+		Visibility:          []database.ChatMessageVisibility{takeFirst(seed.Visibility, database.ChatMessageVisibilityBoth)},
+		InputTokens:         []int64{seed.InputTokens.Int64},
+		OutputTokens:        []int64{seed.OutputTokens.Int64},
+		TotalTokens:         []int64{seed.TotalTokens.Int64},
+		ReasoningTokens:     []int64{seed.ReasoningTokens.Int64},
+		CacheCreationTokens: []int64{seed.CacheCreationTokens.Int64},
+		CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
+		ContextLimit:        []int64{seed.ContextLimit.Int64},
+		Compressed:          []bool{seed.Compressed},
+		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
 	return database.ChatMessage(msgs[0])

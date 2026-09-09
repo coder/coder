@@ -2571,7 +2571,7 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	toolMsg := newMsg(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, textContent("tool output about deploy"))
 	modelOnly := newMsg(database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, textContent("model-only deploy note"))
 	deletedMsg := newMsg(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("deleted deploy message"))
-	err = dbtestutil.ExecChatHistorySQL(ctx, sqlDB, chat.ID, `UPDATE chat_messages SET deleted = true WHERE id = $1`, deletedMsg.ID)
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_messages SET deleted = true WHERE id = $1`, deletedMsg.ID)
 	require.NoError(t, err)
 
 	// Only eligible rows appear in the queue, newest first. The tool-role,
@@ -2632,7 +2632,7 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	// Soft-deleting an unswept row removes it from the queue without a sweep.
 	unswept := newMsg(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("unswept deploy row"))
 	require.Equal(t, []int64{unswept.ID}, pendingIDs(ctx, 10))
-	err = dbtestutil.ExecChatHistorySQL(ctx, sqlDB, chat.ID, `UPDATE chat_messages SET deleted = true WHERE id = $1`, unswept.ID)
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_messages SET deleted = true WHERE id = $1`, unswept.ID)
 	require.NoError(t, err)
 	require.Empty(t, pendingIDs(ctx, 10))
 

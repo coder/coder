@@ -3087,9 +3087,9 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 			Content:       content,
 		})
 	}
-	softDelete := func(ctx context.Context, t *testing.T, rawDB *sql.DB, msg database.ChatMessage) {
+	softDelete := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64) {
 		t.Helper()
-		err := dbtestutil.ExecChatHistorySQL(ctx, rawDB, msg.ChatID, "UPDATE chat_messages SET deleted = true WHERE id = $1", msg.ID)
+		_, err := rawDB.ExecContext(ctx, "UPDATE chat_messages SET deleted = true WHERE id = $1", id)
 		require.NoError(t, err)
 	}
 	// The WHERE clause below must match the predicate of idx_chat_messages_search_tsv_pending.
@@ -3153,7 +3153,7 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		toolMsg := createMessage(t, db, deps, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, textContent("tool output"))
 		modelOnlyMsg := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, textContent("model only"))
 		deletedMsg := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("deleted message"))
-		softDelete(ctx, t, rawDB, deletedMsg)
+		softDelete(ctx, t, rawDB, deletedMsg.ID)
 
 		tick := awaitDoTicks(ctx, t, clk, 1)
 		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
@@ -3258,7 +3258,7 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		deps := setupDeps(t, db)
 
 		msg := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("soft deleted before backfill"))
-		softDelete(ctx, t, rawDB, msg)
+		softDelete(ctx, t, rawDB, msg.ID)
 		require.Zero(t, countPending(ctx, t, rawDB), "deleted rows should not appear as pending")
 
 		tick := awaitDoTicks(ctx, t, clk, 1)

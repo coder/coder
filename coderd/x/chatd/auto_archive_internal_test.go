@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -214,7 +213,7 @@ func (f *workerTestFixture) setPinOrder(t *testing.T, chatID uuid.UUID, order in
 
 func (f *workerTestFixture) softDeleteMessages(t *testing.T, chatID uuid.UUID) {
 	t.Helper()
-	err := dbtestutil.ExecChatHistorySQL(testutil.Context(t, testutil.WaitShort), f.sqlDB, chatID, "UPDATE chat_messages SET deleted = true WHERE chat_id = $1", chatID)
+	_, err := f.sqlDB.ExecContext(testutil.Context(t, testutil.WaitShort), "UPDATE chat_messages SET deleted = true WHERE chat_id = $1", chatID)
 	require.NoError(t, err)
 }
 
@@ -239,7 +238,7 @@ func insertArchiveMessage(t *testing.T, f *workerTestFixture, chatID uuid.UUID, 
 		ModelConfigID: uuid.NullUUID{UUID: f.model.ID, Valid: true},
 		Role:          database.ChatMessageRoleUser,
 	})
-	err := dbtestutil.ExecChatHistorySQL(testutil.Context(t, testutil.WaitShort), f.sqlDB, msg.ChatID, "UPDATE chat_messages SET created_at = $1 WHERE id = $2", createdAt, msg.ID)
+	_, err := f.sqlDB.ExecContext(testutil.Context(t, testutil.WaitShort), "UPDATE chat_messages SET created_at = $1 WHERE id = $2", createdAt, msg.ID)
 	require.NoError(t, err)
 }
 
