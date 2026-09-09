@@ -205,6 +205,37 @@ export const CategoryRowsShowAppliedValues: Story = {
 	},
 };
 
+// Inside a category, the filter toggle returns to the category list instead of
+// closing the menu.
+export const ToggleLeavesCategory: Story = {
+	render: () => <FilterComboboxHarness initialQuery="" />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "status:");
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: "Running" })).toBeVisible(),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Toggle filters" }),
+		);
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /^Status/ })).toBeVisible(),
+		);
+		await expect(canvas.queryByText("status:")).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Toggle filters" }),
+		);
+		await waitFor(() =>
+			expect(body.queryByRole("option")).not.toBeInTheDocument(),
+		);
+	},
+};
+
 export const ActiveFilterIcon: Story = {
 	render: () => <FilterComboboxHarness />,
 	play: async ({ canvasElement }) => {

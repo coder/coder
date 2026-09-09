@@ -50,6 +50,7 @@ type Action =
 	| { type: "typeInCategory"; value: string }
 	| { type: "typeFreeText"; value: string }
 	| { type: "setCommittedFreeText"; value: string }
+	| { type: "leaveCategory" }
 	| { type: "close"; input: "restore" | "clear" | "keep" }
 	| { type: "reconcile"; freeText: string };
 
@@ -90,6 +91,13 @@ const reducer = (state: State, action: Action): State => {
 			};
 		case "setCommittedFreeText":
 			return { ...state, committedFreeText: action.value.trim() };
+		case "leaveCategory":
+			return {
+				...state,
+				mode: "browsing",
+				activeCategoryKey: null,
+				inputValue: state.committedFreeText,
+			};
 		case "close":
 			return closeState(state, action.input);
 		case "reconcile":
@@ -501,7 +509,13 @@ export const useFilterCombobox = ({
 		dispatch({ type: "close", input: "keep" });
 	};
 
+	// From inside a category the toggle steps back to the category list rather
+	// than closing, so a mis-click can be corrected without reopening the menu.
 	const toggleFilterMenu = () => {
+		if (mode === "category") {
+			dispatch({ type: "leaveCategory" });
+			return;
+		}
 		if (open) {
 			dispatch({ type: "close", input: "restore" });
 			return;
@@ -597,7 +611,7 @@ export const useFilterCombobox = ({
 
 		if (isBackspaceOrDelete && inputValue === "" && mode === "category") {
 			event.preventDefault();
-			dispatch({ type: "close", input: "restore" });
+			dispatch({ type: "leaveCategory" });
 			return;
 		}
 
