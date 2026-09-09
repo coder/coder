@@ -1,16 +1,39 @@
+import { ListChecksIcon, ListTodoIcon, TriangleAlertIcon } from "lucide-react";
 import {
-	CheckIcon,
-	ListChecksIcon,
-	ListTodoIcon,
-	TriangleAlertIcon,
-} from "lucide-react";
-import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
+	type FC,
+	type ReactNode,
+	type RefObject,
+	useLayoutEffect,
+	useRef,
+} from "react";
+import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useTime } from "#/hooks/useTime";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
+import { WorkingBlockContext } from "./workingBlockContext";
 import {
 	formatWorkingDuration,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
+
+/**
+ * The live summary names the current step in parentheses, so a collapsed
+ * block still shows what the agent is doing.
+ */
+const getLiveWorkingLabel = (block: WorkingBlock, now: number): string => {
+	const activity = block.activity ? ` (${block.activity})` : "";
+	if (block.startedAt === undefined) {
+		return `Working${activity}`;
+	}
+	const elapsed = formatWorkingDuration(now - block.startedAt);
+	return block.isPartial
+		? `Working for at least ${elapsed}${activity}`
+		: `Working for ${elapsed}${activity}`;
+};
 
 const LiveLabel: FC<{ block: WorkingBlock; now?: number }> = ({
 	block,
@@ -19,15 +42,11 @@ const LiveLabel: FC<{ block: WorkingBlock; now?: number }> = ({
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
 	const clock = useTime(() => Date.now(), { disabled: now !== undefined });
-	if (block.startedAt === undefined) {
-		return <ToolCall.Label>Working</ToolCall.Label>;
-	}
-	const elapsed = formatWorkingDuration((now ?? clock) - block.startedAt);
 	return (
-		<ToolCall.Label>
-			{block.isPartial
-				? `Working for at least ${elapsed}`
-				: `Working for ${elapsed}`}
+		// Tabular digits keep every second the same width, so the label does
+		// not jiggle as the timer ticks.
+		<ToolCall.Label className="tabular-nums">
+			{getLiveWorkingLabel(block, now ?? clock)}
 		</ToolCall.Label>
 	);
 };
@@ -89,6 +108,32 @@ const useKeepReadingPositionAcrossPrepend = (firstRowKey: string) => {
 	return contentRef;
 };
 
+/**
+ * The message scroller follows the bottom whenever the viewport sits within
+ * a few pixels of the end, and re-pins on every content resize. It only
+ * leaves that mode on wheel, touch, or keyboard input, so expanding a block
+ * near the bottom would snap the transcript to the end and scroll the rows
+ * straight past. Toggling a fold is a deliberate act of reading, so announce
+ * it the way the scroller understands: as user scroll intent on the viewport.
+ */
+const useHoldViewportOnToggle = (
+	expanded: boolean,
+	rootRef: RefObject<HTMLDivElement | null>,
+) => {
+	const previousRef = useRef(expanded);
+	useLayoutEffect(() => {
+		if (previousRef.current === expanded) {
+			return;
+		}
+		previousRef.current = expanded;
+		const root = rootRef.current;
+		const viewport = root ? getScrollParent(root) : null;
+		viewport?.dispatchEvent(
+			new WheelEvent("wheel", { bubbles: true, deltaY: 0 }),
+		);
+	}, [expanded, rootRef]);
+};
+
 type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
 	/** Key of the block's oldest row; it changes when older pages join. */
@@ -114,8 +159,11 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 	now,
 }) => {
 	const contentRef = useKeepReadingPositionAcrossPrepend(firstRowKey);
+	const rootRef = useRef<HTMLDivElement>(null);
+	useHoldViewportOnToggle(expanded, rootRef);
 	return (
 		<ToolCall.Root
+			ref={rootRef}
 			status={block.isLive ? "running" : "completed"}
 			expanded={expanded}
 			onExpandedChange={onExpandedChange}
@@ -135,17 +183,21 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 					<ToolCall.Label>{getCompletedWorkingLabel(block)}</ToolCall.Label>
 				)}
 				{block.failedCount > 0 && (
-					<span className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-destructive">
-						<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
-						{pluralize(block.failedCount, "failed step")}
-					</span>
-				)}
-				{!block.isLive && block.failedCount === 0 && (
-					<CheckIcon
-						aria-hidden
-						data-testid="working-block-complete"
-						className="size-3.5 shrink-0 text-content-success"
-					/>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span
+								role="img"
+								aria-label={pluralize(block.failedCount, "failed step")}
+								className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-destructive"
+							>
+								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
+								{block.failedCount}
+							</span>
+						</TooltipTrigger>
+						<TooltipContent>
+							{pluralize(block.failedCount, "failed step")}
+						</TooltipContent>
+					</Tooltip>
 				)}
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
@@ -156,8 +208,29 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 					ref={contentRef}
 					className="ml-2 mt-2 flex min-w-0 flex-col gap-2 border-0 border-l border-solid border-border-default pl-4"
 				>
-					{children}
+					<WorkingBlockContext.Provider value={true}>
+						{children}
+					</WorkingBlockContext.Provider>
+					{/* Lets the rule run on a little before its end marker. */}
+					{block.outcome && <div aria-hidden className="h-2" />}
 				</div>
+				{block.outcome && (
+					<div
+						data-testid="working-block-outcome"
+						// mb-2 doubles the timeline's 8px gap so the marker reads as the
+						// end of the block rather than the lead-in to the next row.
+						className="relative mb-2 flex h-6 items-center pl-[25px] text-[13px] leading-6 text-content-secondary"
+					>
+						{/* Centered on the rule: left-2 is the rule's x, and the dot
+						    shifts back by half its width. */}
+						<StatusIndicatorDot
+							variant="inactive"
+							size="sm"
+							className="absolute left-[8.5px] -translate-x-1/2"
+						/>
+						{block.outcome === "stopped" ? "Stopped" : "Completed"}
+					</div>
+				)}
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);

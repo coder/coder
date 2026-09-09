@@ -140,6 +140,7 @@ describe("groupWorkingBlocks", () => {
 			stepCount: 2,
 			failedCount: 0,
 			isLive: false,
+			outcome: "completed",
 			isPartial: false,
 			startedAt: base + 1000,
 			endedAt: base + 13000,
@@ -231,6 +232,51 @@ describe("groupWorkingBlocks", () => {
 
 		expect(blocks).toHaveLength(1);
 		expect(blocks[0]).toMatchObject({ stepCount: 2, failedCount: 1 });
+	});
+
+	it("marks only the newest block stopped when the chat ended in an error", () => {
+		const prompt = user("Go");
+		const first = step("a", 1, 2);
+		const interlude = message("assistant", [text("Halfway there.")], at(3));
+		const second = step("b", 4, 5);
+		const { blocks } = group([prompt, ...first, interlude, ...second], {
+			isTurnStopped: true,
+		});
+		expect(blocks.map((b) => b.outcome)).toEqual(["completed", "stopped"]);
+	});
+
+	it("marks a block stopped when one of its tools was interrupted", () => {
+		const prompt = user("Go");
+		const first = step("a", 1, 2);
+		const cutOff = [
+			message("assistant", [call("b", at(3))], at(3)),
+			message(
+				"tool",
+				[
+					{
+						type: "tool-result",
+						tool_call_id: "b",
+						tool_name: "execute",
+						is_error: true,
+						created_at: at(4),
+						result: {
+							error: "tool call was interrupted before it produced a result",
+						},
+					},
+				],
+				at(4),
+			),
+		];
+		const nextPrompt = message("user", [text("Try again")], at(10));
+		const again = step("c", 11, 12);
+		const { blocks } = group([
+			prompt,
+			...first,
+			...cutOff,
+			nextPrompt,
+			...again,
+		]);
+		expect(blocks.map((b) => b.outcome)).toEqual(["stopped", "completed"]);
 	});
 
 	it("returns no blocks for text-only conversations", () => {
@@ -392,6 +438,7 @@ describe("groupWorkingBlocks", () => {
 				stepCount: 2,
 				startedAt: base + 1000,
 				endedAt: undefined,
+				activity: "echo b",
 				key: `working:live:message:${prompt.id}:0`,
 			});
 		});
@@ -427,7 +474,75 @@ describe("groupWorkingBlocks", () => {
 
 			expect(blocks).toHaveLength(1);
 			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id, "live"]);
-			expect(blocks[0]).toMatchObject({ isLive: true, stepCount: 1 });
+			// The idle live row keeps the previous step's activity.
+			expect(blocks[0]).toMatchObject({
+				isLive: true,
+				stepCount: 1,
+				activity: "echo a",
+			});
+		});
+
+		it("describes the live activity by tool intent or reasoning heading", () => {
+			const prompt = user("Go");
+			const withIntent = liveStream([
+				{
+					type: "tool-call",
+					tool_call_id: "a",
+					tool_name: "read_file",
+					args: { path: "README.md", model_intent: "reading the readme" },
+					created_at: at(1),
+				},
+			]);
+			expect(
+				group([prompt], {
+					isTurnActive: true,
+					isLiveRowCollapsible: true,
+					liveBlocks: withIntent.streamState.blocks,
+					liveTools: withIntent.liveTools,
+					streamState: withIntent.streamState,
+				}).blocks[0].activity,
+			).toBe("Reading the readme");
+
+			const withHeading = liveStream([
+				reasoning("## Planning the inspection\n\nList files first.", at(1)),
+			]);
+			expect(
+				group([prompt], {
+					isTurnActive: true,
+					isLiveRowCollapsible: true,
+					liveBlocks: withHeading.streamState.blocks,
+					liveTools: withHeading.liveTools,
+					streamState: withHeading.streamState,
+				}).blocks[0].activity,
+			).toBe("Planning the inspection");
+
+			const named = liveStream([call("a", at(1), "list_templates")]);
+			expect(
+				group([prompt], {
+					isTurnActive: true,
+					isLiveRowCollapsible: true,
+					liveBlocks: named.streamState.blocks,
+					liveTools: named.liveTools,
+					streamState: named.streamState,
+				}).blocks[0].activity,
+			).toBe("List templates");
+
+			// Reasoning without a heading names nothing before the first step.
+			const plain = liveStream([reasoning("Just thinking", at(1))]);
+			expect(
+				group([prompt], {
+					isTurnActive: true,
+					isLiveRowCollapsible: true,
+					liveBlocks: plain.streamState.blocks,
+					liveTools: plain.liveTools,
+					streamState: plain.streamState,
+				}).blocks[0].activity,
+			).toBeUndefined();
+
+			// Completed blocks carry no activity.
+			expect(
+				group([prompt, ...step("a", 1, 2)]).blocks[0].activity,
+			).toBeUndefined();
 		});
 
 		it("does not start a block from an idle live row", () => {

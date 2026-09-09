@@ -1,5 +1,12 @@
 import { cn } from "cn";
-import { type FC, memo, useLayoutEffect, useRef, useState } from "react";
+import {
+	type FC,
+	memo,
+	type ReactNode,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
@@ -23,6 +30,7 @@ import { groupSequentialReadFileBlocks } from "./blockUtils";
 import { useSmoothStreamingText } from "./SmoothText";
 import { getThinkingDisclosureDisplay } from "./thinkingTitle";
 import type { MergedTool, RenderBlock } from "./types";
+import { useInsideWorkingBlock } from "./workingBlockContext";
 
 const ReasoningDisclosure = memo<{
 	id: string;
@@ -157,6 +165,34 @@ const ResponseBlock = memo<{
 	);
 });
 
+/**
+ * Branches narration off a working block's rule with two rounded corners,
+ * the same shape the AI Bridge session timeline uses, so a step's prose
+ * reads as a branch of the fold rather than a sibling of its tool rows.
+ *
+ * The block pads its content 16px past a 1px rule, so -17px puts the corner
+ * pieces' left borders exactly on the rule. A plain cell behind them hides
+ * the rule where the corners curve away from it. The corner pieces stop 4px
+ * short of the text so the branch does not touch it; the column plus that
+ * margin (12 + 4 + 1) returns the text to the block's content edge, so it
+ * left-aligns with the tool rows' icons, and the half-line first row puts the
+ * top corner mid-line.
+ */
+const StepNarrationBracket: FC<{ children: ReactNode }> = ({ children }) => (
+	<div
+		data-testid="step-narration-bracket"
+		className="-ml-[17px] grid grid-cols-[1rem_1fr] grid-rows-[0.75rem_auto]"
+	>
+		{/* Masks the block rule; the corner pieces redraw the parts to keep. */}
+		<div className="row-start-1 col-start-1 row-span-2 bg-surface-primary" />
+		<div className="row-start-1 col-start-1 mr-1 border-0 border-b border-l border-solid border-border-default rounded-bl-lg" />
+		<div className="row-start-2 col-start-1 -mt-px mr-1 border-0 border-l border-t border-solid border-border-default rounded-tl-lg" />
+		<div className="row-start-1 col-start-2 row-span-2 min-w-0 pl-px">
+			{children}
+		</div>
+	</div>
+);
+
 const ReadFileTimelineBlock = memo<{
 	tools: readonly [MergedTool, ...MergedTool[]];
 }>(({ tools }) => {
@@ -244,6 +280,7 @@ export const BlockList: FC<BlockListProps> = ({
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
+	const insideWorkingBlock = useInsideWorkingBlock();
 
 	// Pre-compute which tool IDs have a corresponding block so
 	// we can render "remaining" (block-less) tools afterwards.
@@ -272,8 +309,8 @@ export const BlockList: FC<BlockListProps> = ({
 		<>
 			{displayBlocks.map((block, index) => {
 				switch (block.type) {
-					case "response":
-						return (
+					case "response": {
+						const response = (
 							<ResponseBlock
 								key={`${keyPrefix}-response-${index}`}
 								text={block.text}
@@ -282,6 +319,14 @@ export const BlockList: FC<BlockListProps> = ({
 								urlTransform={urlTransform}
 							/>
 						);
+						return insideWorkingBlock ? (
+							<StepNarrationBracket key={`${keyPrefix}-response-${index}`}>
+								{response}
+							</StepNarrationBracket>
+						) : (
+							response
+						);
+					}
 					case "thinking":
 						return (
 							<ReasoningDisclosure

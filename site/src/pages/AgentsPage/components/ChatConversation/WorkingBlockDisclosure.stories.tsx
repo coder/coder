@@ -15,6 +15,7 @@ const MockWorkingBlock: WorkingBlock = {
 	stepCount: 2,
 	failedCount: 0,
 	isLive: false,
+	outcome: "completed",
 	isPartial: false,
 };
 
@@ -63,7 +64,9 @@ export const Collapsed: Story = {
 		await expect(
 			canvas.queryByRole("list", { name: "Original tool steps" }),
 		).not.toBeInTheDocument();
-		await expect(canvas.getByTestId("working-block-complete")).toBeVisible();
+		await expect(
+			canvas.queryByTestId("working-block-outcome"),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -101,6 +104,10 @@ export const Expanded: Story = {
 		await expect(
 			canvas.getByRole("list", { name: "Original tool steps" }),
 		).toBeVisible();
+		// The rule ends in a completion marker, as in the AI sessions timeline.
+		await expect(canvas.getByTestId("working-block-outcome")).toHaveTextContent(
+			"Completed",
+		);
 		await userEvent.click(trigger);
 		await expect(trigger).toHaveAttribute("aria-expanded", "false");
 		await userEvent.click(trigger);
@@ -156,9 +163,25 @@ export const FailedSteps: Story = {
 				name: "Worked for 12s (2 steps) 1 failed step",
 			}),
 		).toBeVisible();
+		// The badge shows only the icon and count; the wording lives in the
+		// accessible name and tooltip.
 		await expect(
-			canvas.queryByTestId("working-block-complete"),
-		).not.toBeInTheDocument();
+			canvas.getByRole("img", { name: "1 failed step" }),
+		).toHaveTextContent(/^1$/);
+	},
+};
+
+// A block cut short by a chat error ends in "Stopped" rather than "Completed".
+export const Stopped: Story = {
+	args: {
+		expanded: true,
+		block: { ...MockWorkingBlock, failedCount: 1, outcome: "stopped" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByTestId("working-block-outcome")).toHaveTextContent(
+			"Stopped",
+		);
 	},
 };
 
@@ -175,15 +198,23 @@ const LiveClock = (args: ComponentProps<typeof WorkingBlockDisclosure>) => {
 };
 
 export const LiveTimer: Story = {
-	args: { block: { ...MockWorkingBlock, isLive: true, endedAt: undefined } },
+	args: {
+		block: {
+			...MockWorkingBlock,
+			isLive: true,
+			outcome: undefined,
+			endedAt: undefined,
+		},
+	},
 	render: (args) => <LiveClock {...args} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const trigger = canvas.getByRole("button", { name: "Working for 12s" });
-		await expect(
-			canvas.queryByTestId("working-block-complete"),
-		).not.toBeInTheDocument();
 		await userEvent.click(trigger);
+		// A live block has no end yet, so no marker.
+		await expect(
+			canvas.queryByTestId("working-block-outcome"),
+		).not.toBeInTheDocument();
 		await expect(
 			canvas.getByRole("list", { name: "Original tool steps" }),
 		).toBeVisible();
@@ -199,11 +230,63 @@ export const LiveTimer: Story = {
 	},
 };
 
+const ActivityFeed = (args: ComponentProps<typeof WorkingBlockDisclosure>) => {
+	const steps = [undefined, "Cloning the coder/coder repository", "pnpm test"];
+	const [index, setIndex] = useState(0);
+	return (
+		<>
+			<ControlledDisclosure
+				{...args}
+				block={{ ...args.block, activity: steps[index] }}
+			/>
+			<Button
+				onClick={() => setIndex((current) => current + 1)}
+				disabled={index === steps.length - 1}
+			>
+				Next step
+			</Button>
+		</>
+	);
+};
+
+// The live summary names the current step in parentheses and updates as the
+// agent moves on, so a collapsed block still shows what it is doing.
+export const LiveActivity: Story = {
+	args: {
+		block: {
+			...MockWorkingBlock,
+			isLive: true,
+			outcome: undefined,
+			endedAt: undefined,
+		},
+		now: FIXTURE_NOW + 12_000,
+	},
+	render: (args) => <ActivityFeed {...args} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Nothing describable yet: the summary shows the timer alone.
+		await expect(
+			canvas.getByRole("button", { name: "Working for 12s" }),
+		).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "Next step" }));
+		await expect(
+			canvas.getByRole("button", {
+				name: "Working for 12s (Cloning the coder/coder repository)",
+			}),
+		).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "Next step" }));
+		await expect(
+			canvas.getByRole("button", { name: "Working for 12s (pnpm test)" }),
+		).toBeVisible();
+	},
+};
+
 export const LiveWithoutTimestamp: Story = {
 	args: {
 		block: {
 			...MockWorkingBlock,
 			isLive: true,
+			outcome: undefined,
 			startedAt: undefined,
 			endedAt: undefined,
 		},
@@ -221,6 +304,7 @@ export const PartialLive: Story = {
 		block: {
 			...MockWorkingBlock,
 			isLive: true,
+			outcome: undefined,
 			isPartial: true,
 			endedAt: undefined,
 		},

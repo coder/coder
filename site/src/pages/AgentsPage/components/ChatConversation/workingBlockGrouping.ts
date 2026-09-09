@@ -1,4 +1,11 @@
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
+import {
+	asString,
+	formatModelIntentLabel,
+	humanizeMCPToolName,
+	parseArgs,
+} from "../ChatElements/tools/utils";
+import { getThinkingHeading } from "./thinkingTitle";
 import type { TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
@@ -32,17 +39,36 @@ export type WorkingBlock = {
 	failedCount: number;
 	/** The turn is still active and this block is where it is working. */
 	isLive: boolean;
+	/**
+	 * How a completed block ended: "stopped" when a step was cut off by an
+	 * interruption or when it is the newest block of a chat that ended in an
+	 * error, otherwise "completed". Absent while live.
+	 */
+	outcome?: "completed" | "stopped";
 	/** Older history exists that may contain earlier rows of this block. */
 	isPartial: boolean;
 	/** Earliest and latest part timestamps (epoch ms); absent when unknown. */
 	startedAt?: number;
 	endedAt?: number;
+	/**
+	 * One-line description of what the live block is doing, taken from its
+	 * newest step: a tool's stated intent (or command or name) or a reasoning
+	 * heading. While the agent is only thinking, the previous step's activity
+	 * is kept so the summary never reads "Thinking". Absent for completed
+	 * blocks and before the first describable step.
+	 */
+	activity?: string;
 };
 
 export type GroupWorkingBlocksOptions = {
 	hasMoreMessages: boolean;
 	/** The turn is still producing output (any non-idle, non-failed phase). */
 	isTurnActive: boolean;
+	/**
+	 * The chat ended its last turn in an error, so the newest completed block
+	 * was stopped rather than finished.
+	 */
+	isTurnStopped?: boolean;
 	/**
 	 * Whether the live row may be folded into the block: the turn is
 	 * starting a step or streaming one. Retry, reconnect, and interrupt
@@ -65,6 +91,23 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"chat_summarized",
 	"chat_cleared",
 ]);
+
+/**
+ * chatd writes this result onto a tool call that was still running when the
+ * turn was interrupted (see interruptedToolResultErrorMessage in
+ * coderd/x/chatd/message_conversion.go).
+ */
+const INTERRUPTED_TOOL_RESULT_ERROR =
+	"tool call was interrupted before it produced a result";
+
+const isInterruptedTool = (tool: MergedTool): boolean => {
+	const result = tool.result as { error?: unknown } | null | undefined;
+	return (
+		typeof result === "object" &&
+		result !== null &&
+		result.error === INTERRUPTED_TOOL_RESULT_ERROR
+	);
+};
 
 const parseTimestamp = (value: string | undefined): number | undefined => {
 	if (!value) {
@@ -93,6 +136,39 @@ export const formatWorkingDuration = (milliseconds: number): string => {
 type RowContent = {
 	visibleBlocks: RenderBlock[];
 	visibleTools: MergedTool[];
+};
+
+const getToolActivity = (tool: MergedTool): string => {
+	const intent = formatModelIntentLabel(tool.modelIntent);
+	if (intent) {
+		return intent;
+	}
+	if (tool.name === "execute") {
+		const command = asString(parseArgs(tool.args)?.command).trim();
+		if (command) {
+			return command;
+		}
+	}
+	return humanizeMCPToolName("", tool.name);
+};
+
+/**
+ * Describes the newest visible step of a row, or undefined when the row
+ * only shows the agent thinking without a heading.
+ */
+const getRowActivity = (content: RowContent): string | undefined => {
+	const last = content.visibleBlocks[content.visibleBlocks.length - 1];
+	if (!last) {
+		return undefined;
+	}
+	if (last.type === "tool") {
+		const tool = content.visibleTools.find((tool) => tool.id === last.id);
+		return tool ? getToolActivity(tool) : undefined;
+	}
+	if (last.type === "thinking") {
+		return getThinkingHeading(last.text);
+	}
+	return undefined;
 };
 
 const getRowContent = (
@@ -226,6 +302,7 @@ export const groupWorkingBlocks = (
 		anchorKey?: string;
 		ordinal: number;
 		containsLiveRow: boolean;
+		activity?: string;
 	};
 	const drafts: Draft[] = [];
 	let current: Draft | undefined;
@@ -260,6 +337,7 @@ export const groupWorkingBlocks = (
 		}
 		current.rowIndices.push(index);
 		current.containsLiveRow ||= row.type === "live";
+		current.activity = getRowActivity(content) ?? current.activity;
 		for (const tool of content.visibleTools) {
 			current.tools.set(tool.id, tool);
 		}
@@ -293,6 +371,15 @@ export const groupWorkingBlocks = (
 		const isLive =
 			options.isTurnActive &&
 			(draft.containsLiveRow || lastRowIndex >= lastMessageRowIndex);
+		const isNewest = lastRowIndex >= lastMessageRowIndex;
+		const tools = Array.from(draft.tools.values());
+		const wasStopped =
+			(isNewest && options.isTurnStopped) || tools.some(isInterruptedTool);
+		const outcome: WorkingBlock["outcome"] = isLive
+			? undefined
+			: wasStopped
+				? "stopped"
+				: "completed";
 
 		let startedAt: number | undefined;
 		let endedAt: number | undefined;
@@ -325,7 +412,6 @@ export const groupWorkingBlocks = (
 		const key = isLive
 			? liveKey
 			: `working:through:${rowKey(rows[lastRowIndex])}`;
-		const tools = Array.from(draft.tools.values());
 		return {
 			key,
 			liveKey,
@@ -335,9 +421,11 @@ export const groupWorkingBlocks = (
 				(tool) => tool.isError || tool.status === "error",
 			).length,
 			isLive,
+			outcome,
 			isPartial: options.hasMoreMessages && firstRowIndex === 0,
 			startedAt,
 			endedAt: isLive ? undefined : endedAt,
+			activity: isLive ? draft.activity : undefined,
 		};
 	});
 };
