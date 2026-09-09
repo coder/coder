@@ -1730,9 +1730,8 @@ export const NarrowingSuppressesExpandedPanel: Story = {
 
 		await user.click(canvas.getByRole("button", { name: "Expand panel" }));
 
-		// Narrow the viewport so the suppression effect hides the panel;
-		// Pixel's stability wait captures the suppressed state.
 		narrowingMedia?.setMatches(belowLgViewportMediaQuery, true);
+		narrowingMedia?.setMatches(belowLgViewportMediaQuery, false);
 	},
 };
 
