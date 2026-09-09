@@ -268,6 +268,24 @@ export const buildDisplayMessages = (
 const NO_FILE_IDS: ReadonlySet<string> = new Set();
 
 /**
+ * Chat files a message part references, in the order the server linked
+ * them. A wait_agent result stores its recording before its thumbnail.
+ */
+const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
+	switch (part.type) {
+		case "file":
+			return part.file_id ? [part.file_id] : [];
+		case "tool-result":
+			return [
+				part.result?.recording_file_id,
+				part.result?.thumbnail_file_id,
+			].filter((fileId): fileId is string => Boolean(fileId));
+		default:
+			return [];
+	}
+};
+
+/**
  * Eviction removes a chat's oldest attachments first, and the chat record
  * lists the attachments that remain. An attachment referenced before the
  * newest remaining one but absent from the record has been evicted. Later
@@ -282,14 +300,9 @@ export const deriveEvictedFileIds = (
 		return NO_FILE_IDS;
 	}
 	const linkedFileIds = new Set(chatFiles.map((file) => file.id));
-	const referencedFileIds: string[] = [];
-	for (const { message } of entries) {
-		for (const part of message.content ?? []) {
-			if (part.type === "file" && part.file_id) {
-				referencedFileIds.push(part.file_id);
-			}
-		}
-	}
+	const referencedFileIds = entries.flatMap(({ message }) =>
+		(message.content ?? []).flatMap(partFileIds),
+	);
 	const newestLinkedIndex = referencedFileIds.findLastIndex((fileId) =>
 		linkedFileIds.has(fileId),
 	);

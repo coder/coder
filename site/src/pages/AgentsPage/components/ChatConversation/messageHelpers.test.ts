@@ -572,6 +572,25 @@ describe("deriveEvictedFileIds", () => {
 			})),
 			parsedOverrides: {},
 		});
+	const recordingMessage = (
+		messageID: number,
+		recordingFileId: string,
+		thumbnailFileId: string,
+	) =>
+		entry({
+			messageID,
+			content: [
+				{
+					type: "tool-result",
+					tool_name: "wait_agent",
+					result: {
+						thumbnail_file_id: thumbnailFileId,
+						recording_file_id: recordingFileId,
+					},
+				},
+			],
+			parsedOverrides: {},
+		});
 	const chatFiles = (...fileIds: string[]) =>
 		fileIds.map((id) => ({ ...MockChatFileMetadata, id }));
 
@@ -612,5 +631,23 @@ describe("deriveEvictedFileIds", () => {
 		);
 
 		expect([...evicted]).toEqual(["a"]);
+	});
+
+	it("orders a recording before its thumbnail", () => {
+		const evicted = deriveEvictedFileIds(
+			[recordingMessage(1, "rec-1", "thumb-1"), fileMessage(2, "a")],
+			chatFiles("thumb-1", "a"),
+		);
+
+		expect([...evicted]).toEqual(["rec-1"]);
+	});
+
+	it("reports an evicted recording and thumbnail", () => {
+		const evicted = deriveEvictedFileIds(
+			[recordingMessage(1, "rec-1", "thumb-1"), fileMessage(2, "a")],
+			chatFiles("a"),
+		);
+
+		expect([...evicted]).toEqual(["rec-1", "thumb-1"]);
 	});
 });
