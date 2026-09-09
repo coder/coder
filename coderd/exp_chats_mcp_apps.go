@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"mime"
 	"net/http"
 	"net/url"
@@ -70,6 +71,10 @@ func (api *API) readChatMCPAppResource(rw http.ResponseWriter, r *http.Request) 
 	}
 	defer release()
 	resource, err := conn.ReadMCPResource(ctx, workspacesdk.ReadMCPResourceRequest{ServerName: serverName, URI: resourceURI})
+	if errors.Is(err, workspacesdk.ErrMCPResourceTooLarge) {
+		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{Message: "MCP App resource response exceeds 8 MiB."})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{Message: "Failed to read MCP App resource.", Detail: err.Error()})
 		return
@@ -81,6 +86,10 @@ func (api *API) readChatMCPAppResource(rw http.ResponseWriter, r *http.Request) 
 	}
 	html := []byte(resource.Text)
 	if len(html) == 0 && resource.Blob != "" {
+		if len(resource.Blob) > base64.StdEncoding.EncodedLen(maxMCPAppHTMLBytes) {
+			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{Message: "MCP App HTML exceeds 4 MiB."})
+			return
+		}
 		html, err = base64.StdEncoding.DecodeString(resource.Blob)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{Message: "Invalid MCP App resource encoding."})
@@ -129,6 +138,12 @@ func mcpAppCSP(meta json.RawMessage) string {
 func mcpAppOrigins(domains []string) []string {
 	var origins []string
 	for _, domain := range domains {
+		if len(origins) == 16 {
+			break
+		}
+		if len(domain) > 253 {
+			continue
+		}
 		parsed, err := url.Parse(domain)
 		if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" ||
 			parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" ||

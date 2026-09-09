@@ -3,6 +3,7 @@ package workspacesdk_test
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -38,6 +39,19 @@ func TestReadMCPResource(t *testing.T) {
 			assert.NoError(t, json.NewEncoder(w).Encode(codersdk.Response{Message: "not found"}))
 			return
 		}
+		if strings.HasPrefix(req.URI, "ui://size/") {
+			body := `{ "text": "" }`
+			size := workspacesdk.MaxMCPResourceResponseBytes
+			if strings.Contains(req.URI, "over") {
+				size++
+			}
+			if req.URI == "ui://size/over-error" {
+				w.WriteHeader(http.StatusBadGateway)
+			}
+			_, err := w.Write([]byte(body + strings.Repeat(" ", size-len(body))))
+			assert.NoError(t, err)
+			return
+		}
 		assert.Equal(t, "ui://view?name=a&b", req.URI)
 		assert.NoError(t, json.NewEncoder(w).Encode(workspacesdk.ReadMCPResourceResponse{URI: req.URI, MimeType: "text/html;profile=mcp-app", Text: "<html>view</html>", Meta: json.RawMessage(`{"ui":{"prefersBorder":true}}`)}))
 	})
@@ -54,4 +68,19 @@ func TestReadMCPResource(t *testing.T) {
 	var apiErr *codersdk.Error
 	require.ErrorAs(t, err, &apiErr)
 	require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	for _, tc := range []struct {
+		name    string
+		wantErr error
+	}{
+		{name: "at"},
+		{name: "over", wantErr: workspacesdk.ErrMCPResourceTooLarge},
+		{name: "over-error", wantErr: workspacesdk.ErrMCPResourceTooLarge},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := conn.ReadMCPResource(ctx, workspacesdk.ReadMCPResourceRequest{ServerName: "apps", URI: "ui://size/" + tc.name})
+			require.ErrorIs(t, err, tc.wantErr)
+		})
+	}
 }

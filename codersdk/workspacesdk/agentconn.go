@@ -1322,6 +1322,12 @@ type MCPToolContent struct {
 	MediaType string `json:"media_type,omitempty"`
 }
 
+// MaxMCPResourceResponseBytes limits the encoded agent resource response.
+const MaxMCPResourceResponseBytes = 8 << 20
+
+// ErrMCPResourceTooLarge indicates an agent resource response exceeds the limit.
+var ErrMCPResourceTooLarge = xerrors.New("MCP resource response exceeds 8 MiB")
+
 // ReadMCPResourceRequest identifies a resource on a workspace MCP server.
 type ReadMCPResourceRequest struct {
 	ServerName string `json:"server_name"`
@@ -1403,7 +1409,8 @@ func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (Ca
 	return resp, decodeAgentJSON(res, &resp)
 }
 
-// ReadMCPResource reads a resource from an MCP server running in the workspace.
+// ReadMCPResource proxies resources/read to a workspace MCP server and returns
+// the first content item.
 func (c *agentConn) ReadMCPResource(ctx context.Context, req ReadMCPResourceRequest) (ReadMCPResourceResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
@@ -1412,11 +1419,19 @@ func (c *agentConn) ReadMCPResource(ctx context.Context, req ReadMCPResourceRequ
 		return ReadMCPResourceResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(res.Body, MaxMCPResourceResponseBytes+1))
+	if err != nil {
+		return ReadMCPResourceResponse{}, xerrors.Errorf("read resource response: %w", err)
+	}
+	if len(body) > MaxMCPResourceResponseBytes {
+		return ReadMCPResourceResponse{}, ErrMCPResourceTooLarge
+	}
 	if res.StatusCode != http.StatusOK {
+		res.Body = io.NopCloser(bytes.NewReader(body))
 		return ReadMCPResourceResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ReadMCPResourceResponse
-	return resp, decodeAgentJSON(res, &resp)
+	return resp, json.Unmarshal(body, &resp)
 }
 
 // ProcessOutput returns the output of a tracked process on the agent.

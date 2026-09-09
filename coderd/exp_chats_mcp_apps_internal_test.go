@@ -39,7 +39,7 @@ func TestChatMCPAppResource(t *testing.T) {
 		mime        string
 		text        string
 		blob        string
-		readError   bool
+		readError   error
 		status      int
 	}{
 		{name: "Disabled", disabled: true, status: http.StatusNotFound},
@@ -59,7 +59,10 @@ func TestChatMCPAppResource(t *testing.T) {
 		{name: "AtLimit", server: "app", uri: "ui://app/view", mime: "text/html;profile=mcp-app", text: strings.Repeat("x", maxMCPAppHTMLBytes), status: http.StatusOK},
 		{name: "LargeHTML", server: "app", uri: "ui://app/view", mime: "text/html;profile=mcp-app", text: strings.Repeat("x", maxMCPAppHTMLBytes+1), status: http.StatusRequestEntityTooLarge},
 		{name: "LargeBlob", server: "app", uri: "ui://app/view", mime: "text/html;profile=mcp-app", blob: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("x", maxMCPAppHTMLBytes+1))), status: http.StatusRequestEntityTooLarge},
-		{name: "ReadError", server: "app", uri: "ui://app/view", readError: true, status: http.StatusBadGateway},
+		{name: "ResponseTooLarge", server: "app", uri: "ui://app/view", readError: xerrors.Errorf("agent: %w", workspacesdk.ErrMCPResourceTooLarge), status: http.StatusRequestEntityTooLarge},
+		{name: "BlobAtLimit", server: "app", uri: "ui://app/view", mime: "text/html;profile=mcp-app", blob: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("x", maxMCPAppHTMLBytes))), status: http.StatusOK},
+		{name: "OverEncodedLimit", server: "app", uri: "ui://app/view", mime: "text/html;profile=mcp-app", blob: strings.Repeat("!", base64.StdEncoding.EncodedLen(maxMCPAppHTMLBytes)+1), status: http.StatusRequestEntityTooLarge},
+		{name: "ReadError", server: "app", uri: "ui://app/view", readError: xerrors.New("resource read failed"), status: http.StatusBadGateway},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -86,14 +89,10 @@ func TestChatMCPAppResource(t *testing.T) {
 						require.Equal(t, chat.AgentID.UUID, id)
 						return conn, func() {}, nil
 					}}
-					var readErr error
-					if tc.readError {
-						readErr = xerrors.New("resource read failed")
-					}
 					conn.EXPECT().ReadMCPResource(gomock.Any(), workspacesdk.ReadMCPResourceRequest{ServerName: "app", URI: "ui://app/view"}).Return(workspacesdk.ReadMCPResourceResponse{
 						URI: "ui://app/view", MimeType: tc.mime, Text: tc.text, Blob: tc.blob,
 						Meta: json.RawMessage(`{"ui":{"csp":{"resourceDomains":["https://cdn.example.com"],"connectDomains":["https://api.example.com"]}}}`),
-					}, readErr)
+					}, tc.readError)
 				}
 			}
 			rtr := chi.NewRouter()
@@ -150,6 +149,26 @@ func TestMCPAppCSP(t *testing.T) {
 				"media-src data: blob: "+tc.resources+"; "+
 				"connect-src "+tc.connect+"; "+
 				"frame-ancestors 'self'; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'", policy)
+		})
+	}
+}
+
+func TestMCPAppOriginsLimits(t *testing.T) {
+	t.Parallel()
+	longest := "https://" + strings.Repeat("a", 245)
+	for _, tc := range []struct {
+		name          string
+		domains, want []string
+	}{
+		{name: "AtLengthLimit", domains: []string{longest}, want: []string{longest}},
+		{name: "OverLengthLimit", domains: []string{longest + "a", "https://example.com"}, want: []string{"https://example.com"}},
+		{name: "AtCountLimit", domains: strings.Fields(strings.Repeat("https://example.com ", 16)), want: strings.Fields(strings.Repeat("https://example.com ", 16))},
+		{name: "OverCountLimit", domains: strings.Fields(strings.Repeat("https://example.com ", 17)), want: strings.Fields(strings.Repeat("https://example.com ", 16))},
+		{name: "SkipInvalid", domains: append(strings.Fields(strings.Repeat("invalid ", 16)), "https://example.com"), want: []string{"https://example.com"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, mcpAppOrigins(tc.domains))
 		})
 	}
 }
