@@ -263,7 +263,7 @@ describe("useConversationEditingState", () => {
 		// the same text, so the editor is forced to reinitialize.
 		expect(result.current.remountKey).toBe(remountKeyAfterSend + 1);
 		expect(result.current.editorInitialValue).toBe("hello");
-		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7);
+		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7, undefined);
 		unmount();
 	});
 
@@ -281,7 +281,7 @@ describe("useConversationEditingState", () => {
 			await result.current.handleSendFromInput("hello", attachments);
 		});
 
-		expect(onSend).toHaveBeenCalledWith("hello", attachments, 7);
+		expect(onSend).toHaveBeenCalledWith("hello", attachments, 7, undefined);
 		unmount();
 	});
 
@@ -358,7 +358,12 @@ describe("useConversationEditingState", () => {
 			await result.current.handleSendFromInput("hello");
 		});
 
-		expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+		expect(onSend).toHaveBeenCalledWith(
+			"hello",
+			undefined,
+			undefined,
+			undefined,
+		);
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
@@ -401,7 +406,12 @@ describe("useConversationEditingState", () => {
 		await act(async () => {
 			result.current.handleSendFromInput("hello");
 			await vi.waitFor(() => {
-				expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+				expect(onSend).toHaveBeenCalledWith(
+					"hello",
+					undefined,
+					undefined,
+					undefined,
+				);
 			});
 		});
 

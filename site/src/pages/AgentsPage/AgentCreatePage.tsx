@@ -9,6 +9,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -26,6 +27,7 @@ const AgentCreatePage: FC = () => {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -40,6 +42,7 @@ const AgentCreatePage: FC = () => {
 		reasoningEffort,
 		mcpServerIds,
 		organizationId,
+		goalMutation,
 		planMode,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
@@ -57,6 +60,7 @@ const AgentCreatePage: FC = () => {
 			workspace_id: workspaceId,
 			mcp_server_ids:
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
+			goal_mutation: goalMutation,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
 			...(model ? { model_config_id: model } : {}),
@@ -110,6 +114,7 @@ const AgentCreatePage: FC = () => {
 				canCreateChat={permissions.createChat}
 				canConfigureAgentSetup={permissions.editDeploymentConfig}
 				aiGatewayDisabled={aiGatewayDisabled}
+				showPursueGoal={experiments.includes("chat-goals")}
 				workspaceCount={workspacesQuery.data?.count}
 				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 				workspacesError={workspacesQuery.error}

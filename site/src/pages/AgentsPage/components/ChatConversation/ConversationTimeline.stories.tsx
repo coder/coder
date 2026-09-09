@@ -250,17 +250,20 @@ const buildUserMessage = ({
 	text,
 	files = [],
 	createdAt = baseMessage.created_at,
+	sentAsGoal = false,
 }: {
 	id?: number;
 	text?: string;
 	files?: TypesGen.ChatFilePart[];
 	createdAt?: string;
+	sentAsGoal?: boolean;
 }): TypesGen.ChatMessage => ({
 	...baseMessage,
 	created_at: createdAt,
 	id,
 	role: "user",
 	content: [...(text ? [buildTextPart(text)] : []), ...files],
+	...(sentAsGoal ? { sent_as_goal: true } : {}),
 });
 
 const buildStoryArgs = (...messages: TypesGen.ChatMessage[]) => ({
@@ -803,6 +806,37 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
+/**
+ * The goal's source message and everything before it must not offer
+ * editing, because such an edit would rewrite or truncate the source.
+ */
+export const GoalSourceMessageEditHidden: Story = {
+	args: {
+		...buildStoryArgs(
+			buildUserMessage({ id: 1, text: "Some earlier request" }),
+			buildUserMessage({ id: 3, text: "Ship the release", sentAsGoal: true }),
+			buildUserMessage({ id: 5, text: "Also update the changelog" }),
+		),
+		onEditUserMessage: fn(),
+		goalSourceMessageId: 3,
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Only the message after the goal's source may be edited, so exactly
+		// one edit affordance renders and it targets that message.
+		const editButtons = await canvas.findAllByRole("button", {
+			name: "Edit message",
+		});
+		expect(editButtons).toHaveLength(1);
+		await userEvent.click(editButtons[0]);
+		expect(args.onEditUserMessage).toHaveBeenCalledWith(
+			5,
+			"Also update the changelog",
+			undefined,
+		);
+	},
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {
@@ -1327,6 +1361,29 @@ export const UserMessageTextOnly: Story = {
 				content: [{ type: "text", text: "Just a plain text message" }],
 			},
 		]),
+	},
+};
+
+/** Goal-sent user messages show a durable transcript marker. */
+export const UserMessageSentAsGoalMarker: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			id: 1,
+			text: "Use this screenshot as the goal",
+			files: [buildInlineAttachmentPart("image/png", TEST_PNG_B64)],
+			sentAsGoal: true,
+		}),
+		{
+			...baseMessage,
+			id: 2,
+			role: "assistant",
+			content: [{ type: "text", text: "I will pursue that goal." }],
+		},
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Sent as goal")).toBeVisible();
+		expect(canvas.getAllByText("Sent as goal")).toHaveLength(1);
 	},
 };
 
