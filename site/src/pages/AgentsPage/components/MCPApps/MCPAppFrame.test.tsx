@@ -274,10 +274,10 @@ it("waits for the original call before initializing a restored panel", () => {
 		},
 	]);
 	const connect = vi.spyOn(bridge, "connectMCPApp");
-	render(<MCPAppPanel chatId="chat" tab={tab} store={store} />, {
-		wrapper: themeWrapper,
-	});
-	expect(connect).not.toHaveBeenCalled();
+	const renderPanel = (isVisible: boolean) => (
+		<MCPAppPanel chatId="chat" tab={tab} store={store} isVisible={isVisible} />
+	);
+	const view = render(renderPanel(false), { wrapper: themeWrapper });
 	act(() => {
 		store.upsertDurableMessage({
 			...MockChatMessage,
@@ -291,7 +291,11 @@ it("waits for the original call before initializing a restored panel", () => {
 			],
 		});
 	});
+	expect(connect).not.toHaveBeenCalled();
+	view.rerender(renderPanel(true));
 	expect(connect).toHaveBeenCalledOnce();
+	view.rerender(renderPanel(false));
+	expect(screen.getByTitle("Sales")).toBeInTheDocument();
 
 	const source = screen.getByTitle<HTMLIFrameElement>("Sales").contentWindow;
 	if (!source) throw new Error("No iframe window");

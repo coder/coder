@@ -231,7 +231,14 @@ const UserTabContent: FC<UserTabContentProps> = ({
 }) => {
 	switch (tab.kind) {
 		case "mcp_app":
-			return <MCPAppPanel chatId={chatId} tab={tab} store={store} />;
+			return (
+				<MCPAppPanel
+					chatId={chatId}
+					tab={tab}
+					store={store}
+					isVisible={sidebarVisible && isActive}
+				/>
+			);
 		case "terminal":
 			return workspace && workspaceAgent ? (
 				<TerminalPanel

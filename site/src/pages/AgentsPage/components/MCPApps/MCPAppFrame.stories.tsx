@@ -119,6 +119,7 @@ export const UnavailablePanel: Story = {
 				resourceUri: MockChatMCPApp.resource_uri,
 			}}
 			store={createChatStore()}
+			isVisible
 		/>
 	),
 };

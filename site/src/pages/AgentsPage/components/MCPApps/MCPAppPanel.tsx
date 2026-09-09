@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
 	ChatToolCallPart,
 	ChatToolResultPart,
@@ -17,11 +18,21 @@ interface MCPAppPanelProps {
 	chatId: string;
 	tab: Extract<UserRightPanelTab, { kind: "mcp_app" }>;
 	store: ChatStore;
+	isVisible: boolean;
 }
 
-export const MCPAppPanel = ({ chatId, tab, store }: MCPAppPanelProps) => {
+export const MCPAppPanel = ({
+	chatId,
+	tab,
+	store,
+	isVisible,
+}: MCPAppPanelProps) => {
 	const { experiments } = useDashboard();
 	const messages = useChatSelector(store, selectMessagesByID);
+	// Inactive tabs stay mounted but hidden, so a restored app only starts
+	// its runtime and resource read once the user has looked at it.
+	const [activated, setActivated] = useState(isVisible);
+	if (isVisible && !activated) setActivated(true);
 	let call: ChatToolCallPart | undefined;
 	let result: ChatToolResultPart | undefined;
 	for (const message of messages.values()) {
@@ -49,6 +60,7 @@ export const MCPAppPanel = ({ chatId, tab, store }: MCPAppPanelProps) => {
 			</div>
 		);
 	}
+	if (!activated) return null;
 	const src = mcpAppResourceURL(chatId, app.server_name, app.resource_uri);
 	return (
 		<MCPAppFrame
