@@ -1,4 +1,6 @@
-# Google Cloud Platform
+---
+title: Google Cloud Platform
+---
 
 In this guide, you will learn how to deploy the Coder control plane instance and
 your first template.

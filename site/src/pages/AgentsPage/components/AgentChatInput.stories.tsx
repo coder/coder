@@ -3,12 +3,17 @@ import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
-import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	MockUserPreferenceSettings,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
 import {
@@ -33,9 +38,16 @@ const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
 	component: AgentChatInput,
 	decorators: [withProxyProvider()],
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+		],
+	},
 	args: {
 		onSend: fn(),
-		sendShortcut: "enter",
 		onContentChange: fn(),
 		onModelChange: fn(),
 		initialValue: "",
@@ -239,9 +251,19 @@ export const EnterSendsByDefault: Story = {
 };
 
 export const ModifierEnterSendsWhenRequired: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: {
+					...MockUserPreferenceSettings,
+					agent_chat_send_shortcut: "modifier_enter",
+				},
+			},
+		],
+	},
 	args: {
 		onSend: fn(),
-		sendShortcut: "modifier_enter",
 		initialValue: "Run focused tests",
 	},
 	play: async ({ canvasElement, args }) => {

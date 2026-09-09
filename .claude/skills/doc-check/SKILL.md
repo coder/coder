@@ -54,6 +54,8 @@ writing them.
 - **CLI/API changes**: Are new flags, endpoints, or options documented?
 - **Configuration**: Are new environment variables or settings documented?
 - **Breaking changes**: Are migration steps documented if needed?
+- **Evidence versus claim**: See
+  [Evidence versus claim](#evidence-versus-claim) below.
 - **Premium features**: See [Premium feature signaling](#premium-feature-signaling)
   below.
 - **Renames or moves**: See [Renames and moves require redirects](#renames-and-moves-require-redirects)
@@ -107,6 +109,21 @@ Missing either one is a defect:
 1. The H1 title takes a `(Premium)` suffix. Example:
    `# Template Insights (Premium)`.
 2. The page's `docs/manifest.json` entry includes `"state": ["premium"]`.
+
+### Evidence versus claim
+
+This is the canonical rule
+[Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines; the content guidelines govern, so read the rule
+there. On a page **this change adds or edits**, flag an implementation
+identifier the reader neither types nor receives in that page's task, whether
+the diff adds the identifier or leaves it on a line this change touches; the
+canonical rule's ladder decides the replacement. Work from the page content
+in the diff. doc-check does not see commit messages or PR comments, so it
+does not police whether a stripped identifier was disclosed; that pointer is
+the author's to provide for the human reviewer. A pre-existing violation on a
+page the diff does not touch is not this change's finding; mention it as
+informational context at most, without demanding a fix from this author.
 
 ### No emdash, endash, or ` -- ` as punctuation
 

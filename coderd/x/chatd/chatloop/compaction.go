@@ -68,8 +68,7 @@ const (
 		"full content. Include brief inline summaries when the content " +
 		"itself would exceed a few lines."
 	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
-		"the earlier conversation. The assistant was actively working when " +
-		"the context was compacted. Continue the work described below:"
+		"the earlier conversation. Continue from it:"
 )
 
 // CompactionSource identifies what triggered a compaction. It is
@@ -89,7 +88,6 @@ type CompactionOptions struct {
 	SummaryPrompt       string
 	SummaryHint         string
 	SystemSummaryPrefix string
-	Persist             func(context.Context, CompactionResult) error
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64
@@ -116,8 +114,6 @@ type CompactionOptions struct {
 	// clients so they see "Summarizing..." / "Summarized" UI
 	// transitions during compaction.
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
-
-	OnError func(error)
 }
 
 type CompactionResult struct {
@@ -398,7 +394,6 @@ func startCompactionDebugRun(
 		ModelConfigID:       modelConfigID,
 		TriggerMessageID:    parentRun.TriggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
-		Kind:                chatdebug.KindCompaction,
 		Provider:            provider,
 		Model:               model,
 	})

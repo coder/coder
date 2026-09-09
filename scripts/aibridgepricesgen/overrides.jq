@@ -31,6 +31,39 @@ end
     )
   end
 
+# gpt-6-astra: released 2026-09-03 and not listed on models.dev yet. Inject it
+# from OpenAI's published model page and pricing table so the price book and
+# the known-models catalog can carry it; drop this block once upstream lists it.
+# Ref: https://developers.openai.com/api/docs/models/gpt-6-astra
+# Ref: https://developers.openai.com/api/docs/pricing
+| if (.openai.models | has("gpt-6-astra")) then
+    error("overrides.jq: gpt-6-astra now present upstream; drop the injection")
+  else
+    .openai.models."gpt-6-astra" = {
+      id: "gpt-6-astra",
+      name: "GPT-6 Astra",
+      attachment: true,
+      reasoning: true,
+      reasoning_options: [{type: "effort", values: ["low", "medium", "high", "xhigh", "max"]}],
+      tool_call: true,
+      structured_output: true,
+      temperature: false,
+      knowledge: "2026-04-30",
+      release_date: "2026-09-03",
+      last_updated: "2026-09-03",
+      modalities: {input: ["text", "image"], output: ["text"]},
+      open_weights: false,
+      limit: {context: 1050000, input: 922000, output: 128000},
+      cost: {
+        input: 10,
+        output: 50,
+        cache_read: 1,
+        cache_write: 12.5,
+        tiers: [{input: 20, output: 75, cache_read: 2, cache_write: 25, tier: {type: "context", size: 272000}}]
+      }
+    }
+  end
+
 # Mapping of provider names on models.dev to our own names
 # Ref. table definition for ai_provider_type
 # amazon-bedrock -> bedrock

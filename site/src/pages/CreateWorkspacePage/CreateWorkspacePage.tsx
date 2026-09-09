@@ -57,6 +57,7 @@ const CreateWorkspacePage: FC = () => {
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
+	const [isConnecting, setIsConnecting] = useState(false);
 	// The expected ID of the init message, so we can wait until the initial
 	// parameters have gone through before rendering the form.
 	const [initId, setInitId] = useState(Number.NaN);
@@ -223,6 +224,9 @@ const CreateWorkspacePage: FC = () => {
 			{
 				// Send initial parameters once the web socket is open.
 				onOpen: () => {
+					if (ws.current === socket) {
+						setIsConnecting(false);
+					}
 					sendInitialParameters();
 				},
 				// Record the latest message every time we get one from the web
@@ -234,11 +238,13 @@ const CreateWorkspacePage: FC = () => {
 				},
 				onError: (error) => {
 					if (ws.current === socket) {
+						setIsConnecting(false);
 						setWsError(error);
 					}
 				},
 				onClose: () => {
 					if (ws.current === socket) {
+						setIsConnecting(false);
 						setWsError(
 							new DetailedError(
 								"Websocket connection for dynamic parameters unexpectedly closed.",
@@ -250,6 +256,7 @@ const CreateWorkspacePage: FC = () => {
 			},
 		);
 
+		setIsConnecting(true);
 		ws.current = socket;
 
 		return () => {
@@ -267,7 +274,7 @@ const CreateWorkspacePage: FC = () => {
 	} = useExternalAuth(realizedVersionId, owner.id);
 
 	const isLoadingFormData =
-		ws.current?.readyState === WebSocket.CONNECTING ||
+		isConnecting ||
 		templateQuery.isLoading ||
 		// isPending stays true until the permission data exists, covering the
 		// renders where the query is still disabled or has not started fetching,
@@ -393,7 +400,7 @@ const CreateWorkspacePage: FC = () => {
 		!latestResponse ||
 		Number.isNaN(initId) ||
 		latestResponse.id < initId ||
-		(ws.current && ws.current.readyState === WebSocket.CONNECTING);
+		isConnecting;
 
 	const shouldShowLoader =
 		!templateQuery.data ||

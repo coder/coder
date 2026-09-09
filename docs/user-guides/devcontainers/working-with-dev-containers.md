@@ -1,4 +1,6 @@
-# Working with Dev Containers
+---
+title: Work with Dev Containers
+---
 
 The dev container integration appears in your Coder dashboard, providing a
 visual representation of the running environment:

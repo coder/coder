@@ -19,7 +19,12 @@ compilerPreset.rolldown.filter = {
 	...compilerPreset.rolldown.filter,
 	id: {
 		// Keep in sync with targetDirs in scripts/check-compiler.mjs.
-		include: [/src\/pages\/AgentsPage\//, /src\/pages\/AIBridgePage\//],
+		include: [
+			/src\/modules\/aiModels\//,
+			/src\/pages\/AgentsPage\//,
+			/src\/pages\/AIBridgePage\//,
+			/src\/pages\/TemplateBuilder\//,
+		],
 	},
 };
 

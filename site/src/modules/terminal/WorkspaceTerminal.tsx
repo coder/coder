@@ -149,10 +149,9 @@ export const WorkspaceTerminal = ({
 		onError?.(error);
 	});
 
-	const getTerminalDimensions = useCallback(
+	const getTerminalDimensions = useEffectEvent(
 		(terminal: Terminal): { height: number; width: number } | null => {
 			if (terminal.rows <= 0 || terminal.cols <= 0) {
-				// oxlint-disable-next-line react-hooks/rules-of-hooks -- reportTerminalError is a useEffectEvent used only to read the latest onError without making this callback reactive; intentionally invoked outside an effect.
 				reportTerminalError(
 					new Error(
 						`Terminal has non-positive dimensions: ${terminal.rows}x${terminal.cols}`,
@@ -166,7 +165,6 @@ export const WorkspaceTerminal = ({
 				width: terminal.cols,
 			};
 		},
-		[],
 	);
 
 	const refit = useCallback(() => {
@@ -587,7 +585,6 @@ export const WorkspaceTerminal = ({
 		containerName,
 		containerUser,
 		errorMessage,
-		getTerminalDimensions,
 		initialCommand,
 		loading,
 		operatingSystem,

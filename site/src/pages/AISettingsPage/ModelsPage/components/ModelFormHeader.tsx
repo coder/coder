@@ -26,8 +26,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { getProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
-import { getProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { useOrganizationModelsPath } from "../organizationModels";
 
 export const ModelFormBackLink: FC = () => {

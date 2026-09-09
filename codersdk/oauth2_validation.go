@@ -95,6 +95,26 @@ func ValidateRedirectURIScheme(u *url.URL) error {
 	return validateScheme(u)
 }
 
+// RedirectURIMatches reports whether a redirect_uri a client presented may be
+// used in place of one the app registered. The rule is exact string equality
+// (OAuth 2.1 §2.3.1). The one exception is a registered http URI to a loopback
+// host, where the port is ignored (RFC 8252 §7.3). The exception depends on the
+// registered URI alone, not on the client type.
+func RedirectURIMatches(presented, registered *url.URL) bool {
+	if presented.String() == registered.String() {
+		return true
+	}
+	if registered.Scheme != "http" || !isLoopbackAddress(registered.Hostname()) {
+		return false
+	}
+	// Drop the port from both sides. Every other component must still match.
+	// Hostname() also strips IPv6 brackets, so both strings are built the same
+	// way and stay comparable.
+	p, r := *presented, *registered
+	p.Host, r.Host = p.Hostname(), r.Hostname()
+	return p.String() == r.String()
+}
+
 func validateScheme(u *url.URL) error {
 	if u.Scheme == "" {
 		return xerrors.New("redirect URI must have a scheme")
@@ -307,7 +327,8 @@ func isLocalhost(hostname string) bool {
 		strings.HasSuffix(hostname, ".localhost")
 }
 
-// isLoopbackAddress checks if hostname is a strict loopback address (RFC 8252)
+// isLoopbackAddress reports whether hostname is a loopback host. RFC 8252 §7.3
+// names 127.0.0.1 and ::1. Coder also accepts localhost as its own policy.
 func isLoopbackAddress(hostname string) bool {
 	return hostname == "localhost" ||
 		hostname == "127.0.0.1" ||
