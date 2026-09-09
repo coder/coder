@@ -443,21 +443,51 @@ describe("groupWorkingBlocks", () => {
 			});
 		});
 
-		it("keeps the block live while the final answer streams outside it", () => {
+		it("folds streaming text that continues a block, then releases a persisted answer", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
 			const live = liveStream([text("Here is what I found")]);
-			const { rows, blocks } = group([prompt, ...steps], {
+			const streaming = group([prompt, ...steps], {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
 				liveBlocks: live.streamState.blocks,
 				liveTools: live.liveTools,
 				streamState: live.streamState,
 			});
+			// Narration and answers look the same while they stream, so the text
+			// stays inside the block rather than flashing into view.
+			expect(streaming.blocks).toHaveLength(1);
+			expect(rowIds(streaming.rows, streaming.blocks[0].rowIndices)).toEqual([
+				steps[0].id,
+				"live",
+			]);
+			expect(streaming.blocks[0]).toMatchObject({
+				isLive: true,
+				activity: "echo a",
+			});
 
-			expect(blocks).toHaveLength(1);
-			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id]);
-			expect(blocks[0].isLive).toBe(true);
+			const answer = message(
+				"assistant",
+				[text("Here is what I found")],
+				at(3),
+			);
+			const done = group([prompt, ...steps, answer]);
+			expect(rowIds(done.rows, done.blocks[0].rowIndices)).toEqual([
+				steps[0].id,
+			]);
+		});
+
+		it("streams text outside the block when no step has run yet in the turn", () => {
+			const prompt = user("Go");
+			const live = liveStream([text("Sure, 2 + 2 is 4.")]);
+			const { blocks } = group([prompt], {
+				isTurnActive: true,
+				isLiveRowCollapsible: true,
+				liveBlocks: live.streamState.blocks,
+				liveTools: live.liveTools,
+				streamState: live.streamState,
+			});
+			expect(blocks).toEqual([]);
 		});
 
 		it("folds an idle live row into the block it follows", () => {

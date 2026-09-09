@@ -188,10 +188,17 @@ const getRowContent = (
  * rather than an answer. Text that precedes a tool call is narration and
  * folds with it; text that ends a row is an answer and stays visible. A
  * live row with no output yet is the turn working on its next step.
+ *
+ * Streaming text cannot be told apart from narration until the step ends,
+ * so a live row that continues a block already working in this turn folds
+ * even while it ends in text: narration then never flashes into view before
+ * dropping into the block. If it turns out to be the final answer, the row
+ * leaves the block once it persists.
  */
 const isStepRow = (
 	row: TimelineRow,
 	options: GroupWorkingBlocksOptions,
+	continuesBlock: boolean,
 ): RowContent | undefined => {
 	let content: RowContent;
 	if (row.type === "live") {
@@ -225,6 +232,9 @@ const isStepRow = (
 		return undefined;
 	}
 	const last = visibleBlocks[visibleBlocks.length - 1];
+	if (last.type === "response" && row.type === "live" && continuesBlock) {
+		return content;
+	}
 	if (last.type !== "tool" && last.type !== "thinking") {
 		return undefined;
 	}
@@ -309,7 +319,7 @@ export const groupWorkingBlocks = (
 	let anchorKey: string | undefined;
 	let ordinal = 0;
 	for (const [index, row] of rows.entries()) {
-		const content = isStepRow(row, options);
+		const content = isStepRow(row, options, current !== undefined);
 		if (!content) {
 			current = undefined;
 			if (row.type === "message" && row.entry.message.role !== "assistant") {
