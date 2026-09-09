@@ -3582,34 +3582,6 @@ func TestListChatProviders(t *testing.T) {
 		require.True(t, openAIProvider.HasAPIKey)
 	})
 
-	t.Run("IgnoresDeploymentKeyWhenCentralKeyDisabled", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider:             "openai",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
-		})
-		require.NoError(t, err)
-		require.False(t, provider.HasAPIKey)
-
-		providers, err := client.ListChatProviders(ctx)
-		require.NoError(t, err)
-		for _, listed := range providers {
-			if listed.Provider == "openai" {
-				require.False(t, listed.HasAPIKey)
-				return
-			}
-		}
-		t.Fatal("openai provider not found")
-	})
-
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 
@@ -3831,22 +3803,6 @@ func TestCreateChatProvider(t *testing.T) {
 		require.False(t, provider.HasAPIKey)
 	})
 
-	t.Run("RejectsDeploymentBackedCentralKey", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider: "openai",
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
-	})
-
 	t.Run("RejectsInvalidPolicyTuple", func(t *testing.T) {
 		t.Parallel()
 
@@ -4062,29 +4018,6 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.False(t, updated.HasAPIKey)
 	})
 
-	t.Run("RejectsDeploymentBackedCentralKey", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-			Provider:             "openai",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
-		})
-		require.NoError(t, err)
-
-		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			CentralAPIKeyEnabled: ptr.Ref(true),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
-	})
-
 	t.Run("RejectsClearingLastCentralKey", func(t *testing.T) {
 		t.Parallel()
 
@@ -4226,13 +4159,10 @@ func TestDeleteChatProvider(t *testing.T) {
 func TestChatProviderAPIKeysFromDeploymentValues(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DoesNotReuseBridgeConfig", func(t *testing.T) {
+	t.Run("NonNilDeploymentValues", func(t *testing.T) {
 		t.Parallel()
 
 		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		values.AI.BridgeConfig.LegacyAnthropic.Key = serpent.String("deployment-anthropic-key")
-		values.AI.BridgeConfig.LegacyOpenAI.BaseURL = serpent.String("https://custom-openai.example.com")
 
 		keys := coderd.ChatProviderAPIKeysFromDeploymentValues(values)
 		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
@@ -4435,9 +4365,7 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
+		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{

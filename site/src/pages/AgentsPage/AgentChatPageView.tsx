@@ -145,7 +145,6 @@ interface AgentChatPageViewProps {
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
-	workspaceOptions?: readonly TypesGen.Workspace[];
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading?: boolean;
 
@@ -310,7 +309,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
-	workspaceOptions = [],
 	onWorkspaceChange,
 	isWorkspaceLoading = false,
 	showSidebarPanel,
@@ -993,7 +991,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										onReasoningEffortChange={onReasoningEffortChange}
 										onPlanModeToggle={onPlanModeToggle}
 										isModelCatalogLoading={isModelCatalogLoading}
-										workspaceOptions={workspaceOptions}
 										onWorkspaceChange={onWorkspaceChange}
 										isWorkspaceLoading={isWorkspaceLoading}
 										inputRef={editing.chatInputRef}

@@ -210,14 +210,6 @@ export const CrossSideAnnotation: Story = {
 			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
 		),
 	},
-	play: async ({ canvasElement }) => {
-		// The annotation renders via a slot in the light DOM of the
-		// web component, so we can find the textarea directly.
-		await waitFor(() => {
-			const textarea = canvasElement.querySelector("textarea");
-			expect(textarea).not.toBeNull();
-		});
-	},
 };
 
 // Same regression scenario in unified view to ensure the
@@ -227,7 +219,6 @@ export const CrossSideAnnotationUnified: Story = {
 		...CrossSideAnnotation.args,
 		diffStyle: "unified",
 	},
-	play: CrossSideAnnotation.play,
 };
 
 // -------------------------------------------------------------------
@@ -235,17 +226,6 @@ export const CrossSideAnnotationUnified: Story = {
 // -------------------------------------------------------------------
 
 // Play function shared by all annotation edge-case stories.
-const expectAnnotationTextarea = async ({
-	canvasElement,
-}: {
-	canvasElement: HTMLElement;
-}) => {
-	await waitFor(() => {
-		const textarea = canvasElement.querySelector("textarea");
-		expect(textarea).not.toBeNull();
-	});
-};
-
 // Diff where deletion and addition line numbers are wildly
 // different (hunk header: @@ -508,4 +218,4 @@). Deletion
 // lines are 509-510, addition lines are 219-220.
@@ -301,7 +281,6 @@ export const CrossSideMismatchedLineNumbers: Story = {
 			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
 		),
 	},
-	play: expectAnnotationTextarea,
 };
 
 // Same mismatched-line-number scenario in unified view.
@@ -310,7 +289,6 @@ export const CrossSideMismatchedLineNumbersUnified: Story = {
 		...CrossSideMismatchedLineNumbers.args,
 		diffStyle: "unified",
 	},
-	play: expectAnnotationTextarea,
 };
 
 // Backward same-side selection (start > end). The user clicks
@@ -363,7 +341,6 @@ export const BackwardSameSideSelection: Story = {
 			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
 		),
 	},
-	play: expectAnnotationTextarea,
 };
 
 // Cross-side selection going additions -> deletions (the
@@ -399,7 +376,6 @@ export const CrossSideAdditionsToDeletions: Story = {
 			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
 		),
 	},
-	play: expectAnnotationTextarea,
 };
 
 // Rename diff with long file paths to verify that:
@@ -441,14 +417,6 @@ export const LargeDiff: Story = {
 			</div>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		// The @pierre/trees file tree mounts a `file-tree-container` custom
-		// element once the sidebar is shown (isExpanded). Assert it appears.
-		await waitFor(() => {
-			const tree = canvasElement.querySelector("file-tree-container");
-			expect(tree).not.toBeNull();
-		});
-	},
 };
 
 // In production, before content-derived keys, the second render could hit

@@ -105,8 +105,6 @@ interface AgentChatInputProps {
 	onSend: (message: string) => void;
 	placeholder?: string;
 	isDisabled: boolean;
-	// Archived, other-user, and forbidden chats stay non-editable.
-	// Pending data only blocks send so drafts can be typed immediately.
 	isReadOnly?: boolean;
 	isLoading: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
