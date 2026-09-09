@@ -115,11 +115,7 @@ func TestBuildProviders(t *testing.T) {
 		for _, row := range rows {
 			require.Contains(t, byName, row.Name)
 			require.Equal(t, row.BaseUrl, byName[row.Name].BaseURL())
-			if row.Type == database.AIProviderTypeBedrock {
-				require.Equal(t, aibridge.ProviderAnthropic, byName[row.Name].Type())
-			} else {
-				require.EqualValues(t, row.Type, byName[row.Name].Type())
-			}
+			require.EqualValues(t, row.Type, byName[row.Name].Type())
 			if row.Type != database.AIProviderTypeCopilot && row.Type != database.AIProviderTypeBedrock {
 				require.Len(t, byName[row.Name].KeyPool().PoolState(), 1)
 			} else {
