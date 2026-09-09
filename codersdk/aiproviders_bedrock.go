@@ -61,6 +61,16 @@ type AIProviderBedrockSettings struct {
 	// AIProviderBedrockProtocolInvokeModel, so existing rows keep the legacy
 	// behavior.
 	Protocol AIProviderBedrockProtocol `json:"protocol,omitempty"`
+	// ResolvedModel and ResolvedSmallFastModel carry the model IDs behind the
+	// configured identifiers, which differ from them only for application
+	// inference profile ARNs. coderd resolves those when the provider is
+	// written and stores them in ai_provider_bedrock_resolved_models.
+	//
+	// They are in-process plumbing for the gateway, not part of this type's
+	// wire form: the API neither accepts nor returns them, and they are never
+	// stored in the settings blob.
+	ResolvedModel          string `json:"-"`
+	ResolvedSmallFastModel string `json:"-"`
 }
 
 // ResolvedProtocol returns the configured protocol, mapping the empty value to

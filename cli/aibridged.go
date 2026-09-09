@@ -216,9 +216,9 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 		bedrock.RoleARN = b.GetRoleArn()
 		bedrock.ExternalID = b.GetExternalId()
 		bedrock.Protocol = codersdk.AIProviderBedrockProtocol(b.GetProtocol())
+		bedrock.ResolvedModel = b.GetResolvedModel()
+		bedrock.ResolvedSmallFastModel = b.GetResolvedSmallFastModel()
 		spec.Bedrock = new(bedrock)
-		spec.BedrockResolvedModel = b.GetResolvedModel()
-		spec.BedrockResolvedSmallFastModel = b.GetResolvedSmallFastModel()
 	}
 	return spec
 }
@@ -237,12 +237,6 @@ type aiProviderSpec struct {
 	// Bedrock holds Bedrock-specific settings when the provider targets
 	// AWS Bedrock; nil otherwise.
 	Bedrock *codersdk.AIProviderBedrockSettings
-	// BedrockResolvedModel and BedrockResolvedSmallFastModel are the models the
-	// configured identifiers refer to. They are set only when an identifier is
-	// an application inference profile ARN, which coderd resolved when the
-	// provider was written.
-	BedrockResolvedModel          string
-	BedrockResolvedSmallFastModel string
 }
 
 // buildProvider constructs the appropriate [aibridge.Provider] for a
@@ -291,10 +285,6 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 
 	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
 		bedrock := bedrockConfig(spec.BaseURL, spec.Bedrock)
-		if bedrock != nil {
-			bedrock.ResolvedModel = spec.BedrockResolvedModel
-			bedrock.ResolvedSmallFastModel = spec.BedrockResolvedSmallFastModel
-		}
 		// A spec typed 'bedrock' authenticates exclusively via settings;
 		// without populated Bedrock credentials it cannot make upstream
 		// calls, so refuse rather than falling back to an unsigned

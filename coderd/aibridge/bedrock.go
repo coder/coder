@@ -25,14 +25,16 @@ func BedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) 
 		return nil
 	}
 	return &aibridgeconfig.AWSBedrock{
-		BaseURL:         baseURL,
-		Region:          settings.Region,
-		AccessKey:       ptr.NilToEmpty(settings.AccessKey),
-		AccessKeySecret: ptr.NilToEmpty(settings.AccessKeySecret),
-		Model:           settings.Model,
-		SmallFastModel:  settings.SmallFastModel,
-		RoleARN:         settings.RoleARN,
-		ExternalID:      settings.ExternalID,
-		Protocol:        aibridgeconfig.BedrockProtocol(settings.ResolvedProtocol()),
+		BaseURL:                baseURL,
+		Region:                 settings.Region,
+		AccessKey:              ptr.NilToEmpty(settings.AccessKey),
+		AccessKeySecret:        ptr.NilToEmpty(settings.AccessKeySecret),
+		Model:                  settings.Model,
+		SmallFastModel:         settings.SmallFastModel,
+		RoleARN:                settings.RoleARN,
+		ExternalID:             settings.ExternalID,
+		Protocol:               aibridgeconfig.BedrockProtocol(settings.ResolvedProtocol()),
+		ResolvedModel:          settings.ResolvedModel,
+		ResolvedSmallFastModel: settings.ResolvedSmallFastModel,
 	}
 }
