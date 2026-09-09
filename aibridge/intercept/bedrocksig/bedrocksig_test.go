@@ -91,14 +91,15 @@ func TestSignMiddlewareStripsUnsafeHeaders(t *testing.T) {
 	req.Header.Set("session_id", "01a08608-1a93-760c-98f6-d79765c14f0b")
 	req.Header.Set("X-Client-Request-Id", "01a08608-1a93-760c-98f6-d79765c14f0b")
 
-	mw := bedrocksig.SignMiddleware(testCreds, "us-east-1")
+	mw := bedrocksig.SignMiddleware(testCreds, "us-east-1") //nolint:bodyclose // SignMiddleware returns a middleware func, not a response; the actual response is closed by the caller in production and is a static http.NoBody here.
 
 	var gotReq *http.Request
-	_, err := mw(req, func(r *http.Request) (*http.Response, error) {
+	resp, err := mw(req, func(r *http.Request) (*http.Response, error) { //nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
 		gotReq = r
 		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 	})
 	require.NoError(t, err)
+	require.NotNil(t, resp)
 	require.NotNil(t, gotReq)
 
 	assert.Empty(t, gotReq.Header.Get("session_id"),
