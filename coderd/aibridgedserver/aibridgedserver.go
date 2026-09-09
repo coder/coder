@@ -100,6 +100,7 @@ type store interface {
 	// any in-flight env seed holding LockIDAIProvidersEnvSeed.
 	GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error)
 	GetAIProviderKeysByProviderIDs(ctx context.Context, providerIDs []uuid.UUID) ([]database.AIProviderKey, error)
+	GetAIProviderBedrockResolvedModelsByProviderIDs(ctx context.Context, aiProviderIDs []uuid.UUID) ([]database.AIProviderBedrockResolvedModel, error)
 
 	InTx(func(database.Store) error, *database.TxOptions) error
 }
@@ -955,8 +956,9 @@ func (s *Server) GetAIProviders(ctx context.Context, _ *proto.GetAIProvidersRequ
 	ctx = dbauthz.AsAIBridged(ctx)
 
 	var (
-		rows           []database.AIProvider
-		keysByProvider map[uuid.UUID][]database.AIProviderKey
+		rows               []database.AIProvider
+		keysByProvider     map[uuid.UUID][]database.AIProviderKey
+		resolvedByProvider map[uuid.UUID]database.AIProviderBedrockResolvedModel
 	)
 	// Wrap both reads in a read-only transaction so the provider list and the
 	// key list are consistent with each other, and so the seed lock is held
@@ -994,6 +996,19 @@ func (s *Server) GetAIProviders(ctx context.Context, _ *proto.GetAIProvidersRequ
 		for _, k := range keyRows {
 			keysByProvider[k.ProviderID] = append(keysByProvider[k.ProviderID], k)
 		}
+
+		// Bedrock application inference profile ARNs are opaque, so the models
+		// they refer to are resolved when the provider is written and read back
+		// here. A provider without a mapping either configures plain model IDs
+		// or could not be resolved.
+		resolvedRows, err := tx.GetAIProviderBedrockResolvedModelsByProviderIDs(ctx, ids)
+		if err != nil {
+			return xerrors.Errorf("get ai provider resolved models: %w", err)
+		}
+		resolvedByProvider = make(map[uuid.UUID]database.AIProviderBedrockResolvedModel, len(resolvedRows))
+		for _, r := range resolvedRows {
+			resolvedByProvider[r.AIProviderID] = r
+		}
 		return nil
 	}, &database.TxOptions{ReadOnly: true, TxIdentifier: "get_ai_providers"})
 	if err != nil {
@@ -1002,7 +1017,7 @@ func (s *Server) GetAIProviders(ctx context.Context, _ *proto.GetAIProvidersRequ
 
 	providers := make([]*proto.AIProvider, 0, len(rows))
 	for _, row := range rows {
-		p, err := aiProviderToProto(row, keysByProvider[row.ID])
+		p, err := aiProviderToProto(row, keysByProvider[row.ID], resolvedByProvider[row.ID])
 		if err != nil {
 			// Skip the offending row rather than failing the whole fetch:
 			// one row with a corrupt settings blob must not break provider
@@ -1180,7 +1195,11 @@ func parseOptionalInt32(n *int32) sql.NullInt32 {
 // providers) to the proto representation served to AI Gateway daemons. Keys and
 // Bedrock settings are only attached for enabled providers; disabled providers
 // never call upstream so their secrets are withheld.
-func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (*proto.AIProvider, error) {
+//
+// resolved carries the models the provider's application inference profile ARNs
+// refer to, and is the zero value when the provider configures plain model IDs
+// or when its profiles have not been resolved.
+func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey, resolved database.AIProviderBedrockResolvedModel) (*proto.AIProvider, error) {
 	p := &proto.AIProvider{
 		Name:    row.Name,
 		Type:    string(row.Type),
@@ -1213,8 +1232,8 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 			RoleArn:                settings.Bedrock.RoleARN,
 			ExternalId:             settings.Bedrock.ExternalID,
 			Protocol:               string(settings.Bedrock.Protocol),
-			ResolvedModel:          settings.Bedrock.ResolvedModel,
-			ResolvedSmallFastModel: settings.Bedrock.ResolvedSmallFastModel,
+			ResolvedModel:          resolved.ResolvedModel,
+			ResolvedSmallFastModel: resolved.ResolvedSmallFastModel,
 		}
 	}
 

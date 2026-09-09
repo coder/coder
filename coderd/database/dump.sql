@@ -1603,6 +1603,16 @@ COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to
 
 COMMENT ON COLUMN ai_model_prices.source IS 'Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.';
 
+CREATE TABLE ai_provider_bedrock_resolved_models (
+    ai_provider_id uuid NOT NULL,
+    resolved_model text NOT NULL,
+    resolved_small_fast_model text NOT NULL
+);
+
+COMMENT ON COLUMN ai_provider_bedrock_resolved_models.resolved_model IS 'The model ID behind the provider''s configured model identifier. Equal to the configured value when that value is already a model ID.';
+
+COMMENT ON COLUMN ai_provider_bedrock_resolved_models.resolved_small_fast_model IS 'resolved_model for the provider''s configured small/fast model identifier.';
+
 CREATE TABLE ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     provider_id uuid NOT NULL,
@@ -4372,6 +4382,9 @@ ALTER TABLE ONLY ai_gateway_keys
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
 
+ALTER TABLE ONLY ai_provider_bedrock_resolved_models
+    ADD CONSTRAINT ai_provider_bedrock_resolved_models_pkey PRIMARY KEY (ai_provider_id);
+
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);
 
@@ -5253,6 +5266,9 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_provider_bedrock_resolved_models
+    ADD CONSTRAINT ai_provider_bedrock_resolved_models_ai_provider_id_fkey FOREIGN KEY (ai_provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

@@ -553,6 +553,18 @@ func (q *sqlQuerier) UpdateEncryptedAIProviderKey(ctx context.Context, arg Updat
 	return i, err
 }
 
+const deleteAIProviderBedrockResolvedModels = `-- name: DeleteAIProviderBedrockResolvedModels :exec
+DELETE FROM
+    ai_provider_bedrock_resolved_models
+WHERE
+    ai_provider_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteAIProviderBedrockResolvedModels(ctx context.Context, aiProviderID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAIProviderBedrockResolvedModels, aiProviderID)
+	return err
+}
+
 const deleteAIProviderByID = `-- name: DeleteAIProviderByID :exec
 UPDATE
     ai_providers
@@ -567,6 +579,38 @@ WHERE
 func (q *sqlQuerier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteAIProviderByID, id)
 	return err
+}
+
+const getAIProviderBedrockResolvedModelsByProviderIDs = `-- name: GetAIProviderBedrockResolvedModelsByProviderIDs :many
+SELECT
+    ai_provider_id, resolved_model, resolved_small_fast_model
+FROM
+    ai_provider_bedrock_resolved_models
+WHERE
+    ai_provider_id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) GetAIProviderBedrockResolvedModelsByProviderIDs(ctx context.Context, aiProviderIds []uuid.UUID) ([]AIProviderBedrockResolvedModel, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderBedrockResolvedModelsByProviderIDs, pq.Array(aiProviderIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIProviderBedrockResolvedModel
+	for rows.Next() {
+		var i AIProviderBedrockResolvedModel
+		if err := rows.Scan(&i.AIProviderID, &i.ResolvedModel, &i.ResolvedSmallFastModel); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getAIProviderByID = `-- name: GetAIProviderByID :one
@@ -882,6 +926,30 @@ func (q *sqlQuerier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg 
 		&i.Icon,
 	)
 	return i, err
+}
+
+const upsertAIProviderBedrockResolvedModels = `-- name: UpsertAIProviderBedrockResolvedModels :exec
+INSERT INTO
+    ai_provider_bedrock_resolved_models (ai_provider_id, resolved_model, resolved_small_fast_model)
+VALUES
+    ($1::uuid, $2::text, $3::text)
+ON CONFLICT (ai_provider_id) DO UPDATE SET
+    resolved_model = $2::text,
+    resolved_small_fast_model = $3::text
+`
+
+type UpsertAIProviderBedrockResolvedModelsParams struct {
+	AIProviderID           uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
+	ResolvedModel          string    `db:"resolved_model" json:"resolved_model"`
+	ResolvedSmallFastModel string    `db:"resolved_small_fast_model" json:"resolved_small_fast_model"`
+}
+
+// Records the models an application inference profile ARN resolves to. The
+// provider write path resolves the ARN through the Bedrock control plane and
+// stores the answer here, so the gateway never has to.
+func (q *sqlQuerier) UpsertAIProviderBedrockResolvedModels(ctx context.Context, arg UpsertAIProviderBedrockResolvedModelsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAIProviderBedrockResolvedModels, arg.AIProviderID, arg.ResolvedModel, arg.ResolvedSmallFastModel)
+	return err
 }
 
 const calculateAIBridgeInterceptionsTelemetrySummary = `-- name: CalculateAIBridgeInterceptionsTelemetrySummary :one

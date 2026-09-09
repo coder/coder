@@ -1,0 +1,1 @@
+DROP TABLE ai_provider_bedrock_resolved_models;

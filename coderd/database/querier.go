@@ -117,6 +117,7 @@ type sqlcQuerier interface {
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
 	DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error)
+	DeleteAIProviderBedrockResolvedModels(ctx context.Context, aiProviderID uuid.UUID) error
 	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
@@ -340,6 +341,7 @@ type sqlcQuerier interface {
 	// each source forms its own group and nothing collapses. Every other source
 	// contributes the same constant, leaving the key as (provider, model).
 	GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error)
+	GetAIProviderBedrockResolvedModelsByProviderIDs(ctx context.Context, aiProviderIds []uuid.UUID) ([]AIProviderBedrockResolvedModel, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	// Lock the provider row until the model-config write completes. The
 	// transaction alone does not stop a concurrent soft-delete or disable
@@ -1667,6 +1669,10 @@ type sqlcQuerier interface {
 	// differs, so updated_at records when a price last changed. Prices are
 	// nullable and a NULL on either side counts as a difference.
 	UpsertAIModelPrices(ctx context.Context, arg UpsertAIModelPricesParams) error
+	// Records the models an application inference profile ARN resolves to. The
+	// provider write path resolves the ARN through the Bedrock control plane and
+	// stores the answer here, so the gateway never has to.
+	UpsertAIProviderBedrockResolvedModels(ctx context.Context, arg UpsertAIProviderBedrockResolvedModelsParams) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)
 	UpsertAnnouncementBanners(ctx context.Context, value string) error

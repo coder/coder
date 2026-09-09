@@ -293,7 +293,6 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 				Detail: "external_id is server-generated and cannot be set",
 			})
 		}
-		validations = append(validations, validateAIProviderBedrockResolvedModelsUnset(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
 	}
@@ -424,26 +423,6 @@ func validateAIProviderBedrockModels(b AIProviderBedrockSettings) []ValidationEr
 		validations = append(validations, ValidationError{
 			Field:  "settings.small_fast_model",
 			Detail: "small_fast_model is required for the invoke-model protocol",
-		})
-	}
-	return validations
-}
-
-// validateAIProviderBedrockResolvedModelsUnset rejects client-supplied resolved
-// model identifiers on create. The server resolves them through AWS and owns
-// the values, the same way it owns the STS external ID.
-func validateAIProviderBedrockResolvedModelsUnset(b AIProviderBedrockSettings) []ValidationError {
-	var validations []ValidationError
-	if b.ResolvedModel != "" {
-		validations = append(validations, ValidationError{
-			Field:  "settings.resolved_model",
-			Detail: "resolved_model is server-resolved and cannot be set",
-		})
-	}
-	if b.ResolvedSmallFastModel != "" {
-		validations = append(validations, ValidationError{
-			Field:  "settings.resolved_small_fast_model",
-			Detail: "resolved_small_fast_model is server-resolved and cannot be set",
 		})
 	}
 	return validations

@@ -2,10 +2,9 @@ package coderd
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"net/http"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -17,9 +16,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// bedrockProfileUnresolvableError marks a failed Bedrock inference profile lookup
-// so the write path reports it as a client-visible validation failure rather
-// than an internal error.
+// bedrockProfileUnresolvableError marks a failed Bedrock inference profile
+// lookup so the write path reports it as a client-visible validation failure
+// rather than an internal error.
 type bedrockProfileUnresolvableError struct{ err error }
 
 func (e bedrockProfileUnresolvableError) Error() string {
@@ -28,15 +27,23 @@ func (e bedrockProfileUnresolvableError) Error() string {
 
 func (e bedrockProfileUnresolvableError) Unwrap() error { return e.err }
 
-// resolveBedrockModels fills in the server-owned resolved identifiers on
-// settings. Only application inference profile ARNs are opaque, so only they
-// cost an AWS call; every other identifier resolves to itself and is stored
-// unresolved.
+// resolveBedrockModels records which models the provider's application
+// inference profile ARNs refer to. An ARN identifies a billing wrapper rather
+// than a model, so the gateway needs the mapping to detect capabilities, price
+// usage, and record interceptions.
 //
-// Resolution runs here, where the provider is written, so the gateway never
-// calls the Bedrock control plane: not at startup, not on reload, and not on a
-// request.
-func resolveBedrockModels(ctx context.Context, settings *codersdk.AIProviderSettings) error {
+// Resolution is an AWS call, so it runs after the provider write has committed
+// rather than holding a database transaction open across the network. It reads
+// the stored row because that is the merged configuration the provider will
+// actually use.
+//
+// Nothing is stored for a provider configured with plain model IDs: they are
+// already model identities and need no mapping.
+func (api *API) resolveBedrockModels(ctx context.Context, row database.AIProvider) error {
+	settings, err := db2sdk.AIProviderSettings(row.Settings)
+	if err != nil {
+		return xerrors.Errorf("decode settings: %w", err)
+	}
 	cfg := agplaibridge.BedrockConfig("", settings.Bedrock)
 	if cfg == nil {
 		return nil
@@ -46,71 +53,39 @@ func resolveBedrockModels(ctx context.Context, settings *codersdk.AIProviderSett
 	if err != nil {
 		return bedrockProfileUnresolvableError{err: err}
 	}
-
-	settings.Bedrock.ResolvedModel = ""
-	if model != settings.Bedrock.Model {
-		settings.Bedrock.ResolvedModel = model
+	if model == cfg.Model && smallFastModel == cfg.SmallFastModel {
+		return nil
 	}
-	settings.Bedrock.ResolvedSmallFastModel = ""
-	if smallFastModel != settings.Bedrock.SmallFastModel {
-		settings.Bedrock.ResolvedSmallFastModel = smallFastModel
+
+	err = api.Database.UpsertAIProviderBedrockResolvedModels(ctx, database.UpsertAIProviderBedrockResolvedModelsParams{
+		AIProviderID:           row.ID,
+		ResolvedModel:          model,
+		ResolvedSmallFastModel: smallFastModel,
+	})
+	if err != nil {
+		return xerrors.Errorf("store resolved models: %w", err)
 	}
 	return nil
 }
 
-// applyBedrockResolution resolves the inference profile ARNs of a provider that
-// was just written and stores the result on it. Resolution is an AWS call, so
-// it runs after the write transaction has committed rather than holding a
-// database connection open across the network.
-//
-// The provider row is the merged settings the operator will actually use, which
-// is why resolution reads it back instead of the request.
-func (api *API) applyBedrockResolution(ctx context.Context, row database.AIProvider) (database.AIProvider, error) {
-	settings, err := db2sdk.AIProviderSettings(row.Settings)
-	if err != nil {
-		return row, xerrors.Errorf("decode settings: %w", err)
+// clearBedrockModelResolution drops a provider's stored resolution. The write
+// path calls it whenever the configured identifiers may have changed, so a
+// stale mapping never outlives the ARN it describes. The provider is then
+// unresolved until resolution succeeds, and the gateway will not serve it.
+func clearBedrockModelResolution(ctx context.Context, db database.Store, providerID uuid.UUID) error {
+	if err := db.DeleteAIProviderBedrockResolvedModels(ctx, providerID); err != nil {
+		return xerrors.Errorf("clear resolved models: %w", err)
 	}
-	if settings.Bedrock == nil {
-		return row, nil
-	}
-
-	stored := *settings.Bedrock
-	if err := resolveBedrockModels(ctx, &settings); err != nil {
-		return row, err
-	}
-	if settings.Bedrock.ResolvedModel == stored.ResolvedModel &&
-		settings.Bedrock.ResolvedSmallFastModel == stored.ResolvedSmallFastModel {
-		return row, nil
-	}
-
-	encoded, err := encodeAIProviderSettings(settings)
-	if err != nil {
-		return row, xerrors.Errorf("encode settings: %w", err)
-	}
-	updated, err := api.Database.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
-		ID:          row.ID,
-		Type:        row.Type,
-		DisplayName: row.DisplayName,
-		Icon:        row.Icon,
-		Enabled:     row.Enabled,
-		BaseUrl:     row.BaseUrl,
-		Settings:    encoded,
-		// SettingsKeyID is set by the dbcrypt wrapper.
-		SettingsKeyID: sql.NullString{},
-	})
-	if err != nil {
-		return row, xerrors.Errorf("store resolved models: %w", err)
-	}
-	return updated, nil
+	return nil
 }
 
 // writeAIProviderResolutionError reports a failed Bedrock model resolution. The
 // provider keeps the identifiers the operator asked for, but without a
 // resolution the gateway cannot tell what an opaque profile ARN refers to, so
-// it refuses to serve the provider until the write succeeds.
+// it refuses to serve the provider until a later save resolves it.
 func (api *API) writeAIProviderResolutionError(ctx context.Context, rw http.ResponseWriter, err error) {
 	var unresolvable bedrockProfileUnresolvableError
-	if !errors.As(err, &unresolvable) {
+	if !xerrors.As(err, &unresolvable) {
 		writeAIProviderError(ctx, api.Logger, rw, err, "resolve bedrock inference profile", "Internal error resolving the Bedrock application inference profile.")
 		return
 	}

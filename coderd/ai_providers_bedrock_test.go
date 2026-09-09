@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -8,9 +9,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -64,6 +68,14 @@ func respondWithModel(modelARN string) http.HandlerFunc {
 	}
 }
 
+func resolvedModels(ctx context.Context, t *testing.T, db database.Store, providerID uuid.UUID) []database.AIProviderBedrockResolvedModel {
+	t.Helper()
+
+	rows, err := db.GetAIProviderBedrockResolvedModelsByProviderIDs(ctx, []uuid.UUID{providerID})
+	require.NoError(t, err)
+	return rows
+}
+
 // TestAIProvidersBedrockProfileResolution drives provider writes against a mock
 // Bedrock control plane, so the AWS SDK path runs for real.
 // NOTE: no t.Parallel() because the subtests use t.Setenv.
@@ -78,7 +90,8 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		client := coderdtest.New(t, nil)
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -96,9 +109,12 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		// invocation target, and AWS attributes spend to them.
 		require.Equal(t, testProfileARN, created.Settings.Bedrock.Model)
 		require.Equal(t, testSmallFastProfileARN, created.Settings.Bedrock.SmallFastModel)
-		require.Equal(t, "anthropic.claude-opus-4-8", created.Settings.Bedrock.ResolvedModel)
-		require.Equal(t, "anthropic.claude-haiku-4-5", created.Settings.Bedrock.ResolvedSmallFastModel)
 		require.Len(t, paths(), 2, "each profile is resolved once")
+
+		rows := resolvedModels(ctx, t, db, created.ID)
+		require.Len(t, rows, 1)
+		require.Equal(t, "anthropic.claude-opus-4-8", rows[0].ResolvedModel)
+		require.Equal(t, "anthropic.claude-haiku-4-5", rows[0].ResolvedSmallFastModel)
 	})
 
 	t.Run("CreateLeavesPlainModelIDsUnresolved", func(t *testing.T) {
@@ -107,7 +123,8 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		client := coderdtest.New(t, nil)
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -120,10 +137,8 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 			Settings: *bedrockSettings("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"),
 		})
 		require.NoError(t, err)
-		require.NotNil(t, created.Settings.Bedrock)
-		require.Empty(t, created.Settings.Bedrock.ResolvedModel)
-		require.Empty(t, created.Settings.Bedrock.ResolvedSmallFastModel)
 		require.Empty(t, paths())
+		require.Empty(t, resolvedModels(ctx, t, db, created.ID), "plain model ids are already model identities")
 	})
 
 	t.Run("CreateRejectsUnresolvableProfile", func(t *testing.T) {
@@ -135,7 +150,8 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		client := coderdtest.New(t, nil)
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -158,42 +174,15 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		providers, err := client.AIProviders(ctx)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
-		require.Empty(t, providers[0].Settings.Bedrock.ResolvedModel)
-	})
-
-	t.Run("CreateRejectsClientSuppliedResolution", func(t *testing.T) {
-		url, paths := mockBedrock(t, func(http.ResponseWriter, *http.Request) {
-			t.Error("Bedrock called for a rejected request")
-		})
-		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
-
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		settings := bedrockSettings("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5")
-		settings.Bedrock.ResolvedModel = "anthropic.claude-opus-4-8"
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Name:     "bedrock-spoofed",
-			Type:     codersdk.AIProviderTypeBedrock,
-			BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
-			Enabled:  true,
-			Settings: *settings,
-		})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Error(), "resolved_model")
-		require.Empty(t, paths(), "validation rejects the write before any AWS call")
+		require.Empty(t, resolvedModels(ctx, t, db, providers[0].ID))
 	})
 
 	t.Run("UpdateReresolvesChangedProfile", func(t *testing.T) {
 		url, _ := mockBedrock(t, respondWithModel("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8"))
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		client := coderdtest.New(t, nil)
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -206,7 +195,7 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 			Settings: *bedrockSettings("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"),
 		})
 		require.NoError(t, err)
-		require.Empty(t, created.Settings.Bedrock.ResolvedModel)
+		require.Empty(t, resolvedModels(ctx, t, db, created.ID))
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		updated, err := client.UpdateAIProvider(ctx, created.ID.String(), codersdk.UpdateAIProviderRequest{
@@ -214,15 +203,20 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, testProfileARN, updated.Settings.Bedrock.Model)
-		require.Equal(t, "anthropic.claude-opus-4-8", updated.Settings.Bedrock.ResolvedModel)
-		require.Empty(t, updated.Settings.Bedrock.ResolvedSmallFastModel)
+
+		rows := resolvedModels(ctx, t, db, created.ID)
+		require.Len(t, rows, 1)
+		require.Equal(t, "anthropic.claude-opus-4-8", rows[0].ResolvedModel)
+		// The small/fast model is a plain ID, so it resolves to itself.
+		require.Equal(t, "anthropic.claude-haiku-4-5", rows[0].ResolvedSmallFastModel)
 	})
 
 	t.Run("UpdateClearsResolutionWhenProfileReplacedByModelID", func(t *testing.T) {
 		url, paths := mockBedrock(t, respondWithModel("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8"))
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		client := coderdtest.New(t, nil)
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -235,23 +229,24 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 			Settings: *bedrockSettings(testProfileARN, "anthropic.claude-haiku-4-5"),
 		})
 		require.NoError(t, err)
-		require.Equal(t, "anthropic.claude-opus-4-8", created.Settings.Bedrock.ResolvedModel)
+		require.Len(t, resolvedModels(ctx, t, db, created.ID), 1)
 		callsAfterCreate := len(paths())
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
-		updated, err := client.UpdateAIProvider(ctx, created.ID.String(), codersdk.UpdateAIProviderRequest{
+		_, err = client.UpdateAIProvider(ctx, created.ID.String(), codersdk.UpdateAIProviderRequest{
 			Settings: bedrockSettings("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"),
 		})
 		require.NoError(t, err)
-		require.Empty(t, updated.Settings.Bedrock.ResolvedModel, "a plain model id resolves to itself")
+		require.Empty(t, resolvedModels(ctx, t, db, created.ID), "a plain model id needs no mapping")
 		require.Len(t, paths(), callsAfterCreate, "no profile is left to resolve")
 	})
 
-	t.Run("UpdateWithoutSettingsSkipsResolution", func(t *testing.T) {
+	t.Run("UpdateWithoutSettingsKeepsResolution", func(t *testing.T) {
 		url, paths := mockBedrock(t, respondWithModel("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8"))
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		client := coderdtest.New(t, nil)
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -268,11 +263,41 @@ func TestAIProvidersBedrockProfileResolution(t *testing.T) {
 
 		enabled := false
 		//nolint:gocritic // Owner role is the audience for this endpoint.
-		updated, err := client.UpdateAIProvider(ctx, created.ID.String(), codersdk.UpdateAIProviderRequest{
+		_, err = client.UpdateAIProvider(ctx, created.ID.String(), codersdk.UpdateAIProviderRequest{
 			Enabled: &enabled,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "anthropic.claude-opus-4-8", updated.Settings.Bedrock.ResolvedModel)
+
+		rows := resolvedModels(ctx, t, db, created.ID)
+		require.Len(t, rows, 1)
+		require.Equal(t, "anthropic.claude-opus-4-8", rows[0].ResolvedModel)
 		require.Len(t, paths(), callsAfterCreate, "an unrelated update does not call AWS")
+	})
+
+	t.Run("DeleteClearsResolution", func(t *testing.T) {
+		url, _ := mockBedrock(t, respondWithModel("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8"))
+		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
+
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Name:     "bedrock-delete",
+			Type:     codersdk.AIProviderTypeBedrock,
+			BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Enabled:  true,
+			Settings: *bedrockSettings(testProfileARN, "anthropic.claude-haiku-4-5"),
+		})
+		require.NoError(t, err)
+		require.Len(t, resolvedModels(ctx, t, db, created.ID), 1)
+
+		// Providers are soft-deleted, so the mapping has to be removed
+		// explicitly rather than by the foreign key.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		require.NoError(t, client.DeleteAIProvider(ctx, created.ID.String()))
+		require.Empty(t, resolvedModels(ctx, t, db, created.ID))
 	})
 }

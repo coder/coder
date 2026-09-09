@@ -106,3 +106,29 @@ WHERE
     id = @id::uuid
 RETURNING
     *;
+
+-- name: UpsertAIProviderBedrockResolvedModels :exec
+-- Records the models an application inference profile ARN resolves to. The
+-- provider write path resolves the ARN through the Bedrock control plane and
+-- stores the answer here, so the gateway never has to.
+INSERT INTO
+    ai_provider_bedrock_resolved_models (ai_provider_id, resolved_model, resolved_small_fast_model)
+VALUES
+    (@ai_provider_id::uuid, @resolved_model::text, @resolved_small_fast_model::text)
+ON CONFLICT (ai_provider_id) DO UPDATE SET
+    resolved_model = @resolved_model::text,
+    resolved_small_fast_model = @resolved_small_fast_model::text;
+
+-- name: DeleteAIProviderBedrockResolvedModels :exec
+DELETE FROM
+    ai_provider_bedrock_resolved_models
+WHERE
+    ai_provider_id = @ai_provider_id::uuid;
+
+-- name: GetAIProviderBedrockResolvedModelsByProviderIDs :many
+SELECT
+    *
+FROM
+    ai_provider_bedrock_resolved_models
+WHERE
+    ai_provider_id = ANY(@ai_provider_ids::uuid[]);

@@ -676,6 +676,20 @@ func (mr *MockStoreMockRecorder) DeleteAIGatewayKey(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIGatewayKey", reflect.TypeOf((*MockStore)(nil).DeleteAIGatewayKey), ctx, id)
 }
 
+// DeleteAIProviderBedrockResolvedModels mocks base method.
+func (m *MockStore) DeleteAIProviderBedrockResolvedModels(ctx context.Context, aiProviderID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAIProviderBedrockResolvedModels", ctx, aiProviderID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAIProviderBedrockResolvedModels indicates an expected call of DeleteAIProviderBedrockResolvedModels.
+func (mr *MockStoreMockRecorder) DeleteAIProviderBedrockResolvedModels(ctx, aiProviderID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIProviderBedrockResolvedModels", reflect.TypeOf((*MockStore)(nil).DeleteAIProviderBedrockResolvedModels), ctx, aiProviderID)
+}
+
 // DeleteAIProviderByID mocks base method.
 func (m *MockStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -2066,6 +2080,21 @@ func (m *MockStore) GetAIModelPrices(ctx context.Context, arg database.GetAIMode
 func (mr *MockStoreMockRecorder) GetAIModelPrices(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPrices", reflect.TypeOf((*MockStore)(nil).GetAIModelPrices), ctx, arg)
+}
+
+// GetAIProviderBedrockResolvedModelsByProviderIDs mocks base method.
+func (m *MockStore) GetAIProviderBedrockResolvedModelsByProviderIDs(ctx context.Context, aiProviderIds []uuid.UUID) ([]database.AIProviderBedrockResolvedModel, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderBedrockResolvedModelsByProviderIDs", ctx, aiProviderIds)
+	ret0, _ := ret[0].([]database.AIProviderBedrockResolvedModel)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderBedrockResolvedModelsByProviderIDs indicates an expected call of GetAIProviderBedrockResolvedModelsByProviderIDs.
+func (mr *MockStoreMockRecorder) GetAIProviderBedrockResolvedModelsByProviderIDs(ctx, aiProviderIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderBedrockResolvedModelsByProviderIDs", reflect.TypeOf((*MockStore)(nil).GetAIProviderBedrockResolvedModelsByProviderIDs), ctx, aiProviderIds)
 }
 
 // GetAIProviderByID mocks base method.
@@ -11906,6 +11935,20 @@ func (m *MockStore) UpsertAIModelPrices(ctx context.Context, arg database.Upsert
 func (mr *MockStoreMockRecorder) UpsertAIModelPrices(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAIModelPrices", reflect.TypeOf((*MockStore)(nil).UpsertAIModelPrices), ctx, arg)
+}
+
+// UpsertAIProviderBedrockResolvedModels mocks base method.
+func (m *MockStore) UpsertAIProviderBedrockResolvedModels(ctx context.Context, arg database.UpsertAIProviderBedrockResolvedModelsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAIProviderBedrockResolvedModels", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertAIProviderBedrockResolvedModels indicates an expected call of UpsertAIProviderBedrockResolvedModels.
+func (mr *MockStoreMockRecorder) UpsertAIProviderBedrockResolvedModels(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAIProviderBedrockResolvedModels", reflect.TypeOf((*MockStore)(nil).UpsertAIProviderBedrockResolvedModels), ctx, arg)
 }
 
 // UpsertAISeatState mocks base method.
