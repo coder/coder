@@ -116,15 +116,16 @@ func (*Bedrock) PassthroughRoutes() []string {
 	}
 }
 
-func (p *Bedrock) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {
+func (p *Bedrock) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tracer trace.Tracer) (intr intercept.Interceptor, outErr error) {
 	id := uuid.New()
 	_, span := tracer.Start(r.Context(), "Intercept.CreateInterceptor")
 	defer tracing.EndSpanErr(span, &outErr)
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
+
 	switch path {
 	case routeMessages:
-		return p.createMessagesInterceptor(id, r, tracer, span)
+		intr, outErr = p.createMessagesInterceptor(id, r, tracer)
 	case routeBedrockChatCompletions:
 		// The OpenAI routes only make sense for mantle. InvokeModel keeps
 		// messages-only behavior through this guard rather than BridgedRoutes,
@@ -135,23 +136,31 @@ func (p *Bedrock) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 			span.SetStatus(codes.Error, "unknown route: "+r.URL.Path)
 			return nil, ErrUnknownRoute
 		}
-		return p.createChatCompletionsInterceptor(id, r, tracer, span)
+		intr, outErr = p.createChatCompletionsInterceptor(id, r, tracer)
 	case routeBedrockResponses:
 		if p.runtime.Cfg.ResolvedProtocol() != config.BedrockProtocolMantle {
 			span.SetStatus(codes.Error, "unknown route: "+r.URL.Path)
 			return nil, ErrUnknownRoute
 		}
-		return p.createResponsesInterceptor(id, r, tracer, span)
+		intr, outErr = p.createResponsesInterceptor(id, r, tracer)
 	default:
 		span.SetStatus(codes.Error, "unknown route: "+r.URL.Path)
 		return nil, ErrUnknownRoute
 	}
+
+	if outErr != nil {
+		span.SetStatus(codes.Error, outErr.Error())
+	} else {
+		span.SetAttributes(intr.TraceAttributes(r)...)
+	}
+
+	return intr, outErr
 }
 
 // createMessagesInterceptor builds a messages interceptor wired to the full
 // Bedrock runtime. The runtime carries the InvokeModel remap config and the
 // SigV4 signing credentials.
-func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, tracer trace.Tracer, span trace.Span) (intercept.Interceptor, error) {
+func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, tracer trace.Tracer) (intercept.Interceptor, error) {
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read body: %w", err)
@@ -170,7 +179,6 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 	}
 	cred, err := p.resolveCredential(r)
 	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
 
@@ -180,7 +188,6 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 	} else {
 		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, &p.runtime, r.Header, tracer)
 	}
-	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
 }
 
@@ -188,7 +195,7 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 // to the Bedrock mantle runtime. It mirrors the OpenAI provider's dispatch:
 // decode ChatCompletionNewParamsWrapper from r.Body, then pick streaming vs
 // blocking. The bedrock runtime carries the SigV4 signing middleware.
-func (p *Bedrock) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request, tracer trace.Tracer, span trace.Span) (intercept.Interceptor, error) {
+func (p *Bedrock) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request, tracer trace.Tracer) (intercept.Interceptor, error) {
 	var req chatcompletions.ChatCompletionNewParamsWrapper
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
@@ -197,7 +204,6 @@ func (p *Bedrock) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request
 	cfg := p.bedrockInterceptConfig()
 	cred, err := p.resolveCredential(r)
 	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
 
@@ -207,7 +213,6 @@ func (p *Bedrock) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request
 	} else {
 		interceptor = chatcompletions.NewBedrockBlockingInterceptor(id, &req, cfg, cred, p.mantleConfig(), r.Header, tracer)
 	}
-	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
 }
 
@@ -215,7 +220,7 @@ func (p *Bedrock) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request
 // Bedrock mantle runtime. It mirrors the OpenAI provider's dispatch: read
 // r.Body then parse via responses.NewRequestPayload, then pick streaming vs
 // blocking.
-func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, tracer trace.Tracer, span trace.Span) (intercept.Interceptor, error) {
+func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, tracer trace.Tracer) (intercept.Interceptor, error) {
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read body: %w", err)
@@ -228,7 +233,6 @@ func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, trac
 	cfg := p.bedrockInterceptConfig()
 	cred, err := p.resolveCredential(r)
 	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
 
@@ -238,7 +242,6 @@ func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, trac
 	} else {
 		interceptor = responses.NewBedrockBlockingInterceptor(id, reqPayload, cfg, cred, p.mantleConfig(), r.Header, tracer)
 	}
-	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
 }
 

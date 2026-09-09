@@ -14,10 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
-	"github.com/coder/coder/v2/aibridge/internal/testutil"
 )
 
 // TestBuildBedrockCredentialsValidation covers the input validation that does
@@ -504,6 +502,7 @@ func TestBedrock_TypeAndName(t *testing.T) {
 		Model:           "m",
 		SmallFastModel:  "s",
 	})
+	assert.Equal(t, config.ProviderBedrock, p2.Type())
 	assert.Equal(t, "bedrock-custom", p2.Name())
 }
 
@@ -621,19 +620,12 @@ func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`{"id":"msg-123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"claude-opus-4-5","stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}`))
-			}))
-			t.Cleanup(mockUpstream.Close)
-
-			bcfg := config.AWSBedrock{Region: "us-west-2", Model: "m", SmallFastModel: "s", BaseURL: mockUpstream.URL}
+			bcfg := config.AWSBedrock{Region: "us-west-2", Model: "m", SmallFastModel: "s", BaseURL: "http://arbitrary.example"}
 			if tc.bedrockStatic {
 				bcfg.AccessKey = "AKIAIOSFODNN7EXAMPLE"
 				bcfg.AccessKeySecret = "wJalrXUtnFEMI-secret-value"
 			}
-			p := newTestBedrock(t, config.Anthropic{BaseURL: mockUpstream.URL}, bcfg)
+			p := newTestBedrock(t, config.Anthropic{BaseURL: "http://arbitrary.example"}, bcfg)
 
 			body := `{"model": "claude-opus-4-5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}], "stream": false}`
 			req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
@@ -654,10 +646,6 @@ func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
 			cred := interceptor.Credential()
 			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
 			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
-
-			// Bedrock signs via AWS during ProcessRequest (needs real AWS
-			// credentials), covered by the integration tests.
-			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
 		})
 	}
 }

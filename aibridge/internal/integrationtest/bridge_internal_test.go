@@ -458,14 +458,14 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				name:         "responses",
 				fixture:      fixtures.OaiResponsesBlockingSimple,
 				model:        "openai.gpt-5.6-luna",
-				requestPath:  "/anthropic/v1/responses",
+				requestPath:  "/bedrock/v1/responses",
 				upstreamPath: "/openai/v1/responses",
 			},
 			{
 				name:         "chat completions",
 				fixture:      fixtures.OaiChatSimple,
 				model:        "mistral.ministral-3-3b-instruct",
-				requestPath:  "/anthropic/v1/chat/completions",
+				requestPath:  "/bedrock/v1/chat/completions",
 				upstreamPath: "/v1/chat/completions",
 			},
 		}
@@ -483,12 +483,12 @@ func TestAWSBedrockIntegration(t *testing.T) {
 					Region:          "us-west-2",
 					AccessKey:       "test-access-key",
 					AccessKeySecret: "test-secret-key",
-					BaseURL:         upstream.URL + "/anthropic",
+					BaseURL:         upstream.URL,
 					Protocol:        config.BedrockProtocolMantle,
 				}
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
 					withCustomProvider(aibridgetest.NewBedrockProvider(t, config.Anthropic{
-						Name:    config.ProviderAnthropic,
+						Name:    config.ProviderBedrock,
 						BaseURL: upstream.URL,
 					}, bedrockCfg)),
 				)
@@ -504,7 +504,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 
 				received := upstream.ReceivedRequests()
 				require.Len(t, received, 1)
-				require.Equal(t, tc.upstreamPath, received[0].Path)
+				require.Equal(t, tc.upstreamPath, received[0].Path, "upstream path should match expected")
 				require.Equal(t, tc.model, gjson.GetBytes(received[0].Body, "model").String(),
 					"model should be forwarded unchanged")
 
