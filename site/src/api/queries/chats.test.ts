@@ -57,11 +57,9 @@ import {
 	chatModelACLAvailableKey,
 	chatModelACLKey,
 	chatModelKey,
-	chatPlanModeMutationKey,
 	chatPromptsKey,
 	chatSearch,
 	chatsByWorkspace,
-	chatWorkspaceMutationKey,
 	createChat,
 	createChatMessage,
 	deleteChatModel,
@@ -122,7 +120,6 @@ import {
 	updateInfiniteChatsCache,
 	updateMCPServerConfigACL,
 	upsertChatMessages,
-	waitForChatSettingsMutations,
 } from "./chats";
 
 vi.mock("#/api/api", () => ({
@@ -678,95 +675,6 @@ describe("updateChatPlanMode", () => {
 			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
 			"chat list should be invalidated when rollback lacks detail cache",
 		).toBe(true);
-	});
-});
-
-describe("waitForChatSettingsMutations", () => {
-	const startPendingSettingsMutation = (
-		queryClient: QueryClient,
-		mutationKey: readonly string[],
-		chatId: string,
-		work: Promise<unknown>,
-	) => {
-		const mutation = queryClient.getMutationCache().build(queryClient, {
-			mutationKey: [...mutationKey],
-			mutationFn: () => work,
-		});
-		const executePromise = mutation.execute({ chatId });
-		void executePromise.catch(() => undefined);
-		return executePromise;
-	};
-
-	it("waits for pending plan-mode and workspace mutations before resolving", async () => {
-		const queryClient = createTestQueryClient();
-		const planModeUpdate = createDeferred<void>();
-		const workspaceUpdate = createDeferred<void>();
-		let settled = false;
-
-		startPendingSettingsMutation(
-			queryClient,
-			chatPlanModeMutationKey,
-			"chat-1",
-			planModeUpdate.promise,
-		);
-		startPendingSettingsMutation(
-			queryClient,
-			chatWorkspaceMutationKey,
-			"chat-1",
-			workspaceUpdate.promise,
-		);
-
-		const waitPromise = waitForChatSettingsMutations(
-			queryClient,
-			"chat-1",
-		).then((result) => {
-			settled = true;
-			return result;
-		});
-
-		await Promise.resolve();
-		expect(settled).toBe(false);
-
-		planModeUpdate.resolve(undefined);
-		await Promise.resolve();
-		expect(settled).toBe(false);
-
-		workspaceUpdate.resolve(undefined);
-		await expect(waitPromise).resolves.toBeUndefined();
-		expect(settled).toBe(true);
-	});
-
-	it("rejects when a pending settings mutation fails", async () => {
-		const queryClient = createTestQueryClient();
-		const workspaceUpdate = createDeferred<void>();
-		startPendingSettingsMutation(
-			queryClient,
-			chatWorkspaceMutationKey,
-			"chat-1",
-			workspaceUpdate.promise,
-		);
-
-		workspaceUpdate.reject(new Error("boom"));
-		await expect(
-			waitForChatSettingsMutations(queryClient, "chat-1"),
-		).rejects.toThrow("boom");
-	});
-
-	it("does not wait for settings mutations on a different chat", async () => {
-		const queryClient = createTestQueryClient();
-		const otherChatUpdate = createDeferred<void>();
-		startPendingSettingsMutation(
-			queryClient,
-			chatPlanModeMutationKey,
-			"chat-other",
-			otherChatUpdate.promise,
-		);
-
-		await expect(
-			waitForChatSettingsMutations(queryClient, "chat-1"),
-		).resolves.toBeUndefined();
-
-		otherChatUpdate.resolve(undefined);
 	});
 });
 
