@@ -72,6 +72,49 @@ var bedrockSupportedBetaFlags = map[string]bool{
 type BedrockRuntime struct {
 	Cfg   aibconfig.AWSBedrock
 	Creds aws.CredentialsProvider
+
+	resolvedModel          string
+	resolvedSmallFastModel string
+}
+
+// NewBedrockRuntime bundles the Bedrock config and credentials with the model
+// IDs behind the configured identifiers. The resolved IDs differ from the
+// configured ones only when those are application inference profile ARNs, which
+// are opaque and must be resolved through AWS; every other identifier resolves
+// to itself.
+func NewBedrockRuntime(cfg aibconfig.AWSBedrock, creds aws.CredentialsProvider, resolvedModel, resolvedSmallFastModel string) *BedrockRuntime {
+	return &BedrockRuntime{
+		Cfg:                    cfg,
+		Creds:                  creds,
+		resolvedModel:          resolvedModel,
+		resolvedSmallFastModel: resolvedSmallFastModel,
+	}
+}
+
+// ConfiguredModel returns the identifier the operator configured, which may be
+// an application inference profile ARN. Requests carry it as the model because
+// AWS attributes spend to a profile only when the profile itself is invoked.
+func (b *BedrockRuntime) ConfiguredModel() string {
+	return b.Cfg.Model
+}
+
+// ConfiguredSmallFastModel is [BedrockRuntime.ConfiguredModel] for the
+// small/fast model.
+func (b *BedrockRuntime) ConfiguredSmallFastModel() string {
+	return b.Cfg.SmallFastModel
+}
+
+// ResolvedModel returns the Bedrock model ID behind the configured identifier.
+// Model capabilities, usage records, pricing, and metrics all key off this
+// rather than the configured identifier.
+func (b *BedrockRuntime) ResolvedModel() string {
+	return b.resolvedModel
+}
+
+// ResolvedSmallFastModel is [BedrockRuntime.ResolvedModel] for the small/fast
+// model.
+func (b *BedrockRuntime) ResolvedSmallFastModel() string {
+	return b.resolvedSmallFastModel
 }
 
 type interceptionBase struct {
@@ -85,6 +128,14 @@ type interceptionBase struct {
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
+
+	// isSmallFastModel reports whether the client requested a small/fast model
+	// (Haiku 3.5), which is optimized for tasks like code autocomplete and other
+	// small, quick operations. It is captured at construction because the Bedrock
+	// InvokeModel remap overwrites the model in the request payload.
+	// See `ANTHROPIC_SMALL_FAST_MODEL`: https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables
+	// https://docs.claude.com/en/docs/claude-code/costs#background-token-usage
+	isSmallFastModel bool
 
 	logger slog.Logger
 	tracer trace.Tracer
@@ -169,14 +220,24 @@ func (i *interceptionBase) Model() string {
 	// passthrough, non-Bedrock providers) returns the model the client sent in
 	// the body.
 	if i.isBedrockInvokeModel() {
-		model := i.bedrock.Cfg.Model
-		if i.isSmallFastModel() {
-			model = i.bedrock.Cfg.SmallFastModel
+		model := i.bedrock.ResolvedModel()
+		if i.isSmallFastModel {
+			model = i.bedrock.ResolvedSmallFastModel()
 		}
 		return model
 	}
 
 	return i.reqPayload.model()
+}
+
+// upstreamModel returns the identifier sent to Bedrock as the invocation
+// target, which may be an application inference profile ARN.
+func (i *interceptionBase) upstreamModel() string {
+	model := i.bedrock.ConfiguredModel()
+	if i.isSmallFastModel {
+		model = i.bedrock.ConfiguredSmallFastModel()
+	}
+	return model
 }
 
 func (i *interceptionBase) baseTraceAttributes(r *http.Request, streaming bool) []attribute.KeyValue {
@@ -261,12 +322,9 @@ func (*interceptionBase) extractModelThoughts(msg *anthropic.Message) []*recorde
 	return thoughtRecords
 }
 
-// IsSmallFastModel checks if the model is a small/fast model (Haiku 3.5).
-// These models are optimized for tasks like code autocomplete and other small, quick operations.
-// See `ANTHROPIC_SMALL_FAST_MODEL`: https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables
-// https://docs.claude.com/en/docs/claude-code/costs#background-token-usage
-func (i *interceptionBase) isSmallFastModel() bool {
-	return strings.Contains(i.reqPayload.model(), "haiku")
+// isSmallFastModel reports whether the client requested a small/fast model.
+func isSmallFastModel(model string) bool {
+	return strings.Contains(model, "haiku")
 }
 
 // newMessagesService builds the SDK service used for upstream calls.
@@ -415,13 +473,16 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 // Anthropics' model names. It also converts adaptive thinking to enabled with a budget for models that
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
 // adaptive.
+//
+// The request carries the configured identifier, which may be an application
+// inference profile ARN, while capability decisions use the model ID behind it.
 func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	if i.bedrock == nil {
 		return
 	}
 
 	model := i.Model()
-	updated, err := i.reqPayload.withModel(model)
+	updated, err := i.reqPayload.withModel(i.upstreamModel())
 	if err != nil {
 		i.logger.Warn(context.Background(), "failed to set model in request payload for Bedrock", slog.Error(err))
 		return

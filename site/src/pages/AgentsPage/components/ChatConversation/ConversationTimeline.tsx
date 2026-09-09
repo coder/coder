@@ -21,12 +21,9 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-import {
-	ConversationItem,
-	Message,
-	MessageContent,
-	Response,
-} from "../ChatElements";
+import { ConversationItem } from "../ChatElements/Conversation";
+import { Message, MessageContent } from "../ChatElements/Message";
+import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";

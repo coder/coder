@@ -894,6 +894,7 @@ func (b *Builder) getDynamicParameters() (names, values []string, err error) {
 	}
 
 	buildValues, err := dynamicparameters.ResolveParameters(b.ctx, b.workspace.OwnerID, render, firstBuild,
+		b.trans,
 		lastBuildParameters,
 		b.richParameterValues,
 		presetParameterValues)

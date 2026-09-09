@@ -1,4 +1,6 @@
-# Manage provisioner jobs
+---
+title: Manage provisioner jobs
+---
 
 [Provisioners](./index.md) start and run provisioner jobs to create or delete workspaces.
 Each time a workspace is built, rebuilt, or destroyed, it generates a new job and assigns

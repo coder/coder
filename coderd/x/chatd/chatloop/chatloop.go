@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -41,12 +40,7 @@ const (
 )
 
 var (
-	ErrInterrupted     = xerrors.New("chat interrupted")
-	ErrDynamicToolCall = xerrors.New("dynamic tool call")
-	// ErrStopAfterTool is returned when a tool listed in
-	// StopAfterTools produces a successful result, indicating
-	// the run should terminate cleanly after persistence.
-	ErrStopAfterTool = xerrors.New("stop after tool")
+	ErrInterrupted = xerrors.New("chat interrupted")
 	// ErrContentFiltered is returned when the provider's safety
 	// classifiers blocked the response and the model produced no
 	// content, e.g. Anthropic's stop_reason "refusal".
@@ -59,15 +53,6 @@ var (
 		"chat stream was silent for longer than the configured timeout",
 	)
 )
-
-// PendingToolCall describes a tool call that targets a dynamic
-// tool. These calls are not executed by the chatloop; instead
-// they are persisted so the caller can fulfill them externally.
-type PendingToolCall struct {
-	ToolCallID string
-	ToolName   string
-	Args       string
-}
 
 // PersistedStep is the unit the persistence layer splits into role-separated
 // database messages. Content mixes assistant blocks (text, reasoning, tool
@@ -85,11 +70,6 @@ type PersistedStep struct {
 	// BatchBilledCalls counts the executed calls whose intervals produced
 	// BatchRuntime. Audit metadata for the batch usage record.
 	BatchBilledCalls int
-	// PendingDynamicToolCalls lists tool calls that target
-	// dynamic tools. When non-empty the chatloop exits with
-	// ErrDynamicToolCall so the caller can execute them
-	// externally and resume the loop.
-	PendingDynamicToolCalls []PendingToolCall
 	// ToolCallCreatedAt maps tool-call IDs to the time
 	// the model emitted each tool call. Applied by the
 	// persistence layer to set CreatedAt on persisted
@@ -109,100 +89,6 @@ type PersistedStep struct {
 	// stable ID, so order is the only correlation we have.
 	ReasoningStartedAt   []time.Time
 	ReasoningCompletedAt []time.Time
-}
-
-// RunOptions configures a single streaming chat loop run.
-type RunOptions struct {
-	Model    fantasy.LanguageModel
-	Messages []fantasy.Message
-	Tools    []fantasy.AgentTool
-	MaxSteps int
-	// StreamSilenceTimeout bounds how long each model attempt
-	// may go without receiving a stream part before the
-	// attempt is canceled and retried. Zero uses the
-	// production default.
-	StreamSilenceTimeout time.Duration
-	// Clock creates stream silence guard timers. In production
-	// use a real clock; tests can inject quartz.NewMock(t) to
-	// make timeout behavior deterministic.
-	Clock quartz.Clock
-
-	ActiveTools          []string
-	ContextLimitFallback int64
-
-	// DynamicToolNames lists tool names that are handled
-	// externally. When the model invokes one of these tools
-	// the chatloop persists partial results and exits with
-	// ErrDynamicToolCall instead of executing the tool.
-	DynamicToolNames map[string]bool
-	// StopAfterTools lists tool names that, when they produce a
-	// successful result, cause the run to stop after persisting
-	// the current step. This is used for plan turns where
-	// propose_plan should terminate the run on success.
-	StopAfterTools map[string]struct{}
-	// ExclusiveToolNames lists tool names that must be called
-	// alone in a batch. When any exclusive tool appears
-	// alongside other locally-executed tools, every tool in the
-	// batch receives a policy error and nothing executes.
-	ExclusiveToolNames map[string]bool
-
-	// ModelConfig holds per-call LLM parameters (temperature,
-	// max tokens, etc.) read from the chat model configuration.
-	ModelConfig codersdk.ChatModelCallConfig
-	// ProviderOptions are provider-specific call options
-	// converted from ModelConfig.ProviderOptions. This is a
-	// separate field because the conversion requires knowledge
-	// of the provider, which lives in chatd, not chatloop.
-	ProviderOptions fantasy.ProviderOptions
-
-	// ProviderTools are provider-native tools (like web search
-	// and computer use) whose definitions are passed directly
-	// to the provider API. When a ProviderTool has a non-nil
-	// Runner, tool calls are executed locally; otherwise the
-	// provider handles execution (e.g. web search).
-	ProviderTools []ProviderTool
-
-	PersistStep        func(context.Context, PersistedStep) error
-	PublishMessagePart func(
-		role codersdk.ChatMessageRole,
-		part codersdk.ChatMessagePart,
-	)
-	// Callers should attach correlation fields (chat_id, owner_id, etc.)
-	// using Logger.With before passing the logger in.
-	Logger     slog.Logger
-	Compaction *CompactionOptions
-
-	// PrepareTools is called once before each LLM step with the
-	// current tool list. If it returns non-nil, the returned slice
-	// replaces opts.Tools for this and all subsequent steps, and any
-	// new tool names are appended to opts.ActiveTools so they become
-	// callable immediately. Used to inject tools that become available
-	// mid-turn (e.g. workspace MCP tools discovered after
-	// create_workspace).
-	//
-	// The chatloop tracks whether tools have already been replaced so
-	// PrepareTools is not retried on subsequent steps once it has
-	// returned a non-nil slice. Callbacks may still be invoked on later
-	// steps when they previously returned nil.
-	PrepareTools func([]fantasy.AgentTool) []fantasy.AgentTool
-
-	// OnRetry is called before each retry attempt when the LLM
-	// stream fails with a retryable error. It provides the attempt
-	// number, raw error, normalized classification, and backoff
-	// delay so callers can publish status events to connected
-	// clients. Callers should also clear any buffered stream state
-	// from the failed attempt in this callback to avoid sending
-	// duplicated content.
-	OnRetry chatretry.OnRetryFn
-
-	OnInterruptedPersistError func(error)
-
-	// Metrics records Prometheus metrics for the chatd subsystem.
-	// When nil, no metrics are recorded.
-	Metrics *Metrics
-
-	// BuiltinToolNames lists tool names that are built into chatd.
-	BuiltinToolNames map[string]bool
 }
 
 // GenerateAssistantOptions configures one assistant model call.
@@ -372,7 +258,6 @@ type stepResult struct {
 	providerMetadata     fantasy.ProviderMetadata
 	finishReason         fantasy.FinishReason
 	toolCalls            []fantasy.ToolCallContent
-	shouldContinue       bool
 	toolCallCreatedAt    map[string]time.Time
 	toolResultCreatedAt  map[string]time.Time
 	reasoningStartedAt   []time.Time
@@ -416,11 +301,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	// kept for prompt preparation, Anthropic history sanitization, and the
 	// metric labels below.
 	errorProvider := cmp.Or(opts.ErrorProvider, provider)
-	runOpts := RunOptions{
-		Model:  opts.Model,
-		Logger: opts.Logger,
-	}
-	_, prepared, err := prepareMessagesForRequest(ctx, runOpts, opts.Messages, provider, modelName, 0, 1)
+	prepared, err := prepareMessagesForRequest(ctx, opts.Model, opts.Logger, opts.Messages, provider, modelName, 0, 1)
 	if err != nil {
 		return AssistantOutcome{}, xerrors.Errorf("prepare prompt: %w", err)
 	}
@@ -745,25 +626,25 @@ func BilledIntervalsDuration(intervals []BilledInterval) time.Duration {
 // terminal prompt-preparation failure.
 func prepareMessagesForRequest(
 	ctx context.Context,
-	opts RunOptions,
+	model fantasy.LanguageModel,
+	logger slog.Logger,
 	messages []fantasy.Message,
 	provider string,
 	modelName string,
 	step int,
 	totalSteps int,
-) (canonical []fantasy.Message, prompt []fantasy.Message, err error) {
-	canonical = messages
+) ([]fantasy.Message, error) {
 	// Copy messages so provider-specific caching mutations don't leak
 	// back to the canonical message slice.
-	prompt = slices.Clone(canonical)
+	prompt := slices.Clone(messages)
 	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prompt)
 	chatsanitize.LogAnthropicProviderToolSanitization(
-		ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
+		ctx, logger, "pre_request", provider, modelName, sanitizeStats,
 		slog.F("step_index", step),
 		slog.F("total_steps", totalSteps),
 	)
-	prompt, err = chatsanitize.ApplyAnthropicProviderToolGuard(
-		ctx, opts.Logger, provider, modelName, prompt,
+	prompt, err := chatsanitize.ApplyAnthropicProviderToolGuard(
+		ctx, logger, provider, modelName, prompt,
 	)
 	if err != nil {
 		err = chaterror.WithClassification(
@@ -776,12 +657,12 @@ func prepareMessagesForRequest(
 				Retryable: false,
 			},
 		)
-		return canonical, nil, err
+		return nil, err
 	}
-	if shouldApplyAnthropicPromptCaching(opts.Model) {
+	if shouldApplyAnthropicPromptCaching(model) {
 		addAnthropicPromptCaching(prompt)
 	}
-	return canonical, prompt, nil
+	return prompt, nil
 }
 
 // guardedAttempt owns an attempt-scoped context and silence guard
@@ -1151,15 +1032,6 @@ func processStepStream(
 		)
 		return result, ErrInterrupted
 	}
-	hasLocalToolCalls := false
-	for _, tc := range result.toolCalls {
-		if !tc.ProviderExecuted {
-			hasLocalToolCalls = true
-			break
-		}
-	}
-	result.shouldContinue = hasLocalToolCalls &&
-		result.finishReason == fantasy.FinishReasonToolCalls
 	return result, nil
 }
 

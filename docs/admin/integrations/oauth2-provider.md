@@ -1,4 +1,6 @@
-# OAuth2 Provider (Experimental)
+---
+title: OAuth2 provider (Experimental)
+---
 
 > [!WARNING]
 > The OAuth2 provider functionality is currently **experimental and unstable**. This feature:
@@ -127,11 +129,11 @@ Public clients suit native, mobile, and CLI applications that cannot keep a secr
 If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
 
 > [!IMPORTANT]
-> A public client may use `http://` only with a loopback host
-> (`localhost`, `127.0.0.1`, `[::1]`). An `http://` redirect URI to any
-> other host is rejected, so use `https://` instead. A confidential
-> client has the same restriction but also accepts `.localhost`
-> subdomains over `http://`.
+> A public client may use `http://` only with a loopback host (`localhost`, `127.0.0.1`, `[::1]`).
+> An `http://` redirect URI to any other host is rejected, so use `https://` instead.
+> A confidential client has the same restriction but also accepts `.localhost` subdomains over `http://`.
+> Coder ignores the port of an `http://` redirect URI to one of those three loopback hosts, for public and confidential clients alike. RFC 8252 requires this for `127.0.0.1` and `[::1]` so that native apps can choose a port at runtime. Coder applies it to `localhost` too. A `.localhost` subdomain still requires an exact port match.
+> Register `http://127.0.0.1/callback` and present whichever port the client is listening on.
 >
 > Which schemes a redirect URI may use is a separate restriction that
 > also differs by client type. See
@@ -397,6 +399,8 @@ Add `oauth2` to your experiment flags: `coder server --experiments oauth2`
 ### "Invalid redirect_uri"
 
 Ensure the redirect URI in your request exactly matches the one registered for your application.
+The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which may differ from the registered one.
+Refer to the note under [Client Authentication Methods](#client-authentication-methods).
 
 ### "Invalid Callback URL" on the consent page
 
@@ -637,8 +641,10 @@ This implementation follows established OAuth2 standards including
 [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and the
 [OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16).
 Coder enforces OAuth 2.1 requirements including mandatory PKCE for all
-authorization code grants, exact redirect URI string matching, rejection
-of the implicit grant, and CSRF protections on consent pages.
+authorization code grants, exact redirect URI string matching with the
+[RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252) loopback port
+exception, rejection of the implicit grant, and CSRF protections on consent
+pages.
 
 ## Next Steps
 

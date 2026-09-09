@@ -2158,7 +2158,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		// server canonicalizes all HTTP request headers it receives, so we
 		// can't use it to test that we forward non-canonical headers.
 		// #nosec
-		ln, err := net.Listen("tcp", ":0")
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		go func() {
 			for {

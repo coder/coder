@@ -30,7 +30,7 @@ const TemplateBuilderPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { data, error, isLoading } = useQuery(deploymentConfig());
 	const createMutation = useMutation(createTemplateFromBuilder());
-	const sessionMutation = useMutation(recordTemplateBuilderSession());
+	const { mutate: recordSession } = useMutation(recordTemplateBuilderSession());
 
 	// Stable session ID for the lifetime of this page mount, shared
 	// across wizard_entry and compose_completion telemetry events.
@@ -42,11 +42,11 @@ const TemplateBuilderPage: FC = () => {
 
 	// Report wizard_entry once the builder is ready and accessible.
 	const reportEntry = useCallback(() => {
-		sessionMutation.mutate({
+		recordSession({
 			session_id: sessionId,
 			event_type: "wizard_entry",
 		});
-	}, [sessionMutation.mutate, sessionId]);
+	}, [recordSession, sessionId]);
 
 	// Report compose_completion when the create request settles. Duration
 	// is captured at submit time so it measures wizard usage, not the
@@ -57,7 +57,7 @@ const TemplateBuilderPage: FC = () => {
 			success: boolean,
 			durationSeconds: number,
 		) => {
-			sessionMutation.mutate({
+			recordSession({
 				session_id: state.sessionId,
 				event_type: "compose_completion",
 				base_template_id: state.baseTemplateId ?? undefined,
@@ -66,7 +66,7 @@ const TemplateBuilderPage: FC = () => {
 				success,
 			});
 		},
-		[sessionMutation.mutate],
+		[recordSession],
 	);
 
 	useEffect(() => {
