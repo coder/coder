@@ -784,18 +784,13 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		t.Parallel()
 
 		app := seedAppInCatalog(t)
-		unrecognized := func(q url.Values) {
-			q.Set("nonce", "n-0S6_WzA2Mj")
-			q.Set("prompt", "consent")
-			q.Set(`we"ird`, "1")
-		}
 
 		t.Run(http.MethodGet, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
-			unrecognized(query)
+			addUnrecognizedParams(query)
 
 			resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
 			defer resp.Body.Close()
@@ -809,7 +804,7 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
-			unrecognized(query)
+			addUnrecognizedParams(query)
 
 			resp := sendAuthorizeRequest(ctx, t, client, http.MethodPost, query)
 			defer resp.Body.Close()
@@ -935,6 +930,17 @@ func authorizeQuery(t *testing.T, clientID, scope string) url.Values {
 		query.Set("scope", scope)
 	}
 	return query
+}
+
+// addUnrecognizedParams adds parameters neither OAuth2 endpoint reads. Both
+// endpoints' tests use it, so the same extras are accepted at both. The quoted
+// key proves a name containing a double quote is accepted rather than 400'd;
+// TestExtractTokenRequest_UnrecognizedParametersLogged pins that the log sink
+// escapes it.
+func addUnrecognizedParams(q url.Values) {
+	q.Set("nonce", "n-0S6_WzA2Mj")
+	q.Set("prompt", "consent")
+	q.Set(`we"ird`, "1")
 }
 
 // authorizeRequest issues an /oauth2/authorize request without following

@@ -1097,3 +1097,107 @@ func TestOAuth2TokenExchangeLoopbackRedirectPort(t *testing.T) {
 	status, body := postTokenRequest(ctx, t, client, form)
 	requireTokenResponse(t, status, body)
 }
+
+// OAuth 2.1 §3.2: the token endpoint must ignore parameters it does not
+// recognize. Uses the same set as the authorize endpoint's test.
+func TestOAuth2TokenUnrecognizedParametersIgnored(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	t.Run("AuthorizationCode", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		form := tokenExchangeForm(app, code, verifier)
+		addUnrecognizedParams(form)
+
+		status, body := postTokenRequest(ctx, t, client, form)
+		token := requireTokenResponse(t, status, body)
+		requireTokenAuthenticates(ctx, t, client, token.AccessToken)
+	})
+
+	t.Run("RefreshToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, string(database.ApiKeyScopeCoderAll))
+		form := refreshForm(app, refreshToken)
+		addUnrecognizedParams(form)
+
+		status, body := postTokenRequest(ctx, t, client, form)
+		token := requireTokenResponse(t, status, body)
+		requireTokenAuthenticates(ctx, t, client, token.AccessToken)
+	})
+}
+
+// OAuth 2.1 §3.2: a known parameter sent more than once is still rejected.
+// The expected error codes are the handler's current behavior, not what
+// RFC 6749 §5.2 asks for (a repeated grant_type answers unsupported_grant_type).
+func TestOAuth2TokenRepeatedParameterRejected(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	cases := []struct {
+		param string
+		// first is the value a valid request would carry, used only when the
+		// base form does not already set the parameter. The parser refuses
+		// the repeat before any grant runs, so it only has to be well formed.
+		first    string
+		grant    codersdk.OAuth2ProviderGrantType
+		wantCode codersdk.OAuth2ErrorCode
+	}{
+		{param: "grant_type", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeUnsupportedGrantType},
+		{param: "code", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "client_id", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "client_secret", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "code_verifier", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "redirect_uri", first: appCallbackURL, grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "resource", first: "https://api.example.com", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "scope", first: "workspace:ssh", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "refresh_token", grant: codersdk.OAuth2ProviderGrantTypeRefreshToken, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.param, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			app := seedAppWithSecret(t, db, sql.NullString{})
+			var form url.Values
+			if tc.grant == codersdk.OAuth2ProviderGrantTypeRefreshToken {
+				refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, string(database.ApiKeyScopeCoderAll))
+				form = refreshForm(app, refreshToken)
+			} else {
+				code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+				form = tokenExchangeForm(app, code, verifier)
+			}
+			if !form.Has(tc.param) {
+				form.Set(tc.param, tc.first)
+			}
+			form.Add(tc.param, "second")
+
+			status, body := postTokenRequest(ctx, t, client, form)
+			require.Equal(t, http.StatusBadRequest, status, body)
+			var oauthErr struct {
+				Error string `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
+			require.Equal(t, string(tc.wantCode), oauthErr.Error, body)
+		})
+	}
+}
