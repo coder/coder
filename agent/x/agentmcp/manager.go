@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	tailscalesingleflight "tailscale.com/util/singleflight"
@@ -75,6 +76,10 @@ type Manager struct {
 	execer    agentexec.Execer
 	updateEnv func(current []string) ([]string, error)
 
+	// workingDir reports the workspace working directory for stdio
+	// servers, read at connect time. See resolveWorkingDir.
+	workingDir func() string
+
 	mu        sync.RWMutex
 	logger    slog.Logger
 	clock     quartz.Clock
@@ -133,12 +138,15 @@ type serverEntry struct {
 // NewManager creates a new MCP client manager. The ctx bounds
 // subprocess lifetime. The execer applies resource limits to
 // MCP server subprocesses. The updateEnv callback enriches the
-// subprocess environment to match interactive sessions.
+// subprocess environment to match interactive sessions. The
+// workingDir callback reports the workspace working directory for
+// stdio servers.
 func NewManager(
 	ctx context.Context,
 	logger slog.Logger,
 	execer agentexec.Execer,
 	updateEnv func([]string) ([]string, error),
+	workingDir func() string,
 ) *Manager {
 	managerCtx, cancel := context.WithCancel(ctx)
 	return &Manager{
@@ -148,6 +156,7 @@ func NewManager(
 		clock:         quartz.NewReal(),
 		execer:        execer,
 		updateEnv:     updateEnv,
+		workingDir:    workingDir,
 		servers:       make(map[string]*serverEntry),
 		snapshot:      make(map[string]fileSnapshot),
 		closedCh:      make(chan struct{}),
@@ -886,6 +895,8 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Tr
 		env := m.buildEnv(ctx, cfg.Env)
 		cmd := m.execer.CommandContext(ctx, cfg.Command, cfg.Args...)
 		cmd.Env = env
+		// Relative paths in Args resolve against the workspace dir.
+		cmd.Dir = m.resolveWorkingDir(ctx)
 		return &mcp.CommandTransport{Command: cmd}, nil
 	case "http", "":
 		return &mcp.StreamableClientTransport{
@@ -900,6 +911,33 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Tr
 	default:
 		return nil, xerrors.Errorf("unsupported transport %q", cfg.Transport)
 	}
+}
+
+// resolveWorkingDir returns the directory for stdio MCP servers so
+// relative Args resolve against the workspace, not the agent's temp cwd.
+// It uses usershell.ResolveWorkingDirectory (shared with SSH and the
+// process API to avoid drift): the configured dir if it exists, else the
+// home directory. Returns "" (inherit the agent cwd) when workingDir is
+// nil or empty.
+func (m *Manager) resolveWorkingDir(ctx context.Context) string {
+	if m.workingDir == nil {
+		return ""
+	}
+	dir := m.workingDir()
+	if dir == "" {
+		return ""
+	}
+	resolved, err := usershell.ResolveWorkingDirectory(afero.NewOsFs(), usershell.SystemEnvInfo{}, dir)
+	if err != nil {
+		m.logger.Warn(ctx, "could not resolve MCP server working directory; inheriting the agent working directory",
+			slog.F("dir", dir), slog.Error(err))
+		return ""
+	}
+	if resolved != dir {
+		m.logger.Warn(ctx, "workspace working directory unavailable; launching MCP server in home directory",
+			slog.F("requested", dir), slog.F("resolved", resolved))
+	}
+	return resolved
 }
 
 // buildEnv enriches the process environment via the agent's

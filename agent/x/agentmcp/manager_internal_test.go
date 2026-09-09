@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -278,7 +280,7 @@ func TestManager_WaitReloadTimeout(t *testing.T) {
 	timerTrap := clock.Trap().NewTimer("agentmcp", "tools_reload")
 	defer timerTrap.Close()
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil)
 	m.clock = clock
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -296,6 +298,65 @@ func TestManager_WaitReloadTimeout(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Contains(t, err.Error(), "tools reload timed out after 1m0s")
+}
+
+// TestCreateTransport_StdioSetsWorkingDir verifies a stdio server's command
+// is launched in the workspace dir, so relative Args resolve there rather
+// than the agent's cwd.
+func TestCreateTransport_StdioSetsWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	workDir := t.TempDir()
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil,
+		func() string { return workDir })
+	t.Cleanup(func() { _ = m.Close() })
+
+	transport, err := m.createTransport(ctx, ServerConfig{
+		Name:      "fake",
+		Transport: "stdio",
+		Command:   "true",
+	})
+	require.NoError(t, err)
+
+	cmdTransport, ok := transport.(*mcp.CommandTransport)
+	require.True(t, ok)
+	assert.Equal(t, workDir, cmdTransport.Command.Dir)
+}
+
+// TestResolveWorkingDir covers resolveWorkingDir's fallback: nil/empty
+// inherits (""), an existing dir is used, missing/file falls back to home.
+func TestResolveWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	home, err := usershell.SystemEnvInfo{}.HomeDir()
+	require.NoError(t, err)
+
+	existing := t.TempDir()
+	file := filepath.Join(existing, "a-file")
+	require.NoError(t, os.WriteFile(file, []byte("x"), 0o600))
+	missing := filepath.Join(existing, "does-not-exist")
+
+	tests := []struct {
+		name       string
+		workingDir func() string
+		want       string
+	}{
+		{name: "NilCallback", workingDir: nil, want: ""},
+		{name: "EmptyResult", workingDir: func() string { return "" }, want: ""},
+		{name: "ExistingDir", workingDir: func() string { return existing }, want: existing},
+		{name: "MissingDir", workingDir: func() string { return missing }, want: home},
+		{name: "PathIsFile", workingDir: func() string { return file }, want: home},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			m := &Manager{workingDir: tt.workingDir}
+			assert.Equal(t, tt.want, m.resolveWorkingDir(ctx))
+		})
+	}
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over

@@ -64,7 +64,7 @@ func TestWatcher_LateFileTriggersReload(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".mcp.json")
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil)
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -104,7 +104,7 @@ func TestWatcher_RewriteTriggersReload(t *testing.T) {
 	_, entry := fakeMCPServerConfig(t, "srv")
 	configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil)
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -141,7 +141,7 @@ func TestWatcher_RemovalTransitionsToEmpty(t *testing.T) {
 	_, entry := fakeMCPServerConfig(t, "srv")
 	configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil)
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -240,7 +240,7 @@ func TestWatcher_CloseStopsGoroutine(t *testing.T) {
 	configPath := filepath.Join(dir, ".mcp.json")
 
 	for range 5 {
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil)
 		useFastDebounce(t, m)
 		require.NoError(t, m.Reload(ctx, []string{configPath}))
 		require.NoError(t, m.Close())
@@ -274,7 +274,7 @@ func TestWatcher_DualAgentLateConfigWarmsCatalog(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".mcp.json")
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil)
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -322,7 +322,7 @@ func TestWatcher_LateParentDirTriggersReload(t *testing.T) {
 	missing := filepath.Join(root, "config")
 	configPath := filepath.Join(missing, ".mcp.json")
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil)
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -367,7 +367,7 @@ func TestWatcher_SharedParentRefcount(t *testing.T) {
 	pathA := filepath.Join(dir, "a.mcp.json")
 	pathB := filepath.Join(dir, "b.mcp.json")
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil)
 	useFastDebounce(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -441,7 +441,7 @@ func TestWatcher_CloseDoesNotStallOnInFlightReload(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".mcp.json")
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil)
 	useFastDebounce(t, m)
 
 	// Arm the watcher with an initial empty Reload. We install the
