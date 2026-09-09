@@ -165,6 +165,7 @@ export const mergeTools = (
 			name: call.name,
 			args: call.args,
 			result: result?.result,
+			mcpApp: result?.mcpApp,
 			isError: result?.isError ?? false,
 			status,
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
@@ -245,6 +246,7 @@ export const parseMessageContent = (
 					id,
 					name,
 					result: part.result,
+					mcpApp: part.mcp_app,
 					isError: parseToolResultIsError(name, part, part.result),
 					mcpServerConfigId: part.mcp_server_config_id,
 				});

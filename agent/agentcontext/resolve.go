@@ -979,6 +979,7 @@ type MCPTool struct {
 	Name        string
 	Description string
 	InputSchema map[string]any
+	Meta        map[string]any
 }
 
 // Snapshot is the immutable bundle of resources produced by a

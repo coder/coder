@@ -447,7 +447,7 @@ func (p *Server) pinnedWorkspaceMCPTools(
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	infos := workspaceMCPToolInfosFromResources(resources)
-	return chattool.NewWorkspaceMCPTools(infos, getConn, nil), nil
+	return chattool.NewWorkspaceMCPTools(infos, getConn, nil, p.experiments.Enabled(codersdk.ExperimentChatMCPApps)), nil
 }
 
 type turnWorkspaceContext struct {

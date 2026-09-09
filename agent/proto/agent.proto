@@ -100,6 +100,9 @@ message Manifest {
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
+	// mcp_apps_enabled tells the agent to advertise MCP App rendering
+	// support to workspace MCP servers.
+	bool mcp_apps_enabled = 20;
 }
 
 // WorkspaceSecret is a secret included in the agent manifest
@@ -641,6 +644,7 @@ message MCPTool {
 	string name = 1;
 	string description = 2;
 	google.protobuf.Struct input_schema = 3;
+	google.protobuf.Struct meta = 4;
 }
 
 message PushContextStateRequest {

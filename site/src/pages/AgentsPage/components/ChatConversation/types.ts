@@ -11,6 +11,7 @@ export type ParsedToolCall = {
 };
 
 export type ParsedToolResult = {
+	mcpApp?: TypesGen.ChatMCPApp;
 	id: string;
 	name: string;
 	result?: unknown;
@@ -19,6 +20,7 @@ export type ParsedToolResult = {
 };
 
 export type MergedTool = {
+	mcpApp?: TypesGen.ChatMCPApp;
 	id: string;
 	name: string;
 	args?: unknown;
@@ -93,6 +95,7 @@ type StreamToolCall = {
 };
 
 type StreamToolResult = {
+	mcpApp?: TypesGen.ChatMCPApp;
 	id: string;
 	name: string;
 	result?: unknown;

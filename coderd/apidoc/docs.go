@@ -2777,6 +2777,94 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/chats/{chat}/mcp-apps/resource": {
+            "get": {
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Read chat MCP App resource",
+                "operationId": "read-chat-mcp-app-resource",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Workspace MCP server name",
+                        "name": "server",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Declared ui:// resource URI",
+                        "name": "uri",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Sandboxed MCP App HTML",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/chats/{chat}/messages": {
             "get": {
                 "produces": [
@@ -20020,6 +20108,20 @@ const docTemplate = `{
                 "ChatInputPartTypeFileReference"
             ]
         },
+        "codersdk.ChatMCPApp": {
+            "type": "object",
+            "properties": {
+                "resource_uri": {
+                    "type": "string"
+                },
+                "result": {
+                    "type": "object"
+                },
+                "server_name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatMessage": {
             "type": "object",
             "properties": {
@@ -20136,6 +20238,9 @@ const docTemplate = `{
                 },
                 "is_media": {
                     "type": "boolean"
+                },
+                "mcp_app": {
+                    "$ref": "#/definitions/codersdk.ChatMCPApp"
                 },
                 "mcp_server_config_id": {
                     "type": "string",
@@ -23348,6 +23453,7 @@ const docTemplate = `{
                 "nats_pubsub",
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
+                "chat-mcp-apps",
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks"
@@ -23357,6 +23463,7 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatMCPApps": "Enables workspace MCP Apps in agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -23380,6 +23487,7 @@ const docTemplate = `{
                 "Enables embedded NATS pubsub.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
+                "Enables workspace MCP Apps in agent chats.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats."
@@ -23396,6 +23504,7 @@ const docTemplate = `{
                 "ExperimentNATSPubsub",
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
+                "ExperimentChatMCPApps",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks"

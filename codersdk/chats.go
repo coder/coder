@@ -321,6 +321,13 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 	}
 }
 
+// ChatMCPApp carries a workspace MCP App binding and its display-only result.
+type ChatMCPApp struct {
+	ServerName  string          `json:"server_name"`
+	ResourceURI string          `json:"resource_uri"`
+	Result      json.RawMessage `json:"result" swaggertype:"object"`
+}
+
 // ChatMessagePart is a structured chunk of a chat message.
 //
 // WARNING: This type is both an API wire type and a database
@@ -360,6 +367,7 @@ type ChatMessagePart struct {
 	// is "execute" and the command parses successfully; nil otherwise.
 	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
 	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
+	MCPApp         *ChatMCPApp     `json:"mcp_app,omitempty" variants:"tool-result?"`
 	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
 	ResultReset    bool            `json:"result_reset,omitempty" variants:"tool-result?"`
 	IsError        bool            `json:"is_error,omitempty" variants:"tool-result?"`

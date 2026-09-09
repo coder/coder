@@ -881,6 +881,11 @@ func toolResultContentToPart(
 	}
 
 	part := codersdk.ChatMessageToolResult(content.ToolCallID, content.ToolName, result, isError, isMedia)
+	app, err := chattool.MCPAppFromMetadata(content.ClientMetadata)
+	if err != nil {
+		logger.Warn(context.Background(), "failed to decode MCP App metadata", slog.Error(err))
+	}
+	part.MCPApp = app
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
 	return part
@@ -1946,6 +1951,24 @@ type partNulField struct {
 // codersdk.ChatMessagePart. Adding a string-bearing field to the struct
 // requires an entry here.
 var partNulFields = []partNulField{
+	{name: "MCPApp.Result", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage {
+		if p.MCPApp == nil {
+			return nil
+		}
+		return &p.MCPApp.Result
+	}},
+	{name: "MCPApp.ServerName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string {
+		if p.MCPApp == nil {
+			return nil
+		}
+		return &p.MCPApp.ServerName
+	}},
+	{name: "MCPApp.ResourceURI", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string {
+		if p.MCPApp == nil {
+			return nil
+		}
+		return &p.MCPApp.ResourceURI
+	}},
 	{name: "Text", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Text }},
 	{name: "Args", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.Args }},
 	{name: "ArgsDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ArgsDelta }},
@@ -1979,7 +2002,9 @@ func (f partNulField) encode(p *codersdk.ChatMessagePart) {
 	case f.str != nil:
 		*f.str(p) = encodeNulInString(*f.str(p))
 	case f.raw != nil:
-		*f.raw(p) = encodeNulInJSON(*f.raw(p))
+		if value := f.raw(p); value != nil {
+			*value = encodeNulInJSON(*value)
+		}
 	}
 }
 
@@ -1989,7 +2014,9 @@ func (f partNulField) decode(p *codersdk.ChatMessagePart) {
 	case f.str != nil:
 		*f.str(p) = decodeNulInString(*f.str(p))
 	case f.raw != nil:
-		*f.raw(p) = decodeNulInJSON(*f.raw(p))
+		if value := f.raw(p); value != nil {
+			*value = decodeNulInJSON(*value)
+		}
 	}
 }
 
@@ -1998,7 +2025,11 @@ func (f partNulField) decode(p *codersdk.ChatMessagePart) {
 func (f partNulField) validateNulFree(partIndex int, p *codersdk.ChatMessagePart) error {
 	switch {
 	case f.str != nil:
-		if nul := strings.IndexByte(*f.str(p), 0); nul >= 0 {
+		value := f.str(p)
+		if value == nil {
+			return nil
+		}
+		if nul := strings.IndexByte(*value, 0); nul >= 0 {
 			return xerrors.Errorf(
 				"chat message part %d field %s contains NUL at byte %d",
 				partIndex,
@@ -2037,6 +2068,9 @@ func encodeNulInParts(parts []codersdk.ChatMessagePart) ([]codersdk.ChatMessageP
 	copy(encoded, parts)
 	for i := range encoded {
 		p := &encoded[i]
+		if p.MCPApp != nil {
+			p.MCPApp = new(*p.MCPApp)
+		}
 		for _, f := range partNulFields {
 			switch f.policy {
 			case nulEncode:

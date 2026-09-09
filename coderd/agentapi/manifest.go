@@ -32,6 +32,7 @@ type ManifestAPI struct {
 	DerpForceWebSockets       bool
 	DisableUserSecretFilePath bool
 	WorkspaceID               uuid.UUID
+	Experiments               codersdk.Experiments
 
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
@@ -149,6 +150,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		DisableDirectConnections: a.DisableDirectConnections,
 		DerpForceWebsockets:      a.DerpForceWebSockets,
 		ParentId:                 parentID,
+		McpAppsEnabled:           a.Experiments.Enabled(codersdk.ExperimentChatMCPApps),
 
 		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),
 		Scripts:       dbAgentScriptsToProto(scripts),

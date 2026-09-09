@@ -135,6 +135,9 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	// MCPAppsEnabled reports whether the deployment renders MCP Apps, so
+	// the agent advertises UI support to workspace MCP servers only then.
+	MCPAppsEnabled bool `json:"mcp_apps_enabled"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.

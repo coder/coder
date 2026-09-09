@@ -2931,6 +2931,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------|
 | `file`, `file-reference`, `text` |
 
+## codersdk.ChatMCPApp
+
+```json
+{
+  "resource_uri": "string",
+  "result": {},
+  "server_name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `resource_uri` | string | false    |              |             |
+| `result`       | object | false    |              |             |
+| `server_name`  | string | false    |              |             |
+
 ## codersdk.ChatMessage
 
 ```json
@@ -2961,6 +2979,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
+      "mcp_app": {
+        "resource_uri": "string",
+        "result": {},
+        "server_name": "string"
+      },
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
@@ -3048,6 +3071,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "hook_rewritten": true,
   "is_error": true,
   "is_media": true,
+  "mcp_app": {
+    "resource_uri": "string",
+    "result": {},
+    "server_name": "string"
+  },
   "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
   "media_type": "string",
   "name": "string",
@@ -3102,6 +3130,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `hook_rewritten`               | boolean                                                      | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
 | `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `mcp_app`                      | [codersdk.ChatMCPApp](#codersdkchatmcpapp)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `mcp_server_config_id`         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3210,6 +3239,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "resource_uri": "string",
+            "result": {},
+            "server_name": "string"
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -3284,6 +3318,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "resource_uri": "string",
+            "result": {},
+            "server_name": "string"
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -4590,6 +4629,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
+      "mcp_app": {
+        "resource_uri": "string",
+        "result": {},
+        "server_name": "string"
+      },
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
@@ -4747,6 +4791,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "resource_uri": "string",
+          "result": {},
+          "server_name": "string"
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -4819,6 +4868,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
+      "mcp_app": {
+        "resource_uri": "string",
+        "result": {},
+        "server_name": "string"
+      },
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
@@ -4879,6 +4933,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "resource_uri": "string",
+            "result": {},
+            "server_name": "string"
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -4988,6 +5047,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "hook_rewritten": true,
     "is_error": true,
     "is_media": true,
+    "mcp_app": {
+      "resource_uri": "string",
+      "result": {},
+      "server_name": "string"
+    },
     "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
     "media_type": "string",
     "name": "string",
@@ -5715,6 +5779,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "resource_uri": "string",
+          "result": {},
+          "server_name": "string"
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -5788,6 +5857,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "resource_uri": "string",
+            "result": {},
+            "server_name": "string"
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -5862,6 +5936,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "resource_uri": "string",
+          "result": {},
+          "server_name": "string"
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -8641,6 +8720,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
+        "mcp_app": {
+          "resource_uri": "string",
+          "result": {},
+          "server_name": "string"
+        },
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
@@ -8714,6 +8798,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
+          "mcp_app": {
+            "resource_uri": "string",
+            "result": {},
+            "server_name": "string"
+          },
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
@@ -8859,9 +8948,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                     |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-mcp-apps`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

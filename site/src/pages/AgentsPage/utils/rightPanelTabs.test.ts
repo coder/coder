@@ -22,6 +22,7 @@ import {
 	visibleSingletonTabsStorageKeyPrefix,
 } from "./rightPanelTabStorage";
 import {
+	addMCPAppTab,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
 } from "./rightPanelTabs";
@@ -413,4 +414,48 @@ describe("default terminal hidden storage", () => {
 
 		expect(getPersistedDefaultTerminalHidden("chat-1")).toBe(false);
 	});
+});
+
+it("persists MCP App references without requiring a live workspace", () => {
+	const tab: UserRightPanelTab = {
+		kind: "mcp_app",
+		id: "app-1",
+		label: "Chart",
+		toolCallId: "tool-1",
+		serverName: "charts",
+		resourceUri: "ui://charts/sales",
+	};
+	savePersistedRightPanelTabs("mcp-chat", [tab]);
+	const restored = getPersistedRightPanelTabs("mcp-chat");
+	expect(restored).toEqual([tab]);
+	expect(
+		validateUserRightPanelTabs(restored, {
+			workspace: undefined,
+			workspaceAgent: undefined,
+			wildcardHostname: "",
+		}),
+	).toEqual([tab]);
+	localStorage.setItem(
+		`${rightPanelTabStorageKeyPrefix}mcp-chat`,
+		JSON.stringify([
+			{ ...tab, toolCallId: undefined },
+			{ ...tab, resourceUri: 10 },
+		]),
+	);
+	expect(getPersistedRightPanelTabs("mcp-chat")).toEqual([]);
+});
+
+it("deduplicates MCP App tabs by tool call, not by resource or label", () => {
+	const tab: Extract<UserRightPanelTab, { kind: "mcp_app" }> = {
+		kind: "mcp_app",
+		id: "restored-id",
+		label: "Chart",
+		toolCallId: "tool-1",
+		serverName: "charts",
+		resourceUri: "ui://charts/sales",
+	};
+	const opened = addMCPAppTab([], tab);
+	expect(addMCPAppTab(opened, { ...tab, id: "new-id" })).toBe(opened);
+	const second = { ...tab, id: "another-id", toolCallId: "tool-2" };
+	expect(addMCPAppTab(opened, second)).toEqual([tab, second]);
 });

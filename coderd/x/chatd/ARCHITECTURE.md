@@ -878,6 +878,7 @@ The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
+  - TODO: Document the chat-mcp-apps experiment, pinned UI resource authorization, and display-only result metadata.
 - file links
 - workspace binding
 - plan mode

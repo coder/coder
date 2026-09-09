@@ -28,6 +28,7 @@ func NewAPI(m *Manager) *API {
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Post("/call-tool", api.handleCallTool)
+	r.Post("/read-resource", api.handleReadResource)
 	return r
 }
 
@@ -56,5 +57,28 @@ func (api *API) handleCallTool(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func (api *API) handleReadResource(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req workspacesdk.ReadMCPResourceRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	resp, err := api.manager.ReadResource(ctx, req)
+	if err != nil {
+		status := http.StatusBadGateway
+		if errors.Is(err, ErrUnknownServer) {
+			status = http.StatusNotFound
+		} else if errors.Is(err, workspacesdk.ErrMCPResourceTooLarge) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		httpapi.Write(ctx, rw, status, codersdk.Response{
+			Message: "MCP resource read failed.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }

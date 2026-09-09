@@ -49,6 +49,8 @@ import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTa
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
+import { MCPAppContext } from "./components/MCPApps/MCPAppContext";
+import { MCPAppPanel } from "./components/MCPApps/MCPAppPanel";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "./components/RightPanel/DesktopPanel";
 import { PortPreviewPanel } from "./components/RightPanel/PortPreviewPanel";
@@ -69,6 +71,7 @@ import {
 	savePersistedVisibleSingletonTabs,
 } from "./utils/rightPanelTabStorage";
 import {
+	addMCPAppTab,
 	isSingletonRightPanelTabId,
 	type PortSelection,
 	type SingletonRightPanelTabId,
@@ -199,6 +202,7 @@ const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
 );
 
 interface UserTabContentProps {
+	store: ChatStoreHandle;
 	tab: UserRightPanelTab;
 	chatId: string;
 	workspace: TypesGen.Workspace | undefined;
@@ -211,6 +215,7 @@ interface UserTabContentProps {
 }
 
 const UserTabContent: FC<UserTabContentProps> = ({
+	store,
 	tab,
 	chatId,
 	workspace,
@@ -222,6 +227,15 @@ const UserTabContent: FC<UserTabContentProps> = ({
 	onTerminalReady,
 }) => {
 	switch (tab.kind) {
+		case "mcp_app":
+			return (
+				<MCPAppPanel
+					chatId={chatId}
+					tab={tab}
+					store={store}
+					isVisible={sidebarVisible && isActive}
+				/>
+			);
 		case "terminal":
 			return workspace && workspaceAgent ? (
 				<TerminalPanel
@@ -333,7 +347,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
+	const { entitlements, experiments } = useDashboard();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -480,7 +494,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		shownSingletonTabs.includes(tabId);
 
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
-		userRightPanelTabs,
+		userRightPanelTabs.filter(
+			(tab) => tab.kind !== "mcp_app" || experiments.includes("chat-mcp-apps"),
+		),
 		{ workspace, workspaceAgent, wildcardHostname },
 	);
 
@@ -536,6 +552,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		onSetShowSidebarPanel(true);
 		setPendingTabId(null);
 		setSidebarTabId(tabId);
+	};
+
+	const handleOpenMCPApp = (
+		tab: Extract<UserRightPanelTab, { kind: "mcp_app" }>,
+	) => {
+		const existing = userRightPanelTabs.find(
+			(item) => item.kind === "mcp_app" && item.toolCallId === tab.toolCallId,
+		);
+		setUserRightPanelTabsState((tabs) => addMCPAppTab(tabs, tab));
+		activateRightPanelTab(existing?.id ?? tab.id);
 	};
 
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
@@ -749,6 +775,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				);
 				return userTab ? (
 					<UserTabContent
+						store={store}
 						tab={userTab}
 						chatId={agentId}
 						workspace={workspace}
@@ -911,43 +938,47 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									}}
 								/>
 							</div>
-							<ChatPageTimeline
-								key={agentId}
-								organizationId={organizationId}
-								store={store}
-								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-								persistedError={persistedError}
-								hasMoreMessages={hasMoreMessages}
-								isFetchingMoreMessages={isFetchingMoreMessages}
-								isHydratingMessages={isHydratingMessages}
-								hasFetchMoreError={hasFetchMoreError}
-								onFetchMoreMessages={onFetchMoreMessages}
-								onEditUserMessage={
-									isOtherUserReadOnly
-										? undefined
-										: editing.handleEditUserMessage
-								}
-								editingMessageId={editing.editingMessageId}
-								urlTransform={urlTransform}
-								mcpServers={mcpServers}
-								onImplementPlan={
-									isOtherUserReadOnly ? undefined : onImplementPlan
-								}
-								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly
-										? undefined
-										: canSendAskUserQuestionResponse
-								}
-								footer={
-									chat.queued_for_capacity ? (
-										<QueuedForCapacityCallout
-											hasLicense={hasLicense}
-											canManageLicenses={canManageLicenses}
-											agentHoursHardLimit={agentHoursHardLimit}
-										/>
-									) : undefined
-								}
-							/>
+							<MCPAppContext
+								value={{ chatId: agentId, onOpenApp: handleOpenMCPApp }}
+							>
+								<ChatPageTimeline
+									key={agentId}
+									organizationId={organizationId}
+									store={store}
+									initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+									persistedError={persistedError}
+									hasMoreMessages={hasMoreMessages}
+									isFetchingMoreMessages={isFetchingMoreMessages}
+									isHydratingMessages={isHydratingMessages}
+									hasFetchMoreError={hasFetchMoreError}
+									onFetchMoreMessages={onFetchMoreMessages}
+									onEditUserMessage={
+										isOtherUserReadOnly
+											? undefined
+											: editing.handleEditUserMessage
+									}
+									editingMessageId={editing.editingMessageId}
+									urlTransform={urlTransform}
+									mcpServers={mcpServers}
+									onImplementPlan={
+										isOtherUserReadOnly ? undefined : onImplementPlan
+									}
+									onSendAskUserQuestionResponse={
+										isOtherUserReadOnly
+											? undefined
+											: canSendAskUserQuestionResponse
+									}
+									footer={
+										chat.queued_for_capacity ? (
+											<QueuedForCapacityCallout
+												hasLicense={hasLicense}
+												canManageLicenses={canManageLicenses}
+												agentHoursHardLimit={agentHoursHardLimit}
+											/>
+										) : undefined
+									}
+								/>
+							</MCPAppContext>
 							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 								<ChatPageInput
 									chat={chat}

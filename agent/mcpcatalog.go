@@ -27,6 +27,7 @@ func mcpCatalogToContext(servers []agentmcp.ServerStatus) []agentcontext.MCPServ
 					Name:        t.Name,
 					Description: t.Description,
 					InputSchema: t.InputSchema,
+					Meta:        t.Meta,
 				})
 			}
 		}

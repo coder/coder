@@ -1388,6 +1388,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		if manifest.AgentID == uuid.Nil {
 			return xerrors.New("nil agentID returned by manifest")
 		}
+		a.mcpManager.SetMCPAppsEnabled(manifest.MCPAppsEnabled)
 		if manifest.ParentID != uuid.Nil {
 			// This is a sub agent, disable all the features that should not
 			// be used by sub agents.

@@ -97,6 +97,7 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 				Tools: []agentcontext.MCPTool{{
 					Name:        "create_issue",
 					Description: "Create a GitHub issue",
+					Meta:        map[string]any{"ui": map[string]any{"resourceUri": "ui://issue"}},
 					InputSchema: map[string]any{
 						"type":     "object",
 						"required": []any{"title"},
@@ -164,6 +165,7 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 	tool := srvBody.GetTools()[0]
 	require.Equal(t, "create_issue", tool.GetName())
 	require.Equal(t, "Create a GitHub issue", tool.GetDescription())
+	require.Equal(t, map[string]any{"ui": map[string]any{"resourceUri": "ui://issue"}}, tool.GetMeta().AsMap())
 	require.NotNil(t, tool.GetInputSchema(), "input_schema must be set when supplied")
 	require.Equal(t, "object", tool.GetInputSchema().GetFields()["type"].GetStringValue())
 }

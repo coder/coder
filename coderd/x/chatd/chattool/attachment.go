@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -28,8 +29,9 @@ type AttachmentMetadata struct {
 	Name      string    `json:"name,omitempty"`
 }
 
-type attachmentResponseMetadata struct {
+type responseMetadata struct {
 	Attachments []AttachmentMetadata `json:"attachments,omitempty"`
+	MCPApp      *codersdk.ChatMCPApp `json:"mcp_app,omitempty"`
 }
 
 func storeAttachmentData(
@@ -140,9 +142,30 @@ func WithAttachments(
 	if len(attachments) == 0 {
 		return response
 	}
-	return fantasy.WithResponseMetadata(response, attachmentResponseMetadata{
-		Attachments: attachments,
-	})
+	var metadata responseMetadata
+	_ = json.Unmarshal([]byte(response.Metadata), &metadata)
+	metadata.Attachments = attachments
+	return fantasy.WithResponseMetadata(response, metadata)
+}
+
+// WithMCPApp stores display-only MCP App metadata alongside attachments.
+func WithMCPApp(response fantasy.ToolResponse, app codersdk.ChatMCPApp) fantasy.ToolResponse {
+	var metadata responseMetadata
+	_ = json.Unmarshal([]byte(response.Metadata), &metadata)
+	metadata.MCPApp = &app
+	return fantasy.WithResponseMetadata(response, metadata)
+}
+
+// MCPAppFromMetadata decodes an MCP App from the tool response side channel.
+// Absent metadata returns nil without error; malformed metadata returns an error.
+func MCPAppFromMetadata(metadata string) (*codersdk.ChatMCPApp, error) {
+	var decoded responseMetadata
+	if strings.TrimSpace(metadata) != "" {
+		if err := json.Unmarshal([]byte(metadata), &decoded); err != nil {
+			return nil, xerrors.Errorf("unmarshal MCP App metadata: %w", err)
+		}
+	}
+	return decoded.MCPApp, nil
 }
 
 // AttachmentsFromMetadata decodes durable attachment metadata from a tool
@@ -152,7 +175,7 @@ func AttachmentsFromMetadata(metadata string) ([]AttachmentMetadata, error) {
 		return nil, nil
 	}
 
-	var decoded attachmentResponseMetadata
+	var decoded responseMetadata
 	if err := json.Unmarshal([]byte(metadata), &decoded); err != nil {
 		return nil, xerrors.Errorf("unmarshal attachment metadata: %w", err)
 	}

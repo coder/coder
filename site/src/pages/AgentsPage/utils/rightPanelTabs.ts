@@ -39,6 +39,14 @@ export type PortSelection = {
 export type UserRightPanelTab =
 	| {
 			id: string;
+			kind: "mcp_app";
+			label: string;
+			toolCallId: string;
+			serverName: string;
+			resourceUri: string;
+	  }
+	| {
+			id: string;
 			kind: "terminal";
 			label?: string;
 			reconnectionToken: string;
@@ -66,6 +74,18 @@ export type UserRightPanelTab =
 			protocol: WorkspaceAgentPortShareProtocol;
 	  };
 
+/** Keeps one tab per tool call, including tabs restored from storage. */
+export function addMCPAppTab(
+	tabs: UserRightPanelTab[],
+	tab: Extract<UserRightPanelTab, { kind: "mcp_app" }>,
+): UserRightPanelTab[] {
+	return tabs.some(
+		(item) => item.kind === "mcp_app" && item.toolCallId === tab.toolCallId,
+	)
+		? tabs
+		: [...tabs, tab];
+}
+
 type ValidateUserRightPanelTabsOptions = {
 	workspace: Workspace | undefined;
 	workspaceAgent: WorkspaceAgent | undefined;
@@ -81,6 +101,15 @@ export function isUserRightPanelTab(
 	const record = value as Record<string, unknown>;
 	if (typeof record.id !== "string") {
 		return false;
+	}
+
+	if (record.kind === "mcp_app") {
+		return (
+			typeof record.label === "string" &&
+			typeof record.toolCallId === "string" &&
+			typeof record.serverName === "string" &&
+			typeof record.resourceUri === "string"
+		);
 	}
 
 	if (record.kind === "terminal") {
@@ -126,6 +155,7 @@ export function validateUserRightPanelTabs(
 	}: ValidateUserRightPanelTabsOptions,
 ): UserRightPanelTab[] {
 	return tabs.filter((tab) => {
+		if (tab.kind === "mcp_app") return true;
 		if (tab.kind === "terminal") {
 			return workspace !== undefined && workspaceAgent !== undefined;
 		}

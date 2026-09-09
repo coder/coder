@@ -96,6 +96,7 @@ type AgentConn interface {
 
 	AwaitReachable(ctx context.Context) bool
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
+	ReadMCPResource(ctx context.Context, req ReadMCPResourceRequest) (ReadMCPResourceResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
 	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
@@ -1286,6 +1287,8 @@ type MCPToolInfo struct {
 	Schema map[string]any `json:"schema"`
 	// Required lists required parameter names.
 	Required []string `json:"required"`
+	// UIResourceURI identifies the tool's MCP App resource.
+	UIResourceURI string `json:"ui_resource_uri,omitempty"`
 }
 
 // ContextConfigResponse is the response from the agent's context
@@ -1302,12 +1305,17 @@ type CallMCPToolRequest struct {
 	ToolName string `json:"tool_name"`
 	// Arguments is the tool input as key-value pairs.
 	Arguments map[string]any `json:"arguments"`
+	// IncludeResult requests the raw tools/call result in Result for MCP
+	// App rendering. Results above MaxMCPToolResultBytes are replaced
+	// with a placeholder before leaving the agent.
+	IncludeResult bool `json:"include_result,omitempty"`
 }
 
 // CallMCPToolResponse is the response from a proxied MCP tool call.
 type CallMCPToolResponse struct {
 	Content []MCPToolContent `json:"content"`
 	IsError bool             `json:"is_error"`
+	Result  json.RawMessage  `json:"result,omitempty"`
 }
 
 // MCPToolContent is a single content block in an MCP tool response.
@@ -1316,6 +1324,35 @@ type MCPToolContent struct {
 	Text      string `json:"text,omitempty"`
 	Data      string `json:"data,omitempty"` // base64 for binary
 	MediaType string `json:"media_type,omitempty"`
+}
+
+const (
+	// MaxMCPToolResultBytes limits the raw tools/call result an MCP App
+	// receives.
+	MaxMCPToolResultBytes = 256 << 10
+	// MaxMCPResourceContentBytes limits the text, blob, and metadata of
+	// one resource. The agent enforces it before encoding the response.
+	MaxMCPResourceContentBytes = 4 << 20
+	// MaxMCPResourceResponseBytes limits the encoded agent resource response.
+	MaxMCPResourceResponseBytes = 8 << 20
+)
+
+// ErrMCPResourceTooLarge indicates a resource exceeds one of the size limits.
+var ErrMCPResourceTooLarge = xerrors.New("MCP resource exceeds the size limit")
+
+// ReadMCPResourceRequest identifies a resource on a workspace MCP server.
+type ReadMCPResourceRequest struct {
+	ServerName string `json:"server_name"`
+	URI        string `json:"uri"`
+}
+
+// ReadMCPResourceResponse contains the first resource returned by an MCP server.
+type ReadMCPResourceResponse struct {
+	URI      string          `json:"uri"`
+	MimeType string          `json:"mime_type,omitempty"`
+	Text     string          `json:"text,omitempty"`
+	Blob     string          `json:"blob,omitempty"`
+	Meta     json.RawMessage `json:"meta,omitempty"`
 }
 
 // StartProcess starts a new process on the workspace agent.
@@ -1382,6 +1419,31 @@ func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (Ca
 	}
 	var resp CallMCPToolResponse
 	return resp, decodeAgentJSON(res, &resp)
+}
+
+// ReadMCPResource proxies resources/read to a workspace MCP server and returns
+// the first content item.
+func (c *agentConn) ReadMCPResource(ctx context.Context, req ReadMCPResourceRequest) (ReadMCPResourceResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/mcp/read-resource", req)
+	if err != nil {
+		return ReadMCPResourceResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(res.Body, MaxMCPResourceResponseBytes+1))
+	if err != nil {
+		return ReadMCPResourceResponse{}, xerrors.Errorf("read resource response: %w", err)
+	}
+	if len(body) > MaxMCPResourceResponseBytes || res.StatusCode == http.StatusRequestEntityTooLarge {
+		return ReadMCPResourceResponse{}, ErrMCPResourceTooLarge
+	}
+	if res.StatusCode != http.StatusOK {
+		res.Body = io.NopCloser(bytes.NewReader(body))
+		return ReadMCPResourceResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ReadMCPResourceResponse
+	return resp, json.Unmarshal(body, &resp)
 }
 
 // ProcessOutput returns the output of a tracked process on the agent.

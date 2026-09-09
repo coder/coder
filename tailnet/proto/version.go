@@ -88,9 +88,13 @@ import (
 //
 // API v2.12:
 //   - Added the client_session_id to TelemetryEvent.
+//
+// API v2.13:
+//   - Added MCP tool metadata to workspace context and the
+//     mcp_apps_enabled manifest flag on the Agent API.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 12
+	CurrentMinor = 13
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

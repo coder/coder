@@ -124,6 +124,19 @@ func TestChatMessagePartNaturalSentinelCoverage(t *testing.T) {
 	}
 }
 
+func TestMCPAppNULBindings(t *testing.T) {
+	t.Parallel()
+	for _, field := range []string{"ServerName", "ResourceURI"} {
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+			app := &codersdk.ChatMCPApp{ServerName: "server", ResourceURI: "ui://app/view", Result: json.RawMessage(`{}`)}
+			reflect.ValueOf(app).Elem().FieldByName(field).SetString(nulProbe)
+			_, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{MCPApp: app}})
+			require.ErrorContains(t, err, "field MCPApp."+field+" contains NUL at byte 6")
+		})
+	}
+}
+
 func TestChatMessagePartNULCoverage(t *testing.T) {
 	t.Parallel()
 
@@ -204,7 +217,7 @@ func chatMessagePartNULProbe(t *testing.T, field reflect.StructField) (reflect.V
 }
 
 func chatMessagePartNULTransforms(typ reflect.Type) bool {
-	if typ == reflect.TypeFor[json.RawMessage]() {
+	if typ == reflect.TypeFor[json.RawMessage]() || typ == reflect.TypeFor[*codersdk.ChatMCPApp]() {
 		return true
 	}
 	if typ.Kind() == reflect.String {
@@ -276,6 +289,11 @@ func chatMessagePartNULProbeValue(t *testing.T, typ reflect.Type) reflect.Value 
 
 func chatMessagePartStringContainerValue(t *testing.T, typ reflect.Type, probe string) reflect.Value {
 	t.Helper()
+	if typ == reflect.TypeFor[*codersdk.ChatMCPApp]() {
+		raw, err := json.Marshal(map[string]string{probe: probe})
+		require.NoError(t, err)
+		return reflect.ValueOf(&codersdk.ChatMCPApp{ServerName: "server", ResourceURI: "ui://app/view", Result: raw})
+	}
 
 	if typ.Kind() == reflect.String {
 		value := reflect.New(typ).Elem()

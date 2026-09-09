@@ -2,12 +2,15 @@ package chattool_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -53,6 +56,7 @@ func TestWorkspaceMCPTool_InvalidateOn404(t *testing.T) {
 				}, nil
 			},
 			func() { invalidated.Store(true) },
+			false,
 		)
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{})
@@ -84,6 +88,7 @@ func TestWorkspaceMCPTool_InvalidateOn404(t *testing.T) {
 				}, nil
 			},
 			func() { invalidated.Store(true) },
+			false,
 		)
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{})
@@ -115,6 +120,7 @@ func TestWorkspaceMCPTool_InvalidateOn404(t *testing.T) {
 				}, nil
 			},
 			func() { invalidated.Store(true) },
+			false,
 		)
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{})
@@ -146,6 +152,7 @@ func TestWorkspaceMCPTool_InvalidateOn404(t *testing.T) {
 				}, nil
 			},
 			nil,
+			false,
 		)
 
 		// Should not panic.
@@ -180,6 +187,7 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 				}, nil
 			},
 			nil,
+			false,
 		)
 
 		// The model-facing name is sanitized to the provider-safe set.
@@ -209,6 +217,7 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 				}, nil
 			},
 			nil,
+			false,
 		)
 
 		// A name already within the allowed set is left untouched.
@@ -234,11 +243,93 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 				}, nil
 			},
 			nil,
+			false,
 		)
 
 		// The model-facing name is capped at the strictest provider limit.
 		assert.LessOrEqual(t, len(tool.Info().Name), 64)
 	})
+}
+
+func TestWorkspaceMCPTool_MCPApp(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name                              string
+		enabled, noURI, isError, noResult bool
+	}{
+		{name: "Enabled", enabled: true},
+		{name: "Disabled"},
+		{name: "NoURI", enabled: true, noURI: true},
+		{name: "Error", enabled: true, isError: true},
+		{name: "NoResult", enabled: true, noResult: true},
+		{name: "NoResultError", enabled: true, noResult: true, isError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			original := workspacesdk.CallMCPToolResponse{
+				Content: []workspacesdk.MCPToolContent{{Type: "text", Text: "model output"}, {Type: "image", Data: "aW1hZ2U=", MediaType: "image/png"}},
+				Result:  json.RawMessage(`{"content":[{"type":"text","text":"display output"}],"structuredContent":{"display":""},"_meta":{"view":"chart"},"isError":` + strconv.FormatBool(tc.isError) + `}`),
+				IsError: tc.isError,
+			}
+			if tc.noResult {
+				original.Result = nil
+			}
+			info := workspacesdk.MCPToolInfo{Name: "my.server__view", ServerName: "my.server"}
+			if !tc.noURI {
+				info.UIResourceURI = "ui://view/app.html"
+			}
+			tool := chattool.NewWorkspaceMCPTool(info, func(context.Context) (workspacesdk.AgentConn, error) {
+				return &fakeAgentConn{callMCPToolFunc: func(_ context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+					require.Equal(t, "my.server__view", req.ToolName)
+					require.Equal(t, tc.enabled && !tc.noURI, req.IncludeResult)
+					return original, nil
+				}}, nil
+			}, nil, tc.enabled)
+			response, err := tool.Run(context.Background(), fantasy.ToolCall{})
+			require.NoError(t, err)
+			require.Equal(t, "model output", response.Content)
+			require.Equal(t, tc.isError, response.IsError)
+			app, err := chattool.MCPAppFromMetadata(response.Metadata)
+			require.NoError(t, err)
+			if !tc.enabled || tc.noURI {
+				require.Nil(t, app)
+				require.Empty(t, response.Metadata)
+				return
+			}
+			require.NotNil(t, app)
+			require.Equal(t, "my.server", app.ServerName)
+			require.Equal(t, info.UIResourceURI, app.ResourceURI)
+			if tc.noResult {
+				require.JSONEq(t, `{"content":[],"isError":`+strconv.FormatBool(tc.isError)+`}`, string(app.Result))
+			} else {
+				require.JSONEq(t, string(original.Result), string(app.Result))
+			}
+		})
+	}
+}
+
+func TestMCPAppAttachmentMetadata(t *testing.T) {
+	t.Parallel()
+	app := codersdk.ChatMCPApp{ServerName: "test", ResourceURI: "ui://test/app", Result: json.RawMessage(`{"content":[],"isError":false}`)}
+	attachment := chattool.AttachmentMetadata{FileID: uuid.New(), MediaType: "text/plain"}
+	for _, appFirst := range []bool{true, false} {
+		t.Run(strconv.FormatBool(appFirst), func(t *testing.T) {
+			t.Parallel()
+			response := fantasy.NewTextResponse("unchanged")
+			if appFirst {
+				response = chattool.WithAttachments(chattool.WithMCPApp(response, app), attachment)
+			} else {
+				response = chattool.WithMCPApp(chattool.WithAttachments(response, attachment), app)
+			}
+			got, err := chattool.MCPAppFromMetadata(response.Metadata)
+			require.NoError(t, err)
+			require.Equal(t, &app, got)
+			attachments, err := chattool.AttachmentsFromMetadata(response.Metadata)
+			require.NoError(t, err)
+			require.Equal(t, []chattool.AttachmentMetadata{attachment}, attachments)
+			require.Equal(t, "unchanged", response.Content)
+		})
+	}
 }
 
 func TestNewWorkspaceMCPTools_DisambiguatesCollidingNames(t *testing.T) {
@@ -261,7 +352,7 @@ func TestNewWorkspaceMCPTools_DisambiguatesCollidingNames(t *testing.T) {
 		{Name: "foo_bar__echo"},
 	}
 
-	tools := chattool.NewWorkspaceMCPTools(infos, getConn, nil)
+	tools := chattool.NewWorkspaceMCPTools(infos, getConn, nil, false)
 	require.Len(t, tools, 2)
 
 	names := []string{tools[0].Info().Name, tools[1].Info().Name}

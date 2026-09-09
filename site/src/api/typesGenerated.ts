@@ -2629,6 +2629,16 @@ export const ChatListSources: ChatListSource[] = [
 
 // From codersdk/chats.go
 /**
+ * ChatMCPApp carries a workspace MCP App binding and its display-only result.
+ */
+export interface ChatMCPApp {
+	readonly server_name: string;
+	readonly resource_uri: string;
+	readonly result: unknown;
+}
+
+// From codersdk/chats.go
+/**
  * ChatMessage represents a single message in a chat.
  */
 export interface ChatMessage {
@@ -3508,6 +3518,7 @@ export interface ChatToolResultPart {
 	readonly tool_name?: string;
 	readonly mcp_server_config_id?: string;
 	readonly result?: Record<string, string>;
+	readonly mcp_app?: ChatMCPApp;
 	readonly result_delta?: string;
 	readonly result_reset?: boolean;
 	readonly is_error?: boolean;
@@ -5025,6 +5036,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-mcp-apps"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -5041,6 +5053,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-mcp-apps",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",

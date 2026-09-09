@@ -139,11 +139,13 @@ func TestManifest(t *testing.T) {
 				SubagentID:      uuid.NullUUID{Valid: true, UUID: uuid.New()},
 			},
 		},
+		MCPAppsEnabled: true,
 	}
 	p, err := agentsdk.ProtoFromManifest(manifest)
 	require.NoError(t, err)
 	back, err := agentsdk.ManifestFromProto(p)
 	require.NoError(t, err)
+	require.Equal(t, manifest.MCPAppsEnabled, back.MCPAppsEnabled)
 	require.Equal(t, manifest.ParentID, back.ParentID)
 	require.Equal(t, manifest.AgentID, back.AgentID)
 	require.Equal(t, manifest.AgentName, back.AgentName)

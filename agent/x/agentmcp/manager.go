@@ -3,6 +3,7 @@ package agentmcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -96,6 +97,10 @@ type Manager struct {
 	// SnapshotChanged short-circuit may skip a reload.
 	firstSyncSettled bool
 
+	// mcpAppsEnabled mirrors the deployment's MCP Apps experiment so
+	// servers are only told the host renders UI when it can.
+	mcpAppsEnabled bool
+
 	// closedCh is closed by Close to unblock waiters that do not
 	// otherwise observe Close (the parent ctx is owned by the
 	// caller and may outlive Close).
@@ -183,6 +188,15 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 func (m *Manager) SetOnReload(fn func()) {
 	m.mu.Lock()
 	m.onChange = fn
+	m.mu.Unlock()
+}
+
+// SetMCPAppsEnabled controls whether servers connected from now on are
+// told that MCP App UI rendering is supported. Existing sessions keep
+// the capability they negotiated.
+func (m *Manager) SetMCPAppsEnabled(enabled bool) {
+	m.mu.Lock()
+	m.mcpAppsEnabled = enabled
 	m.mu.Unlock()
 }
 
@@ -703,7 +717,55 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("call tool %q on %q: %w", originalName, serverName, err)
 	}
 
-	return convertResult(result), nil
+	resp := convertResult(result)
+	if req.IncludeResult {
+		resp.Result = rawResult(result)
+	}
+	return resp, nil
+}
+
+// ReadResource returns the first content item from a connected MCP server.
+// An empty result is an error.
+func (m *Manager) ReadResource(ctx context.Context, req workspacesdk.ReadMCPResourceRequest) (workspacesdk.ReadMCPResourceResponse, error) {
+	m.mu.RLock()
+	entry, ok := m.servers[req.ServerName]
+	m.mu.RUnlock()
+	if !ok {
+		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("%w: %q", ErrUnknownServer, req.ServerName)
+	}
+	readCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
+	defer cancel()
+	result, err := entry.client.ReadResource(readCtx, &mcp.ReadResourceParams{URI: req.URI})
+	if err != nil {
+		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("read resource %q on %q: %w", req.URI, req.ServerName, err)
+	}
+	if len(result.Contents) == 0 || result.Contents[0] == nil {
+		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("read resource %q on %q: empty contents", req.URI, req.ServerName)
+	}
+	resp, err := convertResource(result.Contents[0])
+	if err != nil {
+		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("read resource %q on %q: %w", req.URI, req.ServerName, err)
+	}
+	return resp, nil
+}
+
+// convertResource bounds the text, blob, and metadata before the blob
+// is base64 encoded so an oversized resource never grows further.
+func convertResource(resource *mcp.ResourceContents) (workspacesdk.ReadMCPResourceResponse, error) {
+	var meta json.RawMessage
+	if len(resource.Meta) > 0 {
+		meta, _ = json.Marshal(resource.Meta)
+	}
+	if len(resource.Text)+len(resource.Blob)+len(meta) > workspacesdk.MaxMCPResourceContentBytes {
+		return workspacesdk.ReadMCPResourceResponse{}, workspacesdk.ErrMCPResourceTooLarge
+	}
+	return workspacesdk.ReadMCPResourceResponse{
+		URI:      resource.URI,
+		MimeType: resource.MIMEType,
+		Text:     resource.Text,
+		Blob:     base64.StdEncoding.EncodeToString(resource.Blob),
+		Meta:     meta,
+	}, nil
 }
 
 // refreshCatalog re-lists tools from the connected servers and rebuilds
@@ -757,6 +819,7 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 					Name:        tool.Name,
 					Description: tool.Description,
 					InputSchema: toolInputSchemaMap(tool.InputSchema),
+					Meta:        tool.Meta,
 				})
 			}
 			mu.Lock()
@@ -864,10 +927,17 @@ func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.Cli
 		return nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
 	}
 
+	caps := &mcp.ClientCapabilities{}
+	m.mu.RLock()
+	mcpAppsEnabled := m.mcpAppsEnabled
+	m.mu.RUnlock()
+	if mcpAppsEnabled {
+		caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{"mimeTypes": []string{"text/html;profile=mcp-app"}})
+	}
 	c := mcp.NewClient(&mcp.Implementation{
 		Name:    "coder-agent",
 		Version: buildinfo.Version(),
-	}, nil)
+	}, &mcp.ClientOptions{Capabilities: caps})
 
 	connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
@@ -1006,6 +1076,16 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 	}
 }
 
+// rawResult serializes the tools/call result for MCP App rendering,
+// replacing envelopes above MaxMCPToolResultBytes with a placeholder.
+func rawResult(result *mcp.CallToolResult) json.RawMessage {
+	raw, _ := json.Marshal(result)
+	if len(raw) > workspacesdk.MaxMCPToolResultBytes {
+		return json.RawMessage(fmt.Sprintf(`{"content":[{"type":"text","text":"[result omitted: too large]"}],"isError":%t}`, result.IsError))
+	}
+	return raw
+}
+
 // ServerStatus is a point-in-time view of one MCP server's connection
 // state and tools, used by the agentcontext resolver to build
 // KindMCPServer resources. Tool names are exactly as the server
@@ -1025,6 +1105,7 @@ type ToolInfo struct {
 	Name        string
 	Description string
 	InputSchema map[string]any
+	Meta        map[string]any
 }
 
 // Only type, properties, and required are exposed through ToolInfo;
@@ -1053,9 +1134,8 @@ func toolInputSchemaMap(schema any) map[string]any {
 	return out
 }
 
-// cloneServerStatuses deep-copies a catalog so callers cannot mutate the
-// Manager's cache. Tool input schemas are treated as immutable and
-// shared by reference.
+// cloneServerStatuses copies catalog slices; tool schemas and metadata remain
+// shared by reference and must be treated as immutable.
 func cloneServerStatuses(in []ServerStatus) []ServerStatus {
 	if len(in) == 0 {
 		return nil
