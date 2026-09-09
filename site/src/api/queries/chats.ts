@@ -1,6 +1,7 @@
 import isEqual from "lodash/isEqual";
 import {
 	type InfiniteData,
+	type Mutation,
 	type QueryClient,
 	queryOptions,
 	type UseInfiniteQueryOptions,
@@ -1054,6 +1055,16 @@ type UpdateChatPlanModeVariables = {
 	planMode?: TypesGen.ChatPlanMode;
 };
 
+export const chatSettingsMutationKey = ["chats", "settings"] as const;
+export const chatPlanModeMutationKey = [
+	...chatSettingsMutationKey,
+	"planMode",
+] as const;
+export const chatWorkspaceMutationKey = [
+	...chatSettingsMutationKey,
+	"workspace",
+] as const;
+
 const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
 
 export const toChatPlanModePayload = (
@@ -1343,6 +1354,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 });
 
 export const updateChatPlanMode = (queryClient: QueryClient) => ({
+	mutationKey: chatPlanModeMutationKey,
 	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
 		API.experimental.updateChat(chatId, {
 			plan_mode: toChatPlanModePayload(planMode),
@@ -1395,6 +1407,7 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 });
 
 export const updateChatWorkspace = (queryClient: QueryClient) => ({
+	mutationKey: chatWorkspaceMutationKey,
 	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>
 		API.experimental.updateChat(chatId, {
 			workspace_id:
@@ -1458,6 +1471,79 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 		await invalidateChatsByWorkspace(queryClient);
 	},
 });
+
+const isChatSettingsMutationForChat = (
+	variables: unknown,
+	chatId: string,
+): boolean => {
+	if (typeof variables !== "object" || variables === null) {
+		return false;
+	}
+	if (!("chatId" in variables)) {
+		return false;
+	}
+	return variables.chatId === chatId;
+};
+
+const waitForMutation = (
+	queryClient: QueryClient,
+	mutation: Mutation,
+): Promise<void> =>
+	new Promise((resolve, reject) => {
+		const settle = (): boolean => {
+			switch (mutation.state.status) {
+				case "pending":
+					return false;
+				case "error":
+					reject(mutation.state.error);
+					return true;
+				default:
+					resolve();
+					return true;
+			}
+		};
+
+		if (settle()) {
+			return;
+		}
+
+		const unsubscribe = queryClient.getMutationCache().subscribe((event) => {
+			if (event.mutation !== mutation) {
+				return;
+			}
+			if (event.type !== "updated" && event.type !== "removed") {
+				return;
+			}
+			if (event.type === "removed" && mutation.state.status === "pending") {
+				unsubscribe();
+				resolve();
+				return;
+			}
+			if (!settle()) {
+				return;
+			}
+			unsubscribe();
+		});
+
+		if (settle()) {
+			unsubscribe();
+		}
+	});
+
+export const waitForChatSettingsMutations = (
+	queryClient: QueryClient,
+	chatId: string,
+): Promise<void> => {
+	const pending = queryClient.getMutationCache().findAll({
+		mutationKey: chatSettingsMutationKey,
+		status: "pending",
+		predicate: (mutation) =>
+			isChatSettingsMutationForChat(mutation.state.variables, chatId),
+	});
+	return Promise.all(
+		pending.map((mutation) => waitForMutation(queryClient, mutation)),
+	).then(() => undefined);
+};
 
 export const pinChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>

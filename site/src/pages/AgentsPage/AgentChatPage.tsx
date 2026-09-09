@@ -38,6 +38,7 @@ import {
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
+	waitForChatSettingsMutations,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
@@ -774,14 +775,13 @@ const AgentChatPage: FC = () => {
 			attachments,
 			useComposerContent,
 		});
-		if (
-			!hasContent ||
-			isSubmissionPending ||
-			isChatSettingsPending ||
-			!hasModelOptions
-		) {
+		if (!hasContent || isSubmissionPending || !hasModelOptions) {
 			return;
 		}
+
+		// Wait for chat-setting mutations to settle before sending so the
+		// message observes the workspace and plan-mode choices the user just made.
+		await waitForChatSettingsMutations(queryClient, agentId);
 
 		// Built-ins only intercept new, text-only sends. A personal or workspace
 		// skill with the same name takes precedence.
@@ -1137,9 +1137,7 @@ const AgentChatPage: FC = () => {
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
-					onImplementPlan={
-						isChatSettingsPending ? undefined : handleImplementPlan
-					}
+					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}

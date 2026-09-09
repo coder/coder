@@ -178,6 +178,33 @@ export const InteractiveSingleQuestion: Story = {
 	},
 };
 
+export const SubmitFailureKeepsQuestionOpen: Story = {
+	args: {
+		status: "completed",
+		result: JSON.stringify(singleQuestionPayload),
+		isChatCompleted: true,
+		isLatestAskUserQuestion: true,
+		onSendAskUserQuestionResponse: fn(async () => {
+			throw new Error(
+				"Chat settings are still updating. Try again in a moment.",
+			);
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("radio", { name: /single migration/i }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
+
+		expect(await canvas.findByRole("alert")).toHaveTextContent(
+			"Chat settings are still updating. Try again in a moment.",
+		);
+		expect(canvas.queryByText("Submitted answer")).not.toBeInTheDocument();
+		expect(canvas.getByRole("button", { name: "Submit" })).toBeEnabled();
+	},
+};
+
 export const InteractiveSingleQuestionOther: Story = {
 	args: {
 		status: "completed",

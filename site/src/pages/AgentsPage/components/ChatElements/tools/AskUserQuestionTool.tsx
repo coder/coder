@@ -390,7 +390,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (message: string) => {
 			if (!onSubmitAnswer) {
-				return;
+				throw new Error("This question can no longer be answered.");
 			}
 
 			await onSubmitAnswer(message);
