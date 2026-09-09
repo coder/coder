@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 export type FilterOption = {
 	label: string;
+	/** Label used once the option is applied; defaults to `label`. */
+	appliedLabel?: string;
 	value: string;
 	startIcon?: ReactNode;
 	subtitle?: string;

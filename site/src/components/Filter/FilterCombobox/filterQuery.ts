@@ -37,7 +37,11 @@ export const categoryPreview = (
 			return [];
 		}
 		const option = options?.find((entry) => optionToken(entry) === chip);
-		return [option?.label ?? chipDisplay(chip, [category]).value];
+		return [
+			option?.appliedLabel ??
+				option?.label ??
+				chipDisplay(chip, [category]).value,
+		];
 	});
 	const hint =
 		category.hint ??

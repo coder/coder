@@ -322,6 +322,16 @@ describe("categoryPreview", () => {
 		).toEqual(["Stopped"]);
 	});
 
+	it("prefers an option's applied label", () => {
+		expect(
+			categoryPreview(
+				{ key: "owner" },
+				["owner:me"],
+				[{ label: "admin (you)", appliedLabel: "me", value: "me" }],
+			).selected,
+		).toEqual(["me"]);
+	});
+
 	it("shows the raw value when the chip has no matching option", () => {
 		expect(
 			categoryPreview(

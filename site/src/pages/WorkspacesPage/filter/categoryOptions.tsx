@@ -91,6 +91,7 @@ type OwnerIdentity = Readonly<{ username: string; avatar_url?: string }>;
 // `owner:<username>`.
 const selfOwnerOption = (me: OwnerIdentity): FilterOption => ({
 	label: `${me.username} (you)`,
+	appliedLabel: "me",
 	value: "me",
 	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
 });
