@@ -62,8 +62,12 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
  * Older pages prepend rows inside an expanded partial block rather than as
  * new scroller items, so the scroller cannot hold the reading position and
  * browsers skip scroll anchoring at the top. Scroll by the growth instead.
+ * Only a prepend qualifies: the previous first row must still be a member.
+ * When the live row that opened a block is replaced by its persisted step,
+ * the first key changes too, but that content changed in place.
  */
-const useKeepReadingPositionAcrossPrepend = (firstRowKey: string) => {
+const useKeepReadingPositionAcrossPrepend = (rowKeys: readonly string[]) => {
+	const firstRowKey = rowKeys[0];
 	const contentRef = useRef<HTMLDivElement>(null);
 	const previousRef = useRef<{ firstRowKey: string; height: number }>(null);
 	useLayoutEffect(() => {
@@ -72,7 +76,12 @@ const useKeepReadingPositionAcrossPrepend = (firstRowKey: string) => {
 		previousRef.current = content
 			? { firstRowKey, height: content.offsetHeight }
 			: null;
-		if (!content || !previous || previous.firstRowKey === firstRowKey) {
+		if (
+			!content ||
+			!previous ||
+			previous.firstRowKey === firstRowKey ||
+			!rowKeys.includes(previous.firstRowKey)
+		) {
 			return;
 		}
 		const delta = content.offsetHeight - previous.height;
@@ -86,8 +95,8 @@ const useKeepReadingPositionAcrossPrepend = (firstRowKey: string) => {
 
 type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
-	/** Key of the block's oldest row; it changes when older pages join. */
-	firstRowKey: string;
+	/** Keys of the block's rows, oldest first; older pages join at the front. */
+	rowKeys: readonly string[];
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
 	children: ReactNode;
@@ -102,13 +111,13 @@ type WorkingBlockDisclosureProps = {
  */
 export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 	block,
-	firstRowKey,
+	rowKeys,
 	expanded,
 	onExpandedChange,
 	children,
 	now,
 }) => {
-	const contentRef = useKeepReadingPositionAcrossPrepend(firstRowKey);
+	const contentRef = useKeepReadingPositionAcrossPrepend(rowKeys);
 	return (
 		<ToolCall.Root
 			status={block.isLive ? "running" : "completed"}
@@ -128,7 +137,9 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 				{block.failedCount > 0 && (
 					<span className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-destructive">
 						<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
-						{pluralize(block.failedCount, "failed step")}
+						{block.isPartial
+							? `${pluralize(block.failedCount, "failed step")} or more`
+							: pluralize(block.failedCount, "failed step")}
 					</span>
 				)}
 				<ToolCall.Chevron />
