@@ -163,12 +163,18 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					type="button"
 					variant="subtle"
 					className={cn(
-						"h-7 min-w-0 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:size-3.5! [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition hover:[&>svg]:text-content-primary [&>img]:size-3! [&>img]:p-0!",
+						"h-7 min-w-0 shrink justify-start gap-1",
+						"rounded-full border-0 bg-surface-secondary",
+						"px-2 py-0.5 text-xs font-medium shadow-none transition-colors",
+						"hover:bg-surface-tertiary hover:text-content-primary",
+						"focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link",
+						"[&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition",
+						"hover:[&>svg]:text-content-primary [&>img]:size-3! [&>img]:p-0!",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
 				>
-					<span className="flex min-w-0 items-center gap-1">
+					<span className="flex min-w-0 items-center gap-2.5">
 						{selectedModel && (
 							<span
 								className="flex shrink-0 items-center"
@@ -177,13 +183,15 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 								<ProviderIcon
 									provider={selectedModel.provider}
 									icon={selectedModel.providerIcon}
-									className="size-3 shrink-0"
+									className="size-icon-sm shrink-0"
 								/>
 							</span>
 						)}
-						<span className="truncate">{triggerLabel}</span>
+						<span className="truncate flex-1">{triggerLabel}</span>
 					</span>
-					<ChevronDownIcon open={open} />
+					<span className="flex shrink-0 items-center">
+						<ChevronDownIcon open={open} className="size-icon-sm" />
+					</span>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent

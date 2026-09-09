@@ -172,25 +172,15 @@ const buildArgs = (
 	overridesError: undefined,
 	onRetryOverrides: fn(),
 	isRetryingOverrides: false,
-	isLoadingOverrides: false,
+	isLoading: false,
 	modelOptions,
 	models,
 	modelsError: undefined,
-	isLoadingModels: false,
 	organizations: [MockDefaultOrganization],
 	selectedOrganization: MockDefaultOrganization,
 	onSelectOrganization: fn(),
-	isOrganizationUnresolved: false,
-	hasNoOrganizationModels: false,
-	onSaveRootModelOverride: fn(),
-	isSavingRootModelOverride: false,
-	isSaveRootModelOverrideError: false,
-	onSaveGeneralModelOverride: fn(),
-	isSavingGeneralModelOverride: false,
-	isSaveGeneralModelOverrideError: false,
-	onSaveExploreModelOverride: fn(),
-	isSavingExploreModelOverride: false,
-	isSaveExploreModelOverrideError: false,
+	onSaveOverride: fn(),
+	isSaving: false,
 	...overrides,
 });
 
@@ -336,8 +326,12 @@ export const EnabledWithSavedValues: Story = {
 		});
 		await userEvent.click(rootSaveButton);
 		await waitFor(() => {
-			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
-				{ mode: "model", model_config_id: claudeModelConfig.id },
+			expect(args.onSaveOverride).toHaveBeenCalledWith(
+				{
+					organizationId: MockDefaultOrganization.id,
+					context: "root",
+					req: { mode: "model", model_config_id: claudeModelConfig.id },
+				},
 				expect.anything(),
 			);
 		});
@@ -357,8 +351,12 @@ export const EnabledWithSavedValues: Story = {
 		);
 
 		await waitFor(() => {
-			expect(args.onSaveGeneralModelOverride).toHaveBeenCalledWith(
-				{ mode: "chat_default", model_config_id: "" },
+			expect(args.onSaveOverride).toHaveBeenCalledWith(
+				{
+					organizationId: MockDefaultOrganization.id,
+					context: "general",
+					req: { mode: "chat_default", model_config_id: "" },
+				},
 				expect.anything(),
 			);
 		});
@@ -431,11 +429,15 @@ export const SavedReasoningModel: Story = {
 			within(rootSection).getByRole("button", { name: "Save" }),
 		);
 		await waitFor(() => {
-			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
+			expect(args.onSaveOverride).toHaveBeenCalledWith(
 				{
-					mode: "model",
-					model_config_id: reasoningModelConfig.id,
-					reasoning_effort: "high",
+					organizationId: MockDefaultOrganization.id,
+					context: "root",
+					req: {
+						mode: "model",
+						model_config_id: reasoningModelConfig.id,
+						reasoning_effort: "high",
+					},
 				},
 				expect.anything(),
 			);
@@ -575,9 +577,8 @@ export const ModelsError: Story = {
 export const LoadingState: Story = {
 	args: buildArgs({
 		overridesData: undefined,
-		isLoadingOverrides: true,
+		isLoading: true,
 		modelOptions: [],
-		isLoadingModels: true,
 	}),
 	play: async ({ canvasElement }) => {
 		const rootSection = await getSection(canvasElement, "Root agent model");
@@ -652,26 +653,8 @@ export const SwitchOrganizations: Story = {
 	},
 };
 
-export const SaveErrorState: Story = {
-	args: buildArgs({
-		isSaveGeneralModelOverrideError: true,
-	}),
-	play: async ({ canvasElement }) => {
-		const generalSection = await getSection(
-			canvasElement,
-			"General subagent model",
-		);
-		expect(
-			within(generalSection).getByText(
-				"Failed to save general subagent model override.",
-			),
-		).toBeInTheDocument();
-	},
-};
-
 export const NoAvailableOrganizationModels: Story = {
 	args: buildArgs({
-		hasNoOrganizationModels: true,
 		modelOptions: [],
 		models: [disabledModelConfig],
 		overridesData: buildOverridesResponse({
@@ -703,8 +686,12 @@ export const NoAvailableOrganizationModels: Story = {
 		await waitFor(() => expect(save).toBeEnabled());
 		await userEvent.click(save);
 		await waitFor(() => {
-			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
-				{ mode: "chat_default", model_config_id: "" },
+			expect(args.onSaveOverride).toHaveBeenCalledWith(
+				{
+					organizationId: MockDefaultOrganization.id,
+					context: "root",
+					req: { mode: "chat_default", model_config_id: "" },
+				},
 				expect.anything(),
 			);
 		});
@@ -713,7 +700,7 @@ export const NoAvailableOrganizationModels: Story = {
 
 export const DefaultOrganizationUnresolved: Story = {
 	args: buildArgs({
-		isOrganizationUnresolved: true,
+		selectedOrganization: undefined,
 		modelOptions: [],
 		models: [],
 	}),
@@ -790,8 +777,12 @@ export const InvalidRootDeploymentDefault: Story = {
 			within(rootSection).getByRole("button", { name: "Save" }),
 		);
 		await waitFor(() => {
-			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
-				{ mode: "chat_default", model_config_id: "" },
+			expect(args.onSaveOverride).toHaveBeenCalledWith(
+				{
+					organizationId: MockDefaultOrganization.id,
+					context: "root",
+					req: { mode: "chat_default", model_config_id: "" },
+				},
 				expect.anything(),
 			);
 		});
