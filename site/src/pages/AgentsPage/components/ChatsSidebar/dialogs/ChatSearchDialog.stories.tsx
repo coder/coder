@@ -140,8 +140,6 @@ export const LoadingState: Story = {
 			body.getByRole("combobox", { name: "Search chats" }),
 			"Fix",
 		);
-		// Wait for the loading state to render so the screenshot captures
-		// the skeleton.
 		await body.findByText(/results/i);
 	},
 };
@@ -327,8 +325,6 @@ export const NoResults: Story = {
 			body.getByRole("combobox", { name: "Search chats" }),
 			"none",
 		);
-		// Wait for the empty state to render so the screenshot captures the
-		// no-results copy.
 		await body.findByText("No matching chats", { exact: false });
 	},
 };
@@ -404,8 +400,6 @@ export const FilterDropdownOnFocus: Story = {
 		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
 
 		await userEvent.click(toggleButton);
-		// Wait for the dropdown to open so the screenshot shows the filter
-		// options.
 		await body.findByText("Filter by");
 	},
 };
@@ -597,8 +591,6 @@ export const TypedFilterAutoDetection: Story = {
 
 		await userEvent.type(searchInput, "has_unread:true ");
 
-		// Wait for the auto-detected pill to render so the screenshot shows
-		// it with its remove button.
 		await body.findByText("has_unread:true");
 	},
 };

@@ -72,7 +72,6 @@ export const Closed: Story = {};
 
 export const OpensWithSkills: Story = {
 	play: async ({ canvasElement }) => {
-		// Type "/" so the screenshot captures the open skills menu.
 		await typeInEditor(canvasElement, "/");
 	},
 };

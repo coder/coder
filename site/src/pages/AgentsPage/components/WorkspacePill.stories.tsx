@@ -140,7 +140,6 @@ export const WithAllApps: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
-		// Leave the menu open so the screenshot captures it.
 		await userEvent.click(pill);
 	},
 };
@@ -199,7 +198,6 @@ export const WithBuiltinAppsOnly: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
-		// Leave the menu open so the screenshot captures it.
 		await userEvent.click(pill);
 	},
 };
@@ -213,7 +211,6 @@ export const WithExternalAppsOnly: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
-		// Leave the menu open so the screenshot captures it.
 		await userEvent.click(pill);
 	},
 };
@@ -227,7 +224,6 @@ export const NoApps: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
-		// Leave the menu open so the screenshot captures it.
 		await userEvent.click(pill);
 	},
 };
@@ -241,7 +237,6 @@ export const WithHiddenApp: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
-		// Leave the menu open so the screenshot captures it.
 		await userEvent.click(pill);
 	},
 };
@@ -321,8 +316,6 @@ export const WithListeningPorts: Story = {
 		await userEvent.click(pill);
 
 		const body = within(document.body);
-		// Hover over the ports item to open the submenu, then wait for
-		// it so the screenshot captures the open submenu.
 		await userEvent.hover(await body.findByText(/Ports \(\d+\)/));
 		await body.findByText("Listening Ports");
 	},
@@ -356,8 +349,6 @@ export const WithSharedPorts: Story = {
 		await userEvent.click(pill);
 
 		const body = within(document.body);
-		// Hover over the ports item to open the submenu, then wait for
-		// it so the screenshot captures the open submenu.
 		await userEvent.hover(await body.findByText(/Ports/));
 		await body.findByText("Listening Ports");
 	},
@@ -388,8 +379,6 @@ export const EmptyPorts: Story = {
 		await userEvent.click(pill);
 
 		const body = within(document.body);
-		// Hover over the ports item to open the submenu, then wait for
-		// it so the screenshot captures the open submenu.
 		await userEvent.hover(await body.findByText("Ports (0)"));
 		await body.findByText("No open ports detected.");
 	},
@@ -495,7 +484,6 @@ export const MobilePortsInlinePanelOpen: Story = {
 	...mobilePortsStoryConfig,
 	play: async ({ canvasElement }) => {
 		const { body } = await openMobilePortsPanel(canvasElement);
-		// Let the panel render so the screenshot captures it open.
 		await body.findByText("Listening Ports");
 	},
 };

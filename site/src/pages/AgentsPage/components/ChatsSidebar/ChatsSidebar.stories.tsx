@@ -174,8 +174,8 @@ export const ModelNameWaitsForModelsToLoad: Story = {
 	},
 	render: (args) => <ChatsSidebarWithDeferredModels {...args} />,
 	play: async ({ canvasElement }) => {
-		// The render harness resolves the model configs after 500ms; wait for
-		// the loaded model name so the screenshot captures it.
+		// The render harness resolves the model configs after 500ms; wait
+		// for the loaded model name.
 		await within(canvasElement).findByText("GPT-4o");
 	},
 };
@@ -392,8 +392,6 @@ export const ExpandCollapse: Story = {
 		const canvas = within(canvasElement);
 		const toggle = canvas.getByTestId("agents-tree-toggle-root-2");
 
-		// Collapse then re-expand so the screenshot lands on the expanded
-		// tree with the nested child visible.
 		await userEvent.click(toggle);
 		await userEvent.click(toggle);
 	},
@@ -655,8 +653,6 @@ export const SidebarFilterMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Open the filter menu and leave it open so the screenshot captures
-		// the menu contents.
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Filter agents" }),
 		);
@@ -975,8 +971,7 @@ export const RenameChatGenerateErrorSurfacesAlert: Story = {
 			await body.findByRole("button", { name: "Generate" }),
 		);
 
-		// Wait for the async proposal failure to surface the error alert so
-		// the screenshot captures the error state.
+		// Wait for the async proposal failure to surface the error alert.
 		await body.findByRole("alert");
 	},
 };
@@ -1020,7 +1015,6 @@ export const RenameChatGenerateApiErrorWithoutDetailHidesHint: Story = {
 			await body.findByRole("button", { name: "Generate" }),
 		);
 
-		// Wait for the API error alert so the screenshot captures it.
 		await body.findByRole("alert");
 	},
 };
@@ -1065,8 +1059,6 @@ export const RenameChatGenerateApiErrorShowsDetail: Story = {
 			await body.findByRole("button", { name: "Generate" }),
 		);
 
-		// Wait for the API error alert so the screenshot captures the
-		// two-line error state.
 		await body.findByRole("alert");
 	},
 };
@@ -1711,8 +1703,6 @@ export const ArchivedAgentUnarchiveOption: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Open the dropdown menu for the archived agent and leave it open so
-		// the screenshot shows the Unarchive agent action.
 		const trigger = await canvas.findByLabelText(
 			"Open actions for Archived agent with unarchive",
 		);
@@ -1740,8 +1730,6 @@ export const AgentWithWorkspaceMenuFull: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Open the dropdown menu and leave it open so the screenshot shows
-		// the full set of workspace actions.
 		const trigger = await canvas.findByLabelText(
 			"Open actions for Agent with workspace",
 		);
@@ -1992,8 +1980,6 @@ export const ChildChatMenuHidesArchiveActions: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Open the child chat actions menu and leave it open so the
-		// screenshot shows the reduced action set.
 		const trigger = await canvas.findByLabelText(
 			"Open actions for Child agent",
 		);

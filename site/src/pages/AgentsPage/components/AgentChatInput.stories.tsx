@@ -81,8 +81,6 @@ export const PromptHistoryCycling: Story = {
 	play: async ({ canvasElement }) => {
 		const editor = getEditor(canvasElement);
 		await userEvent.click(editor);
-		// Stop after the first ArrowUp so the screenshot shows a history
-		// prompt instead of an empty editor.
 		await userEvent.keyboard("{ArrowUp}");
 	},
 };
@@ -94,7 +92,6 @@ export const PromptHistoryCyclingExitsOnTyping: Story = {
 	play: async ({ canvasElement }) => {
 		const editor = getEditor(canvasElement);
 		await userEvent.click(editor);
-		// End with the edited history prompt visible for the screenshot.
 		await userEvent.keyboard("{ArrowUp}");
 		await userEvent.keyboard("!");
 	},
@@ -891,8 +888,6 @@ export const MCPDisconnectControls: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Leave the menu open so the screenshot captures the disconnect
-		// controls.
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 	},
 };
@@ -977,7 +972,6 @@ export const MCPDisconnectRevocationWarning: Story = {
 		);
 		await body.findByText("Disconnect GitHub?");
 		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
-		// Let the revocation-warning toast render before the screenshot.
 		await body.findByText(
 			"The OAuth provider rejected the revocation request.",
 		);
@@ -1019,7 +1013,6 @@ export const PlanFirstMenuItem: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		// Leave the menu open so the screenshot captures the menu item.
 		await body.findByRole("dialog");
 	},
 };
@@ -1100,7 +1093,6 @@ export const PlanFirstCheckedState: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		// Leave the menu open so the screenshot captures the checked state.
 		await body.findByRole("dialog");
 	},
 };
@@ -1359,8 +1351,7 @@ export const OverflowBadges: Story = {
 			name: /more item/,
 		});
 		await userEvent.click(pill);
-		// The popover renders via a Radix portal outside the canvas; wait
-		// for it so the screenshot captures the open popover.
+		// The popover renders via a Radix portal outside the canvas.
 		await within(document.body).findByRole("dialog");
 	},
 };
@@ -1572,8 +1563,7 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 			name: /more item/,
 		});
 		await userEvent.click(overflowPill);
-		// The popover renders via a Radix portal outside the canvas; wait
-		// for it so the screenshot captures the open popover.
+		// The popover renders via a Radix portal outside the canvas.
 		await within(document.body).findByRole("dialog");
 	},
 };

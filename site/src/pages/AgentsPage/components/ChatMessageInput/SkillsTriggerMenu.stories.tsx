@@ -160,7 +160,6 @@ export const ScrollsSelectionIntoView: Story = {
 	},
 	render: (args) => <SelectionScrollHarness {...args} />,
 	play: async () => {
-		// Move the selection so the screenshot captures the scrolled list.
 		await userEvent.click(await findVisibleText("Highlight last skill"));
 	},
 };
