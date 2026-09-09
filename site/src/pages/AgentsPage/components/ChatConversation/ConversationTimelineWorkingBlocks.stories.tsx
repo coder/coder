@@ -2,7 +2,8 @@ import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { useQueryClient } from "react-query";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -261,6 +262,87 @@ export const RunningBetweenSteps: Story = {
 		expect(
 			canvas.getByRole("button", { name: "Worked for 4s (2 steps)" }),
 		).toHaveAttribute("aria-expanded", "true");
+	},
+};
+
+const MockPendingQuestionMessage: ChatMessage = {
+	...MockChatMessage,
+	id: 4,
+	role: "assistant",
+	created_at: time(5),
+	content: [
+		{
+			type: "tool-call",
+			tool_call_id: "question",
+			tool_name: "ask_user_question",
+			args: {},
+			created_at: time(5),
+		},
+	],
+};
+
+// A pending ask_user_question parks the chat in requires_action: the agent is
+// waiting on the user, so the preceding steps read as finished work.
+export const RequiresActionCompletesBlock: Story = {
+	args: {
+		chatStatus: "requires_action",
+		onSendAskUserQuestionResponse: fn(),
+		parsedMessages: parseMessagesWithMergedTools(
+			[...MockWorkingMessages.slice(0, 3), MockPendingQuestionMessage],
+			{ pendingToolCallIDs: new Set(["question"]) },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Worked for 3s (1 step)" }),
+		).toBeVisible();
+		expect(canvas.queryByRole("button", { name: /Working/ })).toBeNull();
+		// The question row is its own item, never inside the fold.
+		const questionRow = canvas.getByTestId("chat-message-message:4");
+		expect(questionRow).toBeVisible();
+		expect(
+			within(canvas.getByTestId("working-block")).queryByTestId(
+				"chat-message-message:4",
+			),
+		).toBeNull();
+	},
+};
+
+// On a cold load the saved preference decides the first paint: rows never
+// render ungrouped and then fold.
+export const ColdLoadUsesSavedPreference: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								...MockUserPreferenceSettings,
+								shell_tool_display_mode: "always_collapsed",
+								collapse_assistant_steps: true,
+							}),
+						300,
+					);
+				}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByTestId("chat-message-message:2")).toBeNull();
+		expect(canvas.queryByText("Inspect the workspace")).toBeNull();
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
+				).toBeVisible();
+			},
+			{ timeout: 3000 },
+		);
+		expect(canvas.queryByTestId("chat-message-message:2")).toBeNull();
+		expect(canvas.getByText("Inspect the workspace")).toBeVisible();
 	},
 };
 
