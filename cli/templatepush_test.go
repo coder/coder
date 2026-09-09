@@ -146,7 +146,6 @@ icon: /tmp/updated.png
 `), 0o600))
 
 		inv, root := clitest.New(t, "templates", "push", template.Name,
-			"--activate=false",
 			"--directory", source,
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			"--name", "example",

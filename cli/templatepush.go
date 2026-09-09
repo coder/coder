@@ -17,6 +17,7 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/gohugoio/hugo/parser/pageparser"
 	"github.com/google/uuid"
+	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -25,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
-	"github.com/mitchellh/mapstructure"
 )
 
 func (r *RootCmd) templatePush() *serpent.Command {
@@ -89,10 +89,9 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				createTemplate = true
 			}
 
-			// If the user has not provided a display name and icon via flag, we will attempt to read it from the README.md front matter.
+			// Attempt to read template metadata from the README.md front matter.
 			var tmplMeta templateFrontMatter
 			var description string
-
 			if !uploadFlags.stdin(inv) {
 				tmplMeta, err = parseREADMEFrontMatter(inv, uploadFlags.directory)
 				if err != nil {
@@ -101,23 +100,12 @@ func (r *RootCmd) templatePush() *serpent.Command {
 
 				if displayName == "" && tmplMeta.DisplayName != "" {
 					displayName = tmplMeta.DisplayName
-					if !createTemplate && displayName != template.DisplayName {
-						cliui.Info(inv.Stderr, "updating the display name from README.md front matter to "+cliui.Code(displayName))
-					}
 				}
-
 				if icon == "" && tmplMeta.Icon != "" {
 					icon = tmplMeta.Icon
-					if !createTemplate && icon != template.Icon {
-						cliui.Info(inv.Stderr, "updating the icon from README.md front matter to "+cliui.Code(icon))
-					}
 				}
-
 				if tmplMeta.Description != "" {
 					description = tmplMeta.Description
-					if !createTemplate && description != template.Description {
-						cliui.Info(inv.Stderr, "updating the description from README.md front matter to "+cliui.Code(description))
-					}
 				}
 			}
 
@@ -219,8 +207,10 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
-			if createTemplate {
-				_, err = client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
+			switch {
+			// Create the template now that an initial template version exists
+			case createTemplate:
+				_, err := client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
 					Name:        name,
 					VersionID:   job.ID,
 					DisplayName: displayName,
@@ -235,33 +225,40 @@ func (r *RootCmd) templatePush() *serpent.Command {
 					inv.Stdout, "\n"+cliui.Wrap(
 						"The "+cliui.Keyword(name)+" template has been created at "+cliui.Timestamp(time.Now())+"! "+
 							"Developers can provision a workspace with this template using:")+"\n")
-			} else {
-				if activate {
-					meta := codersdk.UpdateTemplateMeta{}
 
-					if displayName != "" {
-						meta.DisplayName = &displayName
-					}
-					if description != "" {
-						meta.Description = &description
-					}
-					if icon != "" {
-						meta.Icon = &icon
-					}
+			// Set the new template version as the active version for an existing template
+			case activate:
+				meta := codersdk.UpdateTemplateMeta{}
+				shouldUpdateMeta := false
 
-					if meta.DisplayName != nil || meta.Description != nil || meta.Icon != nil {
-						_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, meta)
-						if err != nil {
-							return xerrors.Errorf("update template metadata from README.md front matter: %w", err)
-						}
-					}
+				if displayName != "" {
+					meta.DisplayName = &displayName
+					shouldUpdateMeta = true
+					cliui.Info(inv.Stderr, "updating the display name from README.md front matter")
+				}
+				if icon != "" {
+					meta.Icon = &icon
+					shouldUpdateMeta = true
+					cliui.Info(inv.Stderr, "updating the icon from README.md front matter")
+				}
+				if description != "" {
+					meta.Description = &description
+					shouldUpdateMeta = true
+					cliui.Info(inv.Stderr, "updating the description from README.md front matter")
+				}
 
-					err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
-						ID: job.ID,
-					})
+				if shouldUpdateMeta {
+					_, err := client.UpdateTemplateMeta(inv.Context(), template.ID, meta)
 					if err != nil {
-						return err
+						return xerrors.Errorf("update template metadata from README.md front matter: %w", err)
 					}
+				}
+
+				err := client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
+					ID: job.ID,
+				})
+				if err != nil {
+					return err
 				}
 			}
 
