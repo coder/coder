@@ -2785,7 +2785,7 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Read a workspace MCP App resource",
+                "summary": "Read chat MCP App resource",
                 "operationId": "read-chat-mcp-app-resource",
                 "parameters": [
                     {

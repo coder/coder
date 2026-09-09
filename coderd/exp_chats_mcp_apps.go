@@ -18,11 +18,11 @@ import (
 
 const maxMCPAppHTMLBytes = 4 << 20
 
-// @Summary Read a workspace MCP App resource
+// @Summary Read chat MCP App resource
 // @ID read-chat-mcp-app-resource
 // @Security CoderSessionToken
 // @Tags Chats
-// @Produce html
+// @Produce text/html
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param server query string true "Workspace MCP server name"
 // @Param uri query string true "Declared ui:// resource URI"
