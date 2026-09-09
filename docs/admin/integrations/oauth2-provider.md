@@ -530,6 +530,17 @@ Two failures stay on Coder rather than reaching your callback, because in both c
 Earlier releases answered on Coder for all of these: `GET` rendered an "Invalid Query Parameters" page and `POST` returned a 400 with a JSON body.
 An integration that watched for either now has to read the error from its own callback.
 
+### "invalid_request" from `POST /oauth2/tokens` for a repeated parameter
+
+The token endpoint ignores parameters it does not read, as RFC 6749 Section 3.2 requires, so an OIDC `nonce`, a `client_assertion`, or a vendor extension does not fail the exchange.
+A misspelled parameter is ignored on the same rule, so what you see is the failure caused by the parameter you meant to send being absent.
+
+A known parameter sent more than once is rejected with a 400 and a JSON body.
+The error is `invalid_request` and names the field, except for a repeated `grant_type`, which answers `unsupported_grant_type`.
+
+Earlier releases returned 400 `invalid_request` for any parameter the endpoint did not recognize.
+An integration that relied on that error to catch a misspelled optional parameter no longer receives it.
+
 ### "invalid_target" for a rejected `resource`
 
 `resource` must be an absolute URI without a fragment (RFC 8707).
