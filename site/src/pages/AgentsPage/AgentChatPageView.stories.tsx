@@ -1146,7 +1146,6 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 		thinkingShiftStore.applyMessageParts([
 			{ type: "text", text: "Here is the start of the answer." },
 		]);
-		// Let the replacement chunk paint before the screenshot.
 		await settleScroller();
 	},
 };

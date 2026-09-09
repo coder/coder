@@ -749,8 +749,7 @@ export const ChatsLoadError: Story = {
 	},
 };
 
-// The collapsed state is internal to the layout. Drive it through the UI
-// for the screenshot.
+// The collapsed state is internal to the layout; drive it through the UI.
 export const SidebarCollapsed: Story = {
 	beforeEach: () => {
 		mockChats([
@@ -970,7 +969,6 @@ export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Let the async watch event land before the screenshot.
 		await canvas.findByText("This agent has been archived and is read-only.");
 		await canvas.findByRole("textbox");
 	},
@@ -987,8 +985,7 @@ export const UnarchiveWatchEventRecoversArchivedChat: Story = {
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Let the async watch event land (the archived banner unmounts) before
-		// the screenshot.
+		// Let the async watch event land; the archived banner unmounts.
 		await canvas.findByRole("textbox");
 		await waitFor(
 			() =>

@@ -1755,8 +1755,7 @@ export const CompletedWithDiffPanel: Story = {
 		});
 		await user.click(menuTrigger);
 
-		// Hold the menu open for the screenshot. Workspace items moved to the
-		// workspace pill popover.
+		// Workspace items moved to the workspace pill popover.
 		const body = within(document.body);
 		await body.findByText("Archive agent");
 	},
