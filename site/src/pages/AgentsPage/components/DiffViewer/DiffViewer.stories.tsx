@@ -494,7 +494,7 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 		);
 
 		// Shadow-root renders are invisible to the stability wait, so wait for
-		// the reparsed body instead of racing the screenshot.
+		// the reparsed body.
 		await waitForDiffBody(canvasElement, "const v = 3");
 	},
 };

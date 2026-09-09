@@ -90,7 +90,6 @@ export const Default: Story = {
 			name: /GPT-4o compaction threshold/i,
 		});
 
-		// Type a value so the footer appears in the screenshot.
 		await userEvent.type(gpt4oInput, "95");
 	},
 };
