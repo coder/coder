@@ -23,13 +23,18 @@ export const CollapseAssistantStepsSettings: FC = () => {
 				</p>
 				<Switch
 					checked={query.data?.collapse_assistant_steps ?? false}
-					disabled={query.isLoading || !query.data || mutation.isPending}
+					disabled={!query.data || mutation.isPending}
 					onCheckedChange={(checked) => {
 						mutation.mutate({ collapse_assistant_steps: checked });
 					}}
 					aria-label="Collapse assistant steps"
 				/>
 			</div>
+			{query.isError && (
+				<p className="m-0 text-xs text-content-destructive">
+					Failed to load your collapse assistant steps preference.
+				</p>
+			)}
 			{mutation.isError && (
 				<p className="m-0 text-xs text-content-destructive">
 					Failed to save your collapse assistant steps preference.

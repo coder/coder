@@ -195,6 +195,27 @@ export const TogglesCollapseAssistantSteps: Story = {
 	},
 };
 
+export const CollapseAssistantStepsLoadError: Story = {
+	// Drop the seeded preferences so the component fetches and hits the error.
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getUserPreferenceSettings").mockRejectedValue(
+			new Error("boom"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText(
+				"Failed to load your collapse assistant steps preference.",
+			),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("switch", { name: "Collapse assistant steps" }),
+		).toBeDisabled();
+	},
+};
+
 export const ShowsChatDebugLoggingToggle: Story = {
 	args: {
 		userDebugLoggingData: {
