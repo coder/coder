@@ -80,3 +80,41 @@ func TestChatPrompts(t *testing.T) {
 		}
 	})
 }
+
+func TestDelegateOrganizationAndModel(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, organization, model string }{
+		{name: "Default"},
+		{name: "Organization", organization: "6f225c30-08f9-475c-a64c-611da5db5a40"},
+		{name: "Model", model: "a2913789-b213-45e3-9d18-561fbb1ec97c"},
+		{name: "Both", organization: "6f225c30-08f9-475c-a64c-611da5db5a40", model: "a2913789-b213-45e3-9d18-561fbb1ec97c"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			text, err := toolsdk.AgentsDelegate.Render(map[string]string{"task": "Fix tests", "organization_id": tc.organization, "model_config_id": tc.model})
+			require.NoError(t, err)
+			if tc.organization != "" {
+				require.Contains(t, text, `organization_id "`+tc.organization+`"`)
+			} else {
+				require.Contains(t, text, "coder_list_organizations")
+				require.Contains(t, text, "exactly one organization")
+			}
+			if tc.model != "" {
+				require.Contains(t, text, `model_config_id "`+tc.model+`"`)
+			} else {
+				require.Contains(t, text, "Omit model_config_id")
+				require.Contains(t, text, "personal override")
+			}
+		})
+	}
+	for _, name := range []string{"organization_id", "model_config_id"} {
+		found := false
+		for _, arg := range toolsdk.AgentsDelegate.Arguments {
+			if arg.Name == name {
+				found = true
+				require.False(t, arg.Required)
+			}
+		}
+		require.True(t, found, name)
+	}
+}
