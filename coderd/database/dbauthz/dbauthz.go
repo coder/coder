@@ -2118,13 +2118,6 @@ func (q *querier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (databas
 	return q.db.DeleteAIGatewayKey(ctx, id)
 }
 
-func (q *querier) DeleteAIProviderBedrockResolvedModels(ctx context.Context, aiProviderID uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIProvider); err != nil {
-		return err
-	}
-	return q.db.DeleteAIProviderBedrockResolvedModels(ctx, aiProviderID)
-}
-
 func (q *querier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIProvider); err != nil {
 		return err
@@ -2877,6 +2870,13 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 	return q.db.FindMatchingPresetID(ctx, arg)
 }
 
+func (q *querier) GetAIBedrockInferenceProfileModels(ctx context.Context, inferenceProfileArns []string) ([]database.AIBedrockInferenceProfileModel, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIBedrockInferenceProfileModels(ctx, inferenceProfileArns)
+}
+
 func (q *querier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	// The aggregate covers one chat tree, so it is authorized through the
 	// root chat. Members cannot read interception rows back, but they can
@@ -2958,13 +2958,6 @@ func (q *querier) GetAIModelPrices(ctx context.Context, arg database.GetAIModelP
 		return nil, err
 	}
 	return q.db.GetAIModelPrices(ctx, arg)
-}
-
-func (q *querier) GetAIProviderBedrockResolvedModelsByProviderIDs(ctx context.Context, aiProviderIDs []uuid.UUID) ([]database.AIProviderBedrockResolvedModel, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
-		return nil, err
-	}
-	return q.db.GetAIProviderBedrockResolvedModelsByProviderIDs(ctx, aiProviderIDs)
 }
 
 func (q *querier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
@@ -9068,18 +9061,18 @@ func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg datab
 	return q.db.UpdateWorkspacesTTLByTemplateID(ctx, arg)
 }
 
+func (q *querier) UpsertAIBedrockInferenceProfileModel(ctx context.Context, arg database.UpsertAIBedrockInferenceProfileModelParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIProvider); err != nil {
+		return err
+	}
+	return q.db.UpsertAIBedrockInferenceProfileModel(ctx, arg)
+}
+
 func (q *querier) UpsertAIModelPrices(ctx context.Context, arg database.UpsertAIModelPricesParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice); err != nil {
 		return err
 	}
 	return q.db.UpsertAIModelPrices(ctx, arg)
-}
-
-func (q *querier) UpsertAIProviderBedrockResolvedModels(ctx context.Context, arg database.UpsertAIProviderBedrockResolvedModelsParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIProvider); err != nil {
-		return err
-	}
-	return q.db.UpsertAIProviderBedrockResolvedModels(ctx, arg)
 }
 
 func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error) {

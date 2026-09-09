@@ -245,8 +245,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = row
 
 	// Resolve inference profile ARNs once the provider is stored, then announce
-	// it. The gateway never sees the unresolved provider, and never calls the
-	// Bedrock control plane itself.
+	// it. The gateway never calls the Bedrock control plane itself.
 	if err := api.resolveBedrockModels(ctx, row); err != nil {
 		api.writeAIProviderResolutionError(ctx, rw, err)
 		return
@@ -368,15 +367,6 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			return errCopilotRejectsAPIKeys
 		}
 
-		// The patch may point the provider at different identifiers, so the
-		// stored resolution no longer describes it. Resolution runs after the
-		// transaction, because it is an AWS call.
-		if req.Settings != nil {
-			if err := clearBedrockModelResolution(ctx, tx, old.ID); err != nil {
-				return err
-			}
-		}
-
 		displayName := old.DisplayName
 		if req.DisplayName != nil {
 			// Empty string clears the column.
@@ -456,7 +446,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// An update that carries no settings cannot change the configured
-	// identifiers or the credentials they resolve under, so the stored
+	// identifiers or the credentials they resolve under, so any stored
 	// resolution still holds.
 	if req.Settings != nil {
 		if err := api.resolveBedrockModels(ctx, updated); err != nil {
@@ -514,8 +504,7 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 		if err := tx.DeleteAIProviderByID(ctx, row.ID); err != nil {
 			return xerrors.Errorf("delete ai provider: %w", err)
 		}
-		// Providers are soft-deleted, so the foreign key never cascades.
-		return clearBedrockModelResolution(ctx, tx, row.ID)
+		return nil
 	}, &database.TxOptions{TxIdentifier: "delete_ai_provider"})
 	if err != nil {
 		writeAIProviderError(ctx, api.Logger, rw, err, "delete AI provider", "Internal error deleting AI provider.")

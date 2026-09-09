@@ -117,7 +117,6 @@ type sqlcQuerier interface {
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
 	DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error)
-	DeleteAIProviderBedrockResolvedModels(ctx context.Context, aiProviderID uuid.UUID) error
 	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
@@ -295,6 +294,7 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
+	GetAIBedrockInferenceProfileModels(ctx context.Context, inferenceProfileArns []string) ([]AIBedrockInferenceProfileModel, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
 	// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
@@ -341,7 +341,6 @@ type sqlcQuerier interface {
 	// each source forms its own group and nothing collapses. Every other source
 	// contributes the same constant, leaving the key as (provider, model).
 	GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error)
-	GetAIProviderBedrockResolvedModelsByProviderIDs(ctx context.Context, aiProviderIds []uuid.UUID) ([]AIProviderBedrockResolvedModel, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	// Lock the provider row until the model-config write completes. The
 	// transaction alone does not stop a concurrent soft-delete or disable
@@ -1661,6 +1660,11 @@ type sqlcQuerier interface {
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]WorkspaceTable, error)
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
+	// Records the model an application inference profile ARN resolves to. The
+	// provider write path resolves the ARN through the Bedrock control plane and
+	// stores the answer here, so the gateway never has to. An upsert rather than
+	// an insert so a later save corrects a stored value.
+	UpsertAIBedrockInferenceProfileModel(ctx context.Context, arg UpsertAIBedrockInferenceProfileModelParams) error
 	// Upsert a batch of model prices from a JSON array, all recorded under the
 	// given source. Each element must have provider, model, and the four price
 	// fields, and null prices are written as SQL NULL.
@@ -1669,10 +1673,6 @@ type sqlcQuerier interface {
 	// differs, so updated_at records when a price last changed. Prices are
 	// nullable and a NULL on either side counts as a difference.
 	UpsertAIModelPrices(ctx context.Context, arg UpsertAIModelPricesParams) error
-	// Records the models an application inference profile ARN resolves to. The
-	// provider write path resolves the ARN through the Bedrock control plane and
-	// stores the answer here, so the gateway never has to.
-	UpsertAIProviderBedrockResolvedModels(ctx context.Context, arg UpsertAIProviderBedrockResolvedModelsParams) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)
 	UpsertAnnouncementBanners(ctx context.Context, value string) error

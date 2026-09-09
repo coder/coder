@@ -4850,6 +4850,12 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 	}
 }
 
+type AIBedrockInferenceProfileModel struct {
+	InferenceProfileArn string `db:"inference_profile_arn" json:"inference_profile_arn"`
+	// The Bedrock model ID the inference profile wraps.
+	ResolvedModel string `db:"resolved_model" json:"resolved_model"`
+}
+
 // Audit log of requests intercepted by AI Bridge
 type AIBridgeInterception struct {
 	ID uuid.UUID `db:"id" json:"id"`
@@ -4989,14 +4995,6 @@ type AIProvider struct {
 	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time      `db:"updated_at" json:"updated_at"`
 	Icon          string         `db:"icon" json:"icon"`
-}
-
-type AIProviderBedrockResolvedModel struct {
-	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
-	// The model ID behind the provider's configured model identifier. Equal to the configured value when that value is already a model ID.
-	ResolvedModel string `db:"resolved_model" json:"resolved_model"`
-	// resolved_model for the provider's configured small/fast model identifier.
-	ResolvedSmallFastModel string `db:"resolved_small_fast_model" json:"resolved_small_fast_model"`
 }
 
 // API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.

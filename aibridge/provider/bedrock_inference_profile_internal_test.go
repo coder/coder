@@ -166,10 +166,9 @@ func TestResolveBedrockModels(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		model, smallFastModel, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
+		resolved, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
 		require.NoError(t, err)
-		require.Equal(t, "anthropic.claude-opus-4-8", model)
-		require.Equal(t, "anthropic.claude-haiku-4-5", smallFastModel)
+		require.Equal(t, map[string]string{profileARN: "anthropic.claude-opus-4-8"}, resolved)
 		require.Len(t, *paths, 1, "only the profile ARN is resolved")
 		require.Contains(t, (*paths)[0], profileARN)
 	})
@@ -183,8 +182,7 @@ func TestResolveBedrockModels(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		_, _, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
-		require.ErrorContains(t, err, "resolve model")
+		_, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
 		require.ErrorContains(t, err, "GetInferenceProfile")
 	})
 
@@ -195,7 +193,7 @@ func TestResolveBedrockModels(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		_, _, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
+		_, err := ResolveBedrockModels(context.Background(), bedrockCfg(profileARN, "anthropic.claude-haiku-4-5"))
 		require.ErrorContains(t, err, "references no model")
 	})
 
@@ -206,10 +204,9 @@ func TestResolveBedrockModels(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		model, smallFastModel, err := ResolveBedrockModels(context.Background(), bedrockCfg("eu.anthropic.claude-opus-4-8", smallFastProfileARN))
+		resolved, err := ResolveBedrockModels(context.Background(), bedrockCfg("eu.anthropic.claude-opus-4-8", smallFastProfileARN))
 		require.NoError(t, err)
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", model)
-		require.Equal(t, "anthropic.claude-haiku-4-5", smallFastModel)
+		require.Equal(t, map[string]string{smallFastProfileARN: "anthropic.claude-haiku-4-5"}, resolved)
 		require.Len(t, *paths, 1, "only the small fast profile ARN is resolved")
 		require.Contains(t, (*paths)[0], smallFastProfileARN)
 	})
@@ -220,10 +217,9 @@ func TestResolveBedrockModels(t *testing.T) {
 		})
 		t.Setenv("AWS_ENDPOINT_URL_BEDROCK", url)
 
-		model, smallFastModel, err := ResolveBedrockModels(context.Background(), bedrockCfg("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"))
+		resolved, err := ResolveBedrockModels(context.Background(), bedrockCfg("eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"))
 		require.NoError(t, err)
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", model)
-		require.Equal(t, "anthropic.claude-haiku-4-5", smallFastModel)
+		require.Empty(t, resolved)
 		require.Empty(t, *paths)
 	})
 }

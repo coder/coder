@@ -424,14 +424,6 @@ func (m queryMetricsStore) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID)
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteAIProviderBedrockResolvedModels(ctx context.Context, aiProviderID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteAIProviderBedrockResolvedModels(ctx, aiProviderID)
-	m.queryLatencies.WithLabelValues("DeleteAIProviderBedrockResolvedModels").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIProviderBedrockResolvedModels").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteAIProviderByID(ctx, id)
@@ -1104,6 +1096,14 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIBedrockInferenceProfileModels(ctx context.Context, inferenceProfileArns []string) ([]database.AIBedrockInferenceProfileModel, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBedrockInferenceProfileModels(ctx, inferenceProfileArns)
+	m.queryLatencies.WithLabelValues("GetAIBedrockInferenceProfileModels").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBedrockInferenceProfileModels").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeChatCost(ctx, rootChatID)
@@ -1189,14 +1189,6 @@ func (m queryMetricsStore) GetAIModelPrices(ctx context.Context, arg database.Ge
 	r0, r1 := m.s.GetAIModelPrices(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetAIModelPrices").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIModelPrices").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetAIProviderBedrockResolvedModelsByProviderIDs(ctx context.Context, aiProviderIds []uuid.UUID) ([]database.AIProviderBedrockResolvedModel, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAIProviderBedrockResolvedModelsByProviderIDs(ctx, aiProviderIds)
-	m.queryLatencies.WithLabelValues("GetAIProviderBedrockResolvedModelsByProviderIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderBedrockResolvedModelsByProviderIDs").Inc()
 	return r0, r1
 }
 
@@ -6328,19 +6320,19 @@ func (m queryMetricsStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, 
 	return r0
 }
 
+func (m queryMetricsStore) UpsertAIBedrockInferenceProfileModel(ctx context.Context, arg database.UpsertAIBedrockInferenceProfileModelParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertAIBedrockInferenceProfileModel(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertAIBedrockInferenceProfileModel").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAIBedrockInferenceProfileModel").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpsertAIModelPrices(ctx context.Context, arg database.UpsertAIModelPricesParams) error {
 	start := time.Now()
 	r0 := m.s.UpsertAIModelPrices(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertAIModelPrices").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAIModelPrices").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertAIProviderBedrockResolvedModels(ctx context.Context, arg database.UpsertAIProviderBedrockResolvedModelsParams) error {
-	start := time.Now()
-	r0 := m.s.UpsertAIProviderBedrockResolvedModels(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertAIProviderBedrockResolvedModels").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAIProviderBedrockResolvedModels").Inc()
 	return r0
 }
 

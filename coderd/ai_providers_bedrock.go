@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -27,8 +26,8 @@ func (e bedrockProfileUnresolvableError) Error() string {
 
 func (e bedrockProfileUnresolvableError) Unwrap() error { return e.err }
 
-// resolveBedrockModels records which models the provider's application
-// inference profile ARNs refer to. An ARN identifies a billing wrapper rather
+// resolveBedrockModels records which model each of the provider's application
+// inference profile ARNs refers to. An ARN identifies a billing wrapper rather
 // than a model, so the gateway needs the mapping to detect capabilities, price
 // usage, and record interceptions.
 //
@@ -37,44 +36,33 @@ func (e bedrockProfileUnresolvableError) Unwrap() error { return e.err }
 // the stored row because that is the merged configuration the provider will
 // actually use.
 //
-// Nothing is stored for a provider configured with plain model IDs: they are
-// already model identities and need no mapping.
+// It runs on every save, even for an ARN another provider already resolved, so
+// that saving proves this provider's own identity can read the profile.
 func (api *API) resolveBedrockModels(ctx context.Context, row database.AIProvider) error {
 	settings, err := db2sdk.AIProviderSettings(row.Settings)
 	if err != nil {
 		return xerrors.Errorf("decode settings: %w", err)
 	}
+	// Resolution is a Bedrock control-plane call, whereas the provider's
+	// BaseURL is its runtime endpoint, so it is deliberately not carried here.
 	cfg := agplaibridge.BedrockConfig("", settings.Bedrock)
 	if cfg == nil {
 		return nil
 	}
 
-	model, smallFastModel, err := provider.ResolveBedrockModels(ctx, *cfg)
+	resolved, err := provider.ResolveBedrockModels(ctx, *cfg)
 	if err != nil {
 		return bedrockProfileUnresolvableError{err: err}
 	}
-	if model == cfg.Model && smallFastModel == cfg.SmallFastModel {
-		return nil
-	}
 
-	err = api.Database.UpsertAIProviderBedrockResolvedModels(ctx, database.UpsertAIProviderBedrockResolvedModelsParams{
-		AIProviderID:           row.ID,
-		ResolvedModel:          model,
-		ResolvedSmallFastModel: smallFastModel,
-	})
-	if err != nil {
-		return xerrors.Errorf("store resolved models: %w", err)
-	}
-	return nil
-}
-
-// clearBedrockModelResolution drops a provider's stored resolution. The write
-// path calls it whenever the configured identifiers may have changed, so a
-// stale mapping never outlives the ARN it describes. The provider is then
-// unresolved until resolution succeeds, and the gateway will not serve it.
-func clearBedrockModelResolution(ctx context.Context, db database.Store, providerID uuid.UUID) error {
-	if err := db.DeleteAIProviderBedrockResolvedModels(ctx, providerID); err != nil {
-		return xerrors.Errorf("clear resolved models: %w", err)
+	for profileARN, model := range resolved {
+		err := api.Database.UpsertAIBedrockInferenceProfileModel(ctx, database.UpsertAIBedrockInferenceProfileModelParams{
+			InferenceProfileArn: profileARN,
+			ResolvedModel:       model,
+		})
+		if err != nil {
+			return xerrors.Errorf("store resolved model for %q: %w", profileARN, err)
+		}
 	}
 	return nil
 }
@@ -82,7 +70,7 @@ func clearBedrockModelResolution(ctx context.Context, db database.Store, provide
 // writeAIProviderResolutionError reports a failed Bedrock model resolution. The
 // provider keeps the identifiers the operator asked for, but without a
 // resolution the gateway cannot tell what an opaque profile ARN refers to, so
-// it refuses to serve the provider until a later save resolves it.
+// it serves the ARN as its own identity until a later save resolves it.
 func (api *API) writeAIProviderResolutionError(ctx context.Context, rw http.ResponseWriter, err error) {
 	var unresolvable bedrockProfileUnresolvableError
 	if !xerrors.As(err, &unresolvable) {

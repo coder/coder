@@ -107,28 +107,22 @@ WHERE
 RETURNING
     *;
 
--- name: UpsertAIProviderBedrockResolvedModels :exec
--- Records the models an application inference profile ARN resolves to. The
+-- name: UpsertAIBedrockInferenceProfileModel :exec
+-- Records the model an application inference profile ARN resolves to. The
 -- provider write path resolves the ARN through the Bedrock control plane and
--- stores the answer here, so the gateway never has to.
+-- stores the answer here, so the gateway never has to. An upsert rather than
+-- an insert so a later save corrects a stored value.
 INSERT INTO
-    ai_provider_bedrock_resolved_models (ai_provider_id, resolved_model, resolved_small_fast_model)
+    ai_bedrock_inference_profile_models (inference_profile_arn, resolved_model)
 VALUES
-    (@ai_provider_id::uuid, @resolved_model::text, @resolved_small_fast_model::text)
-ON CONFLICT (ai_provider_id) DO UPDATE SET
-    resolved_model = @resolved_model::text,
-    resolved_small_fast_model = @resolved_small_fast_model::text;
+    (@inference_profile_arn::text, @resolved_model::text)
+ON CONFLICT (inference_profile_arn) DO UPDATE SET
+    resolved_model = @resolved_model::text;
 
--- name: DeleteAIProviderBedrockResolvedModels :exec
-DELETE FROM
-    ai_provider_bedrock_resolved_models
-WHERE
-    ai_provider_id = @ai_provider_id::uuid;
-
--- name: GetAIProviderBedrockResolvedModelsByProviderIDs :many
+-- name: GetAIBedrockInferenceProfileModels :many
 SELECT
     *
 FROM
-    ai_provider_bedrock_resolved_models
+    ai_bedrock_inference_profile_models
 WHERE
-    ai_provider_id = ANY(@ai_provider_ids::uuid[]);
+    inference_profile_arn = ANY(@inference_profile_arns::text[]);
