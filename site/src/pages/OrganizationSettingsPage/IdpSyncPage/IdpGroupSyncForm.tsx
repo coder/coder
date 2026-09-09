@@ -405,7 +405,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 				confirmLoading={form.isSubmitting}
 				entity="group mapping"
 				name={mappingToDelete ?? ""}
-				info="This mapping is removed from the policy. Group membership is updated the next time a user logs in."
+				info="This mapping will be removed from the policy. Group membership is updated the next time a user logs in."
 				onCancel={() => setMappingToDelete(undefined)}
 				onConfirm={() => {
 					if (!mappingToDelete) {
