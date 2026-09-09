@@ -278,7 +278,7 @@ function CategoryPreviewText({
 	}
 	if (preview.selected.length > 0) {
 		return (
-			<span className="ml-auto flex min-w-0 items-center gap-2 text-xs text-content-secondary">
+			<span className="ml-auto flex min-w-0 items-center gap-2 text-xs lowercase text-content-secondary">
 				<span className="truncate">{preview.selected.join(", ")}</span>
 				<CheckIcon aria-hidden className="shrink-0" />
 			</span>
@@ -288,7 +288,7 @@ function CategoryPreviewText({
 		return null;
 	}
 	return (
-		<span className="ml-auto min-w-0 truncate text-xs text-content-disabled">
+		<span className="ml-auto min-w-0 truncate text-xs lowercase text-content-disabled">
 			{preview.hint}
 		</span>
 	);
