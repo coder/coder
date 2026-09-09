@@ -112,11 +112,9 @@ function useResizableDrag({
 		setDragSnap(null);
 		sidebarCollapsedByDrag.current = false;
 		startX.current = e.clientX;
-		const panel = (e.target as HTMLElement).closest(
-			"[data-testid='agents-right-panel']",
-		);
+		const panel = e.currentTarget.closest("[data-testid='agents-right-panel']");
 		startWidth.current = panel?.getBoundingClientRect().width ?? width;
-		(e.target as HTMLElement).setPointerCapture(e.pointerId);
+		e.currentTarget.setPointerCapture(e.pointerId);
 	};
 
 	const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -160,22 +158,31 @@ function useResizableDrag({
 		onVisualExpandedChange?.(nextVisualExpanded);
 	};
 
-	const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+	const finishDrag = (
+		e: ReactPointerEvent<HTMLDivElement>,
+		{ commit }: { commit: boolean },
+	) => {
 		if (!isDragging.current) {
 			return;
 		}
 		const snap = dragSnap;
 		isDragging.current = false;
 		setDragSnap(null);
-		(e.target as HTMLElement).releasePointerCapture(e.pointerId);
+		if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+			e.currentTarget.releasePointerCapture(e.pointerId);
+		}
 
 		// Clear the drag override so parent falls back to its
 		// own committed expanded state.
 		onVisualExpandedChange?.(null);
 
-		if (snap) {
+		if (commit && snap) {
 			onSnapCommit(snap);
 		}
+	};
+
+	const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+		finishDrag(e, { commit: true });
 	};
 
 	// Derive visual state: during a drag the snap overrides the
