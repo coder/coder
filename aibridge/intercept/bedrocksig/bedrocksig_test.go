@@ -1,12 +1,23 @@
 package bedrocksig_test
 
 import (
+	"bytes"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 )
+
+var testCreds = aws.CredentialsProviderFunc(func(context.Context) (aws.Credentials, error) {
+	return aws.Credentials{AccessKeyID: "test-key", SecretAccessKey: "test-secret"}, nil
+})
 
 func TestBaseURLForModel(t *testing.T) {
 	t.Parallel()
@@ -57,4 +68,67 @@ func TestBaseURLForModel(t *testing.T) {
 			require.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// TestSignMiddlewareStripsUnsafeHeaders documents a real failure seen when
+// bridging clients that send headers containing underscores (e.g. session_id).
+// aibridge forwards arbitrary client headers to the upstream and SignMiddleware
+// signs whatever is present in req.Header at send time.
+//
+// We've observed that headers with underscores seem to be stripped somewhere
+// along the path between AI Gateway and Bedrock Mantle. When AWS recomputes
+// the canonical request from the header value it actually received, we get a
+// SigV4 mismatch error.
+//
+// Workaround: SignMiddleware must not sign or forward headers whose name contains
+// an underscore.
+func TestSignMiddlewareStripsUnsafeHeaders(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodPost, "https://bedrock-mantle.us-east-1.api.aws/openai/v1/responses", bytes.NewBufferString(`{"model":"openai.gpt-5.6-luna"}`))
+	req.Header.Set("Anthropic-Version", "2023-06-01")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("session_id", "01a08608-1a93-760c-98f6-d79765c14f0b")
+	req.Header.Set("X-Client-Request-Id", "01a08608-1a93-760c-98f6-d79765c14f0b")
+
+	mw := bedrocksig.SignMiddleware(testCreds, "us-east-1")
+
+	var gotReq *http.Request
+	_, err := mw(req, func(r *http.Request) (*http.Response, error) {
+		gotReq = r
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})
+	require.NoError(t, err)
+	require.NotNil(t, gotReq)
+
+	assert.Empty(t, gotReq.Header.Get("session_id"),
+		"underscore-named headers must not be forwarded to Bedrock Mantle")
+
+	// Headers without underscores must survive untouched.
+	assert.Equal(t, "01a08608-1a93-760c-98f6-d79765c14f0b", gotReq.Header.Get("X-Client-Request-Id"))
+	assert.Equal(t, "2023-06-01", gotReq.Header.Get("Anthropic-Version"))
+
+	authHeader := gotReq.Header.Get("Authorization")
+	require.NotEmpty(t, authHeader)
+	signedHeaders := extractSignedHeaders(t, authHeader)
+	assert.NotContains(t, signedHeaders, "session_id",
+		"session_id must not be part of the SigV4 SignedHeaders set")
+}
+
+// extractSignedHeaders parses the SignedHeaders field out of a SigV4
+// Authorization header, e.g.
+// "AWS4-HMAC-SHA256 Credential=..., SignedHeaders=a;b;c, Signature=...".
+func extractSignedHeaders(t *testing.T, authHeader string) []string {
+	t.Helper()
+
+	const marker = "SignedHeaders="
+	idx := strings.Index(authHeader, marker)
+	require.NotEqual(t, -1, idx, "missing SignedHeaders in Authorization header: %q", authHeader)
+
+	rest := authHeader[idx+len(marker):]
+	end := strings.Index(rest, ",")
+	if end == -1 {
+		end = len(rest)
+	}
+	return strings.Split(rest[:end], ";")
 }

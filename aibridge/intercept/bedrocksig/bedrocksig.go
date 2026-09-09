@@ -47,12 +47,14 @@ func AppendPRMUserAgent(req *http.Request) {
 }
 
 // SignMiddleware returns an stdlib HTTP middleware that SigV4-signs the request
-// for the Bedrock Mantle service. It appends the PRM user-agent, reads and
-// restores the body for hashing, then signs with the given credentials and
-// region. Callers wrap it in their SDK-specific option.WithMiddleware adapter.
+// for the Bedrock Mantle service. It strips headers unsafe to sign, appends
+// the PRM user-agent, reads and restores the body for hashing, then signs
+// with the given credentials and region. Callers wrap it in their
+// SDK-specific option.WithMiddleware adapter.
 func SignMiddleware(creds aws.CredentialsProvider, region string) func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
 	signer := v4.NewSigner()
 	return func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
+		stripUnsignableHeaders(req)
 		AppendPRMUserAgent(req)
 
 		resolved, err := creds.Retrieve(req.Context())
@@ -78,6 +80,19 @@ func SignMiddleware(creds aws.CredentialsProvider, region string) func(req *http
 			return nil, xerrors.Errorf("mantle SigV4: sign request: %w", err)
 		}
 		return next(req)
+	}
+}
+
+// stripUnsignableHeaders removes headers whose name contains an underscore.
+// We have observed issues with headers containing underscores being stripped
+// somewhere between the client and Bedrock Mantle. It's not clear where exactly
+// this happens, but sending a header containing an underscore results in a
+// SigV4 mismatch. Workaround: just strip before signing.
+func stripUnsignableHeaders(req *http.Request) {
+	for name := range req.Header {
+		if strings.Contains(name, "_") {
+			req.Header.Del(name)
+		}
 	}
 }
 
