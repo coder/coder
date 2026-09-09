@@ -382,6 +382,7 @@ export const RightPanel = ({
 		>
 			{/* Drag handle (sm+, on the left edge of the panel) */}
 			<div
+				data-testid="agents-right-panel-resize-handle"
 				onPointerDown={handlePointerDown}
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerUp}
