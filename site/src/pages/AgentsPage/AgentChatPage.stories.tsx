@@ -23,7 +23,7 @@ import {
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import { workspaceByIdKey } from "#/api/queries/workspaces";
+import { workspaceByIdKey, workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChat,
@@ -351,6 +351,13 @@ const buildQueries = (
 		{
 			key: workspaceByIdKey(mockWorkspace.id),
 			data: mockWorkspace,
+		},
+		{
+			key: workspacesKey({ q: "owner:me", limit: 0 }),
+			data: {
+				workspaces: [mockWorkspace],
+				count: 1,
+			} satisfies TypesGen.WorkspacesResponse,
 		},
 		{
 			key: organizationChatModelsKey(chat.organization_id),

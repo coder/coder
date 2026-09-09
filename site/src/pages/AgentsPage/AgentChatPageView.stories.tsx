@@ -18,6 +18,7 @@ import {
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
+import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
@@ -243,6 +244,13 @@ const meta: Meta<typeof AgentChatPageView> = {
 			{
 				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
 			},
 		],
 		reactRouter: reactRouterParameters({
@@ -502,6 +510,13 @@ export const WithParentChat: Story = {
 			{
 				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
 			},
 			{
 				key: chatEntityKey("parent-chat-1"),
@@ -872,7 +887,6 @@ export const WorkspaceNoAgent: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
-			workspaceOptions={[MockWorkspace]}
 			chat={{ workspace_id: MockWorkspace.id }}
 			onWorkspaceChange={fn()}
 		/>
