@@ -403,7 +403,7 @@ const ChatMessageItem = memo<{
 interface ConversationTimelineProps {
 	hasMoreMessages?: boolean;
 	// Server chat status. The stream is cleared between persisted steps, so
-	// only this says whether the turn is still working.
+	// only this says whether the agent is still working.
 	chatStatus?: TypesGen.ChatStatus | null;
 	now?: number;
 	organizationId: string | undefined;
@@ -481,10 +481,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const workingBlocks = preferences.data?.collapse_assistant_steps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,
+					// requires_action is the agent waiting on the user, not working.
 					isTurnActive:
-						chatStatus === "running" ||
-						chatStatus === "requires_action" ||
-						chatStatus === "interrupting",
+						chatStatus === "running" || chatStatus === "interrupting",
 					isLiveRowCollapsible: Boolean(liveStatus?.phase === "streaming"),
 					liveBlocks,
 					liveTools,
@@ -498,7 +497,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			workingBlocks.flatMap((block) => block.rowIndices),
 		);
 
-		if (renderRows.length === 0) {
+		// Wait for the preference before the first paint so a saved "collapse"
+		// setting never renders rows ungrouped and then folds them.
+		if (renderRows.length === 0 || preferences.isPending) {
 			return null;
 		}
 
