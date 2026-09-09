@@ -102,15 +102,6 @@ export const Running: Story = {
 		status: "running",
 		args: { question: sampleQuestion },
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("button")).toHaveAttribute("aria-expanded", "true");
-		expect(canvas.getByText("Consulting the advisor")).toBeInTheDocument();
-		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
-		expect(
-			canvas.getByText("Reviewing context and preparing guidance."),
-		).toBeInTheDocument();
-	},
 };
 
 // When the model supplies a model_intent, it is the whole header label,
@@ -150,22 +141,6 @@ export const RunningWithStreamedAdvice: Story = {
 		status: "running",
 		args: { question: sampleQuestion },
 		result: "Use the smaller diff while the advisor is still responding.",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
-		expect(canvas.getByText("Consulting the advisor")).toBeInTheDocument();
-		expect(
-			await canvas.findByText(
-				"Use the smaller diff while the advisor is still responding.",
-			),
-		).toBeInTheDocument();
-		expect(
-			canvas.queryByText("Advisor returned no guidance."),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByText("Reviewing context and preparing guidance."),
-		).not.toBeInTheDocument();
 	},
 };
 

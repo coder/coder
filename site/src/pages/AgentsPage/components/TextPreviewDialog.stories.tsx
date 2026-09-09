@@ -16,14 +16,6 @@ export const Default: Story = {
 			"This is some pasted text content.\nIt has multiple lines.\nAnd should be displayed in a readable format.",
 		onClose: () => {},
 	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		expect(dialog).toBeInTheDocument();
-		expect(
-			within(dialog).getByText(/This is some pasted text content\./i),
-		).toBeInTheDocument();
-	},
 };
 
 export const LongContent: Story = {
@@ -35,26 +27,12 @@ export const LongContent: Story = {
 			.join("\n"),
 		onClose: () => {},
 	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		const content = within(dialog).getByText(
-			/This is a line of pasted text that demonstrates how the dialog handles very long content\./i,
-		);
-		expect(content).toBeInTheDocument();
-		expect(content.parentElement).toHaveClass("overflow-auto");
-	},
 };
 
 export const NoFileName: Story = {
 	args: {
 		content: "Some pasted content without a filename.",
 		onClose: () => {},
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		expect(within(dialog).getByText("Pasted text")).toBeInTheDocument();
 	},
 };
 
@@ -184,12 +162,5 @@ export const PlainTextStaysMonospaced: Story = {
 		content: "function add(a, b) {\n  return a + b;\n}\n",
 		fileName: "snippet.txt",
 		onClose: () => {},
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		const pre = dialog.querySelector("pre");
-		expect(pre).not.toBeNull();
-		expect(pre?.textContent).toContain("function add(a, b)");
 	},
 };

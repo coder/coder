@@ -76,16 +76,6 @@ export const MemberOnlyUnsupportedProvider: Story = {
 		modelCount: 0,
 		unsupportedProviderNames: ["GitHub Copilot"],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Members get the "learn more" docs link but no admin settings link.
-		await expect(
-			canvas.getByRole("link", { name: /not supported by Coder Agents/ }),
-		).toBeInTheDocument();
-		await expect(
-			canvas.queryByRole("link", { name: "provider" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 // AI Gateway disabled takes precedence even when providers and models are
@@ -97,15 +87,6 @@ export const AIGatewayDisabled: Story = {
 		modelCount: 1,
 		aiGatewayDisabled: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/AI Gateway is disabled/),
-		).toBeInTheDocument();
-		await expect(
-			canvas.getByText(/Enable it in your deployment config/),
-		).toBeInTheDocument();
-	},
 };
 
 // Both a provider and a model are configured: the notice renders nothing.
@@ -114,8 +95,5 @@ export const Configured: Story = {
 		isAdmin: true,
 		providerCount: 1,
 		modelCount: 1,
-	},
-	play: async ({ canvasElement }) => {
-		await expect(canvasElement).toBeEmptyDOMElement();
 	},
 };

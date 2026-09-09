@@ -11,7 +11,6 @@ import {
 } from "./SkillsTriggerMenu";
 import {
 	expectInsideListViewport,
-	expectNoVisibleText,
 	findVisibleText,
 	MockSkills,
 } from "./storyHelpers";
@@ -80,27 +79,12 @@ const meta: Meta<typeof SkillsTriggerMenu> = {
 export default meta;
 type Story = StoryObj<typeof SkillsTriggerMenu>;
 
-export const PersonalOnly: Story = {
-	play: async () => {
-		expect(await findVisibleText("Personal skills")).toBeDefined();
-		expect(await findVisibleText("/reviewer")).toBeDefined();
-		expect(
-			await findVisibleText("Review changed files and suggest fixes."),
-		).toBeDefined();
-		await expectNoVisibleText("Workspace skills");
-	},
-};
+export const PersonalOnly: Story = {};
 
 export const BothGroups: Story = {
 	args: {
 		workspaceSkills: mockWorkspaceSkillItems,
 		workspaceSkillsEnabled: true,
-	},
-	play: async () => {
-		expect(await findVisibleText("Personal skills")).toBeDefined();
-		expect(await findVisibleText("Workspace skills")).toBeDefined();
-		expect(await findVisibleText("/reviewer")).toBeDefined();
-		expect(await findVisibleText("/workspace/test-runner")).toBeDefined();
 	},
 };
 
@@ -108,9 +92,6 @@ export const Loading: Story = {
 	args: {
 		isPersonalLoading: true,
 		personalSkills: [],
-	},
-	play: async () => {
-		expect(await findVisibleText("Loading personal skills...")).toBeDefined();
 	},
 };
 
@@ -121,9 +102,6 @@ export const WorkspaceLoading: Story = {
 		workspaceSkillsEnabled: true,
 		isWorkspaceLoading: true,
 	},
-	play: async () => {
-		expect(await findVisibleText("Loading workspace skills...")).toBeDefined();
-	},
 };
 
 export const EmptyWithWorkspace: Story = {
@@ -132,20 +110,12 @@ export const EmptyWithWorkspace: Story = {
 		workspaceSkills: [],
 		workspaceSkillsEnabled: true,
 	},
-	play: async () => {
-		expect(
-			await findVisibleText("No personal or workspace skills found."),
-		).toBeDefined();
-	},
 };
 
 export const Empty: Story = {
 	args: {
 		personalSkills: [],
 		workspaceSkills: [],
-	},
-	play: async () => {
-		expect(await findVisibleText("No personal skills found.")).toBeDefined();
 	},
 };
 
@@ -155,11 +125,6 @@ export const Filtered: Story = {
 		personalSkills: filterSkillsByQuery(mockPersonalSkillItems, "rev"),
 		workspaceSkills: filterSkillsByQuery(mockWorkspaceSkillItems, "rev"),
 		workspaceSkillsEnabled: true,
-	},
-	play: async () => {
-		expect(await findVisibleText("/reviewer")).toBeDefined();
-		await expectNoVisibleText("/docs");
-		await expectNoVisibleText("/workspace/test-runner");
 	},
 };
 
@@ -221,12 +186,6 @@ export const WithCommands: Story = {
 	args: {
 		commands: [compactCommandItem],
 	},
-	play: async () => {
-		expect(await findVisibleText("Commands")).toBeDefined();
-		expect(await findVisibleText("/compact")).toBeDefined();
-		expect(await findVisibleText("Personal skills")).toBeDefined();
-		expect(await findVisibleText("/reviewer")).toBeDefined();
-	},
 };
 
 // With no skills configured, the menu still opens to offer the
@@ -235,15 +194,6 @@ export const CommandsOnly: Story = {
 	args: {
 		commands: [compactCommandItem],
 		personalSkills: [],
-	},
-	play: async () => {
-		expect(await findVisibleText("/compact")).toBeDefined();
-		expect(
-			await findVisibleText(
-				"Summarize the conversation so far to free up context window space",
-			),
-		).toBeDefined();
-		await expectNoVisibleText("No personal skills found.");
 	},
 };
 

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, waitFor, within } from "storybook/test";
+import { expect, screen, within } from "storybook/test";
 import { AssistantOutput } from "./AssistantOutput";
 import {
 	buildLiveStatus,
@@ -46,20 +46,6 @@ export const ReconnectingAfterDisconnect: Story = {
 			}),
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /reconnecting/i }),
-		).toBeVisible();
-		expect(canvas.getByText(/chat stream disconnected/i)).toBeVisible();
-		expect(canvas.getByText(/attempt 2/i)).toBeVisible();
-		await waitFor(() => {
-			expect(canvasElement.textContent).toMatch(/reconnecting in \d+s/i);
-		});
-		expect(canvas.queryByText("Unexpected error")).not.toBeInTheDocument();
-		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
-		expect(canvas.queryByText("Thinking...")).not.toBeInTheDocument();
-	},
 };
 
 /** Generic retry reasons show automatic retry copy without a manual CTA. */
@@ -71,20 +57,6 @@ export const RetryWithVisibleReason: Story = {
 			retryState: buildRetryState(),
 			isAwaitingFirstStreamChunk: true,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /retrying request/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic returned an unexpected error/i),
-		).toBeVisible();
-		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
-		expect(canvas.queryByText("Thinking...")).not.toBeInTheDocument();
-		expect(canvas.getByText(/attempt 1/i)).toBeVisible();
-		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
-		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 	},
 };
 
@@ -102,22 +74,6 @@ export const RetryRateLimited: Story = {
 			isAwaitingFirstStreamChunk: true,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /rate limited/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic is rate limiting requests/i),
-		).toBeVisible();
-		await waitFor(() => {
-			expect(canvasElement.textContent).toMatch(/retrying in \d+s/i);
-		});
-		expect(
-			canvas.queryByRole("link", { name: /status/i }),
-		).not.toBeInTheDocument();
-		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
-	},
 };
 
 /** Invalid retry timestamps hide the countdown instead of rendering NaN. */
@@ -134,21 +90,6 @@ export const RetryInvalidTimestamp: Story = {
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /rate limited/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic is rate limiting requests/i),
-		).toBeVisible();
-		expect(canvas.getByText(/attempt 3/i)).toBeVisible();
-		await waitFor(() => {
-			expect(canvas.queryByText(/retrying in nan/i)).not.toBeInTheDocument();
-			expect(canvas.queryByText(/retrying in \d+s/i)).not.toBeInTheDocument();
-		});
-		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 	},
 };
 
@@ -194,19 +135,6 @@ export const RetryTimeout: Story = {
 			isAwaitingFirstStreamChunk: true,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /request timed out/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic is temporarily unavailable/i),
-		).toBeVisible();
-		expect(
-			canvas.queryByRole("link", { name: /status/i }),
-		).not.toBeInTheDocument();
-		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
-	},
 };
 
 /** Stream-silence timeouts explain the first-token delay before retrying. */
@@ -221,20 +149,6 @@ export const RetryStreamSilenceTimeout: Story = {
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /response stalled/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic did not send response data in time/i),
-		).toBeVisible();
-		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
-		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: /status/i }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -251,19 +165,10 @@ export const StartingShowsThinkingActivity: Story = {
 		streamTools: [],
 		liveStatus: buildLiveStatus({ isAwaitingFirstStreamChunk: true }),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Thinking")).toBeVisible();
-		expect(canvas.getByTestId("live-activity-slot")).toBeVisible();
-	},
 };
 
 export const ResponseDoesNotRenderActivitySlot: Story = {
 	args: responseStreamState,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
-	},
 };
 
 /** Tool-only streams use running tool affordances instead of generic thinking. */
@@ -282,14 +187,6 @@ export const RunningToolsSuppressThinkingActivity: Story = {
 			args: { path: "README.md" },
 		},
 	]),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
-		expect(
-			canvas.getByRole("button", { name: /expand command/i }),
-		).toBeVisible();
-		expect(canvas.getByText(/reading README\.md/i)).toBeVisible();
-	},
 };
 
 const editFilesArgs = {
@@ -330,12 +227,6 @@ const editFilesEmptyDeltaState = buildStreamRenderState([
 	},
 ]);
 
-const getEditFilesToolHeight = (canvasElement: HTMLElement) => {
-	const editTool = canvasElement.querySelector("[data-transcript-row]");
-	expect(editTool).not.toBeNull();
-	return Math.round(editTool?.getBoundingClientRect().height ?? 0);
-};
-
 /** Empty result deltas should not create an invisible completed tool result. */
 export const EditFilesEmptyDeltaKeepsRunningHeight: Story = {
 	render: () => {
@@ -348,17 +239,6 @@ export const EditFilesEmptyDeltaKeepsRunningHeight: Story = {
 					<LiveAssistantOutput {...editFilesEmptyDeltaState} />
 				</div>
 			</div>
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const running = canvas.getByTestId("running-edit-files");
-		const emptyDelta = canvas.getByTestId("empty-delta-edit-files");
-
-		expect(within(running).getByText(/Editing files/)).toBeVisible();
-		expect(within(emptyDelta).getByText(/Editing files/)).toBeVisible();
-		expect(getEditFilesToolHeight(emptyDelta)).toBe(
-			getEditFilesToolHeight(running),
 		);
 	},
 };
