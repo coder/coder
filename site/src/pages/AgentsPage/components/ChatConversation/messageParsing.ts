@@ -181,7 +181,6 @@ export const mergeTools = (
 				id: result.id,
 				name: result.name,
 				result: result.result,
-				mcpApp: result.mcpApp,
 				isError: result.isError,
 				status: result.isError ? "error" : "completed",
 				mcpServerConfigId: result.mcpServerConfigId,

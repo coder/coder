@@ -270,7 +270,6 @@ export const buildStreamTools = (
 					id: result.id,
 					name: result.name,
 					result: result.result,
-					mcpApp: result.mcpApp,
 					isError: result.isError,
 					status: getStreamToolStatus(result),
 					mcpServerConfigId: result.mcpServerConfigId,

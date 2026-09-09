@@ -32,7 +32,7 @@ it("preserves MCP App metadata through persisted and streaming tool pairing", ()
 	expect(mergeTools(parsed.toolCalls, parsed.toolResults)[0]?.mcpApp).toEqual(
 		MockChatMCPApp,
 	);
-	expect(mergeTools([], parsed.toolResults)[0]?.mcpApp).toEqual(MockChatMCPApp);
+	expect(mergeTools([], parsed.toolResults)[0]?.mcpApp).toBeUndefined();
 	let state = createEmptyStreamState();
 	for (const part of parts)
 		state =
@@ -40,9 +40,7 @@ it("preserves MCP App metadata through persisted and streaming tool pairing", ()
 	expect(
 		buildStreamTools(state.toolCalls, state.toolResults)[0]?.mcpApp,
 	).toEqual(MockChatMCPApp);
-	expect(buildStreamTools({}, state.toolResults)[0]?.mcpApp).toEqual(
-		MockChatMCPApp,
-	);
+	expect(buildStreamTools({}, state.toolResults)[0]?.mcpApp).toBeUndefined();
 });
 
 it("encodes the resource binding as a same-origin document URL", () => {

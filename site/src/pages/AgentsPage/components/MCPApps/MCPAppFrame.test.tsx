@@ -5,6 +5,10 @@ import { MockBuildInfo } from "#/testHelpers/entities";
 import themes from "#/theme";
 import { ThemeContextProvider } from "#/theme/context";
 import { createChatStore } from "../ChatConversation/chatStore";
+import {
+	mergeTools,
+	parseMessageContent,
+} from "../ChatConversation/messageParsing";
 import { Tool } from "../ChatElements/tools/Tool";
 import * as bridge from "./bridge";
 import { MCPAppContext } from "./MCPAppContext";
@@ -117,19 +121,47 @@ it.each(["timeout", "error"])(
 	},
 );
 
-it("opens the exact tool result in the panel from the Tool renderer", async () => {
+it("waits for the call before initializing inline and opening the result in the panel", async () => {
 	const onOpenApp = vi.fn();
-	render(
+	const connect = vi.spyOn(bridge, "connectMCPApp");
+	const parsed = parseMessageContent([
+		{
+			type: "tool-call",
+			tool_call_id: "tool-1",
+			tool_name: "Sales",
+			args: { metric: "sales" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "tool-1",
+			tool_name: "Sales",
+			result: { output: "Sales chart" },
+			mcp_app: MockChatMCPApp,
+		},
+	]);
+	const orphan = mergeTools([], parsed.toolResults)[0];
+	const paired = mergeTools(parsed.toolCalls, parsed.toolResults)[0];
+	if (!orphan || !paired) throw new Error("Missing tool result");
+	const renderTool = (tool: typeof orphan) => (
 		<MCPAppContext value={{ chatId: "chat", onOpenApp }}>
-			<Tool
-				name="Sales"
-				toolCallId="tool-1"
-				mcpApp={MockChatMCPApp}
-				args={{}}
-				result="Sales chart"
-			/>
-		</MCPAppContext>,
-		{ wrapper: themeWrapper },
+			<Tool {...tool} toolCallId={tool.id} />
+		</MCPAppContext>
+	);
+	const view = render(renderTool(orphan), { wrapper: themeWrapper });
+	expect(connect).not.toHaveBeenCalled();
+	view.rerender(renderTool(paired));
+	const source = screen.getByTitle<HTMLIFrameElement>("Sales").contentWindow;
+	if (!source) throw new Error("No iframe window");
+	const post = vi.spyOn(source, "postMessage");
+	send(source, "ui/initialize", 1);
+	send(source, "ui/notifications/initialized");
+	expect(post).toHaveBeenCalledWith(
+		{
+			jsonrpc: "2.0",
+			method: "ui/notifications/tool-input",
+			params: { arguments: { metric: "sales" } },
+		},
+		"*",
 	);
 	await userEvent.click(screen.getByRole("button", { name: "Open in panel" }));
 	expect(onOpenApp).toHaveBeenCalledWith({
