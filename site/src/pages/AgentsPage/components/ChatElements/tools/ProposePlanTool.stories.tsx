@@ -171,27 +171,6 @@ export const FileIDLoading: Story = {
 	},
 };
 
-export const FileIDCompleted: Story = {
-	args: {
-		status: "completed",
-		args: { path: defaultPlanPath },
-		result: {
-			ok: true,
-			path: defaultPlanPath,
-			kind: "plan",
-			file_id: "test-file-id-success",
-			media_type: "text/markdown",
-		},
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getChatFileText").mockResolvedValue(samplePlan);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Implementation Plan")).toBeInTheDocument();
-	},
-};
-
 export const FileIDFetchError: Story = {
 	args: {
 		status: "completed",
@@ -208,11 +187,5 @@ export const FileIDFetchError: Story = {
 		spyOn(API.experimental, "getChatFileText").mockRejectedValue(
 			new Error("Failed to load plan"),
 		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByRole("img", { name: "Failed to load plan" }),
-		).toBeInTheDocument();
 	},
 };

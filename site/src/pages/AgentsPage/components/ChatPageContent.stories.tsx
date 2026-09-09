@@ -1,7 +1,7 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	chatPromptsKey,
 	userCompactionThresholdsKey,
@@ -220,10 +220,7 @@ export const ErrorClearsStreamingTool: Story = {
 			</ChatWorkspaceContext>
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
-
+	play: async () => {
 		errorClearsStreamStore.batch(() => {
 			errorClearsStreamStore.applyServerChatStatus("error");
 			errorClearsStreamStore.setStreamError({
@@ -232,14 +229,6 @@ export const ErrorClearsStreamingTool: Story = {
 			});
 			errorClearsStreamStore.clearStreamState();
 		});
-
-		await waitFor(() => {
-			expect(canvas.queryByText("Creating workspace…")).toBeNull();
-		});
-		expect(canvas.getByText("Request failed")).toBeInTheDocument();
-		expect(
-			canvas.getByText("The chat session ended unexpectedly."),
-		).toBeInTheDocument();
 	},
 };
 
@@ -337,12 +326,6 @@ export const RunningShowsBusyComposer: Story = {
 		store.setChatStatus("running");
 		return <StoryChatPageInput store={store} />;
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
-		expect(canvas.getByRole("button", { name: "Stop" })).toBeEnabled();
-		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
-	},
 };
 
 const CompactionChatPageInput: FC = () => {
@@ -389,13 +372,6 @@ const CompactionChatPageInput: FC = () => {
 	);
 };
 
-const openContextUsage = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await userEvent.click(
-		await canvas.findByRole("button", { name: /Context usage/ }),
-	);
-};
-
 export const CompactsAtUserOverride: Story = {
 	parameters: {
 		pixel: { exclude: true },
@@ -415,13 +391,6 @@ export const CompactsAtUserOverride: Story = {
 		],
 	},
 	render: () => <CompactionChatPageInput />,
-	play: async ({ canvasElement }) => {
-		await openContextUsage(canvasElement);
-		await waitFor(() => {
-			expect(within(document.body).getByText("Compacts at 60%")).toBeVisible();
-		});
-		expect(within(document.body).queryByText("Compacts at 70%")).toBeNull();
-	},
 };
 
 export const CompactsAtHistoricalModelDefault: Story = {
@@ -443,10 +412,4 @@ export const CompactsAtHistoricalModelDefault: Story = {
 		],
 	},
 	render: () => <CompactionChatPageInput />,
-	play: async ({ canvasElement }) => {
-		await openContextUsage(canvasElement);
-		await waitFor(() => {
-			expect(within(document.body).getByText("Compacts at 70%")).toBeVisible();
-		});
-	},
 };

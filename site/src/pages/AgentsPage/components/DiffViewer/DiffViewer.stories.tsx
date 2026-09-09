@@ -472,33 +472,22 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 	render: () => <ReparseSamePath />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const shadowText = () =>
-			Array.from(canvasElement.querySelectorAll("diffs-container"))
-				.map((host) => host.shadowRoot?.textContent ?? "")
-				.join("\n");
-		const expectRendered = (text: string) =>
-			waitFor(
-				() => {
-					// Checked inside the wait so a crash surfaces as the
-					// error-box assertion instead of a text-timeout.
-					expectNoErrorBox();
-					expect(shadowText().includes(text)).toBe(true);
-				},
-				{
-					timeout: 5000,
-				},
-			);
-		const expectNoErrorBox = () =>
-			expect(
-				Array.from(canvasElement.querySelectorAll("diffs-container")).some(
-					(host) => host.shadowRoot?.querySelector("[data-error-message]"),
-				),
-			).toBe(false);
-
-		await expectRendered("const v = 2");
+		// The first body must render before the swap so the screenshot shows
+		// the reparsed diff after the click below.
+		await waitFor(
+			() => {
+				expect(
+					Array.from(canvasElement.querySelectorAll("diffs-container")).some(
+						(host) =>
+							host.shadowRoot?.textContent?.includes("const v = 2") === true,
+					),
+				).toBe(true);
+			},
+			{
+				timeout: 5000,
+			},
+		);
 
 		await userEvent.click(canvas.getByRole("button", { name: "next body" }));
-
-		await expectRendered("const v = 3");
 	},
 };

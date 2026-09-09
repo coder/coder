@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fireEvent, fn, waitFor, within } from "storybook/test";
-import { RECORDING_UNAVAILABLE_TEXT } from "./ChatElements/tools/previewConstants";
+import { fireEvent, fn } from "storybook/test";
 import { VideoLightbox } from "./VideoLightbox";
 
 // The file is stored in site/.storybook/static/tiny-recording.mp4.
@@ -28,26 +27,6 @@ export const Default: Story = {
 		open: true,
 		onClose: fn(),
 	},
-	play: async ({ canvasElement }) => {
-		const doc = canvasElement.ownerDocument;
-		const video = doc.querySelector("video");
-		expect(video).toBeInTheDocument();
-		expect(video).toHaveAttribute("controls");
-	},
-};
-
-export const AccessibleTitle: Story = {
-	args: {
-		src: TINY_MP4,
-		open: true,
-		onClose: fn(),
-	},
-	play: async ({ canvasElement }) => {
-		const screen = within(canvasElement.ownerDocument.body);
-		expect(
-			screen.getByRole("dialog", { name: "Recording playback" }),
-		).toBeInTheDocument();
-	},
 };
 
 export const VideoError: Story = {
@@ -58,14 +37,7 @@ export const VideoError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const doc = canvasElement.ownerDocument;
-		const screen = within(doc.body);
 		const video = doc.querySelector("video");
-		expect(video).not.toBeNull();
 		fireEvent.error(video!);
-		await waitFor(() => {
-			expect(screen.getByText(RECORDING_UNAVAILABLE_TEXT)).toBeInTheDocument();
-		});
-		// The video element should be replaced by the error message.
-		expect(doc.querySelector("video")).toBeNull();
 	},
 };

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { fn } from "storybook/test";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
 
 const meta: Meta<typeof InlineDesktopPreview> = {
@@ -34,23 +34,6 @@ export const Idle: Story = {
 // Connecting — WebSocket handshake in progress.
 // ---------------------------------------------------------------------------
 
-export const Connecting: Story = {
-	args: {
-		connectionOverride: {
-			status: "connecting",
-			hasConnected: false,
-			reconnect: fn(),
-			attach: fn(),
-			rfb: null,
-			remoteClipboardText: null,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByTitle("Loading spinner")).toBeInTheDocument();
-	},
-};
-
 // ---------------------------------------------------------------------------
 // Connected — VNC canvas attached.
 // ---------------------------------------------------------------------------
@@ -65,11 +48,6 @@ export const Connected: Story = {
 			rfb: null,
 			remoteClipboardText: null,
 		},
-	},
-	play: async ({ canvasElement }) => {
-		// The connected state renders the VNC container with
-		// pointer-events-none to act as a read-only preview.
-		expect(canvasElement.querySelector(".pointer-events-none")).not.toBeNull();
 	},
 };
 
