@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -61,6 +63,11 @@ func TestMCPApps(t *testing.T) {
 			{URI: "ui://large-blob", MIMEType: "text/html;profile=mcp-app", Blob: oversized},
 		}}, nil
 	})
+	server.AddResource(&mcp.Resource{URI: "ui://large-meta", Name: "large-meta"}, func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{
+			{URI: "ui://large-meta", MIMEType: "text/html;profile=mcp-app", Text: "<html>small</html>", Meta: mcp.Meta{"padding": string(oversized)}},
+		}}, nil
+	})
 	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil))
 	t.Cleanup(httpServer.Close)
 	manager := &Manager{logger: testutil.Logger(t)}
@@ -92,6 +99,7 @@ func TestMCPApps(t *testing.T) {
 		{"empty", "apps", "ui://empty", http.StatusBadGateway},
 		{"large text", "apps", "ui://large-text", http.StatusRequestEntityTooLarge},
 		{"large blob", "apps", "ui://large-blob", http.StatusRequestEntityTooLarge},
+		{"large meta", "apps", "ui://large-meta", http.StatusRequestEntityTooLarge},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -120,15 +128,21 @@ func TestMCPApps(t *testing.T) {
 	rr := httptest.NewRecorder()
 	api.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/read-resource", bytes.NewBufferString("{")))
 	require.Equal(t, http.StatusBadRequest, rr.Code)
-	callBody := bytes.NewBufferString(`{"tool_name":"apps__view","arguments":{}}`)
-	rr = httptest.NewRecorder()
-	api.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/call-tool", callBody).WithContext(ctx))
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var result workspacesdk.CallMCPToolResponse
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &result))
-	require.False(t, result.IsError)
-	require.JSONEq(t, `{"content":[{"type":"text","text":"view ready"}],"structuredContent":{"items":["one","two"]}}`, string(result.Result))
-	require.Equal(t, []workspacesdk.MCPToolContent{{Type: "text", Text: "view ready"}}, result.Content)
+	for _, includeResult := range []bool{false, true} {
+		callBody := bytes.NewBufferString(`{"tool_name":"apps__view","arguments":{},"include_result":` + strconv.FormatBool(includeResult) + `}`)
+		rr = httptest.NewRecorder()
+		api.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/call-tool", callBody).WithContext(ctx))
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var result workspacesdk.CallMCPToolResponse
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &result))
+		require.False(t, result.IsError)
+		require.Equal(t, []workspacesdk.MCPToolContent{{Type: "text", Text: "view ready"}}, result.Content)
+		if includeResult {
+			require.JSONEq(t, `{"content":[{"type":"text","text":"view ready"}],"structuredContent":{"items":["one","two"]}}`, string(result.Result))
+		} else {
+			require.Empty(t, result.Result)
+		}
+	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
 	_, err = manager.ReadResource(canceled, workspacesdk.ReadMCPResourceRequest{ServerName: "apps", URI: "ui://view"})
@@ -155,6 +169,8 @@ func TestConvertResultEmbeddedResource(t *testing.T) {
 				Meta: mcp.Meta{"display": "chart"},
 			}
 			got := convertResult(original)
+			require.Empty(t, got.Result)
+			got.Result = rawResult(original)
 			data, err := json.Marshal(got)
 			require.NoError(t, err)
 			var roundtrip workspacesdk.CallMCPToolResponse
@@ -170,6 +186,21 @@ func TestConvertResultEmbeddedResource(t *testing.T) {
 			var mcpResult mcp.CallToolResult
 			require.NoError(t, json.Unmarshal(roundtrip.Result, &mcpResult))
 			require.Equal(t, original, &mcpResult)
+		})
+	}
+}
+
+func TestRawResultOversized(t *testing.T) {
+	t.Parallel()
+	for _, isError := range []bool{false, true} {
+		t.Run(strconv.FormatBool(isError), func(t *testing.T) {
+			t.Parallel()
+			original := &mcp.CallToolResult{
+				Content:           []mcp.Content{&mcp.TextContent{Text: "ok"}},
+				StructuredContent: map[string]any{"blob": strings.Repeat("x", workspacesdk.MaxMCPToolResultBytes)},
+				IsError:           isError,
+			}
+			require.JSONEq(t, `{"content":[{"type":"text","text":"[result omitted: too large]"}],"isError":`+strconv.FormatBool(isError)+`}`, string(rawResult(original)))
 		})
 	}
 }

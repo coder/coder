@@ -704,7 +704,11 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("call tool %q on %q: %w", originalName, serverName, err)
 	}
 
-	return convertResult(result), nil
+	resp := convertResult(result)
+	if req.IncludeResult {
+		resp.Result = rawResult(result)
+	}
+	return resp, nil
 }
 
 // ReadResource returns the first content item from a connected MCP server.
@@ -725,20 +729,22 @@ func (m *Manager) ReadResource(ctx context.Context, req workspacesdk.ReadMCPReso
 	if len(result.Contents) == 0 || result.Contents[0] == nil {
 		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("read resource %q on %q: empty contents", req.URI, req.ServerName)
 	}
-	resource := result.Contents[0]
-	if len(resource.Text) > workspacesdk.MaxMCPResourceContentBytes || len(resource.Blob) > workspacesdk.MaxMCPResourceContentBytes {
-		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("read resource %q on %q: %w", req.URI, req.ServerName, workspacesdk.ErrMCPResourceTooLarge)
+	resp, err := convertResource(result.Contents[0])
+	if err != nil {
+		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("read resource %q on %q: %w", req.URI, req.ServerName, err)
 	}
-	return convertResource(resource), nil
+	return resp, nil
 }
 
-func convertResource(resource *mcp.ResourceContents) workspacesdk.ReadMCPResourceResponse {
-	if resource == nil {
-		return workspacesdk.ReadMCPResourceResponse{}
-	}
+// convertResource bounds the text, blob, and metadata before the blob
+// is base64 encoded so an oversized resource never grows further.
+func convertResource(resource *mcp.ResourceContents) (workspacesdk.ReadMCPResourceResponse, error) {
 	var meta json.RawMessage
 	if len(resource.Meta) > 0 {
 		meta, _ = json.Marshal(resource.Meta)
+	}
+	if len(resource.Text)+len(resource.Blob)+len(meta) > workspacesdk.MaxMCPResourceContentBytes {
+		return workspacesdk.ReadMCPResourceResponse{}, workspacesdk.ErrMCPResourceTooLarge
 	}
 	return workspacesdk.ReadMCPResourceResponse{
 		URI:      resource.URI,
@@ -746,7 +752,7 @@ func convertResource(resource *mcp.ResourceContents) workspacesdk.ReadMCPResourc
 		Text:     resource.Text,
 		Blob:     base64.StdEncoding.EncodeToString(resource.Blob),
 		Meta:     meta,
-	}
+	}, nil
 }
 
 // refreshCatalog re-lists tools from the connected servers and rebuilds
@@ -1046,12 +1052,20 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 		}
 	}
 
-	wireResult, _ := json.Marshal(result)
 	return workspacesdk.CallMCPToolResponse{
 		Content: content,
 		IsError: result.IsError,
-		Result:  wireResult,
 	}
+}
+
+// rawResult serializes the tools/call result for MCP App rendering,
+// replacing envelopes above MaxMCPToolResultBytes with a placeholder.
+func rawResult(result *mcp.CallToolResult) json.RawMessage {
+	raw, _ := json.Marshal(result)
+	if len(raw) > workspacesdk.MaxMCPToolResultBytes {
+		return json.RawMessage(fmt.Sprintf(`{"content":[{"type":"text","text":"[result omitted: too large]"}],"isError":%t}`, result.IsError))
+	}
+	return raw
 }
 
 // ServerStatus is a point-in-time view of one MCP server's connection

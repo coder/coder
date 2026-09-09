@@ -1305,6 +1305,10 @@ type CallMCPToolRequest struct {
 	ToolName string `json:"tool_name"`
 	// Arguments is the tool input as key-value pairs.
 	Arguments map[string]any `json:"arguments"`
+	// IncludeResult requests the raw tools/call result in Result for MCP
+	// App rendering. Results above MaxMCPToolResultBytes are replaced
+	// with a placeholder before leaving the agent.
+	IncludeResult bool `json:"include_result,omitempty"`
 }
 
 // CallMCPToolResponse is the response from a proxied MCP tool call.
@@ -1323,8 +1327,11 @@ type MCPToolContent struct {
 }
 
 const (
-	// MaxMCPResourceContentBytes limits the raw text or blob of one resource.
-	// The agent enforces it before encoding the response.
+	// MaxMCPToolResultBytes limits the raw tools/call result an MCP App
+	// receives.
+	MaxMCPToolResultBytes = 256 << 10
+	// MaxMCPResourceContentBytes limits the text, blob, and metadata of
+	// one resource. The agent enforces it before encoding the response.
 	MaxMCPResourceContentBytes = 4 << 20
 	// MaxMCPResourceResponseBytes limits the encoded agent resource response.
 	MaxMCPResourceResponseBytes = 8 << 20

@@ -256,7 +256,6 @@ func TestWorkspaceMCPTool_MCPApp(t *testing.T) {
 	for _, tc := range []struct {
 		name                              string
 		enabled, noURI, isError, noResult bool
-		size                              int
 	}{
 		{name: "Enabled", enabled: true},
 		{name: "Disabled"},
@@ -264,9 +263,6 @@ func TestWorkspaceMCPTool_MCPApp(t *testing.T) {
 		{name: "Error", enabled: true, isError: true},
 		{name: "NoResult", enabled: true, noResult: true},
 		{name: "NoResultError", enabled: true, noResult: true, isError: true},
-		{name: "AtLimit", enabled: true, size: 256 << 10},
-		{name: "Oversize", enabled: true, size: (256 << 10) + 1},
-		{name: "OversizeError", enabled: true, isError: true, size: (256 << 10) + 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -277,8 +273,6 @@ func TestWorkspaceMCPTool_MCPApp(t *testing.T) {
 			}
 			if tc.noResult {
 				original.Result = nil
-			} else if tc.size > 0 {
-				original.Result = json.RawMessage(strings.Replace(string(original.Result), `"display":""`, `"display":"`+strings.Repeat("x", tc.size-len(original.Result))+`"`, 1))
 			}
 			info := workspacesdk.MCPToolInfo{Name: "my.server__view", ServerName: "my.server"}
 			if !tc.noURI {
@@ -287,6 +281,7 @@ func TestWorkspaceMCPTool_MCPApp(t *testing.T) {
 			tool := chattool.NewWorkspaceMCPTool(info, func(context.Context) (workspacesdk.AgentConn, error) {
 				return &fakeAgentConn{callMCPToolFunc: func(_ context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
 					require.Equal(t, "my.server__view", req.ToolName)
+					require.Equal(t, tc.enabled && !tc.noURI, req.IncludeResult)
 					return original, nil
 				}}, nil
 			}, nil, tc.enabled)
@@ -304,12 +299,9 @@ func TestWorkspaceMCPTool_MCPApp(t *testing.T) {
 			require.NotNil(t, app)
 			require.Equal(t, "my.server", app.ServerName)
 			require.Equal(t, info.UIResourceURI, app.ResourceURI)
-			switch {
-			case tc.size > 256<<10:
-				require.JSONEq(t, `{"content":[{"type":"text","text":"[result omitted: too large]"}],"isError":`+strconv.FormatBool(tc.isError)+`}`, string(app.Result))
-			case tc.noResult:
+			if tc.noResult {
 				require.JSONEq(t, `{"content":[],"isError":`+strconv.FormatBool(tc.isError)+`}`, string(app.Result))
-			default:
+			} else {
 				require.JSONEq(t, string(original.Result), string(app.Result))
 			}
 		})

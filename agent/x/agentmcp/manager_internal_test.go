@@ -221,13 +221,7 @@ func TestConvertResult(t *testing.T) {
 			t.Parallel()
 
 			got := convertResult(tt.input)
-			want := tt.want
-			if tt.input != nil {
-				var err error
-				want.Result, err = json.Marshal(tt.input)
-				require.NoError(t, err)
-			}
-			assert.Equal(t, want, got)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

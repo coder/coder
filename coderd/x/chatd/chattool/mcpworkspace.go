@@ -209,8 +209,9 @@ func (t *WorkspaceMCPTool) Run(
 	}
 
 	resp, err := conn.CallMCPTool(ctx, workspacesdk.CallMCPToolRequest{
-		ToolName:  t.routingName,
-		Arguments: args,
+		ToolName:      t.routingName,
+		Arguments:     args,
+		IncludeResult: t.UIResourceURI != "",
 	})
 	if err != nil {
 		// If the agent returns a 404 (ErrUnknownServer), the
@@ -230,8 +231,6 @@ func (t *WorkspaceMCPTool) Run(
 		result := resp.Result
 		if len(result) == 0 {
 			result = json.RawMessage(fmt.Sprintf(`{"content":[],"isError":%t}`, resp.IsError))
-		} else if len(result) > 256<<10 {
-			result = json.RawMessage(fmt.Sprintf(`{"content":[{"type":"text","text":"[result omitted: too large]"}],"isError":%t}`, resp.IsError))
 		}
 		response = WithMCPApp(response, codersdk.ChatMCPApp{
 			ServerName: t.ServerName(), ResourceURI: t.UIResourceURI, Result: result,
