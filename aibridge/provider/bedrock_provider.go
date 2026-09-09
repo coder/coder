@@ -65,7 +65,7 @@ func NewBedrock(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWS
 		cfg.CircuitBreaker.OpenErrorResponse = bedrockOpenErrorResponse
 	}
 
-	creds, resolvedRegion, err := buildBedrockCredentials(ctx, bedrockCfg)
+	awsCfg, err := buildBedrockCredentials(ctx, bedrockCfg)
 	if err != nil {
 		return nil, xerrors.Errorf("build bedrock credentials: %w", err)
 	}
@@ -73,7 +73,7 @@ func NewBedrock(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWS
 	// resolvedRegion is bedrockCfg.Region if provided; otherwise, it is
 	// resolved from the environment via awsconfig.LoadDefaultConfig.
 	if runtimeCfg.Region == "" {
-		runtimeCfg.Region = resolvedRegion
+		runtimeCfg.Region = awsCfg.Region
 	}
 	if err := runtimeCfg.Validate(); err != nil {
 		return nil, xerrors.Errorf("bedrock config: %w", err)
@@ -81,7 +81,7 @@ func NewBedrock(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWS
 
 	return &Bedrock{
 		cfg:     cfg,
-		runtime: messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds},
+		runtime: messages.BedrockRuntime{Cfg: runtimeCfg, Creds: awsCfg.Credentials},
 	}, nil
 }
 
