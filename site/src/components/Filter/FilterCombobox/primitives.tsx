@@ -360,7 +360,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 			data-slot="combobox-chip"
 			svgSize="sm"
 			className={cn(
-				"group/chip pl-2 text-sm font-medium leading-4 text-content-secondary hover:text-content-primary",
+				"group/chip pl-2 font-medium text-content-secondary hover:text-content-primary",
 				className,
 			)}
 			{...props}
