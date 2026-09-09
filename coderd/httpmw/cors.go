@@ -90,7 +90,8 @@ func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler
 			isAuthorize := path == "/oauth2/authorize" ||
 				strings.HasPrefix(path, "/oauth2/authorize/")
 
-			// Use permissive CORS for OAuth2, MCP, and well-known endpoints
+			// Use permissive CORS for OAuth2 (except authorize), MCP, and
+			// well-known endpoints
 			if !isAuthorize && (strings.HasPrefix(path, "/oauth2/") ||
 				strings.HasPrefix(path, "/api/experimental/mcp/") ||
 				strings.HasPrefix(path, "/api/v2/mcp/") ||

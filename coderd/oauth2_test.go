@@ -2272,6 +2272,9 @@ func TestOAuth2AuthorizeNoCORS(t *testing.T) {
 		require.Empty(t, headers.Get("Access-Control-Allow-Origin"))
 	})
 
+	// The authorize cases only check that headers are absent, which an
+	// unmounted middleware would also satisfy. This case proves the
+	// middleware is wired in front of the router.
 	t.Run("Tokens", func(t *testing.T) {
 		t.Parallel()
 		headers := preflight(t, "/oauth2/tokens", http.MethodPost)
