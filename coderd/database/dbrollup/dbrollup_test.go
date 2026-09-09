@@ -136,7 +136,7 @@ func TestRollup_TwoInstancesUseLocking(t *testing.T) {
 func TestRollupTemplateUsageStats(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
 	anHourAgo := dbtime.Now().Add(-time.Hour).Truncate(time.Hour).UTC()
@@ -245,15 +245,30 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 	stats[0].StartTime = stats[0].StartTime.UTC()
 
 	require.Equal(t, database.TemplateUsageStat{
-		TemplateID:          tpl.ID,
-		UserID:              user.ID,
-		StartTime:           wags1.CreatedAt,
-		EndTime:             wags1.CreatedAt.Add(30 * time.Minute),
-		MedianLatencyMs:     sql.NullFloat64{Float64: 1, Valid: true},
-		UsageMins:           3,
-		ReconnectingPtyMins: 2,
+		TemplateID:      tpl.ID,
+		UserID:          user.ID,
+		StartTime:       wags1.CreatedAt,
+		EndTime:         wags1.CreatedAt.Add(30 * time.Minute),
+		MedianLatencyMs: sql.NullFloat64{Float64: 1, Valid: true},
+		UsageMins:       3,
 		AppUsageMins: database.StringMapOfInt{
 			app.Slug: 2,
 		},
 	}, stats[0])
+
+	// Session minutes live in the child tables, keyed by the reported app
+	// name and by its family.
+	for _, tc := range []struct {
+		table, nameColumn, name string
+	}{
+		{"template_usage_stats_session_apps", "app_name", "reconnecting_pty"},
+		{"template_usage_stats_session_families", "family", "reconnecting_pty"},
+	} {
+		var usageMins int64
+		//nolint:gosec // Table and column names are constants in this test.
+		err := sqlDB.QueryRowContext(ctx, "SELECT usage_mins FROM "+tc.table+" WHERE start_time = $1 AND template_id = $2 AND user_id = $3 AND "+tc.nameColumn+" = $4",
+			wags1.CreatedAt, tpl.ID, user.ID, tc.name).Scan(&usageMins)
+		require.NoError(t, err, tc.table)
+		require.EqualValues(t, 2, usageMins, tc.table)
+	}
 }
