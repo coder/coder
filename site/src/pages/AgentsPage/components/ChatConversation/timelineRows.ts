@@ -9,7 +9,7 @@ type TimelineMessageRow = {
 	isLastMessage: boolean;
 };
 
-type TimelineRow = TimelineMessageRow | { type: "live"; key: string };
+export type TimelineRow = TimelineMessageRow | { type: "live"; key: string };
 
 /**
  * Durable rows keep their server IDs so prepending history never changes an

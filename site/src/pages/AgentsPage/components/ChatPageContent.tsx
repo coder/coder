@@ -203,6 +203,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
 				<ConversationTimeline
+					hasMoreMessages={hasMoreMessages}
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
 					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}

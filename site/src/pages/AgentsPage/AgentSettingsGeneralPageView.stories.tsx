@@ -174,6 +174,49 @@ export const TogglesSendShortcut: Story = {
 	},
 };
 
+export const TogglesCollapseAssistantSteps: Story = {
+	beforeEach: () => {
+		let collapseAssistantSteps = false;
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(async () => ({
+			...preferencesData,
+			collapse_assistant_steps: collapseAssistantSteps,
+		}));
+		spyOn(API, "updateUserPreferenceSettings").mockImplementation(
+			async (req) => {
+				collapseAssistantSteps =
+					req.collapse_assistant_steps ?? collapseAssistantSteps;
+				return {
+					...preferencesData,
+					collapse_assistant_steps: collapseAssistantSteps,
+				};
+			},
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Collapse assistant steps",
+		});
+		expect(toggle).not.toBeChecked();
+
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(API.updateUserPreferenceSettings).toHaveBeenCalledWith({
+				collapse_assistant_steps: true,
+			});
+			expect(toggle).toBeChecked();
+		});
+
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(API.updateUserPreferenceSettings).toHaveBeenLastCalledWith({
+				collapse_assistant_steps: false,
+			});
+			expect(toggle).not.toBeChecked();
+		});
+	},
+};
+
 export const RendersAgentDisplayModeSettings: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

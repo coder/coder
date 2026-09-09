@@ -77,6 +77,7 @@ export const applyMessagePartToStreamState = (
 					...nextState.toolCalls,
 					[toolCallID]: {
 						id: toolCallID,
+						createdAt: existing?.createdAt ?? part.created_at,
 						name: part.tool_name || existing?.name || "Tool",
 						args: nextArgs.value,
 						argsRaw: nextArgs.rawText,
@@ -149,6 +150,7 @@ export const applyMessagePartToStreamState = (
 					...nextState.toolResults,
 					[toolCallID]: {
 						id: toolCallID,
+						createdAt: part.created_at ?? existing?.createdAt,
 						name: nextToolName,
 						result: nextResult.value,
 						resultRaw: nextResult.rawText,

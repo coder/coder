@@ -3,6 +3,7 @@ import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { ChatSendShortcutSettings } from "./components/ChatSendShortcutSettings";
+import { CollapseAssistantStepsSettings } from "./components/CollapseAssistantStepsSettings";
 import {
 	CodeDiffDisplaySettings,
 	ShellToolDisplaySettings,
@@ -63,6 +64,7 @@ export const AgentSettingsGeneralPageView: FC<
 			<ThinkingDisplaySettings />
 			<ShellToolDisplaySettings />
 			<CodeDiffDisplaySettings />
+			<CollapseAssistantStepsSettings />
 			<UserChatDebugLoggingSettings
 				userSettings={userDebugLoggingData}
 				onSaveUserSetting={onSaveUserDebugLogging}
