@@ -55,18 +55,20 @@ export const TotalAndBlockedKeyboard: Story = {
 	},
 };
 
-// Tabbing to the disabled indicator's info button and pressing Enter reveals
-// the reason popover without a mouse.
-export const DisabledKeyboard: Story = {
+// Hovering the disabled indicator's info button reveals why tracking is off.
+export const DisabledHover: Story = {
 	args: {
 		summary: undefined,
 	},
 	play: async () => {
-		await userEvent.tab();
-		await userEvent.keyboard("{Enter}");
+		await userEvent.hover(
+			screen.getByRole("button", {
+				name: "Why network request tracking is disabled",
+			}),
+		);
 		await waitFor(() =>
-			expect(screen.getByRole("dialog")).toHaveTextContent(
-				"Network request monitoring was not active for this session.",
+			expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"Agent Firewall is off. Enable it in the workspace template to track network requests.",
 			),
 		);
 	},

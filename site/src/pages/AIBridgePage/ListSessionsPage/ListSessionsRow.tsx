@@ -1,4 +1,4 @@
-import { ChevronRightIcon } from "lucide-react";
+import { MessageSquareTextIcon } from "lucide-react";
 import type { FC } from "react";
 import type { AIBridgeSession } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -12,7 +12,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
-import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { NetworkCallBadges } from "../NetworkCallBadges";
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName } from "../utils";
@@ -34,15 +33,23 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 				onClick?.();
 			}}
 		>
-			<TableCell className="max-w-32 flex-1 overflow-auto font-normal">
+			<TableCell className="max-w-32 min-w-10 flex-1 overflow-hidden font-normal">
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<p className="truncate">{session.last_prompt}</p>
+							<span className="inline-flex min-w-0 max-w-full items-center">
+								<span className="hidden min-w-0 max-w-full truncate lg:block">
+									{session.last_prompt}
+								</span>
+								<MessageSquareTextIcon
+									aria-label="View last prompt"
+									className="block size-icon-sm text-content-secondary lg:hidden"
+								/>
+							</span>
 						</TooltipTrigger>
-						<TooltipContent className="max-w-64" side="top" align="start">
+						<TooltipContent className="max-w-[512px]" side="top" align="start">
 							<div className="font-bold">Last prompt</div>
-							<div>{session.last_prompt}</div>
+							<div className="line-clamp-5">{session.last_prompt}</div>
 						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
@@ -65,9 +72,33 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
 					{session.providers.length > 1 ? (
-						<Badge className="max-w-full">
-							{session.providers.length} providers
-						</Badge>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span>
+										<Badge className="max-w-full">
+											{session.providers.length} providers
+										</Badge>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="top" align="start" sideOffset={8}>
+									<div className="flex flex-col gap-2">
+										<div className="text-content-primary text-sm font-medium">
+											Providers
+										</div>
+										{session.providers.map((provider) => (
+											<div key={provider} className="flex items-center gap-2">
+												<AIBridgeProviderIcon
+													provider={provider}
+													className="size-icon-xs"
+												/>
+												<span>{getProviderDisplayName(provider)}</span>
+											</div>
+										))}
+									</div>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					) : session.providers.length === 1 ? (
 						<Badge className="gap-1.5 max-w-full">
 							<div className="shrink-0 flex items-center">
@@ -109,21 +140,10 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			<TableCell className="w-40">
 				<NetworkCallBadges summary={session.network_calls} />
 			</TableCell>
-			<TableCell className="w-32">
+			<TableCell className="w-24 max-w-24">
 				<Badge className="bg-surface-secondary align-end">
 					{session.threads}
 				</Badge>
-			</TableCell>
-			<TableCell className="w-48 whitespace-nowrap font-normal">
-				<div className="flex items-center justify-between">
-					<span>
-						{formatDateTime(
-							new Date(session.last_active_at),
-							DATE_FORMAT.FULL_DATETIME,
-						)}
-					</span>
-					<ChevronRightIcon className="ml-4 size-icon-sm" />
-				</div>
 			</TableCell>
 		</TableRow>
 	);
