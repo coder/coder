@@ -15,17 +15,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// bedrockProfileUnresolvableError marks a failed Bedrock inference profile
-// lookup so the write path reports it as a client-visible validation failure
-// rather than an internal error.
-type bedrockProfileUnresolvableError struct{ err error }
-
-func (e bedrockProfileUnresolvableError) Error() string {
-	return "resolve bedrock inference profile: " + e.err.Error()
-}
-
-func (e bedrockProfileUnresolvableError) Unwrap() error { return e.err }
-
 // resolveBedrockModels records which model each of the provider's application
 // inference profile ARNs refers to. An ARN identifies a billing wrapper rather
 // than a model, so the gateway needs the mapping to detect capabilities, price
@@ -52,7 +41,7 @@ func (api *API) resolveBedrockModels(ctx context.Context, row database.AIProvide
 
 	resolved, err := provider.ResolveBedrockModels(ctx, *cfg)
 	if err != nil {
-		return bedrockProfileUnresolvableError{err: err}
+		return xerrors.Errorf("resolve bedrock inference profile: %w", err)
 	}
 
 	for profileARN, model := range resolved {
@@ -72,11 +61,6 @@ func (api *API) resolveBedrockModels(ctx context.Context, row database.AIProvide
 // resolution the gateway cannot tell what an opaque profile ARN refers to, so
 // it serves the ARN as its own identity until a later save resolves it.
 func (api *API) writeAIProviderResolutionError(ctx context.Context, rw http.ResponseWriter, err error) {
-	var unresolvable bedrockProfileUnresolvableError
-	if !xerrors.As(err, &unresolvable) {
-		writeAIProviderError(ctx, api.Logger, rw, err, "resolve bedrock inference profile", "Internal error resolving the Bedrock application inference profile.")
-		return
-	}
 	api.Logger.Warn(ctx, "resolve bedrock inference profile", slog.Error(err))
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: "Could not resolve the Bedrock application inference profile. Check that the ARN is correct and that the AWS identity used by Coder is allowed bedrock:GetInferenceProfile.",
