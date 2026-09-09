@@ -803,6 +803,14 @@ func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
+	if user.IsSystem {
+		api.Logger.Warn(ctx, "disallowed setting AI budget override for system user", slog.F("user_id", user.ID))
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Forbidden",
+			Detail:  "Cannot set an AI budget override for a system user.",
+		})
+		return
+	}
 
 	var req codersdk.UpsertUserAIBudgetOverrideRequest
 	if !httpapi.Read(ctx, rw, r, &req) {

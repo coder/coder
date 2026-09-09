@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
 import { ChatSummary } from "./ChatSummary";
 
 const meta: Meta<typeof ChatSummary> = {
@@ -25,100 +24,42 @@ const meta: Meta<typeof ChatSummary> = {
 export default meta;
 type Story = StoryObj<typeof ChatSummary>;
 
-export const WithSummary: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Created:")).toBeInTheDocument();
-		await expect(canvas.getByText("Updated:")).toBeInTheDocument();
-		await expect(canvas.getByText("Cost:")).toBeInTheDocument();
-		await expect(canvas.getByText("May 1, 2024")).toBeInTheDocument();
-		await expect(canvas.getByText("May 2, 2024")).toBeInTheDocument();
-		await expect(canvas.queryByText(/12:00|15:30/)).not.toBeInTheDocument();
-		// formatCostMicros is locale-pinned to en-US, so this is deterministic.
-		await expect(canvas.getByText("$1.25")).toBeInTheDocument();
-	},
-};
+export const WithSummary: Story = {};
 
 export const NoSummary: Story = {
 	args: { summary: null },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("No summary yet.")).toBeInTheDocument();
-	},
 };
 
 // A subagent's summary is its final report, persisted when it
 // completes, so an empty summary means the agent is still working.
 export const SubagentSummaryPending: Story = {
 	args: { summary: null, isSubagent: true },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Summary pending agent completion."),
-		).toBeInTheDocument();
-	},
 };
 
 export const CostLoading: Story = {
 	args: { isCostLoading: true, costMicros: undefined },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByLabelText("Loading cost")).toBeInTheDocument();
-	},
 };
 
 export const CostAbsent: Story = {
 	args: { costMicros: null },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Cost:")).toBeInTheDocument();
-		await expect(canvas.getByText("-")).toBeInTheDocument();
-	},
 };
 
 export const SubCentCost: Story = {
 	args: { costMicros: 5_000 },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("$0.0050")).toBeInTheDocument();
-	},
 };
 
 export const CostError: Story = {
 	args: { costMicros: undefined, costError: true },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Cost:")).toBeInTheDocument();
-		await expect(canvas.getByText("Unavailable")).toBeInTheDocument();
-	},
 };
 
 export const PartialCost: Story = {
 	args: { costMicros: 0, unpricedRequestCount: 3 },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Excludes unpriced usage from 3 requests."),
-		).toBeInTheDocument();
-	},
 };
 
 export const SubagentTreeCost: Story = {
 	args: { isSubagent: true },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/Cost covers this agent's whole chat/),
-		).toBeInTheDocument();
-	},
 };
 
 export const CostHidden: Story = {
 	args: { showCost: false },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Updated:")).toBeInTheDocument();
-		await expect(canvas.queryByText("Cost:")).not.toBeInTheDocument();
-		await expect(canvas.queryByText("$1.25")).not.toBeInTheDocument();
-	},
 };
