@@ -43,8 +43,8 @@ the behavior check: what the component did.
 - Cover the meaningful visual branches: error, empty, disabled, and mobile
   states, not only the happy path.
 - Stories excluded from Pixel (`parameters.pixel.exclude`) are never
-  screenshot, so they provide no coverage at all; cover their behavior with a
-  Vitest test instead.
+  screenshot, so they provide no coverage at all; state why the story is
+  excluded and cover its behavior with a Vitest test instead.
 - When a component depends on the current time or date, accept it as a prop or
   via context instead of reading `new Date()` or `Date.now()` internally, so
   stories render deterministically without mocking globals.

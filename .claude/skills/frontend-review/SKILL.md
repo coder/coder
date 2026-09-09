@@ -39,16 +39,17 @@ before they see the PR.
   new Vitest test, and the new visual states by Storybook stories. Behavior
   tests should use Vitest, React Testing Library and `userEvent`. A `play`
   function may only drive state setup the screenshot needs (open the menu,
-  type the text); assertions in a `play` function are a FAIL, as is behavior
-  covered only by a story; if the assertion is valuable it belongs in a
+  type the text); flag assertions in a `play` function and behavior covered
+  only by a story, and note that a valuable assertion belongs in a
   Vitest test. In the test, queries locate the element to interact with; the
   assertion must be the non-visual outcome (callback, request, state). An
   outcome assertion on what the DOM renders (`toBeVisible`,
-  `toBeInTheDocument`, geometry, attribute presence) is a FAIL, hard stop:
+  `toBeInTheDocument`, geometry, attribute presence) is flagged, hard stop:
   the story's screenshot already covers it. Flag tests written only to
   expand coverage when equivalent coverage already exists. Flag stories marked
-  `parameters.pixel.exclude: true` that have no equivalent test, since an
-  excluded story is never screenshotted.
+  `parameters.pixel.exclude: true` that lack a stated reason or an
+  equivalent test: an excluded story is never screenshotted, so it must
+  justify why it is excluded and how its behavior is covered.
 - **FE2 (types)**: Search the diff for `any`, `as unknown as`, non-null
   assertions in any form (`x!.y`, `items[0]!`, `fn()!`, `value! as T`), and
   new `as` casts. Check that API data uses types from `api/typesGenerated.ts`.
