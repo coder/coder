@@ -675,14 +675,23 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					const isAfterEditingMessage =
 						row.type === "message" &&
 						afterEditingMessageIds.has(row.entry.message.id);
-					// The live block and its completed form share turnKey, so an
-					// expansion made mid-turn is found under either identity.
-					const expanded =
-						expandedBlocks.get(block.key) ??
-						(block.turnKey === undefined
-							? undefined
-							: expandedBlocks.get(block.turnKey)) ??
-						false;
+					// Expansion is recorded on the block's durable member rows, so it
+					// follows the same steps through the live-to-complete handoff and
+					// through prepends, even when the turn's prompt is not loaded.
+					// The live row is excluded: it would carry the choice into the
+					// next turn. liveKey covers a block that has no persisted row
+					// yet. The newest decision wins.
+					const memberKeys = block.rowIndices
+						.map((rowIndex) => renderRows[rowIndex])
+						.filter((member) => member.type === "message")
+						.map((member) => member.key);
+					let expanded = expandedBlocks.get(block.liveKey) ?? false;
+					for (const memberKey of memberKeys) {
+						const decision = expandedBlocks.get(memberKey);
+						if (decision !== undefined) {
+							expanded = decision;
+						}
+					}
 					return (
 						<MessageScroller.Item
 							key={block.key}
@@ -699,9 +708,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								onExpandedChange={(value) =>
 									setExpandedBlocks((previous) => {
 										const next = new Map(previous);
-										next.set(block.key, value);
-										if (block.turnKey !== undefined) {
-											next.set(block.turnKey, value);
+										next.set(block.liveKey, value);
+										for (const memberKey of memberKeys) {
+											next.set(memberKey, value);
 										}
 										return next;
 									})

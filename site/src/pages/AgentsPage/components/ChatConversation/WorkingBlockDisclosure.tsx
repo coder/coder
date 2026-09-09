@@ -7,19 +7,22 @@ import {
 	type WorkingBlock,
 } from "./workingBlockGrouping";
 
-const LiveLabel: FC<{ startedAt?: number; now?: number }> = ({
-	startedAt,
+const LiveLabel: FC<{ block: WorkingBlock; now?: number }> = ({
+	block,
 	now,
 }) => {
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
 	const clock = useTime(() => Date.now(), { disabled: now !== undefined });
-	if (startedAt === undefined) {
+	if (block.startedAt === undefined) {
 		return <ToolCall.Label>Working</ToolCall.Label>;
 	}
+	const elapsed = formatWorkingDuration((now ?? clock) - block.startedAt);
 	return (
 		<ToolCall.Label>
-			{`Working for ${formatWorkingDuration((now ?? clock) - startedAt)}`}
+			{block.isPartial
+				? `Working for at least ${elapsed}`
+				: `Working for ${elapsed}`}
 		</ToolCall.Label>
 	);
 };
@@ -29,8 +32,9 @@ const pluralize = (count: number, noun: string): string =>
 
 /**
  * A partial block may be missing earlier rows that are not loaded yet, so its
- * duration and step count are lower bounds. Blocks without part timestamps
- * report steps only rather than a guessed duration.
+ * duration and step count are lower bounds (the live label does the same).
+ * Blocks without part timestamps report steps only rather than a guessed
+ * duration.
  */
 const getCompletedWorkingLabel = (block: WorkingBlock): string => {
 	const steps = pluralize(block.stepCount, "step");
@@ -77,7 +81,7 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 					<ListChecksIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
 				</ToolCall.LeadingIcon>
 				{block.isLive ? (
-					<LiveLabel startedAt={block.startedAt} now={now} />
+					<LiveLabel block={block} now={now} />
 				) : (
 					<ToolCall.Label>{getCompletedWorkingLabel(block)}</ToolCall.Label>
 				)}

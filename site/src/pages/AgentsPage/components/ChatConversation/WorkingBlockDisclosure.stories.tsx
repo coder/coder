@@ -8,7 +8,7 @@ import type { WorkingBlock } from "./workingBlockGrouping";
 
 const MockWorkingBlock: WorkingBlock = {
 	key: "working:through:message:5",
-	turnKey: "working:turn:message:1:0",
+	liveKey: "working:live:message:1:0",
 	rowIndices: [0, 1],
 	startedAt: FIXTURE_NOW,
 	endedAt: FIXTURE_NOW + 12_000,
@@ -203,6 +203,25 @@ export const LiveWithoutTimestamp: Story = {
 	play: async ({ canvasElement }) => {
 		await expect(
 			within(canvasElement).getByRole("button", { name: "Working" }),
+		).toBeVisible();
+	},
+};
+
+export const PartialLive: Story = {
+	args: {
+		block: {
+			...MockWorkingBlock,
+			isLive: true,
+			isPartial: true,
+			endedAt: undefined,
+		},
+		now: FIXTURE_NOW + 12_000,
+	},
+	play: async ({ canvasElement }) => {
+		await expect(
+			within(canvasElement).getByRole("button", {
+				name: "Working for at least 12s",
+			}),
 		).toBeVisible();
 	},
 };

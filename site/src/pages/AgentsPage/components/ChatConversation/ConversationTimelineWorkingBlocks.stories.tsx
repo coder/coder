@@ -346,6 +346,59 @@ export const ColdLoadUsesSavedPreference: Story = {
 	},
 };
 
+// An active turn longer than the loaded page has no prompt row; expansion
+// must still survive completion and the later prepend of that prompt.
+export const PromptlessLiveBlockKeepsExpansion: Story = {
+	render: function Render(args) {
+		const [stage, setStage] = useState(0);
+		const messages =
+			stage === 0
+				? MockWorkingMessages.slice(1, 4)
+				: stage === 1
+					? MockWorkingMessages.slice(1)
+					: MockWorkingMessages;
+		return (
+			<>
+				<Button onClick={() => setStage(stage + 1)} disabled={stage === 2}>
+					{stage === 0 ? "Finish turn" : "Load older messages"}
+				</Button>
+				<ConversationTimeline
+					{...args}
+					hasMoreMessages={stage < 2}
+					chatStatus={stage === 0 ? "running" : "waiting"}
+					parsedMessages={parseMessagesWithMergedTools(
+						messages,
+						stage === 0 ? { pendingToolCallIDs: new Set(["second"]) } : {},
+					)}
+					liveStatus={{ phase: "idle", hasAccumulatedOutput: false }}
+				/>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const live = canvas.getByRole("button", {
+			name: "Working for at least 12s",
+		});
+		await userEvent.click(live);
+		expect(live).toHaveAttribute("aria-expanded", "true");
+		await userEvent.click(canvas.getByRole("button", { name: "Finish turn" }));
+		expect(
+			canvas.getByRole("button", {
+				name: "Worked for at least 12s (2 steps or more)",
+			}),
+		).toHaveAttribute("aria-expanded", "true");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Load older messages" }),
+		);
+		expect(
+			canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
+		).toHaveAttribute("aria-expanded", "true");
+		expect(canvas.getByText(/echo first/)).toBeVisible();
+		expect(canvas.getByText("Inspect the workspace")).toBeVisible();
+	},
+};
+
 export const Paginated: Story = {
 	render: function Render(args) {
 		const [page, setPage] = useState(0);
