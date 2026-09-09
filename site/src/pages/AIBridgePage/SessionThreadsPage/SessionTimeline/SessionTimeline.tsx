@@ -53,7 +53,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 	expandToMatch = false,
 }) => {
 	const contentRef = useRef<HTMLParagraphElement>(null);
-	// Only user toggles are stored, so expansion follows the search (FE8).
+	// Only user toggles are stored, so expansion follows the search.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
 	const isExpanded = userToggled ?? expandToMatch;
 
@@ -339,7 +339,7 @@ const ThreadItem: FC<ThreadItemProps> = ({
 	matchedToolCallIds,
 	highlight,
 }) => {
-	// Only user toggles are stored, so the loop follows the search (FE8).
+	// Only user toggles are stored, so the loop follows the search.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
 	const agenticLoopOpen = userToggled ?? searchToolMatch;
 
