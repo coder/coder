@@ -649,6 +649,30 @@ enforced, and such a request answers HTTP 400 with `error=invalid_scope`. The
 refresh token is not consumed, so a client that drops the parameter or asks for
 less recovers without re-authorizing.
 
+Checking the `scope` an application registered at
+[Dynamic Client Registration](#dynamic-client-registration) only affects
+deployments running the `oauth2` experiment flag with that setting turned on.
+Dynamic Client Registration is disabled by default, so if you never enabled it,
+nothing changes for you. Earlier versions of Coder accepted any `scope` value at
+registration without checking it, and every token for that application had
+full access anyway. Coder now treats the registered `scope` as the list of
+scopes the application is allowed to request, as described under
+[Scopes](#scopes). Applications that registered without a `scope` are not
+affected and continue to receive full access. If your application registered
+with a scope name that this deployment does not offer, requests for that name
+now fail with `invalid_scope`. If none of the registered names are offered,
+every authorization for the application fails, even one that leaves `scope`
+out. Authorization codes issued before the upgrade fail at the token endpoint
+with `invalid_grant`. Applications created through the web UI or the management
+API are not affected either, because they have no scope list. To fix an
+affected application, update its registration with
+`PUT /oauth2/clients/{client_id}`, using the `registration_access_token`
+returned when it registered, so that `scope` lists only names from
+`scopes_supported` in `GET /.well-known/oauth-authorization-server`. If you no
+longer have that token, register the application again. Coder administrators
+cannot change an application's registered `scope` from the web UI or the
+management API.
+
 ## Standards Compliance
 
 This implementation follows established OAuth2 standards including
