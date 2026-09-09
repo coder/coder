@@ -2,9 +2,12 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -109,17 +112,80 @@ func workspaceMCPToolInfosFromResources(resources []database.ChatContextResource
 			if name == "" {
 				continue
 			}
+			resourceURI, modelVisible := mcpToolUI(t.GetMeta())
+			if !modelVisible {
+				continue
+			}
 			properties, required := splitMCPInputSchema(t.GetInputSchema())
 			out = append(out, workspacesdk.MCPToolInfo{
-				ServerName:  server,
-				Name:        server + mcpToolNameSeparator + name,
-				Description: t.GetDescription(),
-				Schema:      properties,
-				Required:    required,
+				UIResourceURI: resourceURI,
+				ServerName:    server,
+				Name:          server + mcpToolNameSeparator + name,
+				Description:   t.GetDescription(),
+				Schema:        properties,
+				Required:      required,
 			})
 		}
 	}
 	return out
+}
+
+func mcpToolUI(meta *structpb.Struct) (resourceURI string, modelVisible bool) {
+	ui := meta.GetFields()["ui"].GetStructValue()
+	if ui == nil {
+		return "", true
+	}
+	resourceURI = ui.GetFields()["resourceUri"].GetStringValue()
+	parsed, err := url.Parse(resourceURI)
+	if err != nil || parsed.Scheme != "ui" || !strings.HasPrefix(resourceURI, "ui://") || len(resourceURI) <= len("ui://") {
+		resourceURI = ""
+	}
+	visibility, specified := ui.GetFields()["visibility"]
+	if !specified {
+		return resourceURI, true
+	}
+	for _, value := range visibility.GetListValue().GetValues() {
+		if value.GetStringValue() == "model" {
+			return resourceURI, true
+		}
+	}
+	return resourceURI, false
+}
+
+// ResolveMCPAppResource checks an exact resource binding in the chat's pinned
+// catalog, returning sql.ErrNoRows if unavailable. Callers must authorize
+// access to the chat before calling it.
+func (server *Server) ResolveMCPAppResource(ctx context.Context, chatID uuid.UUID, serverName, resourceURI string) error {
+	if !server.experiments.Enabled(codersdk.ExperimentChatMCPApps) || serverName == "" || resourceURI == "" {
+		return sql.ErrNoRows
+	}
+	resources, err := server.db.ListChatContextResourcesByChatID(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("list chat context resources: %w", err)
+	}
+	for _, r := range resources {
+		if r.BodyKind != database.WorkspaceAgentContextBodyKindMcpServer || r.Status != database.WorkspaceAgentContextResourceStatusOk {
+			continue
+		}
+		var body agentproto.MCPServerBody
+		if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &body); err != nil {
+			continue
+		}
+		server := body.GetServerName()
+		if server == "" {
+			server = r.Source
+		}
+		if server != serverName {
+			continue
+		}
+		for _, tool := range body.GetTools() {
+			uri, _ := mcpToolUI(tool.GetMeta())
+			if tool.GetName() != "" && uri != "" && uri == resourceURI {
+				return nil
+			}
+		}
+	}
+	return sql.ErrNoRows
 }
 
 // splitMCPInputSchema splits a pushed JSON Schema object into the properties

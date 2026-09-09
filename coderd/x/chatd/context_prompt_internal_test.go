@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -768,6 +770,128 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 		}
 		require.Empty(t, workspaceMCPToolInfosFromResources(resources))
 	})
+}
+
+func TestWorkspaceMCPAppCatalog(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		ui      map[string]any
+		visible bool
+		uri     string
+	}{
+		{name: "Absent", visible: true},
+		{name: "Default", ui: map[string]any{"resourceUri": "ui://app/view"}, visible: true, uri: "ui://app/view"},
+		{name: "Model", ui: map[string]any{"resourceUri": "ui://app/view", "visibility": []any{"model"}}, visible: true, uri: "ui://app/view"},
+		{name: "Both", ui: map[string]any{"resourceUri": "ui://app/view", "visibility": []any{"app", "model"}}, visible: true, uri: "ui://app/view"},
+		{name: "AppOnly", ui: map[string]any{"resourceUri": "ui://app/view", "visibility": []any{"app"}}},
+		{name: "EmptyVisibility", ui: map[string]any{"visibility": []any{}}},
+		{name: "InvalidVisibility", ui: map[string]any{"visibility": "model"}},
+		{name: "HTTP", ui: map[string]any{"resourceUri": "https://app/view"}, visible: true},
+		{name: "EmptyURI", ui: map[string]any{"resourceUri": "ui://"}, visible: true},
+		{name: "WrongType", ui: map[string]any{"resourceUri": 42}, visible: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tool := &agentproto.MCPTool{Name: "view"}
+			if tc.ui != nil {
+				tool.Meta = mustStruct(t, map[string]any{"ui": tc.ui})
+			}
+			resources := []database.ChatContextResource{mcpServerResource(t, "server", &agentproto.MCPServerBody{Tools: []*agentproto.MCPTool{tool}}, database.WorkspaceAgentContextResourceStatusOk)}
+			infos := workspaceMCPToolInfosFromResources(resources)
+			if !tc.visible {
+				require.Empty(t, infos)
+				return
+			}
+			require.Len(t, infos, 1)
+			require.Equal(t, tc.uri, infos[0].UIResourceURI)
+		})
+	}
+}
+
+func TestResolveMCPAppResource(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, server, uri                       string
+		disabled, unreadable, malformed, noRows bool
+		dbErr                                   error
+		allowed                                 bool
+	}{
+		{name: "Declared", server: "server", uri: "ui://app/view", allowed: true},
+		{name: "AppOnly", server: "server", uri: "ui://app/hidden", allowed: true},
+		{name: "CrossServer", server: "other", uri: "ui://app/view"},
+		{name: "Undeclared", server: "server", uri: "ui://app/other"},
+		{name: "NonUI", server: "server", uri: "https://app/view"},
+		{name: "Disabled", server: "server", uri: "ui://app/view", disabled: true},
+		{name: "Unreadable", server: "server", uri: "ui://app/view", unreadable: true},
+		{name: "Malformed", server: "server", uri: "ui://app/view", malformed: true},
+		{name: "NoRows", server: "server", uri: "ui://app/view", noRows: true},
+		{name: "DBError", server: "server", uri: "ui://app/view", dbErr: xerrors.New("database unavailable")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			chatID := uuid.New()
+			p := newPinServer(t, db)
+			if !tc.disabled {
+				p.experiments = codersdk.Experiments{codersdk.ExperimentChatMCPApps}
+			}
+			resource := mcpServerResource(t, "server", &agentproto.MCPServerBody{Tools: []*agentproto.MCPTool{
+				{Name: "view", Meta: mustStruct(t, map[string]any{"ui": map[string]any{"resourceUri": "ui://app/view"}})},
+				{Name: "hidden", Meta: mustStruct(t, map[string]any{"ui": map[string]any{"resourceUri": "ui://app/hidden", "visibility": []any{"app"}}})},
+			}}, database.WorkspaceAgentContextResourceStatusOk)
+			if tc.unreadable {
+				resource.Status = database.WorkspaceAgentContextResourceStatusUnreadable
+			}
+			if tc.malformed {
+				resource.Body = json.RawMessage(`{`)
+			}
+			resources := []database.ChatContextResource{resource}
+			if tc.noRows {
+				resources = nil
+			}
+			if !tc.disabled {
+				db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).Return(resources, tc.dbErr)
+			}
+			err := p.ResolveMCPAppResource(context.Background(), chatID, tc.server, tc.uri)
+			switch {
+			case tc.allowed:
+				require.NoError(t, err)
+			case tc.dbErr != nil:
+				require.ErrorIs(t, err, tc.dbErr)
+			default:
+				require.ErrorIs(t, err, sql.ErrNoRows)
+			}
+		})
+	}
+}
+
+func TestPinnedWorkspaceMCPAppsExperiment(t *testing.T) {
+	t.Parallel()
+	for _, enabled := range []bool{false, true} {
+		t.Run(strconv.FormatBool(enabled), func(t *testing.T) {
+			t.Parallel()
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			chatID := uuid.New()
+			p := newPinServer(t, db)
+			if enabled {
+				p.experiments = codersdk.Experiments{codersdk.ExperimentChatMCPApps}
+			}
+			db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).Return([]database.ChatContextResource{mcpServerResource(t, "server", &agentproto.MCPServerBody{Tools: []*agentproto.MCPTool{
+				{Name: "view", Meta: mustStruct(t, map[string]any{"ui": map[string]any{"resourceUri": "ui://app/view"}})},
+			}}, database.WorkspaceAgentContextResourceStatusOk)}, nil)
+			tools, err := p.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, nil)
+			require.NoError(t, err)
+			require.Len(t, tools, 1)
+			tool, ok := tools[0].(*chattool.WorkspaceMCPTool)
+			require.True(t, ok)
+			if enabled {
+				require.Equal(t, "ui://app/view", tool.UIResourceURI)
+			} else {
+				require.Empty(t, tool.UIResourceURI)
+			}
+		})
+	}
 }
 
 func TestPinnedWorkspaceMCPTools(t *testing.T) {

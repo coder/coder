@@ -20020,6 +20020,20 @@ const docTemplate = `{
                 "ChatInputPartTypeFileReference"
             ]
         },
+        "codersdk.ChatMCPApp": {
+            "type": "object",
+            "properties": {
+                "resource_uri": {
+                    "type": "string"
+                },
+                "result": {
+                    "type": "object"
+                },
+                "server_name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatMessage": {
             "type": "object",
             "properties": {
@@ -20136,6 +20150,9 @@ const docTemplate = `{
                 },
                 "is_media": {
                     "type": "boolean"
+                },
+                "mcp_app": {
+                    "$ref": "#/definitions/codersdk.ChatMCPApp"
                 },
                 "mcp_server_config_id": {
                     "type": "string",
@@ -23348,6 +23365,7 @@ const docTemplate = `{
                 "nats_pubsub",
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
+                "chat-mcp-apps",
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks"
@@ -23357,6 +23375,7 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatMCPApps": "Enables workspace MCP Apps in agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -23380,6 +23399,7 @@ const docTemplate = `{
                 "Enables embedded NATS pubsub.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
+                "Enables workspace MCP Apps in agent chats.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats."
@@ -23396,6 +23416,7 @@ const docTemplate = `{
                 "ExperimentNATSPubsub",
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
+                "ExperimentChatMCPApps",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks"

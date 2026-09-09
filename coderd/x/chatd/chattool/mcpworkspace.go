@@ -33,7 +33,9 @@ const maxModelToolNameLen = 64
 // connection. It implements fantasy.AgentTool so it can be
 // registered alongside built-in chat tools.
 type WorkspaceMCPTool struct {
-	info fantasy.ToolInfo
+	// UIResourceURI identifies the app declared by this tool when enabled.
+	UIResourceURI string
+	info          fantasy.ToolInfo
 	// routingName is the unsanitized "serverName__toolName" form the
 	// workspace agent expects: it splits on "__" to locate the server and
 	// calls the original tool name. info.Name is the sanitized, provider-safe
@@ -64,8 +66,9 @@ func NewWorkspaceMCPTool(
 	tool workspacesdk.MCPToolInfo,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
 	invalidateCache func(),
+	mcpAppsEnabled bool,
 ) *WorkspaceMCPTool {
-	return buildWorkspaceMCPTool(tool, sanitizeModelToolName(tool.Name), getConn, invalidateCache)
+	return buildWorkspaceMCPTool(tool, sanitizeModelToolName(tool.Name), getConn, invalidateCache, mcpAppsEnabled)
 }
 
 // NewWorkspaceMCPTools builds wrappers for a set of workspace MCP tools.
@@ -82,6 +85,7 @@ func NewWorkspaceMCPTools(
 	infos []workspacesdk.MCPToolInfo,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
 	invalidateCache func(),
+	mcpAppsEnabled bool,
 ) []fantasy.AgentTool {
 	sorted := slices.Clone(infos)
 	slices.SortFunc(sorted, func(a, b workspacesdk.MCPToolInfo) int {
@@ -91,22 +95,29 @@ func NewWorkspaceMCPTools(
 	seen := make(map[string]struct{}, len(sorted))
 	for _, info := range sorted {
 		modelName := uniqueModelToolName(sanitizeModelToolName(info.Name), seen)
-		tools = append(tools, buildWorkspaceMCPTool(info, modelName, getConn, invalidateCache))
+		tools = append(tools, buildWorkspaceMCPTool(info, modelName, getConn, invalidateCache, mcpAppsEnabled))
 	}
 	return tools
 }
 
+//nolint:revive // mcpAppsEnabled is deployment configuration, not caller control coupling.
 func buildWorkspaceMCPTool(
 	tool workspacesdk.MCPToolInfo,
 	modelName string,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
 	invalidateCache func(),
+	mcpAppsEnabled bool,
 ) *WorkspaceMCPTool {
 	required := tool.Required
 	if required == nil {
 		required = []string{}
 	}
+	uiResourceURI := ""
+	if mcpAppsEnabled {
+		uiResourceURI = tool.UIResourceURI
+	}
 	return &WorkspaceMCPTool{
+		UIResourceURI: uiResourceURI,
 		info: fantasy.ToolInfo{
 			Name:        modelName,
 			Description: tool.Description,
@@ -213,7 +224,19 @@ func (t *WorkspaceMCPTool) Run(
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 
-	return convertMCPToolResponse(resp), nil
+	response := convertMCPToolResponse(resp)
+	if t.UIResourceURI != "" {
+		result, err := json.Marshal(resp)
+		if err == nil {
+			if len(result) > 256<<10 {
+				result = json.RawMessage(`{"content":[{"type":"text","text":"[result omitted: too large]"}],"is_error":false}`)
+			}
+			response = WithMCPApp(response, codersdk.ChatMCPApp{
+				ServerName: t.ServerName(), ResourceURI: t.UIResourceURI, Result: result,
+			})
+		}
+	}
+	return response, nil
 }
 
 func (t *WorkspaceMCPTool) ProviderOptions() fantasy.ProviderOptions {
