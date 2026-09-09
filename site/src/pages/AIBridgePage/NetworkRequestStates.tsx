@@ -12,7 +12,7 @@ import {
 // differ in how they present a live count.
 
 export const NetworkMonitoringDisabled: FC = () => (
-	<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
+	<span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-content-secondary">
 		Disabled
 		<TooltipProvider>
 			<Tooltip>
@@ -36,5 +36,5 @@ export const NetworkMonitoringDisabled: FC = () => (
 );
 
 export const NetworkNoActivity: FC = () => (
-	<span className="whitespace-nowrap text-content-secondary">No activity</span>
+	<span className="whitespace-nowrap text-xs text-content-secondary">No activity</span>
 );
