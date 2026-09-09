@@ -167,12 +167,7 @@ func (p *Server) newModel(
 
 	config := fantasyConfigForAIBridge(route.Provider.Type, req.ModelName)
 	openAIConfig := req.CallConfig.OpenAIConfig
-	// Bedrock models inferred to the OpenAI client must default to the
-	// Responses API, because the Mantle bridge only serves /v1/responses
-	// for non-anthropic bedrock models. Without this, models absent from
-	// the provider SDK's known-model list would fall back to Chat
-	// Completions and fail at the bridge. An explicit UseResponsesAPI
-	// override in the model config still wins.
+	// Force the use of the Responses API for Bedrock models inferred to the OpenAI client.
 	if route.Provider.Type == database.AIProviderTypeBedrock &&
 		config.ProviderHint == fantasyopenai.Name &&
 		(openAIConfig == nil || openAIConfig.UseResponsesAPI == nil) {
