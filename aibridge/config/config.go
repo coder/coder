@@ -93,8 +93,6 @@ func (c AWSBedrock) ResolvedModelWithFallback() string {
 	return c.Model
 }
 
-// ResolvedSmallFastModelWithFallback is
-// [AWSBedrock.ResolvedModelWithFallback] for the small/fast model.
 func (c AWSBedrock) ResolvedSmallFastModelWithFallback() string {
 	if c.ResolvedSmallFastModel != "" {
 		return c.ResolvedSmallFastModel
