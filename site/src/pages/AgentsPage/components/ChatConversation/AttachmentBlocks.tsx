@@ -287,7 +287,7 @@ const InlineTextAttachmentButton: FC<{
 					? `View ${fileName}`
 					: "View text attachment"
 			}
-			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			className="inline-flex max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary p-3 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			onClick={(event) => {
 				event.stopPropagation();
 				void onPreview?.({ content, fileName });

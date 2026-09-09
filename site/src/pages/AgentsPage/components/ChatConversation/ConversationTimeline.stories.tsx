@@ -1378,6 +1378,45 @@ export const AssistantMessageWithImage: Story = {
 	},
 };
 
+/**
+ * A tool emits its file part before the model writes about it. The chip
+ * still renders after the text.
+ */
+export const AssistantAttachmentRendersAfterText: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "file",
+						media_type: "image/png",
+						data: TEST_PNG_B64,
+						name: "analysis.png",
+					},
+					{ type: "text", text: "# Rogue colors analysis\n\nSummary below." },
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const heading = canvas.getByRole("heading", {
+			name: "Rogue colors analysis",
+		});
+		const chip = canvas.getByRole("button", { name: "View analysis.png" });
+		expect(
+			heading.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(chip.getBoundingClientRect().top).toBeGreaterThan(
+			heading.getBoundingClientRect().bottom,
+		);
+	},
+};
+
 export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 	args: {
 		...defaultArgs,
