@@ -13,6 +13,7 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { userCompactionThresholdsKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -194,7 +195,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
-		canShareChat: false,
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
@@ -217,6 +217,9 @@ const meta: Meta<typeof AgentChatPageView> = {
 	// summary panel never requests it.
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: false,
+		});
 	},
 	decorators: [
 		(Story) => (
@@ -239,6 +242,21 @@ const meta: Meta<typeof AgentChatPageView> = {
 			{
 				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canShareChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockUserOwner.id,
+								organization_id: MockChat.organization_id,
+							},
+							action: "share",
+						},
+					},
+				}),
+				data: { canShareChat: false },
 			},
 		],
 		reactRouter: reactRouterParameters({
@@ -1974,10 +1992,39 @@ export const ArchivedWithSharing: Story = {
 				organization_id: MockDefaultOrganization.id,
 			}}
 			isInputDisabled
-			canShareChat
 		/>
 	),
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canShareChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockUserOwner.id,
+								organization_id: MockDefaultOrganization.id,
+							},
+							action: "share",
+						},
+					},
+				}),
+				data: { canShareChat: true },
+			},
+		],
+	},
 	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: true,
+		});
 		spyOn(API.experimental, "getChatACL").mockResolvedValue({
 			users: [],
 			groups: [],
@@ -2009,11 +2056,40 @@ export const ArchivedWithSharing: Story = {
 export const ShareChatPopoverFromTopBar: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canShareChat
 			chat={{ organization_id: MockDefaultOrganization.id }}
 		/>
 	),
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canShareChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockUserOwner.id,
+								organization_id: MockDefaultOrganization.id,
+							},
+							action: "share",
+						},
+					},
+				}),
+				data: { canShareChat: true },
+			},
+		],
+	},
 	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: true,
+		});
 		spyOn(API.experimental, "getChatACL").mockResolvedValue({
 			users: [],
 			groups: [],

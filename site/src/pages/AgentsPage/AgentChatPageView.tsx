@@ -44,7 +44,6 @@ import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedFo
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
-import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
@@ -107,7 +106,6 @@ interface AgentChatPageViewProps {
 	chat: TypesGen.Chat;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
-	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 
@@ -280,7 +278,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	chat,
 	parentChat,
 	persistedError,
-	canShareChat,
 	workspaceAgent,
 	workspace,
 	store,
@@ -826,17 +823,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										onToggleSidebar: () =>
 											onSetShowSidebarPanel(!showSidebarPanel),
 									}}
-									renderChatSharingContent={
-										canShareChat
-											? (open) => (
-													<ChatSharingPopoverContent
-														chatId={agentId}
-														organizationId={organizationId}
-														open={open}
-													/>
-												)
-											: undefined
-									}
 								/>
 								{modelCatalogError != null && (
 									<ErrorAlert error={modelCatalogError} />

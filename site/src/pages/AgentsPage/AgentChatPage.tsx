@@ -19,7 +19,6 @@ import type {
 } from "#/api/api";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat as chatById,
@@ -297,28 +296,6 @@ const AgentChatPage: FC = () => {
 	const isArchived = Boolean(chat?.archived);
 	const isViewerNotOwner =
 		chat !== undefined && currentUser.id !== chat.owner_id;
-	const isRootChat = chat !== undefined && getParentChatID(chat) === undefined;
-	const chatAuthorizationObject =
-		chat !== undefined
-			? {
-					resource_type: "chat" as const,
-					owner_id: chat.owner_id,
-					organization_id: chat.organization_id,
-				}
-			: undefined;
-	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
-	if (chatAuthorizationObject !== undefined && isRootChat) {
-		chatAuthorizationChecks.canShareChat = {
-			object: chatAuthorizationObject,
-			action: "share",
-		};
-	}
-	const chatAuthorizationQuery = useQuery({
-		...checkAuthorization({ checks: chatAuthorizationChecks }),
-		enabled: Object.keys(chatAuthorizationChecks).length > 0,
-	});
-	const canShareChat =
-		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
 	const planModeEnabled = chat?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -1137,7 +1114,6 @@ const AgentChatPage: FC = () => {
 					chat={chat}
 					parentChat={parentChat}
 					persistedError={persistedError}
-					canShareChat={canShareChat}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}

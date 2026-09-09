@@ -1,10 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Outlet, useLocation } from "react-router";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
 import type * as TypesGen from "#/api/typesGenerated";
-import { PopoverContent } from "#/components/Popover/Popover";
 import { MockChat } from "#/testHelpers/chatEntities";
+import {
+	MockDefaultOrganization,
+	MockGroup,
+	MockOrganizationMember,
+	MockOrganizationMember2,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { ChatTopBar } from "./ChatTopBar";
 
@@ -60,6 +72,9 @@ const meta: Meta<typeof ChatTopBar> = {
 		requestPinAgent.mockClear();
 		requestUnpinAgent.mockClear();
 		onOpenRenameDialog.mockClear();
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: false,
+		});
 	},
 	parameters: {
 		layout: "fullscreen",
@@ -569,10 +584,47 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 };
 
 export const ShareChatButton: Story = {
+	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
-		renderChatSharingContent: () => (
-			<PopoverContent align="end">Share chat</PopoverContent>
-		),
+		chat: {
+			...MockChat,
+			organization_id: MockDefaultOrganization.id,
+		},
+	},
+	parameters: {
+		user: MockUserOwner,
+		queries: [
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canShareChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockChat.owner_id,
+								organization_id: MockDefaultOrganization.id,
+							},
+							action: "share",
+						},
+					},
+				}),
+				data: { canShareChat: true },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: true,
+		});
+		spyOn(API.experimental, "getChatACL").mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+		spyOn(API.experimental, "updateChatACL").mockResolvedValue(undefined);
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember, MockOrganizationMember2],
+			count: 2,
+		});
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -583,7 +635,9 @@ export const ShareChatButton: Story = {
 
 		await userEvent.click(canvas.getByRole("button", { name: "Share chat" }));
 		const body = within(document.body);
-		expect(await body.findByText("Share chat")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(body.getByText("Chat sharing")).toBeVisible();
+		});
 
 		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 		await body.findByText("Rename chat");
@@ -594,9 +648,6 @@ export const ShareChatButton: Story = {
 };
 
 export const ShareChatButtonHiddenWithoutPermission: Story = {
-	args: {
-		renderChatSharingContent: undefined,
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
