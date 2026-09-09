@@ -148,9 +148,7 @@ func (p *Bedrock) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		return nil, ErrUnknownRoute
 	}
 
-	if outErr != nil {
-		span.SetStatus(codes.Error, outErr.Error())
-	} else {
+	if intr != nil {
 		span.SetAttributes(intr.TraceAttributes(r)...)
 	}
 
