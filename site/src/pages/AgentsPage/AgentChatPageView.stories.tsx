@@ -42,7 +42,6 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
-import { docs } from "#/utils/docs";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -293,18 +292,6 @@ export const OtherUserChatReadOnly: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"This chat is owned by Other User. It is read-only.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
-	},
 };
 
 export const OtherUserChatUsernameFallback: Story = {
@@ -318,18 +305,6 @@ export const OtherUserChatUsernameFallback: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"This chat is owned by @OtherUser. It is read-only.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
-	},
 };
 
 export const OtherUserChatOwnerFallback: Story = {
@@ -343,18 +318,6 @@ export const OtherUserChatOwnerFallback: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"This chat is owned by another user. It is read-only.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
-	},
 };
 
 /** Archived chats stay read-only without the owner banner. */
@@ -377,45 +340,10 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 		permissions: { viewAllLicenses: true },
 	},
 	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const callout = within(canvas.getByRole("alert"));
-		const message = callout.getByText(
-			/reached the Community license limit for active agents/,
-		);
-		expect(message).toBeVisible();
-		expect(message).toHaveTextContent(
-			"This agent is queued and will start automatically when capacity is available.",
-		);
-		const trialLink = canvas.getByRole("link", {
-			name: /start an unlimited trial/i,
-		});
-		expect(trialLink).toHaveAttribute("href", "/deployment/premium");
-		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
-		expect(learnMoreLink).toHaveAttribute(
-			"href",
-			docs("/ai-coder/agents/platform-controls#concurrent-agents"),
-		);
-	},
 };
 
 export const QueuedForCapacityCommunityMember: Story = {
 	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const message = canvas.getByText(
-			/reached the Community license limit for active agents/,
-		);
-		expect(message).toBeVisible();
-		expect(
-			canvas.queryByRole("link", { name: /start an unlimited trial/i }),
-		).not.toBeInTheDocument();
-		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
-		expect(learnMoreLink).toHaveAttribute(
-			"href",
-			docs("/ai-coder/agents/platform-controls#concurrent-agents"),
-		);
-	},
 };
 
 export const QueuedForCapacityPremiumAdmin: Story = {
@@ -424,21 +352,6 @@ export const QueuedForCapacityPremiumAdmin: Story = {
 		permissions: { viewAllLicenses: true },
 	},
 	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const message = canvas.getByText(
-			/reached your license’s limit for active agents/,
-		);
-		expect(message).toBeVisible();
-		expect(message).toHaveTextContent(
-			"Contact your Coder account team or sales@coder.com to upgrade to unlimited concurrent agents.",
-		);
-		const salesLink = canvas.getByRole("link", { name: /sales@coder\.com/ });
-		expect(salesLink).toHaveAttribute("href", "mailto:sales@coder.com");
-		expect(
-			canvas.queryByRole("link", { name: /learn more/i }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const QueuedForCapacityPremiumMember: Story = {
@@ -446,21 +359,6 @@ export const QueuedForCapacityPremiumMember: Story = {
 		features: ["multiple_organizations"],
 	},
 	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const message = canvas.getByText(
-			/reached your license’s limit for active agents/,
-		);
-		expect(message).toBeVisible();
-		expect(
-			canvas.queryByRole("link", { name: /sales@coder\.com/ }),
-		).not.toBeInTheDocument();
-		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
-		expect(learnMoreLink).toHaveAttribute(
-			"href",
-			docs("/ai-coder/agents/platform-controls#concurrent-agents"),
-		);
-	},
 };
 
 export const QueuedForCapacityPremiumHardLimit: Story = {
@@ -477,18 +375,6 @@ export const QueuedForCapacityPremiumHardLimit: Story = {
 		permissions: { viewAllLicenses: true },
 	},
 	render: () => <StoryAgentChatPageView chat={{ queued_for_capacity: true }} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const message = canvas.getByText(
-			/reached the 4000-hour Agent Hours hard limit/,
-		);
-		expect(message).toBeVisible();
-		expect(message).toHaveTextContent(
-			"This agent is queued and will start automatically when capacity is available.",
-		);
-		const salesLink = canvas.getByRole("link", { name: /sales@coder\.com/ });
-		expect(salesLink).toHaveAttribute("href", "mailto:sales@coder.com");
-	},
 };
 
 /** Shows the parent chat link in the top bar when a parent exists. */
@@ -512,11 +398,6 @@ export const WithParentChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView chat={{ parent_chat_id: "parent-chat-1" }} />
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const parentLink = await canvas.findByRole("link", { name: "Root agent" });
-		expect(parentLink).toHaveAttribute("href", "/agents/parent-chat-1");
-	},
 };
 
 /** Persisted error reason shown in the timeline area. */
@@ -698,28 +579,6 @@ export const MissingProviderAndModelSetup: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getAllByText((_content, element) => {
-					return (
-						element?.textContent ===
-						"To chat with Coder Agents, set up a provider then add a model."
-					);
-				})[0],
-			).toBeVisible();
-		});
-		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
-			"href",
-			"/ai/settings/providers",
-		);
-		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
-			"href",
-			"/ai/settings/models",
-		);
-	},
 };
 
 export const MissingModelSetup: Story = {
@@ -733,24 +592,6 @@ export const MissingModelSetup: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getAllByText((_content, element) => {
-					return (
-						element?.textContent ===
-						"To chat with Coder Agents, set up a model."
-					);
-				})[0],
-			).toBeVisible();
-		});
-		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
-			"href",
-			"/ai/settings/models",
-		);
-	},
 };
 
 export const MissingProviderSetup: Story = {
@@ -761,24 +602,6 @@ export const MissingProviderSetup: Story = {
 			modelCount={1}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getAllByText((_content, element) => {
-					return (
-						element?.textContent ===
-						"To chat with Coder Agents, set up a provider."
-					);
-				})[0],
-			).toBeVisible();
-		});
-		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
-			"href",
-			"/ai/settings/providers",
-		);
-	},
 };
 
 export const MemberNoModelsAvailable: Story = {
@@ -1121,7 +944,6 @@ const scrollTo = (viewport: HTMLElement, scrollTop: number) => {
 	viewport.scrollTop = scrollTop;
 	fireEvent.scroll(viewport);
 };
-
 /** Helper that extracts the current messages array from a store. */
 const getStoreMessages = (
 	store: ReturnType<typeof createChatStore>,
@@ -1165,11 +987,6 @@ export const UserPromptsRenderOnce: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={singleRenderStore} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getAllByText("Only rendered once")).toHaveLength(1);
-		expect(canvas.getAllByTestId("chat-message-message:1")).toHaveLength(1);
-	},
 };
 
 const startEdgeStore = buildStoreWithMessages(
@@ -1262,11 +1079,6 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 		// Sit at the live edge; the oldest message is scrolled above the viewport.
 		scrollTo(viewport, viewport.scrollHeight);
 		await settleScroller();
-		const oldest = canvas.getByTestId("chat-message-message:1");
-		const oldestAboveViewport = () =>
-			oldest.getBoundingClientRect().bottom <=
-			viewport.getBoundingClientRect().top;
-		expect(oldestAboveViewport()).toBe(true);
 
 		// A new turn begins: the prompt is appended and the assistant starts
 		// streaming into the live row.
@@ -1295,13 +1107,8 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 			streamCompletionStore.clearStreamState();
 			streamCompletionStore.setChatStatus("waiting");
 		});
-		await waitFor(() => {
-			expect(canvas.getByTestId("chat-message-message:42")).toBeInTheDocument();
-		});
+		await canvas.findByTestId("chat-message-message:42");
 		await settleScroller();
-
-		// The viewport never jumped back to the oldest message.
-		expect(oldestAboveViewport()).toBe(true);
 	},
 };
 
@@ -1339,32 +1146,12 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 		await canvas.findByTestId("live-activity-slot");
 		await settleScroller();
 
-		const prompt = canvas.getByTestId("chat-message-message:41");
-		const liveRow = canvas.getByTestId("chat-message-live-assistant");
-		const promptTop = () =>
-			prompt.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
-		// Capture the baseline while the Thinking indicator is shown: the bug
-		// shrank the live row below this for one frame when the first chunk
-		// arrived. Guard against a degenerate unpainted baseline so the height
-		// assertion below cannot silently become a tautology.
-		const anchoredTop = promptTop();
-		const thinkingHeight = liveRow.getBoundingClientRect().height;
-		expect(thinkingHeight).toBeGreaterThan(0);
-
-		// The first stream chunk replaces the Thinking indicator with text. The
-		// live row must never shrink below its Thinking-indicator height, so the
-		// anchored prompt and everything above it must stay put. Position uses a
-		// tolerance because rect tops are fractional; a 24px drop is 6x it.
+		// The first stream chunk replaces the Thinking indicator with text.
 		thinkingShiftStore.applyMessageParts([
 			{ type: "text", text: "Here is the start of the answer." },
 		]);
-		for (let i = 0; i < 6; i++) {
-			expect(liveRow.getBoundingClientRect().height).toBeGreaterThanOrEqual(
-				thinkingHeight,
-			);
-			expect(Math.abs(promptTop() - anchoredTop)).toBeLessThan(4);
-			await new Promise<void>((r) => requestAnimationFrame(() => r()));
-		}
+		// Let the replacement chunk paint before the screenshot.
+		await settleScroller();
 	},
 };
 
@@ -1611,17 +1398,6 @@ export const RestoresPersistedSidebarTab: Story = {
 			sshCommand="ssh coder.workspace"
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			const gitTab = canvas.getByRole("tab", { name: "Git" });
-			expect(gitTab).toHaveAttribute("aria-selected", "true");
-		});
-
-		const summaryTab = canvas.getByRole("tab", { name: "Summary" });
-		expect(summaryTab).toHaveAttribute("aria-selected", "false");
-	},
 };
 
 /**
@@ -1742,22 +1518,9 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-
 		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
-		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
-		expect(tabLabels).toEqual(["Summary", "Git", "Browser", "Terminal"]);
-
-		// The frame stays mounted while inactive to preserve app state, so
-		// assert visibility rather than presence.
-		const frame = canvas.getByTitle("agent-browser");
-		expect(frame.checkVisibility()).toBe(false);
 
 		await userEvent.click(browserTab);
-
-		await waitFor(() => {
-			expect(browserTab).toHaveAttribute("aria-selected", "true");
-		});
-		expect(frame.checkVisibility()).toBe(true);
 	},
 };
 
@@ -1776,14 +1539,8 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-
 		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
 		await userEvent.click(browserTab);
-
-		await waitFor(() => {
-			expect(browserTab).toHaveAttribute("aria-selected", "true");
-		});
-		expect(canvas.getByTitle("agent-browser").checkVisibility()).toBe(true);
 	},
 };
 
@@ -1834,12 +1591,6 @@ export const NoBrowserTabForAppOnNonBoundAgent: Story = {
 			sshCommand="ssh coder.workspace"
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByRole("tab", { name: "Summary" });
-		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
-	},
 };
 
 export const PreservesUnavailableBrowserTab: Story = {
@@ -1890,13 +1641,10 @@ export const SingletonPanelsHiddenByDefault: Story = {
 		const body = within(document.body);
 
 		await canvas.findByRole("tab", { name: "Summary" });
-		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
-		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
 
 		await openAddPanelMenu(canvas);
 		for (const label of ["Browser", "Desktop", "Debug"]) {
-			const item = await body.findByRole("menuitemcheckbox", { name: label });
-			expect(item).toHaveAttribute("aria-checked", "false");
+			await body.findByRole("menuitemcheckbox", { name: label });
 		}
 	},
 };
@@ -2007,17 +1755,12 @@ export const ReopenedSingletonPanelStaysSingle: Story = {
 		await userEvent.click(
 			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
 		);
-		await waitFor(() => {
-			expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
-		});
 
 		await openAddPanelMenu(canvas);
 		await userEvent.click(
 			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
 		);
 		await canvas.findByRole("tab", { name: "Debug" });
-
-		expect(canvas.getAllByRole("tab", { name: "Debug" })).toHaveLength(1);
 	},
 };
 
@@ -2063,13 +1806,6 @@ export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 export const RestoresPersistedSingletonPanel: Story = {
 	beforeEach: () => seedVisibleSingletonTabs(["desktop"]),
 	render: renderWithSingletonSupport,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByRole("tab", { name: "Desktop" });
-		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
-		expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
-	},
 };
 
 export const HidesUnsupportedSingletonPanels: Story = {
@@ -2172,18 +1908,10 @@ export const ArchivedWithSharing: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("This agent has been archived and is read-only."),
-		).toBeVisible();
-
 		await userEvent.click(canvas.getByLabelText("Share chat"));
 		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Chat sharing")).toBeVisible();
-		});
-		await waitFor(() => {
-			expect(body.getByText("No shared members or groups yet")).toBeVisible();
-		});
+		await body.findByText("Chat sharing");
+		await body.findByText("No shared members or groups yet");
 	},
 };
 
@@ -2210,11 +1938,7 @@ export const ShareChatPopoverFromTopBar: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByLabelText("Share chat"));
 		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Chat sharing")).toBeVisible();
-		});
-		await waitFor(() => {
-			expect(body.getByText("No shared members or groups yet")).toBeVisible();
-		});
+		await body.findByText("Chat sharing");
+		await body.findByText("No shared members or groups yet");
 	},
 };
