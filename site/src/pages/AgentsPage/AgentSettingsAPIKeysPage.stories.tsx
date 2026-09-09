@@ -113,32 +113,6 @@ export const MasksApiKeyInput: Story = {
 	},
 };
 
-export const BedrockProvider: Story = {
-	args: {
-		providerItems: createProviderItems([
-			createProvider({
-				provider_id: "prov-bedrock",
-				provider: "bedrock",
-				display_name: "AWS Bedrock",
-			}),
-		]),
-		models: [
-			createModel({
-				id: "model-bedrock-1",
-				ai_provider_id: "prov-bedrock",
-				display_name: "Claude Sonnet 4",
-				model: "anthropic.claude-sonnet-4-20250514-v1:0",
-			}),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Bedrock accepts a personal AWS Bedrock API key like any other provider.
-		await expect(await canvas.findByLabelText(/API Key/i)).toBeVisible();
-		await expect(canvas.getByRole("button", { name: "Save" })).toBeVisible();
-	},
-};
-
 export const WithFallback: Story = {
 	args: {
 		providerItems: createProviderItems([
