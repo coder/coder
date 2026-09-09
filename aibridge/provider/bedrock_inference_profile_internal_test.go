@@ -229,8 +229,7 @@ func TestResolveBedrockModels(t *testing.T) {
 }
 
 // TestNewAnthropic_ServesStoredResolution covers what the gateway does with the
-// resolution coderd stored: it serves it, and refuses to serve an opaque
-// profile ARN that has none.
+// resolution coderd stored.
 func TestNewAnthropic_ServesStoredResolution(t *testing.T) {
 	t.Parallel()
 
@@ -261,21 +260,16 @@ func TestNewAnthropic_ServesStoredResolution(t *testing.T) {
 		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
 	})
 
-	t.Run("unresolved profile fails construction", func(t *testing.T) {
+	t.Run("unresolved profile serves the configured identifier", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(*config.AWSBedrock) {}))
-		require.ErrorContains(t, err, "no resolved model")
-	})
-
-	t.Run("unresolved small fast profile fails construction", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(cfg *config.AWSBedrock) {
-			cfg.Model = "eu.anthropic.claude-opus-4-8"
-			cfg.SmallFastModel = profileARN
-		}))
-		require.ErrorContains(t, err, "small fast model")
+		// A save whose profile lookup failed stores no resolution. The provider
+		// still serves, with the ARN as its own identity, which is wrong for
+		// capability detection and pricing but visible to the operator as the
+		// error their save returned.
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(*config.AWSBedrock) {}))
+		require.NoError(t, err)
+		require.Equal(t, profileARN, p.bedrock.ResolvedModel())
 	})
 
 	t.Run("plain model ids serve themselves", func(t *testing.T) {

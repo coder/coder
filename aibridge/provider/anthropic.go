@@ -83,16 +83,7 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 			return nil, xerrors.Errorf("bedrock config: %w", err)
 		}
 
-		// coderd resolves application inference profile ARNs when the provider
-		// is written, so construction never calls AWS. A missing resolution
-		// means the stored provider predates that step or was edited around it;
-		// serving it would silently misshape every request.
-		model, smallFastModel, err := resolvedBedrockModels(runtimeCfg)
-		if err != nil {
-			return nil, err
-		}
-
-		bedrock = messages.NewBedrockRuntime(runtimeCfg, awsCfg.Credentials, model, smallFastModel)
+		bedrock = messages.NewBedrockRuntime(runtimeCfg, awsCfg.Credentials)
 	}
 
 	return &Anthropic{

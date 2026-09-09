@@ -78,11 +78,20 @@ type BedrockRuntime struct {
 }
 
 // NewBedrockRuntime bundles the Bedrock config and credentials with the model
-// IDs behind the configured identifiers. The resolved IDs differ from the
-// configured ones only when those are application inference profile ARNs, which
-// are opaque and must be resolved through AWS; every other identifier resolves
-// to itself.
-func NewBedrockRuntime(cfg aibconfig.AWSBedrock, creds aws.CredentialsProvider, resolvedModel, resolvedSmallFastModel string) *BedrockRuntime {
+// IDs behind the configured identifiers.
+//
+// An identifier resolves to itself unless it is an application inference
+// profile ARN, which is opaque. Those are resolved through AWS when the
+// provider is written and arrive on cfg, so construction never calls AWS.
+func NewBedrockRuntime(cfg aibconfig.AWSBedrock, creds aws.CredentialsProvider) *BedrockRuntime {
+	resolvedModel := cfg.ResolvedModel
+	if resolvedModel == "" {
+		resolvedModel = cfg.Model
+	}
+	resolvedSmallFastModel := cfg.ResolvedSmallFastModel
+	if resolvedSmallFastModel == "" {
+		resolvedSmallFastModel = cfg.SmallFastModel
+	}
 	return &BedrockRuntime{
 		Cfg:                    cfg,
 		Creds:                  creds,

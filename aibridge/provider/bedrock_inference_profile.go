@@ -127,29 +127,3 @@ func ResolveBedrockModels(ctx context.Context, cfg config.AWSBedrock) (model, sm
 	}
 	return model, smallFastModel, nil
 }
-
-// resolvedBedrockModels returns the model identities to serve with. A
-// configured identifier that needs no resolution is its own identity; an
-// application inference profile ARN requires the resolution stored with the
-// provider.
-func resolvedBedrockModels(cfg config.AWSBedrock) (model, smallFastModel string, err error) {
-	identity := func(configured, resolved, field string) (string, error) {
-		if !isApplicationInferenceProfileARN(configured) {
-			return configured, nil
-		}
-		if resolved == "" {
-			return "", xerrors.Errorf("%s %q is an application inference profile with no resolved model; re-save the provider to resolve it", field, configured)
-		}
-		return resolved, nil
-	}
-
-	model, err = identity(cfg.Model, cfg.ResolvedModel, "model")
-	if err != nil {
-		return "", "", err
-	}
-	smallFastModel, err = identity(cfg.SmallFastModel, cfg.ResolvedSmallFastModel, "small fast model")
-	if err != nil {
-		return "", "", err
-	}
-	return model, smallFastModel, nil
-}
