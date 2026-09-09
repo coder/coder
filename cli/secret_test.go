@@ -738,10 +738,38 @@ func TestSecretList(t *testing.T) {
 				assert.NotContains(t, output.Stderr(), "File path delivery is disabled.")
 				if tc.wantStderr != "" {
 					assert.Contains(t, output.Stderr(), tc.wantStderr)
+				} else {
+					assert.NotContains(t, output.Stderr(), "Could not check whether file path delivery is enabled.")
 				}
 				assert.EqualValues(t, tc.wantRequests, capabilityRequests.Load())
 			})
 		}
+
+		t.Run("Timeout", func(t *testing.T) {
+			t.Parallel()
+
+			proxy := httputil.NewSingleHostReverseProxy(upstream.URL)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/v2/deployment/user-secrets/capabilities" {
+					<-r.Context().Done()
+					return
+				}
+				proxy.ServeHTTP(w, r)
+			}))
+			defer server.Close()
+
+			client := codersdk.New(must(url.Parse(server.URL)))
+			client.SetSessionToken(upstream.SessionToken())
+
+			inv, root := clitest.New(t, "secret", "list")
+			output := clitest.Capture(inv)
+			clitest.SetupConfig(t, client, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			require.NoError(t, inv.WithContext(ctx).Run())
+			assert.Contains(t, output.Stdout(), "~/.config/tool/config.json")
+			assert.Contains(t, output.Stderr(), "Could not check whether file path delivery is enabled.")
+		})
 	})
 }
 

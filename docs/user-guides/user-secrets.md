@@ -56,32 +56,32 @@ app, SSH session, and startup script that you start in your workspace.
 Existing shells and processes keep the environment they were given when they
 started.
 
-| If you...                                   | ...then in your workspace                                                                                                                                                                               |
-|---------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Create or update an env secret              | The change applies after the next workspace start. Until then, your running workspace continues to use the secrets it had when it last started.                                                         |
-| Rename the env var (`--env NEW_NAME`)       | After the next workspace start, new shells get `NEW_NAME` and the old name is no longer set.                                                                                                            |
-| Clear the env target (`--env ""`)           | Only succeeds if the secret keeps its file target or is disabled in the same request; otherwise the request is rejected with a 400. After the next workspace start, the variable is no longer injected. |
-| Disable the secret (`coder secret disable`) | After the next workspace start, the variable is no longer injected. Running sessions keep the value until the agent manifest is refetched (workspace restart).                                          |
-| Delete the secret                           | After the next workspace start, the variable is no longer injected.                                                                                                                                     |
+| If you...                                   | ...then in your workspace                                                                                                                                                                          |
+|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Create or update an env secret              | After the next manifest fetch, new processes receive the new value. Existing processes keep their current environment.                                                                             |
+| Rename the env var (`--env NEW_NAME`)       | After the next manifest fetch, new processes get `NEW_NAME` and no longer get the old name. Existing processes keep their current environment.                                                     |
+| Clear the env target (`--env ""`)           | Only succeeds if the secret keeps its file target or is disabled in the same request; otherwise the request is rejected with a 400. After the next manifest fetch, new processes no longer get it. |
+| Disable the secret (`coder secret disable`) | After the next manifest fetch, new processes no longer get the variable. Existing processes keep their current environment.                                                                        |
+| Delete the secret                           | After the next manifest fetch, new processes no longer get the variable. Existing processes keep their current environment.                                                                        |
 
-To pick up a change in a long-running shell or app started after a restart,
-restart that shell or app.
+To pick up a change in a long-running shell or app, restart that shell or app after the manifest fetch.
 
 ### File secrets
 
 When file path delivery is available, Coder writes file secrets before startup scripts run.
+Coder creates missing parent directories and preserves the permissions of an existing file when overwriting it.
 If an administrator turns it off, Coder rejects new or changed paths, preserves existing paths, continues environment delivery for dual-target secrets, and omits file-only secret values from agent manifests.
 Use `coder secret update <name> --file "" --enabled=false` to remove the only preserved target, or omit `--enabled=false` when an environment target remains.
 
 If delivery is turned on again, a preserved path becomes effective after the next manifest fetch and Coder may overwrite a file changed while delivery was off.
 
-| If you...                                   | ...then in your workspace                                                                                                                                                                             |
-|---------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Create or update a file secret              | The file is written or overwritten at the next workspace start.                                                                                                                                       |
-| Change the file path (`--file NEW_PATH`)    | At the next workspace start, a file is written at `NEW_PATH`. **The file at the previous path stays on disk with its old value.**                                                                     |
-| Clear the file target (`--file ""`)         | Only succeeds if the secret keeps its env target or is disabled in the same request; otherwise the request is rejected with a 400. **The previously-written file stays on disk with its last value.** |
-| Disable the secret (`coder secret disable`) | The file is no longer written at the next workspace start. **The previously-written file stays on disk with its last value.**                                                                         |
-| Delete the secret                           | **The previously-written file stays on disk with its last value.**                                                                                                                                    |
+| If you...                                   | ...then in your workspace                                                                                                                                                                                                   |
+|---------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Create or update a file secret              | The file is written or overwritten after the next manifest fetch.                                                                                                                                                           |
+| Change the file path (`--file NEW_PATH`)    | After the next manifest fetch, a file is written at `NEW_PATH`. **The file at the previous path stays on disk with its old value.**                                                                                         |
+| Clear the file target (`--file ""`)         | Only succeeds if the secret keeps its env target or is disabled in the same request; otherwise the request is rejected with a 400. After the next manifest fetch, Coder no longer writes it. **The existing file remains.** |
+| Disable the secret (`coder secret disable`) | After the next manifest fetch, Coder no longer writes the file. **The existing file remains.**                                                                                                                              |
+| Delete the secret                           | After the next manifest fetch, Coder no longer writes the file. **The existing file remains.**                                                                                                                              |
 
 > [!IMPORTANT]
 > Coder never deletes secret files.

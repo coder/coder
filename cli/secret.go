@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -575,12 +576,11 @@ func (r *RootCmd) secretEnabledSetter(state secretEnabledState) *serpent.Command
 	return cmd
 }
 
-// warnBlockedFilePathDelivery reports that the file paths about to be listed
-// are stored but not written to workspaces. The check is advisory, so a
-// deployment that cannot answer it never withholds the listing: servers that
-// predate the capabilities endpoint answer with a 404 and are treated as
-// allowing file paths, and any other failure is reported without an opinion
-// on the policy.
+const secretCapabilitiesTimeout = time.Second
+
+// warnBlockedFilePathDelivery warns when listed file targets are ineffective.
+// The capability check is advisory and bounded so it cannot block output
+// indefinitely.
 func warnBlockedFilePathDelivery(inv *serpent.Invocation, client *codersdk.Client, secrets []codersdk.UserSecret) {
 	hasFilePath := false
 	for _, secret := range secrets {
@@ -593,7 +593,10 @@ func warnBlockedFilePathDelivery(inv *serpent.Invocation, client *codersdk.Clien
 		return
 	}
 
-	capabilities, err := client.UserSecretsCapabilities(inv.Context())
+	ctx, cancel := context.WithTimeout(inv.Context(), secretCapabilitiesTimeout)
+	defer cancel()
+
+	capabilities, err := client.UserSecretsCapabilities(ctx)
 	if err != nil {
 		var sdkErr *codersdk.Error
 		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {

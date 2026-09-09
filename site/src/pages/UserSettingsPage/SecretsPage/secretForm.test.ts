@@ -224,6 +224,38 @@ describe("payload builders", () => {
 			file_path: "",
 		});
 	});
+
+	it("disables when clearing the env target leaves only a blocked path", () => {
+		expect(
+			buildUpdateUserSecretRequest(
+				existingSecrets[1],
+				{
+					name: existingSecrets[1].name,
+					value: "",
+					description: existingSecrets[1].description,
+					env_name: "",
+					file_path: existingSecrets[1].file_path,
+				},
+				{ filePathEnabled: false },
+			),
+		).toEqual({ env_name: "", enabled: false });
+	});
+
+	it("does not disable a legacy file-only secret on unrelated edits", () => {
+		expect(
+			buildUpdateUserSecretRequest(
+				blockedFileOnly,
+				{
+					name: blockedFileOnly.name,
+					value: "",
+					description: "Updated description",
+					env_name: "",
+					file_path: blockedFileOnly.file_path,
+				},
+				{ filePathEnabled: false },
+			),
+		).toEqual({ description: "Updated description" });
+	});
 });
 
 describe("getSecretInjectionSummary", () => {
