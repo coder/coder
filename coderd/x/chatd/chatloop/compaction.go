@@ -3,6 +3,8 @@ package chatloop
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -453,6 +455,15 @@ func generateCompactionSummary(
 	call.Prompt = summaryPrompt
 	call.Tools = options.ToolDefinitions
 	response, err := model.Generate(summaryCtx, call)
+	if err != nil && len(call.Tools) > 0 && isContextTooLargeError(err) {
+		// Tool definitions keep the summary request on the parent turn's
+		// cacheable prefix, but they also make it larger than the turn
+		// that just overflowed. Compaction is the recovery path for an
+		// over-limit conversation, so fall back to the tool-less request,
+		// which still fits whenever the history alone does.
+		call.Tools = nil
+		response, err = model.Generate(summaryCtx, call)
+	}
 	if err != nil {
 		return "", xerrors.Errorf("generate summary text: %w", err)
 	}
@@ -470,4 +481,38 @@ func generateCompactionSummary(
 		parts = append(parts, text)
 	}
 	return strings.TrimSpace(strings.Join(parts, " ")), nil
+}
+
+// contextTooLargePhrases are context-window rejections fantasy does not
+// parse, such as the OpenAI Responses API "Your input exceeds the context
+// window of this model." and Anthropic-family "too long" rejections
+// without token counts. The response body is included so the OpenAI
+// error code "context_length_exceeded" matches regardless of wording.
+var contextTooLargePhrases = []string{
+	"context window",
+	"context length",
+	"context_length",
+	"too long",
+}
+
+// isContextTooLargeError reports whether a provider rejected a request
+// because the prompt exceeded the model's context window.
+func isContextTooLargeError(err error) bool {
+	providerErr, ok := errors.AsType[*fantasy.ProviderError](err)
+	if !ok {
+		return false
+	}
+	if providerErr.IsContextTooLarge() {
+		return true
+	}
+	if providerErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	for _, phrase := range contextTooLargePhrases {
+		if strings.Contains(text, phrase) {
+			return true
+		}
+	}
+	return false
 }
