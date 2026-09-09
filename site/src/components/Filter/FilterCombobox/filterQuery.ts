@@ -21,7 +21,7 @@ export type CategoryPreview = {
 
 /**
  * Right-hand text for a category row: the applied chip labels when the
- * category has a chip, otherwise a short sample of its options.
+ * category has a chip, otherwise its fixed hint or a short sample of options.
  */
 export const categoryPreview = (
 	category: Pick<FilterCategory, "key" | "chipKeys" | "hint">,
@@ -39,13 +39,13 @@ export const categoryPreview = (
 		const option = options?.find((entry) => optionToken(entry) === chip);
 		return [option?.label ?? chipDisplay(chip, [category]).value];
 	});
-	const sample = (options ?? [])
-		.slice(0, PREVIEW_OPTION_LIMIT)
-		.map((option) => option.label);
-	return {
-		selected,
-		hint: sample.length > 0 ? sample.join(", ") : (category.hint ?? ""),
-	};
+	const hint =
+		category.hint ??
+		(options ?? [])
+			.slice(0, PREVIEW_OPTION_LIMIT)
+			.map((option) => option.label)
+			.join(", ");
+	return { selected, hint };
 };
 
 /**

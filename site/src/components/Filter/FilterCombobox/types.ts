@@ -21,10 +21,7 @@ export type FilterCategory = {
 	icon?: ReactNode;
 	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
 	aliases?: readonly string[];
-	/**
-	 * Shown at the end of the category row while its options are still loading
-	 * or when there are none to preview, e.g. "Search for the template name".
-	 */
+	/** Fixed text at the end of the category row instead of an options sample. */
 	hint?: string;
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A

@@ -301,14 +301,18 @@ describe("categoryPreview", () => {
 		).toEqual({ selected: [], hint: "Running, Stopped, Failed, Pending" });
 	});
 
-	it("falls back to the category hint without options", () => {
+	it("prefers a fixed category hint over the options sample", () => {
 		expect(
 			categoryPreview(
-				{ key: "template", hint: "Search for the template name" },
+				{ key: "owner", hint: "me" },
 				[],
-				undefined,
+				[{ label: "alice", value: "alice" }],
 			),
-		).toEqual({ selected: [], hint: "Search for the template name" });
+		).toEqual({ selected: [], hint: "me" });
+	});
+
+	it("has no hint while options are still loading", () => {
+		expect(categoryPreview({ key: "template" }, [], undefined).hint).toBe("");
 	});
 
 	it("shows applied chips by option label", () => {

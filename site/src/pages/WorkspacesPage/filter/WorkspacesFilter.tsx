@@ -64,6 +64,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				key: "owner",
 				label: "Owner",
 				aliases: ["user"],
+				hint: "me",
 				icon: <UserIcon />,
 				getOptions: canListUsers
 					? (query) => getOwnerFilterOptions(query, me, queryClient)
@@ -89,7 +90,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			{
 				key: "template",
 				label: "Template",
-				hint: "Search for the template name",
 				icon: <LayoutPanelTopIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
@@ -99,7 +99,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			next.push({
 				key: "organization",
 				label: "Organization",
-				hint: "Organization the workspace is in",
 				icon: <Building2Icon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
