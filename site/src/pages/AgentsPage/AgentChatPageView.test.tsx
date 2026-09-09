@@ -52,7 +52,20 @@ vi.mock("./components/ChatPageContent", () => ({
 	),
 }));
 
-afterEach(() => localStorage.clear());
+beforeEach(() => {
+	vi.stubGlobal(
+		"IntersectionObserver",
+		class {
+			observe = vi.fn();
+			disconnect = vi.fn();
+		},
+	);
+});
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+	localStorage.clear();
+});
 
 it.each([false, true])(
 	"opens, activates, and persists one app tab (restored: %s)",

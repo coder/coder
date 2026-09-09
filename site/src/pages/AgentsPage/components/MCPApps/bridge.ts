@@ -17,6 +17,11 @@ interface BridgeOptions {
 	onSizeChange: (size: { height?: number; width?: number }) => void;
 }
 
+interface MCPAppConnection {
+	disconnect: () => void;
+	notifyHostContextChanged: (context: Partial<HostContext>) => void;
+}
+
 /**
  * Supports MCP App initialization, tool notifications, sizing, display mode, and links.
  * App-initiated tools/call and other server requests are rejected with -32601.
@@ -28,7 +33,7 @@ export function connectMCPApp({
 	getToolData,
 	onReady,
 	onSizeChange,
-}: BridgeOptions): () => void {
+}: BridgeOptions): MCPAppConnection {
 	let initializing = false;
 	let ready = false;
 	const post = (message: object) =>
@@ -112,5 +117,14 @@ export function connectMCPApp({
 		}
 	};
 	window.addEventListener("message", onMessage);
-	return () => window.removeEventListener("message", onMessage);
+	return {
+		disconnect: () => window.removeEventListener("message", onMessage),
+		notifyHostContextChanged: (context) => {
+			if (!ready) return;
+			post({
+				method: "ui/notifications/host-context-changed",
+				params: context,
+			});
+		},
+	};
 }

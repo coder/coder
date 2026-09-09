@@ -1,5 +1,5 @@
 import { PanelRightIcon } from "lucide-react";
-import { type ReactNode, useContext } from "react";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import type { ChatMCPApp } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -35,6 +35,25 @@ export const MCPAppTool = ({
 }: MCPAppToolProps) => {
 	const { experiments } = useDashboard();
 	const { chatId, onOpenApp } = useContext(MCPAppContext);
+	const frameSlotRef = useRef<HTMLDivElement>(null);
+	const [nearViewport, setNearViewport] = useState(false);
+	useEffect(() => {
+		const slot = frameSlotRef.current;
+		if (!slot || nearViewport) return;
+		// A long transcript can hold many apps; each one is an untrusted runtime
+		// and a resource read through the workspace agent, so mount it only when
+		// it comes within one viewport of view.
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((entry) => entry.isIntersecting)) {
+					setNearViewport(true);
+				}
+			},
+			{ rootMargin: "100% 0px" },
+		);
+		observer.observe(slot);
+		return () => observer.disconnect();
+	}, [nearViewport]);
 	if (!experiments.includes("chat-mcp-apps") || !chatId) return fallback;
 	const src = mcpAppResourceURL(chatId, app.server_name, app.resource_uri);
 	return (
@@ -69,15 +88,21 @@ export const MCPAppTool = ({
 					</Button>
 				)}
 			</div>
-			<MCPAppFrame
-				key={src}
-				src={src}
-				title={name}
-				args={args}
-				result={app.result}
-				displayMode="inline"
-				fallback={fallback}
-			/>
+			<div ref={frameSlotRef}>
+				{nearViewport ? (
+					<MCPAppFrame
+						key={src}
+						src={src}
+						title={name}
+						args={args}
+						result={app.result}
+						displayMode="inline"
+						fallback={fallback}
+					/>
+				) : (
+					<div className="h-80" />
+				)}
+			</div>
 		</ToolCall.Root>
 	);
 };

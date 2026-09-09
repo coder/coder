@@ -28,8 +28,10 @@ export const MCPAppFrame = ({
 	fallback,
 }: MCPAppFrameProps) => {
 	const frameRef = useRef<HTMLIFrameElement>(null);
+	const connectionRef = useRef<ReturnType<typeof connectMCPApp>>(null);
 	const { buildInfo } = useDashboard();
 	const theme = useTheme();
+	const themeMode = theme.palette.mode;
 	const [status, setStatus] = useState<"loading" | "ready" | "error">(
 		"loading",
 	);
@@ -39,7 +41,7 @@ export const MCPAppFrame = ({
 	const failed = status === "error";
 	const getToolData = useEffectEvent(() => ({ args, result }));
 	const getContext = useEffectEvent(() => ({
-		theme: theme.palette.mode,
+		theme: themeMode,
 		displayMode,
 		containerDimensions: {
 			width: frameRef.current?.clientWidth ?? 0,
@@ -56,7 +58,7 @@ export const MCPAppFrame = ({
 		const onError = () => setStatus("error");
 		frame.addEventListener("error", onError);
 		const timeout = window.setTimeout(onError, 15000);
-		const disconnect = connectMCPApp({
+		const connection = connectMCPApp({
 			frame,
 			hostVersion: buildInfo.version,
 			getToolData,
@@ -77,13 +79,18 @@ export const MCPAppFrame = ({
 				});
 			},
 		});
+		connectionRef.current = connection;
 		return () => {
-			disconnect();
+			connectionRef.current = null;
+			connection.disconnect();
 			frame.removeEventListener("error", onError);
 			window.clearTimeout(timeout);
 			window.cancelAnimationFrame(animationFrame);
 		};
 	}, [buildInfo.version, displayMode, failed]);
+	useEffect(() => {
+		connectionRef.current?.notifyHostContextChanged({ theme: themeMode });
+	}, [themeMode]);
 	if (status === "error")
 		return (
 			<div className="h-full overflow-auto">

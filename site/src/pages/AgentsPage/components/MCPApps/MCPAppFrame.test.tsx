@@ -46,9 +46,24 @@ const themeWrapper = ({ children }: { children: React.ReactNode }) => (
 	<ThemeContextProvider theme={themes.dark}>{children}</ThemeContextProvider>
 );
 
+let intersect = () => {};
+class MockIntersectionObserver {
+	observe = vi.fn();
+	disconnect = vi.fn();
+	unobserve = vi.fn();
+	constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+		intersect = () => callback([{ isIntersecting: true }]);
+	}
+}
+
+beforeEach(() => {
+	vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+});
+
 afterEach(() => {
 	vi.useRealTimers();
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 	dashboard.experiments = ["chat-mcp-apps"];
 });
 
@@ -62,20 +77,34 @@ it("keeps the bridge connected with current inputs across rerenders and disconne
 		displayMode: "inline" as const,
 		fallback: null,
 	};
-	const view = render(<MCPAppFrame {...props} />, { wrapper: themeWrapper });
+	const renderFrame = (theme: typeof themes.dark, args = props.args) => (
+		<ThemeContextProvider theme={theme}>
+			<MCPAppFrame {...props} args={args} />
+		</ThemeContextProvider>
+	);
+	const view = render(renderFrame(themes.dark));
 	const frame = screen.getByTitle<HTMLIFrameElement>("Sales");
 	expect(frame.getAttribute("sandbox")).toBe("allow-scripts");
 	const source = frame.contentWindow;
 	if (!source) throw new Error("No iframe window");
 	const post = vi.spyOn(source, "postMessage");
 	send(source, "ui/initialize", 1);
-	view.rerender(<MCPAppFrame {...props} args={{ metric: "new sales" }} />);
+	view.rerender(renderFrame(themes.dark, { metric: "new sales" }));
 	send(source, "ui/notifications/initialized");
 	expect(post).toHaveBeenCalledWith(
 		{
 			jsonrpc: "2.0",
 			method: "ui/notifications/tool-input",
 			params: { arguments: { metric: "new sales" } },
+		},
+		"*",
+	);
+	view.rerender(renderFrame(themes.light, { metric: "new sales" }));
+	expect(post).toHaveBeenLastCalledWith(
+		{
+			jsonrpc: "2.0",
+			method: "ui/notifications/host-context-changed",
+			params: { theme: "light" },
 		},
 		"*",
 	);
@@ -146,6 +175,8 @@ it("waits for the call before initializing inline and opening the result in the 
 	const view = render(renderTool(orphan), { wrapper: themeWrapper });
 	expect(connect).not.toHaveBeenCalled();
 	view.rerender(renderTool(paired));
+	expect(screen.queryByTitle("Sales")).toBeNull();
+	act(intersect);
 	const source = screen.getByTitle<HTMLIFrameElement>("Sales").contentWindow;
 	if (!source) throw new Error("No iframe window");
 	const post = vi.spyOn(source, "postMessage");

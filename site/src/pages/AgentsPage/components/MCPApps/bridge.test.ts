@@ -17,7 +17,7 @@ const setup = (result: unknown = MockChatMCPApp.result) => {
 	const post = vi.spyOn(source, "postMessage");
 	const onReady = vi.fn();
 	const onSizeChange = vi.fn();
-	const disconnect = connectMCPApp({
+	const { disconnect, notifyHostContextChanged } = connectMCPApp({
 		frame,
 		hostVersion: "v1",
 		getContext: () => context,
@@ -32,7 +32,14 @@ const setup = (result: unknown = MockChatMCPApp.result) => {
 				data: { jsonrpc: "2.0", method, params, id },
 			}),
 		);
-	return { post, send, onReady, onSizeChange, disconnect };
+	return {
+		post,
+		send,
+		onReady,
+		onSizeChange,
+		disconnect,
+		notifyHostContextChanged,
+	};
 };
 
 afterEach(() => {
@@ -113,6 +120,24 @@ it("negotiates the stable protocol and sends input before original results once 
 	bridge.send("ui/notifications/initialized");
 	expect(bridge.onReady).toHaveBeenCalledTimes(1);
 	expect(bridge.post).toHaveBeenCalledTimes(3);
+	bridge.disconnect();
+});
+
+it("notifies only initialized apps about host context changes", () => {
+	const bridge = setup();
+	bridge.send("ui/initialize", {}, 1);
+	bridge.notifyHostContextChanged({ theme: "light" });
+	expect(bridge.post).toHaveBeenCalledTimes(1);
+	bridge.send("ui/notifications/initialized");
+	bridge.notifyHostContextChanged({ theme: "light" });
+	expect(bridge.post).toHaveBeenLastCalledWith(
+		{
+			jsonrpc: "2.0",
+			method: "ui/notifications/host-context-changed",
+			params: { theme: "light" },
+		},
+		"*",
+	);
 	bridge.disconnect();
 });
 
