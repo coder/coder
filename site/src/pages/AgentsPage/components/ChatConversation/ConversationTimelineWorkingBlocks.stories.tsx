@@ -2,7 +2,14 @@ import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { useQueryClient } from "react-query";
-import { expect, fn, userEvent, within } from "storybook/test";
+import {
+	expect,
+	fireEvent,
+	fn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -388,6 +395,85 @@ export const Paginated: Story = {
 		expect(canvas.getAllByText("Workspace inspection complete.")).toHaveLength(
 			1,
 		);
+	},
+};
+
+const longTurnStep = (index: number): ChatMessage[] => [
+	{
+		...MockChatMessage,
+		id: 100 + index * 2,
+		role: "assistant",
+		created_at: time(index),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: `step-${index}`,
+				tool_name: "execute",
+				args: { command: `echo step-${index}` },
+				created_at: time(index),
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 101 + index * 2,
+		role: "tool",
+		created_at: time(index),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: `step-${index}`,
+				tool_name: "execute",
+				result: { output: `step-${index}`, exit_code: "0" },
+				created_at: time(index),
+			},
+		],
+	},
+];
+const MockLongTurn = Array.from({ length: 60 }, (_, index) =>
+	longTurnStep(index),
+).flat();
+
+// Older rows join an expanded partial block inside one scroller item, so the
+// scroller cannot anchor them; the block keeps the reading position itself.
+export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
+	render: function Render(args) {
+		const [loaded, setLoaded] = useState(false);
+		return (
+			<>
+				<Button onClick={() => setLoaded(true)} disabled={loaded}>
+					Load older messages
+				</Button>
+				<ConversationTimeline
+					{...args}
+					hasMoreMessages
+					parsedMessages={parseMessagesWithMergedTools(
+						loaded ? MockLongTurn : MockLongTurn.slice(60),
+					)}
+				/>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Worked for at least/ }),
+		);
+		const viewport = canvas.getByRole("region", { name: "Messages" });
+		// The scroller stops following the bottom only on wheel, touch, or key
+		// input, so scroll up the way a reader does.
+		await fireEvent.wheel(viewport, { deltaY: -100 });
+		viewport.scrollTop = 0;
+		await waitFor(() => expect(viewport.scrollTop).toBe(0));
+		const anchor = canvas.getByText(/echo step-30/);
+		const anchorTop = anchor.getBoundingClientRect().top;
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Load older messages" }),
+		);
+		expect(canvas.getByText(/echo step-0$/)).toBeInTheDocument();
+		expect(canvas.getByText(/echo step-30/)).toBe(anchor);
+		expect(anchor.getBoundingClientRect().top).toBeCloseTo(anchorTop, 0);
+		expect(viewport.scrollTop).toBeGreaterThan(0);
 	},
 };
 

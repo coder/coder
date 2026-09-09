@@ -40,6 +40,7 @@ const meta = {
 	render: (args) => <ControlledDisclosure {...args} />,
 	args: {
 		block: MockWorkingBlock,
+		firstRowKey: "message:2",
 		expanded: false,
 		onExpandedChange: fn(),
 		children: (
