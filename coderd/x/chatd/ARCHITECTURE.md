@@ -815,26 +815,24 @@ The main idea behind the event processing logic is that a chat's status and its 
 2. The runner sees an event with chat status still `running`, but history version changed to `46`. The runner should still be calling the LLM API, but it should be using the message history identified by `46`. So if the runner sees that it has an active goroutine doing work on `history_version=42`, it should cancel that goroutine, and spawn a new one to do work on `history_version=46`.
 3. Then if the history version is still `46`, but the status changed to `interrupting`, the runner should cancel the active goroutine, and spawn a new one to handle the interrupt on the core state machine level - that is, submit the `FinishInterruption` transition.
 
-Events are hints about the chat's state, not a reliable log of it. Pubsub can drop them, and the database sync loop redelivers the current row on an interval whether or not anything changed. The runner therefore treats every event, including one it has already seen, as an occasion to make sure the goroutine the chat needs is running. The invariant it maintains: after each loop iteration, the goroutine required by the latest known state is active, or the runner is being cleaned up because it no longer owns the chat.
+Events are hints about the chat's state, not a reliable log of it. Pubsub can drop them, and the database sync loop redelivers the current row on an interval whether or not anything changed. The runner therefore treats every event, including one it has already seen, as an occasion to make sure the goroutine the chat needs is running. The invariant it maintains: after each loop iteration, the goroutine required by the latest known state is active, or the runner is being cleaned up because it no longer owns the chat. This is what lets a chat recover when its goroutine stops on its own, for example on a stale history fence: the next database sync redelivers the row and the runner restarts the work, so recovery takes at most one sync interval.
 
-An event changes what the runner knows only if it is newer than the latest processed event. `SnapshotVersion` is the primary order, but it is not sufficient on its own: the message triggers advance `history_version` without touching `snapshot_version`, so an event with the same `SnapshotVersion` but a different `HistoryVersion`, `Status`, or `Archived` is also newer.
+An event changes what the runner knows only if it is newer than the latest processed event. `SnapshotVersion` orders events, but the message triggers advance `history_version` without touching `snapshot_version`, so an event with the same `SnapshotVersion` and a different `HistoryVersion`, `Status`, or `Archived` is also newer.
 
 The runner processes one event at a time. We call processing an event a **loop iteration**. For each event, it does the following things in order:
 
-1. Remove all goroutines that have finished from the goroutine list. If the active goroutine is among them, there is no active goroutine anymore.
-2. If the event is not newer than the latest processed event, continue at step 5.
+1. Iterate through the goroutine list and remove all goroutines that have finished, the active one included.
+2. If the event is not newer than the runner's latest processed event, ignore the event and skip to step 5.
 3. If the event's `WorkerID` is not the runner's `WorkerID`, or the event's `RunnerID` is not the runner's `RunnerID`, send a cleanup request to the runner manager, and stop.
-4. If the event's `HistoryVersion`, `Status`, or `Archived` differs from the latest processed event's, cancel the active goroutine if there is one. Do not wait for it to finish; its fences prevent it from applying stale work.
-5. If there is no active goroutine and the latest known state is owned by this runner, spawn the goroutine that state requires and mark it as active:
-    - `Archived` is `true` (core state machine is in `XW`, `XE0`, or `XE1`): the **abandon chat goroutine**, which abandons the chat.
-    - `Status` is `running` (`R0` or `R1`): the **generation goroutine**, which calls the LLM API and executes tools.
-    - `Status` is `interrupting` (`I0` or `I1`): the **interrupt goroutine**, which handles the interrupt.
-    - `Status` is `requires_action` (`A0` or `A1`): the **dynamic tools timeout goroutine**, which waits for the dynamic tool timeout to pass.
-    - Otherwise: the **abandon chat goroutine**.
+4. If the event's `HistoryVersion`, `Status`, or `Archived` differs from the runner's latest processed event's, cancel the currently running goroutine if there is one. Do not wait for the goroutine to finish.
+5. If there is no active goroutine and the runner still owns the chat, spawn the goroutine the chat needs and mark it as active:
+    - If `Archived` is `true` (core state machine is in `XW`, `XE0`, or `XE1`), spawn a goroutine to abandon the chat. We call this the **abandon chat goroutine**.
+    - If `Status` is `running` (`R0` or `R1`), spawn a goroutine to call the LLM API and execute tools. We call this the **generation goroutine**.
+    - If `Status` is `interrupting` (`I0` or `I1`), spawn a goroutine to handle the interrupt. We call this the **interrupt goroutine**.
+    - If `Status` is `requires_action` (`A0` or `A1`), spawn a goroutine to wait for the dynamic tool timeout to pass. We call this the **dynamic tools timeout goroutine**.
+    - Otherwise, spawn an **abandon chat goroutine**.
 
-After each iteration, the latest processed event is the newest event the runner has seen.
-
-This is also how a chat recovers when its goroutine stops on its own, for example on a stale history fence, and no newer event follows: the next database sync redelivers the row and the runner restarts the work. Recovery takes at most one sync interval.
+After stopping, the iteration updates the runner's local state to the event's values, unless it ignored the event.
 
 ### Runner gouroutines
 
