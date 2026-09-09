@@ -59,3 +59,6 @@ WHERE
 DROP TABLE template_usage_stats_session_apps;
 
 DROP TABLE template_usage_stats_session_families;
+
+ALTER TABLE template_usage_stats
+	DROP COLUMN session_usage_digest;

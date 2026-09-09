@@ -39,6 +39,37 @@ func sessionUsageMins(ctx context.Context, t *testing.T, sqlDB *sql.DB, table, n
 	return got
 }
 
+// sessionUsageDigest reads the digest the rollup stored for one bucket, and
+// emptySessionUsageDigest is the digest of a bucket with no session usage.
+func sessionUsageDigest(ctx context.Context, t *testing.T, sqlDB *sql.DB, startTime time.Time, userID, templateID uuid.UUID) sql.NullInt64 {
+	t.Helper()
+
+	var digest sql.NullInt64
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT session_usage_digest FROM template_usage_stats WHERE start_time = $1 AND user_id = $2 AND template_id = $3`,
+		startTime, userID, templateID).Scan(&digest))
+	return digest
+}
+
+func emptySessionUsageDigest(ctx context.Context, t *testing.T, sqlDB *sql.DB) sql.NullInt64 {
+	t.Helper()
+
+	var digest sql.NullInt64
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT hashtextextended('', 0)`).Scan(&digest))
+	return digest
+}
+
+// withoutDigest clears the session usage digest, which is a hash of the child
+// rows rather than a value worth comparing.
+func withoutDigest(stats []database.TemplateUsageStat) []database.TemplateUsageStat {
+	cleared := make([]database.TemplateUsageStat, 0, len(stats))
+	for _, stat := range stats {
+		stat.SessionUsageDigest = sql.NullInt64{}
+		cleared = append(cleared, stat)
+	}
+	return cleared
+}
+
 func TestSessionUsageMapNull(t *testing.T) {
 	t.Parallel()
 	m := database.StringMapOfInt{"cursor": 1}
@@ -99,6 +130,9 @@ func TestSessionUsageRollupOverlapAndRegistry(t *testing.T) {
 		sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", start, user, template))
 	require.Equal(t, map[string]int64{"vscode": 3, "new_family": 1},
 		sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, user, template))
+	digest := sessionUsageDigest(ctx, t, sqlDB, start, user, template)
+	require.True(t, digest.Valid, "a rolled up bucket must carry a session usage digest")
+	require.NotEqual(t, emptySessionUsageDigest(ctx, t, sqlDB), digest, "this bucket has session usage")
 
 	// The existing watermark deliberately recomputes recent buckets.
 	require.NoError(t, db.UpsertTemplateUsageStats(ctx, mapping))
@@ -107,6 +141,10 @@ func TestSessionUsageRollupOverlapAndRegistry(t *testing.T) {
 	require.ElementsMatch(t, rows, repeated)
 	require.Equal(t, map[string]int64{"vscode": 3, "new_family": 1},
 		sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, user, template))
+	// Recomputing identical session usage leaves the digest alone, which is
+	// what keeps the rollup from rewriting the child rows of every bucket in
+	// its window.
+	require.Equal(t, digest, sessionUsageDigest(ctx, t, sqlDB, start, user, template))
 
 	// Renaming a family in the registry moves the minutes: the recomputed
 	// bucket drops the family row it no longer has and keeps its app rows,
@@ -117,15 +155,42 @@ func TestSessionUsageRollupOverlapAndRegistry(t *testing.T) {
 	require.NoError(t, db.UpsertTemplateUsageStats(ctx, mapping))
 	repeated, err = db.GetTemplateUsageStats(ctx, params)
 	require.NoError(t, err)
-	require.ElementsMatch(t, rows, repeated)
+	// Only the digest may differ on the main row: the rename changes what the
+	// child rows hold and nothing else.
+	require.ElementsMatch(t, withoutDigest(rows), withoutDigest(repeated))
 	families := sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, user, template)
 	require.EqualValues(t, 1, families["renamed_family"])
 	require.NotContains(t, families, "new_family")
 	apps := sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", start, user, template)
 	require.EqualValues(t, 1, apps["new_app"])
+	// The rename shows up in no other column of the main row, so the digest is
+	// what marks the bucket changed and lets the child writes reach it.
+	require.NotEqual(t, digest, sessionUsageDigest(ctx, t, sqlDB, start, user, template))
 
-	// A bucket that only has app stats records no session usage at all, and a
-	// deleted bucket takes its session usage with it.
+	// A bucket that only has app stats records no session usage at all, so it
+	// carries the empty digest rather than a null, and a deleted bucket takes
+	// its session usage with it.
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{Name: "app-stats-only"})
+	appTemplate := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, TemplateID: appTemplate.ID, OwnerID: owner.ID})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{OrganizationID: org.ID})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	dbgen.WorkspaceAppStat(t, db, database.WorkspaceAppStat{
+		UserID:           owner.ID,
+		WorkspaceID:      workspace.ID,
+		AgentID:          agent.ID,
+		AccessMethod:     "path",
+		SlugOrPort:       "code-server",
+		SessionStartedAt: start.Add(time.Minute),
+		SessionEndedAt:   start.Add(3 * time.Minute),
+	})
+	require.NoError(t, db.UpsertTemplateUsageStats(ctx, mapping))
+	require.Equal(t, emptySessionUsageDigest(ctx, t, sqlDB), sessionUsageDigest(ctx, t, sqlDB, start, owner.ID, appTemplate.ID))
+	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, owner.ID, appTemplate.ID))
+	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_apps", "app_name", start, owner.ID, appTemplate.ID))
+
 	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, "template_usage_stats_session_families", "family", start, user, disconnected))
 	_, err = sqlDB.ExecContext(ctx, `DELETE FROM template_usage_stats WHERE start_time = $1 AND user_id = $2 AND template_id = $3`, start, user, template)
 	require.NoError(t, err)
