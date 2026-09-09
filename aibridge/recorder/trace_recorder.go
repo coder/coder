@@ -42,6 +42,16 @@ func NewTraceRecorder(tracer trace.Tracer, wrapped Recorder) *TraceRecorder {
 	return &TraceRecorder{tracer: tracer, wrapped: wrapped}
 }
 
+// WithTracing returns a [Decorator] which wraps a [Recorder] in a
+// [TraceRecorder], for composition by [Chain]. As [TraceRecorder] documents, it
+// belongs last in a chain, immediately above the recorder whose work its spans
+// measure.
+func WithTracing(tracer trace.Tracer) Decorator {
+	return func(next Recorder) Recorder {
+		return NewTraceRecorder(tracer, next)
+	}
+}
+
 // start begins a span named name, carrying the interception attributes held by
 // ctx, and returns the context the record must be delegated with.
 func (r *TraceRecorder) start(ctx context.Context, name string) (context.Context, trace.Span) {

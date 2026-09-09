@@ -30,6 +30,14 @@ func NewLogRecorder(logger slog.Logger, wrapped Recorder) *LogRecorder {
 	return &LogRecorder{logger: logger, wrapped: wrapped}
 }
 
+// WithLogging returns a [Decorator] which wraps a [Recorder] in a
+// [LogRecorder], for composition by [Chain].
+func WithLogging(logger slog.Logger) Decorator {
+	return func(next Recorder) Recorder {
+		return NewLogRecorder(logger, next)
+	}
+}
+
 // resultLogs holds the messages logged for one record type once delegation has
 // completed.
 type resultLogs struct {
