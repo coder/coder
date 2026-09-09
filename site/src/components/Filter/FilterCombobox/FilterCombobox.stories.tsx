@@ -165,6 +165,46 @@ export const Default: Story = {
 	},
 };
 
+export const CategoryRowsPreviewOptions: Story = {
+	render: () => <FilterComboboxHarness initialQuery="" />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: "Search and filter…" }),
+		);
+		await waitFor(() =>
+			expect(
+				body.getByRole("option", { name: /Status.*Running, Stopped/ }),
+			).toBeVisible(),
+		);
+		await expect(
+			body.getByRole("option", { name: /Owner.*alice, bob/ }),
+		).toBeVisible();
+	},
+};
+
+export const CategoryRowsShowAppliedValues: Story = {
+	render: () => (
+		<FilterComboboxHarness initialQuery="owner:me status:running" />
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: "Search and filter…" }),
+		);
+		await waitFor(() =>
+			expect(
+				body.getByRole("option", { name: /Status.*Running$/ }),
+			).toBeVisible(),
+		);
+		await expect(
+			body.getByRole("option", { name: /Owner.*me$/ }),
+		).toBeVisible();
+	},
+};
+
 export const ActiveFilterIcon: Story = {
 	render: () => <FilterComboboxHarness />,
 	play: async ({ canvasElement }) => {
@@ -649,7 +689,9 @@ export const DismissOnOutsideClick: Story = {
 // A failed category lookup surfaces a Retry that refetches the options.
 export const CategoryOptionsErrorRetry: Story = {
 	render: () => {
-		let thrown = false;
+		// The row preview and the category view share the empty-query lookup, so
+		// both of their initial fetches fail; the Retry click is the next call.
+		let failuresLeft = 2;
 		return (
 			<FilterComboboxHarness
 				initialQuery=""
@@ -659,8 +701,8 @@ export const CategoryOptionsErrorRetry: Story = {
 						label: "Status",
 						icon: <CircleDotIcon />,
 						getOptions: async (query) => {
-							if (!thrown) {
-								thrown = true;
+							if (failuresLeft > 0) {
+								failuresLeft -= 1;
 								throw new Error("boom");
 							}
 							return filterOptions(statusOptions, query);

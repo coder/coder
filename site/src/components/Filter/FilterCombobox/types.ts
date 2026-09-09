@@ -22,6 +22,11 @@ export type FilterCategory = {
 	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
 	aliases?: readonly string[];
 	/**
+	 * Shown at the end of the category row while its options are still loading
+	 * or when there are none to preview, e.g. "Search for the template name".
+	 */
+	hint?: string;
+	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
 	 * category that commits several distinct boolean keys (e.g. Attributes
 	 * committing `outdated`, `dormant`, `shared`) lists them all so the query

@@ -1,4 +1,4 @@
-import { ListFilterIcon, SearchIcon } from "lucide-react";
+import { CheckIcon, ListFilterIcon, SearchIcon } from "lucide-react";
 import { type ReactNode, useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -9,7 +9,7 @@ import {
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { chipDisplay, chipToken } from "./filterQuery";
+import { type CategoryPreview, chipDisplay, chipToken } from "./filterQuery";
 import {
 	FilterComboboxChip,
 	FilterComboboxChips,
@@ -71,6 +71,7 @@ export function FilterCombobox({
 		activeOptionsError,
 		statusMessage,
 		listedCategories,
+		categoryPreviews,
 		valueSuggestions,
 		searchResults,
 		chipValues,
@@ -192,6 +193,7 @@ export function FilterCombobox({
 					{typeahead.active ? (
 						<TypeaheadList
 							listedCategories={listedCategories}
+							categoryPreviews={categoryPreviews}
 							valueSuggestions={valueSuggestions}
 							searchResults={searchResults}
 							searchResultsLabel={searchResultsLabel}
@@ -264,6 +266,34 @@ function ChipLabel({
 	);
 }
 
+// Right-aligned tail of a category row: applied values with a check mark, or
+// a muted sample of the options when nothing from the category is applied.
+function CategoryPreviewText({
+	preview,
+}: {
+	preview: CategoryPreview | undefined;
+}): ReactNode {
+	if (!preview) {
+		return null;
+	}
+	if (preview.selected.length > 0) {
+		return (
+			<span className="ml-auto flex min-w-0 items-center gap-2 text-xs text-content-secondary">
+				<span className="truncate">{preview.selected.join(", ")}</span>
+				<CheckIcon aria-hidden className="shrink-0" />
+			</span>
+		);
+	}
+	if (preview.hint.length === 0) {
+		return null;
+	}
+	return (
+		<span className="ml-auto min-w-0 truncate text-xs text-content-disabled">
+			{preview.hint}
+		</span>
+	);
+}
+
 function ResultIcon({ result }: { result: SearchResult }): ReactNode {
 	if (result.startIcon) {
 		return <OptionIcon>{result.startIcon}</OptionIcon>;
@@ -286,6 +316,7 @@ type ValueSuggestion = {
 
 type TypeaheadListProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
+	categoryPreviews: ReadonlyMap<string, CategoryPreview>;
 	valueSuggestions: readonly ValueSuggestion[];
 	searchResults: readonly SearchResult[];
 	searchResultsLabel: string;
@@ -301,6 +332,7 @@ type TypeaheadListProps = Readonly<{
 
 function TypeaheadList({
 	listedCategories,
+	categoryPreviews,
 	valueSuggestions,
 	searchResults,
 	searchResultsLabel,
@@ -344,7 +376,8 @@ function TypeaheadList({
 						onSelect={() => onSelectCategory(category.key)}
 					>
 						{category.icon && <OptionIcon>{category.icon}</OptionIcon>}
-						{category.label}
+						<span className="shrink-0">{category.label}</span>
+						<CategoryPreviewText preview={categoryPreviews.get(category.key)} />
 					</FilterComboboxItem>
 				))}
 				{[...valueSuggestionsByCategory.entries()].map(

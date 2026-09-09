@@ -8,6 +8,8 @@ import {
 import { useQueries, useQuery } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
 import {
+	type CategoryPreview,
+	categoryPreview,
 	chipToken,
 	collectValueSuggestions,
 	composeFilterQuery,
@@ -326,6 +328,41 @@ export const useFilterCombobox = ({
 		},
 	});
 
+	// Category rows preview their options while the menu is open with an empty
+	// input. The empty-query key is shared with the category view, so entering a
+	// category reuses the cached result.
+	const previewsEnabled =
+		isBrowsing && activeCategoryKey === null && inputValue.trim().length === 0;
+	const previewOptions = useQueries({
+		queries: categories.map((category) =>
+			filterComboboxOptions(
+				category.key,
+				category.getOptions,
+				"",
+				previewsEnabled,
+			),
+		),
+		combine: (results) => {
+			const optionsByKey = new Map<string, readonly FilterOption[]>();
+			results.forEach((result, index) => {
+				if (result.data) {
+					optionsByKey.set(categories[index].key, result.data);
+				}
+			});
+			return optionsByKey;
+		},
+	});
+	const categoryPreviews = useMemo(() => {
+		const previews = new Map<string, CategoryPreview>();
+		for (const category of categories) {
+			previews.set(
+				category.key,
+				categoryPreview(category, chipValues, previewOptions.get(category.key)),
+			);
+		}
+		return previews;
+	}, [categories, chipValues, previewOptions]);
+
 	const valueSuggestions =
 		activeCategoryKey !== null || !isBrowsing
 			? []
@@ -641,6 +678,7 @@ export const useFilterCombobox = ({
 		activeOptionsError,
 		statusMessage,
 		listedCategories,
+		categoryPreviews,
 		valueSuggestions,
 		searchResults,
 		chipValues,
