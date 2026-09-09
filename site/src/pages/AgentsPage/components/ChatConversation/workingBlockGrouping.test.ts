@@ -467,6 +467,31 @@ describe("groupWorkingBlocks", () => {
 			});
 		});
 
+		it("stays live between persisted steps when no stream row exists", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const pending = message("assistant", [call("b", at(3))], at(3));
+			const entries = parseMessagesWithMergedTools(
+				[prompt, ...steps, pending],
+				{
+					pendingToolCallIDs: new Set(["b"]),
+				},
+			);
+			const rows = assignTimelineRows(buildDisplayMessages(entries), false);
+			const blocks = groupWorkingBlocks(rows, entries, {
+				...defaultOptions,
+				isTurnActive: true,
+			});
+
+			expect(blocks).toHaveLength(1);
+			expect(blocks[0]).toMatchObject({
+				isLive: true,
+				stepCount: 2,
+				startedAt: base + 1000,
+				endedAt: undefined,
+			});
+		});
+
 		it("does not treat a completed earlier turn as live", () => {
 			const first = user("One");
 			const firstSteps = step("a", 1, 2);

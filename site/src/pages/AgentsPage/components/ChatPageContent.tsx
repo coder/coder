@@ -209,6 +209,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					   renders correctly. */}
 				<ConversationTimeline
 					hasMoreMessages={hasMoreMessages}
+					chatStatus={chatStatus}
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
 					chatFiles={chatFiles}
