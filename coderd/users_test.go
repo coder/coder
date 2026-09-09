@@ -2535,6 +2535,36 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 	})
 }
 
+func TestUserCollapseAssistantSteps(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.False(t, settings.CollapseAssistantSteps)
+
+	for _, collapse := range []bool{true, false} {
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			CollapseAssistantSteps: &collapse,
+		})
+		require.NoError(t, err)
+		require.Equal(t, collapse, updated.CollapseAssistantSteps)
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, collapse, settings.CollapseAssistantSteps)
+
+		updated, err = client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			TaskNotificationAlertDismissed: new(true),
+		})
+		require.NoError(t, err)
+		require.Equal(t, collapse, updated.CollapseAssistantSteps)
+	}
+}
+
 func TestThinkingDisplayMode(t *testing.T) {
 	t.Parallel()
 

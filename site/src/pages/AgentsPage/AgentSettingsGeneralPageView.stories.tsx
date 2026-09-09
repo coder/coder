@@ -12,6 +12,7 @@ const preferencesData = {
 	thinking_display_mode: "auto" as const,
 	shell_tool_display_mode: "auto" as const,
 	code_diff_display_mode: "auto" as const,
+	collapse_assistant_steps: false,
 	agent_chat_send_shortcut: "enter" as const,
 };
 

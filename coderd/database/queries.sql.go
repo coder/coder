@@ -31747,6 +31747,23 @@ func (q *sqlQuerier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid
 	return code_diff_display_mode, err
 }
 
+const getUserCollapseAssistantSteps = `-- name: GetUserCollapseAssistantSteps :one
+SELECT
+	value::boolean as collapse_assistant_steps
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_collapse_assistant_steps'
+`
+
+func (q *sqlQuerier) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getUserCollapseAssistantSteps, userID)
+	var collapse_assistant_steps bool
+	err := row.Scan(&collapse_assistant_steps)
+	return collapse_assistant_steps, err
+}
+
 const getUserCount = `-- name: GetUserCount :one
 SELECT
 	COUNT(*)
@@ -32396,6 +32413,33 @@ func (q *sqlQuerier) UpdateUserCodeDiffDisplayMode(ctx context.Context, arg Upda
 	var code_diff_display_mode string
 	err := row.Scan(&code_diff_display_mode)
 	return code_diff_display_mode, err
+}
+
+const updateUserCollapseAssistantSteps = `-- name: UpdateUserCollapseAssistantSteps :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_collapse_assistant_steps', ($2::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_collapse_assistant_steps'
+RETURNING value::boolean AS collapse_assistant_steps
+`
+
+type UpdateUserCollapseAssistantStepsParams struct {
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	CollapseAssistantSteps bool      `db:"collapse_assistant_steps" json:"collapse_assistant_steps"`
+}
+
+func (q *sqlQuerier) UpdateUserCollapseAssistantSteps(ctx context.Context, arg UpdateUserCollapseAssistantStepsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, updateUserCollapseAssistantSteps, arg.UserID, arg.CollapseAssistantSteps)
+	var collapse_assistant_steps bool
+	err := row.Scan(&collapse_assistant_steps)
+	return collapse_assistant_steps, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec

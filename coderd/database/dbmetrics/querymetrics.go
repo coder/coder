@@ -3392,6 +3392,14 @@ func (m queryMetricsStore) GetUserCodeDiffDisplayMode(ctx context.Context, userI
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserCollapseAssistantSteps(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserCollapseAssistantSteps").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserCollapseAssistantSteps").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserCount(ctx, includeSystem)
@@ -5877,6 +5885,14 @@ func (m queryMetricsStore) UpdateUserCodeDiffDisplayMode(ctx context.Context, ar
 	r0, r1 := m.s.UpdateUserCodeDiffDisplayMode(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserCodeDiffDisplayMode").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserCodeDiffDisplayMode").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserCollapseAssistantSteps(ctx context.Context, arg database.UpdateUserCollapseAssistantStepsParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserCollapseAssistantSteps(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserCollapseAssistantSteps").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserCollapseAssistantSteps").Inc()
 	return r0, r1
 }
 
