@@ -72,31 +72,13 @@ var bedrockSupportedBetaFlags = map[string]bool{
 type BedrockRuntime struct {
 	Cfg   aibconfig.AWSBedrock
 	Creds aws.CredentialsProvider
-
-	resolvedModel          string
-	resolvedSmallFastModel string
 }
 
-// NewBedrockRuntime bundles the Bedrock config and credentials with the model
-// IDs behind the configured identifiers.
-//
-// An identifier resolves to itself unless it is an application inference
-// profile ARN, which is opaque. Those are resolved through AWS when the
-// provider is written and arrive on cfg, so construction never calls AWS.
+// NewBedrockRuntime bundles the Bedrock config and credentials.
 func NewBedrockRuntime(cfg aibconfig.AWSBedrock, creds aws.CredentialsProvider) *BedrockRuntime {
-	resolvedModel := cfg.ResolvedModel
-	if resolvedModel == "" {
-		resolvedModel = cfg.Model
-	}
-	resolvedSmallFastModel := cfg.ResolvedSmallFastModel
-	if resolvedSmallFastModel == "" {
-		resolvedSmallFastModel = cfg.SmallFastModel
-	}
 	return &BedrockRuntime{
-		Cfg:                    cfg,
-		Creds:                  creds,
-		resolvedModel:          resolvedModel,
-		resolvedSmallFastModel: resolvedSmallFastModel,
+		Cfg:   cfg,
+		Creds: creds,
 	}
 }
 
@@ -117,13 +99,13 @@ func (b *BedrockRuntime) ConfiguredSmallFastModel() string {
 // Model capabilities, usage records, pricing, and metrics all key off this
 // rather than the configured identifier.
 func (b *BedrockRuntime) ResolvedModel() string {
-	return b.resolvedModel
+	return b.Cfg.ResolvedModelWithFallback()
 }
 
 // ResolvedSmallFastModel is [BedrockRuntime.ResolvedModel] for the small/fast
 // model.
 func (b *BedrockRuntime) ResolvedSmallFastModel() string {
-	return b.resolvedSmallFastModel
+	return b.Cfg.ResolvedSmallFastModelWithFallback()
 }
 
 type interceptionBase struct {

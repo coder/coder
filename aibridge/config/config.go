@@ -70,7 +70,9 @@ type AWSBedrock struct {
 	Protocol BedrockProtocol
 	// ResolvedModel is the model ID behind Model, which differs from it only
 	// when Model is an application inference profile ARN. coderd resolves it
-	// when the provider is written, so the gateway never calls AWS for it.
+	// when the provider is written, so the gateway never calls AWS for it. It
+	// is empty when nothing needed resolving, so read it through
+	// [AWSBedrock.ResolvedModelWithFallback].
 	ResolvedModel string
 	// ResolvedSmallFastModel is ResolvedModel for SmallFastModel.
 	ResolvedSmallFastModel string
@@ -84,6 +86,27 @@ func (c AWSBedrock) ResolvedProtocol() BedrockProtocol {
 		return BedrockProtocolInvokeModel
 	}
 	return c.Protocol
+}
+
+// ResolvedModelWithFallback returns the model ID to record usage, pricing, and
+// capabilities against. It falls back to Model, which is its own identity
+// unless it is an application inference profile ARN. An unresolved ARN
+// therefore serves as itself, matching the behavior before coderd resolved
+// profiles; the operator saw the resolution failure when saving the provider.
+func (c AWSBedrock) ResolvedModelWithFallback() string {
+	if c.ResolvedModel == "" {
+		return c.Model
+	}
+	return c.ResolvedModel
+}
+
+// ResolvedSmallFastModelWithFallback is
+// [AWSBedrock.ResolvedModelWithFallback] for the small/fast model.
+func (c AWSBedrock) ResolvedSmallFastModelWithFallback() string {
+	if c.ResolvedSmallFastModel == "" {
+		return c.SmallFastModel
+	}
+	return c.ResolvedSmallFastModel
 }
 
 // Validate verifies protocol-specific Bedrock configuration.
