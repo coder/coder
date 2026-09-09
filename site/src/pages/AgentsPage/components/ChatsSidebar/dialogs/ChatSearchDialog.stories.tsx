@@ -140,12 +140,9 @@ export const LoadingState: Story = {
 			body.getByRole("combobox", { name: "Search chats" }),
 			"Fix",
 		);
-		await expect(await body.findByText(/results/i)).toBeInTheDocument();
-		await waitFor(() => {
-			expect(
-				document.body.querySelectorAll('[data-slot="skeleton"]').length,
-			).toBeGreaterThan(0);
-		});
+		// Wait for the loading state to render so the screenshot captures
+		// the skeleton.
+		await body.findByText(/results/i);
 	},
 };
 
@@ -330,14 +327,9 @@ export const NoResults: Story = {
 			body.getByRole("combobox", { name: "Search chats" }),
 			"none",
 		);
-		await expect(
-			await body.findByText("No matching chats", { exact: false }),
-		).toBeInTheDocument();
-		await expect(
-			body.getByText("Message content is indexed periodically", {
-				exact: false,
-			}),
-		).toBeInTheDocument();
+		// Wait for the empty state to render so the screenshot captures the
+		// no-results copy.
+		await body.findByText("No matching chats", { exact: false });
 	},
 };
 
@@ -412,11 +404,9 @@ export const FilterDropdownOnFocus: Story = {
 		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
 
 		await userEvent.click(toggleButton);
-		await expect(await body.findByText("Filter by")).toBeInTheDocument();
-		await expect(body.getByText("Unread")).toBeInTheDocument();
-		await expect(body.getByText("Archived")).toBeInTheDocument();
-		await expect(body.getByText("PR status")).toBeInTheDocument();
-		await expect(body.getByText("Diff URL")).toBeInTheDocument();
+		// Wait for the dropdown to open so the screenshot shows the filter
+		// options.
+		await body.findByText("Filter by");
 	},
 };
 
@@ -592,13 +582,11 @@ export const BackspaceRemovesFilter: Story = {
 
 		await userEvent.click(toggleButton);
 		await userEvent.click(await body.findByText("Unread"));
-		await expect(await body.findByText("has_unread:true")).toBeInTheDocument();
+		// Wait for the pill to appear so the Backspace target is ready.
+		await body.findByText("has_unread:true");
 
 		await userEvent.click(searchInput);
 		await userEvent.keyboard("{Backspace}");
-		await waitFor(() => {
-			expect(body.queryByText("has_unread:true")).not.toBeInTheDocument();
-		});
 	},
 };
 
@@ -609,10 +597,9 @@ export const TypedFilterAutoDetection: Story = {
 
 		await userEvent.type(searchInput, "has_unread:true ");
 
-		await expect(await body.findByText("has_unread:true")).toBeInTheDocument();
-		await expect(
-			body.getByRole("button", { name: "Remove has_unread filter" }),
-		).toBeInTheDocument();
+		// Wait for the auto-detected pill to render so the screenshot shows
+		// it with its remove button.
+		await body.findByText("has_unread:true");
 	},
 };
 

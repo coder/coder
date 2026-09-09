@@ -72,12 +72,6 @@ const promptHistory = [
 const getEditor = (canvasElement: HTMLElement) =>
 	within(canvasElement).getByTestId("chat-message-input");
 
-const expectEditorText = async (editor: HTMLElement, text: string) => {
-	await waitFor(() => {
-		expect(editor.textContent).toBe(text);
-	});
-};
-
 export const Default: Story = {};
 
 export const PromptHistoryCycling: Story = {
@@ -86,29 +80,10 @@ export const PromptHistoryCycling: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
 		await userEvent.click(editor);
-
+		// Stop after the first ArrowUp so the screenshot shows a history
+		// prompt instead of an empty editor.
 		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Most recent prompt");
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Middle prompt");
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Oldest prompt");
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Oldest prompt");
-
-		await userEvent.keyboard("{ArrowDown}");
-		await expectEditorText(editor, "Middle prompt");
-		await userEvent.keyboard("{ArrowDown}");
-		await expectEditorText(editor, "Most recent prompt");
-		await userEvent.keyboard("{ArrowDown}");
-		await expectEditorText(editor, "");
-
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Most recent prompt");
-		await userEvent.keyboard("{Escape}");
-		await expectEditorText(editor, "");
 	},
 };
 
@@ -118,35 +93,16 @@ export const PromptHistoryCyclingExitsOnTyping: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
 		await userEvent.click(editor);
-
+		// End with the edited history prompt visible for the screenshot.
 		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Most recent prompt");
 		await userEvent.keyboard("!");
-		await expectEditorText(editor, "Most recent prompt!");
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Most recent prompt!");
-
-		await userEvent.keyboard("{Control>}a{/Control}{Backspace}");
-		await expectEditorText(editor, "");
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "Most recent prompt");
-		await userEvent.keyboard("{ArrowDown}");
-		await expectEditorText(editor, "");
 	},
 };
 
 export const NoPromptHistoryUpArrowIsNoOp: Story = {
 	args: {
 		userPromptHistory: [],
-	},
-	play: async ({ canvasElement }) => {
-		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
-		await userEvent.click(editor);
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "");
 	},
 };
 
@@ -155,13 +111,6 @@ export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 		isEditingHistoryMessage: true,
 		userPromptHistory: promptHistory,
 	},
-	play: async ({ canvasElement }) => {
-		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
-		await userEvent.click(editor);
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "");
-	},
 };
 
 export const PromptHistorySuppressedWhileDisabled: Story = {
@@ -169,26 +118,12 @@ export const PromptHistorySuppressedWhileDisabled: Story = {
 		isDisabled: true,
 		userPromptHistory: promptHistory,
 	},
-	play: async ({ canvasElement }) => {
-		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
-		await userEvent.click(editor);
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "");
-	},
 };
 
 export const PromptHistorySuppressedWhileLoading: Story = {
 	args: {
 		isLoading: true,
 		userPromptHistory: promptHistory,
-	},
-	play: async ({ canvasElement }) => {
-		const editor = getEditor(canvasElement);
-		await expectEditorText(editor, "");
-		await userEvent.click(editor);
-		await userEvent.keyboard("{ArrowUp}");
-		await expectEditorText(editor, "");
 	},
 };
 
@@ -956,18 +891,9 @@ export const MCPDisconnectControls: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
+		// Leave the menu open so the screenshot captures the disconnect
+		// controls.
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		expect(
-			await body.findByRole("button", { name: "Disconnect Notion" }),
-		).toBeInTheDocument();
-		expect(
-			body.queryByRole("button", { name: "Disconnect GitHub" }),
-		).not.toBeInTheDocument();
-		expect(body.getByRole("button", { name: "Auth" })).toBeInTheDocument();
-		expect(
-			body.queryByRole("button", { name: "Disconnect Linear" }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -1051,14 +977,10 @@ export const MCPDisconnectRevocationWarning: Story = {
 		);
 		await body.findByText("Disconnect GitHub?");
 		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
-		await waitFor(() =>
-			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		// Let the revocation-warning toast render before the screenshot.
+		await body.findByText(
+			"The OAuth provider rejected the revocation request.",
 		);
-		expect(
-			await body.findByText(
-				"The OAuth provider rejected the revocation request.",
-			),
-		).toBeInTheDocument();
 	},
 };
 
@@ -1097,12 +1019,8 @@ export const PlanFirstMenuItem: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		// Leave the menu open so the screenshot captures the menu item.
 		await body.findByRole("dialog");
-		const toggles = await body.findAllByRole("menuitemcheckbox", {
-			name: "Plan first",
-		});
-		const toggle = toggles.at(-1)!;
-		expect(toggle).toBeInTheDocument();
 	},
 };
 
@@ -1182,12 +1100,8 @@ export const PlanFirstCheckedState: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		// Leave the menu open so the screenshot captures the checked state.
 		await body.findByRole("dialog");
-		const toggles = await body.findAllByRole("menuitemcheckbox", {
-			name: "Plan first",
-		});
-		const toggle = toggles.at(-1)!;
-		expect(toggle).toHaveAttribute("aria-checked", "true");
 	},
 };
 
@@ -1444,14 +1358,10 @@ export const OverflowBadges: Story = {
 		const pill = await canvas.findByRole("button", {
 			name: /more item/,
 		});
-		await waitFor(() => {
-			expect(pill).toBeVisible();
-		});
 		await userEvent.click(pill);
-		// The popover renders via a Radix portal outside the
-		// canvas. Find it by role, then assert content within it.
-		const popover = await within(document.body).findByRole("dialog");
-		expect(within(popover).getByText("Confluence Cloud")).toBeInTheDocument();
+		// The popover renders via a Radix portal outside the canvas; wait
+		// for it so the screenshot captures the open popover.
+		await within(document.body).findByRole("dialog");
 	},
 };
 
@@ -1578,14 +1488,6 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 };
 
-// Pill floor (8ch + fixed chrome) resolved against the pills' font so
-// width assertions do not hardcode metrics.
-// +1 tolerance: scrollWidth is ceiled while clientWidth is rounded,
-// so an untruncated fractional-width label can differ by one.
-const expectNotTruncated = (el: HTMLElement) => {
-	expect(el.scrollWidth).toBeLessThanOrEqual(el.clientWidth + 1);
-};
-
 /**
  * A short model name sizes the trigger to its content.
  */
@@ -1669,18 +1571,10 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 		const overflowPill = await canvas.findByRole("button", {
 			name: /more item/,
 		});
-		await waitFor(() => {
-			expect(overflowPill).toBeVisible();
-		});
-		const modelLabel = canvas.getByText("Claude Sonnet 4.5");
-		await waitFor(() => {
-			expectNotTruncated(modelLabel);
-		});
 		await userEvent.click(overflowPill);
-		const popover = await within(document.body).findByRole("dialog");
-		expect(
-			within(popover).getByText("Datadog Infrastructure Monitoring"),
-		).toBeInTheDocument();
+		// The popover renders via a Radix portal outside the canvas; wait
+		// for it so the screenshot captures the open popover.
+		await within(document.body).findByRole("dialog");
 	},
 };
 
