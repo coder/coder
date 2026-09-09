@@ -272,6 +272,14 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
+func (m queryMetricsStore) ChatGoalExistsByRootChatID(ctx context.Context, rootChatID uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.ChatGoalExistsByRootChatID(ctx, rootChatID)
+	m.queryLatencies.WithLabelValues("ChatGoalExistsByRootChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ChatGoalExistsByRootChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
@@ -318,6 +326,22 @@ func (m queryMetricsStore) ClearChatDiffStatusPR(ctx context.Context, arg databa
 	m.queryLatencies.WithLabelValues("ClearChatDiffStatusPR").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatDiffStatusPR").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) ClearChatGoalByID(ctx context.Context, arg database.ClearChatGoalByIDParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClearChatGoalByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClearChatGoalByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatGoalByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) CompleteChatGoalByID(ctx context.Context, arg database.CompleteChatGoalByIDParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.CompleteChatGoalByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("CompleteChatGoalByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CompleteChatGoalByID").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
@@ -1616,11 +1640,27 @@ func (m queryMetricsStore) GetChatGatewayAPIKey(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatGoalMessageIDsByRootChatAndMessageIDs(ctx context.Context, arg database.GetChatGoalMessageIDsByRootChatAndMessageIDsParams) ([]int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatGoalMessageIDsByRootChatAndMessageIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatGoalMessageIDsByRootChatAndMessageIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGoalMessageIDsByRootChatAndMessageIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatHeartbeat(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatHeartbeat").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatHeartbeat").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatHiddenUserMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatHiddenUserMessagesByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatHiddenUserMessagesByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatHiddenUserMessagesByChatID").Inc()
 	return r0, r1
 }
 
@@ -1965,6 +2005,14 @@ func (m queryMetricsStore) GetCryptoKeysByFeature(ctx context.Context, feature d
 	r0, r1 := m.s.GetCryptoKeysByFeature(ctx, feature)
 	m.queryLatencies.WithLabelValues("GetCryptoKeysByFeature").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCryptoKeysByFeature").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetCurrentChatGoalsByRootChatIDs(ctx context.Context, rootChatIds []uuid.UUID) ([]database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCurrentChatGoalsByRootChatIDs(ctx, rootChatIds)
+	m.queryLatencies.WithLabelValues("GetCurrentChatGoalsByRootChatIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCurrentChatGoalsByRootChatIDs").Inc()
 	return r0, r1
 }
 
@@ -4160,6 +4208,14 @@ func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.Insert
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertActiveChatGoal(ctx context.Context, arg database.InsertActiveChatGoalParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertActiveChatGoal(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertActiveChatGoal").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertActiveChatGoal").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAgentContextResourcesIntoChat(ctx context.Context, arg database.InsertAgentContextResourcesIntoChatParams) error {
 	start := time.Now()
 	r0 := m.s.InsertAgentContextResourcesIntoChat(ctx, arg)
@@ -5008,6 +5064,14 @@ func (m queryMetricsStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) MarkCurrentChatGoalReplacedByRootChatID(ctx context.Context, rootChatID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.MarkCurrentChatGoalReplacedByRootChatID(ctx, rootChatID)
+	m.queryLatencies.WithLabelValues("MarkCurrentChatGoalReplacedByRootChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkCurrentChatGoalReplacedByRootChatID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
 	start := time.Now()
 	r0, r1 := m.s.MarkMCPServerUserTokenRefreshFailure(ctx, arg)
@@ -5045,6 +5109,14 @@ func (m queryMetricsStore) PaginatedOrganizationMembers(ctx context.Context, arg
 	r0, r1 := m.s.PaginatedOrganizationMembers(ctx, arg)
 	m.queryLatencies.WithLabelValues("PaginatedOrganizationMembers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PaginatedOrganizationMembers").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) PauseChatGoalByID(ctx context.Context, arg database.PauseChatGoalByIDParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.PauseChatGoalByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("PauseChatGoalByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PauseChatGoalByID").Inc()
 	return r0, r1
 }
 
@@ -5117,6 +5189,14 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	r0, r1 := m.s.ReorderChatQueuedMessageToHead(ctx, arg)
 	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToHead").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToHead").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ResumeChatGoalByID(ctx context.Context, arg database.ResumeChatGoalByIDParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.ResumeChatGoalByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("ResumeChatGoalByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResumeChatGoalByID").Inc()
 	return r0, r1
 }
 
