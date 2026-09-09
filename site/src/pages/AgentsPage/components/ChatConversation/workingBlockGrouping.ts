@@ -191,7 +191,20 @@ export const groupWorkingBlocks = (
 	entries: readonly ParsedMessageEntry[],
 	options: GroupWorkingBlocksOptions,
 ): WorkingBlock[] => {
-	const spans = entries.map(getMessageSpan);
+	const spans = entries.map(getMessageSpan).sort((a, b) => a.id - b.id);
+	const firstSpanIndexAtOrAfter = (id: number): number => {
+		let low = 0;
+		let high = spans.length;
+		while (low < high) {
+			const mid = (low + high) >>> 1;
+			if (spans[mid].id < id) {
+				low = mid + 1;
+			} else {
+				high = mid;
+			}
+		}
+		return low;
+	};
 
 	type Draft = {
 		rowIndices: number[];
@@ -232,6 +245,10 @@ export const groupWorkingBlocks = (
 		}
 	}
 
+	// A block is a run of tool activity. Reasoning-only rows fold only when
+	// they sit inside such a run; on their own they stay visible.
+	const toolDrafts = drafts.filter((draft) => draft.tools.size > 0);
+
 	const lastMessageRowIndex = rows.findLastIndex(
 		(row) => row.type === "message",
 	);
@@ -245,7 +262,7 @@ export const groupWorkingBlocks = (
 		return Number.POSITIVE_INFINITY;
 	};
 
-	return drafts.map((draft) => {
+	return toolDrafts.map((draft) => {
 		const firstRowIndex = draft.rowIndices[0];
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
@@ -267,11 +284,13 @@ export const groupWorkingBlocks = (
 			// next visible row, so the span runs to the next row's message.
 			const fromId = Math.min(...memberIds);
 			const toId = messageIdAfter(lastRowIndex);
-			for (const span of spans) {
-				if (span.id >= fromId && span.id < toId) {
-					observe(span.startedAt);
-					observe(span.endedAt);
-				}
+			for (
+				let i = firstSpanIndexAtOrAfter(fromId);
+				i < spans.length && spans[i].id < toId;
+				i++
+			) {
+				observe(spans[i].startedAt);
+				observe(spans[i].endedAt);
 			}
 		}
 		if (draft.containsLiveRow) {

@@ -166,6 +166,30 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks[0].startedAt).toBe(base + 500);
 	});
 
+	it("leaves a standalone reasoning-only row unfolded", () => {
+		const prompt = user("Go");
+		const thinking = message("assistant", [reasoning("Just thinking", at(1))]);
+		const answer = message("assistant", [text("Done.")], at(2));
+		const { blocks } = group([prompt, thinking, answer]);
+		expect(blocks).toEqual([]);
+	});
+
+	it("folds a reasoning-only row that sits between tool steps", () => {
+		const prompt = user("Go");
+		const first = step("a", 1, 2);
+		const thinking = message("assistant", [reasoning("Hmm", at(3), at(4))]);
+		const second = step("b", 5, 6);
+		const { rows, blocks } = group([prompt, ...first, thinking, ...second]);
+
+		expect(blocks).toHaveLength(1);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			first[0].id,
+			thinking.id,
+			second[0].id,
+		]);
+		expect(blocks[0].stepCount).toBe(2);
+	});
+
 	it("splits a turn at an interleaved answer row", () => {
 		const prompt = user("Go");
 		const first = step("a", 1, 2);
