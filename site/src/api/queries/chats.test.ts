@@ -92,7 +92,6 @@ import {
 	patchChatEntity,
 	patchChatMessages,
 	pinChat,
-	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
@@ -108,7 +107,6 @@ import {
 	shouldInvalidateChatsByWorkspace,
 	TERMINAL_RUN_STATUSES,
 	toChatListParams,
-	toChatPlanModePayload,
 	unarchiveChat,
 	unpinChat,
 	updateChatModel,
@@ -606,47 +604,19 @@ describe("invalidateChatListQueries", () => {
 	});
 });
 
-describe("toChatPlanModePayload", () => {
-	it("sends plan to enable plan mode", () => {
-		expect(toChatPlanModePayload("plan")).toBe("plan");
-	});
-
-	it("sends an empty string to clear plan mode", () => {
-		expect(toChatPlanModePayload(undefined)).toBe("");
-	});
-});
-
-describe("planModeFieldsForCreateMessage", () => {
-	it("omits plan_mode when the send should not change it", () => {
-		expect(planModeFieldsForCreateMessage(false)).toEqual({});
-	});
-
-	it("sends an empty string when Implement Plan clears plan mode", () => {
-		expect(planModeFieldsForCreateMessage(true)).toEqual({ plan_mode: "" });
-	});
-});
-
 describe("updateChatPlanMode", () => {
-	it("sends plan to enable plan mode", async () => {
+	it("sends plan to enable and an empty string to clear", async () => {
 		const queryClient = createTestQueryClient();
 		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
 		const mutation = updateChatPlanMode(queryClient);
 
 		await mutation.mutationFn({ chatId: "chat-1", planMode: "plan" });
-
-		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-1", {
-			plan_mode: "plan",
-		});
-	});
-
-	it("sends an empty string to clear plan mode", async () => {
-		const queryClient = createTestQueryClient();
-		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
-		const mutation = updateChatPlanMode(queryClient);
-
 		await mutation.mutationFn({ chatId: "chat-1", planMode: undefined });
 
-		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-1", {
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(1, "chat-1", {
+			plan_mode: "plan",
+		});
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(2, "chat-1", {
 			plan_mode: "",
 		});
 	});

@@ -1134,22 +1134,6 @@ export const OtherUserChatHidesInlineActions: Story = {
 	},
 };
 
-export const ImplementPlanAvailable: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			onImplementPlan={fn()}
-			store={buildStoreWithMessages(otherUserActionMessages)}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
-		expect(
-			canvas.getByRole("button", { name: "Implement plan" }),
-		).toBeVisible();
-	},
-};
-
 export const DisabledInputHidesImplementPlan: Story = {
 	render: () => (
 		<StoryAgentChatPageView

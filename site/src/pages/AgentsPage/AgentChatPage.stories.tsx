@@ -1856,6 +1856,81 @@ export const PlanModeFromChatState: Story = {
 	},
 };
 
+export const ImplementPlanClearsPlanMode: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Implement the proposed plan",
+				status: "waiting",
+				plan_mode: "plan",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:01.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Plan the auth split." }],
+					},
+					{
+						id: 2,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:02.000Z",
+						role: "assistant",
+						content: [
+							{ type: "text", text: "Here is the plan." },
+							{
+								type: "tool-call",
+								tool_call_id: "plan-1",
+								tool_name: "propose_plan",
+								args: { path: "/home/coder/PLAN.md" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "plan-1",
+								tool_name: "propose_plan",
+								result: {
+									file_id: "plan-file-1",
+									content: "# Plan\n\n1. Implement the auth split.",
+								},
+							},
+						],
+					},
+				] as TypesGen.ChatMessage[],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({ queued: false, messages: [] });
+
+		const implementButton = await canvas.findByRole("button", {
+			name: "Implement plan",
+		});
+		await userEvent.click(implementButton);
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				plan_mode: "",
+				content: [{ type: "text", text: "Implement the plan." }],
+			}),
+		);
+	},
+};
+
 /**
  * A right panel left open from a wide viewport must not hide chat on
  * narrow viewports; the panel is suppressed until explicitly opened.

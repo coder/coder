@@ -185,9 +185,7 @@ export const SubmitFailureKeepsQuestionOpen: Story = {
 		isChatCompleted: true,
 		isLatestAskUserQuestion: true,
 		onSendAskUserQuestionResponse: fn(async () => {
-			throw new Error(
-				"Chat settings are still updating. Try again in a moment.",
-			);
+			throw new Error("Failed to send.");
 		}),
 	},
 	play: async ({ canvasElement }) => {
@@ -198,7 +196,7 @@ export const SubmitFailureKeepsQuestionOpen: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
 
 		expect(await canvas.findByRole("alert")).toHaveTextContent(
-			"Chat settings are still updating. Try again in a moment.",
+			"Failed to send.",
 		);
 		expect(canvas.queryByText("Submitted answer")).not.toBeInTheDocument();
 		expect(canvas.getByRole("button", { name: "Submit" })).toBeEnabled();
