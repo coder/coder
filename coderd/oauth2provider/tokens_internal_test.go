@@ -1,7 +1,9 @@
 package oauth2provider
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"slices"
@@ -12,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -430,7 +434,7 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, nil, confidentialApp)
+			tokenReq, validationErrs, err := extractTokenRequest(req, slogtest.Make(t, nil), callbackURL, nil, confidentialApp)
 
 			// Verify no errors occurred
 			require.NoError(t, err, "extractTokenRequest should not return error for: %s", tc.description)
@@ -493,7 +497,7 @@ func TestExtractTokenParams_ScopesURLEncoded(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, nil, confidentialApp)
+			tokenReq, validationErrs, err := extractTokenRequest(req, slogtest.Make(t, nil), callbackURL, nil, confidentialApp)
 
 			// Verify no errors
 			require.NoError(t, err)
@@ -576,7 +580,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				Form:     form,
 			}
 
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, nil, confidentialApp)
+			tokenReq, validationErrs, err := extractTokenRequest(req, slogtest.Make(t, nil), callbackURL, nil, confidentialApp)
 
 			require.NoError(t, err, "extractTokenRequest should not error for: %s", tc.description)
 			require.Empty(t, validationErrs)
@@ -816,7 +820,7 @@ func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
 				Form:     form,
 			}
 
-			_, validationErrs, err := extractTokenRequest(req, callbackURL, nil, tc.app)
+			_, validationErrs, err := extractTokenRequest(req, slogtest.Make(t, nil), callbackURL, nil, tc.app)
 
 			if tc.wantErrorField == "" {
 				require.NoError(t, err)
@@ -828,6 +832,77 @@ func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
 			require.True(t, slices.ContainsFunc(validationErrs, func(v codersdk.ValidationError) bool {
 				return v.Field == tc.wantErrorField
 			}), "expected a validation error for field %q, got: %+v", tc.wantErrorField, validationErrs)
+		})
+	}
+}
+
+// The parameters most likely to arrive unrecognized here are credentials
+// (client_assertion, DPoP proofs), so the log carries names only. It also
+// fires when the request fails on a parameter the endpoint does read, so one
+// log stream shows both facts.
+func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
+	t.Parallel()
+
+	callbackURL, err := url.Parse("http://localhost:3000/callback")
+	require.NoError(t, err)
+
+	cases := []struct {
+		name        string
+		missingCode bool
+	}{
+		{name: "ValidRequest"},
+		{name: "MissingCode", missingCode: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			form := url.Values{}
+			form.Set("grant_type", "authorization_code")
+			form.Set("client_id", "test-client")
+			form.Set("client_secret", "test-secret")
+			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
+			if !tc.missingCode {
+				form.Set("code", "test-code")
+			}
+			form.Set("nonce", "nonce-value")
+			form.Set("audience", "audience-value")
+			// A double quote in the name would break the line if the sink
+			// trusted the raw string; Unmarshal below would then fail.
+			form.Set(`we"ird`, "1")
+
+			req := &http.Request{
+				Method:   http.MethodPost,
+				PostForm: form,
+				Form:     form,
+			}
+
+			var logs bytes.Buffer
+			logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+			_, validationErrs, err := extractTokenRequest(req, logger, callbackURL, nil, confidentialApp)
+			if tc.missingCode {
+				require.Error(t, err)
+				require.True(t, slices.ContainsFunc(validationErrs, func(v codersdk.ValidationError) bool {
+					return v.Field == "code"
+				}), "expected a validation error for code, got: %+v", validationErrs)
+			} else {
+				require.NoError(t, err)
+				require.Empty(t, validationErrs)
+			}
+
+			// Unmarshal fails on more than one line, which pins the count.
+			var entry struct {
+				Msg    string `json:"msg"`
+				Fields struct {
+					Params []string `json:"params"`
+				} `json:"fields"`
+			}
+			require.NoError(t, json.Unmarshal(logs.Bytes(), &entry), logs.String())
+			require.Equal(t, "ignoring unrecognized token parameters", entry.Msg)
+			require.Equal(t, []string{"audience", "nonce", `we"ird`}, entry.Fields.Params)
+			require.NotContains(t, logs.String(), "nonce-value")
+			require.NotContains(t, logs.String(), "audience-value")
 		})
 	}
 }
@@ -852,7 +927,7 @@ func TestRefreshTokenGrant_Scopes(t *testing.T) {
 		Form:     form,
 	}
 
-	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, nil, confidentialApp)
+	tokenReq, validationErrs, err := extractTokenRequest(req, slogtest.Make(t, nil), callbackURL, nil, confidentialApp)
 
 	require.NoError(t, err)
 	require.Empty(t, validationErrs)
