@@ -31,6 +31,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 	var (
 		userCount               int64
 		templateAdminPercentage float64
+		templateDeletionCount   int64
 		notificationTimeout     time.Duration
 		smtpRequestTimeout      time.Duration
 		dialTimeout             time.Duration
@@ -74,6 +75,10 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				return xerrors.Errorf("--template-admin-percentage must be between 0 and 100")
 			}
 
+			if templateDeletionCount < 1 {
+				return xerrors.Errorf("--template-deletion-count must be at least 1")
+			}
+
 			if smtpAPIURL != "" && !strings.HasPrefix(smtpAPIURL, "http://") && !strings.HasPrefix(smtpAPIURL, "https://") {
 				return xerrors.Errorf("--smtp-api-url must start with http:// or https://")
 			}
@@ -83,11 +88,15 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				templateAdminCount = 1
 			}
 			regularUserCount := userCount - templateAdminCount
+			totalExpectedNotifications := templateAdminCount * templateDeletionCount
 
 			_, _ = fmt.Fprintf(inv.Stderr, "Distribution plan:\n")
 			_, _ = fmt.Fprintf(inv.Stderr, "  Total users: %d\n", userCount)
 			_, _ = fmt.Fprintf(inv.Stderr, "  Template admins: %d (%.1f%%)\n", templateAdminCount, templateAdminPercentage)
 			_, _ = fmt.Fprintf(inv.Stderr, "  Regular users: %d (%.1f%%)\n", regularUserCount, 100.0-templateAdminPercentage)
+			_, _ = fmt.Fprintf(inv.Stderr, "  Template deletions: %d\n", templateDeletionCount)
+			_, _ = fmt.Fprintf(inv.Stderr, "  Notifications per template admin: %d\n", templateDeletionCount)
+			_, _ = fmt.Fprintf(inv.Stderr, "  Total expected notifications: %d\n", totalExpectedNotifications)
 
 			outputs, err := output.parse()
 			if err != nil {
@@ -132,13 +141,8 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			dialBarrier.Add(int(userCount))
 			templateAdminWatchBarrier.Add(int(templateAdminCount))
 
-			expectedNotificationIDs := map[uuid.UUID]struct{}{
-				notificationsLib.TemplateTemplateDeleted: {},
-			}
-
-			triggerTimes := make(map[uuid.UUID]chan time.Time, len(expectedNotificationIDs))
-			for id := range expectedNotificationIDs {
-				triggerTimes[id] = make(chan time.Time, 1)
+			triggerTimes := map[uuid.UUID]chan time.Time{
+				notificationsLib.TemplateTemplateDeleted: make(chan time.Time, 1),
 			}
 
 			smtpHTTPTransport := &http.Transport{
@@ -153,17 +157,19 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			configs := make([]notifications.Config, 0, userCount)
 			for i := range int(templateAdminCount) {
 				config := notifications.Config{
-					NotificationTimeout:      notificationTimeout,
-					DialTimeout:              dialTimeout,
-					DialBarrier:              dialBarrier,
-					ReceivingWatchBarrier:    templateAdminWatchBarrier,
-					ExpectedNotificationsIDs: expectedNotificationIDs,
-					Metrics:                  metrics,
-					SMTPApiURL:               smtpAPIURL,
-					SMTPRequestTimeout:       smtpRequestTimeout,
-					SMTPHttpClient:           smtpHTTPClient,
-					SessionToken:             adminReuse[i].sessionToken,
-					PreCreatedUser:           adminReuse[i].user,
+					NotificationTimeout:   notificationTimeout,
+					DialTimeout:           dialTimeout,
+					DialBarrier:           dialBarrier,
+					ReceivingWatchBarrier: templateAdminWatchBarrier,
+					ExpectedNotifications: map[uuid.UUID]int{
+						notificationsLib.TemplateTemplateDeleted: int(templateDeletionCount),
+					},
+					Metrics:            metrics,
+					SMTPApiURL:         smtpAPIURL,
+					SMTPRequestTimeout: smtpRequestTimeout,
+					SMTPHttpClient:     smtpHTTPClient,
+					SessionToken:       adminReuse[i].sessionToken,
+					PreCreatedUser:     adminReuse[i].user,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -193,6 +199,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				me.OrganizationIDs[0],
 				dialBarrier,
 				dialTimeout,
+				int(templateDeletionCount),
 				triggerTimes,
 			)
 
@@ -278,6 +285,13 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			Default:     "20.0",
 			Description: "Percentage of users to assign Template Admin role to (0-100).",
 			Value:       serpent.Float64Of(&templateAdminPercentage),
+		},
+		{
+			Flag:        "template-deletion-count",
+			Env:         "CODER_SCALETEST_NOTIFICATION_TEMPLATE_DELETION_COUNT",
+			Default:     "1",
+			Description: "Number of templates to create and then delete to trigger notifications. Each deletion notifies every template admin, so the total number of notifications is this value multiplied by the number of template admins.",
+			Value:       serpent.Int64Of(&templateDeletionCount),
 		},
 		{
 			Flag:        "notification-timeout",
@@ -366,10 +380,16 @@ func computeNotificationLatencies(
 			continue
 		}
 
-		// Process websocket notifications.
-		if wsReceiptTimes, ok := runResult.Metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time); ok {
-			for notificationID, receiptTime := range wsReceiptTimes {
-				if triggerTime, ok := triggerTimes[notificationID]; ok {
+		// Process websocket notifications. A notification type may be received
+		// more than once (one per template deletion), so record a latency sample
+		// for every receipt.
+		if wsReceiptTimes, ok := runResult.Metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time); ok {
+			for notificationID, receiptTimes := range wsReceiptTimes {
+				triggerTime, ok := triggerTimes[notificationID]
+				if !ok {
+					continue
+				}
+				for _, receiptTime := range receiptTimes {
 					latency := receiptTime.Sub(triggerTime)
 					metrics.RecordLatency(latency, notificationID.String(), notifications.NotificationTypeWebsocket)
 					totalLatencies++
@@ -381,10 +401,14 @@ func computeNotificationLatencies(
 			}
 		}
 
-		// Process SMTP notifications
-		if smtpReceiptTimes, ok := runResult.Metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time); ok {
-			for notificationID, receiptTime := range smtpReceiptTimes {
-				if triggerTime, ok := triggerTimes[notificationID]; ok {
+		// Process SMTP notifications.
+		if smtpReceiptTimes, ok := runResult.Metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID][]time.Time); ok {
+			for notificationID, receiptTimes := range smtpReceiptTimes {
+				triggerTime, ok := triggerTimes[notificationID]
+				if !ok {
+					continue
+				}
+				for _, receiptTime := range receiptTimes {
 					latency := receiptTime.Sub(triggerTime)
 					metrics.RecordLatency(latency, notificationID.String(), notifications.NotificationTypeSMTP)
 					totalLatencies++
@@ -404,8 +428,10 @@ func computeNotificationLatencies(
 	return nil
 }
 
-// triggerNotifications waits for all test users to connect,
-// then creates and deletes a test template to trigger notification events for testing.
+// triggerNotifications waits for all test users to connect, then creates and
+// deletes deletionCount templates to trigger notification events. Each deletion
+// notifies every template admin, so an admin watching this run expects
+// deletionCount TemplateTemplateDeleted notifications.
 func triggerNotifications(
 	ctx context.Context,
 	logger slog.Logger,
@@ -413,6 +439,7 @@ func triggerNotifications(
 	orgID uuid.UUID,
 	dialBarrier *sync.WaitGroup,
 	dialTimeout time.Duration,
+	deletionCount int,
 	expectedNotifications map[uuid.UUID]chan time.Time,
 ) {
 	logger.Info(ctx, "waiting for all users to connect")
@@ -439,9 +466,10 @@ func triggerNotifications(
 		return
 	}
 
-	logger.Info(ctx, "creating test template to test notifications")
+	logger.Info(ctx, "creating test templates to trigger notifications", slog.F("count", deletionCount))
 
-	// Upload empty template file.
+	// Upload an empty template archive once and reuse it for every template
+	// version; the echo provisioner ignores the contents.
 	file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader([]byte{}))
 	if err != nil {
 		logger.Error(ctx, "upload test template", slog.Error(err))
@@ -449,40 +477,47 @@ func triggerNotifications(
 	}
 	logger.Info(ctx, "test template uploaded", slog.F("file_id", file.ID))
 
-	// Create template version.
-	version, err := client.CreateTemplateVersion(ctx, orgID, codersdk.CreateTemplateVersionRequest{
-		StorageMethod: codersdk.ProvisionerStorageMethodFile,
-		FileID:        file.ID,
-		Provisioner:   codersdk.ProvisionerTypeEcho,
-	})
-	if err != nil {
-		logger.Error(ctx, "create test template version", slog.Error(err))
-		return
-	}
-	logger.Info(ctx, "test template version created", slog.F("template_version_id", version.ID))
+	// Create every template before deleting any so the deletions, which are what
+	// enqueue the notifications, happen back to back.
+	templateIDs := make([]uuid.UUID, 0, deletionCount)
+	for i := range deletionCount {
+		version, err := client.CreateTemplateVersion(ctx, orgID, codersdk.CreateTemplateVersionRequest{
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			FileID:        file.ID,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		if err != nil {
+			logger.Error(ctx, "create test template version", slog.Error(err))
+			return
+		}
 
-	// Create template.
-	testTemplate, err := client.CreateTemplate(ctx, orgID, codersdk.CreateTemplateRequest{
-		Name:        "scaletest-test-template",
-		Description: "scaletest-test-template",
-		VersionID:   version.ID,
-	})
-	if err != nil {
-		logger.Error(ctx, "create test template", slog.Error(err))
-		return
+		testTemplate, err := client.CreateTemplate(ctx, orgID, codersdk.CreateTemplateRequest{
+			Name:        fmt.Sprintf("scaletest-test-template-%d", i),
+			Description: "scaletest-test-template",
+			VersionID:   version.ID,
+		})
+		if err != nil {
+			logger.Error(ctx, "create test template", slog.Error(err))
+			return
+		}
+		templateIDs = append(templateIDs, testTemplate.ID)
 	}
-	logger.Info(ctx, "test template created", slog.F("template_id", testTemplate.ID))
+	logger.Info(ctx, "test templates created", slog.F("count", len(templateIDs)))
 
-	// Delete template to trigger notification.
-	err = client.DeleteTemplate(ctx, testTemplate.ID)
-	if err != nil {
-		logger.Error(ctx, "delete test template", slog.Error(err))
-		return
+	// Each deletion notifies every template admin. Record a single trigger time
+	// for the batch just before the first deletion; latency is measured from here
+	// to each admin's first received notification.
+	triggerTime := time.Now()
+	for _, templateID := range templateIDs {
+		if err := client.DeleteTemplate(ctx, templateID); err != nil {
+			logger.Error(ctx, "delete test template", slog.Error(err), slog.F("template_id", templateID))
+			return
+		}
+		logger.Info(ctx, "test template deleted", slog.F("template_id", templateID))
 	}
-	logger.Info(ctx, "test template deleted", slog.F("template_id", testTemplate.ID))
 
-	// Record expected notification.
-	expectedNotifications[notificationsLib.TemplateTemplateDeleted] <- time.Now()
+	// Record expected notification trigger time.
+	expectedNotifications[notificationsLib.TemplateTemplateDeleted] <- triggerTime
 	close(expectedNotifications[notificationsLib.TemplateTemplateDeleted])
 }
 
