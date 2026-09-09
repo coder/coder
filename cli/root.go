@@ -459,7 +459,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varAllowRedirects,
 			Env:         envAllowRedirects,
-			Description: "Follow HTTP redirects from the server instead of returning an error. Following a redirect downgrades POST requests to GET and may cause unexpected behavior.",
+			Description: "Follow HTTP redirects from the server instead of returning an error. Following redirects may alter the request method and/or drop its body.",
 			Value:       serpent.BoolOf(&r.allowRedirects),
 			Group:       globalGroup,
 		},
@@ -904,9 +904,9 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	return httpClient, nil
 }
 
-// rejectRedirect is an http.Client CheckRedirect hook. Go's default would
-// follow a 3xx by downgrading POST to GET, which silently changes the API
-// call being made.
+// rejectRedirect is an http.Client CheckRedirect hook. Following a redirect
+// may alter the request method or drop its body, which silently changes the
+// API call being made.
 func rejectRedirect(req *http.Request, via []*http.Request) error {
 	err := &redirectError{to: req.URL}
 	if len(via) > 0 {

@@ -31,8 +31,7 @@ variables or flags.
 
       --allow-redirects bool, $CODER_ALLOW_REDIRECTS
           Follow HTTP redirects from the server instead of returning an error.
-          Following a redirect downgrades POST requests to GET and may cause
-          unexpected behavior.
+          Following redirects may alter the request method and/or drop its body.
 
       --client-tls-ca-file string, $CODER_CLIENT_TLS_CA_FILE
           Path to a CA certificate file to trust for API and DERP connections.

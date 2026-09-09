@@ -133,7 +133,7 @@ Suppress warnings about unlicensed features.
 | Type        | <code>bool</code>                   |
 | Environment | <code>$CODER_ALLOW_REDIRECTS</code> |
 
-Follow HTTP redirects from the server instead of returning an error. Following a redirect downgrades POST requests to GET and may cause unexpected behavior.
+Follow HTTP redirects from the server instead of returning an error. Following redirects may alter the request method and/or drop its body.
 
 ### --header
 
