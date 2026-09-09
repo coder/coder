@@ -3328,7 +3328,8 @@ CREATE TABLE template_usage_stats (
     user_id uuid NOT NULL,
     median_latency_ms real,
     usage_mins smallint NOT NULL,
-    app_usage_mins jsonb
+    app_usage_mins jsonb,
+    session_usage_digest bigint
 );
 
 COMMENT ON TABLE template_usage_stats IS 'Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.';
@@ -3346,6 +3347,8 @@ COMMENT ON COLUMN template_usage_stats.median_latency_ms IS 'Median latency the 
 COMMENT ON COLUMN template_usage_stats.usage_mins IS 'Total minutes the user has been using the template.';
 
 COMMENT ON COLUMN template_usage_stats.app_usage_mins IS 'Object with app names as keys and total minutes used as values. Null means no app usage was recorded.';
+
+COMMENT ON COLUMN template_usage_stats.session_usage_digest IS 'Hash of the bucket''s session usage rows in both child tables, so a rollup that recomputes an unchanged bucket rewrites no child rows. Null for buckets rolled up before the column existed, which reads as changed.';
 
 CREATE TABLE template_usage_stats_session_apps (
     start_time timestamp with time zone NOT NULL,

@@ -40,6 +40,11 @@ COMMENT ON COLUMN template_usage_stats_session_apps.app_name IS 'App name as the
 
 COMMENT ON COLUMN template_usage_stats_session_apps.usage_mins IS 'Total minutes the user has been using the app.';
 
+ALTER TABLE template_usage_stats
+	ADD COLUMN session_usage_digest bigint;
+
+COMMENT ON COLUMN template_usage_stats.session_usage_digest IS 'Hash of the bucket''s session usage rows in both child tables, so a rollup that recomputes an unchanged bucket rewrites no child rows. Null for buckets rolled up before the column existed, which reads as changed.';
+
 -- Carry every family the fixed columns recorded, sftp included: the rollup has
 -- never written it, but a row that has a value must not lose it. Zero minutes
 -- are skipped so a bucket has rows only for the families it saw, which is what

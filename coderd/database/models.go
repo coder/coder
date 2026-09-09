@@ -6187,6 +6187,8 @@ type TemplateUsageStat struct {
 	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
 	// Object with app names as keys and total minutes used as values. Null means no app usage was recorded.
 	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
+	// Hash of the bucket's session usage rows in both child tables, so a rollup that recomputes an unchanged bucket rewrites no child rows. Null for buckets rolled up before the column existed, which reads as changed.
+	SessionUsageDigest sql.NullInt64 `db:"session_usage_digest" json:"session_usage_digest"`
 }
 
 // Session usage of each template_usage_stats bucket, split by app name. A bucket with family rows but no rows here predates per-app recording, so its per-app usage is unknown rather than zero.

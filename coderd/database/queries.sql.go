@@ -17169,7 +17169,7 @@ func (q *sqlQuerier) GetTemplateParameterInsights(ctx context.Context, arg GetTe
 
 const getTemplateUsageStats = `-- name: GetTemplateUsageStats :many
 SELECT
-	start_time, end_time, template_id, user_id, median_latency_ms, usage_mins, app_usage_mins
+	start_time, end_time, template_id, user_id, median_latency_ms, usage_mins, app_usage_mins, session_usage_digest
 FROM
 	template_usage_stats
 WHERE
@@ -17201,6 +17201,7 @@ func (q *sqlQuerier) GetTemplateUsageStats(ctx context.Context, arg GetTemplateU
 			&i.MedianLatencyMs,
 			&i.UsageMins,
 			&i.AppUsageMins,
+			&i.SessionUsageDigest,
 		); err != nil {
 			return nil, err
 		}
@@ -17704,6 +17705,31 @@ WITH
 			-- bucket that only has app stats records no session usage.
 			AND buckets.has_connection
 	),
+	session_digests AS (
+		-- A stable hash of the bucket's session usage: the ordered set of
+		-- (kind, name, minutes). It is carried on the main row so the upsert's
+		-- IS DISTINCT FROM guard fires when session usage changes, which is
+		-- what lets the child writes below skip unchanged buckets.
+		--
+		-- INVARIANT: the digest must cover every column the child tables store.
+		-- A column added to either table but left out of the digest would leave
+		-- a bucket looking unchanged whenever only that column changed, and the
+		-- bucket would keep stale child rows.
+		SELECT
+			time_bucket AS start_time,
+			template_id,
+			user_id,
+			hashtextextended(string_agg(
+				family_group || ':' || name || ':' || usage_mins,
+				'|' ORDER BY family_group, name
+			), 0) AS digest
+		FROM
+			agent_stats_session_minutes
+		WHERE
+			name IS NOT NULL
+		GROUP BY
+			time_bucket, template_id, user_id
+	),
 	stats AS (
 		SELECT
 			stats.time_bucket AS start_time,
@@ -17787,7 +17813,8 @@ WITH
 			user_id,
 			usage_mins,
 			median_latency_ms,
-			app_usage_mins
+			app_usage_mins,
+			session_usage_digest
 		) (
 			SELECT
 				stats.start_time,
@@ -17796,9 +17823,19 @@ WITH
 				stats.user_id,
 				stats.usage_mins,
 				latencies.median_latency_ms,
-				stats.app_usage_mins
+				stats.app_usage_mins,
+				-- A bucket with no session usage still gets a digest, so a null
+				-- left by a rollup that predates the column reads as changed
+				-- once and then settles.
+				COALESCE(session_digests.digest, hashtextextended('', 0))
 			FROM
 				stats
+			LEFT JOIN
+				session_digests
+			ON
+				session_digests.start_time = stats.start_time
+				AND session_digests.template_id = stats.template_id
+				AND session_digests.user_id = stats.user_id
 			LEFT JOIN
 				latencies
 			ON
@@ -17813,11 +17850,25 @@ WITH
 		SET
 			usage_mins = EXCLUDED.usage_mins,
 			median_latency_ms = EXCLUDED.median_latency_ms,
-			app_usage_mins = EXCLUDED.app_usage_mins
+			app_usage_mins = EXCLUDED.app_usage_mins,
+			session_usage_digest = EXCLUDED.session_usage_digest
 		WHERE
 			(tus.*) IS DISTINCT FROM (EXCLUDED.*)
 		RETURNING
-			tus.start_time
+			tus.start_time,
+			tus.template_id,
+			tus.user_id
+	),
+	changed_buckets AS (
+		-- New or changed buckets only. A bucket whose main row, digest
+		-- included, was already correct returns nothing from the upsert, so the
+		-- four child writes below never touch it.
+		SELECT
+			start_time,
+			template_id,
+			user_id
+		FROM
+			upsert_stats
 	),
 	-- The child writes below run in this same statement, so the foreign key
 	-- triggers fire once it completes and see the main rows the upsert above
@@ -17836,11 +17887,11 @@ WITH
 		DELETE FROM
 			template_usage_stats_session_families AS families
 		USING
-			stats
+			changed_buckets AS changed
 		WHERE
-			families.start_time = stats.start_time
-			AND families.template_id = stats.template_id
-			AND families.user_id = stats.user_id
+			families.start_time = changed.start_time
+			AND families.template_id = changed.template_id
+			AND families.user_id = changed.user_id
 			AND (families.start_time, families.template_id, families.user_id, families.family) NOT IN (
 				SELECT time_bucket, template_id, user_id, name
 				FROM agent_stats_session_minutes
@@ -17856,13 +17907,19 @@ WITH
 			usage_mins
 		) (
 			SELECT
-				time_bucket,
-				template_id,
-				user_id,
-				name,
-				usage_mins
+				agent_stats_session_minutes.time_bucket,
+				agent_stats_session_minutes.template_id,
+				agent_stats_session_minutes.user_id,
+				agent_stats_session_minutes.name,
+				agent_stats_session_minutes.usage_mins
 			FROM
 				agent_stats_session_minutes
+			JOIN
+				changed_buckets AS changed
+			ON
+				changed.start_time = agent_stats_session_minutes.time_bucket
+				AND changed.template_id = agent_stats_session_minutes.template_id
+				AND changed.user_id = agent_stats_session_minutes.user_id
 			WHERE
 				family_group = 1
 		)
@@ -17878,11 +17935,11 @@ WITH
 		DELETE FROM
 			template_usage_stats_session_apps AS apps
 		USING
-			stats
+			changed_buckets AS changed
 		WHERE
-			apps.start_time = stats.start_time
-			AND apps.template_id = stats.template_id
-			AND apps.user_id = stats.user_id
+			apps.start_time = changed.start_time
+			AND apps.template_id = changed.template_id
+			AND apps.user_id = changed.user_id
 			AND (apps.start_time, apps.template_id, apps.user_id, apps.app_name) NOT IN (
 				SELECT time_bucket, template_id, user_id, name
 				FROM agent_stats_session_minutes
@@ -17898,13 +17955,19 @@ INSERT INTO template_usage_stats_session_apps AS apps (
 	usage_mins
 ) (
 	SELECT
-		time_bucket,
-		template_id,
-		user_id,
-		name,
-		usage_mins
+		agent_stats_session_minutes.time_bucket,
+		agent_stats_session_minutes.template_id,
+		agent_stats_session_minutes.user_id,
+		agent_stats_session_minutes.name,
+		agent_stats_session_minutes.usage_mins
 	FROM
 		agent_stats_session_minutes
+	JOIN
+		changed_buckets AS changed
+	ON
+		changed.start_time = agent_stats_session_minutes.time_bucket
+		AND changed.template_id = agent_stats_session_minutes.template_id
+		AND changed.user_id = agent_stats_session_minutes.user_id
 	WHERE
 		family_group = 0
 )
