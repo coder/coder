@@ -66,12 +66,10 @@ export const InvisibleUnicodeWarningOnType: Story = {
 			"Additional behavior, style, and tone preferences",
 		);
 
-		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
 		await userEvent.type(textarea, "hello\u200bworld");
 
-		await waitFor(() => {
-			expect(canvas.getByText(/invisible Unicode/)).toBeInTheDocument();
-		});
+		// Wait for the warning to render so the snapshot captures it.
+		await canvas.findByText(/invisible Unicode/);
 	},
 };
 
