@@ -4,15 +4,11 @@ import { useNavigate, useSearchParams } from "react-router";
 import { paginatedSessions } from "#/api/queries/aiBridge";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
-import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
-import { useClientFilterMenu } from "../filters/ClientFilter";
-import { useModelFilterMenu } from "../filters/ModelFilter";
-import { useProviderFilterMenu } from "../filters/ProviderFilter";
 import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 import {
@@ -78,42 +74,6 @@ const AISessionListPage: FC = () => {
 				? lastPicked.preset
 				: undefined;
 
-	const userMenu = useUserFilterMenu({
-		value: filter.values.initiator,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				initiator: option?.value,
-			}),
-	});
-
-	const providerMenu = useProviderFilterMenu({
-		value: filter.values.provider_name,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				provider_name: option?.value,
-			}),
-	});
-
-	const clientMenu = useClientFilterMenu({
-		value: filter.values.client,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				client: option?.value,
-			}),
-	});
-
-	const modelMenu = useModelFilterMenu({
-		value: filter.values.model,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				model: option?.value,
-			}),
-	});
-
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Sessions", "AI Gateway")}</title>
@@ -131,12 +91,6 @@ const AISessionListPage: FC = () => {
 				filterProps={{
 					filter,
 					error: sessionsQuery.error,
-					menus: {
-						user: userMenu,
-						provider: providerMenu,
-						client: clientMenu,
-						model: modelMenu,
-					},
 					timeRange: {
 						start: timeRange.start,
 						end: timeRange.end,

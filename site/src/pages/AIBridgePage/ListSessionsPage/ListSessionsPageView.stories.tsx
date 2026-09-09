@@ -2,15 +2,17 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
+import { parseFilterQuery } from "#/components/Filter/filterQuery";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
-import { MockSession } from "#/testHelpers/entities";
+import {
+	MockPermissions,
+	MockSession,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
 type FilterProps = ComponentProps<typeof ListSessionsPageView>["filterProps"];
@@ -21,20 +23,19 @@ const timeRange: DateTimeRangeValue = {
 	preset: "last_24h",
 };
 
+// The picker's range and the combobox chips share one filter query string.
+const filterQuery =
+	'provider_name:openai started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"';
+
 const defaultFilterProps: FilterProps = {
-	...getDefaultFilterProps<FilterProps>({
-		query: "owner:me",
-		values: {
-			username: undefined,
-			provider: undefined,
-		},
-		menus: {
-			user: MockMenu,
-			provider: MockMenu,
-			client: MockMenu,
-			model: MockMenu,
-		},
-	}),
+	filter: {
+		query: filterQuery,
+		values: parseFilterQuery(filterQuery),
+		used: true,
+		update: fn(),
+		debounceUpdate: fn(),
+		cancelDebounce: fn(),
+	},
 	timeRange,
 	onTimeRangeChange: fn(),
 };
@@ -42,6 +43,11 @@ const defaultFilterProps: FilterProps = {
 const meta: Meta<typeof ListSessionsPageView> = {
 	title: "pages/AIBridgePage/ListSessionsPageView",
 	component: ListSessionsPageView,
+	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
+	},
+	decorators: [withAuthProvider],
 	args: {
 		isLoading: false,
 		isFetching: false,
