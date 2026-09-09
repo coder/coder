@@ -656,7 +656,7 @@ export const SwitchOrganizations: Story = {
 export const NoAvailableOrganizationModels: Story = {
 	args: buildArgs({
 		modelOptions: [],
-		models: [disabledModelConfig],
+		models: [],
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
 				mode: "model",
@@ -665,53 +665,67 @@ export const NoAvailableOrganizationModels: Story = {
 			}),
 		}),
 	}),
-	play: async ({ args, canvasElement }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
 			canvas.getByText(/selected organization has no available chat models/i),
 		).toBeInTheDocument();
-		// A stale saved model override must remain replaceable with the
-		// model-free default modes even though no model can be selected.
 		const rootSection = await getSection(canvasElement, "Root agent model");
-		await userEvent.click(
+		const generalSection = await getSection(
+			canvasElement,
+			"General subagent model",
+		);
+		expect(
 			within(rootSection).getByRole("combobox", {
 				name: /^Root agent model behavior/,
 			}),
-		);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			await body.findByRole("option", { name: /Chat default/i }),
-		);
-		const save = within(rootSection).getByRole("button", { name: "Save" });
-		await waitFor(() => expect(save).toBeEnabled());
-		await userEvent.click(save);
-		await waitFor(() => {
-			expect(args.onSaveOverride).toHaveBeenCalledWith(
-				{
-					organizationId: MockDefaultOrganization.id,
-					context: "root",
-					req: { mode: "chat_default", model_config_id: "" },
-				},
-				expect.anything(),
-			);
-		});
+		).toBeDisabled();
+		expect(
+			within(rootSection).getByRole("button", { name: "Save" }),
+		).toBeDisabled();
+		expect(
+			within(generalSection).getByRole("combobox", {
+				name: /^General subagent model behavior/,
+			}),
+		).toBeDisabled();
+		expect(
+			within(generalSection).getByRole("button", { name: "Save" }),
+		).toBeDisabled();
 	},
 };
 
 export const DefaultOrganizationUnresolved: Story = {
 	args: buildArgs({
 		selectedOrganization: undefined,
+		organizations: [],
 		modelOptions: [],
 		models: [],
 	}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByText(/organization is not available/i),
+			canvas.getByText(/do not have access to any organizations/i),
 		).toBeInTheDocument();
 		const rootSection = await getSection(canvasElement, "Root agent model");
+		const generalSection = await getSection(
+			canvasElement,
+			"General subagent model",
+		);
+		expect(
+			within(rootSection).getByRole("combobox", {
+				name: /^Root agent model behavior/,
+			}),
+		).toBeDisabled();
 		expect(
 			within(rootSection).getByRole("button", { name: "Save" }),
+		).toBeDisabled();
+		expect(
+			within(generalSection).getByRole("combobox", {
+				name: /^General subagent model behavior/,
+			}),
+		).toBeDisabled();
+		expect(
+			within(generalSection).getByRole("button", { name: "Save" }),
 		).toBeDisabled();
 	},
 };
@@ -735,6 +749,10 @@ export const AdminDisabledReadOnly: Story = {
 			),
 		).toBeInTheDocument();
 		const rootSection = await getSection(canvasElement, "Root agent model");
+		const generalSection = await getSection(
+			canvasElement,
+			"General subagent model",
+		);
 		expect(
 			within(rootSection).getByRole("combobox", {
 				name: "Root agent model behavior, GPT 4.1 Mini",
@@ -742,6 +760,14 @@ export const AdminDisabledReadOnly: Story = {
 		).toBeDisabled();
 		expect(
 			within(rootSection).getByRole("button", { name: "Save" }),
+		).toBeDisabled();
+		expect(
+			within(generalSection).getByRole("combobox", {
+				name: /^General subagent model behavior/,
+			}),
+		).toBeDisabled();
+		expect(
+			within(generalSection).getByRole("button", { name: "Save" }),
 		).toBeDisabled();
 	},
 };

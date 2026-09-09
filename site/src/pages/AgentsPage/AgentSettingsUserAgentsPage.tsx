@@ -15,17 +15,22 @@ import type {
 import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
-import { PERSONAL_OVERRIDE_COPY } from "./components/PersonalModelOverrideRow";
 import { resolveModelSelector } from "./utils/modelOptions";
 
 const organizationSearchParam = "org";
+
+const overrideSaveLabel = {
+	root: "Root agent model",
+	general: "General subagent model",
+	explore: "Explore subagent model",
+} as const satisfies Record<ChatPersonalModelOverrideContext, string>;
 
 const overrideSaveToast = (
 	organizations: readonly Organization[],
 	organizationId: string,
 	context: ChatPersonalModelOverrideContext,
 ): { success: string; error: string } => {
-	const label = PERSONAL_OVERRIDE_COPY[context].title;
+	const label = overrideSaveLabel[context];
 	const organization =
 		organizations.length > 1
 			? organizations.find((org) => org.id === organizationId)

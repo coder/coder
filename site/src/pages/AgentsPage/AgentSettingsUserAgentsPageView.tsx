@@ -63,11 +63,11 @@ export const AgentSettingsUserAgentsPageView: FC<
 		!modelsError &&
 		modelOptions.length === 0;
 
-	// Rows stay enabled when the organization has no models so the model-free
-	// default modes can still replace a stale saved model override; mode
-	// "model" cannot be saved without a valid model anyway.
 	const isDisabled =
-		isLoading || !personalOverridesEnabled || !selectedOrganization;
+		isLoading ||
+		!personalOverridesEnabled ||
+		!selectedOrganization ||
+		hasNoOrganizationModels;
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -89,7 +89,7 @@ export const AgentSettingsUserAgentsPageView: FC<
 					}}
 				/>
 			)}
-			{overridesError ? (
+			{Boolean(overridesError) && (
 				<div className="flex flex-col gap-2">
 					<ErrorAlert error={overridesError} />
 					<Button
@@ -102,7 +102,7 @@ export const AgentSettingsUserAgentsPageView: FC<
 						Retry
 					</Button>
 				</div>
-			) : null}
+			)}
 			{!personalOverridesEnabled && (
 				<Alert severity="info">
 					<AlertDescription>
@@ -114,17 +114,17 @@ export const AgentSettingsUserAgentsPageView: FC<
 			{!selectedOrganization && (
 				<Alert severity="info">
 					<AlertDescription>
-						An organization is not available. Personal model overrides cannot be
-						changed.
+						You do not have access to any organizations. Personal model
+						overrides cannot be changed.
 					</AlertDescription>
 				</Alert>
 			)}
 			{hasNoOrganizationModels && (
 				<Alert severity="info">
 					<AlertDescription>
-						The selected organization has no available chat models. Default
-						options can still be saved. Ask an organization administrator to add
-						and enable a model before you choose a specific model.
+						The selected organization has no available chat models. Ask an
+						organization administrator to add and enable a model before you
+						choose a specific model.
 					</AlertDescription>
 				</Alert>
 			)}

@@ -46,7 +46,7 @@ interface PersonalModelOverrideRowProps {
 	disabled: boolean;
 }
 
-export const PERSONAL_OVERRIDE_COPY: Record<
+const PERSONAL_OVERRIDE_COPY: Record<
 	PersonalOverrideContext,
 	{ title: string; description: string }
 > = {
@@ -294,9 +294,9 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 						void form.setFieldValue("reasoning_effort", value)
 					}
 				/>
-				{modelOptions.length === 0 && (
+				{isLoading && modelOptions.length === 0 && (
 					<p role="status" className="m-0 text-xs text-content-secondary">
-						{isLoading ? "Loading models..." : "No enabled models found."}
+						Loading models...
 					</p>
 				)}
 
