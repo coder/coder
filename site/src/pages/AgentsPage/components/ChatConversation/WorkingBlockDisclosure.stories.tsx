@@ -63,6 +63,7 @@ export const Collapsed: Story = {
 		await expect(
 			canvas.queryByRole("list", { name: "Original tool steps" }),
 		).not.toBeInTheDocument();
+		await expect(canvas.getByTestId("working-block-complete")).toBeVisible();
 	},
 };
 
@@ -149,11 +150,15 @@ export const UnknownDuration: Story = {
 export const FailedSteps: Story = {
 	args: { block: { ...MockWorkingBlock, failedCount: 1 } },
 	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
 		await expect(
-			within(canvasElement).getByRole("button", {
+			canvas.getByRole("button", {
 				name: "Worked for 12s (2 steps) 1 failed step",
 			}),
 		).toBeVisible();
+		await expect(
+			canvas.queryByTestId("working-block-complete"),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -175,6 +180,9 @@ export const LiveTimer: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const trigger = canvas.getByRole("button", { name: "Working for 12s" });
+		await expect(
+			canvas.queryByTestId("working-block-complete"),
+		).not.toBeInTheDocument();
 		await userEvent.click(trigger);
 		await expect(
 			canvas.getByRole("list", { name: "Original tool steps" }),

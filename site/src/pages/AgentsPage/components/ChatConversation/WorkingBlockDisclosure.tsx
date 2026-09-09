@@ -1,4 +1,9 @@
-import { ListChecksIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	CheckIcon,
+	ListChecksIcon,
+	ListTodoIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
 import { useTime } from "#/hooks/useTime";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
@@ -118,7 +123,11 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 		>
 			<ToolCall.HeaderButton>
 				<ToolCall.LeadingIcon>
-					<ListChecksIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+					{block.isLive ? (
+						<ListTodoIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+					) : (
+						<ListChecksIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+					)}
 				</ToolCall.LeadingIcon>
 				{block.isLive ? (
 					<LiveLabel block={block} now={now} />
@@ -131,12 +140,21 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 						{pluralize(block.failedCount, "failed step")}
 					</span>
 				)}
+				{!block.isLive && block.failedCount === 0 && (
+					<CheckIcon
+						aria-hidden
+						data-testid="working-block-complete"
+						className="size-3.5 shrink-0 text-content-success"
+					/>
+				)}
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
 			<ToolCall.Content>
+				{/* ml-2 puts the 1px rule under the center of the 16px leading
+				    icon; pl-4 lines the nested rows up with the summary label. */}
 				<div
 					ref={contentRef}
-					className="mt-2 flex min-w-0 flex-col gap-2 border-0 border-l border-solid border-border-default pl-3"
+					className="ml-2 mt-2 flex min-w-0 flex-col gap-2 border-0 border-l border-solid border-border-default pl-4"
 				>
 					{children}
 				</div>
