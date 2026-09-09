@@ -230,7 +230,26 @@ it("clamps finite sizes and does not change the display mode", () => {
 		"500",
 	])
 		bridge.send("ui/notifications/size-change", { height });
-	expect(bridge.onSizeChange.mock.calls).toEqual([[100], [480], [1200]]);
+	expect(bridge.onSizeChange.mock.calls).toEqual([
+		[{ height: 100 }],
+		[{ height: 480 }],
+		[{ height: 1200 }],
+	]);
+	bridge.onSizeChange.mockClear();
+	for (const width of [
+		-1,
+		640,
+		999999,
+		Number.NaN,
+		Number.POSITIVE_INFINITY,
+		"500",
+	])
+		bridge.send("ui/notifications/size-change", { width });
+	expect(bridge.onSizeChange.mock.calls).toEqual([
+		[{ width: 100 }],
+		[{ width: 640 }],
+		[{ width: 1200 }],
+	]);
 	bridge.send("ui/request-display-mode", { mode: "fullscreen" }, 2);
 	expect(bridge.post).toHaveBeenLastCalledWith(
 		{ jsonrpc: "2.0", id: 2, result: { mode: "inline" } },

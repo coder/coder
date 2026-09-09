@@ -3,7 +3,7 @@ import { fireEvent, within } from "storybook/test";
 import { MockChatMCPApp } from "#/testHelpers/chatEntities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { createChatStore } from "../ChatConversation/chatStore";
-import { GenericToolRenderer } from "../ChatElements/tools/Tool";
+import { GenericToolRenderer, Tool } from "../ChatElements/tools/Tool";
 import { MCPAppContext } from "./MCPAppContext";
 import { MCPAppFrame } from "./MCPAppFrame";
 import { MCPAppPanel } from "./MCPAppPanel";
@@ -63,7 +63,28 @@ const initialize: NonNullable<Story["play"]> = async ({ canvasElement }) => {
 };
 
 export const Ready: Story = { play: initialize };
-export const Panel: Story = { args: { displayMode: "pip" }, play: initialize };
+export const Resized: Story = {
+	play: async (context) => {
+		await initialize(context);
+		const source = within(context.canvasElement).getByTitle<HTMLIFrameElement>(
+			"Sales chart",
+		).contentWindow;
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				source,
+				data: {
+					jsonrpc: "2.0",
+					method: "ui/notifications/size-change",
+					params: { width: 400, height: 200 },
+				},
+			}),
+		);
+	},
+};
+export const Panel: Story = {
+	args: { displayMode: "fullscreen" },
+	play: initialize,
+};
 export const InitializationError: Story = {
 	play: async ({ canvasElement }) => {
 		fireEvent.error(within(canvasElement).getByTitle("Sales chart"));
@@ -98,6 +119,26 @@ export const InlineCard: Story = {
 			/>
 		</MCPAppContext>
 	),
+};
+
+export const InlineError: Story = {
+	render: () => (
+		<MCPAppContext value={{ chatId: "chat", onOpenApp: () => {} }}>
+			<Tool
+				name="charts__sales"
+				toolCallId="tool"
+				mcpApp={MockChatMCPApp}
+				status="error"
+				isError
+				modelIntent="Loading sales chart"
+				args={{}}
+				result="Sales data unavailable"
+			/>
+		</MCPAppContext>
+	),
+	play: async ({ canvasElement }) => {
+		fireEvent.error(within(canvasElement).getByTitle("charts__sales"));
+	},
 };
 
 export const NarrowInlineCard: Story = {

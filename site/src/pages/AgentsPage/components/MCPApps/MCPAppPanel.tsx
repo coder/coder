@@ -57,7 +57,7 @@ export const MCPAppPanel = ({ chatId, tab, store }: MCPAppPanelProps) => {
 			title={tab.label}
 			args={call?.args}
 			result={app.result}
-			displayMode="pip"
+			displayMode="fullscreen"
 			fallback={
 				<GenericToolRenderer
 					name={result?.tool_name ?? tab.label}

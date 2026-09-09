@@ -2,7 +2,7 @@ import { asRecord } from "../ChatElements/runtimeTypeUtils";
 
 interface HostContext {
 	theme: "light" | "dark";
-	displayMode: "inline" | "pip";
+	displayMode: "inline" | "fullscreen";
 	containerDimensions: { width: number; height: number };
 	platform: "web";
 	userAgent: string;
@@ -56,7 +56,7 @@ interface BridgeOptions {
 	getContext: () => HostContext;
 	getToolData: () => { args: unknown; result: unknown };
 	onReady: () => void;
-	onSizeChange: (height: number) => void;
+	onSizeChange: (size: { height?: number; width?: number }) => void;
 }
 
 /** Connects one opaque-origin MCP App using the stable 2026-01-26 protocol. */
@@ -97,11 +97,15 @@ export function connectMCPApp({
 				});
 				onReady();
 			} else if (data.method === "ui/notifications/size-change" && ready) {
-				if (
-					typeof params?.height === "number" &&
-					Number.isFinite(params.height)
-				) {
-					onSizeChange(Math.min(1200, Math.max(100, params.height)));
+				const size: { height?: number; width?: number } = {};
+				for (const dimension of ["height", "width"] as const) {
+					const value = params?.[dimension];
+					if (typeof value === "number" && Number.isFinite(value)) {
+						size[dimension] = Math.min(1200, Math.max(100, value));
+					}
+				}
+				if (size.height !== undefined || size.width !== undefined) {
+					onSizeChange(size);
 				}
 			} else if (data.method === "notifications/message") {
 				// biome-ignore lint/suspicious/noConsole: MCP logging notifications belong in the browser debug console.

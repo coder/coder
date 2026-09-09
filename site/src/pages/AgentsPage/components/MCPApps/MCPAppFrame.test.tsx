@@ -23,12 +23,17 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({ ...dashboard, buildInfo: MockBuildInfo }),
 }));
 
-const send = (source: Window | null, method: string, id?: number) => {
+const send = (
+	source: Window | null,
+	method: string,
+	id?: number,
+	params?: unknown,
+) => {
 	act(() => {
 		window.dispatchEvent(
 			new MessageEvent("message", {
 				source,
-				data: { jsonrpc: "2.0", method, id },
+				data: { jsonrpc: "2.0", method, id, params },
 			}),
 		);
 	});
@@ -44,6 +49,7 @@ afterEach(() => {
 });
 
 it("keeps the bridge connected with current inputs across rerenders and disconnects on unmount", () => {
+	vi.useFakeTimers();
 	const props = {
 		src: "about:blank",
 		title: "Sales",
@@ -53,7 +59,9 @@ it("keeps the bridge connected with current inputs across rerenders and disconne
 		fallback: null,
 	};
 	const view = render(<MCPAppFrame {...props} />, { wrapper: themeWrapper });
-	const source = screen.getByTitle<HTMLIFrameElement>("Sales").contentWindow;
+	const frame = screen.getByTitle<HTMLIFrameElement>("Sales");
+	expect(frame.getAttribute("sandbox")).toBe("allow-scripts");
+	const source = frame.contentWindow;
 	if (!source) throw new Error("No iframe window");
 	const post = vi.spyOn(source, "postMessage");
 	send(source, "ui/initialize", 1);
@@ -67,6 +75,18 @@ it("keeps the bridge connected with current inputs across rerenders and disconne
 		},
 		"*",
 	);
+	send(source, "ui/notifications/size-change", undefined, {
+		height: 999999,
+		width: -1,
+	});
+	act(() => vi.advanceTimersToNextFrame());
+	expect(frame.parentElement?.style.height).toBe("1200px");
+	expect(frame.parentElement?.style.width).toBe("100px");
+	send(source, "ui/notifications/size-change", undefined, { height: 240 });
+	send(source, "ui/notifications/size-change", undefined, { width: 640 });
+	act(() => vi.advanceTimersToNextFrame());
+	expect(frame.parentElement?.style.height).toBe("240px");
+	expect(frame.parentElement?.style.width).toBe("640px");
 	view.unmount();
 	post.mockClear();
 	send(source, "ui/initialize", 2);
@@ -192,7 +212,7 @@ it("waits for the original call before initializing a restored panel", () => {
 	expect(post).toHaveBeenCalledWith(
 		expect.objectContaining({
 			result: expect.objectContaining({
-				hostContext: expect.objectContaining({ displayMode: "pip" }),
+				hostContext: expect.objectContaining({ displayMode: "fullscreen" }),
 			}),
 		}),
 		"*",

@@ -15,7 +15,7 @@ interface MCPAppFrameProps {
 	title: string;
 	args: unknown;
 	result: unknown;
-	displayMode: "inline" | "pip";
+	displayMode: "inline" | "fullscreen";
 	fallback: ReactNode;
 }
 
@@ -33,7 +33,9 @@ export const MCPAppFrame = ({
 	const [status, setStatus] = useState<"loading" | "ready" | "error">(
 		"loading",
 	);
-	const [height, setHeight] = useState(320);
+	const [size, setSize] = useState<{ height: number; width?: number }>({
+		height: 320,
+	});
 	const failed = status === "error";
 	const getToolData = useEffectEvent(() => ({ args, result }));
 	const getContext = useEffectEvent(() => ({
@@ -50,6 +52,7 @@ export const MCPAppFrame = ({
 		const frame = frameRef.current;
 		if (!frame || failed) return;
 		let animationFrame = 0;
+		let pendingSize: { height?: number; width?: number } = {};
 		const onError = () => setStatus("error");
 		frame.addEventListener("error", onError);
 		const timeout = window.setTimeout(onError, 15000);
@@ -62,12 +65,16 @@ export const MCPAppFrame = ({
 				window.clearTimeout(timeout);
 				setStatus("ready");
 			},
-			onSizeChange: (nextHeight) => {
+			onSizeChange: (nextSize) => {
 				if (displayMode !== "inline") return;
-				window.cancelAnimationFrame(animationFrame);
-				animationFrame = window.requestAnimationFrame(() =>
-					setHeight(nextHeight),
-				);
+				pendingSize = { ...pendingSize, ...nextSize };
+				if (animationFrame) return;
+				animationFrame = window.requestAnimationFrame(() => {
+					animationFrame = 0;
+					const requestedSize = pendingSize;
+					pendingSize = {};
+					setSize((current) => ({ ...current, ...requestedSize }));
+				});
 			},
 		});
 		return () => {
@@ -89,7 +96,11 @@ export const MCPAppFrame = ({
 	return (
 		<div
 			className="relative w-full"
-			style={{ height: displayMode === "inline" ? height : "100%" }}
+			style={{
+				height: displayMode === "inline" ? size.height : "100%",
+				width: displayMode === "inline" ? size.width : undefined,
+				maxWidth: "100%",
+			}}
 		>
 			{status === "loading" && (
 				<div

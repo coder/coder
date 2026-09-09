@@ -1248,6 +1248,9 @@ export const Tool = memo(
 							app={mcpApp}
 							toolCallId={toolCallId}
 							name={name}
+							status={status}
+							isError={isError}
+							modelIntent={modelIntent}
 							args={args}
 							fallback={
 								<GenericToolRenderer
