@@ -987,6 +987,11 @@ export const UserPromptsRenderOnce: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={singleRenderStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getAllByText("Only rendered once")).toHaveLength(1);
+		expect(canvas.getAllByTestId("chat-message-message:1")).toHaveLength(1);
+	},
 };
 
 const startEdgeStore = buildStoreWithMessages(
@@ -1079,6 +1084,11 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 		// Sit at the live edge; the oldest message is scrolled above the viewport.
 		scrollTo(viewport, viewport.scrollHeight);
 		await settleScroller();
+		const oldest = canvas.getByTestId("chat-message-message:1");
+		const oldestAboveViewport = () =>
+			oldest.getBoundingClientRect().bottom <=
+			viewport.getBoundingClientRect().top;
+		expect(oldestAboveViewport()).toBe(true);
 
 		// A new turn begins: the prompt is appended and the assistant starts
 		// streaming into the live row.
@@ -1092,7 +1102,11 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 			]);
 		});
 		// The live assistant row mounts under its ephemeral key.
-		await canvas.findByTestId("chat-message-live-assistant");
+		await waitFor(() => {
+			expect(
+				canvas.getByTestId("chat-message-live-assistant"),
+			).toBeInTheDocument();
+		});
 		await settleScroller();
 
 		// The durable assistant row replaces the live row, then the turn ends.
@@ -1103,8 +1117,13 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 			streamCompletionStore.clearStreamState();
 			streamCompletionStore.setChatStatus("waiting");
 		});
-		await canvas.findByTestId("chat-message-message:42");
+		await waitFor(() => {
+			expect(canvas.getByTestId("chat-message-message:42")).toBeInTheDocument();
+		});
 		await settleScroller();
+
+		// The viewport never jumped back to the oldest message.
+		expect(oldestAboveViewport()).toBe(true);
 	},
 };
 
@@ -1142,11 +1161,32 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 		await canvas.findByTestId("live-activity-slot");
 		await settleScroller();
 
-		// The first stream chunk replaces the Thinking indicator with text.
+		const prompt = canvas.getByTestId("chat-message-message:41");
+		const liveRow = canvas.getByTestId("chat-message-live-assistant");
+		const promptTop = () =>
+			prompt.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+		// Capture the baseline while the Thinking indicator is shown: the bug
+		// shrank the live row below this for one frame when the first chunk
+		// arrived. Guard against a degenerate unpainted baseline so the height
+		// assertion below cannot silently become a tautology.
+		const anchoredTop = promptTop();
+		const thinkingHeight = liveRow.getBoundingClientRect().height;
+		expect(thinkingHeight).toBeGreaterThan(0);
+
+		// The first stream chunk replaces the Thinking indicator with text. The
+		// live row must never shrink below its Thinking-indicator height, so the
+		// anchored prompt and everything above it must stay put. Position uses a
+		// tolerance because rect tops are fractional; a 24px drop is 6x it.
 		thinkingShiftStore.applyMessageParts([
 			{ type: "text", text: "Here is the start of the answer." },
 		]);
-		await settleScroller();
+		for (let i = 0; i < 6; i++) {
+			expect(liveRow.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+				thinkingHeight,
+			);
+			expect(Math.abs(promptTop() - anchoredTop)).toBeLessThan(4);
+			await new Promise<void>((r) => requestAnimationFrame(() => r()));
+		}
 	},
 };
 

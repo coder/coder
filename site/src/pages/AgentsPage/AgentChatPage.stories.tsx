@@ -1593,6 +1593,15 @@ export const QueuedForCapacityAfterPolling: Story = {
 			queued_for_capacity: true,
 		});
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The queued callout only appears after the 5s getChat poll flips
+		// queued_for_capacity, which outlasts Pixel's stability budget. Wait
+		// for the callout so the capture shows the queued state.
+		await canvas.findByRole("alert", undefined, {
+			timeout: 7_000,
+		});
+	},
 };
 
 /** Persisted structured errors rehydrate the failed callout after refresh. */
@@ -3307,6 +3316,14 @@ export const SendResponseAfterChatSwitch: Story = {
 		// Release the gated send so the stale response resolves within the
 		// test and the discard path runs.
 		releaseSend?.();
+		await waitFor(() => {
+			expect(
+				timeline.queryByText("Stale response from previous chat"),
+			).not.toBeInTheDocument();
+			expect(
+				canvas.queryByTestId("live-activity-slot"),
+			).not.toBeInTheDocument();
+		});
 	},
 };
 
