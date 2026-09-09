@@ -36,5 +36,7 @@ export const NetworkMonitoringDisabled: FC = () => (
 );
 
 export const NetworkNoActivity: FC = () => (
-	<span className="whitespace-nowrap text-xs text-content-secondary">No activity</span>
+	<span className="whitespace-nowrap text-xs text-content-secondary">
+		No activity
+	</span>
 );
