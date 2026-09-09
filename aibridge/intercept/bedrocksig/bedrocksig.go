@@ -6,6 +6,7 @@ package bedrocksig
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
@@ -17,6 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 // SigningService is the AWS SigV4 service name for Bedrock Mantle.
@@ -50,11 +53,13 @@ func AppendPRMUserAgent(req *http.Request) {
 // for the Bedrock Mantle service. It strips headers unsafe to sign, appends
 // the PRM user-agent, reads and restores the body for hashing, then signs
 // with the given credentials and region. Callers wrap it in their
-// SDK-specific option.WithMiddleware adapter.
-func SignMiddleware(creds aws.CredentialsProvider, region string) func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
+// SDK-specific option.WithMiddleware adapter. logger is used to warn when
+// unsignable headers are stripped, so operators can see which clients are
+// affected.
+func SignMiddleware(logger slog.Logger, creds aws.CredentialsProvider, region string) func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
 	signer := v4.NewSigner()
 	return func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
-		stripUnsignableHeaders(req)
+		stripUnsignableHeaders(req.Context(), logger, req)
 		AppendPRMUserAgent(req)
 
 		resolved, err := creds.Retrieve(req.Context())
@@ -87,12 +92,21 @@ func SignMiddleware(creds aws.CredentialsProvider, region string) func(req *http
 // We have observed issues with headers containing underscores being stripped
 // somewhere between the client and Bedrock Mantle. It's not clear where exactly
 // this happens, but sending a header containing an underscore results in a
-// SigV4 mismatch. Workaround: just strip before signing.
-func stripUnsignableHeaders(req *http.Request) {
+// SigV4 mismatch. Workaround: just strip before signing. Logs a single warning
+// per request naming every stripped header, so operators can identify
+// affected clients without one log line per header.
+func stripUnsignableHeaders(ctx context.Context, logger slog.Logger, req *http.Request) {
+	var stripped []string
 	for name := range req.Header {
 		if strings.Contains(name, "_") {
+			stripped = append(stripped, name)
 			req.Header.Del(name)
 		}
+	}
+	if len(stripped) > 0 {
+		logger.Warn(ctx, "stripping headers unsafe to sign for Bedrock Mantle",
+			slog.F("headers", stripped),
+		)
 	}
 }
 

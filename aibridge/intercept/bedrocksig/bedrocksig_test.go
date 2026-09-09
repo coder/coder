@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/testutil"
 )
 
 var testCreds = aws.CredentialsProviderFunc(func(context.Context) (aws.Credentials, error) {
@@ -89,12 +91,16 @@ func TestSignMiddlewareStripsUnsafeHeaders(t *testing.T) {
 	req.Header.Set("Anthropic-Version", "2023-06-01")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("session_id", "01a08608-1a93-760c-98f6-d79765c14f0b")
+	req.Header.Set("x_client_request_id", "01a08608-1a93-760c-98f6-d79765c14f0b")
 	req.Header.Set("X-Client-Request-Id", "01a08608-1a93-760c-98f6-d79765c14f0b")
 
-	mw := bedrocksig.SignMiddleware(testCreds, "us-east-1") //nolint:bodyclose // SignMiddleware returns a middleware func, not a response; the actual response is closed by the caller in production and is a static http.NoBody here.
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger(slog.LevelDebug)
+
+	mw := bedrocksig.SignMiddleware(logger, testCreds, "us-east-1") //nolint:bodyclose // http.NoBody
 
 	var gotReq *http.Request
-	resp, err := mw(req, func(r *http.Request) (*http.Response, error) { //nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
+	resp, err := mw(req, func(r *http.Request) (*http.Response, error) { //nolint:bodyclose // http.NoBody
 		gotReq = r
 		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 	})
@@ -103,6 +109,8 @@ func TestSignMiddlewareStripsUnsafeHeaders(t *testing.T) {
 	require.NotNil(t, gotReq)
 
 	assert.Empty(t, gotReq.Header.Get("session_id"),
+		"underscore-named headers must not be forwarded to Bedrock Mantle")
+	assert.Empty(t, gotReq.Header.Get("x_client_request_id"),
 		"underscore-named headers must not be forwarded to Bedrock Mantle")
 
 	// Headers without underscores must survive untouched.
@@ -114,6 +122,19 @@ func TestSignMiddlewareStripsUnsafeHeaders(t *testing.T) {
 	signedHeaders := extractSignedHeaders(t, authHeader)
 	assert.NotContains(t, signedHeaders, "session_id",
 		"session_id must not be part of the SigV4 SignedHeaders set")
+
+	// A single warning must be logged naming every stripped header, not one
+	// warning per header, so operators get one log line per interception.
+	warnings := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelWarn })
+	require.Len(t, warnings, 1)
+	found := false
+	for _, f := range warnings[0].Fields {
+		if f.Name == "headers" {
+			found = true
+			assert.ElementsMatch(t, []string{"Session_id", "X_client_request_id"}, f.Value)
+		}
+	}
+	assert.True(t, found, "expected a 'headers' field naming the stripped headers")
 }
 
 // extractSignedHeaders parses the SignedHeaders field out of a SigV4
