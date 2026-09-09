@@ -591,3 +591,27 @@ func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refre
 	require.NoError(t, err)
 	return key.Scopes
 }
+
+// The token endpoint compares redirect_uri against the registration on its
+// own. Authorizing without redirect_uri leaves nothing on the code to compare
+// against, so this check is the only one the exchange runs.
+func TestOAuth2TokenExchangeLoopbackRedirectPort(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	app := oauth2providertest.RegisterPublicClient(t, client, "loopback", "http://127.0.0.1/callback")
+	code, verifier := authorizeCode(ctx, t, client, app.ClientID, "")
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("client_id", app.ClientID)
+	form.Set("code", code)
+	form.Set("redirect_uri", "http://127.0.0.1:53219/callback")
+	form.Set("code_verifier", verifier)
+	status, body := postTokenRequest(ctx, t, client, form)
+	requireTokenResponse(t, status, body)
+}
