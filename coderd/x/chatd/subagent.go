@@ -99,6 +99,12 @@ const (
 	subagentAwaitPollInterval  = 200 * time.Millisecond
 	subagentAwaitFallbackPoll  = 5 * time.Second
 	defaultSubagentWaitTimeout = 5 * time.Minute
+	// maxSubagentWaitTimeout caps a single wait_agent block. It must
+	// stay clearly below defaultTaskTimeout: wait_agent never kicks
+	// the idle watchdog, so the resumable timeout result has to
+	// commit before the watchdog cancels the attempt. A timeout is
+	// not a failure; the model resumes with another wait_agent call.
+	maxSubagentWaitTimeout = 10 * time.Minute
 
 	defaultListAgentsLimit       = 10
 	maxListAgentsLimit           = 50
@@ -932,7 +938,8 @@ func (p *Server) subagentTools(
 			"Wait for a spawned child agent to finish and return its response "+
 				"and status. Returns immediately when the agent finishes, even if "+
 				"a longer timeout is set. A timeout does not stop the agent; call "+
-				"wait_agent again or use list_agents to check its status.",
+				"wait_agent again or use list_agents to check its status. "+
+				"timeout_seconds is capped at 10 minutes per call.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -1582,6 +1589,7 @@ func (p *Server) awaitSubagentCompletion(
 	if timeout <= 0 {
 		timeout = defaultSubagentWaitTimeout
 	}
+	timeout = min(timeout, maxSubagentWaitTimeout)
 	timer := p.clock.NewTimer(timeout, "chatd", "subagent_await")
 	defer timer.Stop()
 

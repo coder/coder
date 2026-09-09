@@ -271,6 +271,83 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, "chat-123", capturedReq.Env["AGENT_BROWSER_SESSION"])
 	})
 
+	t.Run("KeepaliveKickedOnAgentRoundTrips", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		exitCode := 0
+		gomock.InOrder(
+			// The server-side wait returns while the process is
+			// still running, then a second poll sees it exit.
+			mockConn.EXPECT().
+				ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+				Return(workspacesdk.ProcessOutputResponse{Running: true}, nil),
+			mockConn.EXPECT().
+				ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+				Return(workspacesdk.ProcessOutputResponse{
+					Running:  false,
+					ExitCode: &exitCode,
+					Output:   "done",
+				}, nil),
+		)
+
+		kicks := 0
+		ctx := chattool.WithAttemptKeepalive(
+			testutil.Context(t, testutil.WaitMedium),
+			func() { kicks++ },
+		)
+		tool := newExecuteTool(t, mockConn)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"sleep 1"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		// One kick for the successful start, one per successful
+		// poll round, including the round where the process was
+		// still running.
+		assert.Equal(t, 3, kicks)
+	})
+
+	t.Run("ProcessOutputToolKicksKeepalive", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "done",
+			}, nil)
+
+		kicks := 0
+		ctx := chattool.WithAttemptKeepalive(
+			testutil.Context(t, testutil.WaitMedium),
+			func() { kicks++ },
+		)
+		tool := chattool.ProcessOutput(chattool.ProcessToolOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "process_output",
+			Input: `{"process_id":"proc-1"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Equal(t, 1, kicks)
+	})
+
 	t.Run("ModelIntentIgnoredByExecution", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

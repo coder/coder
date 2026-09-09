@@ -3,7 +3,6 @@ package chatloop
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"iter"
 	"runtime"
 	"slices"
@@ -93,43 +92,10 @@ func toolResultContentToPart(toolResult fantasy.ToolResultContent) fantasy.ToolR
 	}
 }
 
-func TestStreamSilenceGuard_DisarmAndFireRace(t *testing.T) {
-	t.Parallel()
-
-	for range 128 {
-		var cancels atomic.Int32
-		guard := newStreamSilenceGuard(quartz.NewReal(), time.Hour, func(err error) {
-			if errors.Is(err, errStreamSilenceTimeout) {
-				cancels.Add(1)
-			}
-		})
-
-		start := make(chan struct{})
-		var wg sync.WaitGroup
-		wg.Add(2)
-
-		go func() {
-			defer wg.Done()
-			<-start
-			guard.onTimeout()
-		}()
-
-		go func() {
-			defer wg.Done()
-			<-start
-			guard.Disarm()
-		}()
-
-		close(start)
-		wg.Wait()
-
-		guard.onTimeout()
-		guard.Disarm()
-
-		require.LessOrEqual(t, cancels.Load(), int32(1))
-	}
-}
-
+// The disarm-versus-late-fire race itself is covered by the shared
+// watchdog package tests; this test pins the chatloop-level
+// consequence: a disarmed guard leaves no timeout cause, so a
+// permanent stream error keeps its own classification.
 func TestStreamSilenceGuard_DisarmPreservesPermanentError(t *testing.T) {
 	t.Parallel()
 
@@ -138,7 +104,6 @@ func TestStreamSilenceGuard_DisarmPreservesPermanentError(t *testing.T) {
 
 	guard := newStreamSilenceGuard(quartz.NewReal(), time.Hour, cancelAttempt)
 	guard.Disarm()
-	guard.onTimeout()
 
 	classified := chaterror.Classify(classifyStreamSilenceTimeout(
 		attemptCtx,
