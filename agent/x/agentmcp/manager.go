@@ -1102,9 +1102,8 @@ func toolInputSchemaMap(schema any) map[string]any {
 	return out
 }
 
-// cloneServerStatuses deep-copies a catalog so callers cannot mutate the
-// Manager's cache. Tool schemas and metadata are treated as immutable and
-// shared by reference.
+// cloneServerStatuses copies catalog slices; tool schemas and metadata remain
+// shared by reference and must be treated as immutable.
 func cloneServerStatuses(in []ServerStatus) []ServerStatus {
 	if len(in) == 0 {
 		return nil

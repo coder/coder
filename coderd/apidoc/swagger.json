@@ -2444,6 +2444,90 @@
 				]
 			}
 		},
+		"/api/v2/chats/{chat}/mcp-apps/resource": {
+			"get": {
+				"produces": ["text/html"],
+				"tags": ["Chats"],
+				"summary": "Read a workspace MCP App resource",
+				"operationId": "read-chat-mcp-app-resource",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Workspace MCP server name",
+						"name": "server",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Declared ui:// resource URI",
+						"name": "uri",
+						"in": "query",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Sandboxed MCP App HTML",
+						"schema": {
+							"type": "string"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"413": {
+						"description": "Request Entity Too Large",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"415": {
+						"description": "Unsupported Media Type",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"500": {
+						"description": "Internal Server Error",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"502": {
+						"description": "Bad Gateway",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/v2/chats/{chat}/messages": {
 			"get": {
 				"produces": ["application/json"],

@@ -148,6 +148,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Patch("/", api.patchChat)
 			r.Get("/cost", api.getChatCost)
 			r.Get("/messages", api.getChatMessages)
+			r.Get("/mcp-apps/resource", api.readChatMCPAppResource)
 			r.Post("/messages", api.postChatMessages)
 			r.Patch("/messages/{message}", api.patchChatMessage)
 			r.Get("/prompts", api.getChatUserPrompts)

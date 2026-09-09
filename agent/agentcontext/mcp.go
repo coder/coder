@@ -96,10 +96,8 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 	return resources
 }
 
-// hashMCPServer produces a deterministic content hash over a server's
-// identity and full tool set (name, description, input schema, and metadata) so
-// any tool-set change flips the resource's content hash. The schema is
-// encoded with encoding/json, which sorts map keys.
+// hashMCPServer uses stable JSON map ordering to avoid spurious resource
+// updates when schema or metadata keys are reordered.
 func hashMCPServer(server string, tools []MCPTool) [32]byte {
 	h := sha256.New()
 	writeLengthPrefixed(h, server)

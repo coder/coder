@@ -182,6 +182,8 @@ See the following pages for experiment-gated features:
 - [Advisor](./advisor.md) (`--experiments=chat-advisor`)
 - [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
 
+With `--experiments=chat-mcp-apps`, Coder Agents renders interactive MCP Apps in conversations and right-panel tabs from workspace-hosted MCP servers only.
+
 For chat debug logging (not experiment-gated), see [Chat debug logging](./chat-debug-logging.md).
 
 ## Where we are headed
