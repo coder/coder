@@ -100,7 +100,7 @@ export function FilterCombobox({
 				label={placeholder}
 			>
 				<FilterComboboxInputGroup className={className}>
-					<InputGroupAddon className="min-h-10 self-start pt-1">
+					<InputGroupAddon className="h-9.5 self-start">
 						<SearchIcon aria-hidden className="size-icon-sm" />
 					</InputGroupAddon>
 					<FilterComboboxChips>
@@ -164,7 +164,7 @@ export function FilterCombobox({
 							aria-label="Toggle filters"
 							aria-expanded={open}
 							aria-haspopup="listbox"
-							className="min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 pt-2.5 [&>svg]:p-0"
+							className="h-9.5 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 [&>svg]:p-0"
 							onMouseDown={(event) => {
 								// Prevent the button from taking focus on pointer open.
 								// toggleFilterMenu focuses the combobox input next so
