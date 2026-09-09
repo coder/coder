@@ -277,15 +277,11 @@ func (i *interceptionBase) isSmallFastModel() bool {
 // newMessagesService builds the SDK service used for upstream calls.
 func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...option.RequestOption) (anthropic.MessageService, error) {
 	byok, isBYOK := intercept.AsBYOK(i.cred)
-	// bedrockBYOK routes a user-supplied Bedrock API key (bearer token) to the
-	// Bedrock endpoint instead of SigV4-signing with the deployment's AWS
-	// credentials. Its auth header is applied by the Bedrock options below, not
-	// as a generic provider credential here.
+	// Bedrock BYOK is applied as a bearer token by the Bedrock options below.
 	bedrockBYOK := isBYOK && i.bedrock != nil
 
 	// Only BYOK sets its credential here. Centralized keys are injected
-	// per-attempt in the failover loop. Bedrock BYOK is applied by the Bedrock
-	// options below.
+	// per-attempt in the failover loop.
 	if isBYOK && !bedrockBYOK {
 		i.logger.Debug(ctx, "using byok auth",
 			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
@@ -317,8 +313,7 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	}
 
 	// bedrockCredentialResolutionTimeout bounds the credential
-	// resolution (STS/IRSA) shared by both Bedrock protocols. Bedrock BYOK
-	// resolves no deployment credentials, so it does not use this timeout.
+	// resolution (STS/IRSA) shared by both Bedrock protocols.
 	const bedrockCredentialResolutionTimeout = 30 * time.Second
 
 	if i.isBedrockInvokeModel() {
@@ -441,12 +436,8 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 	return out, nil
 }
 
-// withBedrockInvokeModelBYOKOptions returns request options for the AWS Bedrock
-// InvokeModel protocol authenticated with a user-supplied Bedrock API key
-// (bearer token) instead of the deployment's AWS credentials. It applies the
-// same InvokeModel wire transform as the centralized path but sets an
-// Authorization: Bearer header and performs no SigV4 signing, so it neither
-// requires nor resolves any deployment AWS credentials.
+// withBedrockInvokeModelBYOKOptions authenticates the InvokeModel protocol with
+// a user Bedrock API key (bearer token), resolving no deployment credentials.
 func (i *interceptionBase) withBedrockInvokeModelBYOKOptions(token string) ([]option.RequestOption, error) {
 	if i.bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
@@ -456,8 +447,6 @@ func (i *interceptionBase) withBedrockInvokeModelBYOKOptions(token string) ([]op
 		return nil, xerrors.Errorf("bedrock invoke-model config: %w", err)
 	}
 
-	// Match the endpoint the SDK's bedrock.WithConfig middleware constructs, but
-	// honor an explicit BaseURL override (e.g. a proxy or test server).
 	baseURL := fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", cfg.Region)
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
@@ -465,18 +454,12 @@ func (i *interceptionBase) withBedrockInvokeModelBYOKOptions(token string) ([]op
 
 	var out []option.RequestOption
 	out = append(out, option.WithBaseURL(baseURL))
-	// Appended as a middleware so it runs innermost (right before the HTTP send),
-	// applying the InvokeModel wire transform and bearer auth after all other
-	// headers are set.
 	out = append(out, option.WithMiddleware(bedrockInvokeModelBearerMiddleware(token)))
 	return out, nil
 }
 
-// withBedrockMantleBYOKOptions returns request options for the AWS Bedrock
-// mantle protocol authenticated with a user-supplied Bedrock API key (bearer
-// token). Mantle is a native Messages passthrough, so this only sets the base
-// URL and an Authorization: Bearer header; it performs no SigV4 signing and
-// resolves no deployment AWS credentials.
+// withBedrockMantleBYOKOptions authenticates the mantle protocol with a user
+// Bedrock API key (bearer token), resolving no deployment credentials.
 func (i *interceptionBase) withBedrockMantleBYOKOptions(token string) ([]option.RequestOption, error) {
 	if i.bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
@@ -488,16 +471,12 @@ func (i *interceptionBase) withBedrockMantleBYOKOptions(token string) ([]option.
 
 	var out []option.RequestOption
 	out = append(out, option.WithBaseURL(cfg.BaseURL))
-	// Appended last so it runs innermost (right before the HTTP send) and sets
-	// bearer auth after all other headers are set.
 	out = append(out, option.WithMiddleware(bedrockMantleBearerMiddleware(token)))
 	return out, nil
 }
 
-// bedrockMantleBearerMiddleware authenticates a mantle passthrough request with
-// a user-supplied Bedrock API key (bearer token). Mantle forwards the native
-// Messages body unchanged, so this only appends the PRM user-agent and sets the
-// Authorization: Bearer header; it performs no SigV4 signing.
+// bedrockMantleBearerMiddleware sets bearer auth for a mantle passthrough, which
+// forwards the native Messages body unchanged.
 func bedrockMantleBearerMiddleware(token string) func(*http.Request, option.MiddlewareNext) (*http.Response, error) {
 	return func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
 		bedrocksig.AppendPRMUserAgent(req)
@@ -506,16 +485,12 @@ func bedrockMantleBearerMiddleware(token string) func(*http.Request, option.Midd
 	}
 }
 
-// bedrockInvokeModelBearerMiddleware mirrors the InvokeModel wire transform the
-// Anthropic SDK's bedrock.WithConfig middleware performs (inject
-// anthropic_version, move the anthropic-beta header into the body, and rewrite
-// the path to /model/{model}/invoke[-with-response-stream]) but authenticates
-// with a user-supplied Bedrock API key (bearer token) rather than SigV4-signing
-// with the deployment's AWS credentials.
+// bedrockInvokeModelBearerMiddleware authenticates an InvokeModel request with a
+// user Bedrock API key (bearer token) instead of SigV4.
 //
-// It duplicates the SDK transform because bedrock.WithConfig couples that
-// transform with SigV4 signing and cannot be reused without resolving
-// deployment AWS credentials, which a BYOK request must not depend on.
+// It reimplements the SDK bedrock.WithConfig wire transform because that helper
+// couples the transform with SigV4 signing and would resolve deployment AWS
+// credentials, which a BYOK request must not depend on.
 func bedrockInvokeModelBearerMiddleware(token string) func(*http.Request, option.MiddlewareNext) (*http.Response, error) {
 	return func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
 		bedrocksig.AppendPRMUserAgent(req)
