@@ -173,10 +173,10 @@ export const ModelNameWaitsForModelsToLoad: Story = {
 		],
 	},
 	render: (args) => <ChatsSidebarWithDeferredModels {...args} />,
-	play: async () => {
-		// The render harness resolves the model configs after 500ms. Wait
-		// past that so the screenshot captures the loaded model name.
-		await new Promise((resolve) => setTimeout(resolve, 600));
+	play: async ({ canvasElement }) => {
+		// The render harness resolves the model configs after 500ms; wait for
+		// the loaded model name so the screenshot captures it.
+		await within(canvasElement).findByText("GPT-4o");
 	},
 };
 
