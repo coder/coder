@@ -92,6 +92,7 @@ import {
 	patchChatEntity,
 	patchChatMessages,
 	pinChat,
+	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
@@ -601,6 +602,13 @@ describe("invalidateChatListQueries", () => {
 		expect(readInfiniteChats(queryClient, { archived: false })?.[0]).toEqual(
 			activeChat,
 		);
+	});
+});
+
+describe("planModeFieldsForCreateMessage", () => {
+	it("only sends the clear wire value when requested", () => {
+		expect(planModeFieldsForCreateMessage(true)).toEqual({ plan_mode: "" });
+		expect(planModeFieldsForCreateMessage(false)).toEqual({});
 	});
 });
 

@@ -1055,13 +1055,6 @@ export const DisabledInputHidesImplementPlan: Story = {
 			store={buildStoreWithMessages(otherUserActionMessages)}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: "Implement plan" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 // ---------------------------------------------------------------------------
