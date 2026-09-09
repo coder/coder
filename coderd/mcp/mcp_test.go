@@ -297,11 +297,16 @@ func TestRegisterSDKTool(t *testing.T) {
 	require.True(t, ok)
 	require.JSONEq(t, `{"value":"hello"}`, content.Text)
 
-	_, err = clientSession.CallTool(ctx, &sdkmcp.CallToolParams{
+	result, err = clientSession.CallTool(ctx, &sdkmcp.CallToolParams{
 		Name:      tool.Name,
 		Arguments: map[string]any{"fail": true, "value": "hello"},
 	})
-	require.ErrorContains(t, err, assert.AnError.Error())
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	require.Len(t, result.Content, 1)
+	content, ok = result.Content[0].(*sdkmcp.TextContent)
+	require.True(t, ok)
+	require.Equal(t, assert.AnError.Error(), content.Text)
 }
 
 func TestMCPHTTP_UnsupportedProtocolVersion(t *testing.T) {

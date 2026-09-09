@@ -1,4 +1,6 @@
-# Amazon Web Services
+---
+title: Amazon Web Services
+---
 
 This guide is designed to get you up and running with a Coder proof-of-concept
 on AWS EKS using a [Coder-provided CloudFormation Template](https://codermktplc-assets.s3.us-east-1.amazonaws.com/community-edition/eks-cluster.yaml).  The deployed AWS Coder Reference Architecture is below:

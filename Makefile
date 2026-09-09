@@ -218,6 +218,8 @@ VERSION      := $(shell ./scripts/version.sh)
 
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
+# CI test jobs set this to "none": nothing reads the statement log there.
+TEST_POSTGRES_LOG_STATEMENT ?= all
 
 # Limit parallel Make jobs in pre-commit/pre-push. Defaults to
 # nproc/4 (min 2) since test, lint, and build targets have internal
@@ -1013,7 +1015,6 @@ GEN_FILES := \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
-	docs/install/releases/feature-stages.md \
 	docs/admin/setup/configuration-reference.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
@@ -1112,7 +1113,6 @@ gen/mark-fresh:
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
-		docs/install/releases/feature-stages.md \
 		docs/admin/setup/configuration-reference.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
@@ -1345,17 +1345,6 @@ docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go | _gen _gen/bin/auditdocgen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		_gen/bin/auditdocgen --audit-doc-file="$$tmpfile" && \
-		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
-		pnpm exec markdown-table-formatter "$$tmpfile" && \
-		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
-
-docs/install/releases/feature-stages.md: \
-	node_modules/.installed \
-	scripts/release/docs_update_feature_stages.sh \
-	codersdk/deployment.go \
-	docs/manifest.json | _gen
-	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
-		./scripts/release/docs_update_feature_stages.sh "$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
@@ -1683,7 +1672,7 @@ test-postgres-docker:
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off \
-		-c log_statement=all
+		-c log_statement=$(TEST_POSTGRES_LOG_STATEMENT)
 	while ! pg_isready -h 127.0.0.1
 	do
 		echo "$$(date) - waiting for database to start"

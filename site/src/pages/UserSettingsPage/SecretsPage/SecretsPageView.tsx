@@ -1,5 +1,5 @@
 import { PlusIcon } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { type FC, useState } from "react";
 import type {
 	CreateUserSecretRequest,
 	ImportUserSecretsRequest,
@@ -65,20 +65,21 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 		mode: "add",
 		open: false,
 	});
-	const secretDialogReturnFocusElement = useRef<HTMLElement | null>(null);
+	const [secretDialogReturnFocusElement, setSecretDialogReturnFocusElement] =
+		useState<HTMLElement | null>(null);
 	const dialogSecret =
 		dialogState.mode === "edit" ? dialogState.secret : undefined;
 	const hasLoadedSecrets = hasLoaded && !getSecretsError;
 
 	const openAddSecret = (returnFocusElement?: HTMLElement | null) => {
-		secretDialogReturnFocusElement.current = returnFocusElement ?? null;
+		setSecretDialogReturnFocusElement(returnFocusElement ?? null);
 		setDialogState({ mode: "add", open: true });
 	};
 	const openEditSecret = (
 		secret: UserSecret,
 		returnFocusElement?: HTMLElement | null,
 	) => {
-		secretDialogReturnFocusElement.current = returnFocusElement ?? null;
+		setSecretDialogReturnFocusElement(returnFocusElement ?? null);
 		setDialogState({ mode: "edit", open: true, secret });
 	};
 	const closeSecretDialog = () => {
@@ -109,7 +110,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 				secret={dialogSecret}
 				filePathEnabled={filePathEnabled}
 				isSubmitting={isCreating || isUpdating}
-				returnFocusElement={secretDialogReturnFocusElement.current}
+				returnFocusElement={secretDialogReturnFocusElement}
 				onClose={closeSecretDialog}
 				onCreateSecret={onCreateSecret}
 				onUpdateSecret={onUpdateSecret}

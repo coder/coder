@@ -104,6 +104,7 @@
 		"valid-typeof": "error",
 		"require-yield": "error",
 		"rules-of-hooks": "error",
+		"refs": "error",
 
 		// --- security ---
 		"jsx-no-target-blank": "error",

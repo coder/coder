@@ -1,4 +1,6 @@
-# Rules Engine Documentation
+---
+title: Rules engine documentation
+---
 
 > [!NOTE]
 > Agent Firewall is part of [AI Governance](../ai-governance.md), which is

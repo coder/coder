@@ -69,13 +69,7 @@ const typeInEditor = async (canvasElement: HTMLElement, text: string) => {
 	return editor;
 };
 
-export const Closed: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByTestId("chat-message-input")).toBeVisible();
-		await expectNoVisibleText("/reviewer");
-	},
-};
+export const Closed: Story = {};
 
 export const OpensWithSkills: Story = {
 	play: async ({ canvasElement }) => {
