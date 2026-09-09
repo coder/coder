@@ -38,7 +38,7 @@ func TestServer_Single(t *testing.T) {
 	inv, cfg := clitest.NewWithCommand(t, cmd,
 		"server",
 		dbArg(t),
-		"--http-address", ":0",
+		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 	)
 	clitest.Start(t, inv.WithContext(ctx))

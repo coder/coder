@@ -1,4 +1,6 @@
-# Deploy Coder on Rancher
+---
+title: Deploy Coder on Rancher
+---
 
 You can deploy Coder on Rancher as a
 [Workload](https://ranchermanager.docs.rancher.com/getting-started/quick-start-guides/deploy-workloads/workload-ingress).
@@ -134,7 +136,7 @@ kubectl create secret generic coder-db-url -n coder \
 
 1. Select a Coder version:
 
-   - **Mainline**: `2.37.0`
+   - **Mainline**: `2.37.1`
    - **Stable**: `2.36.4`
 
    Learn more about release channels in the [Releases documentation](./releases/index.md).

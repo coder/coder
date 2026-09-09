@@ -6,7 +6,7 @@ import {
 	formatPricePerMillionTokens,
 	getKnownModelsForProvider,
 	searchKnownModels,
-} from "./index";
+} from "./catalog";
 
 const modelIds = (provider: string): readonly string[] =>
 	getKnownModelsForProvider(provider).map(

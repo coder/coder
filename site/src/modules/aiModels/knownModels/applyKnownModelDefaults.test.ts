@@ -5,7 +5,8 @@ import {
 	type ApplyKnownModelDefaultsResult,
 	applyKnownModelDefaults,
 } from "./applyKnownModelDefaults";
-import { findKnownModelByCanonicalId, type KnownModel } from "./index";
+import { findKnownModelByCanonicalId } from "./catalog";
+import type { KnownModel } from "./types";
 
 const requireKnownModel = (
 	provider: string,

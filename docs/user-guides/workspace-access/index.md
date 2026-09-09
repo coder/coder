@@ -1,4 +1,6 @@
-# Access your workspace
+---
+title: Access your workspace
+---
 
 There are many ways to connect to your workspace, the options are only limited
 by the template configuration.

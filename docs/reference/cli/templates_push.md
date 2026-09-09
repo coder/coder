@@ -73,6 +73,22 @@ Always prompt all parameters. Does not pull parameter values from active templat
 
 Whether the new template will be marked active.
 
+### --display-name
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Specify a display name for the template. Takes precedence over display_name in README.md front matter, if present.
+
+### --icon
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Specify an icon path or external URL for the template. Takes precedence over icon in README.md front matter, if present.
+
 ### -y, --yes
 
 |      |                   |
