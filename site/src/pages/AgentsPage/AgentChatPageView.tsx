@@ -351,10 +351,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	);
 	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 
-	// Wrap the git watcher refresh to also invalidate the cached
-	// remote/PR diff contents so the panel re-fetches from GitHub.
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
+	// Wrap the git watcher refresh to also invalidate the cached
+	// remote/PR diff contents so the panel re-fetches from GitHub.
 	const handleRefresh = () => {
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
