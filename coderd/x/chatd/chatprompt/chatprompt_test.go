@@ -3341,10 +3341,11 @@ func TestToolResultAntivenom(t *testing.T) {
 
 func TestMCPAppMetadataRoundTrip(t *testing.T) {
 	t.Parallel()
-	app := codersdk.ChatMCPApp{ServerName: "test", ResourceURI: "ui://app/view", Result: json.RawMessage(`{"content":[{"type":"text","text":"display-only"}],"structured_content":{"value":7},"is_error":false}`)}
+	app := codersdk.ChatMCPApp{ServerName: "test", ResourceURI: "ui://app/view", Result: json.RawMessage(`{"content":[{"type":"text","text":"display-only"}],"structuredContent":{"value":7},"isError":false}`)}
 	response := chattool.WithMCPApp(fantasy.NewTextResponse("model output"), app)
 	part := chatprompt.PartFromContent(fantasy.ToolResultContent{ToolCallID: "call-app", ToolName: "test__view", Result: fantasy.ToolResultOutputContentText{Text: response.Content}, ClientMetadata: response.Metadata})
 	require.Equal(t, &app, part.MCPApp)
+	require.Contains(t, string(part.MCPApp.Result), "structuredContent")
 	wire, err := json.Marshal(codersdk.ChatStreamEvent{Type: codersdk.ChatStreamEventTypeMessagePart, MessagePart: &codersdk.ChatStreamMessagePart{Part: part}})
 	require.NoError(t, err)
 	var event codersdk.ChatStreamEvent
@@ -3368,7 +3369,7 @@ func TestMCPAppMetadataRoundTrip(t *testing.T) {
 	require.Contains(t, string(encoded), "model output")
 	require.NotContains(t, string(encoded), "display-only")
 	require.NotContains(t, string(encoded), "ui://")
-	require.NotContains(t, string(encoded), "structured_content")
+	require.NotContains(t, string(encoded), "structuredContent")
 }
 
 func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {

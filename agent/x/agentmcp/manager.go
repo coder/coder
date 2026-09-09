@@ -707,7 +707,8 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 	return convertResult(result), nil
 }
 
-// ReadResource reads a resource from a connected MCP server.
+// ReadResource returns the first content item from a connected MCP server.
+// An empty result is an error.
 func (m *Manager) ReadResource(ctx context.Context, req workspacesdk.ReadMCPResourceRequest) (workspacesdk.ReadMCPResourceResponse, error) {
 	m.mu.RLock()
 	entry, ok := m.servers[req.ServerName]
@@ -903,10 +904,12 @@ func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.Cli
 		return nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
 	}
 
+	caps := &mcp.ClientCapabilities{}
+	caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{"mimeTypes": []string{"text/html;profile=mcp-app"}})
 	c := mcp.NewClient(&mcp.Implementation{
 		Name:    "coder-agent",
 		Version: buildinfo.Version(),
-	}, nil)
+	}, &mcp.ClientOptions{Capabilities: caps})
 
 	connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
@@ -1022,18 +1025,14 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 				MediaType: c.MIMEType,
 			})
 		case *mcp.EmbeddedResource:
-			resource := convertResource(c.Resource)
 			content = append(content, workspacesdk.MCPToolContent{
-				Type:     "resource",
-				Text:     fmt.Sprintf("[embedded resource: %T]", c.Resource),
-				Resource: &resource,
+				Type: "resource",
+				Text: fmt.Sprintf("[embedded resource: %T]", c.Resource),
 			})
 		case *mcp.ResourceLink:
 			content = append(content, workspacesdk.MCPToolContent{
-				Type:      "resource",
-				Text:      fmt.Sprintf("[resource link: %s]", c.URI),
-				URI:       c.URI,
-				MediaType: c.MIMEType,
+				Type: "resource",
+				Text: fmt.Sprintf("[resource link: %s]", c.URI),
 			})
 		default:
 			content = append(content, workspacesdk.MCPToolContent{
@@ -1043,14 +1042,11 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 		}
 	}
 
-	var structuredContent json.RawMessage
-	if result.StructuredContent != nil {
-		structuredContent, _ = json.Marshal(result.StructuredContent)
-	}
+	wireResult, _ := json.Marshal(result)
 	return workspacesdk.CallMCPToolResponse{
-		Content:           content,
-		IsError:           result.IsError,
-		StructuredContent: structuredContent,
+		Content: content,
+		IsError: result.IsError,
+		Result:  wireResult,
 	}
 }
 

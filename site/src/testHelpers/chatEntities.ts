@@ -136,7 +136,7 @@ export const MockChatMCPApp: ChatMCPApp = {
 	resource_uri: "ui://charts/sales",
 	result: {
 		content: [{ type: "text", text: "Sales chart" }],
-		structured_content: { sales: [10, 20] },
-		is_error: false,
+		structuredContent: { sales: [10, 20] },
+		isError: false,
 	},
 };

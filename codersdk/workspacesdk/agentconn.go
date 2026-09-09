@@ -1309,19 +1309,17 @@ type CallMCPToolRequest struct {
 
 // CallMCPToolResponse is the response from a proxied MCP tool call.
 type CallMCPToolResponse struct {
-	Content           []MCPToolContent `json:"content"`
-	IsError           bool             `json:"is_error"`
-	StructuredContent json.RawMessage  `json:"structured_content,omitempty"`
+	Content []MCPToolContent `json:"content"`
+	IsError bool             `json:"is_error"`
+	Result  json.RawMessage  `json:"result,omitempty"`
 }
 
 // MCPToolContent is a single content block in an MCP tool response.
 type MCPToolContent struct {
-	Type      string                   `json:"type"` // "text", "image", "audio", "resource"
-	Text      string                   `json:"text,omitempty"`
-	Data      string                   `json:"data,omitempty"` // base64 for binary
-	MediaType string                   `json:"media_type,omitempty"`
-	URI       string                   `json:"uri,omitempty"`
-	Resource  *ReadMCPResourceResponse `json:"resource,omitempty"`
+	Type      string `json:"type"` // "text", "image", "audio", "resource"
+	Text      string `json:"text,omitempty"`
+	Data      string `json:"data,omitempty"` // base64 for binary
+	MediaType string `json:"media_type,omitempty"`
 }
 
 // ReadMCPResourceRequest identifies a resource on a workspace MCP server.

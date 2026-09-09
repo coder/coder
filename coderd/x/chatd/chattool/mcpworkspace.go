@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"slices"
@@ -226,15 +227,15 @@ func (t *WorkspaceMCPTool) Run(
 
 	response := convertMCPToolResponse(resp)
 	if t.UIResourceURI != "" {
-		result, err := json.Marshal(resp)
-		if err == nil {
-			if len(result) > 256<<10 {
-				result = json.RawMessage(`{"content":[{"type":"text","text":"[result omitted: too large]"}],"is_error":false}`)
-			}
-			response = WithMCPApp(response, codersdk.ChatMCPApp{
-				ServerName: t.ServerName(), ResourceURI: t.UIResourceURI, Result: result,
-			})
+		result := resp.Result
+		if len(result) == 0 {
+			result = json.RawMessage(fmt.Sprintf(`{"content":[],"isError":%t}`, resp.IsError))
+		} else if len(result) > 256<<10 {
+			result = json.RawMessage(fmt.Sprintf(`{"content":[{"type":"text","text":"[result omitted: too large]"}],"isError":%t}`, resp.IsError))
 		}
+		response = WithMCPApp(response, codersdk.ChatMCPApp{
+			ServerName: t.ServerName(), ResourceURI: t.UIResourceURI, Result: result,
+		})
 	}
 	return response, nil
 }

@@ -8,48 +8,6 @@ interface HostContext {
 	userAgent: string;
 }
 
-const convertContent = (value: unknown): unknown => {
-	const content = asRecord(value);
-	if (!content) return value;
-	const { media_type, resource, ...rest } = content;
-	if (content.type === "resource") {
-		const embedded = asRecord(resource);
-		if (embedded) {
-			const { mime_type, meta, ...body } = embedded;
-			return {
-				type: "resource",
-				resource: {
-					...body,
-					...(mime_type ? { mimeType: mime_type } : {}),
-					...(meta ? { _meta: meta } : {}),
-				},
-			};
-		}
-		return {
-			type: "resource_link",
-			uri: content.uri,
-			name: content.uri,
-			...(media_type ? { mimeType: media_type } : {}),
-		};
-	}
-	return { ...rest, ...(media_type ? { mimeType: media_type } : {}) };
-};
-
-const toolResult = (value: unknown) => {
-	const result = asRecord(value);
-	return {
-		content: Array.isArray(result?.content)
-			? result.content.map(convertContent)
-			: [],
-		...(result?.structured_content !== undefined
-			? { structuredContent: result.structured_content }
-			: {}),
-		...(typeof result?.is_error === "boolean"
-			? { isError: result.is_error }
-			: {}),
-	};
-};
-
 interface BridgeOptions {
 	frame: HTMLIFrameElement;
 	hostVersion: string;
@@ -59,7 +17,10 @@ interface BridgeOptions {
 	onSizeChange: (size: { height?: number; width?: number }) => void;
 }
 
-/** Connects one opaque-origin MCP App using the stable 2026-01-26 protocol. */
+/**
+ * Supports MCP App initialization, tool notifications, sizing, display mode, and links.
+ * App-initiated tools/call and other server requests are rejected with -32601.
+ */
 export function connectMCPApp({
 	frame,
 	hostVersion,
@@ -93,7 +54,7 @@ export function connectMCPApp({
 				});
 				post({
 					method: "ui/notifications/tool-result",
-					params: toolResult(tool.result),
+					params: asRecord(tool.result) ?? { content: [], isError: false },
 				});
 				onReady();
 			} else if (data.method === "ui/notifications/size-change" && ready) {

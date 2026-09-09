@@ -254,14 +254,16 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 func TestWorkspaceMCPTool_MCPApp(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name                    string
-		enabled, noURI, isError bool
-		size                    int
+		name                              string
+		enabled, noURI, isError, noResult bool
+		size                              int
 	}{
 		{name: "Enabled", enabled: true},
 		{name: "Disabled"},
 		{name: "NoURI", enabled: true, noURI: true},
 		{name: "Error", enabled: true, isError: true},
+		{name: "NoResult", enabled: true, noResult: true},
+		{name: "NoResultError", enabled: true, noResult: true, isError: true},
 		{name: "AtLimit", enabled: true, size: 256 << 10},
 		{name: "Oversize", enabled: true, size: (256 << 10) + 1},
 		{name: "OversizeError", enabled: true, isError: true, size: (256 << 10) + 1},
@@ -269,14 +271,14 @@ func TestWorkspaceMCPTool_MCPApp(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			original := workspacesdk.CallMCPToolResponse{
-				Content:           []workspacesdk.MCPToolContent{{Type: "text", Text: "model output"}, {Type: "image", Data: "aW1hZ2U=", MediaType: "image/png"}},
-				StructuredContent: json.RawMessage(`{"display":""}`),
-				IsError:           tc.isError,
+				Content: []workspacesdk.MCPToolContent{{Type: "text", Text: "model output"}, {Type: "image", Data: "aW1hZ2U=", MediaType: "image/png"}},
+				Result:  json.RawMessage(`{"content":[{"type":"text","text":"display output"}],"structuredContent":{"display":""},"_meta":{"view":"chart"},"isError":` + strconv.FormatBool(tc.isError) + `}`),
+				IsError: tc.isError,
 			}
-			if tc.size > 0 {
-				base, err := json.Marshal(original)
-				require.NoError(t, err)
-				original.StructuredContent = json.RawMessage(`{"display":"` + strings.Repeat("x", tc.size-len(base)) + `"}`)
+			if tc.noResult {
+				original.Result = nil
+			} else if tc.size > 0 {
+				original.Result = json.RawMessage(strings.Replace(string(original.Result), `"display":""`, `"display":"`+strings.Repeat("x", tc.size-len(original.Result))+`"`, 1))
 			}
 			info := workspacesdk.MCPToolInfo{Name: "my.server__view", ServerName: "my.server"}
 			if !tc.noURI {
@@ -302,12 +304,13 @@ func TestWorkspaceMCPTool_MCPApp(t *testing.T) {
 			require.NotNil(t, app)
 			require.Equal(t, "my.server", app.ServerName)
 			require.Equal(t, info.UIResourceURI, app.ResourceURI)
-			if tc.size > 256<<10 {
-				require.JSONEq(t, `{"content":[{"type":"text","text":"[result omitted: too large]"}],"is_error":false}`, string(app.Result))
-			} else {
-				expected, err := json.Marshal(original)
-				require.NoError(t, err)
-				require.JSONEq(t, string(expected), string(app.Result))
+			switch {
+			case tc.size > 256<<10:
+				require.JSONEq(t, `{"content":[{"type":"text","text":"[result omitted: too large]"}],"isError":`+strconv.FormatBool(tc.isError)+`}`, string(app.Result))
+			case tc.noResult:
+				require.JSONEq(t, `{"content":[],"isError":`+strconv.FormatBool(tc.isError)+`}`, string(app.Result))
+			default:
+				require.JSONEq(t, string(original.Result), string(app.Result))
 			}
 		})
 	}
@@ -315,7 +318,7 @@ func TestWorkspaceMCPTool_MCPApp(t *testing.T) {
 
 func TestMCPAppAttachmentMetadata(t *testing.T) {
 	t.Parallel()
-	app := codersdk.ChatMCPApp{ServerName: "test", ResourceURI: "ui://test/app", Result: json.RawMessage(`{"content":[],"is_error":false}`)}
+	app := codersdk.ChatMCPApp{ServerName: "test", ResourceURI: "ui://test/app", Result: json.RawMessage(`{"content":[],"isError":false}`)}
 	attachment := chattool.AttachmentMetadata{FileID: uuid.New(), MediaType: "text/plain"}
 	for _, appFirst := range []bool{true, false} {
 		t.Run(strconv.FormatBool(appFirst), func(t *testing.T) {

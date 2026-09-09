@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -22,7 +23,12 @@ func TestMCPApps(t *testing.T) {
 	meta := mcp.Meta{"ui": map[string]any{"resourceUri": "ui://view"}}
 	resourceMeta := mcp.Meta{"ui": map[string]any{"prefersBorder": true}}
 	server := mcp.NewServer(&mcp.Implementation{Name: "apps", Version: "1"}, nil)
-	handler := func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	handler := func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		settings, ok := req.Session.InitializeParams().Capabilities.Extensions["io.modelcontextprotocol/ui"]
+		if !ok {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "MCP Apps capability required"}}}, nil
+		}
+		assert.Equal(t, map[string]any{"mimeTypes": []any{"text/html;profile=mcp-app"}}, settings)
 		return &mcp.CallToolResult{
 			Content:           []mcp.Content{&mcp.TextContent{Text: "view ready"}},
 			StructuredContent: map[string]any{"items": []any{"one", "two"}},
@@ -44,14 +50,13 @@ func TestMCPApps(t *testing.T) {
 	server.AddResource(&mcp.Resource{URI: "ui://empty", Name: "empty"}, func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		return &mcp.ReadResourceResult{}, nil
 	})
-	serverTransport, clientTransport := mcp.NewInMemoryTransports()
-	session, err := server.Connect(ctx, serverTransport, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = session.Close() })
-	client, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil).Connect(ctx, clientTransport, nil)
+	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil))
+	t.Cleanup(httpServer.Close)
+	manager := &Manager{logger: testutil.Logger(t)}
+	client, err := manager.connectServer(ctx, ServerConfig{Name: "apps", Transport: "http", URL: httpServer.URL})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
-	manager := &Manager{logger: testutil.Logger(t), servers: map[string]*serverEntry{"apps": {client: client}}}
+	manager.servers = map[string]*serverEntry{"apps": {client: client}}
 	wanted := map[string]ServerConfig{"apps": {Name: "apps"}}
 	require.True(t, manager.refreshCatalog(ctx, wanted))
 	catalog := manager.Catalog()
@@ -108,7 +113,8 @@ func TestMCPApps(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var result workspacesdk.CallMCPToolResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &result))
-	require.JSONEq(t, `{"items":["one","two"]}`, string(result.StructuredContent))
+	require.False(t, result.IsError)
+	require.JSONEq(t, `{"content":[{"type":"text","text":"view ready"}],"structuredContent":{"items":["one","two"]}}`, string(result.Result))
 	require.Equal(t, []workspacesdk.MCPToolContent{{Type: "text", Text: "view ready"}}, result.Content)
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
@@ -127,22 +133,30 @@ func TestConvertResultEmbeddedResource(t *testing.T) {
 			} else {
 				resource.Text = "html"
 			}
-			got := convertResult(&mcp.CallToolResult{Content: []mcp.Content{&mcp.EmbeddedResource{Resource: resource}}, IsError: true, StructuredContent: map[string]any{}})
+			original := &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.EmbeddedResource{Resource: resource, Annotations: &mcp.Annotations{Audience: []mcp.Role{"user"}}},
+					&mcp.ResourceLink{URI: "https://example.com/report", Name: "Sales report", MIMEType: "text/html"},
+				},
+				IsError: true, StructuredContent: map[string]any{"items": []any{"one"}},
+				Meta: mcp.Meta{"display": "chart"},
+			}
+			got := convertResult(original)
 			data, err := json.Marshal(got)
 			require.NoError(t, err)
 			var roundtrip workspacesdk.CallMCPToolResponse
 			require.NoError(t, json.Unmarshal(data, &roundtrip))
 			require.True(t, roundtrip.IsError)
-			require.JSONEq(t, "{}", string(roundtrip.StructuredContent))
-			require.Len(t, roundtrip.Content, 1)
-			item := roundtrip.Content[0]
-			require.Equal(t, "resource", item.Type)
-			require.NotNil(t, item.Resource)
-			require.Equal(t, resource.URI, item.Resource.URI)
-			require.Equal(t, resource.MIMEType, item.Resource.MimeType)
-			require.Equal(t, resource.Text, item.Resource.Text)
-			require.Equal(t, base64.StdEncoding.EncodeToString(resource.Blob), item.Resource.Blob)
-			require.JSONEq(t, `{"ui":{"prefersBorder":true}}`, string(item.Resource.Meta))
+			require.Equal(t, []workspacesdk.MCPToolContent{
+				{Type: "resource", Text: "[embedded resource: *mcp.ResourceContents]"},
+				{Type: "resource", Text: "[resource link: https://example.com/report]"},
+			}, roundtrip.Content)
+			expected, err := json.Marshal(original)
+			require.NoError(t, err)
+			require.JSONEq(t, string(expected), string(roundtrip.Result))
+			var mcpResult mcp.CallToolResult
+			require.NoError(t, json.Unmarshal(roundtrip.Result, &mcpResult))
+			require.Equal(t, original, &mcpResult)
 		})
 	}
 }
@@ -152,5 +166,5 @@ func TestConvertResultNilResource(t *testing.T) {
 	got := convertResult(&mcp.CallToolResult{Content: []mcp.Content{&mcp.EmbeddedResource{}}})
 	require.Len(t, got.Content, 1)
 	require.Equal(t, "resource", got.Content[0].Type)
-	require.Equal(t, &workspacesdk.ReadMCPResourceResponse{}, got.Content[0].Resource)
+	require.Equal(t, "[embedded resource: *mcp.ResourceContents]", got.Content[0].Text)
 }

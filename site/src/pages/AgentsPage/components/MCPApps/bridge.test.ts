@@ -40,40 +40,39 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-it("negotiates the stable protocol and sends input before converted results once initialized", () => {
+it("negotiates the stable protocol and sends input before original results once initialized", () => {
 	const result = {
 		content: [
-			{ type: "text", text: "chart" },
-			{ type: "image", data: "image", media_type: "image/png" },
-			{ type: "audio", data: "audio", media_type: "audio/wav" },
+			{ type: "text", text: "chart", annotations: { audience: ["user"] } },
+			{ type: "image", data: "image", mimeType: "image/png" },
+			{ type: "audio", data: "audio", mimeType: "audio/wav" },
 			{
 				type: "resource",
-				text: "legacy placeholder",
 				resource: {
 					uri: "file:///chart",
-					mime_type: "text/plain",
+					mimeType: "text/plain",
 					text: "embedded",
-					meta: { custom: true },
+					_meta: { custom: true },
 				},
 			},
 			{
 				type: "resource",
-				text: "legacy placeholder",
 				resource: {
 					uri: "file:///blob",
-					mime_type: "image/png",
+					mimeType: "image/png",
 					blob: "bytes",
 				},
 			},
 			{
-				type: "resource",
+				type: "resource_link",
+				name: "Sales report",
 				uri: "https://example.com/chart",
-				media_type: "text/html",
-				text: "legacy placeholder",
+				mimeType: "text/html",
 			},
 		],
-		structured_content: { preserve_snake_case: true },
-		is_error: false,
+		structuredContent: { preserve_snake_case: true },
+		isError: false,
+		_meta: { view: "sales" },
 	};
 	const bridge = setup(result);
 	bridge.send("ui/notifications/initialized");
@@ -107,38 +106,7 @@ it("negotiates the stable protocol and sends input before converted results once
 		{
 			jsonrpc: "2.0",
 			method: "ui/notifications/tool-result",
-			params: {
-				content: [
-					{ type: "text", text: "chart" },
-					{ type: "image", data: "image", mimeType: "image/png" },
-					{ type: "audio", data: "audio", mimeType: "audio/wav" },
-					{
-						type: "resource",
-						resource: {
-							uri: "file:///chart",
-							mimeType: "text/plain",
-							text: "embedded",
-							_meta: { custom: true },
-						},
-					},
-					{
-						type: "resource",
-						resource: {
-							uri: "file:///blob",
-							mimeType: "image/png",
-							blob: "bytes",
-						},
-					},
-					{
-						type: "resource_link",
-						uri: "https://example.com/chart",
-						name: "https://example.com/chart",
-						mimeType: "text/html",
-					},
-				],
-				structuredContent: { preserve_snake_case: true },
-				isError: false,
-			},
+			params: result,
 		},
 		"*",
 	);
@@ -269,3 +237,21 @@ it("logs app notifications without putting them in chat", () => {
 	expect(bridge.post).not.toHaveBeenCalled();
 	bridge.disconnect();
 });
+
+it.each([null, [], "invalid"])(
+	"sends an empty result for invalid metadata %j",
+	(result) => {
+		const bridge = setup(result);
+		bridge.send("ui/initialize", {}, 1);
+		bridge.send("ui/notifications/initialized");
+		expect(bridge.post).toHaveBeenLastCalledWith(
+			{
+				jsonrpc: "2.0",
+				method: "ui/notifications/tool-result",
+				params: { content: [], isError: false },
+			},
+			"*",
+		);
+		bridge.disconnect();
+	},
+);

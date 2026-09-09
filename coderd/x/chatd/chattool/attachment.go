@@ -157,6 +157,7 @@ func WithMCPApp(response fantasy.ToolResponse, app codersdk.ChatMCPApp) fantasy.
 }
 
 // MCPAppFromMetadata decodes an MCP App from the tool response side channel.
+// Absent metadata returns nil without error; malformed metadata returns an error.
 func MCPAppFromMetadata(metadata string) (*codersdk.ChatMCPApp, error) {
 	var decoded responseMetadata
 	if strings.TrimSpace(metadata) != "" {

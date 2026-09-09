@@ -210,7 +210,7 @@ func TestConvertResult(t *testing.T) {
 			},
 			want: workspacesdk.CallMCPToolResponse{
 				Content: []workspacesdk.MCPToolContent{
-					{Type: "resource", Text: "[resource link: file:///tmp/test.txt]", URI: "file:///tmp/test.txt"},
+					{Type: "resource", Text: "[resource link: file:///tmp/test.txt]"},
 				},
 			},
 		},
@@ -221,7 +221,13 @@ func TestConvertResult(t *testing.T) {
 			t.Parallel()
 
 			got := convertResult(tt.input)
-			assert.Equal(t, tt.want, got)
+			want := tt.want
+			if tt.input != nil {
+				var err error
+				want.Result, err = json.Marshal(tt.input)
+				require.NoError(t, err)
+			}
+			assert.Equal(t, want, got)
 		})
 	}
 }
