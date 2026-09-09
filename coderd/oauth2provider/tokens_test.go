@@ -512,6 +512,15 @@ func tokenExchangeForm(app appWithSecret, code, verifier string) url.Values {
 	return form
 }
 
+func refreshTokenForm(app appWithSecret, refreshToken string) url.Values {
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", refreshToken)
+	form.Set("client_id", app.ID.String())
+	form.Set("client_secret", app.ClientSecret)
+	return form
+}
+
 func exchangeCode(ctx context.Context, t *testing.T, client *codersdk.Client, app appWithSecret, code, verifier string) codersdk.OAuth2TokenResponse {
 	t.Helper()
 
@@ -614,4 +623,117 @@ func TestOAuth2TokenExchangeLoopbackRedirectPort(t *testing.T) {
 	form.Set("code_verifier", verifier)
 	status, body := postTokenRequest(ctx, t, client, form)
 	requireTokenResponse(t, status, body)
+}
+
+// RFC 6749 §3.2 and OAuth 2.1 §3.2 require the token endpoint to ignore
+// unrecognized parameters. The set is the one the authorization endpoint's
+// test sends, so both endpoints treat the same extras the same way. The token
+// has to work, not just be issued: checking only for the absence of a 400
+// would also pass a handler that ignored the whole request.
+func TestOAuth2TokenUnrecognizedParametersIgnored(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	t.Run("AuthorizationCode", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		form := tokenExchangeForm(app, code, verifier)
+		addUnrecognizedParams(form)
+
+		status, body := postTokenRequest(ctx, t, client, form)
+		token := requireTokenResponse(t, status, body)
+		requireTokenAuthenticates(ctx, t, client, token.AccessToken)
+	})
+
+	t.Run("RefreshToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, string(database.ApiKeyScopeCoderAll))
+		form := refreshTokenForm(app, refreshToken)
+		addUnrecognizedParams(form)
+
+		status, body := postTokenRequest(ctx, t, client, form)
+		token := requireTokenResponse(t, status, body)
+		requireTokenAuthenticates(ctx, t, client, token.AccessToken)
+	})
+}
+
+// RFC 6749 §3.2 also says parameters MUST NOT be included more than once.
+// Ignoring unrecognized parameters did not loosen this: parseSingle still
+// refuses a repeated parameter the endpoint reads, and this test keeps it so.
+//
+// The error codes are what the handler produces today, not what RFC 6749 §5.2
+// asks for. A repeated grant_type answers unsupported_grant_type and a
+// repeated code reads as missing, because the dispatch keys on the field name
+// and not on why it failed. They are asserted as observed so a fix to the
+// dispatch shows up as a test diff.
+func TestOAuth2TokenRepeatedParameterRejected(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	cases := []struct {
+		param string
+		// first is the value a valid request would carry, used only when the
+		// base form does not already set the parameter. The parser refuses
+		// the repeat before any grant runs, so it only has to be well formed.
+		first    string
+		grant    codersdk.OAuth2ProviderGrantType
+		wantCode codersdk.OAuth2ErrorCode
+	}{
+		{param: "grant_type", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeUnsupportedGrantType},
+		{param: "code", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "client_id", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "client_secret", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "code_verifier", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "redirect_uri", first: appCallbackURL, grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "resource", first: "https://api.example.com", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "scope", first: "workspace:ssh", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "refresh_token", grant: codersdk.OAuth2ProviderGrantTypeRefreshToken, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.param, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			app := seedAppWithSecret(t, db, sql.NullString{})
+			var form url.Values
+			if tc.grant == codersdk.OAuth2ProviderGrantTypeRefreshToken {
+				refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, string(database.ApiKeyScopeCoderAll))
+				form = refreshTokenForm(app, refreshToken)
+			} else {
+				code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+				form = tokenExchangeForm(app, code, verifier)
+			}
+			if !form.Has(tc.param) {
+				form.Set(tc.param, tc.first)
+			}
+			form.Add(tc.param, "second")
+
+			status, body := postTokenRequest(ctx, t, client, form)
+			require.Equal(t, http.StatusBadRequest, status, body)
+			var oauthErr struct {
+				Error string `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
+			require.Equal(t, string(tc.wantCode), oauthErr.Error, body)
+		})
+	}
 }

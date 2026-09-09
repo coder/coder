@@ -106,7 +106,7 @@ func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 // extractTokenRequest parses and validates the /oauth2/tokens form. It takes
 // the app because whether client_secret is required depends on the client
 // type.
-func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
+func extractTokenRequest(r *http.Request, logger slog.Logger, callbackURL *url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
 	if err != nil {
@@ -190,7 +190,14 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAu
 		})
 	}
 
-	p.ErrorExcessParams(vals)
+	// RFC 6749 §3.2 and OAuth 2.1 §3.2: unrecognized parameters MUST be ignored,
+	// so a client_assertion or a DPoP parameter is not this endpoint's business.
+	// Repeats of the parameters read above are still rejected, by parseSingle.
+	if ignored := ignoredParams(p, vals); len(ignored) > 0 {
+		logger.Debug(r.Context(), "ignoring unrecognized token parameters",
+			slog.F("params", ignored))
+	}
+
 	if len(p.Errors) > 0 {
 		return codersdk.OAuth2TokenRequest{}, p.Errors, xerrors.Errorf("invalid query params: %w", p.Errors)
 	}
@@ -214,7 +221,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			return
 		}
 
-		req, validationErrs, err := extractTokenRequest(r, callbackURL, app)
+		req, validationErrs, err := extractTokenRequest(r, logger, callbackURL, app)
 		if err != nil {
 			if errors.Is(err, errConflictingClientAuth) {
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")

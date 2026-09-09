@@ -370,7 +370,7 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 	return params, nil
 }
 
-// ignoredParams returns the query parameters this endpoint does not read,
+// ignoredParams returns the parameters the calling endpoint did not read,
 // sorted so the log line is stable. A misspelled parameter (redirect_url for
 // redirect_uri) surfaces here instead of in the client's error.
 func ignoredParams(p *httpapi.QueryParamParser, vals url.Values) []string {
