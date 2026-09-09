@@ -24,10 +24,14 @@ export const WorkspaceTerminalAlerts = ({
 	onAlertChange,
 }: WorkspaceTerminalAlertsProps) => {
 	const lifecycleState = agent?.lifecycle_state;
-	const prevLifecycleState = useRef(lifecycleState);
-	useEffect(() => {
-		prevLifecycleState.current = lifecycleState;
-	}, [lifecycleState]);
+	const [prevLifecycleState, setPrevLifecycleState] = useState(lifecycleState);
+	const [showLoadedScriptsAlert, setShowLoadedScriptsAlert] = useState(false);
+	if (prevLifecycleState !== lifecycleState) {
+		setShowLoadedScriptsAlert(
+			prevLifecycleState === "starting" && lifecycleState === "ready",
+		);
+		setPrevLifecycleState(lifecycleState);
+	}
 
 	// MutationObserver triggers onAlertChange after DOM updates so
 	// the terminal can refit once alert height changes.
@@ -52,8 +56,7 @@ export const WorkspaceTerminalAlerts = ({
 				<ErrorScriptAlert />
 			) : lifecycleState === "starting" ? (
 				<LoadingScriptsAlert />
-			) : lifecycleState === "ready" &&
-				prevLifecycleState.current === "starting" ? (
+			) : lifecycleState === "ready" && showLoadedScriptsAlert ? (
 				<LoadedScriptsAlert />
 			) : null}
 		</div>

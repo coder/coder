@@ -21,13 +21,6 @@ export const Default: Story = {
 		thumbnailSrc: TINY_THUMBNAIL,
 		src: TINY_MP4,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("img")).toBeInTheDocument();
-		expect(
-			canvas.getByRole("button", { name: "View recording" }),
-		).toBeInTheDocument();
-	},
 };
 
 export const LightboxOpen: Story = {
@@ -95,20 +88,5 @@ export const WithThumbnail: Story = {
 export const WithoutThumbnail: Story = {
 	args: {
 		recordingFileId: "rec-id",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// No <img> or <video> element should be in the DOM.
-		expect(canvasElement.querySelector("img")).toBeNull();
-		expect(canvasElement.querySelector("video")).toBeNull();
-		// Play button is still present.
-		expect(
-			canvas.getByRole("button", { name: "View recording" }),
-		).toBeInTheDocument();
-		// Gray placeholder div is visible.
-		const placeholder = canvasElement.querySelector(
-			".bg-surface-secondary:not(.flex)",
-		);
-		expect(placeholder).not.toBeNull();
 	},
 };

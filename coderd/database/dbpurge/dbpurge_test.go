@@ -392,7 +392,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   1111,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	// Stat inserted 180 days - 2 hour ago, should not be deleted before rollup.
@@ -401,7 +401,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   2222,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	// Stat inserted 179 days - 4 hour ago, should not be deleted at all.
@@ -410,7 +410,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   3333,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	// when
