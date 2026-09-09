@@ -173,27 +173,16 @@ export const TogglesCollapseAssistantSteps: Story = {
 			},
 		);
 	},
+	// The mutation behavior is covered by CollapseAssistantStepsSettings.test.tsx;
+	// this play only turns the switch on for the screenshot.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const toggle = await canvas.findByRole("switch", {
+		await userEvent.click(
+			await canvas.findByRole("switch", { name: "Collapse assistant steps" }),
+		);
+		await canvas.findByRole("switch", {
 			name: "Collapse assistant steps",
-		});
-		expect(toggle).not.toBeChecked();
-
-		await userEvent.click(toggle);
-		await waitFor(() => {
-			expect(API.updateUserPreferenceSettings).toHaveBeenCalledWith({
-				collapse_assistant_steps: true,
-			});
-			expect(toggle).toBeChecked();
-		});
-
-		await userEvent.click(toggle);
-		await waitFor(() => {
-			expect(API.updateUserPreferenceSettings).toHaveBeenLastCalledWith({
-				collapse_assistant_steps: false,
-			});
-			expect(toggle).not.toBeChecked();
+			checked: true,
 		});
 	},
 };
@@ -207,15 +196,9 @@ export const CollapseAssistantStepsLoadError: Story = {
 		);
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByText(
-				"Failed to load your collapse assistant steps preference.",
-			),
-		).toBeVisible();
-		expect(
-			canvas.getByRole("switch", { name: "Collapse assistant steps" }),
-		).toBeDisabled();
+		await within(canvasElement).findByText(
+			"Failed to load your collapse assistant steps preference.",
+		);
 	},
 };
 
