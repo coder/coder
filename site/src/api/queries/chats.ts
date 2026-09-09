@@ -2136,23 +2136,30 @@ export const userChatPersonalModelOverrides = (
 });
 
 type UpdateUserChatPersonalModelOverrideArgs = {
+	organizationId: string;
 	context: TypesGen.ChatPersonalModelOverrideContext;
 	req: TypesGen.UpdateUserChatPersonalModelOverrideRequest;
 };
 
 export const updateUserChatPersonalModelOverride = (
 	queryClient: QueryClient,
-	organizationId: string,
 	user = "me",
 ) => ({
-	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
+	mutationFn: ({
+		organizationId,
+		context,
+		req,
+	}: UpdateUserChatPersonalModelOverrideArgs) =>
 		API.experimental.updateUserChatPersonalModelOverride(
 			organizationId,
 			user,
 			context,
 			req,
 		),
-	onSuccess: async () => {
+	onSuccess: async (
+		_data: unknown,
+		{ organizationId }: UpdateUserChatPersonalModelOverrideArgs,
+	) => {
 		await queryClient.invalidateQueries({
 			queryKey: userChatPersonalModelOverridesKey(organizationId, user),
 		});

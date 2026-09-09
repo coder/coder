@@ -35,8 +35,6 @@ interface PersonalOverrideFormValues {
 
 interface PersonalModelOverrideRowProps {
 	context: PersonalOverrideContext;
-	title: string;
-	description: string;
 	overrideData: PersonalOverride | undefined;
 	deploymentDefault?: TypesGen.ChatModelOverrideResponse;
 	modelOptions: readonly ModelSelectorOption[];
@@ -45,10 +43,27 @@ interface PersonalModelOverrideRowProps {
 	isLoading: boolean;
 	onSave: SavePersonalOverride;
 	isSaving: boolean;
-	isSaveError: boolean;
-	saveErrorMessage: string;
 	disabled: boolean;
 }
+
+const PERSONAL_OVERRIDE_COPY: Record<
+	PersonalOverrideContext,
+	{ title: string; description: string }
+> = {
+	root: {
+		title: "Root agent model",
+		description: "Choose the model behavior for new root agents.",
+	},
+	general: {
+		title: "General subagent model",
+		description:
+			"Choose the model behavior for delegated agents with write capabilities.",
+	},
+	explore: {
+		title: "Explore subagent model",
+		description: "Choose the model behavior for read-only Explore subagents.",
+	},
+};
 
 const getDefaultMode = (
 	context: PersonalOverrideContext,
@@ -159,8 +174,6 @@ const isDefaultModeOption = (
 
 export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	context,
-	title,
-	description,
 	overrideData,
 	deploymentDefault,
 	modelOptions,
@@ -169,10 +182,9 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	isLoading,
 	onSave,
 	isSaving,
-	isSaveError,
-	saveErrorMessage,
 	disabled,
 }) => {
+	const { title, description } = PERSONAL_OVERRIDE_COPY[context];
 	const hasLoadedOverride = overrideData !== undefined;
 	const form = useFormik<PersonalOverrideFormValues>({
 		enableReinitialize: true,
@@ -282,9 +294,9 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 						void form.setFieldValue("reasoning_effort", value)
 					}
 				/>
-				{modelOptions.length === 0 && (
+				{isLoading && modelOptions.length === 0 && (
 					<p role="status" className="m-0 text-xs text-content-secondary">
-						{isLoading ? "Loading models..." : "No enabled models found."}
+						Loading models...
 					</p>
 				)}
 
@@ -312,11 +324,6 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 						Save
 					</Button>
 				</div>
-				{isSaveError && (
-					<p className="m-0 text-xs text-content-destructive">
-						{saveErrorMessage}
-					</p>
-				)}
 			</form>
 		</section>
 	);
