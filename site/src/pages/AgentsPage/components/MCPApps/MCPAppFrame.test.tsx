@@ -146,6 +146,35 @@ it.each(["timeout", "error"])(
 	},
 );
 
+it("stops trusting a frame that navigates after the served document", async () => {
+	const onRawOutput = vi.fn();
+	render(
+		<MCPAppFrame
+			src="about:blank"
+			title="Sales"
+			args={{}}
+			result={MockChatMCPApp.result}
+			displayMode="inline"
+			fallback={<button onClick={onRawOutput}>Raw output</button>}
+		/>,
+		{ wrapper: themeWrapper },
+	);
+	const frame = screen.getByTitle<HTMLIFrameElement>("Sales");
+	const source = frame.contentWindow;
+	if (!source) throw new Error("No iframe window");
+	const post = vi.spyOn(source, "postMessage");
+	send(source, "ui/initialize", 1);
+	send(source, "ui/notifications/initialized");
+	post.mockClear();
+	fireEvent.load(frame);
+	fireEvent.load(frame);
+	expect(screen.queryByTitle("Sales")).toBeNull();
+	send(source, "ui/initialize", 2);
+	expect(post).not.toHaveBeenCalled();
+	await userEvent.click(screen.getByRole("button", { name: "Raw output" }));
+	expect(onRawOutput).toHaveBeenCalledOnce();
+});
+
 it("waits for the call before initializing inline and opening the result in the panel", async () => {
 	const onOpenApp = vi.fn();
 	const connect = vi.spyOn(bridge, "connectMCPApp");

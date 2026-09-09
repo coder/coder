@@ -29,6 +29,7 @@ export const MCPAppFrame = ({
 }: MCPAppFrameProps) => {
 	const frameRef = useRef<HTMLIFrameElement>(null);
 	const connectionRef = useRef<ReturnType<typeof connectMCPApp>>(null);
+	const loadCountRef = useRef(0);
 	const { buildInfo } = useDashboard();
 	const theme = useTheme();
 	const themeMode = theme.palette.mode;
@@ -56,7 +57,15 @@ export const MCPAppFrame = ({
 		let animationFrame = 0;
 		let pendingSize: { height?: number; width?: number } = {};
 		const onError = () => setStatus("error");
+		// A sandboxed document can still navigate its own frame, and the
+		// replacement keeps the same opaque origin and window, so any load
+		// after the served document ends the app instead of trusting it.
+		const onLoad = () => {
+			loadCountRef.current += 1;
+			if (loadCountRef.current > 1) onError();
+		};
 		frame.addEventListener("error", onError);
+		frame.addEventListener("load", onLoad);
 		const timeout = window.setTimeout(onError, 15000);
 		const connection = connectMCPApp({
 			frame,
@@ -84,6 +93,7 @@ export const MCPAppFrame = ({
 			connectionRef.current = null;
 			connection.disconnect();
 			frame.removeEventListener("error", onError);
+			frame.removeEventListener("load", onLoad);
 			window.clearTimeout(timeout);
 			window.cancelAnimationFrame(animationFrame);
 		};
@@ -95,7 +105,7 @@ export const MCPAppFrame = ({
 		return (
 			<div className="h-full overflow-auto">
 				<p role="alert" className="p-3 text-sm text-content-secondary">
-					This app could not initialize. The tool output is shown below.
+					This app could not be displayed. The tool output is shown below.
 				</p>
 				{fallback}
 			</div>

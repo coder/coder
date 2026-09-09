@@ -153,7 +153,7 @@ export const InlineError: Story = {
 		</MCPAppContext>
 	),
 	play: async ({ canvasElement }) => {
-		fireEvent.error(within(canvasElement).getByTitle("charts__sales"));
+		fireEvent.error(await within(canvasElement).findByTitle("charts__sales"));
 	},
 };
 
