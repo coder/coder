@@ -15,25 +15,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// resolveBedrockModels records which model each of the provider's application
-// inference profile ARNs refers to. An ARN identifies a billing wrapper rather
-// than a model, so the gateway needs the mapping to detect capabilities, price
-// usage, and record interceptions.
-//
-// Resolution is an AWS call, so it runs after the provider write has committed
-// rather than holding a database transaction open across the network. It reads
-// the stored row because that is the merged configuration the provider will
-// actually use.
-//
-// It runs on every save, even for an ARN another provider already resolved, so
-// that saving proves this provider's own identity can read the profile.
+// resolveBedrockModels stores the model each of the provider's application
+// inference profile ARNs refers to. It runs after the write commits, and on
+// every save, because it calls AWS.
 func (api *API) resolveBedrockModels(ctx context.Context, row database.AIProvider) error {
 	settings, err := db2sdk.AIProviderSettings(row.Settings)
 	if err != nil {
 		return xerrors.Errorf("decode settings: %w", err)
 	}
-	// Resolution is a Bedrock control-plane call, whereas the provider's
-	// BaseURL is its runtime endpoint, so it is deliberately not carried here.
+	// BaseURL is the runtime endpoint; resolution calls the control plane.
 	cfg := agplaibridge.BedrockConfig("", settings.Bedrock)
 	if cfg == nil {
 		return nil
@@ -56,10 +46,9 @@ func (api *API) resolveBedrockModels(ctx context.Context, row database.AIProvide
 	return nil
 }
 
-// writeAIProviderResolutionError reports a failed Bedrock model resolution. The
-// provider keeps the identifiers the operator asked for, but without a
-// resolution the gateway cannot tell what an opaque profile ARN refers to, so
-// it serves the ARN as its own identity until a later save resolves it.
+// writeAIProviderResolutionError reports a failed resolution. The provider is
+// stored either way, and serves the ARN as its own identity until a later save
+// resolves it.
 func (api *API) writeAIProviderResolutionError(ctx context.Context, rw http.ResponseWriter, err error) {
 	api.Logger.Warn(ctx, "resolve bedrock inference profile", slog.Error(err))
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
