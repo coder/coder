@@ -22,8 +22,8 @@ const bedrockService = "bedrock"
 const applicationInferenceProfileResourceType = "application-inference-profile"
 
 // inferenceProfileResolutionTimeout bounds the Bedrock control-plane calls made
-// while writing a provider, which also cover the first credential resolution
-// (STS/IRSA).
+// while constructing a provider, which also cover the first credential
+// resolution (STS/IRSA).
 const inferenceProfileResolutionTimeout = 30 * time.Second
 
 // isApplicationInferenceProfileARN reports whether model is an application
@@ -93,10 +93,8 @@ func modelIDFromARN(modelARN string) (string, error) {
 // that are not application inference profile ARNs are returned unchanged and
 // cost no AWS call.
 //
-// It runs where a Bedrock provider is written rather than where it is served,
-// so the gateway never calls the Bedrock control plane. The identity comes from
-// cfg, including any role assumed via config.AWSBedrock.RoleARN, so the
-// required bedrock:GetInferenceProfile permission belongs to that identity.
+// The identity comes from cfg, including any role assumed via config.AWSBedrock.RoleARN,
+// so the required bedrock:GetInferenceProfile permission belongs to that identity.
 func ResolveBedrockModels(ctx context.Context, cfg config.AWSBedrock) (model, smallFastModel string, err error) {
 	if !isApplicationInferenceProfileARN(cfg.Model) && !isApplicationInferenceProfileARN(cfg.SmallFastModel) {
 		return cfg.Model, cfg.SmallFastModel, nil
