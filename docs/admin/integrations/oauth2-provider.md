@@ -536,7 +536,7 @@ The token endpoint ignores parameters it does not read, as RFC 6749 Section 3.2 
 A misspelled parameter is ignored on the same rule, so what you see is the failure caused by the parameter you meant to send being absent.
 
 A known parameter sent more than once is rejected with a 400 and a JSON body.
-The error is `invalid_request` and names the field, except for a repeated `grant_type`, which answers `unsupported_grant_type`.
+The error is `invalid_request`, except for a repeated `grant_type`, which answers `unsupported_grant_type`.
 
 Earlier releases returned 400 `invalid_request` for any parameter the endpoint did not recognize.
 An integration that relied on that error to catch a misspelled optional parameter no longer receives it.
