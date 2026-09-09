@@ -53,6 +53,8 @@ If the distinction isn't completely clear to you at this point, don't worry. It 
 
 ## Execution states
 
+<!-- TODO(human): document chat goal lifecycle transitions. -->
+
 A chat's execution state lets the chat worker and the HTTP endpoints decide what they can do with the chat. In total, there are 13 execution states. The states are decided by what's in the database:
 
 - By whether a chat exists;

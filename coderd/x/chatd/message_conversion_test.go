@@ -417,6 +417,22 @@ func TestCurrentTurnStepCount_IgnoresHookModelContext(t *testing.T) {
 	require.Equal(t, 2, got)
 }
 
+// A resume kick starts a turn, so a resumed goal does not inherit the
+// previous run's step count.
+func TestCurrentTurnStepCount_GoalResumeKickStartsNewTurn(t *testing.T) {
+	t.Parallel()
+
+	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("new")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("one")),
+		goalResumeKickDBMessage(t, 3, goalID),
+		dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("two")),
+	}
+	got := currentTurnStepCount(messages)
+	require.Equal(t, 1, got)
+}
+
 func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	t.Parallel()
 
@@ -1075,6 +1091,15 @@ func dbMessage(t *testing.T, id int64, role database.ChatMessageRole, compressed
 		Visibility:     database.ChatMessageVisibilityBoth,
 		Compressed:     compressed,
 	}
+}
+
+func goalResumeKickDBMessage(t *testing.T, id int64, goalID uuid.UUID) database.ChatMessage {
+	t.Helper()
+	text, err := goalResumeKickText(goalID)
+	require.NoError(t, err)
+	msg := dbMessage(t, id, database.ChatMessageRoleUser, false, codersdk.ChatMessageText(text))
+	msg.Visibility = database.ChatMessageVisibilityModel
+	return msg
 }
 
 func withUsage(msg database.ChatMessage, inputTokens int64, contextLimit int64) database.ChatMessage {
