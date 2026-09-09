@@ -97,6 +97,10 @@ type Manager struct {
 	// SnapshotChanged short-circuit may skip a reload.
 	firstSyncSettled bool
 
+	// mcpAppsEnabled mirrors the deployment's MCP Apps experiment so
+	// servers are only told the host renders UI when it can.
+	mcpAppsEnabled bool
+
 	// closedCh is closed by Close to unblock waiters that do not
 	// otherwise observe Close (the parent ctx is owned by the
 	// caller and may outlive Close).
@@ -184,6 +188,15 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 func (m *Manager) SetOnReload(fn func()) {
 	m.mu.Lock()
 	m.onChange = fn
+	m.mu.Unlock()
+}
+
+// SetMCPAppsEnabled controls whether servers connected from now on are
+// told that MCP App UI rendering is supported. Existing sessions keep
+// the capability they negotiated.
+func (m *Manager) SetMCPAppsEnabled(enabled bool) {
+	m.mu.Lock()
+	m.mcpAppsEnabled = enabled
 	m.mu.Unlock()
 }
 
@@ -915,7 +928,12 @@ func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.Cli
 	}
 
 	caps := &mcp.ClientCapabilities{}
-	caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{"mimeTypes": []string{"text/html;profile=mcp-app"}})
+	m.mu.RLock()
+	mcpAppsEnabled := m.mcpAppsEnabled
+	m.mu.RUnlock()
+	if mcpAppsEnabled {
+		caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{"mimeTypes": []string{"text/html;profile=mcp-app"}})
+	}
 	c := mcp.NewClient(&mcp.Implementation{
 		Name:    "coder-agent",
 		Version: buildinfo.Version(),

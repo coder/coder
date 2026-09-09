@@ -71,6 +71,7 @@ func TestMCPApps(t *testing.T) {
 	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil))
 	t.Cleanup(httpServer.Close)
 	manager := &Manager{logger: testutil.Logger(t)}
+	manager.SetMCPAppsEnabled(true)
 	client, err := manager.connectServer(ctx, ServerConfig{Name: "apps", Transport: "http", URL: httpServer.URL})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
@@ -147,6 +148,17 @@ func TestMCPApps(t *testing.T) {
 	cancel()
 	_, err = manager.ReadResource(canceled, workspacesdk.ReadMCPResourceRequest{ServerName: "apps", URI: "ui://view"})
 	require.ErrorIs(t, err, context.Canceled)
+
+	// Without the deployment flag the UI extension is not advertised.
+	disabled := &Manager{logger: testutil.Logger(t)}
+	disabledClient, err := disabled.connectServer(ctx, ServerConfig{Name: "apps", Transport: "http", URL: httpServer.URL})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = disabledClient.Close() })
+	disabled.servers = map[string]*serverEntry{"apps": {client: disabledClient}}
+	result, err := disabled.CallTool(ctx, workspacesdk.CallMCPToolRequest{ToolName: "apps__view"})
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	require.Equal(t, []workspacesdk.MCPToolContent{{Type: "text", Text: "MCP Apps capability required"}}, result.Content)
 }
 
 func TestConvertResultEmbeddedResource(t *testing.T) {
