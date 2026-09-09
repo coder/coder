@@ -5,11 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge/metrics"
-	"github.com/coder/coder/v2/aibridge/tracing"
 )
 
 var (
@@ -20,14 +18,10 @@ var (
 // WrappedRecorder is a convenience struct which implements Recorder and resolves a client before calling each method.
 // It also sets the start/creation time of each record.
 type WrappedRecorder struct {
-	tracer   trace.Tracer
 	clientFn func(context.Context) (Recorder, error)
 }
 
-func (r *WrappedRecorder) RecordInterception(ctx context.Context, req *InterceptionRecord) (outErr error) {
-	ctx, span := r.tracer.Start(ctx, "Intercept.RecordInterception", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
-	defer tracing.EndSpanErr(span, &outErr)
-
+func (r *WrappedRecorder) RecordInterception(ctx context.Context, req *InterceptionRecord) error {
 	client, err := r.clientFn(ctx)
 	if err != nil {
 		return xerrors.Errorf("acquire client: %w", err)
@@ -37,10 +31,7 @@ func (r *WrappedRecorder) RecordInterception(ctx context.Context, req *Intercept
 	return client.RecordInterception(ctx, req)
 }
 
-func (r *WrappedRecorder) RecordInterceptionEnded(ctx context.Context, req *InterceptionRecordEnded) (outErr error) {
-	ctx, span := r.tracer.Start(ctx, "Intercept.RecordInterceptionEnded", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
-	defer tracing.EndSpanErr(span, &outErr)
-
+func (r *WrappedRecorder) RecordInterceptionEnded(ctx context.Context, req *InterceptionRecordEnded) error {
 	client, err := r.clientFn(ctx)
 	if err != nil {
 		return xerrors.Errorf("acquire client: %w", err)
@@ -50,10 +41,7 @@ func (r *WrappedRecorder) RecordInterceptionEnded(ctx context.Context, req *Inte
 	return client.RecordInterceptionEnded(ctx, req)
 }
 
-func (r *WrappedRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRecord) (outErr error) {
-	ctx, span := r.tracer.Start(ctx, "Intercept.RecordPromptUsage", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
-	defer tracing.EndSpanErr(span, &outErr)
-
+func (r *WrappedRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRecord) error {
 	client, err := r.clientFn(ctx)
 	if err != nil {
 		return xerrors.Errorf("acquire client: %w", err)
@@ -63,10 +51,7 @@ func (r *WrappedRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsag
 	return client.RecordPromptUsage(ctx, req)
 }
 
-func (r *WrappedRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecord) (outErr error) {
-	ctx, span := r.tracer.Start(ctx, "Intercept.RecordTokenUsage", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
-	defer tracing.EndSpanErr(span, &outErr)
-
+func (r *WrappedRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecord) error {
 	client, err := r.clientFn(ctx)
 	if err != nil {
 		return xerrors.Errorf("acquire client: %w", err)
@@ -76,10 +61,7 @@ func (r *WrappedRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageR
 	return client.RecordTokenUsage(ctx, req)
 }
 
-func (r *WrappedRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord) (outErr error) {
-	ctx, span := r.tracer.Start(ctx, "Intercept.RecordToolUsage", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
-	defer tracing.EndSpanErr(span, &outErr)
-
+func (r *WrappedRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord) error {
 	client, err := r.clientFn(ctx)
 	if err != nil {
 		return xerrors.Errorf("acquire client: %w", err)
@@ -89,10 +71,7 @@ func (r *WrappedRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRec
 	return client.RecordToolUsage(ctx, req)
 }
 
-func (r *WrappedRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtRecord) (outErr error) {
-	ctx, span := r.tracer.Start(ctx, "Intercept.RecordModelThought", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
-	defer tracing.EndSpanErr(span, &outErr)
-
+func (r *WrappedRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtRecord) error {
 	client, err := r.clientFn(ctx)
 	if err != nil {
 		return xerrors.Errorf("acquire client: %w", err)
@@ -104,11 +83,8 @@ func (r *WrappedRecorder) RecordModelThought(ctx context.Context, req *ModelThou
 
 // NewWrappedRecorder creates a [WrappedRecorder]. clientFn receives the
 // context of the call it serves.
-func NewWrappedRecorder(tracer trace.Tracer, clientFn func(context.Context) (Recorder, error)) *WrappedRecorder {
-	return &WrappedRecorder{
-		tracer:   tracer,
-		clientFn: clientFn,
-	}
+func NewWrappedRecorder(clientFn func(context.Context) (Recorder, error)) *WrappedRecorder {
+	return &WrappedRecorder{clientFn: clientFn}
 }
 
 // AsyncRecorder calls [Recorder] methods asynchronously, discarding any errors
