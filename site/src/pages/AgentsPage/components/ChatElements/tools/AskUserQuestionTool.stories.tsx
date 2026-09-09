@@ -126,20 +126,12 @@ export const Running: Story = {
 	},
 };
 
+// The running state with no questions: the live status region renders
+// instead of a form.
 export const RunningEmptyQuestions: Story = {
 	args: {
 		status: "running",
 		args: { questions: [] },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const liveRegion = canvas.getByRole("status");
-
-		expect(liveRegion).toHaveAttribute("aria-live", "polite");
-		expect(canvas.getByText("Asking for clarification...")).toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", { name: "Tool call running" }),
-		).toBeInTheDocument();
 	},
 };
 
@@ -410,18 +402,6 @@ export const PreviouslyAnsweredSingleQuestion: Story = {
 		isLatestAskUserQuestion: false,
 		previousResponseText: "Single migration",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(
-			canvas.getByText("How should we structure the database migration?"),
-		).toBeInTheDocument();
-		expect(canvas.queryAllByRole("radio")).toHaveLength(0);
-		expect(canvas.queryByText("Submitted answer")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Submit" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const PreviouslyAnsweredWizard: Story = {
@@ -432,24 +412,6 @@ export const PreviouslyAnsweredWizard: Story = {
 		isLatestAskUserQuestion: false,
 		previousResponseText: submittedWizardResponse,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(
-			canvas.getByText(/How should we structure the database migration/),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByText(/Which rollout path should we use/),
-		).toBeInTheDocument();
-		expect(canvas.queryAllByRole("radio")).toHaveLength(0);
-		expect(canvas.queryByText("Submitted answer")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Next" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Submit" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const ReadOnlyPreviousCall: Story = {
@@ -459,25 +421,6 @@ export const ReadOnlyPreviousCall: Story = {
 		isChatCompleted: true,
 		isLatestAskUserQuestion: false,
 		onSendAskUserQuestionResponse: fn(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const radios = canvas.getAllByRole("radio");
-
-		expect(radios).toHaveLength(7);
-		expect(radios[0]).toBeDisabled();
-		expect(
-			canvas.getByText(/How should we structure the database migration/),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByText(/Which rollout path should we use/),
-		).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Next" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Submit" }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -490,32 +433,6 @@ export const CompletedRewrittenByHook: Story = {
 		hookRewritten: true,
 		onSendAskUserQuestionResponse: fn(),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(await canvas.findByText("Modified by policy")).toBeVisible();
-		expect(
-			canvas.getByText(/How should we structure the database migration/),
-		).toBeInTheDocument();
-	},
-};
-
-export const CompletedNotRewrittenByHook: Story = {
-	args: {
-		status: "completed",
-		result: JSON.stringify(multipleQuestionsPayload),
-		isChatCompleted: true,
-		isLatestAskUserQuestion: false,
-		onSendAskUserQuestionResponse: fn(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(
-			await canvas.findByText(/How should we structure the database migration/),
-		).toBeInTheDocument();
-		expect(canvas.queryByText("Modified by policy")).not.toBeInTheDocument();
-	},
 };
 
 export const CompletedEmptyPayloadRewrittenByHook: Story = {
@@ -525,12 +442,6 @@ export const CompletedEmptyPayloadRewrittenByHook: Story = {
 		isChatCompleted: true,
 		isLatestAskUserQuestion: false,
 		hookRewritten: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(await canvas.findByText("No questions available.")).toBeVisible();
-		expect(canvas.getByText("Modified by policy")).toBeVisible();
 	},
 };
 

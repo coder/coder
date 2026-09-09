@@ -96,8 +96,7 @@ type store interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
 
 	// ProviderConfigurator-related queries. InTx wraps the provider and key
-	// reads in a single read-only transaction; AcquireLock serializes against
-	// any in-flight env seed holding LockIDAIProvidersEnvSeed.
+	// reads in a single read-only transaction.
 	GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error)
 	GetAIProviderKeysByProviderIDs(ctx context.Context, providerIDs []uuid.UUID) ([]database.AIProviderKey, error)
 
@@ -936,14 +935,8 @@ func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, period
 }
 
 // GetAIProviders returns the full AI provider set (enabled and disabled) from
-// the database, which is the single source of truth seeded from coderd's
-// environment. Embedded and standalone AI Gateway daemons call this over DRPC
+// the database. Embedded and standalone AI Gateway daemons call this over DRPC
 // to build their provider pool instead of reading the database directly.
-//
-// The handler reads under a read-only transaction that first acquires
-// LockIDAIProvidersEnvSeed, so it blocks until any in-flight env seed commits
-// or rolls back. This guarantees the response is never a partial, mid-seed
-// snapshot.
 //
 // Keys are populated only for enabled providers; disabled providers never call
 // upstream, so their secrets are withheld.
@@ -959,15 +952,8 @@ func (s *Server) GetAIProviders(ctx context.Context, _ *proto.GetAIProvidersRequ
 		keysByProvider map[uuid.UUID][]database.AIProviderKey
 	)
 	// Wrap both reads in a read-only transaction so the provider list and the
-	// key list are consistent with each other, and so the seed lock is held
-	// for the duration of the reads.
+	// key list are consistent with each other.
 	err := s.store.InTx(func(tx database.Store) error {
-		// Block on any in-flight seed transaction holding the advisory lock so
-		// the response reflects a fully-seeded snapshot.
-		if err := tx.AcquireLock(ctx, database.LockIDAIProvidersEnvSeed); err != nil {
-			return xerrors.Errorf("acquire ai providers env seed lock: %w", err)
-		}
-
 		var err error
 		rows, err = tx.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
 		if err != nil {

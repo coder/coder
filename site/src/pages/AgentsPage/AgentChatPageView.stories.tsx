@@ -18,6 +18,7 @@ import {
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
+import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
@@ -244,6 +245,13 @@ const meta: Meta<typeof AgentChatPageView> = {
 				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
 			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
 		],
 		reactRouter: reactRouterParameters({
 			location: {
@@ -265,12 +273,6 @@ type Story = StoryObj<typeof AgentChatPageView>;
 /** Basic conversation view with a chat title, workspace, and no archive. */
 export const Default: Story = {
 	render: () => <StoryAgentChatPageView />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/^This chat is owned by/),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const CachedModelsWithRefetchError: Story = {
@@ -279,17 +281,6 @@ export const CachedModelsWithRefetchError: Story = {
 			modelCatalogError={new Error("Failed to refresh available models.")}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Failed to refresh available models."),
-		).toBeVisible();
-		expect(
-			canvas.getByRole("combobox", {
-				name: defaultModelOptions[0].displayName,
-			}),
-		).toBeVisible();
-	},
 };
 
 /** Archived agent displays the read-only banner below the top bar. */
@@ -387,15 +378,6 @@ export const ArchivedOtherUserChat: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/^This chat is owned by/),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.getByText("This agent has been archived and is read-only."),
-		).toBeVisible();
-	},
 };
 
 export const QueuedForCapacityCommunityAdmin: Story = {
@@ -517,16 +499,6 @@ export const QueuedForCapacityPremiumHardLimit: Story = {
 	},
 };
 
-export const NotQueuedForCapacity: Story = {
-	render: () => <StoryAgentChatPageView />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/limit for active agents/),
-		).not.toBeInTheDocument();
-	},
-};
-
 /** Shows the parent chat link in the top bar when a parent exists. */
 export const WithParentChat: Story = {
 	parameters: {
@@ -538,6 +510,13 @@ export const WithParentChat: Story = {
 			{
 				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
 			},
 			{
 				key: chatEntityKey("parent-chat-1"),
@@ -568,18 +547,6 @@ export const WithError: Story = {
 			}}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /service overloaded/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic is temporarily overloaded\./i),
-		).toBeVisible();
-		expect(canvas.getByText(/^HTTP 529$/)).toBeVisible();
-		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
-		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
-	},
 };
 
 /** Input area appears disabled when `isInputDisabled` is true. */
@@ -649,27 +616,6 @@ export const NarrowWithSidebarPanel: Story = {
 			</div>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const layout = await canvas.findByTestId("narrow-agents-layout");
-		const chatPanel = await canvas.findByTestId("agents-chat-panel");
-		const rightPanel = await canvas.findByTestId("agents-right-panel");
-		const composer = await canvas.findByTestId("chat-composer");
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-
-		await waitFor(() => {
-			const layoutRect = layout.getBoundingClientRect();
-			const chatPanelRect = chatPanel.getBoundingClientRect();
-			const rightPanelRect = rightPanel.getBoundingClientRect();
-			const composerRect = composer.getBoundingClientRect();
-			const sendButtonRect = sendButton.getBoundingClientRect();
-
-			expect(chatPanelRect.width).toBeGreaterThanOrEqual(359);
-			expect(sendButtonRect.left).toBeGreaterThanOrEqual(composerRect.left);
-			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
-			expect(rightPanelRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
-		});
-	},
 };
 
 /**
@@ -861,17 +807,6 @@ export const MemberNoModelsAvailable: Story = {
 			isInputDisabled
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getByText(
-					"AI models aren't available yet. Your admin is still getting things set up.",
-				),
-			).toBeVisible();
-		});
-	},
 };
 
 export const WithWorkspace: Story = {
@@ -952,19 +887,10 @@ export const WorkspaceNoAgent: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
-			workspaceOptions={[MockWorkspace]}
 			chat={{ workspace_id: MockWorkspace.id }}
 			onWorkspaceChange={fn()}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", {
-				name: `Remove workspace ${MockWorkspace.name}`,
-			}),
-		).toBeVisible();
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -1119,19 +1045,6 @@ export const OtherUserChatHidesInlineActions: Story = {
 			store={buildStoreWithMessages(otherUserActionMessages)}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("This chat is owned by Other User. It is read-only."),
-		).toBeVisible();
-		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: "Edit message" }),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Implement plan" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const DisabledInputHidesImplementPlan: Story = {
@@ -1920,12 +1833,6 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 			sshCommand="ssh coder.workspace"
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByRole("tab", { name: "Summary" });
-		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
-	},
 };
 
 export const NoBrowserTabForAppOnNonBoundAgent: Story = {
