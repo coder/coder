@@ -408,7 +408,9 @@ func TestTemplateBuilderCreateTemplateFailureTelemetry(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
+		sessionID := uuid.New()
 		_, err := client.TemplateBuilderCreateTemplate(ctx, codersdk.TemplateBuilderCreateTemplateRequest{
+			SessionID:      sessionID,
 			OrganizationID: user.OrganizationID,
 			Name:           "missing-base",
 		})
@@ -417,8 +419,7 @@ func TestTemplateBuilderCreateTemplateFailureTelemetry(t *testing.T) {
 		event := receiveTemplateBuilderSession(ctx, t, reporter)
 		require.Equal(t, telemetry.TemplateBuilderSessionEventBuildFailure, event.EventType)
 		require.Equal(t, telemetry.TemplateBuilderFailureInvalidRequest, event.FailureReason)
-		// Callers without a wizard session still produce a usable row.
-		require.NotEqual(t, uuid.Nil, event.ID)
+		require.Equal(t, sessionID, event.ID)
 	})
 
 	t.Run("NameConflict", func(t *testing.T) {
@@ -441,6 +442,7 @@ func TestTemplateBuilderCreateTemplateFailureTelemetry(t *testing.T) {
 		})
 
 		_, err := client.TemplateBuilderCreateTemplate(ctx, codersdk.TemplateBuilderCreateTemplateRequest{
+			SessionID:      uuid.New(),
 			BaseTemplateID: "docker",
 			OrganizationID: user.OrganizationID,
 			Name:           existing.Name,

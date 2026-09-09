@@ -235,13 +235,13 @@ const templateBuilderCreateTemplateTimeout = 2 * time.Minute
 
 // reportTemplateBuilderBuildFailure reports why a template builder create
 // request failed. The wizard session ID doubles as the event ID, so a failure
-// joins to the wizard_entry and compose_completion events of the same visit;
-// callers without a session, such as the CLI, get a fresh ID. Only catalog
-// identifiers are reported, never variable values or error text.
+// joins to the wizard_entry and compose_completion events of the same visit.
+// A request without a session ID did not come from the wizard, so there is
+// nothing to join to and nothing is reported. Only catalog identifiers are
+// reported, never variable values or error text.
 func (api *API) reportTemplateBuilderBuildFailure(req codersdk.TemplateBuilderCreateTemplateRequest, userID uuid.UUID, reason string) {
-	id := req.SessionID
-	if id == uuid.Nil {
-		id = uuid.New()
+	if req.SessionID == uuid.Nil {
+		return
 	}
 
 	moduleIDs := make([]string, 0, len(req.Modules))
@@ -252,7 +252,7 @@ func (api *API) reportTemplateBuilderBuildFailure(req codersdk.TemplateBuilderCr
 	api.Telemetry.Report(&telemetry.Snapshot{
 		TemplateBuilderSessions: []telemetry.TemplateBuilderSession{
 			{
-				ID:             id,
+				ID:             req.SessionID,
 				EventType:      telemetry.TemplateBuilderSessionEventBuildFailure,
 				UserID:         userID,
 				BaseTemplateID: req.BaseTemplateID,
