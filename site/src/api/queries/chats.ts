@@ -2421,9 +2421,6 @@ export const deleteChatModel = (queryClient: QueryClient) => ({
 export const chatFileTextKey = (fileId: string) =>
 	[...chatFilesKey, fileId, "text"] as const;
 
-export const chatFileAvailabilityKey = (fileId: string) =>
-	[...chatFilesKey, fileId, "availability"] as const;
-
 const GATEWAY_REQUEST_STALE_MS = 30_000;
 
 export const chatCostTreeKey = (rootChatId: string) =>

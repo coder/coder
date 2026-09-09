@@ -11,6 +11,7 @@ import {
 	within,
 } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -268,6 +269,9 @@ const buildStoryArgs = (...messages: TypesGen.ChatMessage[]) => ({
 	...defaultArgs,
 	parsedMessages: buildMessages(messages),
 });
+
+const buildChatFiles = (...fileIds: string[]): TypesGen.ChatFileMetadata[] =>
+	fileIds.map((id) => ({ ...MockChatFileMetadata, id }));
 
 const buildParsedReadFileEntry = ({
 	messageId,
@@ -1202,14 +1206,26 @@ export const UserMessageWithTextAttachmentOnly: Story = {
 	},
 };
 
-/** Expired text attachments show the placeholder on load, before any click. */
+/**
+ * A text attachment the chat record no longer lists, referenced before a
+ * remaining one, renders the placeholder on load without fetching the file.
+ */
 export const UserMessageWithExpiredTextAttachment: Story = {
-	args: buildStoryArgs(
-		buildUserMessage({
-			text: "This pasted context has expired",
-			files: [buildTextAttachmentPart("storybook-expired-text")],
-		}),
-	),
+	args: {
+		...buildStoryArgs(
+			buildUserMessage({
+				id: 1,
+				text: "This pasted context has expired",
+				files: [buildTextAttachmentPart("storybook-expired-text")],
+			}),
+			buildUserMessage({
+				id: 2,
+				text: "This newer context is still available",
+				files: [buildTextAttachmentPart("storybook-test-text")],
+			}),
+		),
+		chatFiles: buildChatFiles("storybook-test-text"),
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const expiredTile = await findAttachmentTile(canvas, "Attachment expired");
@@ -1217,9 +1233,10 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 			canvas.getByText("This pasted context has expired"),
 		).toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", { name: "View text attachment" }),
-		).not.toBeInTheDocument();
+			canvas.getAllByRole("button", { name: "View text attachment" }),
+		).toHaveLength(1);
 		expectNoCopyMessageButtonForElement(expiredTile);
+		expect(getAttachmentFetchCount("storybook-expired-text")).toBe(0);
 
 		await hoverAndExpectTooltip(
 			expiredTile,
@@ -1228,26 +1245,34 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 	},
 };
 
-/** Expired downloadable files show the placeholder instead of a dead link. */
+/** An evicted downloadable file renders the placeholder instead of a dead link. */
 export const UserMessageWithExpiredDownloadableFile: Story = {
 	args: {
-		...defaultArgs,
-		parsedMessages: parseMessagesWithMergedTools([
-			{
-				...baseMessage,
+		...buildStoryArgs(
+			buildUserMessage({
 				id: 1,
-				role: "user",
-				content: [
-					{ type: "text", text: "The attached report has expired." },
-					{
-						type: "file",
+				text: "The attached report has expired.",
+				files: [
+					buildFilePart({
 						media_type: "application/pdf",
 						file_id: "storybook-expired-file",
 						name: "old-report.pdf",
-					},
+					}),
 				],
-			},
-		]),
+			}),
+			buildUserMessage({
+				id: 2,
+				text: "The newer report is still available.",
+				files: [
+					buildFilePart({
+						media_type: "application/pdf",
+						file_id: "storybook-current-file",
+						name: "new-report.pdf",
+					}),
+				],
+			}),
+		),
+		chatFiles: buildChatFiles("storybook-current-file"),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1258,7 +1283,11 @@ export const UserMessageWithExpiredDownloadableFile: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "Download old-report.pdf" }),
 		).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("link", { name: "Download new-report.pdf" }),
+		).toBeInTheDocument();
 		expectNoCopyMessageButtonForElement(expiredTile);
+		expect(getAttachmentFetchCount("storybook-expired-file")).toBe(0);
 	},
 };
 
