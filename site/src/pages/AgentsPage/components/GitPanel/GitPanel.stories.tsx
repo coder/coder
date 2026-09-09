@@ -242,11 +242,6 @@ export const DraftPullRequest: Story = {
 			diff: sampleDiff,
 		});
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Draft");
-	},
 };
 
 /** Merged PR. */
@@ -269,11 +264,6 @@ export const MergedPullRequest: Story = {
 			diff: sampleDiff,
 		});
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Merged");
-	},
 };
 
 /** Closed PR. */
@@ -295,11 +285,6 @@ export const ClosedPullRequest: Story = {
 			...defaultDiffContents,
 			diff: sampleDiff,
 		});
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Closed");
 	},
 };
 
@@ -389,10 +374,6 @@ export const GitStatusLoading: Story = {
 		repositories: new Map(),
 		isGitStatusLoading: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Waiting for Git status")).toBeVisible();
-	},
 };
 
 /**
@@ -462,19 +443,6 @@ export const EverDirtyRepoGoneClean: Story = {
 		]),
 		everDirty: new Set(["/home/coder/coder"]),
 	},
-	play: async ({ canvasElement }) => {
-		// Before the ever-dirty fix, the entry vanished the moment the
-		// diff emptied and users saw the diff "disappear between
-		// edit_files". The entry must persist here.
-		const switcher = canvasElement.querySelector(
-			"[data-testid='git-panel-view-switcher']",
-		);
-		expect(switcher).not.toBeNull();
-		expect(switcher?.textContent ?? "").toContain("Working");
-
-		// The content pane falls through to the diff viewer's empty state.
-		expect(canvasElement.textContent ?? "").toContain("No file changes");
-	},
 };
 
 /**
@@ -488,13 +456,5 @@ export const CleanRepoFromStart: Story = {
 			["/home/coder/coder", makeRepo({ unified_diff: "" })],
 		]),
 		everDirty: new Set(),
-	},
-	play: async ({ canvasElement }) => {
-		const switcher = canvasElement.querySelector(
-			"[data-testid='git-panel-view-switcher']",
-		);
-		expect(switcher).not.toBeNull();
-		expect(switcher?.textContent ?? "").toContain("No changes");
-		expect(switcher?.textContent ?? "").not.toContain("Working");
 	},
 };

@@ -14,15 +14,15 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
 
-var _ aibridge.Recorder = &recorderTranslation{}
+var _ aibridge.Recorder = &DRPCRecorder{}
 
-// recorderTranslation satisfies the aibridge.Recorder interface and translates calls into dRPC calls to aibridgedserver.
-type recorderTranslation struct {
+// DRPCRecorder satisfies the aibridge.Recorder interface and translates calls into dRPC calls to aibridgedserver.
+type DRPCRecorder struct {
 	apiKeyID string
 	client   proto.DRPCRecorderClient
 }
 
-func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
+func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
 		Id:                          req.ID,
 		ApiKeyId:                    t.apiKeyID,
@@ -44,7 +44,7 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 	return err
 }
 
-func (t *recorderTranslation) RecordInterceptionEnded(ctx context.Context, req *aibridge.InterceptionRecordEnded) error {
+func (t *DRPCRecorder) RecordInterceptionEnded(ctx context.Context, req *aibridge.InterceptionRecordEnded) error {
 	endedReq := &proto.RecordInterceptionEndedRequest{
 		Id:             req.ID,
 		EndedAt:        timestamppb.New(req.EndedAt),
@@ -61,7 +61,7 @@ func (t *recorderTranslation) RecordInterceptionEnded(ctx context.Context, req *
 	return err
 }
 
-func (t *recorderTranslation) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRecord) error {
+func (t *DRPCRecorder) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRecord) error {
 	_, err := t.client.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
 		InterceptionId: req.InterceptionID,
 		MsgId:          req.MsgID,
@@ -72,7 +72,7 @@ func (t *recorderTranslation) RecordPromptUsage(ctx context.Context, req *aibrid
 	return err
 }
 
-func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRecord) error {
+func (t *DRPCRecorder) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRecord) error {
 	merged := req.Metadata
 	if merged == nil {
 		merged = aibridge.Metadata{}
@@ -96,7 +96,7 @@ func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridg
 	return err
 }
 
-func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsageRecord) error {
+func (t *DRPCRecorder) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsageRecord) error {
 	serialized, err := json.Marshal(req.Args)
 	if err != nil {
 		return xerrors.Errorf("serialize tool %q args: %w", req.Tool, err)
@@ -123,7 +123,7 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 	return err
 }
 
-func (t *recorderTranslation) RecordModelThought(ctx context.Context, req *aibridge.ModelThoughtRecord) error {
+func (t *DRPCRecorder) RecordModelThought(ctx context.Context, req *aibridge.ModelThoughtRecord) error {
 	_, err := t.client.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
 		InterceptionId: req.InterceptionID,
 		Content:        req.Content,

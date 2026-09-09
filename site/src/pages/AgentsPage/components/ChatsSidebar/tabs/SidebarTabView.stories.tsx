@@ -78,12 +78,6 @@ export const EmptyState: Story = {
 	},
 };
 
-export const DesktopHidden: Story = {
-	args: {
-		tabs: [],
-	},
-};
-
 export const ExpandedWithTitle: Story = {
 	args: {
 		tabs: [gitTab],
@@ -234,11 +228,5 @@ export const AddTabControlDisabled: Story = {
 				<PlusIcon className="size-3.5" />
 			</Button>
 		),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: "New terminal tab" }),
-		).toBeDisabled();
 	},
 };

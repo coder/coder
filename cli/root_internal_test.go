@@ -6,10 +6,12 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"runtime"
 	"testing"
@@ -651,4 +653,112 @@ func TestWrapTransportWithSessionIDHeader(t *testing.T) {
 	// The baggage header the server receives must carry the session ID under
 	// the client_session_id key so the tracing middleware can extract it.
 	require.Equal(t, tracing.SessionIDBaggageKey+"="+sessionID, gotHeader.Get("baggage"))
+}
+
+func Test_createHTTPClientRedirects(t *testing.T) {
+	t.Parallel()
+
+	// newRedirectingServers returns a stale server that 301s every request
+	// to a target serving the "list" shape on GET, so that following the
+	// redirect would silently turn a create into a list.
+	newRedirectingServers := func(t *testing.T) (stale, target *httptest.Server) {
+		target = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte("[]"))
+		}))
+		t.Cleanup(target.Close)
+
+		stale = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL+r.URL.Path, http.StatusMovedPermanently)
+		}))
+		t.Cleanup(stale.Close)
+		return stale, target
+	}
+
+	newClient := func(t *testing.T, r *RootCmd, rawURL string) *codersdk.Client {
+		serverURL, err := url.Parse(rawURL)
+		require.NoError(t, err)
+		inv := &serpent.Invocation{Command: &serpent.Command{Use: "test"}}
+		httpClient, err := r.createHTTPClient(context.Background(), serverURL, inv)
+		require.NoError(t, err)
+		t.Cleanup(httpClient.CloseIdleConnections)
+		return codersdk.New(serverURL, codersdk.WithHTTPClient(httpClient))
+	}
+
+	t.Run("RejectedByDefault", func(t *testing.T) {
+		t.Parallel()
+		stale, target := newRedirectingServers(t)
+
+		r := &RootCmd{noVersionCheck: true, noFeatureWarning: true}
+		client := newClient(t, r, stale.URL)
+		_, err := client.CreateToken(context.Background(), codersdk.Me, codersdk.CreateTokenRequest{})
+		require.Error(t, err)
+
+		var redirectErr *redirectError
+		require.ErrorAs(t, err, &redirectErr)
+		require.Equal(t, stale.URL+"/api/v2/users/me/keys/tokens", redirectErr.from.String())
+		require.Equal(t, target.URL+"/api/v2/users/me/keys/tokens", redirectErr.to.String())
+
+		msg, special := cliHumanFormatError("", err, nil)
+		require.True(t, special)
+		require.Contains(t, msg, "server redirected request from "+stale.URL)
+		require.Contains(t, msg, fmt.Sprintf("Run %q to log in against the new URL", "coder login "+target.URL))
+		require.Contains(t, msg, "--allow-redirects")
+	})
+
+	t.Run("AllowRedirects", func(t *testing.T) {
+		t.Parallel()
+		stale, _ := newRedirectingServers(t)
+
+		r := &RootCmd{noVersionCheck: true, noFeatureWarning: true, allowRedirects: true}
+		client := newClient(t, r, stale.URL)
+		tokens, err := client.Tokens(context.Background(), codersdk.Me, codersdk.TokensFilter{})
+		require.NoError(t, err)
+		require.Empty(t, tokens)
+
+		// Legacy behavior: the POST is followed as a GET and fails on the
+		// mismatched body rather than on the redirect itself.
+		_, err = client.CreateToken(context.Background(), codersdk.Me, codersdk.CreateTokenRequest{})
+		require.Error(t, err)
+		var redirectErr *redirectError
+		require.False(t, errors.As(err, &redirectErr))
+	})
+}
+
+func Test_redirectErrorHelper(t *testing.T) {
+	t.Parallel()
+
+	mustParse := func(s string) *url.URL {
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		return u
+	}
+
+	t.Run("DifferentHost", func(t *testing.T) {
+		t.Parallel()
+		err := &redirectError{
+			from: mustParse("https://old.example.com/api/v2/users/me"),
+			to:   mustParse("https://new.example.com/api/v2/users/me"),
+		}
+		require.Contains(t, err.Helper(), `"coder login https://new.example.com"`)
+	})
+
+	t.Run("SchemeUpgrade", func(t *testing.T) {
+		t.Parallel()
+		err := &redirectError{
+			from: mustParse("http://coder.example.com/api/v2/users/me"),
+			to:   mustParse("https://coder.example.com/api/v2/users/me"),
+		}
+		require.Contains(t, err.Helper(), `"coder login https://coder.example.com"`)
+	})
+
+	t.Run("SameDeployment", func(t *testing.T) {
+		t.Parallel()
+		err := &redirectError{
+			from: mustParse("https://coder.example.com/api/v2/users/me"),
+			to:   mustParse("https://coder.example.com/api/v2/users/me/"),
+		}
+		require.Contains(t, err.Helper(), "redirected within the same deployment")
+		require.NotContains(t, err.Helper(), "coder login")
+	})
 }

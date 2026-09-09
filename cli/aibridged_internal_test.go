@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,6 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
-	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
@@ -25,40 +25,18 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
-	"github.com/coder/serpent"
 )
-
-// buildFromEnv exercises the same env-config-in/providers-out path that
-// production uses on boot: SeedAIProvidersFromEnv writes the env-derived
-// rows to the database, the server's GetAIProviders handler reads them back
-// over the (post-refactor) DB-read path and maps them to proto, and
-// BuildProvidersFromProto constructs the runtime [aibridge.Provider]
-// instances. This keeps the existing TestBuildProviders table intact while
-// reflecting the post-refactor flow where the database is the single source
-// of truth and the gateway fetches providers over DRPC.
-func buildFromEnv(t *testing.T, cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
-	t.Helper()
-	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil)
-	if err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, logger); err != nil {
-		return nil, err
-	}
-	providers, _, err := buildFromDB(ctx, t, db, cfg, logger)
-	return providers, err
-}
 
 // buildFromDB runs the production fetch path against a database: it calls the
 // server's GetAIProviders handler (DB read + proto mapping) and then
 // BuildProvidersFromProto (proto -> runtime providers), returning the same
 // (providers, outcomes) the embedded reloader would observe.
-func buildFromDB(ctx context.Context, t *testing.T, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
+func buildFromDB(ctx context.Context, t *testing.T, db database.Store, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
 	t.Helper()
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
 		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
-		GatewayCfg:    cfg,
 		Logger:        logger,
 		Clock:         quartz.NewReal(),
 	})
@@ -69,208 +47,85 @@ func buildFromDB(ctx context.Context, t *testing.T, db database.Store, cfg coder
 	if err != nil {
 		return nil, nil, err
 	}
-	providers, outcomes := BuildProvidersFromProto(ctx, resp.GetProviders(), cfg, logger, nil)
+	providers, outcomes := BuildProvidersFromProto(ctx, resp.GetProviders(), codersdk.AIBridgeConfig{}, logger, nil)
 	return providers, outcomes, nil
 }
 
 func TestBuildProviders(t *testing.T) {
 	t.Parallel()
 
-	t.Run("EmptyConfig", func(t *testing.T) {
+	t.Run("EmptyDatabase", func(t *testing.T) {
 		t.Parallel()
-		providers, err := buildFromEnv(t, codersdk.AIBridgeConfig{})
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		providers, outcomes, err := buildFromDB(ctx, t, db, slogtest.Make(t, nil))
 		require.NoError(t, err)
 		assert.Empty(t, providers)
+		assert.Empty(t, outcomes)
 	})
 
-	t.Run("LegacyOnly", func(t *testing.T) {
+	t.Run("DatabaseProviders", func(t *testing.T) {
 		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{}
-		cfg.LegacyOpenAI.Key = serpent.String("sk-openai")
-		cfg.LegacyAnthropic.Key = serpent.String("sk-anthropic")
-
-		providers, err := buildFromEnv(t, cfg)
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		bedrockSettings, err := json.Marshal(codersdk.AIProviderSettings{
+			Bedrock: &codersdk.AIProviderBedrockSettings{
+				Region:          "us-east-1",
+				AccessKey:       new("AKID"),
+				AccessKeySecret: new("secret"),
+				Model:           "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				SmallFastModel:  "anthropic.claude-3-5-haiku-20241022-v1:0",
+			},
+		})
 		require.NoError(t, err)
-
-		names := providerNames(providers)
-		assert.Contains(t, names, aibridge.ProviderOpenAI)
-		assert.Contains(t, names, aibridge.ProviderAnthropic)
-		assert.Len(t, names, 2)
-	})
-
-	t.Run("IndexedOnly", func(t *testing.T) {
-		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{
-					Type: aibridge.ProviderAnthropic,
-					Name: "anthropic-zdr",
-					Keys: []string{"sk-zdr"},
-				},
-				{
-					Type:    aibridge.ProviderOpenAI,
-					Name:    "openai-azure",
-					Keys:    []string{"sk-azure"},
-					BaseURL: "https://azure.openai.com",
-				},
+		rows := []database.AIProvider{
+			{Type: database.AIProviderTypeAnthropic, Name: "anthropic-zdr", BaseUrl: "https://api.anthropic.com/"},
+			{Type: database.AIProviderTypeOpenai, Name: "openai-azure", BaseUrl: "https://azure.openai.com"},
+			{Type: database.AIProviderTypeCopilot, Name: aibridge.ProviderCopilot, BaseUrl: "https://api.individual.githubcopilot.com"},
+			{Type: database.AIProviderTypeCopilot, Name: agplaibridge.ProviderCopilotBusiness, BaseUrl: "https://" + agplaibridge.HostCopilotBusiness},
+			{Type: database.AIProviderTypeCopilot, Name: agplaibridge.ProviderCopilotEnterprise, BaseUrl: "https://" + agplaibridge.HostCopilotEnterprise},
+			{Type: database.AIProviderTypeOpenai, Name: agplaibridge.ProviderChatGPT, BaseUrl: agplaibridge.BaseURLChatGPT},
+			{
+				Type:     database.AIProviderTypeBedrock,
+				Name:     "bedrock",
+				BaseUrl:  "https://bedrock-runtime.us-east-1.amazonaws.com/",
+				Settings: sql.NullString{String: string(bedrockSettings), Valid: true},
 			},
 		}
+		for _, row := range rows {
+			row.Enabled = true
+			key := "sk-" + row.Name
+			if row.Type == database.AIProviderTypeCopilot || row.Type == database.AIProviderTypeBedrock {
+				key = ""
+			}
+			dbgen.AIProviderWithOptionalKey(t, db, row, key)
+		}
 
-		providers, err := buildFromEnv(t, cfg)
+		providers, outcomes, err := buildFromDB(ctx, t, db, slogtest.Make(t, nil))
 		require.NoError(t, err)
-		require.Len(t, providers, 2)
-
+		require.Len(t, providers, len(rows))
+		require.Len(t, outcomes, len(rows))
+		for _, outcome := range outcomes {
+			require.NoError(t, outcome.Err)
+		}
 		byName := make(map[string]aibridge.Provider, len(providers))
-		for _, p := range providers {
-			byName[p.Name()] = p
+		for _, provider := range providers {
+			byName[provider.Name()] = provider
 		}
-		require.Contains(t, byName, "anthropic-zdr")
-		require.Contains(t, byName, "openai-azure")
-	})
-
-	t.Run("LegacyOpenAIConflictsWithIndexed", func(t *testing.T) {
-		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Keys: []string{"sk-indexed"}},
-			},
+		for _, row := range rows {
+			require.Contains(t, byName, row.Name)
+			require.Equal(t, row.BaseUrl, byName[row.Name].BaseURL())
+			if row.Type == database.AIProviderTypeBedrock {
+				require.Equal(t, aibridge.ProviderAnthropic, byName[row.Name].Type())
+			} else {
+				require.EqualValues(t, row.Type, byName[row.Name].Type())
+			}
+			if row.Type != database.AIProviderTypeCopilot && row.Type != database.AIProviderTypeBedrock {
+				require.Len(t, byName[row.Name].KeyPool().PoolState(), 1)
+			} else {
+				require.Nil(t, byName[row.Name].KeyPool())
+			}
 		}
-		cfg.LegacyOpenAI.Key = serpent.String("sk-legacy")
-
-		_, err := buildFromEnv(t, cfg)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "conflicts with the legacy env var")
-	})
-
-	t.Run("LegacyAnthropicConflictsWithIndexed", func(t *testing.T) {
-		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderAnthropic, Name: aibridge.ProviderAnthropic, Keys: []string{"sk-indexed"}},
-			},
-		}
-		cfg.LegacyAnthropic.Key = serpent.String("sk-legacy")
-
-		_, err := buildFromEnv(t, cfg)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "conflicts with the legacy env var")
-	})
-
-	t.Run("MixedLegacyAndIndexed", func(t *testing.T) {
-		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderAnthropic, Name: "anthropic-zdr", Keys: []string{"sk-zdr"}},
-			},
-		}
-		cfg.LegacyOpenAI.Key = serpent.String("sk-openai")
-		cfg.LegacyAnthropic.Key = serpent.String("sk-anthropic")
-
-		providers, err := buildFromEnv(t, cfg)
-		require.NoError(t, err)
-
-		names := providerNames(providers)
-		assert.Contains(t, names, aibridge.ProviderOpenAI)
-		assert.Contains(t, names, aibridge.ProviderAnthropic)
-		assert.Contains(t, names, "anthropic-zdr")
-	})
-
-	t.Run("LegacyAnthropicWithBedrock", func(t *testing.T) {
-		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{}
-		cfg.LegacyAnthropic.Key = serpent.String("sk-anthropic")
-		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
-		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
-		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
-		cfg.LegacyBedrock.Model = serpent.String("anthropic.claude-3-5-sonnet-20241022-v2:0")
-		cfg.LegacyBedrock.SmallFastModel = serpent.String("anthropic.claude-3-5-haiku-20241022-v1:0")
-
-		providers, err := buildFromEnv(t, cfg)
-		require.NoError(t, err)
-
-		names := providerNames(providers)
-		assert.Equal(t, []string{aibridge.ProviderAnthropic}, names)
-	})
-
-	t.Run("LegacyBedrockWithoutAnthropicKey", func(t *testing.T) {
-		t.Parallel()
-		// Bedrock credentials alone should be enough to create an
-		// Anthropic provider. No CODER_AIBRIDGE_ANTHROPIC_KEY needed.
-		cfg := codersdk.AIBridgeConfig{}
-		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
-		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
-		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
-		cfg.LegacyBedrock.Model = serpent.String("anthropic.claude-3-5-sonnet-20241022-v2:0")
-		cfg.LegacyBedrock.SmallFastModel = serpent.String("anthropic.claude-3-5-haiku-20241022-v1:0")
-
-		providers, err := buildFromEnv(t, cfg)
-		require.NoError(t, err)
-		require.Len(t, providers, 1)
-
-		p := providers[0]
-		assert.Equal(t, aibridge.ProviderAnthropic, p.Type())
-		assert.Equal(t, aibridge.ProviderAnthropic, p.Name())
-	})
-
-	t.Run("UnknownType", func(t *testing.T) {
-		t.Parallel()
-		// Unknown provider types are dropped by the seed step (logged
-		// and skipped) so one misconfigured row cannot stop the daemon
-		// from starting. The end state is "no providers", not an error.
-		cfg := codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: "gemini", Name: "gemini-pro"},
-			},
-		}
-
-		providers, err := buildFromEnv(t, cfg)
-		require.NoError(t, err)
-		assert.Empty(t, providers)
-	})
-
-	t.Run("CopilotVariants", func(t *testing.T) {
-		t.Parallel()
-		// Copilot providers can target any of the three GitHub
-		// Copilot API hosts via an explicit BASE_URL.
-		cfg := codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot},
-				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotBusiness, BaseURL: "https://" + agplaibridge.HostCopilotBusiness},
-				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotEnterprise, BaseURL: "https://" + agplaibridge.HostCopilotEnterprise},
-			},
-		}
-
-		providers, err := buildFromEnv(t, cfg)
-		require.NoError(t, err)
-		require.Len(t, providers, 3)
-
-		byName := make(map[string]aibridge.Provider, len(providers))
-		for _, p := range providers {
-			byName[p.Name()] = p
-		}
-		require.Contains(t, byName, aibridge.ProviderCopilot)
-		require.Contains(t, byName, agplaibridge.ProviderCopilotBusiness)
-		require.Contains(t, byName, agplaibridge.ProviderCopilotEnterprise)
-		assert.Equal(t, "https://"+agplaibridge.HostCopilotBusiness, byName[agplaibridge.ProviderCopilotBusiness].BaseURL())
-		assert.Equal(t, "https://"+agplaibridge.HostCopilotEnterprise, byName[agplaibridge.ProviderCopilotEnterprise].BaseURL())
-	})
-
-	t.Run("ChatGPTProvider", func(t *testing.T) {
-		t.Parallel()
-		// ChatGPT is an OpenAI-compatible provider with a custom
-		// base URL. Admins configure it as an indexed openai provider.
-		cfg := codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: agplaibridge.ProviderChatGPT, Keys: []string{"sk-chatgpt"}, BaseURL: agplaibridge.BaseURLChatGPT},
-			},
-		}
-
-		providers, err := buildFromEnv(t, cfg)
-		require.NoError(t, err)
-		require.Len(t, providers, 1)
-
-		assert.Equal(t, agplaibridge.ProviderChatGPT, providers[0].Name())
-		assert.Equal(t, agplaibridge.BaseURLChatGPT, providers[0].BaseURL())
 	})
 
 	t.Run("NativeAnthropicDefaultBaseURL", func(t *testing.T) {
@@ -346,9 +201,7 @@ func TestBuildProviders(t *testing.T) {
 // TestBuildProvidersSkipsBadRows exercises the skip-and-continue path
 // directly: rows whose settings blob is malformed or whose type is not
 // supported by the runtime builder are logged and excluded from the
-// returned snapshot without surfacing a top-level error. The seed path
-// filters most of these out before insert, so we bypass it and insert
-// rows straight into the database via dbgen.
+// returned snapshot without surfacing a top-level error.
 func TestBuildProvidersSkipsBadRows(t *testing.T) {
 	t.Parallel()
 
@@ -369,10 +222,31 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		// in GetAIProviders, so it never reaches the client: no provider and
 		// no outcome. This keeps one corrupt row from breaking the fetch (and
 		// thus provider configuration) for every gateway.
-		providers, outcomes, err := buildFromDB(ctx, t, db, codersdk.AIBridgeConfig{}, logger)
+		providers, outcomes, err := buildFromDB(ctx, t, db, logger)
 		require.NoError(t, err)
 		assert.Empty(t, providers)
 		assert.Empty(t, outcomes)
+	})
+
+	t.Run("BedrockWithoutSettings", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		dbgen.AIProvider(t, db, database.AIProvider{
+			Type:    database.AIProviderTypeBedrock,
+			Name:    "bedrock-no-settings",
+			Enabled: true,
+			BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+		})
+
+		providers, outcomes, err := buildFromDB(ctx, t, db, logger)
+		require.NoError(t, err)
+		require.Empty(t, providers)
+		require.Len(t, outcomes, 1)
+		require.Equal(t, aibridged.ProviderStatusError, outcomes[0].Status)
+		require.ErrorContains(t, outcomes[0].Err, "bedrock provider has no bedrock credentials configured")
 	})
 
 	t.Run("EnabledButNoKeys", func(t *testing.T) {
@@ -390,7 +264,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			BaseUrl: "https://example.openai.azure.com/",
 		})
 
-		providers, outcomes, err := buildFromDB(ctx, t, db, codersdk.AIBridgeConfig{}, logger)
+		providers, outcomes, err := buildFromDB(ctx, t, db, logger)
 		require.NoError(t, err)
 		assert.Empty(t, providers)
 		require.Len(t, outcomes, 1)
@@ -421,7 +295,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			APIKey:     "sk-good",
 		})
 
-		providers, outcomes, err := buildFromDB(ctx, t, db, codersdk.AIBridgeConfig{}, logger)
+		providers, outcomes, err := buildFromDB(ctx, t, db, logger)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 		assert.Equal(t, "openai-good", providers[0].Name())
@@ -479,7 +353,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 					p.Enabled = false
 				})
 
-				providers, outcomes, err := buildFromDB(ctx, t, db, codersdk.AIBridgeConfig{}, logger)
+				providers, outcomes, err := buildFromDB(ctx, t, db, logger)
 				require.NoError(t, err)
 				require.Len(t, providers, 1, "disabled providers stay in the snapshot so the bridge can serve a 503 sentinel")
 				assert.Equal(t, tc.row.Name, providers[0].Name())
@@ -491,12 +365,4 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			})
 		}
 	})
-}
-
-func providerNames(providers []aibridge.Provider) []string {
-	names := make([]string, len(providers))
-	for i, p := range providers {
-		names[i] = p.Name()
-	}
-	return names
 }

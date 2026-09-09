@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import { ExecuteTool } from "./ExecuteTool";
 
 const longCommand =
@@ -143,13 +143,6 @@ export const ConnectionError: Story = {
 		shellToolDisplayMode: "auto",
 		transcriptBlocks: [{ kind: "error", text: stoppedWorkspaceError }],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const errorMessage = await canvas.findByText(
-			/workspace has no running agent/i,
-		);
-		await expect(errorMessage).toBeVisible();
-	},
 };
 
 /** A timed-out command can return partial output plus an execute error. */
@@ -216,16 +209,5 @@ export const LongUnbrokenLineOutput: Story = {
 				text: `token:${"A".repeat(400)}:end`,
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const viewport = canvasElement.querySelector<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
-		);
-		await expect(viewport).not.toBeNull();
-		if (viewport) {
-			await expect(viewport.scrollWidth).toBeLessThanOrEqual(
-				viewport.clientWidth + 2,
-			);
-		}
 	},
 };

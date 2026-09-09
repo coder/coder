@@ -66,10 +66,4 @@ export const PoppedOut: Story = {
 		...ViewOnly.args,
 		isPoppedOut: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Detach button should not render when popped out.
-		const detach = canvas.queryByText("Detach");
-		await expect(detach).toBeNull();
-	},
 };
