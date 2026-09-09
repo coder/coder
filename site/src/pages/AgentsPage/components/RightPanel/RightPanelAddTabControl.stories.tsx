@@ -187,7 +187,6 @@ export const UnsupportedSingletonPanels: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByLabelText("Add panel"));
 
-		// Wait for the menu to render before the screenshot.
 		await within(document.body).findByText("New Terminal");
 	},
 };
@@ -203,7 +202,6 @@ export const ExcludesAgentBrowserApp: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByLabelText("Add panel"));
 
-		// Wait for the menu to render before the screenshot.
 		const body = within(document.body);
 		await body.findByText("Preview");
 		await body.findByRole("menuitemcheckbox", { name: "Browser" });

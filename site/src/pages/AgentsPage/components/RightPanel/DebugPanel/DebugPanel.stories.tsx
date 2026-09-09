@@ -619,7 +619,6 @@ export const RunDetailLoading: Story = {
 		});
 		await user.click(runTrigger);
 
-		// Wait for the loading branch to render before the screenshot.
 		await canvas.findByText(/Loading run details/i);
 	},
 };
@@ -651,7 +650,6 @@ export const RunDetailError: Story = {
 		});
 		await user.click(runTrigger);
 
-		// Wait for the error branch to render before the screenshot.
 		await canvas.findByText(/Unable to fetch run detail/i);
 	},
 };
@@ -683,7 +681,6 @@ export const RunWithNoSteps: Story = {
 		});
 		await user.click(runTrigger);
 
-		// Wait for the empty-steps fallback to render before the screenshot.
 		await canvas.findByText(/No steps recorded/i);
 	},
 };
@@ -753,7 +750,6 @@ export const RunWithMCPConnectSummary: Story = {
 		});
 		await user.click(runTrigger);
 
-		// Wait for the MCP section to render before the screenshot.
 		const section = await canvas.findByRole("region", {
 			name: /MCP server connections/i,
 		});
@@ -796,8 +792,6 @@ export const SingleStepSuccessfulRun: Story = {
 		await expandStep(canvas, user);
 		await canvas.findByText("Step 1");
 
-		// Expand the request body so the screenshot shows the revealed
-		// section with its copy button.
 		await user.click(await canvas.findByText("Request body"));
 		await expectVisibleCopyButtonOnHover({
 			canvas,
@@ -1118,8 +1112,6 @@ export const MultiStepRunWithRetries: Story = {
 		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
 		await expandStep(canvas, user);
 
-		// Open Step 1's first attempt so the screenshot shows the raw
-		// request/response and error sections.
 		await user.click(await canvas.findByRole("button", { name: /Attempt 1/i }));
 		await expectVisibleCopyButtonOnHover({
 			canvas,
@@ -1165,8 +1157,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
 		await expandStep(canvas, user);
 
-		// Expand request body to reveal the redacted headers in the
-		// screenshot.
+		// Expand the request body to reveal the redacted headers.
 		await user.click(await canvas.findByText("Request body"));
 		await expectVisibleCopyButtonOnHover({
 			canvas,
@@ -1269,7 +1260,6 @@ export const LongRawPayloads: Story = {
 		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
 		await expandStep(canvas, user);
 
-		// Expand request body to see large payloads in the screenshot.
 		await user.click(await canvas.findByText("Request body"));
 		await canvas.findByText(/request_24/i);
 	},
@@ -1309,8 +1299,6 @@ export const RichPayloadWithTranscript: Story = {
 		await expandStep(canvas, user);
 		await canvas.findByText("system");
 
-		// Toggle the Tools, Options, and Usage sections so the screenshot
-		// shows them expanded.
 		await user.click(canvas.getByRole("button", { name: /Tools/i }));
 		await canvas.findByText("run_code");
 

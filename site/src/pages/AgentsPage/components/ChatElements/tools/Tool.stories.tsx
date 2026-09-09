@@ -1053,7 +1053,6 @@ export const ListAgentsCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const header = canvas.getByRole("button", { name: /Listed 3 of 3 agents/ });
-		// Expand so the screenshot captures the agent rows and links.
 		await userEvent.click(header);
 	},
 };
@@ -2292,8 +2291,6 @@ export const ReadSkillCompleted: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Expand the collapsible so the markdown body renders in the
-		// screenshot.
 		const toggle = canvas.getByRole("button");
 		await userEvent.click(toggle);
 	},
@@ -2333,8 +2330,6 @@ export const ReadSkillFileCompleted: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Expand the collapsible so the markdown content renders in the
-		// screenshot.
 		const toggle = canvas.getByRole("button");
 		await userEvent.click(toggle);
 	},

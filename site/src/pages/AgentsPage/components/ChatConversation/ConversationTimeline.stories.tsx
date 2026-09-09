@@ -401,8 +401,6 @@ const hoverAndExpectTooltip = async (
 	return tooltip;
 };
 
-// Hover an attachment tile and wait for its tooltip to appear so the
-// screenshot captures the tile with the tooltip open.
 const hoverAttachmentTile = async (element: HTMLElement) => {
 	await userEvent.hover(element);
 	await screen.findByRole("tooltip");
@@ -1592,7 +1590,6 @@ export const UserMessageCopyButton: Story = {
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Force the hover-reveal toolbar visible for the screenshot.
 		for (const el of canvasElement.querySelectorAll("[class]")) {
 			if (
 				el instanceof HTMLElement &&
@@ -2142,7 +2139,6 @@ export const GroupedReadFilesRewrittenByHook: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Expand the group so the screenshot shows the attributed rows.
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /Read 2 files/ }),
 		);

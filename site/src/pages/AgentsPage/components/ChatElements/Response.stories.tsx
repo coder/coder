@@ -79,8 +79,7 @@ export const LongLineFencedBlock: Story = {
 		children: longLineCodeBlockMarkdown,
 	},
 	play: async ({ canvasElement }) => {
-		// Scroll the code block horizontally so the screenshot captures
-		// the scrolled state.
+		// Scroll the code block horizontally.
 		const viewport = [
 			...canvasElement.querySelectorAll<HTMLElement>(
 				"[data-radix-scroll-area-viewport]",
