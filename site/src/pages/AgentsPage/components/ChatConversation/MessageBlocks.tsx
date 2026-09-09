@@ -369,6 +369,8 @@ export const BlockList: FC<BlockListProps> = ({
 								subagentStatusOverrides={
 									isStreaming ? subagentStatusOverrides : undefined
 								}
+								mcpApp={tool.mcpApp}
+								toolCallId={tool.id}
 								mcpServerConfigId={tool.mcpServerConfigId}
 								mcpServers={mcpServers}
 								onImplementPlan={onImplementPlan}
@@ -431,6 +433,8 @@ export const BlockList: FC<BlockListProps> = ({
 					subagentStatusOverrides={
 						isStreaming ? subagentStatusOverrides : undefined
 					}
+					mcpApp={tool.mcpApp}
+					toolCallId={tool.id}
 					mcpServerConfigId={tool.mcpServerConfigId}
 					mcpServers={mcpServers}
 					onImplementPlan={onImplementPlan}

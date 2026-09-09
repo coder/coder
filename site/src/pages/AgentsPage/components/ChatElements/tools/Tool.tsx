@@ -4,6 +4,7 @@ import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
+import { MCPAppTool } from "../../MCPApps/MCPAppTool";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
 	type AskUserQuestion,
@@ -63,6 +64,8 @@ import {
 import { WriteFileTool } from "./WriteFileTool";
 
 interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
+	mcpApp?: TypesGen.ChatMCPApp;
+	toolCallId?: string;
 	organizationId?: string;
 	name: string;
 	status?: ToolStatus;
@@ -944,7 +947,7 @@ const getGenericToolErrorMessage = ({
 	return `${displayName} failed`;
 };
 
-const GenericToolRenderer: FC<ToolRendererProps> = ({
+export const GenericToolRenderer: FC<ToolRendererProps> = ({
 	name,
 	status,
 	args,
@@ -1191,6 +1194,8 @@ export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
 export const Tool = memo(
 	({
 		className,
+		mcpApp,
+		toolCallId,
 		organizationId,
 		name,
 		status = "completed",
@@ -1238,30 +1243,51 @@ export const Tool = memo(
 				{...props}
 			>
 				<ToolCall.PolicyProvider hookRewritten={hookRewritten}>
-					<Renderer
-						organizationId={organizationId}
-						name={name}
-						status={status}
-						args={args}
-						result={result}
-						isError={isError}
-						killedBySignal={killedBySignal}
-						subagentTitles={subagentTitles}
-						subagentVariants={subagentVariants}
-						showDesktopPreviews={showDesktopPreviews}
-						subagentStatusOverrides={subagentStatusOverrides}
-						mcpServerConfigId={mcpServerConfigId}
-						mcpServers={mcpServers}
-						onImplementPlan={onImplementPlan}
-						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-						isChatCompleted={isChatCompleted}
-						isLatestAskUserQuestion={isLatestAskUserQuestion}
-						previousResponseText={previousResponseText}
-						modelIntent={modelIntent}
-						parsedCommands={parsedCommands}
-						shellToolDisplayMode={shellToolDisplayMode}
-						codeDiffDisplayMode={codeDiffDisplayMode}
-					/>
+					{mcpApp && toolCallId ? (
+						<MCPAppTool
+							app={mcpApp}
+							toolCallId={toolCallId}
+							name={name}
+							args={args}
+							fallback={
+								<GenericToolRenderer
+									name={name}
+									status={status}
+									args={args}
+									result={result}
+									isError={isError}
+									mcpServerConfigId={mcpServerConfigId}
+									mcpServers={mcpServers}
+									modelIntent={modelIntent}
+								/>
+							}
+						/>
+					) : (
+						<Renderer
+							organizationId={organizationId}
+							name={name}
+							status={status}
+							args={args}
+							result={result}
+							isError={isError}
+							killedBySignal={killedBySignal}
+							subagentTitles={subagentTitles}
+							subagentVariants={subagentVariants}
+							showDesktopPreviews={showDesktopPreviews}
+							subagentStatusOverrides={subagentStatusOverrides}
+							mcpServerConfigId={mcpServerConfigId}
+							mcpServers={mcpServers}
+							onImplementPlan={onImplementPlan}
+							onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+							isChatCompleted={isChatCompleted}
+							isLatestAskUserQuestion={isLatestAskUserQuestion}
+							previousResponseText={previousResponseText}
+							modelIntent={modelIntent}
+							parsedCommands={parsedCommands}
+							shellToolDisplayMode={shellToolDisplayMode}
+							codeDiffDisplayMode={codeDiffDisplayMode}
+						/>
+					)}
 				</ToolCall.PolicyProvider>
 			</div>
 		);

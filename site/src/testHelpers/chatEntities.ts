@@ -2,6 +2,7 @@ import type {
 	Chat,
 	ChatContext,
 	ChatContextResource,
+	ChatMCPApp,
 	ChatMessage,
 	ChatQueuedMessage,
 	MCPServerConfig,
@@ -128,4 +129,14 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	chat_id: "chat-1",
 	content: [{ type: "text", text: "Queued message" }],
 	created_at: MOCK_TIMESTAMP,
+};
+
+export const MockChatMCPApp: ChatMCPApp = {
+	server_name: "charts",
+	resource_uri: "ui://charts/sales",
+	result: {
+		content: [{ type: "text", text: "Sales chart" }],
+		structured_content: { sales: [10, 20] },
+		is_error: false,
+	},
 };
