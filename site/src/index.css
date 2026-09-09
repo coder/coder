@@ -184,6 +184,21 @@
 		}
 	}
 
+	@keyframes flip-card {
+		0%,
+		15% {
+			transform: rotateY(0deg);
+		}
+		50%,
+		65% {
+			transform: rotateY(180deg);
+		}
+		100% {
+			transform: rotateY(360deg);
+		}
+	}
+
+	--animate-flip-card: flip-card 1.8s ease-in-out infinite;
 	--animate-loading: loading 2s ease-in-out infinite alternate;
 	--animate-caret-scan: caret-scan 3s ease-in-out infinite;
 	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);

@@ -1448,6 +1448,12 @@ export const MCPToolRunning: Story = {
 		mcpServerConfigId: "mcp-server-1",
 		mcpServers: sampleMCPServers,
 	},
+	play: async ({ canvasElement }) => {
+		expect(
+			within(canvasElement).getByRole("img", { name: "Tool call running" }),
+		).toBeInTheDocument();
+		expect(canvasElement.querySelector(".brightness-0")).toBeNull();
+	},
 };
 
 export const MCPToolCompleted: Story = {
@@ -1595,6 +1601,16 @@ export const MCPToolModelIntentRunning: Story = {
 		modelIntent: "Fetching backend issues from Linear",
 		mcpServerConfigId: "mcp-server-1",
 		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should show the model intent label instead of the raw tool name.
+		expect(
+			canvas.getByText("Fetching backend issues from Linear"),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -2014,6 +2030,13 @@ export const ComputerRunning: Story = {
 	args: {
 		name: "computer",
 		status: "running",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Taking screenshot…")).toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeInTheDocument();
 	},
 };
 
