@@ -1728,11 +1728,11 @@ func TestCommittedPendingGoalToolCancellationMessages(t *testing.T) {
 
 	// insertTurnMessages appends one turn: the triggering user prompt
 	// followed by an assistant message carrying one unresolved
-	// complete_goal call.
-	insertTurnMessages := func(t *testing.T, ctx context.Context, db database.Store, chat database.Chat, callID, rawArgs string) {
+	// goal-named tool call.
+	insertTurnMessages := func(t *testing.T, ctx context.Context, db database.Store, chat database.Chat, callID, toolName, rawArgs string) {
 		t.Helper()
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageToolCall(callID, chattool.CompleteGoalToolName, json.RawMessage(rawArgs)),
+			codersdk.ChatMessageToolCall(callID, toolName, json.RawMessage(rawArgs)),
 		})
 		require.NoError(t, err)
 		_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
@@ -1757,7 +1757,7 @@ func TestCommittedPendingGoalToolCancellationMessages(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	seed := func(t *testing.T, dynamicTools ...codersdk.DynamicTool) (database.Store, database.Chat, database.ChatGoal, context.Context) {
+	seed := func(t *testing.T, toolName string, dynamicTools ...codersdk.DynamicTool) (database.Store, database.Chat, database.ChatGoal, context.Context) {
 		t.Helper()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := chatdTestContext(t)
@@ -1782,11 +1782,15 @@ func TestCommittedPendingGoalToolCancellationMessages(t *testing.T) {
 			CreatedByUserID: user.ID,
 		})
 		require.NoError(t, err)
-		insertTurnMessages(t, ctx, db, chat, "call-goal", `{"goal_id":"`+goal.ID.String()+`","summary":"done"}`)
+		rawArgs := `{"goal_id":"` + goal.ID.String() + `","summary":"done"}`
+		if toolName == chattool.BlockGoalToolName {
+			rawArgs = `{"goal_id":"` + goal.ID.String() + `","reason":"waiting on user"}`
+		}
+		insertTurnMessages(t, ctx, db, chat, "call-goal", toolName, rawArgs)
 		return db, chat, goal, ctx
 	}
 
-	firstToolResult := func(t *testing.T, messages []chatstate.Message) codersdk.ChatMessagePart {
+	firstToolResult := func(t *testing.T, toolName string, messages []chatstate.Message) codersdk.ChatMessagePart {
 		t.Helper()
 		require.NotEmpty(t, messages)
 		parts, err := chatprompt.ParseContent(database.ChatMessage{
@@ -1797,12 +1801,13 @@ func TestCommittedPendingGoalToolCancellationMessages(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, parts, 1)
 		require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
-		require.Equal(t, chattool.CompleteGoalToolName, parts[0].ToolName)
+		require.Equal(t, toolName, parts[0].ToolName)
 		return parts[0]
 	}
 
-	completeGoal := func(t *testing.T, ctx context.Context, db database.Store, chat database.Chat, goal database.ChatGoal) {
-		t.Helper()
+	t.Run("ReplaysAgentCompletedGoal", func(t *testing.T) {
+		t.Parallel()
+		db, chat, goal, ctx := seed(t, chattool.CompleteGoalToolName)
 		_, err := db.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
 			RootChatID:        chat.ID,
 			ID:                goal.ID,
@@ -1810,16 +1815,10 @@ func TestCommittedPendingGoalToolCancellationMessages(t *testing.T) {
 			CompletedByAgent:  true,
 		})
 		require.NoError(t, err)
-	}
-
-	t.Run("ReplaysAgentCompletedGoal", func(t *testing.T) {
-		t.Parallel()
-		db, chat, goal, ctx := seed(t)
-		completeGoal(t, ctx, db, chat, goal)
 
 		messages, goalReplayed, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
 		require.NoError(t, err)
-		part := firstToolResult(t, messages)
+		part := firstToolResult(t, chattool.CompleteGoalToolName, messages)
 		require.True(t, goalReplayed, "a replay must be reported so the caller re-publishes the goal change")
 		require.False(t, part.IsError, "a durably completed goal must replay its successful result")
 		require.Contains(t, string(part.Result), `"completed":true`)
@@ -1827,37 +1826,90 @@ func TestCommittedPendingGoalToolCancellationMessages(t *testing.T) {
 
 	t.Run("CancelsWhenGoalNotCompleted", func(t *testing.T) {
 		t.Parallel()
-		db, chat, _, ctx := seed(t)
+		db, chat, _, ctx := seed(t, chattool.CompleteGoalToolName)
 
 		messages, goalReplayed, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
 		require.NoError(t, err)
-		part := firstToolResult(t, messages)
+		part := firstToolResult(t, chattool.CompleteGoalToolName, messages)
 		require.False(t, goalReplayed)
 		require.True(t, part.IsError)
 		require.Contains(t, string(part.Result), interruptedToolResultErrorMessage)
 	})
 
-	t.Run("ReplaysAgentCompletedGoalDespiteDynamicNameCollision", func(t *testing.T) {
+	t.Run("ReplaysAgentBlockedGoal", func(t *testing.T) {
 		t.Parallel()
-		db, chat, goal, ctx := seed(t, codersdk.DynamicTool{Name: chattool.CompleteGoalToolName})
-		completeGoal(t, ctx, db, chat, goal)
+		db, chat, goal, ctx := seed(t, chattool.BlockGoalToolName)
+		_, err := db.BlockChatGoalByID(ctx, database.BlockChatGoalByIDParams{
+			RootChatID:    chat.ID,
+			ID:            goal.ID,
+			BlockedReason: "waiting on user",
+		})
+		require.NoError(t, err)
 
 		messages, goalReplayed, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
 		require.NoError(t, err)
-		part := firstToolResult(t, messages)
+		part := firstToolResult(t, chattool.BlockGoalToolName, messages)
+		require.True(t, goalReplayed, "a replay must be reported so the caller re-publishes the goal change")
+		require.False(t, part.IsError, "a durably blocked goal must replay its successful result")
+		require.Contains(t, string(part.Result), `"blocked":true`)
+	})
+
+	t.Run("ReplaysAgentCompletedGoalDespiteDynamicNameCollision", func(t *testing.T) {
+		t.Parallel()
+		db, chat, goal, ctx := seed(t, chattool.CompleteGoalToolName,
+			codersdk.DynamicTool{Name: chattool.CompleteGoalToolName})
+		_, err := db.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID:        chat.ID,
+			ID:                goal.ID,
+			CompletionSummary: sql.NullString{String: "done", Valid: true},
+			CompletedByAgent:  true,
+		})
+		require.NoError(t, err)
+
+		messages, goalReplayed, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
+		require.NoError(t, err)
+		part := firstToolResult(t, chattool.CompleteGoalToolName, messages)
 		require.True(t, goalReplayed)
 		require.False(t, part.IsError,
 			"a colliding dynamic tool name must not suppress the committed built-in replay")
 		require.Contains(t, string(part.Result), `"completed":true`)
 	})
 
+	t.Run("ReplaysAgentBlockedGoalDespiteDynamicNameCollision", func(t *testing.T) {
+		t.Parallel()
+		db, chat, goal, ctx := seed(t, chattool.BlockGoalToolName,
+			codersdk.DynamicTool{Name: chattool.BlockGoalToolName})
+		_, err := db.BlockChatGoalByID(ctx, database.BlockChatGoalByIDParams{
+			RootChatID:    chat.ID,
+			ID:            goal.ID,
+			BlockedReason: "waiting on user",
+		})
+		require.NoError(t, err)
+
+		messages, goalReplayed, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
+		require.NoError(t, err)
+		part := firstToolResult(t, chattool.BlockGoalToolName, messages)
+		require.True(t, goalReplayed)
+		require.False(t, part.IsError,
+			"a colliding dynamic tool name must not suppress the committed built-in replay")
+		require.Contains(t, string(part.Result), `"blocked":true`)
+	})
+
 	t.Run("CancelsDynamicCompleteGoalCallAfterEarlierTurnTransition", func(t *testing.T) {
 		t.Parallel()
-		db, chat, goal, ctx := seed(t, codersdk.DynamicTool{Name: chattool.CompleteGoalToolName})
-		completeGoal(t, ctx, db, chat, goal)
+		db, chat, goal, ctx := seed(t, chattool.CompleteGoalToolName,
+			codersdk.DynamicTool{Name: chattool.CompleteGoalToolName})
+		_, err := db.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID:        chat.ID,
+			ID:                goal.ID,
+			CompletionSummary: sql.NullString{String: "done", Valid: true},
+			CompletedByAgent:  true,
+		})
+		require.NoError(t, err)
 		// A later turn offers the colliding dynamic tool again; its call
 		// referencing the durably completed goal is genuinely dynamic.
-		insertTurnMessages(t, ctx, db, chat, "call-goal-later", `{"goal_id":"`+goal.ID.String()+`","summary":"done"}`)
+		insertTurnMessages(t, ctx, db, chat, "call-goal-later", chattool.CompleteGoalToolName,
+			`{"goal_id":"`+goal.ID.String()+`","summary":"done"}`)
 
 		messages, goalReplayed, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
 		require.NoError(t, err)
@@ -1866,18 +1918,63 @@ func TestCommittedPendingGoalToolCancellationMessages(t *testing.T) {
 			"a later turn's dynamic complete_goal call must stay dynamic instead of fabricating a built-in success replay")
 	})
 
-	t.Run("CancelsLocalGoalCallAfterEarlierTurnTransition", func(t *testing.T) {
+	t.Run("CancelsDynamicBlockGoalCallAfterEarlierTurnTransition", func(t *testing.T) {
 		t.Parallel()
-		db, chat, goal, ctx := seed(t)
-		completeGoal(t, ctx, db, chat, goal)
-		// Without a dynamic collision the goal-named call is local, but
-		// the transition belongs to an earlier turn, so it must cancel
-		// as interrupted instead of replaying that transition.
-		insertTurnMessages(t, ctx, db, chat, "call-goal-later", `{"goal_id":"`+goal.ID.String()+`","summary":"done"}`)
+		db, chat, goal, ctx := seed(t, chattool.BlockGoalToolName,
+			codersdk.DynamicTool{Name: chattool.BlockGoalToolName})
+		_, err := db.BlockChatGoalByID(ctx, database.BlockChatGoalByIDParams{
+			RootChatID:    chat.ID,
+			ID:            goal.ID,
+			BlockedReason: "waiting on user",
+		})
+		require.NoError(t, err)
+		insertTurnMessages(t, ctx, db, chat, "call-goal-later", chattool.BlockGoalToolName,
+			`{"goal_id":"`+goal.ID.String()+`","reason":"waiting on user"}`)
 
 		messages, goalReplayed, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
 		require.NoError(t, err)
-		part := firstToolResult(t, messages)
+		require.False(t, goalReplayed)
+		require.Empty(t, messages,
+			"a later turn's dynamic block_goal call must stay dynamic instead of fabricating a built-in success replay")
+	})
+
+	t.Run("CancelsLocalGoalCallAfterEarlierTurnTransition", func(t *testing.T) {
+		t.Parallel()
+		db, chat, goal, ctx := seed(t, chattool.CompleteGoalToolName)
+		_, err := db.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID:        chat.ID,
+			ID:                goal.ID,
+			CompletionSummary: sql.NullString{String: "done", Valid: true},
+			CompletedByAgent:  true,
+		})
+		require.NoError(t, err)
+		// Without a dynamic collision the goal-named call is local, but
+		// the transition belongs to an earlier turn, so it must cancel
+		// as interrupted instead of replaying that transition.
+		insertTurnMessages(t, ctx, db, chat, "call-goal-later", chattool.CompleteGoalToolName,
+			`{"goal_id":"`+goal.ID.String()+`","summary":"done"}`)
+
+		messages, goalReplayed, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
+		require.NoError(t, err)
+		part := firstToolResult(t, chattool.CompleteGoalToolName, messages)
+		require.False(t, goalReplayed)
+		require.True(t, part.IsError)
+		require.Contains(t, string(part.Result), interruptedToolResultErrorMessage)
+	})
+
+	t.Run("CancelsWhenBlockedReasonDiffers", func(t *testing.T) {
+		t.Parallel()
+		db, chat, goal, ctx := seed(t, chattool.BlockGoalToolName)
+		_, err := db.BlockChatGoalByID(ctx, database.BlockChatGoalByIDParams{
+			RootChatID:    chat.ID,
+			ID:            goal.ID,
+			BlockedReason: "different obstacle",
+		})
+		require.NoError(t, err)
+
+		messages, goalReplayed, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
+		require.NoError(t, err)
+		part := firstToolResult(t, chattool.BlockGoalToolName, messages)
 		require.False(t, goalReplayed)
 		require.True(t, part.IsError)
 		require.Contains(t, string(part.Result), interruptedToolResultErrorMessage)
