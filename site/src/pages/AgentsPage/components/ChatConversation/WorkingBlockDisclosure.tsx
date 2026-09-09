@@ -86,9 +86,16 @@ const useKeepReadingPositionAcrossPrepend = (rowKeys: readonly string[]) => {
 		}
 		const delta = content.offsetHeight - previous.height;
 		const viewport = getScrollParent(content);
-		if (delta !== 0 && viewport) {
-			viewport.scrollTop += delta;
+		if (delta === 0 || !viewport) {
+			return;
 		}
+		// When the same page also prepends rows above the block, MessageScroller
+		// restores the block's own top edge from a MutationObserver callback,
+		// which runs after this effect and would cancel a synchronous adjustment.
+		// The inner growth is applied after it, still before the next paint.
+		queueMicrotask(() => {
+			viewport.scrollTop += delta;
+		});
 	});
 	return contentRef;
 };

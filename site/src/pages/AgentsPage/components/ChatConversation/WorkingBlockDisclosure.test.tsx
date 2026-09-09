@@ -42,24 +42,26 @@ describe("WorkingBlockDisclosure", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("scrolls by the growth when older rows join the front", () => {
+	it("scrolls by the growth when older rows join the front", async () => {
 		const { rerender } = render(renderInScroller(["message:3", "message:5"]));
 		const viewport = screen.getByRole("region", { name: "Messages" });
 		viewport.scrollTop = 400;
 
 		contentHeight = 160;
 		rerender(renderInScroller(["message:1", "message:3", "message:5"]));
+		await Promise.resolve();
 
 		expect(viewport.scrollTop).toBe(460);
 	});
 
-	it("holds the scroll when the live row becomes its persisted step", () => {
+	it("holds the scroll when the live row becomes its persisted step", async () => {
 		const { rerender } = render(renderInScroller(["live:1"]));
 		const viewport = screen.getByRole("region", { name: "Messages" });
 		viewport.scrollTop = 400;
 
 		contentHeight = 160;
 		rerender(renderInScroller(["message:7"]));
+		await Promise.resolve();
 
 		expect(viewport.scrollTop).toBe(400);
 	});
