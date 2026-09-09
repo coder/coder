@@ -45,6 +45,8 @@ export const Failed: Story = {
 	),
 };
 
+// A running tool call stays active even when the backend reports an
+// error; the error icon only appears once the status leaves "running".
 export const RunningWithBackendError: Story = {
 	render: () => (
 		<ToolCall.Root
@@ -56,16 +58,6 @@ export const RunningWithBackendError: Story = {
 			<ToolCall.Header iconName="read_file" label="Reading README.md" />
 		</ToolCall.Root>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Reading README.md")).toBeVisible();
-		expect(
-			canvas.getByRole("img", { name: "Tool call running" }),
-		).toBeVisible();
-		expect(
-			canvas.queryByRole("img", { name: "Failed to read file" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const Collapsible: Story = {

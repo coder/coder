@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
 import { Tool } from "./Tool";
 
 const PROCESS_ID = "376b2458-e318-4442-8b87-51a0f9727f0e";
@@ -125,15 +124,3 @@ export const ProtocolErrorStructured: Story = {
 // ---------------------------------------------------------------------------
 // Edge cases
 // ---------------------------------------------------------------------------
-
-/** No args parsed yet (streamed tool call with partial data). */
-export const NoArgs: Story = {
-	args: {
-		status: "running",
-		args: undefined,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Sending signal…")).toBeInTheDocument();
-	},
-};

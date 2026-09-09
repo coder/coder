@@ -1117,16 +1117,6 @@ export const ExportSingleRunDownloadError: Story = {
 	},
 };
 
-// These stories intentionally use the real saveAs default for manual
-// agent-browser dogfooding of browser downloads.
-export const ExportAllRunsDogfood: Story = {
-	parameters: ExportAllRuns.parameters,
-};
-
-export const ExportSingleRunDogfood: Story = {
-	parameters: ExportSingleRun.parameters,
-};
-
 export const MultiStepRunWithRetries: Story = {
 	parameters: {
 		queries: [

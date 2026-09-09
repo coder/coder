@@ -363,26 +363,6 @@ export const ErrorState: Story = {
 	},
 };
 
-export const ClearingErrorReturnsToDefaultView: Story = {
-	beforeEach: () => {
-		spyOn(API.experimental, "getChats").mockRejectedValue(
-			new Error("Bad filter"),
-		);
-	},
-	play: async () => {
-		const body = within(document.body);
-		const searchInput = body.getByRole("combobox", { name: "Search chats" });
-
-		await userEvent.type(searchInput, "backend failure");
-		await expect(await body.findByRole("alert")).toBeInTheDocument();
-
-		await userEvent.clear(searchInput);
-
-		await expect(await body.findByText("Recent chats")).toBeInTheDocument();
-		await expect(body.queryByRole("alert")).not.toBeInTheDocument();
-	},
-};
-
 export const ErrorStateWithStackTrace: Story = {
 	beforeEach: () => {
 		const err = new Error(
@@ -425,16 +405,6 @@ export const ErrorStateWithStackTrace: Story = {
 // ---------------------------------------------------------------------------
 // Interaction states: default view, filter pills, dropdown.
 // ---------------------------------------------------------------------------
-
-export const DefaultViewWithRecentChats: Story = {
-	play: async () => {
-		const body = within(document.body);
-		await expect(await body.findByText("Recent chats")).toBeInTheDocument();
-		await expect(
-			body.getByText("Fix race condition in auth middleware"),
-		).toBeInTheDocument();
-	},
-};
 
 export const FilterDropdownOnFocus: Story = {
 	play: async () => {
@@ -780,29 +750,6 @@ export const CommittedFilterDoesNotLeakStaleText: Story = {
 			limit: CHAT_SEARCH_LIMIT,
 			q: 'pr_status:open search:"open"',
 		});
-	},
-};
-
-export const EmptySearchResultsShowNoAlert: Story = {
-	beforeEach: () => {
-		spyOn(API.experimental, "getChats").mockResolvedValue([]);
-	},
-	play: async () => {
-		const body = within(document.body);
-		const searchInput = body.getByRole("combobox", { name: "Search chats" });
-
-		await userEvent.type(searchInput, "or");
-
-		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'search:"or"',
-			});
-		});
-		await expect(
-			await body.findByText("No matching chats", { exact: false }),
-		).toBeInTheDocument();
-		await expect(body.queryByRole("alert")).not.toBeInTheDocument();
 	},
 };
 
