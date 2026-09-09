@@ -68,20 +68,41 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 export default meta;
 type Story = StoryObj<typeof ChatSummaryPanel>;
 
+export const Loading: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockImplementation(
+			() => new Promise<TypesGen.Chat>(() => {}),
+		);
+		spyOn(API.experimental, "getChatCost").mockResolvedValue(mockCost);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByLabelText("Loading summary")).toBeVisible();
+		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
+	},
+};
+
 export const WithSummary: Story = {
 	beforeEach: () =>
 		mockRequests({
-			summary:
-				"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
+			summary: [
+				"Investigated the flaky CI job and landed a fix.",
+				"",
+				"- Traced it to a cache-layer race in `chatd.go`",
+				"- Added a regression test covering the race",
+			].join("\n"),
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
 			expect(
-				canvas.getByText(/traced it to a cache-layer race/),
+				canvas.getByText(/Traced it to a cache-layer race/),
 			).toBeInTheDocument();
 			expect(canvas.getByText("$1.25")).toBeInTheDocument();
 		});
+		expect(
+			within(canvas.getByRole("list")).getAllByRole("listitem"),
+		).toHaveLength(2);
 	},
 };
 
@@ -141,6 +162,23 @@ export const NotVisible: Story = {
 			canvas.queryByText("Should never be fetched."),
 		).not.toBeInTheDocument();
 		expect(canvas.queryByText("No summary yet.")).not.toBeInTheDocument();
+	},
+};
+
+export const NoSummary: Story = {
+	beforeEach: () => mockRequests(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("No summary yet.")).toBeInTheDocument();
+		});
+		expect(
+			canvas.getByText("A recap of this chat will appear here when available."),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Created:")).toBeInTheDocument();
+		expect(canvas.getByText("Updated:")).toBeInTheDocument();
+		expect(canvas.getByText("Cost:")).toBeInTheDocument();
+		expect(canvas.getByText("$1.25")).toBeInTheDocument();
 	},
 };
 

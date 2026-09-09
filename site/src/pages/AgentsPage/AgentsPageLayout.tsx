@@ -567,12 +567,14 @@ const AgentsPageLayout: FC = () => {
 					}
 					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
-					// The old membership is only available before the cache write below.
-					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === updatedChat.id,
-					)?.status;
-					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
+					if (
+						chatEvent.kind === "status_change" &&
+						!updatedChat.parent_chat_id
+					) {
+						// The old membership is only available before the cache write below.
+						const prevStatus = readInfiniteChatsCache(queryClient)?.find(
+							(chat) => chat.id === updatedChat.id,
+						)?.status;
 						maybePlayChime(
 							prevStatus,
 							updatedChat.status,
@@ -673,6 +675,19 @@ const AgentsPageLayout: FC = () => {
 				return ws;
 			},
 			onOpen() {
+				const activeChatId = activeChatIDRef.current;
+				if (activeChatId) {
+					void invalidateChatEntity(queryClient, activeChatId);
+					const activeChat = queryClient.getQueryData<TypesGen.Chat>(
+						chatEntityKey(activeChatId),
+					);
+					if (activeChat) {
+						const costChatId = getChatCostTreeID(activeChat);
+						if (costChatId) {
+							void invalidateChatCostTree(queryClient, costChatId);
+						}
+					}
+				}
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);

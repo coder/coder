@@ -5,6 +5,7 @@ import {
 	expect,
 	fireEvent,
 	fn,
+	mocked,
 	screen,
 	spyOn,
 	userEvent,
@@ -55,6 +56,7 @@ import {
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
+import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
 const defaultModelID = "model-config-1";
 
@@ -1008,6 +1010,12 @@ const agentsWithAgentChatPageRouting = {
 };
 
 const WATCHED_CHAT_ID = "chat-watched";
+const watchedChatCost: TypesGen.ChatCost = {
+	chat_id: WATCHED_CHAT_ID,
+	total_cost_micros: 1_250_000,
+	request_count: 8,
+	unpriced_request_count: 0,
+};
 
 // MockChat is owned by MockUserOwner, so the page renders the owner view
 // (composer enabled unless archived) instead of the other-user banner.
@@ -1048,14 +1056,31 @@ const watchedChatQueries = (chat: Chat) => [
 	},
 ];
 
-const chatWatchEvent = (kind: TypesGen.ChatWatchEventKind, chat: Chat) => ({
+const chatWatchEvent = (
+	kind: TypesGen.ChatWatchEventKind,
+	chat: Chat,
+	delayMs = 0,
+	connectionIndex?: number,
+) => ({
 	event: "message" as const,
-	data: JSON.stringify({ kind, chat } satisfies TypesGen.ChatWatchEvent),
+	data: JSON.stringify({
+		kind,
+		chat,
+	} satisfies TypesGen.ChatWatchEvent),
+	delayMs,
+	connectionIndex,
 });
 
 const watchedChatPageParameters = (
 	chat: Chat,
-	watchEvents: readonly ReturnType<typeof chatWatchEvent>[],
+	watchEvents: readonly (
+		| ReturnType<typeof chatWatchEvent>
+		| {
+				event: "open" | "close" | "error";
+				delayMs?: number;
+				connectionIndex?: number;
+		  }
+	)[],
 ) => ({
 	queries: watchedChatQueries(chat),
 	webSocket: {
@@ -1073,8 +1098,89 @@ const watchedChatPageParameters = (
 const mockAgentChatPageAPIs = () => {
 	localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+	spyOn(API.experimental, "getChatCost").mockResolvedValue(watchedChatCost);
 	spyOn(API.experimental, "updateChat").mockResolvedValue();
 	return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+};
+
+export const SummaryWatchEventsUpdateOpenPanel: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat()]);
+		const cleanup = mockAgentChatPageAPIs();
+		clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => {
+			clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+			cleanup();
+		};
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		chatWatchEvent(
+			"chat_summary_change",
+			watchedChat({ summary: "Generated summary from the watch event." }),
+			750,
+		),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryPanel = await canvas.findByRole("tabpanel", {
+			name: "Summary",
+		});
+		const summary = within(summaryPanel);
+		expect(await summary.findByText("No summary yet.")).toBeVisible();
+
+		expect(
+			await summary.findByText(
+				"Generated summary from the watch event.",
+				{},
+				{ timeout: 5_000 },
+			),
+		).toBeVisible();
+		expect(summary.queryByRole("status")).not.toBeInTheDocument();
+	},
+};
+
+export const SummaryReconnectRefreshesPersistedSummary: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat()]);
+		spyOn(API.experimental, "getChat").mockResolvedValue(watchedChat());
+		const cleanup = mockAgentChatPageAPIs();
+		clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => {
+			clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+			cleanup();
+		};
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		{ event: "open", connectionIndex: 0 },
+		{ event: "close", delayMs: 3_000, connectionIndex: 0 },
+		{ event: "open", connectionIndex: 1 },
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryPanel = await canvas.findByRole("tabpanel", {
+			name: "Summary",
+		});
+		const summary = within(summaryPanel);
+		expect(await summary.findByText("No summary yet.")).toBeVisible();
+		const getChatMock = mocked(API.experimental.getChat);
+		getChatMock.mockResolvedValue(
+			watchedChat({ summary: "Summary completed while disconnected." }),
+		);
+		const callsBeforeReconnect = getChatMock.mock.calls.length;
+		expect(
+			await summary.findByText(
+				"Summary completed while disconnected.",
+				{},
+				{ timeout: 5_000 },
+			),
+		).toBeVisible();
+		expect(getChatMock.mock.calls.length).toBeGreaterThan(callsBeforeReconnect);
+		expect(summary.queryByRole("status")).not.toBeInTheDocument();
+	},
 };
 
 export const ArchiveWatchEventKeepsOpenChatMounted: Story = {

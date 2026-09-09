@@ -1,4 +1,6 @@
+import { MessageSquareDashedIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
+import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
@@ -38,18 +40,18 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 		hasCost && unpricedRequestCount != null && unpricedRequestCount > 0;
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex min-h-0 flex-col gap-4 p-4">
 			{trimmedSummary ? (
-				<p className="m-0 font-sans text-pretty text-sm font-normal leading-6 text-content-primary">
-					{trimmedSummary}
+				<ChatSummaryBody summary={trimmedSummary} />
+			) : isSubagent ? (
+				<p className="m-0 font-sans text-sm font-normal leading-6 text-content-secondary">
+					Summary pending agent completion.
 				</p>
 			) : (
-				<p className="m-0 font-sans text-sm font-normal leading-6 text-content-secondary">
-					{isSubagent ? "Summary pending agent completion." : "No summary yet."}
-				</p>
+				<ChatSummaryEmpty />
 			)}
 
-			<dl className="m-0 flex flex-col gap-1.5">
+			<dl className="m-0 flex shrink-0 flex-col gap-1.5">
 				<ChatSummaryRow label="Created:">
 					{formatDateTime(createdAt, DATE_FORMAT.MEDIUM_DATE)}
 				</ChatSummaryRow>
@@ -87,6 +89,67 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 		</div>
 	);
 };
+
+const ChatSummaryEmpty: FC = () => (
+	<div className="flex flex-col items-center px-4 py-8 text-center">
+		<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border-default bg-surface-secondary">
+			<MessageSquareDashedIcon
+				aria-hidden
+				className="size-5 text-content-secondary"
+			/>
+		</div>
+		<p className="m-0 text-sm font-medium text-content-primary">
+			No summary yet.
+		</p>
+		<p className="mt-1 min-h-8 max-w-56 text-xs text-content-secondary">
+			A recap of this chat will appear here when available.
+		</p>
+	</div>
+);
+
+interface ChatSummaryBodyProps {
+	summary: string;
+}
+
+/**
+ * Height is deliberately unbounded: summaries are capped server-side and the
+ * surrounding panel already scrolls, so clamping would only add a second,
+ * worse overflow mechanism.
+ */
+const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => (
+	<div
+		// Verbatim identifiers can exceed the panel width with no natural
+		// break opportunity, so break anywhere.
+		className="w-full break-words font-sans text-sm font-normal leading-6 text-content-primary [overflow-wrap:anywhere]"
+	>
+		<InlineMarkdown
+			// `ol` keeps a legacy prose summary starting with "1. " in a list
+			// parent instead of emitting orphan `li` elements.
+			allowedElements={["ul", "ol", "li"]}
+			components={{
+				// InlineMarkdown renders `p` as a bare fragment, which would
+				// run the headline straight into the bullet list.
+				p: ({ children }) => <p className="m-0 text-pretty">{children}</p>,
+				ul: ({ children }) => (
+					<ul className="my-2 flex list-disc flex-col gap-1 pl-5">
+						{children}
+					</ul>
+				),
+				ol: ({ children }) => (
+					<ol className="my-2 flex list-decimal flex-col gap-1 pl-5">
+						{children}
+					</ol>
+				),
+				li: ({ children }) => <li className="m-0 text-pretty">{children}</li>,
+				// A summary describes the chat rather than linking out of it, so
+				// model-authored URLs render as plain text.
+				a: ({ children }) => children,
+			}}
+		>
+			{summary}
+		</InlineMarkdown>
+	</div>
+);
 
 interface ChatSummaryRowProps {
 	label: string;
