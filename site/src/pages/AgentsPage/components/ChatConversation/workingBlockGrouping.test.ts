@@ -413,6 +413,56 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0].isLive).toBe(true);
 		});
 
+		it("folds an idle live row into the block it follows", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const live = liveStream([]);
+			const { rows, blocks } = group([prompt, ...steps], {
+				isTurnActive: true,
+				isLiveRowCollapsible: true,
+				liveBlocks: live.streamState.blocks,
+				liveTools: live.liveTools,
+				streamState: live.streamState,
+			});
+
+			expect(blocks).toHaveLength(1);
+			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id, "live"]);
+			expect(blocks[0]).toMatchObject({ isLive: true, stepCount: 1 });
+		});
+
+		it("does not start a block from an idle live row", () => {
+			const live = liveStream([]);
+			const { blocks } = group([user("Go")], {
+				isTurnActive: true,
+				isLiveRowCollapsible: true,
+				liveBlocks: live.streamState.blocks,
+				liveTools: live.liveTools,
+				streamState: live.streamState,
+			});
+			expect(blocks).toEqual([]);
+		});
+
+		it("folds the live turn's reasoning before its first tool call", () => {
+			const prompt = user("Go");
+			const live = liveStream([reasoning("Planning", at(1))]);
+			const { rows, blocks } = group([prompt], {
+				isTurnActive: true,
+				isLiveRowCollapsible: true,
+				liveBlocks: live.streamState.blocks,
+				liveTools: live.liveTools,
+				streamState: live.streamState,
+			});
+
+			expect(blocks).toHaveLength(1);
+			expect(rowIds(rows, blocks[0].rowIndices)).toEqual(["live"]);
+			expect(blocks[0]).toMatchObject({
+				isLive: true,
+				stepCount: 0,
+				startedAt: base + 1000,
+				key: `working:live:message:${prompt.id}:0`,
+			});
+		});
+
 		it("keeps the live row outside the block when its callouts must stay visible", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
@@ -560,7 +610,24 @@ describe("groupWorkingBlocks", () => {
 	});
 });
 
-describe("stream tool timestamps", () => {
+describe("stream timestamps", () => {
+	it("records the earliest part timestamp as the stream start", () => {
+		const thinking = applyMessagePartToStreamState(
+			null,
+			reasoning("Plan", at(2)),
+		);
+		const delta = applyMessagePartToStreamState(
+			thinking,
+			reasoning(" more", at(2)),
+		);
+		expect(delta?.startedAt).toBe(at(2));
+		const called = applyMessagePartToStreamState(delta, call("x", at(5)));
+		expect(called?.startedAt).toBe(at(2));
+		expect(applyMessagePartToStreamState(null, text("Hi"))?.startedAt).toBe(
+			undefined,
+		);
+	});
+
 	it("keeps the first call timestamp and the latest result timestamp across deltas", () => {
 		const started = applyMessagePartToStreamState(null, {
 			type: "tool-call",

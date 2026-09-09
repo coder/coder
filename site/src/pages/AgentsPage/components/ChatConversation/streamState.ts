@@ -13,7 +13,17 @@ export const createEmptyStreamState = (): StreamState => ({
 	sources: [],
 });
 
-export const applyMessagePartToStreamState = (
+const earliestTimestamp = (
+	current: string | undefined,
+	candidate: string | undefined,
+): string | undefined => {
+	if (!current || !candidate) {
+		return current ?? candidate;
+	}
+	return Date.parse(candidate) < Date.parse(current) ? candidate : current;
+};
+
+const applyPart = (
 	prev: StreamState | null,
 	part: TypesGen.ChatMessagePart,
 ): StreamState | null => {
@@ -222,6 +232,23 @@ export const applyMessagePartToStreamState = (
 			return prev;
 		}
 	}
+};
+
+export const applyMessagePartToStreamState = (
+	prev: StreamState | null,
+	part: TypesGen.ChatMessagePart,
+): StreamState | null => {
+	const next = applyPart(prev, part);
+	if (next === prev || !next) {
+		return next;
+	}
+	const startedAt =
+		part.type === "reasoning" ||
+		part.type === "tool-call" ||
+		part.type === "tool-result"
+			? earliestTimestamp(next.startedAt, part.created_at)
+			: next.startedAt;
+	return startedAt === next.startedAt ? next : { ...next, startedAt };
 };
 
 const getStreamToolStatus = (

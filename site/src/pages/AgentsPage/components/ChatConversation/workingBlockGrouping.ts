@@ -44,9 +44,10 @@ export type GroupWorkingBlocksOptions = {
 	/** The turn is still producing output (any non-idle, non-failed phase). */
 	isTurnActive: boolean;
 	/**
-	 * Whether the live row may be folded into the block. Retry, reconnect,
-	 * and interrupt callouts render inside the live row, so it must stay
-	 * visible outside any block in those phases.
+	 * Whether the live row may be folded into the block: the turn is
+	 * starting a step or streaming one. Retry, reconnect, and interrupt
+	 * callouts render inside the live row, so it must stay visible outside
+	 * any block in those phases.
 	 */
 	isLiveRowCollapsible: boolean;
 	liveBlocks: readonly RenderBlock[];
@@ -109,7 +110,8 @@ const getRowContent = (
 /**
  * A step row is assistant output that ends in tool activity or reasoning
  * rather than an answer. Text that precedes a tool call is narration and
- * folds with it; text that ends a row is an answer and stays visible.
+ * folds with it; text that ends a row is an answer and stays visible. A
+ * live row with no output yet is the turn working on its next step.
  */
 const isStepRow = (
 	row: TimelineRow,
@@ -121,6 +123,9 @@ const isStepRow = (
 			return undefined;
 		}
 		content = getRowContent(options.liveBlocks, options.liveTools);
+		if (content.visibleBlocks.length === 0) {
+			return content;
+		}
 	} else {
 		const { message, parsed } = row.entry;
 		if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
@@ -237,6 +242,12 @@ export const groupWorkingBlocks = (
 			continue;
 		}
 		if (!current) {
+			// The stream opens empty before every step. That row extends a
+			// block that is already working but never starts one, so a turn's
+			// first moments keep the plain thinking indicator.
+			if (content.visibleBlocks.length === 0) {
+				continue;
+			}
 			current = {
 				rowIndices: [],
 				tools: new Map(),
@@ -254,9 +265,13 @@ export const groupWorkingBlocks = (
 		}
 	}
 
-	// A block is a run of tool activity. Reasoning-only rows fold only when
-	// they sit inside such a run; on their own they stay visible.
-	const toolDrafts = drafts.filter((draft) => draft.tools.size > 0);
+	// A completed block is a run of tool activity; a reasoning-only row on
+	// its own stays visible. The live turn folds from its first reasoning,
+	// so thinking never shows and then vanishes once a tool call arrives.
+	const blockDrafts = drafts.filter(
+		(draft) =>
+			draft.tools.size > 0 || (draft.containsLiveRow && options.isTurnActive),
+	);
 
 	const lastMessageRowIndex = rows.findLastIndex(
 		(row) => row.type === "message",
@@ -271,7 +286,7 @@ export const groupWorkingBlocks = (
 		return Number.POSITIVE_INFINITY;
 	};
 
-	return toolDrafts.map((draft) => {
+	return blockDrafts.map((draft) => {
 		const firstRowIndex = draft.rowIndices[0];
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
@@ -303,14 +318,7 @@ export const groupWorkingBlocks = (
 			}
 		}
 		if (draft.containsLiveRow) {
-			for (const call of Object.values(options.streamState?.toolCalls ?? {})) {
-				observe(parseTimestamp(call.createdAt));
-			}
-			for (const result of Object.values(
-				options.streamState?.toolResults ?? {},
-			)) {
-				observe(parseTimestamp(result.createdAt));
-			}
+			observe(parseTimestamp(options.streamState?.startedAt));
 		}
 
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;

@@ -21,11 +21,13 @@ import {
 	parseMessagesWithMergedTools,
 } from "./messageParsing";
 import {
+	buildStreamRenderState,
 	buildWorkingConversation,
+	type StoryStreamRenderState,
 	WORKING_FIXTURE_START,
 	workingFixtureTime,
 } from "./storyFixtures";
-import { buildStreamTools } from "./streamState";
+import { buildStreamTools, createEmptyStreamState } from "./streamState";
 import type { StreamState } from "./types";
 
 const start = WORKING_FIXTURE_START;
@@ -93,6 +95,7 @@ export const StreamingToDurable: Story = {
 	render: function Render(args) {
 		const [stage, setStage] = useState(0);
 		const stream: StreamState = {
+			startedAt: stage === 0 ? time(1) : time(5),
 			blocks: [{ type: "tool", id: stage === 0 ? "first" : "second" }],
 			toolCalls:
 				stage === 0
@@ -201,6 +204,89 @@ export const RunningBetweenSteps: Story = {
 		expect(
 			canvas.getByRole("button", { name: "Worked for 4s (2 steps)" }),
 		).toHaveAttribute("aria-expanded", "true");
+	},
+};
+
+const MockReasoningStream = buildStreamRenderState([
+	{
+		type: "reasoning",
+		text: "Planning the inspection\n\nList the files before reading any.",
+		created_at: time(1),
+	},
+]);
+
+// After a tool result the stream reopens empty, then reasons, before the next
+// call streams. Each of those moments is the same block still working, so
+// nothing appears under its summary.
+const NextStepStages: readonly StoryStreamRenderState[] = [
+	{
+		streamState: null,
+		streamTools: [],
+		liveStatus: { phase: "starting", hasAccumulatedOutput: false },
+	},
+	{
+		streamState: createEmptyStreamState(),
+		streamTools: [],
+		liveStatus: { phase: "streaming", hasAccumulatedOutput: false },
+	},
+	MockReasoningStream,
+];
+
+export const NextStepStartsInsideBlock: Story = {
+	render: function Render(args) {
+		const [stage, setStage] = useState(0);
+		const messages = MockWorkingMessages.slice(0, 5);
+		return (
+			<>
+				<Button
+					onClick={() => setStage(stage + 1)}
+					disabled={stage === NextStepStages.length - 1}
+				>
+					Advance stream
+				</Button>
+				<ConversationTimeline
+					{...args}
+					parsedMessages={parseMessagesWithMergedTools(messages)}
+					chatStatus="running"
+					{...NextStepStages[stage]}
+				/>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summary = canvas.getByRole("button", { name: "Working for 12s" });
+		const advance = canvas.getByRole("button", { name: "Advance stream" });
+		expect(canvas.queryByTestId("live-activity-slot")).toBeNull();
+		await userEvent.click(advance);
+		expect(canvas.queryByTestId("live-activity-slot")).toBeNull();
+		await userEvent.click(advance);
+		expect(canvas.queryByText(/planning the inspection/i)).toBeNull();
+		expect(canvas.queryByRole("button", { name: /^Working/ })).toBe(summary);
+		await userEvent.click(summary);
+		// The reasoning text streams in through the smoothing buffer.
+		expect(await canvas.findByText(/planning the inspection/i)).toBeVisible();
+	},
+};
+
+// A turn's first reasoning already folds, so thinking never shows and then
+// vanishes into the block once its first tool call arrives.
+export const ReasoningBeforeFirstToolFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 1),
+		),
+		chatStatus: "running",
+		...MockReasoningStream,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summary = canvas.getByRole("button", { name: "Working for 12s" });
+		expect(canvas.queryByText(/planning the inspection/i)).toBeNull();
+		expect(canvas.queryByTestId("live-activity-slot")).toBeNull();
+		await userEvent.click(summary);
+		// The reasoning text streams in through the smoothing buffer.
+		expect(await canvas.findByText(/planning the inspection/i)).toBeVisible();
 	},
 };
 

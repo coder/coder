@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SmoothTextEngine, STREAM_SMOOTHING } from "./SmoothText";
 
 function makeText(length: number): string {
@@ -93,6 +93,29 @@ describe("SmoothTextEngine", () => {
 
 		expect(engine.visibleLength).toBe(fullText.length);
 		expect(engine.isCaughtUp).toBe(true);
+	});
+
+	it("resumes a disposed loop only while a reveal is pending", () => {
+		const raf = vi.spyOn(globalThis, "requestAnimationFrame");
+		try {
+			const engine = new SmoothTextEngine();
+			engine.update(makeText(80), true, false);
+			expect(raf).toHaveBeenCalledTimes(1);
+
+			engine.dispose();
+			engine.resume();
+			expect(raf).toHaveBeenCalledTimes(2);
+			// The loop is already running again.
+			engine.resume();
+			expect(raf).toHaveBeenCalledTimes(2);
+
+			engine.update(makeText(80), false, false);
+			engine.dispose();
+			engine.resume();
+			expect(raf).toHaveBeenCalledTimes(2);
+		} finally {
+			raf.mockRestore();
+		}
 	});
 
 	it("clamps visible length when content shrinks", () => {

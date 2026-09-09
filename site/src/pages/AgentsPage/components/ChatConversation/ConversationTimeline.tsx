@@ -484,7 +484,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					// requires_action is the agent waiting on the user, not working.
 					isTurnActive:
 						chatStatus === "running" || chatStatus === "interrupting",
-					isLiveRowCollapsible: Boolean(liveStatus?.phase === "streaming"),
+					isLiveRowCollapsible:
+						liveStatus?.phase === "streaming" ||
+						liveStatus?.phase === "starting",
 					liveBlocks,
 					liveTools,
 					streamState,
