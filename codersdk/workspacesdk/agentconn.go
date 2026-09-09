@@ -115,6 +115,7 @@ type AgentConn interface {
 	DeleteDevcontainer(ctx context.Context, devcontainerID string) error
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	SignalProcess(ctx context.Context, id string, signal string) error
+	SignalProcessByIdempotencyKey(ctx context.Context, idempotencyKey string, signal string) error
 	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ResolvePath(ctx context.Context, path string) (string, error)
@@ -931,6 +932,31 @@ type StartProcessResponse struct {
 	StartedAt int64 `json:"started_at,omitempty"`
 }
 
+// SignalProcessByIdempotencyKeyRequest signals the process started
+// under an idempotency key, for a caller whose start response was lost
+// and which therefore never learned the process ID.
+type SignalProcessByIdempotencyKeyRequest struct {
+	IdempotencyKey string `json:"idempotency_key"`
+	Signal         string `json:"signal"`
+}
+
+// ProcessKeyNotFoundCode marks a 404 from the by-key signal route as a
+// genuine "no process under this key" answer. Agents that predate that
+// route answer 404 too, but without this code, so callers must not
+// read every 404 as proof the process is gone.
+const ProcessKeyNotFoundCode = "process_key_not_found"
+
+// ProcessKeyNotFoundError reports that no process is held under a key.
+type ProcessKeyNotFoundError struct {
+	Code string `json:"code"`
+	codersdk.Response
+}
+
+// ErrProcessKeySignalUnsupported reports a by-key signal answered by an
+// agent that does not implement the route, so the request proves
+// nothing about the process.
+var ErrProcessKeySignalUnsupported = xerrors.New("agent does not support signaling a process by idempotency key")
+
 type ProcessConflictCode string
 
 const (
@@ -943,6 +969,10 @@ const (
 	// key had not published its process before the wait gave up. A
 	// retry may still attach to it.
 	ProcessConflictStartPending ProcessConflictCode = "start_pending"
+
+	// ProcessConflictNotRunning reports a by-key signal whose process
+	// has already exited, so there is nothing left to signal.
+	ProcessConflictNotRunning ProcessConflictCode = "not_running"
 )
 
 // ProcessConflictError is the body of a start request rejected
@@ -1485,6 +1515,56 @@ func (c *agentConn) SignalProcess(ctx context.Context, id string, signal string)
 		return xerrors.Errorf("decode response body: %w", err)
 	}
 	return nil
+}
+
+// SignalProcessByIdempotencyKey sends a signal to the process started
+// under an idempotency key, so a caller that never received the start
+// response can still act on it. The key travels in the body, so no
+// key value needs URL escaping.
+//
+// A 404 carrying ProcessKeyNotFoundCode means no process is held under
+// the key. Any other 404 comes from an agent without this route and is
+// reported as ErrProcessKeySignalUnsupported, because such an answer
+// says nothing about the process.
+func (c *agentConn) SignalProcessByIdempotencyKey(ctx context.Context, idempotencyKey string, signal string) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/processes/signal-by-idempotency-key", SignalProcessByIdempotencyKeyRequest{
+		IdempotencyKey: idempotencyKey,
+		Signal:         signal,
+	})
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return readProcessKeyNotFoundError(res)
+	}
+	if res.StatusCode == http.StatusConflict {
+		return readProcessConflictError(res)
+	}
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// readProcessKeyNotFoundError distinguishes "no process under this
+// key" from an agent that does not implement the route.
+func readProcessKeyNotFoundError(res *http.Response) error {
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return xerrors.Errorf("read response body: %w", err)
+	}
+	var notFound ProcessKeyNotFoundError
+	if err := json.Unmarshal(body, &notFound); err == nil && notFound.Code == ProcessKeyNotFoundCode {
+		return &notFound
+	}
+	return ErrProcessKeySignalUnsupported
+}
+
+func (e *ProcessKeyNotFoundError) Error() string {
+	return e.Message
 }
 
 // EditFiles replaces old_text with new_text on one or more files.
