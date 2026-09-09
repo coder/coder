@@ -4,6 +4,8 @@ import { HttpResponse, http } from "msw";
 import type {
 	CreateUserSecretRequest,
 	CreateWorkspaceBuildRequest,
+	ListInboxNotificationsResponse,
+	Preset,
 	UpdateUserSecretRequest,
 	UserSecret,
 } from "#/api/typesGenerated";
@@ -12,6 +14,13 @@ import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 
 export const handlers = [
+	http.get("/api/v2/notifications/inbox", () => {
+		return HttpResponse.json<ListInboxNotificationsResponse>({
+			notifications: [],
+			unread_count: 0,
+		});
+	}),
+
 	http.get("/api/v2/templates/:templateId/daus", () => {
 		return HttpResponse.json(M.MockTemplateDAUResponse);
 	}),
@@ -129,6 +138,9 @@ export const handlers = [
 	}),
 	http.get("/api/v2/templateversions/:templateVersionId", () => {
 		return HttpResponse.json(M.MockTemplateVersion);
+	}),
+	http.get("/api/v2/templateversions/:templateVersionId/presets", () => {
+		return HttpResponse.json<Preset[]>([]);
 	}),
 	http.get("/api/v2/templateversions/:templateVersionId/resources", () => {
 		return HttpResponse.json([

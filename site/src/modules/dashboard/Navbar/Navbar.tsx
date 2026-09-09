@@ -41,7 +41,8 @@ export const Navbar: React.FC = () => {
 		permissions.updateAnyMCPServerConfig ||
 		permissions.deleteAnyMCPServerConfig ||
 		permissions.updateAnyTemplate ||
-		canAccessAnyModel;
+		canAccessAnyModel ||
+		canViewAIBridge;
 	const organizationMCPSharing = useCanShareOrganizationMCPServers(
 		organizations,
 		{ enabled: !canViewSiteWideAISettings },
