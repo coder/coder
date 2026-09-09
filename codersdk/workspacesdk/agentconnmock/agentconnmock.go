@@ -434,6 +434,21 @@ func (mr *MockAgentConnMockRecorder) ReadFileLines(ctx, path, offset, limit, lim
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadFileLines", reflect.TypeOf((*MockAgentConn)(nil).ReadFileLines), ctx, path, offset, limit, limits)
 }
 
+// ReadMCPResource mocks base method.
+func (m *MockAgentConn) ReadMCPResource(ctx context.Context, req workspacesdk.ReadMCPResourceRequest) (workspacesdk.ReadMCPResourceResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadMCPResource", ctx, req)
+	ret0, _ := ret[0].(workspacesdk.ReadMCPResourceResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadMCPResource indicates an expected call of ReadMCPResource.
+func (mr *MockAgentConnMockRecorder) ReadMCPResource(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMCPResource", reflect.TypeOf((*MockAgentConn)(nil).ReadMCPResource), ctx, req)
+}
+
 // ReconnectingPTY mocks base method.
 func (m *MockAgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, width uint16, command string, initOpts ...workspacesdk.AgentReconnectingPTYInitOption) (net.Conn, error) {
 	m.ctrl.T.Helper()

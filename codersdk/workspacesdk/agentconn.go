@@ -96,6 +96,7 @@ type AgentConn interface {
 
 	AwaitReachable(ctx context.Context) bool
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
+	ReadMCPResource(ctx context.Context, req ReadMCPResourceRequest) (ReadMCPResourceResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
 	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
@@ -1286,6 +1287,8 @@ type MCPToolInfo struct {
 	Schema map[string]any `json:"schema"`
 	// Required lists required parameter names.
 	Required []string `json:"required"`
+	// UIResourceURI identifies the tool's MCP App resource.
+	UIResourceURI string `json:"ui_resource_uri,omitempty"`
 }
 
 // ContextConfigResponse is the response from the agent's context
@@ -1306,16 +1309,34 @@ type CallMCPToolRequest struct {
 
 // CallMCPToolResponse is the response from a proxied MCP tool call.
 type CallMCPToolResponse struct {
-	Content []MCPToolContent `json:"content"`
-	IsError bool             `json:"is_error"`
+	Content           []MCPToolContent `json:"content"`
+	IsError           bool             `json:"is_error"`
+	StructuredContent json.RawMessage  `json:"structured_content,omitempty"`
 }
 
 // MCPToolContent is a single content block in an MCP tool response.
 type MCPToolContent struct {
-	Type      string `json:"type"` // "text", "image", "audio", "resource"
-	Text      string `json:"text,omitempty"`
-	Data      string `json:"data,omitempty"` // base64 for binary
-	MediaType string `json:"media_type,omitempty"`
+	Type      string                   `json:"type"` // "text", "image", "audio", "resource"
+	Text      string                   `json:"text,omitempty"`
+	Data      string                   `json:"data,omitempty"` // base64 for binary
+	MediaType string                   `json:"media_type,omitempty"`
+	URI       string                   `json:"uri,omitempty"`
+	Resource  *ReadMCPResourceResponse `json:"resource,omitempty"`
+}
+
+// ReadMCPResourceRequest identifies a resource on a workspace MCP server.
+type ReadMCPResourceRequest struct {
+	ServerName string `json:"server_name"`
+	URI        string `json:"uri"`
+}
+
+// ReadMCPResourceResponse contains the first resource returned by an MCP server.
+type ReadMCPResourceResponse struct {
+	URI      string          `json:"uri"`
+	MimeType string          `json:"mime_type,omitempty"`
+	Text     string          `json:"text,omitempty"`
+	Blob     string          `json:"blob,omitempty"`
+	Meta     json.RawMessage `json:"meta,omitempty"`
 }
 
 // StartProcess starts a new process on the workspace agent.
@@ -1381,6 +1402,22 @@ func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (Ca
 		return CallMCPToolResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp CallMCPToolResponse
+	return resp, decodeAgentJSON(res, &resp)
+}
+
+// ReadMCPResource reads a resource from an MCP server running in the workspace.
+func (c *agentConn) ReadMCPResource(ctx context.Context, req ReadMCPResourceRequest) (ReadMCPResourceResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/mcp/read-resource", req)
+	if err != nil {
+		return ReadMCPResourceResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadMCPResourceResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ReadMCPResourceResponse
 	return resp, decodeAgentJSON(res, &resp)
 }
 

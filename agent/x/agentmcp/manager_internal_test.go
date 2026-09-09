@@ -210,7 +210,7 @@ func TestConvertResult(t *testing.T) {
 			},
 			want: workspacesdk.CallMCPToolResponse{
 				Content: []workspacesdk.MCPToolContent{
-					{Type: "resource", Text: "[resource link: file:///tmp/test.txt]"},
+					{Type: "resource", Text: "[resource link: file:///tmp/test.txt]", URI: "file:///tmp/test.txt"},
 				},
 			},
 		},

@@ -149,6 +149,11 @@ func mcpToolsToProto(in []MCPTool) []*agentproto.MCPTool {
 				entry.InputSchema = s
 			}
 		}
+		if len(t.Meta) > 0 {
+			if meta, err := structpb.NewStruct(t.Meta); err == nil {
+				entry.Meta = meta
+			}
+		}
 		out = append(out, entry)
 	}
 	return out

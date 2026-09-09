@@ -152,3 +152,17 @@ func TestBuildMCPServerResources(t *testing.T) {
 		require.Equal(t, StatusOK, got[1].Status)
 	})
 }
+
+func TestMCPMetadataHash(t *testing.T) {
+	t.Parallel()
+	tool := MCPTool{Name: "view", Meta: map[string]any{"ui": map[string]any{"resourceUri": "ui://view", "visibility": []any{"app"}}}}
+	original := hashMCPServer("server", []MCPTool{tool})
+	tool.Meta = map[string]any{"ui": map[string]any{"visibility": []any{"app"}, "resourceUri": "ui://view"}}
+	require.Equal(t, original, hashMCPServer("server", []MCPTool{tool}))
+	tool.Meta = map[string]any{"ui": map[string]any{"resourceUri": "ui://other", "visibility": []any{"app"}}}
+	require.NotEqual(t, original, hashMCPServer("server", []MCPTool{tool}))
+	tool.Meta = nil
+	require.NotEqual(t, original, hashMCPServer("server", []MCPTool{tool}))
+	tool.InputSchema = map[string]any{"ui": map[string]any{"resourceUri": "ui://view", "visibility": []any{"app"}}}
+	require.NotEqual(t, original, hashMCPServer("server", []MCPTool{tool}))
+}

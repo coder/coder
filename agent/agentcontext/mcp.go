@@ -97,7 +97,7 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 }
 
 // hashMCPServer produces a deterministic content hash over a server's
-// identity and full tool set (name, description, and input schema) so
+// identity and full tool set (name, description, input schema, and metadata) so
 // any tool-set change flips the resource's content hash. The schema is
 // encoded with encoding/json, which sorts map keys.
 func hashMCPServer(server string, tools []MCPTool) [32]byte {
@@ -106,10 +106,9 @@ func hashMCPServer(server string, tools []MCPTool) [32]byte {
 	for _, t := range tools {
 		writeLengthPrefixed(h, t.Name)
 		writeLengthPrefixed(h, t.Description)
-		if len(t.InputSchema) > 0 {
-			if schema, err := json.Marshal(t.InputSchema); err == nil {
-				writeLengthPrefixed(h, string(schema))
-			}
+		for _, value := range []map[string]any{t.InputSchema, t.Meta} {
+			encoded, _ := json.Marshal(value)
+			writeLengthPrefixed(h, string(encoded))
 		}
 	}
 	var sum [32]byte

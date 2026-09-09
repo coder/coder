@@ -3,6 +3,7 @@ package agentmcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -706,6 +707,43 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 	return convertResult(result), nil
 }
 
+// ReadResource reads a resource from a connected MCP server.
+func (m *Manager) ReadResource(ctx context.Context, req workspacesdk.ReadMCPResourceRequest) (workspacesdk.ReadMCPResourceResponse, error) {
+	m.mu.RLock()
+	entry, ok := m.servers[req.ServerName]
+	m.mu.RUnlock()
+	if !ok {
+		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("%w: %q", ErrUnknownServer, req.ServerName)
+	}
+	readCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
+	defer cancel()
+	result, err := entry.client.ReadResource(readCtx, &mcp.ReadResourceParams{URI: req.URI})
+	if err != nil {
+		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("read resource %q on %q: %w", req.URI, req.ServerName, err)
+	}
+	if len(result.Contents) == 0 || result.Contents[0] == nil {
+		return workspacesdk.ReadMCPResourceResponse{}, xerrors.Errorf("read resource %q on %q: empty contents", req.URI, req.ServerName)
+	}
+	return convertResource(result.Contents[0]), nil
+}
+
+func convertResource(resource *mcp.ResourceContents) workspacesdk.ReadMCPResourceResponse {
+	if resource == nil {
+		return workspacesdk.ReadMCPResourceResponse{}
+	}
+	var meta json.RawMessage
+	if len(resource.Meta) > 0 {
+		meta, _ = json.Marshal(resource.Meta)
+	}
+	return workspacesdk.ReadMCPResourceResponse{
+		URI:      resource.URI,
+		MimeType: resource.MIMEType,
+		Text:     resource.Text,
+		Blob:     base64.StdEncoding.EncodeToString(resource.Blob),
+		Meta:     meta,
+	}
+}
+
 // refreshCatalog re-lists tools from the connected servers and rebuilds
 // the per-server catalog the agentcontext resolver consumes. Every
 // declared server in wanted appears in the result: a server with a live
@@ -757,6 +795,7 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 					Name:        tool.Name,
 					Description: tool.Description,
 					InputSchema: toolInputSchemaMap(tool.InputSchema),
+					Meta:        tool.Meta,
 				})
 			}
 			mu.Lock()
@@ -983,14 +1022,18 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 				MediaType: c.MIMEType,
 			})
 		case *mcp.EmbeddedResource:
+			resource := convertResource(c.Resource)
 			content = append(content, workspacesdk.MCPToolContent{
-				Type: "resource",
-				Text: fmt.Sprintf("[embedded resource: %T]", c.Resource),
+				Type:     "resource",
+				Text:     fmt.Sprintf("[embedded resource: %T]", c.Resource),
+				Resource: &resource,
 			})
 		case *mcp.ResourceLink:
 			content = append(content, workspacesdk.MCPToolContent{
-				Type: "resource",
-				Text: fmt.Sprintf("[resource link: %s]", c.URI),
+				Type:      "resource",
+				Text:      fmt.Sprintf("[resource link: %s]", c.URI),
+				URI:       c.URI,
+				MediaType: c.MIMEType,
 			})
 		default:
 			content = append(content, workspacesdk.MCPToolContent{
@@ -1000,9 +1043,14 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 		}
 	}
 
+	var structuredContent json.RawMessage
+	if result.StructuredContent != nil {
+		structuredContent, _ = json.Marshal(result.StructuredContent)
+	}
 	return workspacesdk.CallMCPToolResponse{
-		Content: content,
-		IsError: result.IsError,
+		Content:           content,
+		IsError:           result.IsError,
+		StructuredContent: structuredContent,
 	}
 }
 
@@ -1025,6 +1073,7 @@ type ToolInfo struct {
 	Name        string
 	Description string
 	InputSchema map[string]any
+	Meta        map[string]any
 }
 
 // Only type, properties, and required are exposed through ToolInfo;
@@ -1054,7 +1103,7 @@ func toolInputSchemaMap(schema any) map[string]any {
 }
 
 // cloneServerStatuses deep-copies a catalog so callers cannot mutate the
-// Manager's cache. Tool input schemas are treated as immutable and
+// Manager's cache. Tool schemas and metadata are treated as immutable and
 // shared by reference.
 func cloneServerStatuses(in []ServerStatus) []ServerStatus {
 	if len(in) == 0 {
