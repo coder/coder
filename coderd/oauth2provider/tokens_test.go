@@ -5,14 +5,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -50,6 +53,42 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			mintedKeyScopes(ctx, t, db, token.RefreshToken))
 	})
 
+	// RFC 6749 §4.1.3 defines no scope parameter here, but the form carries
+	// one, and discarding it hands back what the client gave up.
+	t.Run("ExchangeNarrowsTheAccessToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+
+		form := tokenExchangeForm(app, code, verifier)
+		form.Set("scope", "workspace:ssh")
+		status, body := postTokenRequest(ctx, t, client, form)
+		token := requireTokenResponse(t, status, body)
+
+		require.Equal(t, "workspace:ssh", token.Scope)
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
+			mintedKeyScopes(ctx, t, db, token.RefreshToken))
+		require.Equal(t, scopeInCatalog, tokenRow(ctx, t, db, token.RefreshToken).Scope,
+			"the grant is what the user consented to, not what the exchange asked for")
+	})
+
+	t.Run("ExchangeCannotWidenTheScope", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+
+		form := tokenExchangeForm(app, code, verifier)
+		form.Set("scope", scopeAlsoInCatalog)
+		status, body := postTokenRequest(ctx, t, client, form)
+
+		require.Contains(t, requireTokenScopeError(t, status, body),
+			oauth2provider.ReasonScopeNotGranted)
+	})
+
 	t.Run("RefreshDoesNotWidenTheScope", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -58,16 +97,144 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
 		token := exchangeCode(ctx, t, client, app, code, verifier)
 
-		form := url.Values{}
-		form.Set("grant_type", "refresh_token")
-		form.Set("refresh_token", token.RefreshToken)
-		form.Set("client_id", app.ID.String())
-		form.Set("client_secret", app.ClientSecret)
-		status, body := postTokenRequest(ctx, t, client, form)
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
 		refreshed := requireTokenResponse(t, status, body)
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
 			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
 		require.Equal(t, "workspace:ssh", refreshed.Scope)
+	})
+
+	// coder:workspaces.access covers workspace:ssh, so this gives up real
+	// authority. The refresh token still carries the grant.
+	t.Run("RefreshNarrowsTheAccessToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", "workspace:ssh")
+		status, body := postTokenRequest(ctx, t, client, form)
+		refreshed := requireTokenResponse(t, status, body)
+
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
+			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
+		require.Equal(t, "workspace:ssh", refreshed.Scope)
+		require.Equal(t, scopeInCatalog, tokenRow(ctx, t, db, refreshed.RefreshToken).Scope,
+			"OAuth 2.1 §4.3.3: a rotated refresh token carries the scope of the one presented")
+	})
+
+	// Narrowed earlier, now needs a different part of the same grant, which
+	// OAuth 2.1 §4.3 names as a reason to refresh.
+	t.Run("NarrowingDoesNotBindLaterRefreshes", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", "workspace:ssh")
+		status, body := postTokenRequest(ctx, t, client, form)
+		narrowed := requireTokenResponse(t, status, body)
+
+		// A sibling permission of the same grant, which the user consented to.
+		form = refreshForm(app, narrowed.RefreshToken)
+		form.Set("scope", "workspace:read")
+		status, body = postTokenRequest(ctx, t, client, form)
+		sibling := requireTokenResponse(t, status, body)
+		require.Equal(t, "workspace:read", sibling.Scope)
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceRead},
+			mintedKeyScopes(ctx, t, db, sibling.RefreshToken))
+
+		// And the whole grant back, per RFC 6749 §6's omitted-scope default.
+		status, body = postTokenRequest(ctx, t, client, refreshForm(app, sibling.RefreshToken))
+		restored := requireTokenResponse(t, status, body)
+		require.Equal(t, scopeInCatalog, restored.Scope,
+			"an omitted scope is the scope originally granted by the resource owner")
+		require.Equal(t, scopeInCatalog, tokenRow(ctx, t, db, restored.RefreshToken).Scope)
+	})
+
+	t.Run("RefreshCannotWidenTheScope", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", scopeAlsoInCatalog)
+		status, body := postTokenRequest(ctx, t, client, form)
+
+		description := requireTokenScopeError(t, status, body)
+		require.Contains(t, description, oauth2provider.ReasonScopeNotGranted)
+		require.Contains(t, description, scopeAlsoInCatalog)
+		// Without it a client retries combinations that cannot succeed.
+		require.Contains(t, description, "authorize again",
+			"the rejection must name the only way to a broader grant")
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
+			mintedKeyScopes(ctx, t, db, token.RefreshToken),
+			"a rejected refresh issues nothing")
+
+		// Through the endpoint: reading the row would still pass if the
+		// rejection had rotated the hash or moved ExpiresAt.
+		status, body = postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
+		require.Equal(t, "workspace:ssh", requireTokenResponse(t, status, body).Scope,
+			"a rejected refresh leaves the original token redeemable")
+	})
+
+	t.Run("RefreshUnknownScopeRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", "not_a_real_scope")
+		status, body := postTokenRequest(ctx, t, client, form)
+
+		description := requireTokenScopeError(t, status, body)
+		require.Contains(t, description, oauth2provider.ReasonUnknownScope)
+		// The catalog check runs first so a typo gets the name to fix.
+		require.Contains(t, description, "not_a_real_scope",
+			"the client cannot fix its request without the name that failed")
+	})
+
+	// RFC 6749 §5.1 only requires the parameter when the issued scope differs
+	// from the request, so both halves here make it differ.
+	t.Run("ResponseStatesTheScopeGranted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+		require.Equal(t, scopeInCatalog, token.Scope)
+
+		unrestricted := seedAppWithSecret(t, db, sql.NullString{})
+		code, verifier = authorizeCode(ctx, t, client, unrestricted.ID.String(), "")
+		granted := exchangeCode(ctx, t, client, unrestricted, code, verifier)
+		require.Equal(t, string(database.ApiKeyScopeCoderAll), granted.Scope)
+
+		// Requestable as "all", never granted under that spelling.
+		form := refreshForm(unrestricted, granted.RefreshToken)
+		form.Set("scope", "all")
+		status, body := postTokenRequest(ctx, t, client, form)
+		refreshed := requireTokenResponse(t, status, body)
+
+		require.Equal(t, string(database.ApiKeyScopeCoderAll), refreshed.Scope,
+			"the response states the granted spelling, not the requested one")
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken),
+			"api_key_scope has no member spelled all, so an uncanonicalized mint fails here")
+		require.Equal(t, string(database.ApiKeyScopeCoderAll),
+			tokenRow(ctx, t, db, refreshed.RefreshToken).Scope)
 	})
 
 	// apikey.Generate defaults an empty scope list to coder:all, so this passes
@@ -119,6 +286,32 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 	// Grants predating the scope columns carry what migration 000569 backfilled:
 	// coder:all. Seeded the way the migration leaves it rather than exchanged.
+	// An alias the api_key_scope enum does not hold, so both exits have to
+	// canonicalize it.
+	t.Run("LegacyAliasRefreshesTheSameEitherWay", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Two apps, not two tokens on one: nothing enforces a single holder
+		// of a refreshed key's name for this login type.
+		omittedApp := seedAppWithSecret(t, db, sql.NullString{})
+		narrowingApp := seedAppWithSecret(t, db, sql.NullString{})
+
+		omitted := seedRefreshToken(ctx, t, db, omittedApp, owner.UserID, "all")
+		status, body := postTokenRequest(ctx, t, client, refreshForm(omittedApp, omitted))
+		refreshed := requireTokenResponse(t, status, body)
+		require.Equal(t, string(database.ApiKeyScopeCoderAll), refreshed.Scope)
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
+
+		narrowing := seedRefreshToken(ctx, t, db, narrowingApp, owner.UserID, "all")
+		form := refreshForm(narrowingApp, narrowing)
+		form.Set("scope", "workspace:read")
+		status, body = postTokenRequest(ctx, t, client, form)
+		require.Equal(t, "workspace:read", requireTokenResponse(t, status, body).Scope,
+			"the alias must resolve the same way whether or not a scope is named")
+	})
+
 	t.Run("BackfilledScopeRefreshesUnrestricted", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -131,12 +324,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		app := seedAppWithSecret(t, db, sql.NullString{})
 		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, string(database.ApiKeyScopeCoderAll))
 
-		form := url.Values{}
-		form.Set("grant_type", "refresh_token")
-		form.Set("refresh_token", refreshToken)
-		form.Set("client_id", app.ID.String())
-		form.Set("client_secret", app.ClientSecret)
-		status, body := postTokenRequest(ctx, t, client, form)
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, refreshToken))
 		refreshed := requireTokenResponse(t, status, body)
 
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderAll},
@@ -208,17 +396,196 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		token := exchangeCode(ctx, t, client, app, code, verifier)
 		setAppAllowlist(ctx, t, db, app, sql.NullString{String: scopeAlsoInCatalog, Valid: true})
 
-		form := url.Values{}
-		form.Set("grant_type", "refresh_token")
-		form.Set("refresh_token", token.RefreshToken)
-		form.Set("client_id", app.ID.String())
-		form.Set("client_secret", app.ClientSecret)
-		status, body := postTokenRequest(ctx, t, client, form)
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
 		refreshed := requireTokenResponse(t, status, body)
 
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
 			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
 	})
+}
+
+// The token endpoint's error_description obeys RFC 6749 §5.2, on the decoded
+// value, and is bounded.
+func TestOAuth2TokenErrorDescription(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	coderdtest.CreateFirstUser(t, client)
+
+	refreshWithScope := func(ctx context.Context, t *testing.T, scope string) string {
+		t.Helper()
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", scope)
+		status, body := postTokenRequest(ctx, t, client, form)
+		return requireTokenScopeError(t, status, body)
+	}
+
+	t.Run("UnknownScopeEchoIsSanitized", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// No whitespace, or strings.Fields splits it.
+		description := refreshWithScope(ctx, t, "\x07\x1b[31m\"\\caf\u00e9")
+
+		requireNQSCHAR(t, description)
+		require.Contains(t, description, oauth2provider.ReasonUnknownScope,
+			"sanitizing must not cost the client the reason")
+	})
+
+	t.Run("UnknownScopeEchoIsCapped", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		description := refreshWithScope(ctx, t, strings.Repeat("x", oauth2provider.MaxErrorDescription*8))
+
+		requireNQSCHAR(t, description)
+		require.LessOrEqual(t, len(description), oauth2provider.MaxErrorDescription+len(" (truncated)"))
+		require.Contains(t, description, "(truncated)")
+	})
+
+	// The sanitizer runs on every description, so a fixed message outside the
+	// set silently loses characters. A section sign is the easy mistake.
+	t.Run("FixedMessageIsUnchangedBySanitizing", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		code, _ := authorizeCode(ctx, t, client, app.ID.String(), "")
+
+		// Rejected for its length before the code is ever looked up.
+		form := tokenExchangeForm(app, code, "too-short")
+		status, body := postTokenRequest(ctx, t, client, form)
+		description := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		requireNQSCHAR(t, description)
+		require.Contains(t, description, "RFC 7636 section 4.1")
+	})
+}
+
+// The redemptions race rather than run in sequence: a sequential pair passes
+// whether or not the delete arbitrates single use. barrierStore makes that
+// overlap deterministic instead of probabilistic.
+func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	var reads sync.WaitGroup
+	reads.Add(2)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: barrierStore{Store: db, reads: &reads},
+		Pubsub:   pubsub,
+	})
+	coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	app := seedAppWithSecret(t, db, sql.NullString{})
+	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+	form := tokenExchangeForm(app, code, verifier)
+
+	type exchange struct {
+		status int
+		body   string
+		err    error
+	}
+
+	redeem := func() exchange {
+		status, body, err := tryTokenRequest(ctx, t, client, form)
+		return exchange{status: status, body: body, err: err}
+	}
+
+	other := make(chan exchange, 1)
+	go func() { other <- redeem() }()
+	results := []exchange{redeem(), <-other}
+
+	var winner codersdk.OAuth2TokenResponse
+	var minted, rejected int
+	for _, result := range results {
+		require.NoError(t, result.err)
+		switch result.status {
+		case http.StatusOK:
+			winner = requireTokenResponse(t, result.status, result.body)
+			minted++
+		case http.StatusBadRequest:
+			require.Contains(t, result.body, string(codersdk.OAuth2ErrorCodeInvalidGrant), result.body)
+			rejected++
+		default:
+			t.Fatalf("unexpected status %d: %s", result.status, result.body)
+		}
+	}
+	require.Equal(t, 1, minted, "a code may mint at most one token")
+	require.Equal(t, 1, rejected)
+	requireTokenAuthenticates(ctx, t, client, winner.AccessToken)
+}
+
+// The ordinary replay: a client retries a redemption whose answer it never saw.
+// Here the first read refuses it. The race test cannot cover this path
+// deterministically, since which read or delete arbitrates there depends on
+// scheduling.
+func TestOAuth2TokenExchangeReplay(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	app := seedAppWithSecret(t, db, sql.NullString{})
+	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+	token := exchangeCode(ctx, t, client, app, code, verifier)
+
+	status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
+	requireTokenGrantError(t, status, body)
+	requireTokenAuthenticates(ctx, t, client, token.AccessToken)
+}
+
+// barrierStore holds each redemption at its code read until every redemption
+// has read, so both reach the delete with the same stale view. Starting the
+// requests together is not enough on its own: nothing stops one handler from
+// committing before the other reads, and the read then refuses the second
+// before the delete ever arbitrates.
+//
+// InTx hands its closure a fresh Store, so this intercepts only the read that
+// precedes the transaction, which is the one that fixes the interleaving.
+type barrierStore struct {
+	database.Store
+	reads *sync.WaitGroup
+}
+
+// GetOAuth2ProviderAppCodeByPrefix has one production caller, the code read in
+// authorizationCodeGrant, so every arrival here is a redemption.
+func (s barrierStore) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, prefix []byte) (database.OAuth2ProviderAppCode, error) {
+	code, err := s.Store.GetOAuth2ProviderAppCodeByPrefix(ctx, prefix)
+	s.reads.Done()
+	s.reads.Wait()
+	return code, err
+}
+
+// requireTokenAuthenticates asserts the accepted redemption's own credential
+// still works. Callers grant coder:all so the probed endpoint is in scope.
+//
+// Row counts cannot show this: the grant deletes whatever key already holds
+// the name it is about to write, and oauth2_provider_app_tokens cascades on
+// that delete, so the rows converge on one key and one token however many
+// redemptions succeed. Only the winner's token separates "its key survived"
+// from "a second redemption rotated it out".
+func requireTokenAuthenticates(ctx context.Context, t *testing.T, client *codersdk.Client, accessToken string) {
+	t.Helper()
+
+	asApp := codersdk.New(client.URL)
+	asApp.SetSessionToken(accessToken)
+	_, err := asApp.User(ctx, codersdk.Me)
+	require.NoError(t, err, "a refused redemption must leave the accepted one's token usable")
 }
 
 // appWithSecret is seeded directly because the management API registers no
@@ -391,6 +758,15 @@ func tokenExchangeForm(app appWithSecret, code, verifier string) url.Values {
 	return form
 }
 
+func refreshForm(app appWithSecret, refreshToken string) url.Values {
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", refreshToken)
+	form.Set("client_id", app.ID.String())
+	form.Set("client_secret", app.ClientSecret)
+	return form
+}
+
 func exchangeCode(ctx context.Context, t *testing.T, client *codersdk.Client, app appWithSecret, code, verifier string) codersdk.OAuth2TokenResponse {
 	t.Helper()
 
@@ -401,15 +777,35 @@ func exchangeCode(ctx context.Context, t *testing.T, client *codersdk.Client, ap
 func postTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values) (int, string) {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/tokens", strings.NewReader(form.Encode()))
+	status, body, err := tryTokenRequest(ctx, t, client, form)
 	require.NoError(t, err)
+	return status, body
+}
+
+// tryTokenRequest returns the request error instead of asserting on it, so a
+// caller on a spawned goroutine can carry it back to the test goroutine.
+// require there runs runtime.Goexit, which skips whatever the goroutine still
+// owed its parent.
+func tryTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values) (int, string, error) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/tokens", strings.NewReader(form.Encode()))
+	if err != nil {
+		return 0, "", xerrors.Errorf("build token request: %w", err)
+	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
+	if err != nil {
+		return 0, "", xerrors.Errorf("post token request: %w", err)
+	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode, readBody(t, resp)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, "", xerrors.Errorf("read token response: %w", err)
+	}
+	return resp.StatusCode, string(body), nil
 }
 
 func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2TokenResponse {
@@ -423,22 +819,40 @@ func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2
 	return token
 }
 
-// requireTokenGrantError asserts an RFC 6749 §5.2 invalid_grant response and
+// requireTokenError asserts an RFC 6749 §5.2 error response carrying want and
 // returns its description.
-func requireTokenGrantError(t *testing.T, status int, body string) string {
+func requireTokenError(t *testing.T, status int, body string, want codersdk.OAuth2ErrorCode) string {
 	t.Helper()
 
 	require.Equal(t, http.StatusBadRequest, status, body)
-	var oauthErr struct {
-		Error            string `json:"error"`
-		ErrorDescription string `json:"error_description"`
-	}
+	var oauthErr codersdk.OAuth2Error
 	require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
-	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidGrant), oauthErr.Error)
+	require.Equal(t, want, oauthErr.Error)
 	return oauthErr.ErrorDescription
 }
 
-func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.APIKeyScopes {
+func requireTokenGrantError(t *testing.T, status int, body string) string {
+	t.Helper()
+	return requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidGrant)
+}
+
+func requireTokenScopeError(t *testing.T, status int, body string) string {
+	t.Helper()
+	return requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidScope)
+}
+
+// requireNQSCHAR asserts the set RFC 6749 Appendix A permits in
+// error_description, on the decoded value.
+func requireNQSCHAR(t *testing.T, description string) {
+	t.Helper()
+
+	for _, r := range description {
+		require.True(t, r == 0x20 || r == 0x21 || (r >= 0x23 && r <= 0x5B) || (r >= 0x5D && r <= 0x7E),
+			"%q is outside the NQSCHAR set RFC 6749 Appendix A permits", r)
+	}
+}
+
+func tokenRow(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.OAuth2ProviderAppToken {
 	t.Helper()
 
 	parsed, err := oauth2provider.ParseFormattedSecret(refreshToken)
@@ -446,7 +860,37 @@ func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refre
 
 	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(parsed.Prefix))
 	require.NoError(t, err)
-	key, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), dbToken.APIKeyID)
+	return dbToken
+}
+
+func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.APIKeyScopes {
+	t.Helper()
+
+	key, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), tokenRow(ctx, t, db, refreshToken).APIKeyID)
 	require.NoError(t, err)
 	return key.Scopes
+}
+
+// The token endpoint compares redirect_uri against the registration on its
+// own. Authorizing without redirect_uri leaves nothing on the code to compare
+// against, so this check is the only one the exchange runs.
+func TestOAuth2TokenExchangeLoopbackRedirectPort(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	app := oauth2providertest.RegisterPublicClient(t, client, "loopback", "http://127.0.0.1/callback")
+	code, verifier := authorizeCode(ctx, t, client, app.ClientID, "")
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("client_id", app.ClientID)
+	form.Set("code", code)
+	form.Set("redirect_uri", "http://127.0.0.1:53219/callback")
+	form.Set("code_verifier", verifier)
+	status, body := postTokenRequest(ctx, t, client, form)
+	requireTokenResponse(t, status, body)
 }

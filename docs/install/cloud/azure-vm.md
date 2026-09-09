@@ -1,4 +1,6 @@
-# Microsoft Azure
+---
+title: Microsoft Azure
+---
 
 This guide shows you how to set up the Coder server on Azure which will
 provision Azure-hosted Linux workspaces.

@@ -89,15 +89,16 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 var (
 	ReasonUnmintableScope = errUnmintableScope.Error()
 	ReasonStaleScope      = errStaleScope.Error()
+	ReasonScopeNotGranted = errScopeNotGranted.Error()
+)
+
+const (
+	inCatalog     = "coder:workspaces.access"
+	alsoInCatalog = "coder:templates.build"
 )
 
 func TestCheckScopeStillCovered(t *testing.T) {
 	t.Parallel()
-
-	const (
-		inCatalog     = "coder:workspaces.access"
-		alsoInCatalog = "coder:templates.build"
-	)
 
 	tests := []struct {
 		name        string
@@ -201,6 +202,121 @@ func TestCheckScopeStillCovered(t *testing.T) {
 				assert.Equal(t, test.wantErr.Error(), err.Error(),
 					"the rejection must not name the app's unvalidated registered scope")
 			}
+		})
+	}
+}
+
+func TestNarrowAccessScope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		granted   string
+		requested []string
+		want      string
+		wantErr   error
+	}{
+		{
+			name:      "OmittedRequestKeepsTheGrant",
+			granted:   inCatalog + " " + alsoInCatalog,
+			requested: nil,
+			want:      inCatalog + " " + alsoInCatalog,
+		},
+		{
+			name:      "GenuineSubsetAccepted",
+			granted:   inCatalog + " " + alsoInCatalog,
+			requested: []string{inCatalog},
+			want:      inCatalog,
+		},
+		{
+			name:      "ConstituentOfCompositeAccepted",
+			granted:   inCatalog,
+			requested: []string{"workspace:ssh"},
+			want:      "workspace:ssh",
+		},
+		{
+			// coder:all is a member of no other set, so membership would leave
+			// an unrestricted grant unnarrowable.
+			name:      "UnrestrictedGrantNarrowed",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"workspace:read"},
+			want:      "workspace:read",
+		},
+		{
+			name:      "ExpansionRejected",
+			granted:   inCatalog,
+			requested: []string{alsoInCatalog},
+			wantErr:   errScopeNotGranted,
+		},
+		{
+			name:      "PartiallyCoveredRequestRejectedWhole",
+			granted:   inCatalog,
+			requested: []string{"workspace:ssh", alsoInCatalog},
+			wantErr:   errScopeNotGranted,
+		},
+		{
+			name:      "UnknownRequestedScopeRejectedAsUnknown",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"not_a_real_scope"},
+			wantErr:   errUnknownScope,
+		},
+		{
+			// RBAC expands debug_info:read; only the catalog keeps it internal.
+			name:      "InternalOnlyScopeRejected",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"debug_info:read"},
+			wantErr:   errUnknownScope,
+		},
+		{
+			// The catalog check runs before canonicalization, so
+			// IsExternalScope has to admit both bare aliases.
+			name:      "LegacyAliasCanonicalized",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"all"},
+			want:      "coder:all",
+		},
+		{
+			name:      "LegacyApplicationConnectAliasCanonicalized",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"application_connect"},
+			want:      "coder:application_connect",
+		},
+		{
+			name:      "DuplicateRequestedScopesDeduplicated",
+			granted:   inCatalog,
+			requested: []string{"workspace:ssh", "workspace:ssh"},
+			want:      "workspace:ssh",
+		},
+		{
+			// Same error as a request naming no scope.
+			name:      "GrantOutsideTheCatalogUnmintable",
+			granted:   "some_removed_scope",
+			requested: []string{"workspace:ssh"},
+			wantErr:   errUnmintableScope,
+		},
+		{
+			name:      "GrantOutsideTheCatalogUnmintableWhenOmitted",
+			granted:   "some_removed_scope",
+			requested: nil,
+			wantErr:   errUnmintableScope,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := narrowAccessScope(t.Context(), slogtest.Make(t, nil), phaseRefresh, uuid.New(), test.granted, test.requested)
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+				assert.Empty(t, got, "a rejected refresh must not return a persistable scope")
+				assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
+					"the rejection reason must appear once, not doubled by the wrap")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+			requirePersistableScope(t, got)
 		})
 	}
 }
@@ -314,7 +430,7 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, nil, confidentialApp)
 
 			// Verify no errors occurred
 			require.NoError(t, err, "extractTokenRequest should not return error for: %s", tc.description)
@@ -377,7 +493,7 @@ func TestExtractTokenParams_ScopesURLEncoded(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, nil, confidentialApp)
 
 			// Verify no errors
 			require.NoError(t, err)
@@ -460,7 +576,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				Form:     form,
 			}
 
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, nil, confidentialApp)
 
 			require.NoError(t, err, "extractTokenRequest should not error for: %s", tc.description)
 			require.Empty(t, validationErrs)
@@ -700,7 +816,7 @@ func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
 				Form:     form,
 			}
 
-			_, validationErrs, err := extractTokenRequest(req, callbackURL, tc.app)
+			_, validationErrs, err := extractTokenRequest(req, callbackURL, nil, tc.app)
 
 			if tc.wantErrorField == "" {
 				require.NoError(t, err)
@@ -736,7 +852,7 @@ func TestRefreshTokenGrant_Scopes(t *testing.T) {
 		Form:     form,
 	}
 
-	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
+	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, nil, confidentialApp)
 
 	require.NoError(t, err)
 	require.Empty(t, validationErrs)

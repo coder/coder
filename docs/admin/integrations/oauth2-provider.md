@@ -1,4 +1,6 @@
-# OAuth2 Provider (Experimental)
+---
+title: OAuth2 provider (Experimental)
+---
 
 > [!WARNING]
 > The OAuth2 provider functionality is currently **experimental and unstable**. This feature:
@@ -110,6 +112,10 @@ Disabling only blocks *new* self-registrations. Applications that already
 registered while it was enabled keep authorizing and exchanging tokens
 normally; disabling does not revoke or otherwise affect them.
 
+A registration may list several `redirect_uris`.
+A request may present any of them, and the code it receives can only be exchanged with that same URI.
+The first entry is the primary callback: it is what the web UI shows for the application, and what a request that omits `redirect_uri` is sent to.
+
 ## Integration Patterns
 
 ### Client Authentication Methods
@@ -127,11 +133,11 @@ Public clients suit native, mobile, and CLI applications that cannot keep a secr
 If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
 
 > [!IMPORTANT]
-> A public client may use `http://` only with a loopback host
-> (`localhost`, `127.0.0.1`, `[::1]`). An `http://` redirect URI to any
-> other host is rejected, so use `https://` instead. A confidential
-> client has the same restriction but also accepts `.localhost`
-> subdomains over `http://`.
+> A public client may use `http://` only with a loopback host (`localhost`, `127.0.0.1`, `[::1]`).
+> An `http://` redirect URI to any other host is rejected, so use `https://` instead.
+> A confidential client has the same restriction but also accepts `.localhost` subdomains over `http://`.
+> Coder ignores the port of an `http://` redirect URI to one of those three loopback hosts, for public and confidential clients alike. RFC 8252 requires this for `127.0.0.1` and `[::1]` so that native apps can choose a port at runtime. Coder applies it to `localhost` too. A `.localhost` subdomain still requires an exact port match.
+> Register `http://127.0.0.1/callback` and present whichever port the client is listening on.
 >
 > Which schemes a redirect URI may use is a separate restriction that
 > also differs by client type. See
@@ -281,7 +287,7 @@ https://coder.example.com/oauth2/authorize?
 
 An application registered through [Dynamic Client Registration](#dynamic-client-registration) can declare a `scope` field, which acts as an allowlist. The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing. Applications created through the web UI or the management API declare no allowlist, so any requested scope is honored and a request that names no scope is granted `coder:all`.
 
-The consent page states the scope being granted before the user approves it, and refreshing a token keeps the scope originally granted.
+The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
 ## Discovery Endpoints
 
@@ -396,7 +402,9 @@ Add `oauth2` to your experiment flags: `coder server --experiments oauth2`
 
 ### "Invalid redirect_uri"
 
-Ensure the redirect URI in your request exactly matches the one registered for your application.
+Ensure the redirect URI in your request exactly matches one of the redirect URIs registered for your application.
+The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which may differ from the registered one.
+Refer to the note under [Client Authentication Methods](#client-authentication-methods).
 
 ### "Invalid Callback URL" on the consent page
 
@@ -416,8 +424,9 @@ grant what was asked for, it redirects to your registered callback with
 `error=invalid_scope` rather than issuing a code. The `error_description`
 opens with the requested name that caused the rejection:
 
-- `unknown or unsupported scope`: this deployment does not offer that scope
-  name. Read the current list from `scopes_supported` in
+- `unknown or unsupported scope`: this deployment does not offer that name to
+  OAuth2 clients. It may not exist, or it may exist and be internal-only, which
+  no version offers. Read the current list from `scopes_supported` in
   `GET /.well-known/oauth-authorization-server`.
 - `scope requests permissions beyond this app's allowed scopes`: the name is
   supported, but the application was registered with a narrower `scope`.
@@ -434,6 +443,10 @@ if it was registered without any.
 
 The negotiated scope is recorded on the authorization, shown on the consent
 page, and applied to the access token issued when the code is exchanged.
+
+The token endpoint validates a refresh request's `scope` too, and answers
+`invalid_scope` in the response body rather than by redirect. See
+["invalid_scope" for a refresh that names a scope](#invalid_scope-for-a-refresh-that-names-a-scope).
 
 ### "invalid_grant" for a scope the deployment cannot mint
 
@@ -483,6 +496,45 @@ narrower `scope`, those codes are refused with `scope is no longer allowed by
 this app's registered scopes` until they expire, which takes at most ten
 minutes. Authorizing again issues a code within the current registration.
 
+### "invalid_scope" for a refresh that names a scope
+
+`POST /oauth2/tokens` answers HTTP 400 with `error=invalid_scope` when a refresh
+request names a `scope` the server will not grant. This is the token endpoint,
+not the authorization endpoint above: there is no redirect, and the error is in
+the response body.
+
+A refresh may name a `scope` of its own to give up authority. The narrowing
+applies to the access token that refresh mints, and to nothing else. The
+refresh token continues to represent the scope the user consented to, so the
+ceiling does not move and a later refresh may ask for a different part of the
+same grant, or omit `scope` to take the grant whole again.
+
+The request may name any scope the original grant confers **that also appears in
+`scopes_supported`**, including a single permission out of a composite scope, so
+a token granted `coder:workspaces.access` can refresh down to `workspace:read`
+for one call and to `workspace:ssh` for the next. Two descriptions can open the
+`error_description`, each opening with the requested name that caused it:
+
+- `scope requests permissions beyond the scope originally granted; a refresh
+  cannot widen a grant, so authorize again to obtain a broader one`: the name is
+  offered, but the resource owner never granted it.
+- `unknown or unsupported scope`: this deployment does not offer that name to
+  OAuth2 clients, either because it does not exist or because it is internal.
+
+A refused refresh mints nothing and leaves the refresh token usable, so a client
+that asked for too much can retry with less rather than re-authorizing.
+
+Only the resource owner lowers the ceiling, by revoking the token or authorizing
+again with less. This is also what OAuth 2.1 section 4.3.3 requires: a rotated
+refresh token carries the scope of the one presented.
+
+Narrowing a composite scope to the low-level names you can request may drop
+permissions that have no requestable name of their own. `coder:workspaces.create`
+confers `organization_member:read`, which a workspace build needs and which
+`scopes_supported` does not list, so a token narrowed to the fullest set a client
+can name will fail to create a workspace. Refresh without a `scope` to return to
+the composite.
+
 ### "unsupported_response_type" returned to your callback
 
 Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.
@@ -518,7 +570,7 @@ A misspelled parameter is ignored on the same rule, so what you see is the failu
 
 Two failures stay on Coder rather than reaching your callback, because in both cases the callback is not yet trustworthy:
 
-- A `redirect_uri` that does not parse, or that does not exactly match the one registered for the application.
+- A `redirect_uri` that does not parse, or that does not exactly match one of the redirect URIs registered for the application.
   Redirecting to it would defeat the check that just rejected it, so Coder answers 400 (see ["Invalid redirect_uri"](#invalid-redirect_uri)).
 - A `client_id` sent more than once, or one that does not name the application the callback was matched against.
   Coder cannot tell whose registration it is about to redirect to.
@@ -576,20 +628,27 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 As an experimental feature, the current implementation has limitations:
 
 - A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
-- A client cannot narrow the token's scope on refresh; the `scope` parameter is ignored and the refreshed token always keeps the scope originally granted
 - No client credentials grant support
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
+
+A `scope` on a refresh request was parsed and discarded in earlier versions, so a
+client sending one wider than its grant refreshed successfully. It is now
+enforced, and such a request answers HTTP 400 with `error=invalid_scope`. The
+refresh token is not consumed, so a client that drops the parameter or asks for
+less recovers without re-authorizing.
 
 ## Standards Compliance
 
 This implementation follows established OAuth2 standards including
 [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core),
 [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and the
-[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12).
+[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16).
 Coder enforces OAuth 2.1 requirements including mandatory PKCE for all
-authorization code grants, exact redirect URI string matching, rejection
-of the implicit grant, and CSRF protections on consent pages.
+authorization code grants, exact redirect URI string matching with the
+[RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252) loopback port
+exception, rejection of the implicit grant, and CSRF protections on consent
+pages.
 
 ## Next Steps
 

@@ -1922,7 +1922,6 @@ communicating directly.`,
 	}
 
 	// AI Gateway options
-	aiGatewayProviderSeedingDeprecated := "Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. "
 	aiGatewayEnabled := serpent.Option{
 		Name:        "AI Gateway Enabled",
 		Description: "Whether to start an in-memory AI Gateway instance.",
@@ -1932,106 +1931,6 @@ communicating directly.`,
 		Default:     "true",
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "enabled",
-	}
-	aiGatewayOpenAIBaseURL := serpent.Option{
-		Name:        "AI Gateway OpenAI Base URL",
-		Description: aiGatewayProviderSeedingDeprecated + "The base URL of the OpenAI API.",
-		Flag:        "ai-gateway-openai-base-url",
-		Env:         "CODER_AI_GATEWAY_OPENAI_BASE_URL",
-		Value:       &c.AI.BridgeConfig.LegacyOpenAI.BaseURL,
-		Default:     "https://api.openai.com/v1/",
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "openai_base_url",
-	}
-	aiGatewayOpenAIKey := serpent.Option{
-		Name:        "AI Gateway OpenAI Key",
-		Description: aiGatewayProviderSeedingDeprecated + "The key to authenticate against the OpenAI API.",
-		Flag:        "ai-gateway-openai-key",
-		Env:         "CODER_AI_GATEWAY_OPENAI_KEY",
-		Value:       &c.AI.BridgeConfig.LegacyOpenAI.Key,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-	}
-	aiGatewayAnthropicBaseURL := serpent.Option{
-		Name:        "AI Gateway Anthropic Base URL",
-		Description: aiGatewayProviderSeedingDeprecated + "The base URL of the Anthropic API.",
-		Flag:        "ai-gateway-anthropic-base-url",
-		Env:         "CODER_AI_GATEWAY_ANTHROPIC_BASE_URL",
-		Value:       &c.AI.BridgeConfig.LegacyAnthropic.BaseURL,
-		Default:     "https://api.anthropic.com/",
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "anthropic_base_url",
-	}
-	aiGatewayAnthropicKey := serpent.Option{
-		Name:        "AI Gateway Anthropic Key",
-		Description: aiGatewayProviderSeedingDeprecated + "The key to authenticate against the Anthropic API.",
-		Flag:        "ai-gateway-anthropic-key",
-		Env:         "CODER_AI_GATEWAY_ANTHROPIC_KEY",
-		Value:       &c.AI.BridgeConfig.LegacyAnthropic.Key,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-	}
-	aiGatewayBedrockBaseURL := serpent.Option{
-		Name:        "AI Gateway Bedrock Base URL",
-		Description: aiGatewayProviderSeedingDeprecated + "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.",
-		Flag:        "ai-gateway-bedrock-base-url",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_BASE_URL",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "bedrock_base_url",
-	}
-	aiGatewayBedrockRegion := serpent.Option{
-		Name:        "AI Gateway Bedrock Region",
-		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.",
-		Flag:        "ai-gateway-bedrock-region",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_REGION",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.Region,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "bedrock_region",
-	}
-	aiGatewayBedrockAccessKey := serpent.Option{
-		Name:        "AI Gateway Bedrock Access Key",
-		Description: aiGatewayProviderSeedingDeprecated + "The access key to authenticate against the AWS Bedrock API.",
-		Flag:        "ai-gateway-bedrock-access-key",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKey,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-	}
-	aiGatewayBedrockAccessKeySecret := serpent.Option{
-		Name:        "AI Gateway Bedrock Access Key Secret",
-		Description: aiGatewayProviderSeedingDeprecated + "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
-		Flag:        "ai-gateway-bedrock-access-key-secret",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKeySecret,
-		Default:     "",
-		Group:       &deploymentGroupAIGateway,
-		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-	}
-	aiGatewayBedrockModel := serpent.Option{
-		Name:        "AI Gateway Bedrock Model",
-		Description: aiGatewayProviderSeedingDeprecated + "The model to use when making requests to the AWS Bedrock API.",
-		Flag:        "ai-gateway-bedrock-model",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_MODEL",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.Model,
-		Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "bedrock_model",
-	}
-	aiGatewayBedrockSmallFastModel := serpent.Option{
-		Name:        "AI Gateway Bedrock Small Fast Model",
-		Description: aiGatewayProviderSeedingDeprecated + "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
-		Flag:        "ai-gateway-bedrock-small-fastmodel",
-		Env:         "CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL",
-		Value:       &c.AI.BridgeConfig.LegacyBedrock.SmallFastModel,
-		Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "bedrock_small_fast_model",
 	}
 	aiGatewayInjectCoderMCPTools := serpent.Option{
 		Name:        "AI Gateway Inject Coder MCP tools",
@@ -4475,138 +4374,6 @@ Write out the current server config as YAML to stdout.`,
 		},
 		aiGatewayEnabled,
 		{
-			Name:        "AI Bridge OpenAI Base URL",
-			Description: "Deprecated: use --ai-gateway-openai-base-url or CODER_AI_GATEWAY_OPENAI_BASE_URL instead. The base URL of the OpenAI API.",
-			Flag:        "aibridge-openai-base-url",
-			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
-			Value:       &c.AI.BridgeConfig.LegacyOpenAI.BaseURL,
-			Default:     "https://api.openai.com/v1/",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "openai_base_url",
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayOpenAIBaseURL},
-		},
-		aiGatewayOpenAIBaseURL,
-		{
-			Name:        "AI Bridge OpenAI Key",
-			Description: "Deprecated: use --ai-gateway-openai-key or CODER_AI_GATEWAY_OPENAI_KEY instead. The key to authenticate against the OpenAI API.",
-			Flag:        "aibridge-openai-key",
-			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
-			Value:       &c.AI.BridgeConfig.LegacyOpenAI.Key,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayOpenAIKey},
-		},
-		aiGatewayOpenAIKey,
-		{
-			Name:        "AI Bridge Anthropic Base URL",
-			Description: "Deprecated: use --ai-gateway-anthropic-base-url or CODER_AI_GATEWAY_ANTHROPIC_BASE_URL instead. The base URL of the Anthropic API.",
-			Flag:        "aibridge-anthropic-base-url",
-			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
-			Value:       &c.AI.BridgeConfig.LegacyAnthropic.BaseURL,
-			Default:     "https://api.anthropic.com/",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "anthropic_base_url",
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayAnthropicBaseURL},
-		},
-		aiGatewayAnthropicBaseURL,
-		{
-			Name:        "AI Bridge Anthropic Key",
-			Description: "Deprecated: use --ai-gateway-anthropic-key or CODER_AI_GATEWAY_ANTHROPIC_KEY instead. The key to authenticate against the Anthropic API.",
-			Flag:        "aibridge-anthropic-key",
-			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
-			Value:       &c.AI.BridgeConfig.LegacyAnthropic.Key,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayAnthropicKey},
-		},
-		aiGatewayAnthropicKey,
-		{
-			Name: "AI Bridge Bedrock Base URL",
-			Description: "Deprecated: use --ai-gateway-bedrock-base-url or CODER_AI_GATEWAY_BEDROCK_BASE_URL instead. The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence " +
-				"over CODER_AIBRIDGE_BEDROCK_REGION.",
-			Flag:       "aibridge-bedrock-base-url",
-			Env:        "CODER_AIBRIDGE_BEDROCK_BASE_URL",
-			Value:      &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
-			Default:    "",
-			Group:      &deploymentGroupAIBridge,
-			YAML:       "bedrock_base_url",
-			Hidden:     true,
-			UseInstead: serpent.OptionSet{aiGatewayBedrockBaseURL},
-		},
-		aiGatewayBedrockBaseURL,
-		{
-			Name: "AI Bridge Bedrock Region",
-			Description: "Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION instead. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
-				"`https://bedrock-runtime.<region>.amazonaws.com`.",
-			Flag:       "aibridge-bedrock-region",
-			Env:        "CODER_AIBRIDGE_BEDROCK_REGION",
-			Value:      &c.AI.BridgeConfig.LegacyBedrock.Region,
-			Default:    "",
-			Group:      &deploymentGroupAIBridge,
-			YAML:       "bedrock_region",
-			Hidden:     true,
-			UseInstead: serpent.OptionSet{aiGatewayBedrockRegion},
-		},
-		aiGatewayBedrockRegion,
-		{
-			Name:        "AI Bridge Bedrock Access Key",
-			Description: "Deprecated: use --ai-gateway-bedrock-access-key or CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY instead. The access key to authenticate against the AWS Bedrock API.",
-			Flag:        "aibridge-bedrock-access-key",
-			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
-			Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKey,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayBedrockAccessKey},
-		},
-		aiGatewayBedrockAccessKey,
-		{
-			Name:        "AI Bridge Bedrock Access Key Secret",
-			Description: "Deprecated: use --ai-gateway-bedrock-access-key-secret or CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET instead. The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
-			Flag:        "aibridge-bedrock-access-key-secret",
-			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
-			Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKeySecret,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayBedrockAccessKeySecret},
-		},
-		aiGatewayBedrockAccessKeySecret,
-		{
-			Name:        "AI Bridge Bedrock Model",
-			Description: "Deprecated: use --ai-gateway-bedrock-model or CODER_AI_GATEWAY_BEDROCK_MODEL instead. The model to use when making requests to the AWS Bedrock API.",
-			Flag:        "aibridge-bedrock-model",
-			Env:         "CODER_AIBRIDGE_BEDROCK_MODEL",
-			Value:       &c.AI.BridgeConfig.LegacyBedrock.Model,
-			Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_model",
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayBedrockModel},
-		},
-		aiGatewayBedrockModel,
-		{
-			Name:        "AI Bridge Bedrock Small Fast Model",
-			Description: "Deprecated: use --ai-gateway-bedrock-small-fastmodel or CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL instead. The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
-			Flag:        "aibridge-bedrock-small-fastmodel",
-			Env:         "CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL",
-			Value:       &c.AI.BridgeConfig.LegacyBedrock.SmallFastModel,
-			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_small_fast_model",
-			Hidden:      true,
-			UseInstead:  serpent.OptionSet{aiGatewayBedrockSmallFastModel},
-		},
-		aiGatewayBedrockSmallFastModel,
-		{
 			Name:        "AI Bridge Inject Coder MCP tools",
 			Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. This option is an alias for --ai-gateway-inject-coder-mcp-tools.",
 			Flag:        "aibridge-inject-coder-mcp-tools",
@@ -5030,15 +4797,6 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
-	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
-	LegacyAnthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
-	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
-	// Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`
-	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
-	Providers []AIProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
@@ -5061,58 +4819,6 @@ type AIBridgeConfig struct {
 	// request/response dumps are written, in a subdirectory named after
 	// the provider. Empty disables dumping.
 	APIDumpDir serpent.String `json:"api_dump_dir" typescript:",notnull"`
-}
-
-type AIBridgeOpenAIConfig struct {
-	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
-	Key     serpent.String `json:"key" typescript:",notnull"`
-}
-
-type AIBridgeAnthropicConfig struct {
-	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
-	Key     serpent.String `json:"key" typescript:",notnull"`
-}
-
-type AIBridgeBedrockConfig struct {
-	BaseURL         serpent.String `json:"base_url" typescript:",notnull"`
-	Region          serpent.String `json:"region" typescript:",notnull"`
-	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
-	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
-	Model           serpent.String `json:"model" typescript:",notnull"`
-	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
-}
-
-// AIProviderConfig represents a single AI provider instance,
-// parsed from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> environment variables.
-// CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
-// This follows the same indexed pattern as ExternalAuthConfig.
-type AIProviderConfig struct {
-	// Type is the provider type. Valid values are: "openai",
-	// "anthropic", "azure", "bedrock", "google", "openai-compat",
-	// "openrouter", "vercel", "copilot".
-	Type string `json:"type"`
-	// Name is the unique instance identifier used for routing.
-	// Defaults to Type if not provided.
-	Name string `json:"name"`
-	// Keys holds one or more API keys for authenticating with the
-	// upstream provider. When multiple keys are configured, they
-	// form a key pool for automatic failover.
-	Keys []string `json:"-"`
-	// BaseURL is the base URL of the upstream provider API.
-	BaseURL string `json:"base_url"`
-
-	// Bedrock fields (only applicable when Type == "anthropic").
-	BedrockBaseURL string `json:"-"`
-	BedrockRegion  string `json:"bedrock_region,omitempty"`
-	// BedrockAccessKeys and BedrockAccessKeySecrets hold one or
-	// more AWS credential pairs for authenticating with Bedrock.
-	// When multiple pairs are configured, they form a key pool
-	// for automatic failover. The two slices must have the same
-	// length.
-	BedrockAccessKeys       []string `json:"-"`
-	BedrockAccessKeySecrets []string `json:"-"`
-	BedrockModel            string   `json:"bedrock_model,omitempty"`
-	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
 }
 
 type AIBridgeProxyConfig struct {

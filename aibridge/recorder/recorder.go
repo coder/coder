@@ -18,7 +18,7 @@ var (
 	_ Recorder = &AsyncRecorder{}
 )
 
-// WrappedRecorder is a convenience struct which implements RecorderClient and resolves a client before calling each method.
+// WrappedRecorder is a convenience struct which implements Recorder and resolves a client before calling each method.
 // It also sets the start/creation time of each record.
 type WrappedRecorder struct {
 	logger   slog.Logger
