@@ -18,6 +18,7 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"workspace:start":               {},
 	"workspace:stop":                {},
 	"workspace:application_connect": {},
+	"workspace:share":               {},
 	"workspace:*":                   {},
 
 	// Templates
@@ -34,6 +35,14 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"api_key:update": {},
 	"api_key:delete": {},
 	"api_key:*":      {},
+
+	// Chats
+	"chat:read":   {},
+	"chat:create": {},
+	"chat:update": {},
+	"chat:delete": {},
+	"chat:share":  {},
+	"chat:*":      {},
 
 	// Chat model configs
 	"chat_model_config:read":  {},
