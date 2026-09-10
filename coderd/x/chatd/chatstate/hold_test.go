@@ -210,6 +210,40 @@ func TestHold_StaleChatsIgnoresHeldHead(t *testing.T) {
 	require.True(t, containsChat(stale, seeded.chatID), "waiting with a promotable head is stranded")
 }
 
+// TestHold_QueueListingFollowsProcessingOrder pins that the client-visible
+// queue (GetChatQueuedMessages) is ordered by position like the state
+// machine, so the paused tail a client derives from a held row matches
+// what the server will actually process next. "Send now" on a row
+// behind the head is the case where created_at order diverges.
+func TestHold_QueueListingFollowsProcessingOrder(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	first := sendQueuedMessage(t, f, m, "first")
+	second := sendQueuedMessage(t, f, m, "second")
+	require.NotNil(t, first.QueuedMessage)
+	require.NotNil(t, second.QueuedMessage)
+
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+			QueuedMessageID: second.QueuedMessage.ID,
+		})
+		return err
+	}))
+
+	listed, err := f.DB.GetChatQueuedMessages(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	listedIDs := make([]int64, 0, len(listed))
+	for _, row := range listed {
+		listedIDs = append(listedIDs, row.ID)
+	}
+	require.Equal(t, queuedIDsByPosition(ctx, t, f, created.Chat.ID), listedIDs)
+	require.Equal(t, []int64{second.QueuedMessage.ID, first.QueuedMessage.ID}, listedIDs)
+}
+
 // TestHold_EditQueuedMessageRejectsEmptyInput pins that a PATCH with
 // neither content nor held is a transition error, not a silent no-op.
 func TestHold_EditQueuedMessageRejectsEmptyInput(t *testing.T) {
