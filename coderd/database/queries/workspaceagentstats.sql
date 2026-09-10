@@ -172,34 +172,14 @@ WITH agent_stats AS (
 ), latest_stats AS (
 	SELECT *, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 	FROM workspace_agent_stats WHERE created_at > $1
-), latest_sessions AS (
-	-- Two levels: the inner query sums each app name on the latest row per
-	-- agent, the outer one folds those sums back into a single jsonb object.
-	-- rn = 1 leaves one row per agent, so grouping by agent_id alone matches
-	-- the per-agent grouping of agent_stats above.
+), latest_agent_stats AS (
+	-- rn = 1 leaves one row per agent, and that row's session_counts is
+	-- already the object this query reports, empty map included.
 	SELECT
 		agent_id,
-		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
-	FROM (
-		SELECT
-			a.agent_id,
-			sess.app_name,
-			SUM(sess.sessions::bigint) AS app_sessions
-		FROM latest_stats AS a, jsonb_each_text(a.session_counts) AS sess(app_name, sessions)
-		WHERE a.rn = 1
-		GROUP BY a.agent_id, sess.app_name
-	) AS app_totals
-	GROUP BY agent_id
-), latest_agent_stats AS (
-	-- Joined rather than selected from latest_sessions so an agent whose
-	-- latest row reports no sessions at all keeps its row here.
-	SELECT
-		a.agent_id,
-		coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts
-	FROM latest_stats AS a
-	LEFT JOIN latest_sessions ON latest_sessions.agent_id = a.agent_id
-	WHERE a.rn = 1
-	GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id, latest_sessions.session_counts
+		session_counts
+	FROM latest_stats
+	WHERE rn = 1
 )
 SELECT * FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id;
 
@@ -267,32 +247,16 @@ WITH agent_stats AS (
 	FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 	WHERE created_at > $1 AND connection_median_latency_ms > 0
-), latest_sessions AS (
-	-- Summed per app name here so the connection aggregates below keep seeing
-	-- one row per agent instead of one row per app name.
+), latest_agent_stats AS (
+	-- rn = 1 leaves one row per agent, so the session object, connection
+	-- count, and latency are that row's own columns, empty map included.
 	SELECT
 		agent_id,
-		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
-	FROM (
-		SELECT
-			a.agent_id,
-			sess.app_name,
-			SUM(sess.sessions::bigint) AS app_sessions
-		FROM latest_stats AS a, jsonb_each_text(a.session_counts) AS sess(app_name, sessions)
-		WHERE a.rn = 1
-		GROUP BY a.agent_id, sess.app_name
-	) AS app_totals
-	GROUP BY agent_id
-), latest_agent_stats AS (
-	SELECT
-		a.agent_id,
-		coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts,
-		coalesce(SUM(a.connection_count), 0)::bigint AS connection_count,
-		coalesce(MAX(a.connection_median_latency_ms), 0)::float AS connection_median_latency_ms
-	FROM latest_stats AS a
-	LEFT JOIN latest_sessions ON latest_sessions.agent_id = a.agent_id
-	WHERE a.rn = 1
-	GROUP BY a.user_id, a.agent_id, a.workspace_id, latest_sessions.session_counts
+		session_counts,
+		connection_count,
+		connection_median_latency_ms
+	FROM latest_stats
+	WHERE rn = 1
 )
 SELECT
 	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
