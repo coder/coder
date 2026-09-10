@@ -51,8 +51,8 @@ describe("ProposePlanTool", () => {
 
 		renderTool(vi.fn());
 
-		await screen.findByText("Implementation Plan");
-		await user.click(screen.getByRole("button", { name: "Copy plan" }));
+		const copyButton = await screen.findByRole("button", { name: "Copy plan" });
+		await user.click(copyButton);
 
 		expect(writeText).toHaveBeenCalledTimes(1);
 		expect(writeText).toHaveBeenCalledWith(samplePlan);

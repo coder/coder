@@ -28,21 +28,13 @@ describe("ToolCall", () => {
 
 		renderCollapsible();
 
-		const collapsedButton = screen.getByRole("button", {
-			name: "Expand read file",
-		});
-		await user.click(collapsedButton);
+		const headerButton = screen.getByRole("button");
+		expect(headerButton).toHaveAccessibleName("Expand read file");
 
-		expect(
-			screen.getByRole("button", { name: "Collapse read file" }),
-		).toBeInTheDocument();
+		await user.click(headerButton);
+		expect(headerButton).toHaveAccessibleName("Collapse read file");
 
-		await user.click(
-			screen.getByRole("button", { name: "Collapse read file" }),
-		);
-
-		expect(
-			screen.getByRole("button", { name: "Expand read file" }),
-		).toBeInTheDocument();
+		await user.click(headerButton);
+		expect(headerButton).toHaveAccessibleName("Expand read file");
 	});
 });
