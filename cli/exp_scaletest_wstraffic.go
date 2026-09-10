@@ -288,7 +288,12 @@ func createWorkspaceAppConfig(client *codersdk.Client, appHost, app string, work
 
 		c.URL = fmt.Sprintf("%s://%s", client.URL.Scheme, strings.Replace(appHost, "*", agent.Apps[i].SubdomainName, 1))
 	} else {
-		c.URL = fmt.Sprintf("%s/@%s/%s.%s/apps/%s", client.URL.String(), workspace.OwnerName, workspace.Name, agent.Name, agent.Apps[i].Slug)
+		// Path-based apps are served at a trailing-slash URL: coderd (and
+		// workspace proxies) 307-redirect "/apps/<slug>" to "/apps/<slug>/"
+		// (see coderd/workspaceapps/proxy.go). The scaletest client rejects
+		// redirects, so the WebSocket handshake fails on the redirect unless we
+		// request the already-normalized URL.
+		c.URL = fmt.Sprintf("%s/@%s/%s.%s/apps/%s/", client.URL.String(), workspace.OwnerName, workspace.Name, agent.Name, agent.Apps[i].Slug)
 	}
 
 	return c, nil
