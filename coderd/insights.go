@@ -573,11 +573,9 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// sessionFamilySFTP is the session family the insights queries report SFTP
-// usage under. No app name maps to it, so nothing in the app family registry
-// produces it, but template_usage_stats carries historical sftp minutes under
-// this key and the API has always exposed them as a builtin app. Families the
-// query does not report simply have no usage.
+// sessionFamilySFTP is the family historical sftp minutes are stored under. No
+// app name maps to it, so the registry never produces it, but the API has
+// always exposed sftp as a builtin app.
 const sessionFamilySFTP codersdk.AppFamilyName = "sftp"
 
 // convertTemplateInsightsApps builds the list of builtin apps and template apps
