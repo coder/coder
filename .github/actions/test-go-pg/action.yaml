@@ -63,6 +63,10 @@ runs:
         mkdir -p "${GOTMPDIR}"
         sudo mount -t tmpfs -o size=8g tmpfs "${GOTMPDIR}"
 
+    - name: Download Go modules
+      shell: bash
+      run: ./.github/scripts/retry.sh -- go mod download
+
     - name: Start PostgreSQL Docker container (Linux)
       if: runner.os == 'Linux'
       shell: bash
