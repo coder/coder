@@ -408,6 +408,9 @@ const meta: Meta<typeof AgentsPageLayout> = {
 		spyOn(API.experimental, "updateChatRetentionDays").mockResolvedValue();
 
 		spyOn(API, "getGroups").mockResolvedValue([]);
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: false,
+		});
 	},
 };
 

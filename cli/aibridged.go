@@ -280,20 +280,10 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			SendActorHeaders: sendActorHeaders,
 		}), nil
 
-	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
-		bedrock := bedrockConfig(spec.BaseURL, spec.Bedrock)
-		// A spec typed 'bedrock' authenticates exclusively via settings;
-		// without populated Bedrock credentials it cannot make upstream
-		// calls, so refuse rather than falling back to an unsigned
-		// Anthropic client.
-		if spec.Type == database.AIProviderTypeBedrock && bedrock == nil {
-			return nil, xerrors.New("bedrock provider has no bedrock credentials configured")
-		}
-		// Bedrock-backed Anthropic authenticates via AWS credentials in
-		// the settings blob, not bearer keys. A bearer-token Anthropic
-		// without any key cannot make upstream calls.
-		if bedrock == nil && len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
-			return nil, xerrors.New("anthropic provider has no api keys, no bedrock credentials, and BYOK is not enabled")
+	case database.AIProviderTypeAnthropic:
+		// A bearer-token Anthropic without any key cannot make upstream calls.
+		if len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
+			return nil, xerrors.New("anthropic provider has no api keys and BYOK is not enabled")
 		}
 		var pool *keypool.Pool
 		if len(spec.Keys) > 0 {
@@ -310,7 +300,24 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
-		}, bedrock)
+		}, nil)
+
+	case database.AIProviderTypeBedrock:
+		// A spec typed 'bedrock' authenticates exclusively via settings;
+		// without populated Bedrock credentials it cannot make upstream
+		// calls, so refuse rather than falling back to an unsigned
+		// Anthropic client.
+		if spec.Bedrock == nil {
+			return nil, xerrors.New("bedrock provider has no bedrock credentials configured")
+		}
+		bedrock := bedrockConfig(spec.BaseURL, spec.Bedrock)
+		return aibridge.NewBedrockProvider(ctx, aibridge.AnthropicConfig{
+			Name:             spec.Name,
+			BaseURL:          spec.BaseURL,
+			APIDumpDir:       dumpDir,
+			CircuitBreaker:   cbCfg,
+			SendActorHeaders: sendActorHeaders,
+		}, *bedrock)
 
 	case database.AIProviderTypeCopilot:
 		// Copilot is always BYOK; the per-user token is supplied on each

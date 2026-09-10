@@ -2116,6 +2116,115 @@ func TestLinkChatFilesDeduplicatesInput(t *testing.T) {
 	require.Equal(t, file.ID, files[0].ID)
 }
 
+func TestLinkChatFilesEvictsOldest(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	newChat := func() database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+	}
+	const maxLinks = 3
+	base := dbtime.Now().Add(-time.Hour)
+	newFiles := func(n int) []uuid.UUID {
+		ids := make([]uuid.UUID, 0, n)
+		for i := 0; i < n; i++ {
+			file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				Name:           fmt.Sprintf("file-%d.txt", i),
+				Mimetype:       "text/plain",
+				Data:           []byte("data"),
+			})
+			require.NoError(t, err)
+			_, err = sqlDB.ExecContext(ctx,
+				"UPDATE chat_files SET created_at = $1 WHERE id = $2",
+				base.Add(time.Duration(i)*time.Second), file.ID)
+			require.NoError(t, err)
+			ids = append(ids, file.ID)
+		}
+		return ids
+	}
+	linkedIDs := func(chatID uuid.UUID) []uuid.UUID {
+		files, err := db.GetChatFileMetadataByChatID(ctx, chatID)
+		require.NoError(t, err)
+		ids := make([]uuid.UUID, 0, len(files))
+		for _, f := range files {
+			ids = append(ids, f.ID)
+		}
+		return ids
+	}
+
+	// Linking one file past the cap deletes the oldest file.
+	chat := newChat()
+	files := newFiles(maxLinks + 1)
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      files[:maxLinks],
+		MaxFileLinks: maxLinks,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+	rejected, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      files[maxLinks:],
+		MaxFileLinks: maxLinks,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+	require.Equal(t, files[1:], linkedIDs(chat.ID))
+	_, err = db.GetChatFileByID(ctx, files[0])
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// A single batch over the cap is rejected and deletes nothing.
+	chat = newChat()
+	files = newFiles(maxLinks + 1)
+	rejected, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      files,
+		MaxFileLinks: maxLinks,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, maxLinks+1, rejected)
+	require.Empty(t, linkedIDs(chat.ID))
+	for _, id := range files {
+		_, err = db.GetChatFileByID(ctx, id)
+		require.NoError(t, err)
+	}
+
+	// A file links to one chat only.
+	chat = newChat()
+	files = newFiles(1)
+	rejected, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      files,
+		MaxFileLinks: maxLinks,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+	_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       newChat().ID,
+		FileIds:      files,
+		MaxFileLinks: maxLinks,
+	})
+	require.True(t, database.IsUniqueViolation(err, database.UniqueChatFileLinksFileIDKey))
+	require.Equal(t, files, linkedIDs(chat.ID))
+}
+
 func TestGetChatFileDataPrefixesByIDs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

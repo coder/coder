@@ -1260,8 +1260,11 @@ type sqlcQuerier interface {
 	// time. chatstate calls this in a single query so the staleness check
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
-	// LinkChatFilesAfterLock requires the chat row lock.
-	// The lock serializes cap checks. The result counts rejected new links.
+	// LinkChatFilesAfterLock requires the chat row lock. When the batch would
+	// exceed the cap, the oldest files on the chat are deleted to make room; the
+	// cascade removes their links. A file links to at most one chat, so no other
+	// chat can lose a file here. The batch is rejected only when the batch itself
+	// exceeds the cap.
 	LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error)
 	ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error)
 	// Finds all unique AI Bridge interception telemetry summaries combinations
