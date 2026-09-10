@@ -45,8 +45,6 @@ The daemon is distributed as a public container image and Helm chart:
 - Image: `ghcr.io/coder/agent-relay`, tagged `X.Y.Z`, `X.Y`, and `latest` for each release.
 - Helm chart: `oci://ghcr.io/coder/chart/coder-agent-relay`, versioned to match the image it deploys.
 
-Both artifacts are public and need no registry credentials.
-The source is not.
 Configuring a relay requires a provider credential and a compatible template, so talk to your account team before you deploy it.
 
 ## Supported providers
