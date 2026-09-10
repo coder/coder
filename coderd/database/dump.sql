@@ -28,7 +28,8 @@ CREATE TYPE ai_provider_type AS ENUM (
 );
 
 CREATE TYPE ai_seat_usage_reason AS ENUM (
-    'aibridge'
+    'aibridge',
+    'task'
 );
 
 CREATE TYPE aibridge_interception_error_type AS ENUM (

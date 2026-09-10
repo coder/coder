@@ -13,17 +13,3 @@ WHERE id IN (
 
 DELETE FROM user_configs
 WHERE key = 'preference_task_notification_alert_dismissed';
-
--- Remove the task AI seat usage reason. Seats consumed by tasks stay
--- consumed; their last event type is remapped to aibridge.
-UPDATE ai_seat_state SET last_event_type = 'aibridge' WHERE last_event_type::text = 'task';
-
-ALTER TYPE ai_seat_usage_reason RENAME TO ai_seat_usage_reason_old;
-
-CREATE TYPE ai_seat_usage_reason AS ENUM (
-    'aibridge'
-);
-
-ALTER TABLE ai_seat_state ALTER COLUMN last_event_type TYPE ai_seat_usage_reason USING (last_event_type::text::ai_seat_usage_reason);
-
-DROP TYPE ai_seat_usage_reason_old;

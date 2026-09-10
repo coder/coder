@@ -63,16 +63,3 @@ INSERT INTO notification_templates (
     'system'::notification_template_kind,
     true
 );
-
--- Restore the task AI seat usage reason. Remapped seat events are not
--- recoverable.
-ALTER TYPE ai_seat_usage_reason RENAME TO ai_seat_usage_reason_old;
-
-CREATE TYPE ai_seat_usage_reason AS ENUM (
-    'aibridge',
-    'task'
-);
-
-ALTER TABLE ai_seat_state ALTER COLUMN last_event_type TYPE ai_seat_usage_reason USING (last_event_type::text::ai_seat_usage_reason);
-
-DROP TYPE ai_seat_usage_reason_old;
