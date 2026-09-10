@@ -185,6 +185,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 
 	// Generate the server-owned external ID when the provider assumes a role.
 	ensureBedrockExternalID(&req.Settings)
+	clearBedrockModelResolution(&req.Settings)
 
 	settings, err := encodeAIProviderSettings(req.Settings)
 	if err != nil {
@@ -246,10 +247,12 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 
 	// Resolve inference profile ARNs once the provider is stored, then announce
 	// it. The gateway never calls the Bedrock control plane itself.
-	if err := api.resolveBedrockModels(ctx, row); err != nil {
+	row, err = api.resolveBedrockModels(ctx, row)
+	if err != nil {
 		api.writeAIProviderResolutionError(ctx, rw, err)
 		return
 	}
+	aReq.New = row
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, aiProviderKeyChanges{Added: keys})
 	api.publishAIProvidersChanged(ctx)
@@ -339,6 +342,10 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			existing = mergeAIProviderSettings(existing, *req.Settings)
+			// The patch may point the provider at different identifiers, and a
+			// client cannot supply resolutions of its own. Resolution runs again
+			// after the transaction.
+			clearBedrockModelResolution(&existing)
 		}
 		// Bedrock settings are only meaningful for anthropic- or
 		// bedrock-typed providers; rejecting the mismatch keeps a
@@ -449,10 +456,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	// identifiers or the credentials they resolve under, so any stored
 	// resolution still holds.
 	if req.Settings != nil {
-		if err := api.resolveBedrockModels(ctx, updated); err != nil {
+		updated, err = api.resolveBedrockModels(ctx, updated)
+		if err != nil {
 			api.writeAIProviderResolutionError(ctx, rw, err)
 			return
 		}
+		aReq.New = updated
 	}
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, keyChanges)

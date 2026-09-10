@@ -106,23 +106,3 @@ WHERE
     id = @id::uuid
 RETURNING
     *;
-
--- name: UpsertAIBedrockInferenceProfileModel :exec
--- Records the model an application inference profile ARN resolves to. The
--- provider write path resolves the ARN through the Bedrock control plane and
--- stores the answer here, so the gateway never has to. An upsert rather than
--- an insert so a later save corrects a stored value.
-INSERT INTO
-    ai_bedrock_inference_profile_models (inference_profile_arn, resolved_model)
-VALUES
-    (@inference_profile_arn::text, @resolved_model::text)
-ON CONFLICT (inference_profile_arn) DO UPDATE SET
-    resolved_model = @resolved_model::text;
-
--- name: GetAIBedrockInferenceProfileModels :many
-SELECT
-    *
-FROM
-    ai_bedrock_inference_profile_models
-WHERE
-    inference_profile_arn = ANY(@inference_profile_arns::text[]);

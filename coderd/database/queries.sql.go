@@ -569,38 +569,6 @@ func (q *sqlQuerier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) err
 	return err
 }
 
-const getAIBedrockInferenceProfileModels = `-- name: GetAIBedrockInferenceProfileModels :many
-SELECT
-    inference_profile_arn, resolved_model
-FROM
-    ai_bedrock_inference_profile_models
-WHERE
-    inference_profile_arn = ANY($1::text[])
-`
-
-func (q *sqlQuerier) GetAIBedrockInferenceProfileModels(ctx context.Context, inferenceProfileArns []string) ([]AIBedrockInferenceProfileModel, error) {
-	rows, err := q.db.QueryContext(ctx, getAIBedrockInferenceProfileModels, pq.Array(inferenceProfileArns))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []AIBedrockInferenceProfileModel
-	for rows.Next() {
-		var i AIBedrockInferenceProfileModel
-		if err := rows.Scan(&i.InferenceProfileArn, &i.ResolvedModel); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getAIProviderByID = `-- name: GetAIProviderByID :one
 SELECT
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
@@ -914,29 +882,6 @@ func (q *sqlQuerier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg 
 		&i.Icon,
 	)
 	return i, err
-}
-
-const upsertAIBedrockInferenceProfileModel = `-- name: UpsertAIBedrockInferenceProfileModel :exec
-INSERT INTO
-    ai_bedrock_inference_profile_models (inference_profile_arn, resolved_model)
-VALUES
-    ($1::text, $2::text)
-ON CONFLICT (inference_profile_arn) DO UPDATE SET
-    resolved_model = $2::text
-`
-
-type UpsertAIBedrockInferenceProfileModelParams struct {
-	InferenceProfileArn string `db:"inference_profile_arn" json:"inference_profile_arn"`
-	ResolvedModel       string `db:"resolved_model" json:"resolved_model"`
-}
-
-// Records the model an application inference profile ARN resolves to. The
-// provider write path resolves the ARN through the Bedrock control plane and
-// stores the answer here, so the gateway never has to. An upsert rather than
-// an insert so a later save corrects a stored value.
-func (q *sqlQuerier) UpsertAIBedrockInferenceProfileModel(ctx context.Context, arg UpsertAIBedrockInferenceProfileModelParams) error {
-	_, err := q.db.ExecContext(ctx, upsertAIBedrockInferenceProfileModel, arg.InferenceProfileArn, arg.ResolvedModel)
-	return err
 }
 
 const calculateAIBridgeInterceptionsTelemetrySummary = `-- name: CalculateAIBridgeInterceptionsTelemetrySummary :one

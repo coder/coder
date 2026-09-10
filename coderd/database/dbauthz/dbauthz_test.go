@@ -7389,20 +7389,6 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().UpdateEncryptedAIProviderSettings(gomock.Any(), arg).Return(provider, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionUpdate).Returns(provider)
 	}))
-	s.Run("UpsertAIBedrockInferenceProfileModel", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.UpsertAIBedrockInferenceProfileModelParams{
-			InferenceProfileArn: "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/46u2vhiyo6z5",
-			ResolvedModel:       "anthropic.claude-opus-4-8",
-		}
-		dbm.EXPECT().UpsertAIBedrockInferenceProfileModel(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionUpdate).Returns()
-	}))
-	s.Run("GetAIBedrockInferenceProfileModels", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		resolved := testutil.Fake(s.T(), faker, database.AIBedrockInferenceProfileModel{})
-		arg := []string{resolved.InferenceProfileArn}
-		dbm.EXPECT().GetAIBedrockInferenceProfileModels(gomock.Any(), arg).Return([]database.AIBedrockInferenceProfileModel{resolved}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.AIBedrockInferenceProfileModel{resolved})
-	}))
 	s.Run("GetAIProviderKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.AIProviderKey{})
 		dbm.EXPECT().GetAIProviderKeyByID(gomock.Any(), key.ID).Return(key, nil).AnyTimes()

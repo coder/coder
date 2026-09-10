@@ -1903,21 +1903,6 @@ func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
 }
 
-// GetAIBedrockInferenceProfileModels mocks base method.
-func (m *MockStore) GetAIBedrockInferenceProfileModels(ctx context.Context, inferenceProfileArns []string) ([]database.AIBedrockInferenceProfileModel, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIBedrockInferenceProfileModels", ctx, inferenceProfileArns)
-	ret0, _ := ret[0].([]database.AIBedrockInferenceProfileModel)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAIBedrockInferenceProfileModels indicates an expected call of GetAIBedrockInferenceProfileModels.
-func (mr *MockStoreMockRecorder) GetAIBedrockInferenceProfileModels(ctx, inferenceProfileArns any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBedrockInferenceProfileModels", reflect.TypeOf((*MockStore)(nil).GetAIBedrockInferenceProfileModels), ctx, inferenceProfileArns)
-}
-
 // GetAIBridgeChatCost mocks base method.
 func (m *MockStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	m.ctrl.T.Helper()
@@ -11907,20 +11892,6 @@ func (m *MockStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) UpdateWorkspacesTTLByTemplateID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesTTLByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesTTLByTemplateID), ctx, arg)
-}
-
-// UpsertAIBedrockInferenceProfileModel mocks base method.
-func (m *MockStore) UpsertAIBedrockInferenceProfileModel(ctx context.Context, arg database.UpsertAIBedrockInferenceProfileModelParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertAIBedrockInferenceProfileModel", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertAIBedrockInferenceProfileModel indicates an expected call of UpsertAIBedrockInferenceProfileModel.
-func (mr *MockStoreMockRecorder) UpsertAIBedrockInferenceProfileModel(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAIBedrockInferenceProfileModel", reflect.TypeOf((*MockStore)(nil).UpsertAIBedrockInferenceProfileModel), ctx, arg)
 }
 
 // UpsertAIModelPrices mocks base method.

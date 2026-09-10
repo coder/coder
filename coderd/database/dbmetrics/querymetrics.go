@@ -1096,14 +1096,6 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIBedrockInferenceProfileModels(ctx context.Context, inferenceProfileArns []string) ([]database.AIBedrockInferenceProfileModel, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAIBedrockInferenceProfileModels(ctx, inferenceProfileArns)
-	m.queryLatencies.WithLabelValues("GetAIBedrockInferenceProfileModels").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBedrockInferenceProfileModels").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeChatCost(ctx, rootChatID)
@@ -6317,14 +6309,6 @@ func (m queryMetricsStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, 
 	r0 := m.s.UpdateWorkspacesTTLByTemplateID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspacesTTLByTemplateID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspacesTTLByTemplateID").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertAIBedrockInferenceProfileModel(ctx context.Context, arg database.UpsertAIBedrockInferenceProfileModelParams) error {
-	start := time.Now()
-	r0 := m.s.UpsertAIBedrockInferenceProfileModel(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertAIBedrockInferenceProfileModel").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAIBedrockInferenceProfileModel").Inc()
 	return r0
 }
 
