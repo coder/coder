@@ -75,6 +75,41 @@ Alias: also available at /api/v2/aibridge/models for backward compatibility.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List AI Gateway providers
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/providers \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/providers`
+
+Alias: also available at /api/v2/aibridge/providers for backward compatibility.
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  "string"
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+|--------|---------------------------------------------------------|-------------|-----------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="list-ai-gateway-providers-responseschema">Response Schema</h3>
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List AI Gateway sessions
 
 ### Code samples

@@ -3067,6 +3067,13 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAIBridgeProviders = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams(`${aiGatewayPath}/providers`, options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+
 	getAIBridgeSessionList = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams(`${aiGatewayPath}/sessions`, options);
 		const response =

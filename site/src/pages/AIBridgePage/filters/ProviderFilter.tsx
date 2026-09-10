@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { API } from "#/api/api";
-import type { AIProvider } from "#/api/typesGenerated";
+import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
@@ -10,12 +10,13 @@ import {
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
 import { AIBridgeProviderIcon } from "../icons/AIBridgeProviderIcon";
+import { getProviderDisplayName } from "../utils";
 
-const toFilterOption = (provider: AIProvider): SelectFilterOption => ({
-	value: provider.name,
-	label: provider.display_name || provider.name,
+const toFilterOption = (providerName: string): SelectFilterOption => ({
+	value: providerName,
+	label: getProviderDisplayName(providerName),
 	startIcon: (
-		<AIBridgeProviderIcon provider={provider.type} className="size-icon-sm" />
+		<AIBridgeProviderIcon provider={providerName} className="size-icon-sm" />
 	),
 });
 
@@ -30,12 +31,21 @@ export const useProviderFilterMenu = ({
 			if (!value) {
 				return null;
 			}
-			const providers = await API.experimental.listAIProviders();
-			const match = providers.find((p) => p.name === value);
-			return match ? toFilterOption(match) : null;
+			const providers = await API.getAIBridgeProviders({
+				q: value,
+				limit: 1,
+			});
+			const firstProvider = providers.at(0);
+			if (firstProvider && firstProvider === value) {
+				return toFilterOption(firstProvider);
+			}
+			return null;
 		},
-		getOptions: async () => {
-			const providers = await API.experimental.listAIProviders();
+		getOptions: async (query) => {
+			const providers = await API.getAIBridgeProviders({
+				q: query,
+				limit: 25,
+			});
 			return providers.map(toFilterOption);
 		},
 		value,
@@ -61,6 +71,13 @@ export const ProviderFilter: FC<ProviderFilterProps> = ({ menu, width }) => {
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
 			width={width}
+			selectFilterSearch={
+				<ComboboxInput
+					placeholder="Search provider..."
+					value={menu.query}
+					onValueChange={menu.setQuery}
+				/>
+			}
 		/>
 	);
 };

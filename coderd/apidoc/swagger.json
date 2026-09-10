@@ -659,6 +659,31 @@
 				]
 			}
 		},
+		"/api/v2/ai-gateway/providers": {
+			"get": {
+				"description": "Alias: also available at /api/v2/aibridge/providers for backward compatibility.",
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "List AI Gateway providers",
+				"operationId": "list-ai-gateway-providers",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/ai-gateway/serve": {
 			"get": {
 				"tags": ["Enterprise"],
