@@ -7965,9 +7965,9 @@ func TestSessionCountAppFamiliesRequired(t *testing.T) {
 	ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
 
 	_, err := q.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{})
-	require.ErrorContains(t, err, "developer error")
+	require.ErrorContains(t, err, "app family registry is empty")
 	err = q.UpsertTemplateUsageStats(ctx, nil)
-	require.ErrorContains(t, err, "developer error")
+	require.ErrorContains(t, err, "app family registry is empty")
 }
 
 // TestSessionCountAppFamiliesShape covers registries that are present but
@@ -7983,15 +7983,15 @@ func TestSessionCountAppFamiliesShape(t *testing.T) {
 		appFamilies json.RawMessage
 		errContains string
 	}{
-		{"EmptyObject", json.RawMessage(`{}`), "must not be empty"},
-		{"JSONNull", json.RawMessage(`null`), "must not be empty"},
-		{"NotAnObject", json.RawMessage(`["vscode"]`), "must be a JSON object"},
-		{"FamilyToAppNames", json.RawMessage(`{"vscode":["cursor"]}`), "must be a JSON object"},
-		{"UnnormalizedAppName", json.RawMessage(`{"VSCode-Insiders":"vscode"}`), "is not normalized"},
-		{"UnnormalizedFamily", json.RawMessage(`{"vscode":"VS Code"}`), "is not normalized"},
-		{"HyphenatedFamily", json.RawMessage(`{"vscode":"vs-code"}`), "is not normalized"},
-		{"PaddedFamily", json.RawMessage(`{"vscode":" vscode "}`), "is not normalized"},
-		{"UnknownFamily", json.RawMessage(`{"vscode":"unknown"}`), `unknown family for app "vscode"`},
+		{"EmptyObject", json.RawMessage(`{}`), "app family registry is empty"},
+		{"JSONNull", json.RawMessage(`null`), "app family registry is empty"},
+		{"NotAnObject", json.RawMessage(`["vscode"]`), "invalid app family registry"},
+		{"FamilyToAppNames", json.RawMessage(`{"vscode":["cursor"]}`), "invalid app family registry"},
+		{"UnnormalizedAppName", json.RawMessage(`{"VSCode-Insiders":"vscode"}`), "not normalized"},
+		{"UnnormalizedFamily", json.RawMessage(`{"vscode":"VS Code"}`), "not normalized"},
+		{"HyphenatedFamily", json.RawMessage(`{"vscode":"vs-code"}`), "not normalized"},
+		{"PaddedFamily", json.RawMessage(`{"vscode":" vscode "}`), "not normalized"},
+		{"UnknownFamily", json.RawMessage(`{"vscode":"unknown"}`), `app "vscode" maps to unknown family`},
 		{"EmptyAppName", json.RawMessage(`{"":"vscode"}`), "empty app name"},
 		{"EmptyFamily", json.RawMessage(`{"vscode":""}`), `no family for app "vscode"`},
 		{"WhitespaceFamily", json.RawMessage(`{"vscode":"  "}`), `no family for app "vscode"`},
