@@ -16,7 +16,10 @@ import {
 	MockUserOwner,
 	MockUserPreferenceSettings,
 } from "#/testHelpers/entities";
-import { withAuthProvider } from "#/testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -42,7 +45,7 @@ const StoryChatPageTimeline: FC<{
 
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		user: MockUserOwner,
 		queries: [
