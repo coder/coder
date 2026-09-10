@@ -475,25 +475,22 @@ func (a *agent) init() {
 
 	pathStore := agentgit.NewPathStore()
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo))
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, func() string {
+	// workingDirFn reports the workspace directory ("" before the first manifest).
+	workingDirFn := func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
 		}
 		return ""
-	})
+	}
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
-	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.updateCommandEnv)
-	a.contextConfigAPI = agentcontextconfig.NewAPI(func() string {
-		if m := a.manifest.Load(); m != nil {
-			return m.Directory
-		}
-		return ""
-	}, a.contextConfig)
+	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.filesystem, a.envInfo, a.updateCommandEnv, workingDirFn)
+	a.contextConfigAPI = agentcontextconfig.NewAPI(workingDirFn, a.contextConfig)
 	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
 
 	// agentcontext.Manager is the new consolidated resolver,
@@ -501,12 +498,6 @@ func (a *agent) init() {
 	// and the MCP manager during rollout. Initial sources are
 	// seeded from the existing CODER_AGENT_EXP_* env vars and
 	// from the agent's working directory at scan time.
-	workingDirFn := func() string {
-		if m := a.manifest.Load(); m != nil {
-			return m.Directory
-		}
-		return ""
-	}
 	a.contextManager = agentcontext.NewManager(agentcontext.ManagerOptions{
 		Logger:         a.logger.Named("agentcontext"),
 		Clock:          a.clock,
