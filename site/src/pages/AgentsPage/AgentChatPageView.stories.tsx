@@ -96,7 +96,7 @@ const buildEditing = (
 	editingMessageId: null as number | null,
 	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),
-	handleCancelHistoryEdit: fn(),
+	handleCancelEdit: fn(),
 	handleSendFromInput: fn(),
 	handleContentChange: fn(),
 	...overrides,

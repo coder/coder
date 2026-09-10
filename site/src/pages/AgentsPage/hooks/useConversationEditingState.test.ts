@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
-import { useConversationEditingState } from "./useConversationEditingState";
+import {
+	QueuedEditTargetGoneError,
+	useConversationEditingState,
+} from "./useConversationEditingState";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -168,7 +171,7 @@ describe("useConversationEditingState", () => {
 		const remountKeyAfterEdit = result.current.remountKey;
 
 		await act(async () => {
-			await result.current.handleCancelHistoryEdit();
+			await result.current.handleCancelEdit();
 		});
 
 		expect(onResumeQueuedMessage).not.toHaveBeenCalled();
@@ -195,7 +198,7 @@ describe("useConversationEditingState", () => {
 		expect(mockInput.focus).not.toHaveBeenCalled();
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 		expect(mockInput.focus).not.toHaveBeenCalled();
 		unmount();
@@ -210,7 +213,7 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 
 		// The hook reads the persisted draft from localStorage when
@@ -234,7 +237,7 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 
 		expect(result.current.editorInitialValue).toBe("live draft");
@@ -610,7 +613,7 @@ describe("useConversationEditingState", () => {
 
 		// Cancel should restore both plain text and serialized state.
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 
 		expect(result.current.editingMessageId).toBeNull();
@@ -639,7 +642,7 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 
 		expect(result.current.initialEditorState).toBeUndefined();
@@ -703,7 +706,7 @@ describe("useConversationEditingState", () => {
 			});
 
 			await act(async () => {
-				await result.current.handleCancelHistoryEdit();
+				await result.current.handleCancelEdit();
 			});
 
 			expect(onResumeQueuedMessage).toHaveBeenCalledWith(42);
@@ -729,12 +732,57 @@ describe("useConversationEditingState", () => {
 			const remountKeyAfterEdit = result.current.remountKey;
 
 			await act(async () => {
-				await result.current.handleCancelHistoryEdit();
+				await result.current.handleCancelEdit();
 			});
 
 			expect(result.current.editingTarget).toEqual({ kind: "queued", id: 42 });
 			expect(result.current.editorInitialValue).toBe("queued text");
 			expect(result.current.remountKey).toBe(remountKeyAfterEdit);
+			unmount();
+		});
+
+		it("cancel leaves edit mode when the queued row is gone", async () => {
+			const { result, onResumeQueuedMessage, unmount } = renderEditing();
+			onResumeQueuedMessage.mockRejectedValueOnce(
+				new QueuedEditTargetGoneError(),
+			);
+
+			act(() => {
+				result.current.handleContentChange("draft", "draft", false);
+				result.current.handleEditQueuedMessage(42, "queued text");
+			});
+
+			await act(async () => {
+				await result.current.handleCancelEdit();
+			});
+
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editorInitialValue).toBe("draft");
+			expect(result.current.inputValueRef.current).toBe("draft");
+			unmount();
+		});
+
+		it("send keeps the edited text as a new draft when the queued row is gone", async () => {
+			const { result, onSend, unmount } = renderEditing();
+			const mockInput = createMockChatInputHandle("queued edit");
+			result.current.chatInputRef.current = mockInput.handle;
+			onSend.mockRejectedValueOnce(new QueuedEditTargetGoneError());
+
+			act(() => {
+				result.current.handleContentChange("draft", "draft", false);
+				result.current.handleEditQueuedMessage(42, "queued text");
+			});
+
+			await act(async () => {
+				await expect(
+					result.current.handleSendFromInput("queued edit"),
+				).rejects.toBeInstanceOf(QueuedEditTargetGoneError);
+			});
+
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editingFileBlocks).toEqual([]);
+			expect(result.current.editorInitialValue).toBe("queued edit");
+			expect(result.current.inputValueRef.current).toBe("queued edit");
 			unmount();
 		});
 

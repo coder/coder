@@ -97,6 +97,7 @@ import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentCha
 import {
 	BuiltInCommandPendingError,
 	type EditingTarget,
+	QueuedEditTargetGoneError,
 	useConversationEditingState,
 } from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
@@ -619,6 +620,10 @@ const AgentChatPage: FC = () => {
 		try {
 			await editQueuedMessage({ queuedMessageId: id, req: { held: false } });
 		} catch (error) {
+			if (getErrorStatus(error) === 404) {
+				toast.error("Queued message was already sent.");
+				throw new QueuedEditTargetGoneError();
+			}
 			toast.error(getErrorMessage(error, "Failed to resume queued message."));
 			throw error;
 		}
@@ -631,9 +636,26 @@ const AgentChatPage: FC = () => {
 		chatInputRef,
 		inputValueRef,
 	});
+	// Moving the composer to another target abandons the current queued
+	// edit; the hold must not outlive it. Failures are already toasted by
+	// handleResumeQueuedMessage and leave the row held with a visible
+	// Resume action.
+	const releaseActiveQueuedEdit = async () => {
+		const target = editing.editingTarget;
+		if (target?.kind !== "queued") {
+			return;
+		}
+		try {
+			await handleResumeQueuedMessage(target.id);
+		} catch {
+			// Reported by handleResumeQueuedMessage.
+		}
+	};
+
 	const handleEditUserMessage = (
 		...args: Parameters<typeof editing.handleEditUserMessage>
 	) => {
+		void releaseActiveQueuedEdit();
 		isEditReasoningEffortDirtyRef.current = false;
 		editing.handleEditUserMessage(...args);
 	};
@@ -645,6 +667,13 @@ const AgentChatPage: FC = () => {
 		if (!row) {
 			return;
 		}
+		if (
+			editing.editingTarget?.kind === "queued" &&
+			editing.editingTarget.id === id
+		) {
+			return;
+		}
+		await releaseActiveQueuedEdit();
 		const hold = await holdQueuedMessageForEdit(row, (queuedMessageId) =>
 			editQueuedMessage({ queuedMessageId, req: { held: true } }),
 		);
@@ -864,6 +893,12 @@ const AgentChatPage: FC = () => {
 			try {
 				response = await editQueuedMessage({ queuedMessageId, req: request });
 			} catch (error) {
+				if (getErrorStatus(error) === 404) {
+					toast.error(
+						"Queued message was already sent. Your edit is kept as a new draft.",
+					);
+					throw new QueuedEditTargetGoneError();
+				}
 				toast.error(getErrorMessage(error, "Failed to save queued message."));
 				throw error;
 			}
