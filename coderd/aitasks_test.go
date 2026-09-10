@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1553,7 +1554,10 @@ func TestCreateTaskExternalAuth(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
-		require.Equal(t, "The workspace owner must authenticate with the following external auth providers: GitHub.", apiErr.Detail)
+		require.Equal(t, fmt.Sprintf(
+			"The workspace owner must authenticate with the following external auth providers: GitHub (%s/external-auth/github).",
+			strings.TrimSuffix(client.URL.String(), "/"),
+		), apiErr.Detail)
 		require.Equal(t, []codersdk.ValidationError{{
 			Field:  "external_auth",
 			Detail: "github",

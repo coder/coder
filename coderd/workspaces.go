@@ -888,6 +888,12 @@ func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateV
 		if name == "" {
 			name = provider.ID
 		}
+		// The authenticate URL is included so clients without a
+		// preflight external auth check (such as the chat tools) can
+		// surface a usable login link to the user.
+		if provider.AuthenticateURL != "" {
+			name = fmt.Sprintf("%s (%s)", name, provider.AuthenticateURL)
+		}
 		missingNames = append(missingNames, name)
 		validations = append(validations, codersdk.ValidationError{
 			Field:  "external_auth",
