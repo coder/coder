@@ -3,10 +3,13 @@ package chatstate_test
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -165,6 +168,46 @@ func TestHold_DirectSendGoesAroundHeldQueue(t *testing.T) {
 	require.Equal(t, chatstate.StateI0, f.classify(ctx, t, seeded.chatID))
 	want := append(append([]int64{}, seeded.queuedMessageIDs...), interrupt.QueuedMessage.ID)
 	require.Equal(t, want, queuedIDsByPosition(ctx, t, f, seeded.chatID))
+}
+
+// TestHold_StaleChatsIgnoresHeldHead pins the GetStaleChats predicate: a
+// waiting chat whose queue head is held is idle, not stranded, even with
+// unheld rows behind the held one. Only a promotable head in waiting is
+// reported.
+func TestHold_StaleChatsIgnoresHeldHead(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	seeded := seedHeldHead(t, f, chatstate.StateW, 1)
+	// A threshold in the future makes every chat old enough, so only the
+	// queue predicate decides.
+	threshold := time.Now().Add(time.Hour)
+
+	containsChat := func(chats []database.Chat, id uuid.UUID) bool {
+		for _, c := range chats {
+			if c.ID == id {
+				return true
+			}
+		}
+		return false
+	}
+
+	//nolint:gocritic // GetStaleChats is a system sweep query.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	stale, err := f.DB.GetStaleChats(sysCtx, threshold)
+	require.NoError(t, err)
+	require.False(t, containsChat(stale, seeded.chatID), "waiting with a held head is not stranded")
+
+	// Force the invalid shape (waiting with a promotable head) directly.
+	_, err = f.DB.UpdateChatQueuedMessageHeld(ctx, database.UpdateChatQueuedMessageHeldParams{
+		ChatID: seeded.chatID,
+		ID:     seeded.queuedMessageIDs[0],
+		Held:   false,
+	})
+	require.NoError(t, err)
+	stale, err = f.DB.GetStaleChats(sysCtx, threshold)
+	require.NoError(t, err)
+	require.True(t, containsChat(stale, seeded.chatID), "waiting with a promotable head is stranded")
 }
 
 // TestHold_EditQueuedMessageRejectsEmptyInput pins that a PATCH with
