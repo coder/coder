@@ -77,9 +77,10 @@ export const Collapsible: Story = {
 			</ToolCall.Content>
 		</ToolCall.Root>
 	),
+	// Ends expanded: the collapsed state is the static render, so the play
+	// exists to reach the expanded capture.
 	play: async () => {
 		await userEvent.tab();
 		await userEvent.keyboard("{Enter}");
-		await userEvent.keyboard(" ");
 	},
 };

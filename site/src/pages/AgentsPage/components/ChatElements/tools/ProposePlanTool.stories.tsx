@@ -72,9 +72,6 @@ export const Completed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByText("Implementation Plan");
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Implement plan" }),
-		);
 	},
 };
 

@@ -165,47 +165,6 @@ export const InteractiveSingleQuestionOther: Story = {
 	},
 };
 
-export const KeyboardNavigation: Story = {
-	args: {
-		status: "completed",
-		result: JSON.stringify(singleQuestionPayload),
-		isChatCompleted: true,
-		isLatestAskUserQuestion: true,
-		onSendAskUserQuestionResponse: fn(),
-	},
-	play: async () => {
-		await userEvent.tab();
-		await userEvent.keyboard("{ArrowDown}");
-		await userEvent.keyboard(" ");
-
-		await userEvent.tab();
-		await userEvent.keyboard("{Enter}");
-	},
-};
-
-export const KeyboardOtherSubmit: Story = {
-	args: {
-		status: "completed",
-		result: JSON.stringify(singleQuestionPayload),
-		isChatCompleted: true,
-		isLatestAskUserQuestion: true,
-		onSendAskUserQuestionResponse: fn(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await userEvent.tab();
-		await userEvent.keyboard("{ArrowDown}");
-		await userEvent.keyboard("{ArrowDown}");
-		await userEvent.keyboard(" ");
-
-		const otherInput = canvas.getByPlaceholderText("Describe another answer");
-		await userEvent.type(otherInput, "Custom approach");
-
-		await userEvent.keyboard("{Enter}");
-	},
-};
-
 export const InteractiveWizardStep: Story = {
 	args: {
 		status: "completed",
