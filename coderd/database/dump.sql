@@ -4426,6 +4426,9 @@ ALTER TABLE ONLY chat_diff_statuses
 ALTER TABLE ONLY chat_file_links
     ADD CONSTRAINT chat_file_links_chat_id_file_id_key UNIQUE (chat_id, file_id);
 
+ALTER TABLE ONLY chat_file_links
+    ADD CONSTRAINT chat_file_links_file_id_key UNIQUE (file_id);
+
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
 
@@ -4903,8 +4906,6 @@ CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (
 CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree (lower(url)) WHERE ((url IS NOT NULL) AND (url <> ''::text));
 
 CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
-
-CREATE INDEX idx_chat_file_links_file_id ON chat_file_links USING btree (file_id);
 
 CREATE INDEX idx_chat_files_created_at ON chat_files USING btree (created_at);
 

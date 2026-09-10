@@ -44,7 +44,6 @@ import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedFo
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
-import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
@@ -111,7 +110,6 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	chat: TypesGen.Chat;
 	persistedError: ChatDetailError | undefined;
-	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 
@@ -282,7 +280,6 @@ const UserTabContent: FC<UserTabContentProps> = ({
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	chat,
 	persistedError,
-	canShareChat,
 	workspaceAgent,
 	workspace,
 	store,
@@ -349,13 +346,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	);
 	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 
+	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
+
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
-	const canSendAskUserQuestionResponse =
-		!isInputDisabled && !isSubmissionPending
-			? onSendAskUserQuestionResponse
-			: undefined;
-
 	const handleRefresh = () => {
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
@@ -872,17 +866,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										onToggleSidebar: () =>
 											onSetShowSidebarPanel(!showSidebarPanel),
 									}}
-									renderChatSharingContent={
-										canShareChat
-											? (open) => (
-													<ChatSharingPopoverContent
-														chatId={agentId}
-														organizationId={organizationId}
-														open={open}
-													/>
-												)
-											: undefined
-									}
 								/>
 								{modelCatalogError != null && (
 									<ErrorAlert error={modelCatalogError} />
@@ -929,6 +912,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								key={agentId}
 								organizationId={organizationId}
 								store={store}
+								chatFiles={chat.files}
 								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 								persistedError={persistedError}
 								hasMoreMessages={hasMoreMessages}
@@ -945,12 +929,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 								onImplementPlan={
-									isOtherUserReadOnly ? undefined : onImplementPlan
+									isOtherUserReadOnly || !canSubmitChatTurn
+										? undefined
+										: onImplementPlan
 								}
 								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly
+									isOtherUserReadOnly || !canSubmitChatTurn
 										? undefined
-										: canSendAskUserQuestionResponse
+										: onSendAskUserQuestionResponse
 								}
 								footer={
 									chat.queued_for_capacity ? (

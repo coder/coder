@@ -1,10 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import { MockDefaultOrganization } from "#/testHelpers/entities";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 
 const meta: Meta<typeof AgentSetupNotice> = {
 	title: "pages/AgentsPage/AgentSetupNotice",
 	component: AgentSetupNotice,
+	args: {
+		organization: MockDefaultOrganization,
+	},
 };
 
 export default meta;
@@ -22,9 +26,10 @@ export const AdminNoProvider: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "provider" }),
 		).toHaveAttribute("href", "/ai/settings/providers");
-		await expect(
-			canvas.getByRole("link", { name: "model" }),
-		).toBeInTheDocument();
+		await expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
+			"href",
+			`/ai/settings/models?org=${MockDefaultOrganization.name}`,
+		);
 	},
 };
 
@@ -39,7 +44,7 @@ export const AdminNoModel: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/ai/settings/models",
+			`/ai/settings/models?org=${MockDefaultOrganization.name}`,
 		);
 		await expect(
 			canvas.queryByRole("link", { name: "provider" }),

@@ -149,6 +149,11 @@ const organizationModelSettingsPath = (
 	return `/ai/settings/models${suffix}?${next.toString()}`;
 };
 
+export const organizationModelsPath = (
+	organization: Organization,
+	searchParams?: URLSearchParams,
+): string => organizationModelSettingsPath(organization, "", searchParams);
+
 export const organizationAddModelPath = (
 	organization: Organization,
 	searchParams?: URLSearchParams,
@@ -168,5 +173,5 @@ export const organizationModelPath = (
 export const useOrganizationModelsPath = (): string => {
 	const { organization } = useOrganizationModels();
 	const [searchParams] = useSearchParams();
-	return organizationModelSettingsPath(organization, "", searchParams);
+	return organizationModelsPath(organization, searchParams);
 };

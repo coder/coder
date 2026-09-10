@@ -13,13 +13,8 @@ import {
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import type {
-	ChatPlanModeOrClear,
-	CreateChatMessageRequestWithClearablePlanMode,
-} from "#/api/api";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chatMessagesForInfiniteScroll,
@@ -36,6 +31,7 @@ import {
 	mcpServerConfigs,
 	openChat,
 	patchChatEntity,
+	planModeFieldsForCreateMessage,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
 	updateChatWorkspace,
@@ -69,10 +65,7 @@ import {
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
 } from "./components/ChatConversation/chatError";
-import {
-	getParentChatID,
-	getWorkspaceAgent,
-} from "./components/ChatConversation/chatHelpers";
+import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
@@ -80,7 +73,6 @@ import {
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
 	submitEdit,
-	waitForPendingChatSettingsSyncs,
 } from "./components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
@@ -130,10 +122,6 @@ import {
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
-
-const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
-
-type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
 
 const buildAttachmentMediaTypes = (
 	attachments?: readonly PendingAttachment[],
@@ -279,28 +267,6 @@ const AgentChatPage: FC = () => {
 	const isArchived = Boolean(chat?.archived);
 	const isViewerNotOwner =
 		chat !== undefined && currentUser.id !== chat.owner_id;
-	const isRootChat = chat !== undefined && getParentChatID(chat) === undefined;
-	const chatAuthorizationObject =
-		chat !== undefined
-			? {
-					resource_type: "chat" as const,
-					owner_id: chat.owner_id,
-					organization_id: chat.organization_id,
-				}
-			: undefined;
-	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
-	if (chatAuthorizationObject !== undefined && isRootChat) {
-		chatAuthorizationChecks.canShareChat = {
-			object: chatAuthorizationObject,
-			action: "share",
-		};
-	}
-	const chatAuthorizationQuery = useQuery({
-		...checkAuthorization({ checks: chatAuthorizationChecks }),
-		enabled: Object.keys(chatAuthorizationChecks).length > 0,
-	});
-	const canShareChat =
-		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
 	const planModeEnabled = chat?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -394,7 +360,7 @@ const AgentChatPage: FC = () => {
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
-		mutateAsync: updateChatWorkspaceAsync,
+		mutate: updateChatWorkspaceMutate,
 	} = useMutation({
 		...updateChatWorkspaceBase,
 		onError: (error, variables, context) => {
@@ -406,7 +372,7 @@ const AgentChatPage: FC = () => {
 	const updateChatPlanModeBase = updateChatPlanMode(queryClient);
 	const {
 		isPending: isUpdateChatPlanModePending,
-		mutateAsync: updateChatPlanModeAsync,
+		mutate: updateChatPlanModeMutate,
 	} = useMutation({
 		...updateChatPlanModeBase,
 		onError: (error, variables, context) => {
@@ -426,21 +392,6 @@ const AgentChatPage: FC = () => {
 		patchChatEntity(queryClient, chatId, (previousChat) =>
 			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
 		);
-	};
-
-	const pendingPlanModeSyncRef = useRef<Promise<unknown> | null>(null);
-	const pendingWorkspaceSyncRef = useRef<Promise<unknown> | null>(null);
-	const trackPendingChatSettingSync = (
-		syncPromise: Promise<unknown>,
-		syncRef: { current: Promise<unknown> | null },
-	) => {
-		const trackedSync: Promise<unknown> = syncPromise.finally(() => {
-			if (syncRef.current === trackedSync) {
-				syncRef.current = null;
-			}
-		});
-		syncRef.current = trackedSync;
-		void trackedSync.catch(() => undefined);
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
@@ -591,13 +542,10 @@ const AgentChatPage: FC = () => {
 		if (enabled === planModeEnabled) {
 			return;
 		}
-		trackPendingChatSettingSync(
-			updateChatPlanModeAsync({
-				chatId: agentId,
-				planMode: enabled ? "plan" : undefined,
-			}),
-			pendingPlanModeSyncRef,
-		);
+		updateChatPlanModeMutate({
+			chatId: agentId,
+			planMode: enabled ? "plan" : undefined,
+		});
 	};
 
 	const handleRequestError = (error: unknown): void => {
@@ -630,13 +578,10 @@ const AgentChatPage: FC = () => {
 		if (nextWorkspaceId === selectedWorkspaceId) {
 			return;
 		}
-		trackPendingChatSettingSync(
-			updateChatWorkspaceAsync({
-				chatId: agentId,
-				workspaceId: nextWorkspaceId,
-			}),
-			pendingWorkspaceSyncRef,
-		);
+		updateChatWorkspaceMutate({
+			chatId: agentId,
+			workspaceId: nextWorkspaceId,
+		});
 	};
 
 	const handleDeleteQueuedMessage = async (id: number) => {
@@ -776,13 +721,13 @@ const AgentChatPage: FC = () => {
 		attachments,
 		editedMessageID,
 		useComposerContent = true,
-		planModeSwitch,
+		clearPlanMode = false,
 	}: {
 		message: string;
 		attachments?: readonly PendingAttachment[];
 		editedMessageID?: number;
 		useComposerContent?: boolean;
-		planModeSwitch?: PlanModeSwitch;
+		clearPlanMode?: boolean;
 	}) {
 		const { content, hasContent } = buildChatInputContent({
 			message,
@@ -792,12 +737,6 @@ const AgentChatPage: FC = () => {
 		if (!hasContent || isSubmissionPending || !hasModelOptions) {
 			return;
 		}
-		// Wait for chat-setting mutations to settle before sending so the
-		// message observes the workspace and plan-mode choices the user just made.
-		await waitForPendingChatSettingsSyncs([
-			pendingPlanModeSyncRef.current,
-			pendingWorkspaceSyncRef.current,
-		]);
 
 		// Built-ins only intercept new, text-only sends. A personal or workspace
 		// skill with the same name takes precedence.
@@ -927,17 +866,12 @@ const AgentChatPage: FC = () => {
 		}
 
 		const selectedModelConfigID = effectiveSelectedModel || undefined;
-		const request: CreateChatMessageRequestWithClearablePlanMode = {
+		const request = {
 			content,
 			model_config_id: selectedModelConfigID,
 			reasoning_effort: effectiveReasoningEffort,
 			mcp_server_ids: [...effectiveMCPServerIds],
-			...(planModeSwitch !== undefined
-				? {
-						plan_mode:
-							planModeSwitch === "clear" ? clearChatPlanMode : planModeSwitch,
-					}
-				: {}),
+			...planModeFieldsForCreateMessage(clearPlanMode),
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
@@ -1030,11 +964,8 @@ const AgentChatPage: FC = () => {
 		} else {
 			localStorage.removeItem(lastModelConfigIDStorageKey);
 		}
-		if (planModeSwitch !== undefined) {
-			setCachedChatPlanMode(
-				agentId,
-				planModeSwitch === "clear" ? undefined : planModeSwitch,
-			);
+		if (clearPlanMode) {
+			setCachedChatPlanMode(agentId, undefined);
 		}
 	}
 
@@ -1060,7 +991,7 @@ const AgentChatPage: FC = () => {
 	const handleImplementPlan = async () => {
 		await submitChatTurn({
 			message: "Implement the plan.",
-			planModeSwitch: "clear",
+			clearPlanMode: true,
 			useComposerContent: false,
 		});
 	};
@@ -1115,7 +1046,6 @@ const AgentChatPage: FC = () => {
 					key={agentId}
 					chat={chat}
 					persistedError={persistedError}
-					canShareChat={canShareChat}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}

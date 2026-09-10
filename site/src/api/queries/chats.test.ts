@@ -92,6 +92,7 @@ import {
 	patchChatEntity,
 	patchChatMessages,
 	pinChat,
+	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
@@ -604,7 +605,30 @@ describe("invalidateChatListQueries", () => {
 	});
 });
 
-describe("updateChatPlanMode optimistic update", () => {
+describe("planModeFieldsForCreateMessage", () => {
+	it("only sends the clear wire value when requested", () => {
+		expect(planModeFieldsForCreateMessage(true)).toEqual({ plan_mode: "" });
+		expect(planModeFieldsForCreateMessage(false)).toEqual({});
+	});
+});
+
+describe("updateChatPlanMode", () => {
+	it("sends plan to enable and an empty string to clear", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
+		const mutation = updateChatPlanMode(queryClient);
+
+		await mutation.mutationFn({ chatId: "chat-1", planMode: "plan" });
+		await mutation.mutationFn({ chatId: "chat-1", planMode: undefined });
+
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(1, "chat-1", {
+			plan_mode: "plan",
+		});
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(2, "chat-1", {
+			plan_mode: "",
+		});
+	});
+
 	it("invalidates the chat list on error without a detail cache", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

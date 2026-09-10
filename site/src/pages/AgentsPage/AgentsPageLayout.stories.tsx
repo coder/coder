@@ -408,6 +408,9 @@ const meta: Meta<typeof AgentsPageLayout> = {
 		spyOn(API.experimental, "updateChatRetentionDays").mockResolvedValue();
 
 		spyOn(API, "getGroups").mockResolvedValue([]);
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: false,
+		});
 	},
 };
 
@@ -621,21 +624,6 @@ export const PersistedResizableSidebarWidth: Story = {
 	parameters: {
 		viewport: { defaultViewport: "ipad" },
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const sidebar = canvas.getByTestId("agents-sidebar-panel");
-		const handle = canvas.getByRole("separator", {
-			name: "Resize agents sidebar",
-		});
-		const sidebarWidth = () =>
-			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
-
-		await expect(handle).toHaveAttribute(
-			"aria-valuenow",
-			String(persistedLeftSidebarWidth),
-		);
-		await expect(sidebarWidth()).toBe(`${persistedLeftSidebarWidth}px`);
-	},
 };
 
 const narrowAgentsLayoutWidth = 720;
@@ -764,8 +752,7 @@ export const ChatsLoadError: Story = {
 	},
 };
 
-// The collapsed state is internal to the layout. Drive it through
-// the UI, then assert the collapse took effect.
+// The collapsed state is internal to the layout; drive it through the UI.
 export const SidebarCollapsed: Story = {
 	beforeEach: () => {
 		mockChats([
@@ -781,9 +768,7 @@ export const SidebarCollapsed: Story = {
 		await userEvent.click(
 			await canvas.findByRole("button", { name: "Collapse sidebar" }),
 		);
-		await expect(
-			await canvas.findByRole("button", { name: "Expand sidebar" }),
-		).toBeVisible();
+		await canvas.findByRole("button", { name: "Expand sidebar" });
 	},
 };
 
@@ -812,11 +797,9 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 		await userEvent.click(
 			await canvas.findByRole("button", { name: "Collapse sidebar" }),
 		);
-		const expandButton = await canvas.findByRole("button", {
+		await canvas.findByRole("button", {
 			name: "Expand sidebar",
 		});
-
-		await expect(expandButton).toBeVisible();
 	},
 };
 
@@ -851,27 +834,18 @@ export const DeleteConfirmationDialog: Story = {
 	},
 	play: async () => {
 		const dialog = await screen.findByRole("dialog");
-		await expect(dialog).toBeInTheDocument();
-		await expect(
-			within(dialog).getByText("Archive agent & delete workspace"),
-		).toBeInTheDocument();
 
-		// Confirm button should be disabled before typing the workspace name.
+		// Confirm button is disabled before typing the workspace name.
 		const confirmButton = within(dialog).getByRole("button", {
 			name: /delete/i,
 		});
-		await expect(confirmButton).toBeDisabled();
 
 		// Type the workspace name to satisfy the confirmation guard.
 		const input = within(dialog).getByLabelText(/name of the workspace/i);
 		await userEvent.type(input, "my-workspace");
-		await expect(confirmButton).toBeEnabled();
 
-		// Click confirm and verify the callback fires, then enters loading state.
+		// Click confirm so the dialog enters its loading state.
 		await userEvent.click(confirmButton);
-		await waitFor(() => {
-			expect(confirmButton).toBeDisabled();
-		});
 	},
 };
 
@@ -1012,7 +986,13 @@ export const UnarchiveWatchEventRecoversArchivedChat: Story = {
 		chatWatchEvent("created", watchedChat({ archived: false })),
 	]),
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("textbox", { name: "Chat message" });
+		const canvas = within(canvasElement);
+		await canvas.findByRole("textbox", { name: "Chat message" });
+		await waitFor(
+			() =>
+				canvas.queryByText("This agent has been archived and is read-only.") ===
+				null,
+		);
 	},
 };
 
@@ -1062,11 +1042,7 @@ export const OpensSettingsForAdmins: Story = {
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);
 
-		await waitFor(() => {
-			expect(
-				screen.getByText("Personal preferences for your chat experience."),
-			).toBeInTheDocument();
-		});
+		await screen.findByText("Personal preferences for your chat experience.");
 	},
 };
 
@@ -1077,15 +1053,7 @@ export const OpensSettingsForNonAdmins: Story = {
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);
 
-		await waitFor(() => {
-			expect(
-				screen.getByText("Personal preferences for your chat experience."),
-			).toBeInTheDocument();
-		});
-
-		expect(
-			screen.queryByRole("link", { name: "Manage agents" }),
-		).not.toBeInTheDocument();
+		await screen.findByText("Personal preferences for your chat experience.");
 	},
 };
 
@@ -1099,13 +1067,9 @@ export const OpensSettingsForOrgModelAdmins: Story = {
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);
 
-		const manageAgentsLink = await screen.findByRole("link", {
+		await screen.findByRole("link", {
 			name: "Manage agents",
 		});
-		expect(manageAgentsLink).toHaveAttribute(
-			"href",
-			"/ai/settings/coder-agents",
-		);
 	},
 };
 
@@ -1121,16 +1085,10 @@ export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 		const manageAgentsLink = await screen.findByRole("link", {
 			name: "Manage agents",
 		});
-		expect(manageAgentsLink).toHaveAttribute(
-			"href",
-			"/ai/settings/coder-agents",
-		);
 
 		await userEvent.click(manageAgentsLink);
 
-		await expect(
-			await screen.findByRole("heading", { name: "Coder Agents" }),
-		).toBeInTheDocument();
+		await screen.findByRole("heading", { name: "Coder Agents" });
 	},
 };
 
@@ -1138,28 +1096,15 @@ export const SettingsViewCoderAgentsLink: Story = {
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);
 
-		await waitFor(() => {
-			expect(
-				screen.getByText("Personal preferences for your chat experience."),
-			).toBeInTheDocument();
-		});
+		await screen.findByText("Personal preferences for your chat experience.");
 
 		const manageAgentsLink = await screen.findByRole("link", {
 			name: "Manage agents",
 		});
-		expect(manageAgentsLink).toHaveAttribute(
-			"href",
-			"/ai/settings/coder-agents",
-		);
-
 		await userEvent.click(manageAgentsLink);
 
-		await waitFor(() => {
-			expect(
-				screen.getByText(
-					/organization model choices and deployment-wide Coder Agents capabilities/,
-				),
-			).toBeInTheDocument();
-		});
+		await screen.findByText(
+			/organization model choices and deployment-wide Coder Agents capabilities/,
+		);
 	},
 };

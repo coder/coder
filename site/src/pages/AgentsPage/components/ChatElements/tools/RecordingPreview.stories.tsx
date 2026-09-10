@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { FileProbeProvider } from "../../ChatConversation/FileProbeContext";
 import { RecordingPreview } from "./RecordingPreview";
 
 // Static assets stored in site/.storybook/static/.
@@ -89,4 +90,18 @@ export const WithoutThumbnail: Story = {
 	args: {
 		recordingFileId: "rec-id",
 	},
+};
+
+export const Expired: Story = {
+	args: {
+		recordingFileId: "evicted-rec-id",
+		thumbnailFileId: "evicted-thumb-id",
+	},
+	decorators: [
+		(Story) => (
+			<FileProbeProvider evictedFileIds={new Set(["evicted-rec-id"])}>
+				<Story />
+			</FileProbeProvider>
+		),
+	],
 };
