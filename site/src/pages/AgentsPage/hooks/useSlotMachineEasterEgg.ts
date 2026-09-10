@@ -5,24 +5,25 @@ import { toast } from "sonner";
  * Easter egg. Typing "iddqd" anywhere in the Agents UI (including while the
  * composer has focus) swaps the Thinking indicator for a small slot machine;
  * typing it again turns it off. The toggle is persisted in localStorage so it
- * survives reloads. This is intentional and has no effect outside the
- * indicator's visuals.
+ * survives reloads.
  */
 export const slotMachineStorageKey = "agents.slot-machine";
 export const slotMachineKeySequence = "iddqd";
 
 /**
  * Reports whether a keydown event contributes a printable character that the
- * sequence buffer should record. Ctrl, Meta, and Alt chords are skipped.
- * Shift is allowed because it still produces a printable key.
+ * sequence buffer should record. Ctrl, Meta, and Alt chords and keystrokes
+ * that are part of an IME composition are skipped. Shift is allowed because
+ * it still produces a printable key.
  */
 export function isPrintableKeyEvent(event: {
 	key: string;
 	ctrlKey: boolean;
 	metaKey: boolean;
 	altKey: boolean;
+	isComposing?: boolean;
 }): boolean {
-	if (event.ctrlKey || event.metaKey || event.altKey) {
+	if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) {
 		return false;
 	}
 	// Named keys such as "Enter" or "ArrowLeft" are longer than one code point.
@@ -46,34 +47,49 @@ export function matchesKeySequence(buffer: string, sequence: string): boolean {
 	return sequence.length > 0 && buffer.endsWith(sequence);
 }
 
+// Used only when localStorage is unreadable or unwritable, so the toggle
+// still works for the current page in that case.
+let fallbackEnabled = false;
 const listeners = new Set<() => void>();
 
-function readSlotMachineEnabled(): boolean {
+function getSlotMachineEnabled(): boolean {
 	try {
 		return localStorage.getItem(slotMachineStorageKey) === "true";
 	} catch {
-		return false;
+		return fallbackEnabled;
 	}
 }
 
-function writeSlotMachineEnabled(enabled: boolean): void {
-	try {
-		localStorage.setItem(slotMachineStorageKey, String(enabled));
-	} catch {
-		// Storage can be unavailable (private mode, quota); the toggle then
-		// only lasts for the current page.
-	}
+function notifyListeners(): void {
 	for (const listener of listeners) {
 		listener();
 	}
 }
 
+function setSlotMachineEnabled(enabled: boolean): void {
+	fallbackEnabled = enabled;
+	try {
+		localStorage.setItem(slotMachineStorageKey, String(enabled));
+	} catch {
+		// Storage can be unavailable (private mode, quota); fallbackEnabled
+		// carries the value instead.
+	}
+	notifyListeners();
+}
+
+function handleStorageEvent(event: StorageEvent): void {
+	// A null key means the whole store was cleared.
+	if (event.key === null || event.key === slotMachineStorageKey) {
+		notifyListeners();
+	}
+}
+
 function subscribeSlotMachineEnabled(listener: () => void): () => void {
 	listeners.add(listener);
-	window.addEventListener("storage", listener);
+	window.addEventListener("storage", handleStorageEvent);
 	return () => {
 		listeners.delete(listener);
-		window.removeEventListener("storage", listener);
+		window.removeEventListener("storage", handleStorageEvent);
 	};
 }
 
@@ -81,7 +97,7 @@ function subscribeSlotMachineEnabled(listener: () => void): () => void {
 export function useSlotMachineEnabled(): boolean {
 	return useSyncExternalStore(
 		subscribeSlotMachineEnabled,
-		readSlotMachineEnabled,
+		getSlotMachineEnabled,
 	);
 }
 
@@ -107,29 +123,12 @@ export function useSlotMachineEasterEggListener(): void {
 				return;
 			}
 			bufferRef.current = "";
-			const enabled = !readSlotMachineEnabled();
-			writeSlotMachineEnabled(enabled);
+			const enabled = !getSlotMachineEnabled();
+			setSlotMachineEnabled(enabled);
 			toast(enabled ? "Slot machine mode on" : "Slot machine mode off");
 		};
 
 		document.addEventListener("keydown", handler);
 		return () => document.removeEventListener("keydown", handler);
 	}, []);
-}
-
-const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
-
-function subscribeReducedMotion(listener: () => void): () => void {
-	const media = window.matchMedia(reducedMotionQuery);
-	media.addEventListener("change", listener);
-	return () => media.removeEventListener("change", listener);
-}
-
-function readReducedMotion(): boolean {
-	return window.matchMedia(reducedMotionQuery).matches;
-}
-
-/** Whether the user has asked for reduced motion. */
-export function usePrefersReducedMotion(): boolean {
-	return useSyncExternalStore(subscribeReducedMotion, readReducedMotion);
 }

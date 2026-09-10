@@ -1,10 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	appendToKeyBuffer,
 	isPrintableKeyEvent,
 	matchesKeySequence,
 	slotMachineKeySequence,
+	slotMachineStorageKey,
+	useSlotMachineEasterEggListener,
 } from "./useSlotMachineEasterEgg";
+
+vi.mock("sonner", () => ({ toast: vi.fn() }));
 
 const keyEvent = (
 	key: string,
@@ -12,6 +17,7 @@ const keyEvent = (
 		ctrlKey: boolean;
 		metaKey: boolean;
 		altKey: boolean;
+		isComposing: boolean;
 	}> = {},
 ) => ({ key, ctrlKey: false, metaKey: false, altKey: false, ...modifiers });
 
@@ -32,6 +38,12 @@ describe("isPrintableKeyEvent", () => {
 		expect(isPrintableKeyEvent(keyEvent("d", { ctrlKey: true }))).toBe(false);
 		expect(isPrintableKeyEvent(keyEvent("d", { metaKey: true }))).toBe(false);
 		expect(isPrintableKeyEvent(keyEvent("d", { altKey: true }))).toBe(false);
+	});
+
+	it("rejects keystrokes that are part of an IME composition", () => {
+		expect(isPrintableKeyEvent(keyEvent("d", { isComposing: true }))).toBe(
+			false,
+		);
 	});
 });
 
@@ -58,5 +70,37 @@ describe("matchesKeySequence", () => {
 
 	it("never matches an empty sequence", () => {
 		expect(matchesKeySequence("anything", "")).toBe(false);
+	});
+});
+
+describe("useSlotMachineEasterEggListener", () => {
+	afterEach(() => {
+		localStorage.removeItem(slotMachineStorageKey);
+	});
+
+	const type = (text: string) => {
+		for (const key of text) {
+			document.dispatchEvent(
+				new KeyboardEvent("keydown", { key, bubbles: true }),
+			);
+		}
+	};
+
+	it("persists the toggle on each full sequence", () => {
+		renderHook(() => useSlotMachineEasterEggListener());
+
+		type("hello iddqd");
+		expect(localStorage.getItem(slotMachineStorageKey)).toBe("true");
+
+		type("iddqd");
+		expect(localStorage.getItem(slotMachineStorageKey)).toBe("false");
+	});
+
+	it("stops listening after unmount", () => {
+		const { unmount } = renderHook(() => useSlotMachineEasterEggListener());
+		unmount();
+
+		type("iddqd");
+		expect(localStorage.getItem(slotMachineStorageKey)).toBeNull();
 	});
 });

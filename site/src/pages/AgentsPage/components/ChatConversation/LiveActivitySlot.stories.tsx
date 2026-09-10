@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
-import { Toaster } from "#/components/Toaster/Toaster";
+import { userEvent, within } from "storybook/test";
 import { setupMatchMedia } from "#/testHelpers/matchMedia";
 import {
 	slotMachineStorageKey,
@@ -8,11 +7,21 @@ import {
 } from "../../hooks/useSlotMachineEasterEgg";
 import { LiveActivitySlot } from "./AssistantOutput";
 
+const clearSlotMachineFlag = () => {
+	localStorage.removeItem(slotMachineStorageKey);
+};
+
+const enableSlotMachineFlag = () => {
+	localStorage.setItem(slotMachineStorageKey, "true");
+	return clearSlotMachineFlag;
+};
+
 const meta: Meta<typeof LiveActivitySlot> = {
 	title: "pages/AgentsPage/ChatConversation/LiveActivitySlot",
 	component: LiveActivitySlot,
 	beforeEach: () => {
-		localStorage.removeItem(slotMachineStorageKey);
+		clearSlotMachineFlag();
+		return clearSlotMachineFlag;
 	},
 };
 export default meta;
@@ -26,19 +35,20 @@ export const Interrupting: Story = {
 
 /** The easter egg flag swaps the lightbulb and shimmer for the reels. */
 export const SlotMachineActive: Story = {
-	beforeEach: () => {
-		localStorage.setItem(slotMachineStorageKey, "true");
-	},
+	beforeEach: enableSlotMachineFlag,
 };
 
 /** Reduced motion holds the reels on the landed row without spinning. */
 export const SlotMachineReducedMotion: Story = {
 	beforeEach: () => {
-		localStorage.setItem(slotMachineStorageKey, "true");
+		const clearFlag = enableSlotMachineFlag();
 		const { restore } = setupMatchMedia({
 			"(prefers-reduced-motion: reduce)": true,
 		});
-		return restore;
+		return () => {
+			restore();
+			clearFlag();
+		};
 	},
 };
 
@@ -48,28 +58,20 @@ export const SlotMachineReducedMotion: Story = {
  */
 export const SlotMachineInterrupting: Story = {
 	args: { interrupting: true },
-	beforeEach: () => {
-		localStorage.setItem(slotMachineStorageKey, "true");
-	},
+	beforeEach: enableSlotMachineFlag,
 };
 
 const WithEasterEggListener = () => {
 	useSlotMachineEasterEggListener();
-	return (
-		<>
-			<LiveActivitySlot />
-			<Toaster />
-		</>
-	);
+	return <LiveActivitySlot />;
 };
 
-/** Typing the sequence with nothing focused toggles the flag and persists it. */
+/** Typing the sequence with nothing focused turns the reels on. */
 export const TypingSequenceTogglesSlotMachine: Story = {
 	render: () => <WithEasterEggListener />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.keyboard("iddqd");
 		await canvas.findByTestId("slot-machine-indicator");
-		expect(localStorage.getItem(slotMachineStorageKey)).toBe("true");
 	},
 };

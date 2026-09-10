@@ -7,7 +7,9 @@ import {
 	StarIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { usePrefersReducedMotion } from "../../hooks/useSlotMachineEasterEgg";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+
+const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
 
 // Row 0 is the landed row and is repeated at the end so the looping reel
 // animation restarts on an identical frame. The reels share one animation
@@ -22,20 +24,19 @@ const reelDelays = [
 	"[animation-delay:120ms]",
 	"[animation-delay:240ms]",
 ];
-const rowHeightRem = 1;
+const rowHeightRem = 1; // Matches the size-4 icon rows below.
 const reelTravel = `-${reelSymbols.length * rowHeightRem}rem`;
 
 /**
- * Easter egg. Three-reel slot machine that stands in for the Thinking
- * indicator's icon and shimmer while the flag from `useSlotMachineEnabled` is
- * on. Purely decorative: the visual is hidden from assistive technology and
- * the caller keeps the status text in the DOM. With reduced motion the reels
- * do not animate and show the landed row.
+ * Easter egg. Three-reel slot machine shown in place of the Thinking
+ * indicator's icon and shimmer. Renders no accessible content; a text label
+ * must accompany it. With reduced motion the reels do not animate and show
+ * the landed row.
  */
 export const SlotMachineIndicator: FC<{ className?: string }> = ({
 	className,
 }) => {
-	const reducedMotion = usePrefersReducedMotion();
+	const reducedMotion = useMediaQuery(reducedMotionQuery);
 
 	return (
 		<div
@@ -47,7 +48,7 @@ export const SlotMachineIndicator: FC<{ className?: string }> = ({
 			)}
 		>
 			{reelDelays.map((delay) => (
-				<div key={delay} className="h-4 w-4 overflow-hidden">
+				<div key={delay} className="size-4 overflow-hidden">
 					<div
 						style={{ "--slot-reel-travel": reelTravel }}
 						className={cn(
