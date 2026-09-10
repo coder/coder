@@ -251,13 +251,10 @@ AI Gateway passes the profile upstream so AWS records the attribution, while
 internally resolving and using the underlying model identity, including for
 usage pricing.
 
-Resolution requires a `GetInferenceProfile` call, which Coder makes when the
-provider is saved, not when a request is served. The AWS identity Coder uses,
-which is the provider's access keys when configured and otherwise the identity
-of the Coder deployment, must have `bedrock:GetInferenceProfile` permission for
-the profile. Saving reports an error when the lookup fails, and the provider
-cannot serve requests until a later save resolves it. Providers configured with
-plain model identifiers do not need this permission.
+Resolution requires a `GetInferenceProfile` call, so the AWS identity used by
+the gateway must have `bedrock:GetInferenceProfile` permission for the
+profile. Providers configured with plain model identifiers do not need this
+permission. If resolution fails, the provider is skipped.
 
 ### GitHub Copilot
 
