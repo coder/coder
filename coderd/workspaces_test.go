@@ -5287,9 +5287,10 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// whitespace-only app names of any length are equivalent to an absent
-		// app name: the usage bump still happens, no session is counted
-		for _, appName := range []string{"   ", strings.Repeat(" ", 300)} {
+		// app names that carry no name of their own, whitespace or control
+		// characters of any length, are equivalent to an absent app name: the
+		// usage bump still happens, no session is counted
+		for _, appName := range []string{"   ", strings.Repeat(" ", 300), "\x00", "\x1b\x07", " \x1b \t"} {
 			err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 				AppName: appName,
 			})

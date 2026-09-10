@@ -740,6 +740,117 @@ func TestUpdateStats(t *testing.T) {
 		require.EqualValues(t, 2000, batcher.LastStats.GetTxBytes())
 	})
 
+	t.Run("SessionCountsOverBoundNonPositive", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			now     = dbtime.Now()
+			dbM     = dbmock.NewMockStore(gomock.NewController(t))
+			ps      = pubsub.NewInMemory()
+			batcher = &workspacestatstest.StatsBatcher{}
+
+			sessionCounts = make(map[string]int64, workspacestats.MaxReportedSessionCountEntries+21)
+		)
+		// Every count is 1, so the fold is the same whichever names the bound
+		// keeps.
+		for i := range workspacestats.MaxReportedSessionCountEntries + 10 {
+			sessionCounts[fmt.Sprintf("app_%d", i)] = 1
+		}
+		for i := range 10 {
+			sessionCounts[fmt.Sprintf("negative_%d", i)] = -1_000
+		}
+		// A negative count on the very key the fold lands on.
+		sessionCounts[string(codersdk.AppFamilyUnknown)] = -1_000
+		req := &agentproto.UpdateStatsRequest{
+			Stats: &agentproto.Stats{
+				ConnectionsByProto:        map[string]int64{"tcp": 1},
+				ConnectionMedianLatencyMs: 23,
+				SessionCounts:             sessionCounts,
+			},
+		}
+
+		api := agentapi.StatsAPI{
+			AgentID:   agent.ID,
+			AgentName: agent.Name,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
+			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+				Database:     dbM,
+				Pubsub:       ps,
+				StatsBatcher: batcher,
+				UsageTracker: workspacestats.NewTracker(dbM),
+			}),
+			AgentStatsRefreshInterval: 10 * time.Second,
+			TimeNowFn: func() time.Time {
+				return now
+			},
+		}
+
+		_, err := api.UpdateStats(context.Background(), req)
+		require.NoError(t, err)
+
+		batcher.Mu.Lock()
+		defer batcher.Mu.Unlock()
+		bounded := batcher.LastStats.GetSessionCounts()
+		// Non-positive counts are dropped, so 10 of the reported ones are
+		// folded and none of them cancels the fold.
+		require.Len(t, bounded, workspacestats.MaxReportedSessionCountEntries+1)
+		require.EqualValues(t, 10, bounded[string(codersdk.AppFamilyUnknown)])
+		for name, count := range bounded {
+			require.Positive(t, count, name)
+		}
+	})
+
+	t.Run("SessionCountsOverBoundAllNonPositive", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			now     = dbtime.Now()
+			dbM     = dbmock.NewMockStore(gomock.NewController(t))
+			ps      = pubsub.NewInMemory()
+			batcher = &workspacestatstest.StatsBatcher{}
+
+			sessionCounts = make(map[string]int64, workspacestats.MaxReportedSessionCountEntries+10)
+		)
+		for i := range workspacestats.MaxReportedSessionCountEntries + 10 {
+			sessionCounts[fmt.Sprintf("app_%d", i)] = -1
+		}
+		req := &agentproto.UpdateStatsRequest{
+			Stats: &agentproto.Stats{
+				ConnectionMedianLatencyMs: 23,
+				SessionCounts:             sessionCounts,
+				// An empty session_counts map would put these deprecated
+				// fields back in charge of the report.
+				SessionCountVscode: 9,
+			},
+		}
+
+		api := agentapi.StatsAPI{
+			AgentID:   agent.ID,
+			AgentName: agent.Name,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
+			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+				Database:     dbM,
+				Pubsub:       ps,
+				StatsBatcher: batcher,
+				UsageTracker: workspacestats.NewTracker(dbM),
+			}),
+			AgentStatsRefreshInterval: 10 * time.Second,
+			TimeNowFn: func() time.Time {
+				return now
+			},
+		}
+
+		_, err := api.UpdateStats(context.Background(), req)
+		require.NoError(t, err)
+
+		batcher.Mu.Lock()
+		defer batcher.Mu.Unlock()
+		require.NotEmpty(t, batcher.LastStats.GetSessionCounts())
+		require.False(t, workspacestats.HasSessionCounts(batcher.LastStats))
+	})
+
 	t.Run("SessionCountsAtBound", func(t *testing.T) {
 		t.Parallel()
 
