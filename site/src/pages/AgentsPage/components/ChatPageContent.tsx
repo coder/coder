@@ -10,8 +10,10 @@ import {
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import { rewriteLocalhostURL } from "#/utils/portForward";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -114,7 +116,8 @@ interface ChatPageTimelineProps {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-	urlTransform?: UrlTransform;
+	workspace?: TypesGen.Workspace;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	footer?: ReactNode;
 }
@@ -134,11 +137,13 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	editingMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
-	urlTransform,
+	workspace,
+	workspaceAgent,
 	mcpServers,
 	footer,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const { proxy } = useProxy();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
@@ -191,6 +196,19 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
 	const onRenderProfiler = useOnRenderProfiler();
+
+	// Primitives extracted from proxy/workspace so the compiler
+	// tracks stable strings, not object identity.
+	const proxyHost = proxy.preferredWildcardHostname;
+	const agentName = workspaceAgent?.name;
+	const wsName = workspace?.name;
+	const wsOwner = workspace?.owner_name;
+	const urlTransform: UrlTransform = (url) => {
+		if (!proxyHost || !agentName || !wsName || !wsOwner) {
+			return url;
+		}
+		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
+	};
 
 	return (
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
