@@ -994,8 +994,11 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 }
 
 func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
-	if role == codersdk.ChatRoleRead {
+	switch role {
+	case codersdk.ChatRoleRead:
 		return []policy.Action{policy.ActionRead}
+	case codersdk.ChatRoleWrite:
+		return []policy.Action{policy.ActionRead, policy.ActionUpdate}
 	}
 	return []policy.Action{}
 }

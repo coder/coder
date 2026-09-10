@@ -1556,7 +1556,11 @@ func (p *Server) SendMessage(
 		if chat.Archived {
 			return SendMessageResult{}, ErrChatArchived
 		}
-		if _, err := resolveSendMessageModelConfigID(ctx, p.db, chat, opts.ModelConfigID); err != nil {
+		modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
+		if err != nil {
+			return SendMessageResult{}, err
+		}
+		if _, err := resolveSendMessageModelConfigID(modelCtx, p.db, chat, opts.ModelConfigID); err != nil {
 			return SendMessageResult{}, err
 		}
 		// Check queue capacity before dispatch; the transaction
@@ -1612,8 +1616,14 @@ func (p *Server) SendMessage(
 			}
 		}
 
+		// Model selection is a chat setting, so resolve it with the
+		// owner's model visibility even when another user posts.
+		modelCtx, err := p.callerModelConfigContext(ctx, lockedChat.OwnerID)
+		if err != nil {
+			return err
+		}
 		modelConfigID, err := resolveSendMessageModelConfigID(
-			ctx,
+			modelCtx,
 			store,
 			lockedChat,
 			opts.ModelConfigID,

@@ -2171,7 +2171,7 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObjectWithoutACL()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -2227,7 +2227,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObjectWithoutACL()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -2550,6 +2550,53 @@ func writeCommonChatMutationError(ctx context.Context, rw http.ResponseWriter, e
 	return true
 }
 
+// chatWriteAllowed reports whether userID may drive the chat. The turn runs
+// with the poster's own credentials, so this is product policy rather than a
+// credential guard: only the owner and the users the owner explicitly granted
+// the write role may post. Org admins pass the RBAC update check but are not
+// allowed here.
+func (api *API) chatWriteAllowed(ctx context.Context, chat database.Chat, userID uuid.UUID) (bool, error) {
+	if chat.OwnerID == userID {
+		return true, nil
+	}
+	if api.chatSharingDisabled() {
+		return false, nil
+	}
+	if slices.Contains(chat.UserACL[userID.String()].Permissions, policy.ActionUpdate) {
+		return true, nil
+	}
+	if len(chat.GroupACL) == 0 {
+		return false, nil
+	}
+	groups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{HasMemberID: userID})
+	if err != nil {
+		return false, xerrors.Errorf("get groups for user %s: %w", userID, err)
+	}
+	for _, group := range groups {
+		if slices.Contains(chat.GroupACL[group.Group.ID.String()].Permissions, policy.ActionUpdate) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// requireChatWriteAllowed writes a response and returns false when the
+// caller may not drive the chat. See chatWriteAllowed.
+func (api *API) requireChatWriteAllowed(ctx context.Context, rw http.ResponseWriter, chat database.Chat, userID uuid.UUID, deniedMessage string) bool {
+	allowed, err := api.chatWriteAllowed(ctx, chat, userID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return false
+	}
+	if !allowed {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: deniedMessage,
+		})
+		return false
+	}
+	return true
+}
+
 // @Summary Send chat message
 // @ID send-chat-message
 // @Security CoderSessionToken
@@ -2577,16 +2624,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only the chat owner may send messages. Org admins pass the
-	// RBAC check above (org-level ActionUpdate), but chat
-	// processing forwards the *owner's* credentials (OIDC tokens,
-	// provider API keys) to external services. Allowing a
-	// non-owner to trigger processing would leak the owner's
-	// tokens to MCP servers the caller controls.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may send messages.",
-		})
+	if !api.requireChatWriteAllowed(ctx, rw, chat, apiKey.UserID, "Only the chat owner or a user with write access may send messages.") {
 		return
 	}
 
@@ -2777,8 +2815,8 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only the chat owner may edit messages. See postChatMessages
-	// for the security rationale.
+	// Only the chat owner may edit messages. ACL writers may post
+	// but not edit; see chatWriteAllowed.
 	if apiKey.UserID != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may edit messages.",
@@ -2925,7 +2963,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObjectWithoutACL()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -2994,8 +3032,8 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Only the chat owner may promote messages. See
-	// postChatMessages for the security rationale.
+	// Only the chat owner may promote messages. ACL writers may
+	// post but not manage the queue; see chatWriteAllowed.
 	if apiKey.UserID != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may promote queued messages.",
@@ -3439,7 +3477,7 @@ func (api *API) reconcileInvalidChatState(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObjectWithoutACL()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -3492,8 +3530,8 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only the chat owner may propose titles. See
-	// postChatMessages for the security rationale.
+	// Only the chat owner may propose titles. ACL writers may post
+	// but not retitle; see chatWriteAllowed.
 	if apiKey.UserID != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may propose a title.",
@@ -8125,12 +8163,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only the chat owner may submit tool results. See
-	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may submit tool results.",
-		})
+	if !api.requireChatWriteAllowed(ctx, rw, chat, apiKey.UserID, "Only the chat owner or a user with write access may submit tool results.") {
 		return
 	}
 

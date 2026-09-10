@@ -1939,17 +1939,18 @@ type ChatRole string
 
 const (
 	ChatRoleRead    ChatRole = "read"
+	ChatRoleWrite   ChatRole = "write"
 	ChatRoleDeleted ChatRole = ""
 )
 
 type ChatUser struct {
 	MinimalUser
-	Role ChatRole `json:"role" enums:"read"`
+	Role ChatRole `json:"role" enums:"read,write"`
 }
 
 type ChatGroup struct {
 	Group
-	Role ChatRole `json:"role" enums:"read"`
+	Role ChatRole `json:"role" enums:"read,write"`
 }
 
 type ChatACL struct {

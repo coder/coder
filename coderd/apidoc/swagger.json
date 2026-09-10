@@ -17967,7 +17967,7 @@
 					"type": "integer"
 				},
 				"role": {
-					"enum": ["read"],
+					"enum": ["read", "write"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.ChatRole"
@@ -18988,8 +18988,8 @@
 		},
 		"codersdk.ChatRole": {
 			"type": "string",
-			"enum": ["read", ""],
-			"x-enum-varnames": ["ChatRoleRead", "ChatRoleDeleted"]
+			"enum": ["read", "write", ""],
+			"x-enum-varnames": ["ChatRoleRead", "ChatRoleWrite", "ChatRoleDeleted"]
 		},
 		"codersdk.ChatStatus": {
 			"type": "string",
@@ -19202,7 +19202,7 @@
 					"type": "string"
 				},
 				"role": {
-					"enum": ["read"],
+					"enum": ["read", "write"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.ChatRole"
@@ -22194,7 +22194,7 @@
 					"type": "boolean"
 				},
 				"forward_coder_headers": {
-					"description": "ForwardCoderHeaders forwards the same Coder identity headers we\nsend to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the\noptional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this\nMCP server on every request. Off by default to avoid leaking\nchat identity to third-party servers.",
+					"description": "ForwardCoderHeaders forwards the same Coder identity headers we\nsend to LLM providers (X-Coder-Owner-Id, X-Coder-Actor-Id,\nX-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and\nX-Coder-Workspace-Id) to this MCP server on every request. Off by\ndefault to avoid leaking chat identity to third-party servers.",
 					"type": "boolean"
 				},
 				"has_api_key": {

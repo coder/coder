@@ -18720,3 +18720,89 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		}
 	})
 }
+
+// TestChatWriteSharedActor verifies that a user granted the write role can
+// post into a shared chat and that the turn runs as that user, while chat
+// settings and the ACL stay owner-only and read-only sharers cannot post.
+func TestChatWriteSharedActor(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ownerClient, db, api := newChatClientWithAPIAndDatabase(t)
+	owner := coderdtest.CreateFirstUser(t, ownerClient.Client)
+	_ = createChatModel(t, ownerClient)
+	writerRaw, writer := coderdtest.CreateAnotherUser(t, ownerClient.Client, owner.OrganizationID)
+	writerClient := codersdk.NewExperimentalClient(writerRaw)
+	readerRaw, reader := coderdtest.CreateAnotherUser(t, ownerClient.Client, owner.OrganizationID)
+	readerClient := codersdk.NewExperimentalClient(readerRaw)
+
+	chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: owner.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "write shared chat",
+		}},
+	})
+	require.NoError(t, err)
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+	err = ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			writer.ID.String(): codersdk.ChatRoleWrite,
+			reader.ID.String(): codersdk.ChatRoleRead,
+		},
+	})
+	require.NoError(t, err)
+
+	acl, err := ownerClient.GetChatACL(ctx, chat.ID)
+	require.NoError(t, err)
+	gotRoles := make(map[uuid.UUID]codersdk.ChatRole, len(acl.Users))
+	for _, user := range acl.Users {
+		gotRoles[user.ID] = user.Role
+	}
+	require.Equal(t, map[uuid.UUID]codersdk.ChatRole{
+		writer.ID: codersdk.ChatRoleWrite,
+		reader.ID: codersdk.ChatRoleRead,
+	}, gotRoles)
+
+	_, err = readerClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "reader cannot post",
+		}},
+	})
+	requireSDKError(t, err, http.StatusNotFound)
+
+	posted, err := writerClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "writer can post",
+		}},
+	})
+	require.NoError(t, err)
+	require.False(t, posted.Queued)
+	require.NotNil(t, posted.Message)
+	require.NotNil(t, posted.Message.CreatedBy)
+	require.Equal(t, writer.ID, *posted.Message.CreatedBy)
+
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+	// The turn ran with the writer's credentials.
+	_, err = db.GetChatGatewayAPIKey(dbauthz.AsSystemRestricted(ctx), database.GetChatGatewayAPIKeyParams{
+		UserID:    writer.ID,
+		TokenName: chatd.GatewayTokenName(writer.ID),
+	})
+	require.NoError(t, err)
+
+	err = writerClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+		Archived: ptr.Ref(true),
+	})
+	requireSDKError(t, err, http.StatusNotFound)
+
+	err = writerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			reader.ID.String(): codersdk.ChatRoleWrite,
+		},
+	})
+	requireSDKError(t, err, http.StatusForbidden)
+}

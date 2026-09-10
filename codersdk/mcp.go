@@ -90,10 +90,10 @@ type MCPServerConfig struct {
 	AllowInPlanMode bool `json:"allow_in_plan_mode"`
 
 	// ForwardCoderHeaders forwards the same Coder identity headers we
-	// send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the
-	// optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
-	// MCP server on every request. Off by default to avoid leaking
-	// chat identity to third-party servers.
+	// send to LLM providers (X-Coder-Owner-Id, X-Coder-Actor-Id,
+	// X-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and
+	// X-Coder-Workspace-Id) to this MCP server on every request. Off by
+	// default to avoid leaking chat identity to third-party servers.
 	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
 	CreatedAt           time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`

@@ -3283,9 +3283,9 @@ export interface ChatRetentionDaysResponse {
 }
 
 // From codersdk/chats.go
-export type ChatRole = "" | "read";
+export type ChatRole = "" | "read" | "write";
 
-export const ChatRoles: ChatRole[] = ["", "read"];
+export const ChatRoles: ChatRole[] = ["", "read", "write"];
 
 // From codersdk/chats.go
 export interface ChatSkillPart {
@@ -5999,10 +5999,10 @@ export interface MCPServerConfig {
 	readonly allow_in_plan_mode: boolean;
 	/**
 	 * ForwardCoderHeaders forwards the same Coder identity headers we
-	 * send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the
-	 * optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
-	 * MCP server on every request. Off by default to avoid leaking
-	 * chat identity to third-party servers.
+	 * send to LLM providers (X-Coder-Owner-Id, X-Coder-Actor-Id,
+	 * X-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and
+	 * X-Coder-Workspace-Id) to this MCP server on every request. Off by
+	 * default to avoid leaking chat identity to third-party servers.
 	 */
 	readonly forward_coder_headers: boolean;
 	readonly created_at: string;

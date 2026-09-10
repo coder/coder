@@ -19955,7 +19955,8 @@ const docTemplate = `{
                 },
                 "role": {
                     "enum": [
-                        "read"
+                        "read",
+                        "write"
                     ],
                     "allOf": [
                         {
@@ -21004,10 +21005,12 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "read",
+                "write",
                 ""
             ],
             "x-enum-varnames": [
                 "ChatRoleRead",
+                "ChatRoleWrite",
                 "ChatRoleDeleted"
             ]
         },
@@ -21226,7 +21229,8 @@ const docTemplate = `{
                 },
                 "role": {
                     "enum": [
-                        "read"
+                        "read",
+                        "write"
                     ],
                     "allOf": [
                         {
@@ -24347,7 +24351,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "forward_coder_headers": {
-                    "description": "ForwardCoderHeaders forwards the same Coder identity headers we\nsend to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the\noptional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this\nMCP server on every request. Off by default to avoid leaking\nchat identity to third-party servers.",
+                    "description": "ForwardCoderHeaders forwards the same Coder identity headers we\nsend to LLM providers (X-Coder-Owner-Id, X-Coder-Actor-Id,\nX-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and\nX-Coder-Workspace-Id) to this MCP server on every request. Off by\ndefault to avoid leaking chat identity to third-party servers.",
                     "type": "boolean"
                 },
                 "has_api_key": {
