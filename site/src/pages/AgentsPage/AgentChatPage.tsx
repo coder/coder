@@ -89,8 +89,7 @@ import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watc
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import {
-	getDefaultMCPSelection,
-	getSavedMCPSelection,
+	resolveMCPSelection,
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
@@ -277,29 +276,13 @@ const AgentChatPage: FC = () => {
 		chat !== undefined && currentUser.id !== chat.owner_id;
 	const planModeEnabled = chat?.plan_mode === "plan";
 
-	// Initialize MCP selection from chat record or defaults.
-	const effectiveMCPServerIds = (() => {
-		if (selectedMCPServerIds !== null) {
-			return selectedMCPServerIds;
-		}
-		// If the chat has MCP server IDs recorded (even empty, meaning
-		// the user deliberately opted out), use those.
-		if (chat?.mcp_server_ids) {
-			return chat.mcp_server_ids;
-		}
-		const saved = chatOrganizationId
-			? getSavedMCPSelection(
-					chatOrganizationId,
-					mcpServers,
-					isDefaultChatOrganization,
-				)
-			: null;
-		if (saved !== null) {
-			return saved;
-		}
-		// Otherwise, compute defaults from server availability.
-		return getDefaultMCPSelection(mcpServers);
-	})();
+	const effectiveMCPServerIds = resolveMCPSelection({
+		userSelection: selectedMCPServerIds,
+		chatSelection: chat?.mcp_server_ids,
+		organizationId: chatOrganizationId,
+		servers: mcpServers,
+		isDefaultOrganization: isDefaultChatOrganization,
+	});
 
 	// Flatten paginated messages into chronological order.
 	// Pages arrive newest-first per page, and pages[0] is the
