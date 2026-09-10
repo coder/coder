@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -11,7 +10,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func (p *Server) newStoreChatAttachmentFunc(workspaceCtx *turnWorkspaceContext) chattool.StoreFileFunc {
@@ -94,9 +92,6 @@ func storeLinkedChatFileTx(
 	}
 
 	if err := chatstate.LinkFiles(ctx, tx, chatID, []uuid.UUID{row.ID}); err != nil {
-		if errors.Is(err, chatstate.ErrChatFileCapExceeded) {
-			return chattool.AttachmentMetadata{}, xerrors.Errorf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs)
-		}
 		return chattool.AttachmentMetadata{}, err
 	}
 

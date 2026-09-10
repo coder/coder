@@ -44,7 +44,6 @@ import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedFo
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
-import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
@@ -111,7 +110,6 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	chat: TypesGen.Chat;
 	persistedError: ChatDetailError | undefined;
-	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 
@@ -145,7 +143,6 @@ interface AgentChatPageViewProps {
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
-	workspaceOptions?: readonly TypesGen.Workspace[];
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading?: boolean;
 
@@ -283,7 +280,6 @@ const UserTabContent: FC<UserTabContentProps> = ({
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	chat,
 	persistedError,
-	canShareChat,
 	workspaceAgent,
 	workspace,
 	store,
@@ -310,7 +306,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
-	workspaceOptions = [],
 	onWorkspaceChange,
 	isWorkspaceLoading = false,
 	showSidebarPanel,
@@ -874,17 +869,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										onToggleSidebar: () =>
 											onSetShowSidebarPanel(!showSidebarPanel),
 									}}
-									renderChatSharingContent={
-										canShareChat
-											? (open) => (
-													<ChatSharingPopoverContent
-														chatId={agentId}
-														organizationId={organizationId}
-														open={open}
-													/>
-												)
-											: undefined
-									}
 								/>
 								{modelCatalogError != null && (
 									<ErrorAlert error={modelCatalogError} />
@@ -931,6 +915,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								key={agentId}
 								organizationId={organizationId}
 								store={store}
+								chatFiles={chat.files}
 								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 								persistedError={persistedError}
 								hasMoreMessages={hasMoreMessages}
@@ -991,7 +976,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									onReasoningEffortChange={onReasoningEffortChange}
 									onPlanModeToggle={onPlanModeToggle}
 									isModelCatalogLoading={isModelCatalogLoading}
-									workspaceOptions={workspaceOptions}
 									onWorkspaceChange={onWorkspaceChange}
 									isWorkspaceLoading={isWorkspaceLoading}
 									inputRef={editing.chatInputRef}
