@@ -172,9 +172,24 @@ jobs:
 
           Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
 
-          Follow the skill's evidence discipline. State the evidence for each
-          user-facing change before you decide, and post nothing when the
-          evidence does not show a real unresolved gap.
+          Follow the skill's evidence discipline. Before you decide, run the
+          mandatory search it describes: list every literal this diff changes
+          (default values, flag names, env var names, thresholds, UI labels),
+          then search the whole docs tree for each OLD literal, not only the
+          files in the diff. For example:
+
+          \`\`\`
+          cd ~/coder && grep -rn '<the old literal>' docs/ | grep -v '^docs/reference/'
+          \`\`\`
+
+          Search the value as a number and as prose, because a guide can spell
+          it out. Two searches for one changed number is normal.
+
+          A hit outside \`docs/reference/\` is a gap. \`docs/reference/\` is
+          generated from code, so this PR regenerating it never fixes a
+          conceptual guide. Report each search you ran and what it returned.
+          You may post nothing only after every one of those searches returned
+          no hit outside \`docs/reference/\`.
 
           **Do not comment if no documentation changes are needed.**
 
