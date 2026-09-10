@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
@@ -1822,11 +1823,15 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 }
 
 // normalizeUsageAppName prepares a client-supplied app name for storage.
-// Input that normalizes to nothing, such as whitespace of any length,
-// returns the empty string so callers can treat it as an absent app name
-// rather than reporting a session under the unknown family.
+// Input made only of whitespace or control characters returns the empty
+// string, so callers can treat it as an absent app name rather than a
+// session under the unknown family, which is what codersdk.NormalizeAppName
+// reports for input it strips to nothing.
 func normalizeUsageAppName(appName string) string {
-	if strings.TrimSpace(strings.ReplaceAll(appName, "\x00", "")) == "" {
+	named := strings.IndexFunc(appName, func(r rune) bool {
+		return !unicode.IsControl(r) && !unicode.IsSpace(r)
+	})
+	if named == -1 {
 		return ""
 	}
 	return codersdk.NormalizeAppName(appName)
