@@ -2049,9 +2049,13 @@ WHERE chats.id = @chat_id::uuid
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
+-- Client-visible queue in processing order. position, not created_at,
+-- is what promotion follows: "send now" moves a row to the head by
+-- lowering its position, and clients derive the paused tail behind a
+-- held row from this order.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY created_at ASC, id ASC;
+ORDER BY position ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
