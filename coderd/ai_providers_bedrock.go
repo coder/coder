@@ -18,7 +18,8 @@ import (
 // an ARN, which costs no AWS call.
 func resolveBedrockProfiles(ctx context.Context, settings codersdk.AIProviderSettings) (map[string]string, error) {
 	resolved := map[string]string{}
-	// BaseURL is the runtime endpoint; resolution calls the control plane.
+	// BaseURL configures the runtime data-plane endpoint. GetInferenceProfile
+	// uses the Bedrock control-plane endpoint derived from Region instead.
 	cfg := agplaibridge.BedrockConfig("", settings.Bedrock)
 	if cfg == nil {
 		return resolved, nil
