@@ -150,6 +150,13 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 		}
 	}
 
+	// The query sums sessions per app name, so a session reported under a name
+	// this version does not know about is counted here rather than dropped.
+	sessionCounts, err := codersdk.SessionCountsByFamilyJSON(agentStats.SessionCounts)
+	if err != nil {
+		return xerrors.Errorf("group deployment session counts by app family: %w", err)
+	}
+
 	workspaceStats, err := c.database.GetDeploymentWorkspaceStats(ctx)
 	if err != nil {
 		return err
@@ -172,10 +179,10 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 			TxBytes: agentStats.WorkspaceTxBytes,
 		},
 		SessionCount: codersdk.SessionCountDeploymentStats{
-			VSCode:          agentStats.SessionCountVSCode,
-			SSH:             agentStats.SessionCountSSH,
-			JetBrains:       agentStats.SessionCountJetBrains,
-			ReconnectingPTY: agentStats.SessionCountReconnectingPTY,
+			VSCode:          sessionCounts[codersdk.AppFamilyVSCode],
+			SSH:             sessionCounts[codersdk.AppFamilySSH],
+			JetBrains:       sessionCounts[codersdk.AppFamilyJetBrains],
+			ReconnectingPTY: sessionCounts[codersdk.AppFamilyReconnectingPTY],
 		},
 	})
 	return nil

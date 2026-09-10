@@ -6,6 +6,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -583,6 +584,10 @@ type sqlcQuerier interface {
 	GetDefaultOrganization(ctx context.Context) (Organization, error)
 	GetDefaultProxyConfig(ctx context.Context) (GetDefaultProxyConfigRow, error)
 	GetDeploymentID(ctx context.Context) (string, error)
+	// The session count sum runs in its own subquery: decomposing session_counts
+	// in the FROM clause would emit one row per app name and multiply the byte and
+	// latency aggregates below. Summing per app name and folding the names into
+	// families in Go keeps a session reported under a new name counted.
 	GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error)
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
@@ -1260,8 +1265,11 @@ type sqlcQuerier interface {
 	// time. chatstate calls this in a single query so the staleness check
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
-	// LinkChatFilesAfterLock requires the chat row lock.
-	// The lock serializes cap checks. The result counts rejected new links.
+	// LinkChatFilesAfterLock requires the chat row lock. When the batch would
+	// exceed the cap, the oldest files on the chat are deleted to make room; the
+	// cascade removes their links. A file links to at most one chat, so no other
+	// chat can lose a file here. The batch is rejected only when the batch itself
+	// exceeds the cap.
 	LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error)
 	ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error)
 	// Finds all unique AI Bridge interception telemetry summaries combinations
@@ -1737,7 +1745,7 @@ type sqlcQuerier interface {
 	// into a single table for efficient storage and querying. Half-hour buckets are
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
-	UpsertTemplateUsageStats(ctx context.Context) error
+	UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAIBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
 	// user/provider pair already exists. On conflict, callers provide id and

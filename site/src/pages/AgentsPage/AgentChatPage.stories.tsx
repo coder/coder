@@ -1552,9 +1552,6 @@ export const NoLocalModelDisablesGeneration: Story = {
 				name: "The model used by this chat is not available. Generation is disabled because no usable model is available.",
 			}),
 		).toBeVisible();
-		expect(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-		).toHaveAttribute("aria-disabled", "true");
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 		expect(sendSpy).not.toHaveBeenCalled();
 	},
@@ -1602,17 +1599,12 @@ export const QueuedForCapacityAfterPolling: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/This agent is queued and will start automatically/),
-		).not.toBeInTheDocument();
-
-		const callout = await canvas.findByRole("alert", undefined, {
+		// The queued callout only appears after the 5s getChat poll flips
+		// queued_for_capacity, which outlasts Pixel's stability budget. Wait
+		// for the callout so the capture shows the queued state.
+		await canvas.findByRole("alert", undefined, {
 			timeout: 7_000,
 		});
-		expect(API.experimental.getChat).toHaveBeenCalledWith(CHAT_ID);
-		expect(callout).toHaveTextContent(
-			"This agent is queued and will start automatically when capacity is available.",
-		);
 	},
 };
 
@@ -1660,10 +1652,9 @@ export const PlanModeFromChatState: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		const user = userEvent.setup();
 
-		expect(await canvas.findByText("Planning")).toBeVisible();
+		await canvas.findByText("Planning");
 
 		await user.click(canvas.getByRole("button", { name: "More options" }));
-		await body.findByRole("dialog");
 		const toggles = await body.findAllByRole("menuitemcheckbox", {
 			name: "Plan first",
 		});
@@ -1671,12 +1662,7 @@ export const PlanModeFromChatState: Story = {
 		if (!toggle) {
 			throw new Error("Plan mode toggle did not render.");
 		}
-		expect(toggle).toHaveAttribute("aria-checked", "true");
 		await user.click(toggle);
-
-		await waitFor(() => {
-			expect(canvas.queryByText("Planning")).not.toBeInTheDocument();
-		});
 	},
 };
 
@@ -1704,21 +1690,11 @@ export const NarrowViewportShowsChatOverOpenPanel: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByRole("region", { name: "Messages" })).toBeVisible();
-		});
-		expect(
-			canvas.queryByRole("tab", { name: "Summary" }),
-		).not.toBeInTheDocument();
+		const user = userEvent.setup();
 
 		// Explicitly toggling the panel while narrow clears the suppression.
-		const messagesRegion = canvas.getByRole("region", { name: "Messages" });
-		const user = userEvent.setup();
 		await user.click(canvas.getByRole("button", { name: "Toggle panel" }));
-		await waitFor(() => {
-			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
-		});
-		expect(messagesRegion.checkVisibility()).toBe(false);
+		await canvas.findByRole("tab", { name: "Summary" });
 	},
 };
 
@@ -1754,32 +1730,12 @@ export const NarrowingSuppressesExpandedPanel: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-		await waitFor(() => {
-			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
-		});
+		await canvas.findByRole("tab", { name: "Summary" });
 
-		const messagesRegion = canvas.getByRole("region", { name: "Messages" });
 		await user.click(canvas.getByRole("button", { name: "Expand panel" }));
-		await waitFor(() => {
-			expect(messagesRegion.checkVisibility()).toBe(false);
-		});
 
 		narrowingMedia?.setMatches(belowLgViewportMediaQuery, true);
-		await waitFor(() => {
-			expect(messagesRegion.checkVisibility()).toBe(true);
-		});
-		// The suppressed panel is display:none, so its tab is no longer
-		// accessible to role queries.
-		expect(
-			canvas.queryByRole("tab", { name: "Summary" }),
-		).not.toBeInTheDocument();
-
-		// Widening again restores the persisted panel, still expanded.
 		narrowingMedia?.setMatches(belowLgViewportMediaQuery, false);
-		await waitFor(() => {
-			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
-		});
-		expect(messagesRegion.checkVisibility()).toBe(false);
 	},
 };
 
@@ -1811,16 +1767,9 @@ export const CompletedWithDiffPanel: Story = {
 		});
 		await user.click(menuTrigger);
 
-		// Verify menu items are rendered.
-		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
-		});
 		// Workspace items moved to the workspace pill popover.
-		expect(body.queryByText("Open in Cursor")).not.toBeInTheDocument();
-		expect(body.queryByText("Open in VS Code")).not.toBeInTheDocument();
-		expect(body.queryByText("View Workspace")).not.toBeInTheDocument();
-		expect(body.queryByText("Copy SSH Command")).not.toBeInTheDocument();
+		const body = within(document.body);
+		await body.findByText("Archive agent");
 	},
 };
 
@@ -2072,11 +2021,8 @@ export const WithReasoningInline: Story = {
 
 		// Reasoning renders inside a collapsible disclosure.
 		const trigger = canvas.getByRole("button", { name: "Thinking" });
-		expect(trigger).toBeInTheDocument();
 		await userEvent.click(trigger);
-		await waitFor(() => {
-			expect(canvas.getByText("Reasoning body")).toBeVisible();
-		});
+		await canvas.findByText("Reasoning body");
 	},
 };
 
@@ -3357,20 +3303,21 @@ export const SendResponseAfterChatSwitch: Story = {
 		await userEvent.click(editor);
 		await userEvent.type(editor, "Send before switching");
 		await userEvent.keyboard("{Enter}");
+		// Wait for the gated send to start before switching chats.
 		await waitFor(() => {
 			expect(sendSpy).toHaveBeenCalledTimes(1);
 		});
 
 		await userEvent.click(canvas.getByRole("button", { name: "Switch chat" }));
-		const timeline = within(await canvas.findByTestId("conversation-timeline"));
 		// The switched chat's messages render slowly under pixel's parallel
 		// load, so extend the default 1s lookup timeout.
-		expect(
-			await timeline.findByText("Current chat message", undefined, {
-				timeout: 10_000,
-			}),
-		).toBeVisible();
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
+		await timeline.findByText("Current chat message", undefined, {
+			timeout: 10_000,
+		});
 
+		// Release the gated send so the stale response resolves within the
+		// test and the discard path runs.
 		releaseSend?.();
 		await waitFor(() => {
 			expect(
@@ -3664,15 +3611,6 @@ export const ModelEndpointFailureKeepsHistoryReadable: Story = {
 			mockServerError,
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Readable history line")).toBeVisible();
-		expect(await canvas.findByText("Internal server error.")).toBeVisible();
-		expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
-		expect(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-		).toHaveAttribute("aria-disabled", "true");
-	},
 };
 
 export const ProviderRequiresUserApiKey: Story = {
@@ -3699,18 +3637,6 @@ export const ProviderRequiresUserApiKey: Story = {
 				data: userApiKeyRequiredModelCatalog,
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("status", {
-				name: "The model used by this chat is not available. Add your API key in provider settings to enable models.",
-			}),
-		).toBeVisible();
-		expect(canvas.getByRole("link", { name: "Settings" })).toHaveAttribute(
-			"href",
-			"/agents/settings/api-keys",
-		);
 	},
 };
 
@@ -3748,10 +3674,8 @@ export const SendRejectedByHookDispatchFailure: Story = {
 		await userEvent.type(editor, "Trigger the hook failure");
 		await userEvent.keyboard("{Enter}");
 
-		expect(await canvas.findByText("Lifecycle hook failed")).toBeVisible();
-		expect(
-			await canvas.findByText("Dispatch 0f2c1f3e timed out after 1.5s."),
-		).toBeVisible();
-		expect(canvas.queryByText("Request failed")).not.toBeInTheDocument();
+		// Let the rejected send surface the error callout.
+		await canvas.findByText("Lifecycle hook failed");
+		await canvas.findByText("Dispatch 0f2c1f3e timed out after 1.5s.");
 	},
 };

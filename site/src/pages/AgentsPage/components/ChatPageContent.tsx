@@ -98,6 +98,7 @@ export const workspaceSkillsFromChat = (
 interface ChatPageTimelineProps {
 	organizationId: string | undefined;
 	store: ChatStoreHandle;
+	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
 	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
@@ -121,6 +122,7 @@ interface ChatPageTimelineProps {
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	organizationId,
 	store,
+	chatFiles,
 	persistedError,
 	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
@@ -208,6 +210,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				<ConversationTimeline
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
+					chatFiles={chatFiles}
 					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 					streamState={streamState}
 					streamTools={streamTools}
@@ -258,6 +261,7 @@ interface ChatPageInputProps {
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
+	isReadOnly?: boolean;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -314,6 +318,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onPromoteQueuedMessage,
 	onInterrupt,
 	isInputDisabled,
+	isReadOnly = false,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -577,6 +582,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onCancelHistoryEdit={onCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
+			isReadOnly={isReadOnly}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}

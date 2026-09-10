@@ -62,7 +62,7 @@ group sync for each organization.
 1. As an Owner or Organization Admin, go to **Admin settings**, select
    **Organizations**, then **IdP Sync**:
 
-   ![IdP Sync - Group sync settings](../../images/admin/users/organizations/group-sync-empty.png)
+   ![IdP Sync - Group sync](../../images/admin/users/organizations/group-sync-empty.png)
 
 1. Enter the **Group sync field** and an optional **Regex filter**, then select
    **Save**.

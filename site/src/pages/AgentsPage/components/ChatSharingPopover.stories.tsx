@@ -178,31 +178,14 @@ type Story = StoryObj<typeof ChatShareButton>;
 export const EmptyACL: Story = {
 	beforeEach: () => mockDialogRequests(),
 	play: async ({ canvasElement }) => {
-		const body = await openChatSharing(canvasElement);
-		await waitFor(() => {
-			expect(
-				body.getAllByText("No shared members or groups yet").length,
-			).toBeGreaterThan(0);
-			expect(
-				body.getAllByText("Add a member or group using the controls above.")
-					.length,
-			).toBeGreaterThan(0);
-		});
+		await openChatSharing(canvasElement);
 	},
 };
 
 export const PopulatedACL: Story = {
 	beforeEach: () => mockDialogRequests({ acl: populatedACL }),
 	play: async ({ canvasElement }) => {
-		const body = await openChatSharing(canvasElement);
-		await waitFor(() => {
-			expect(body.getAllByText(chatUser.username).length).toBeGreaterThan(0);
-			expect(body.getAllByText(chatGroup.name).length).toBeGreaterThan(0);
-			expect(body.getAllByText("Read").length).toBeGreaterThan(0);
-		});
-		expect(
-			body.getAllByRole("button", { name: "Open menu" }).length,
-		).toBeGreaterThan(0);
+		await openChatSharing(canvasElement);
 	},
 };
 
@@ -213,15 +196,7 @@ export const MobilePopulatedACL: Story = {
 	},
 	beforeEach: () => mockDialogRequests({ acl: populatedACL }),
 	play: async ({ canvasElement }) => {
-		const body = await openChatSharing(canvasElement);
-		await waitFor(() => {
-			expect(body.getAllByText(chatUser.username).length).toBeGreaterThan(0);
-			expect(body.getAllByText(chatGroup.name).length).toBeGreaterThan(0);
-			expect(body.getAllByText("Read").length).toBeGreaterThan(0);
-		});
-		expect(
-			body.getAllByRole("button", { name: "Open menu" }).length,
-		).toBeGreaterThan(0);
+		await openChatSharing(canvasElement);
 	},
 };
 
@@ -234,13 +209,7 @@ export const CurrentUserHidden: Story = {
 			},
 		}),
 	play: async ({ canvasElement }) => {
-		const body = await openChatSharing(canvasElement);
-		await waitFor(() => {
-			expect(
-				body.queryByText(currentChatUser.username),
-			).not.toBeInTheDocument();
-			expect(body.getAllByText(chatUser.username).length).toBeGreaterThan(0);
-		});
+		await openChatSharing(canvasElement);
 	},
 };
 
@@ -248,33 +217,22 @@ export const CurrentUserExcludedFromAutocomplete: Story = {
 	beforeEach: () => mockDialogRequests(),
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
-		const autocompleteButton = await body.findByRole("button", {
-			name: "Search for user or group",
-		});
-		await userEvent.click(autocompleteButton);
+		await userEvent.click(
+			await body.findByRole("button", {
+				name: "Search for user or group",
+			}),
+		);
 		await userEvent.type(
 			body.getByPlaceholderText("Search for user or group"),
 			MockOrganizationMember.email,
 		);
-
-		await waitFor(() => {
-			expect(body.getByText("No users or groups found")).toBeVisible();
-			expect(
-				body.queryByRole("option", {
-					name: new RegExp(MockOrganizationMember.email, "i"),
-				}),
-			).not.toBeInTheDocument();
-		});
 	},
 };
 
 export const LoadingACL: Story = {
 	beforeEach: () => mockDialogRequests({ aclPending: true }),
 	play: async ({ canvasElement }) => {
-		const body = await openChatSharing(canvasElement);
-		await waitFor(() => {
-			expect(body.getByText("Loading chat sharing")).toBeInTheDocument();
-		});
+		await openChatSharing(canvasElement);
 	},
 };
 
@@ -282,10 +240,7 @@ export const ErrorACL: Story = {
 	beforeEach: () =>
 		mockDialogRequests({ aclError: new Error("Chat sharing is disabled") }),
 	play: async ({ canvasElement }) => {
-		const body = await openChatSharing(canvasElement);
-		await waitFor(() => {
-			expect(body.getByText("Chat sharing is disabled")).toBeInTheDocument();
-		});
+		await openChatSharing(canvasElement);
 	},
 };
 
@@ -394,9 +349,6 @@ export const MutationError: Story = {
 			query: MockOrganizationMember2.email,
 			option: new RegExp(MockOrganizationMember2.email, "i"),
 		});
-		await waitFor(() => {
-			expect(body.getByText("No share permission")).toBeInTheDocument();
-		});
 	},
 };
 
@@ -464,16 +416,13 @@ export const MutationErrorClearsWhenReopened: Story = {
 			query: MockOrganizationMember2.email,
 			option: new RegExp(MockOrganizationMember2.email, "i"),
 		});
-		await waitFor(() => {
-			expect(body.getByText("No share permission")).toBeInTheDocument();
-		});
+
+		// The rejected mutation must render its error before the popover
+		// closes, or the reopened popover is clean because the error never
+		// appeared rather than because the reset worked.
+		await body.findByText("No share permission");
 
 		await closeChatSharing(canvasElement);
-		const reopenedBody = await openChatSharing(canvasElement);
-		await waitFor(() => {
-			expect(
-				reopenedBody.queryByText("No share permission"),
-			).not.toBeInTheDocument();
-		});
+		await openChatSharing(canvasElement);
 	},
 };

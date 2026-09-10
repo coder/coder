@@ -646,6 +646,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
 						}
+						isReadOnly={isForbidden}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}
