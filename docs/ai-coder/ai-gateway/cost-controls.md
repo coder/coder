@@ -238,7 +238,7 @@ value means spend is under-counted. Because the price book ships with the
 release, a newly launched model is unpriced until you upgrade Coder or set a
 price for it yourself.
 
-Coder also notifies Owners weekly about recently used models that have no price.
+Coder also notifies Owners weekly about models used in the past week that have no price.
 
 ### Configure model prices
 
