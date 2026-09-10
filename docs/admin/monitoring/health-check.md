@@ -130,6 +130,7 @@ configured threshold to a higher value (this will not address the root cause).
 
 Coder reports this warning when the connected PostgreSQL server runs a major version below 14.
 PostgreSQL 13 is end-of-life and no longer receives upstream fixes.
+New built-in databases use PostgreSQL 16, but a built-in database created on PostgreSQL 13 stays on 13 because the embedded server can't upgrade its data directory in place.
 
 For a built-in database, follow the [built-in PostgreSQL migration guide](../setup/builtin-postgres-migration.md) to move your data to an external database on a supported PostgreSQL version.
 For an external database, upgrade the PostgreSQL server using your database provider's upgrade procedure.

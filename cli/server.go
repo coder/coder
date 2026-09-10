@@ -2436,18 +2436,30 @@ func embeddedPostgresURL(cfg config.Root) (string, error) {
 }
 
 // selectEmbeddedPostgresVersion picks the embedded PostgreSQL major version to
-// use for a built-in deployment. A fresh install (no existing data directory)
-// uses the latest supported version for current platform and security
-// coverage. An existing data directory keeps the original version, since
-// embedded-postgres wipes and reinitializes the data directory whenever the
-// requested major version doesn't match PG_VERSION on disk.
-//
-// revive:disable-next-line:flag-parameter // Not control flow, just selecting a version by install state.
-func selectEmbeddedPostgresVersion(dataDirExists bool) embeddedpostgres.PostgresVersion {
-	if dataDirExists {
-		return embeddedpostgres.V13
+// use for a built-in deployment. A fresh install (no PG_VERSION file in the
+// data directory) uses PostgreSQL 16. An existing data directory keeps the
+// major version recorded in its PG_VERSION file, since embedded-postgres wipes
+// and reinitializes the data directory whenever the requested major version
+// doesn't match PG_VERSION on disk. Coder has only ever shipped PostgreSQL 13
+// and 16, so any other PG_VERSION, or one that exists but can't be read, is
+// an error rather than a silent reinitialization of the deployment's data.
+func selectEmbeddedPostgresVersion(dataDir string) (embeddedpostgres.PostgresVersion, error) {
+	pgVersionPath := filepath.Join(dataDir, "PG_VERSION")
+	raw, err := os.ReadFile(pgVersionPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return embeddedpostgres.V16, nil
 	}
-	return embeddedpostgres.V16
+	if err != nil {
+		return "", xerrors.Errorf("read %s: %w", pgVersionPath, err)
+	}
+	switch major := strings.TrimSpace(string(raw)); major {
+	case "13":
+		return embeddedpostgres.V13, nil
+	case "16":
+		return embeddedpostgres.V16, nil
+	default:
+		return "", xerrors.Errorf("%s reports unsupported PostgreSQL major version %q; expected 13 or 16", pgVersionPath, major)
+	}
 }
 
 func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger, customCacheDir string) (string, func() error, error) {
@@ -2474,11 +2486,14 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	}
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
 
-	// Determine the data directory's existence once, before any retry
-	// attempt below might delete it, so version selection reflects whether
-	// this is a fresh install or an existing deployment.
-	_, err = os.Stat(filepath.Join(cfg.PostgresPath(), "data"))
-	dataDirExists := err == nil
+	// Determine the embedded Postgres version once, before any retry
+	// attempt below might delete the data directory, so version selection
+	// reflects the on-disk PG_VERSION at startup rather than a directory
+	// state that changed mid-retry.
+	pgVersion, err := selectEmbeddedPostgresVersion(filepath.Join(cfg.PostgresPath(), "data"))
+	if err != nil {
+		return "", nil, xerrors.Errorf("select built-in PostgreSQL version: %w", err)
+	}
 
 	// If the port is not defined, an available port will be found dynamically. This has
 	// implications in CI because here is no way to tell Postgres to use an ephemeral
@@ -2527,7 +2542,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 
 		ep := embeddedpostgres.NewDatabase(
 			embeddedpostgres.DefaultConfig().
-				Version(selectEmbeddedPostgresVersion(dataDirExists)).
+				Version(pgVersion).
 				BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
 				// Default BinaryRepositoryURL repo1.maven.org is flaky.
 				BinaryRepositoryURL("https://repo.maven.apache.org/maven2").

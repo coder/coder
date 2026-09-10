@@ -122,7 +122,12 @@ Coder connects to. If unset, PostgreSQL binaries will be downloaded from Maven
 (<https://repo1.maven.org/maven2>) and store all data in the config root.
 
 > [!NOTE]
-> Postgres 13 is the minimum supported version.
+> For an external database, PostgreSQL 13 is the minimum version Coder
+> connects to, but PostgreSQL 13 is end-of-life and Coder reports
+> [EDB03](../monitoring/health-check.md#edb03) for any version below 14.
+> New built-in databases use PostgreSQL 16. A built-in database created on
+> PostgreSQL 13 stays on 13 until you
+> [migrate it](./builtin-postgres-migration.md).
 
 If you are using the built-in PostgreSQL deployment and need to use `psql` (aka
 the PostgreSQL interactive terminal), output the connection URL with the

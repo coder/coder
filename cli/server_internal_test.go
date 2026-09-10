@@ -5,6 +5,8 @@ import (
 	"context"
 	"crypto/tls"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -47,12 +49,68 @@ func Test_selectEmbeddedPostgresVersion(t *testing.T) {
 
 	t.Run("FreshInstallUsesV16", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, embeddedpostgres.V16, selectEmbeddedPostgresVersion(false))
+		dir := filepath.Join(t.TempDir(), "data")
+		version, err := selectEmbeddedPostgresVersion(dir)
+		require.NoError(t, err)
+		assert.Equal(t, embeddedpostgres.V16, version)
 	})
 
-	t.Run("ExistingDataDirUsesV13", func(t *testing.T) {
+	t.Run("DataDirWithoutPGVersionUsesV16", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, embeddedpostgres.V13, selectEmbeddedPostgresVersion(true))
+		version, err := selectEmbeddedPostgresVersion(t.TempDir())
+		require.NoError(t, err)
+		assert.Equal(t, embeddedpostgres.V16, version)
+	})
+
+	for _, tt := range []struct {
+		name      string
+		pgVersion string
+		want      embeddedpostgres.PostgresVersion
+	}{
+		{name: "ExistingV13DataDirStaysOnV13", pgVersion: "13\n", want: embeddedpostgres.V13},
+		{name: "ExistingV16DataDirStaysOnV16", pgVersion: "16\n", want: embeddedpostgres.V16},
+		{name: "TrailingWhitespaceIgnored", pgVersion: " 13 \r\n", want: embeddedpostgres.V13},
+		{name: "NoTrailingNewline", pgVersion: "16", want: embeddedpostgres.V16},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "PG_VERSION"), []byte(tt.pgVersion), 0o600))
+			version, err := selectEmbeddedPostgresVersion(dir)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, version)
+		})
+	}
+
+	// embedded-postgres wipes the data directory when the requested version
+	// doesn't match PG_VERSION, so anything we can't map to a known version
+	// must fail instead of falling through to a fresh install.
+	for _, tt := range []struct {
+		name      string
+		pgVersion string
+	}{
+		{name: "EmptyPGVersion", pgVersion: ""},
+		{name: "UnknownMajorVersion", pgVersion: "14\n"},
+		{name: "GarbagePGVersion", pgVersion: "not-a-version\n"},
+	} {
+		t.Run(tt.name+"Errors", func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "PG_VERSION"), []byte(tt.pgVersion), 0o600))
+			_, err := selectEmbeddedPostgresVersion(dir)
+			require.ErrorContains(t, err, "unsupported PostgreSQL major version")
+		})
+	}
+
+	t.Run("UnreadablePGVersionErrors", func(t *testing.T) {
+		t.Parallel()
+		// A directory named PG_VERSION exists but can't be read as a file,
+		// which must not be mistaken for a fresh install.
+		dir := t.TempDir()
+		require.NoError(t, os.Mkdir(filepath.Join(dir, "PG_VERSION"), 0o700))
+		_, err := selectEmbeddedPostgresVersion(dir)
+		require.Error(t, err)
+		require.NotErrorIs(t, err, os.ErrNotExist)
 	})
 }
 

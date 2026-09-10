@@ -64,12 +64,11 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 		r.Severity = health.SeverityWarning
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDatabasePingSlow, "median database ping above threshold"))
 	}
-	// Surface a warning, without downgrading an existing error, when the
-	// connected PostgreSQL server is running an end-of-life major version.
+	// The connected PostgreSQL server is running an end-of-life major version.
+	// This is a warning, not an error: Coder still works, but the database no
+	// longer receives upstream fixes.
 	if opts.ServerVersionNum > 0 && opts.ServerVersionNum < 140000 {
-		if r.Severity == health.SeverityOK {
-			r.Severity = health.SeverityWarning
-		}
+		r.Severity = health.SeverityWarning
 		message := "PostgreSQL version is end-of-life; upgrade your PostgreSQL server to a supported version (14+)."
 		if opts.Builtin {
 			message = "Built-in PostgreSQL version is end-of-life; migrate to an external PostgreSQL database using the migration guide linked in the EDB03 documentation."
