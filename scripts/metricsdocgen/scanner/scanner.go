@@ -130,39 +130,45 @@ func main() {
 	logf("Successfully parsed %d metrics", len(metrics))
 }
 
+// sourceFile holds a parsed file and its declarations for metric extraction.
+type sourceFile struct {
+	path  string
+	file  *ast.File
+	decls declarations
+}
+
 // scanAllDirs scans all configured directories for metric definitions.
 func scanAllDirs() ([]Metric, error) {
-	var allMetrics []Metric
-
+	var files []*sourceFile
 	for _, dir := range scanDirs {
-		metrics, err := scanDirectory(dir)
+		parsed, err := scanDirectory(dir)
 		if err != nil {
 			return nil, xerrors.Errorf("scanning %s: %w", dir, err)
 		}
-
-		logf("scanning %s: found %d metrics", dir, len(metrics))
-		allMetrics = append(allMetrics, metrics...)
+		files = append(files, parsed...)
 	}
 
-	return allMetrics, nil
+	var metrics []Metric
+	for _, file := range files {
+		fileMetrics := scanFile(file)
+		if len(fileMetrics) > 0 {
+			logf("scanning %s: found %d metrics", file.path, len(fileMetrics))
+		}
+		metrics = append(metrics, fileMetrics...)
+	}
+	return metrics, nil
 }
 
-// scanDirectory recursively walks a directory and extracts metrics from all Go files.
-func scanDirectory(root string) ([]Metric, error) {
-	var metrics []Metric
-
+// scanDirectory recursively parses non-test Go files in a directory.
+func scanDirectory(root string) ([]*sourceFile, error) {
+	var files []*sourceFile
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Skip non-Go files.
-		if d.IsDir() || !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-
-		// Skip test files.
-		if strings.HasSuffix(path, "_test.go") {
+		// Skip non-Go files and test files.
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 
@@ -173,46 +179,35 @@ func scanDirectory(root string) ([]Metric, error) {
 			}
 		}
 
-		fileMetrics, err := scanFile(path)
+		file, err := parseSourceFile(path)
 		if err != nil {
 			return xerrors.Errorf("scanning %s: %w", path, err)
 		}
-
-		if len(fileMetrics) > 0 {
-			logf("scanning %s: found %d metrics", path, len(fileMetrics))
-		}
-		metrics = append(metrics, fileMetrics...)
-
+		files = append(files, file)
 		return nil
 	})
-
-	return metrics, err
+	return files, err
 }
 
-// scanFile parses a single Go file and extracts all Prometheus metric definitions.
-func scanFile(path string) ([]Metric, error) {
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+// parseSourceFile parses a file once and collects its declarations.
+func parseSourceFile(path string) (*sourceFile, error) {
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
 	if err != nil {
 		return nil, xerrors.Errorf("parsing file: %w", err)
 	}
-
-	// Collect exported constants into the global package declarations map.
 	collectPackageConsts(file)
+	return &sourceFile{path: path, file: file, decls: collectDecls(file)}, nil
+}
 
-	// Collect file-local const and var declarations for resolving references.
-	decls := collectDecls(file)
-
+// scanFile extracts metric definitions from an already parsed file.
+func scanFile(file *sourceFile) []Metric {
 	var metrics []Metric
-
-	// Walk the AST looking for metric registration calls.
-	ast.Inspect(file, func(n ast.Node) bool {
+	ast.Inspect(file.file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
-
-		metric, ok := extractMetricFromCall(call, decls)
+		metric, ok := extractMetricFromCall(call, file.decls)
 		if ok {
 			if metric.Help == "" {
 				warnf("metric %q has no HELP description, skipping", metric.Name)
@@ -222,11 +217,9 @@ func scanFile(path string) ([]Metric, error) {
 			}
 			metrics = append(metrics, metric)
 		}
-
 		return true
 	})
-
-	return metrics, nil
+	return metrics
 }
 
 // collectPackageConsts collects exported string constants from a file into
