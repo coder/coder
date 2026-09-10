@@ -24,7 +24,7 @@ func TestHandleCallTool_ErrorMapping(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, nil)
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
 	api := NewAPI(m)

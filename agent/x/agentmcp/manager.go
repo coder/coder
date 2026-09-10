@@ -139,19 +139,24 @@ type serverEntry struct {
 
 // NewManager creates a new MCP client manager. The ctx bounds
 // subprocess lifetime. The execer applies resource limits to
-// MCP server subprocesses. The envInfo reports the user's environment,
-// home, and shell; a nil value defaults to the current process. The
-// updateEnv callback enriches the subprocess environment to match
-// interactive sessions. The workingDir callback reports the workspace
-// working directory for stdio servers.
+// MCP server subprocesses. The fs and envInfo report the filesystem and
+// the user's environment, home, and shell; nil values default to the OS
+// filesystem and the current process. The updateEnv callback enriches
+// the subprocess environment to match interactive sessions. The
+// workingDir callback reports the workspace working directory for stdio
+// servers.
 func NewManager(
 	ctx context.Context,
 	logger slog.Logger,
 	execer agentexec.Execer,
+	filesystem afero.Fs,
 	envInfo usershell.EnvInfoer,
 	updateEnv func([]string) ([]string, error),
 	workingDir func() string,
 ) *Manager {
+	if filesystem == nil {
+		filesystem = afero.NewOsFs()
+	}
 	if envInfo == nil {
 		envInfo = &usershell.SystemEnvInfo{}
 	}
@@ -162,7 +167,7 @@ func NewManager(
 		logger:        logger,
 		clock:         quartz.NewReal(),
 		execer:        execer,
-		fs:            afero.NewOsFs(),
+		fs:            filesystem,
 		envInfo:       envInfo,
 		updateEnv:     updateEnv,
 		workingDir:    workingDir,
@@ -904,7 +909,6 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Tr
 		env := m.buildEnv(ctx, cfg.Env)
 		cmd := m.execer.CommandContext(ctx, cfg.Command, cfg.Args...)
 		cmd.Env = env
-		// Relative paths in Args resolve against the workspace dir.
 		cmd.Dir = m.resolveWorkingDir()
 		return &mcp.CommandTransport{Command: cmd}, nil
 	case "http", "":

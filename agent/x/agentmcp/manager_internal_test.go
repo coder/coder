@@ -281,7 +281,7 @@ func TestManager_WaitReloadTimeout(t *testing.T) {
 	timerTrap := clock.Trap().NewTimer("agentmcp", "tools_reload")
 	defer timerTrap.Close()
 
-	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil)
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	m.clock = clock
 	t.Cleanup(func() { _ = m.Close() })
 
@@ -309,7 +309,7 @@ func TestCreateTransport_StdioSetsWorkingDir(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	workDir := t.TempDir()
-	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil,
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil, nil,
 		func() string { return workDir })
 	t.Cleanup(func() { _ = m.Close() })
 
